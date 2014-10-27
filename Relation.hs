@@ -136,7 +136,7 @@ rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
     mkRelation newAttrs newTupSet
   where
     attributeValid = attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
-    newAttrs = M.insert newAttrName (renameAttribute newAttrName (oldAttrs M.! oldAttrName)) oldAttrs
+    newAttrs = M.delete oldAttrName $ M.insert newAttrName (renameAttribute newAttrName (oldAttrs M.! oldAttrName)) oldAttrs
     newTupSet = HS.map tupsetmapper oldTupSet
     tupsetmapper tuple = tupleRenameAttribute oldAttrName newAttrName tuple
     

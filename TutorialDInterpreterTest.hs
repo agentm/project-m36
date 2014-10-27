@@ -13,9 +13,11 @@ main = runTestTT (TestList tests)
                       ("false", Right relationFalse),
                       ("true union false", Right relationTrue),
                       ("true; false", Right relationFalse),
-                      ("a:=relation{a int}", mkRelation simpleAAttributes HS.empty)
+                      ("a:=relation{a int}", mkRelation simpleAAttributes HS.empty),
+                      ("b:=relation{c int} rename {c as d}", mkRelation simpleBAttributes HS.empty)
                       ]
     simpleAAttributes = M.fromList [("a", Attribute "a" IntAtomType)]
+    simpleBAttributes = M.fromList [("d", Attribute "d" IntAtomType)]
 
 
 testSimple1 = TestCase $ assertTutdEqual "true" (Right relationTrue)

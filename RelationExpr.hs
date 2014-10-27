@@ -25,6 +25,7 @@ data RelationalExpr where
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Assign :: String -> RelationalExpr -> RelationalExpr
   MultipleExpr :: [RelationalExpr] -> RelationalExpr
+  Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
@@ -82,7 +83,13 @@ eval (MakeStaticRelation attributes tupleSet) = do
   case mkRelation attributes tupleSet of
     Right rel -> return $ Right rel
     Left err -> return $ Left err
-
+    
+eval (Rename oldAttrName newAttrName relExpr) = do
+  evald <- eval relExpr
+  case evald of
+    Right rel -> return $ rename oldAttrName newAttrName rel
+    Left err -> return $ Left err
+      
 emptyRelVarContext :: RelVarContext
 emptyRelVarContext = M.empty
 

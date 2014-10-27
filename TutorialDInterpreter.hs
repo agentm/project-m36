@@ -79,9 +79,22 @@ assignP = do
   relVarName <- identifier
   reservedOp ":="
   return $ Assign relVarName
+  
+renameClause = do
+  oldAttr <- identifier 
+  reservedOp "as"
+  newAttr <- identifier
+  return $ (oldAttr, newAttr)
+  
+renameP :: Parser (RelationalExpr -> RelationalExpr)
+renameP = do
+  reservedOp "rename"
+  (oldAttr, newAttr) <- braces renameClause
+  return $ Rename oldAttr newAttr 
 
 relOperators = [
   [Postfix projectOp],
+  [Postfix renameP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
   [Infix (reservedOp "union" >> return Union) AssocLeft],
   [Prefix (try assignP)]
