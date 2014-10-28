@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs,ExistentialQuantification #-}
 module Relation where
 import qualified Data.Map as M
-import qualified Data.Serialize as SZ
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.HashSet as HS

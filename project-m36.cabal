@@ -1,0 +1,16 @@
+Name: project-m36
+Version: 0.1
+License: PublicDomain
+Build-Type: Simple
+Homepage: https://github.com/agentm/project-m36
+Category: Relational Algebra
+Cabal-Version: >= 1.2
+
+Library
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable
+    Exposed-Modules: TutorialDInterpreter
+
+Test-Suite test-tutoriald
+    type: exitcode-stdio-1.0
+    main-is: TutorialDInterpreterTest.hs
+    Build-Depends: base,HUnit
