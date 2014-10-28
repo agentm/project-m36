@@ -13,6 +13,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Control.Applicative ((<$), (<*), (*>), liftA, liftA2)
 import Control.Monad.State
+import System.Console.Readline
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -126,3 +127,15 @@ example9 = "relA := relation { SNO CHAR }"
 interpret :: RelVarContext -> String -> (Either RelationalError Relation, RelVarContext)
 interpret context tutdstring = runState (eval (parseString tutdstring)) context
 
+reprLoop :: RelVarContext -> IO ()
+reprLoop context = do
+  maybeLine <- readline "TutorialD: "
+  case maybeLine of
+    Nothing -> return ()
+    Just line -> do 
+      addHistory line
+      case fst (interpret context line) of 
+        Right rel -> putStrLn $ show rel
+        Left err -> putStrLn $ show err
+      reprLoop context
+      

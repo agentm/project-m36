@@ -1,0 +1,4 @@
+# Project:M36
+## Relational Algebra Engine
+
+Project:M36 implements a relational algebra engine as (mostly) specified by Chris Date. 
