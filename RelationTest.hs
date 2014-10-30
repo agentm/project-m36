@@ -1,12 +1,19 @@
 import Test.HUnit
 import RelationType
 import Relation
+import RelationTuple
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import System.Exit
+import Control.Monad
 
-testList = TestList [testRelation relationTrue, testRelation relationFalse]
-main = runTestTT testList
+
+testList = TestList [testRelation relationTrue, testRelation relationFalse,
+                     testRename1, testRename2]
+main = do 
+  counts <- runTestTT testList
+  if errors counts + failures counts > 0 then exitFailure else exitSuccess
 
 testRelation :: Relation -> Test
 testRelation rel = TestCase $ assertEqual "nope" relationValidation (Right rel)
@@ -40,4 +47,19 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation _ tupMapSet)
       _ -> False
     invalidSet = HS.filter (not . tupleTypeCheck) tupMapSet
     
+simpleRel = case mkRelation attrs tupleSet of
+  Right rel -> rel
+  where
+    attrs = M.fromList [("a", Attribute "a" StringAtomType), ("b", Attribute "b" StringAtomType)]
+    tupleSet = HS.fromList $ mkRelationTuples attrs [
+      M.fromList [("a", StringAtom "spam"), ("b", StringAtom "spam2")]
+      ]
+
+--rename tests
+testRename1 :: Test
+testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ RelationalError 1 "No such attribute")
+
+testRename2 :: Test
+testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRel) (Left $ RelationalError 1 "Attribute \"a\" already in use.")
+
 

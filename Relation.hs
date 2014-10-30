@@ -130,10 +130,13 @@ tupleProject projectAttrs tupleIn@(RelationTuple tupleInMap) = RelationTuple $ M
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
   if not attributeValid
-     then Left $ RelationalError 1 "No such attribute"
+       then Left $ RelationalError 1 "No such attribute"
+  else if newAttributeInUse
+       then Left $ RelationalError 1 ("Attribute \"" ++ newAttrName ++ "\" already in use.")
   else
     mkRelation newAttrs newTupSet
   where
+    newAttributeInUse = attributeNamesContained (S.singleton newAttrName) (attributeNames rel)
     attributeValid = attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
     newAttrs = M.delete oldAttrName $ M.insert newAttrName (renameAttribute newAttrName (oldAttrs M.! oldAttrName)) oldAttrs
     newTupSet = HS.map tupsetmapper oldTupSet

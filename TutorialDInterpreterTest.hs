@@ -5,8 +5,11 @@ import Relation
 import RelationType
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import System.Exit
 
-main = runTestTT (TestList tests)
+main = do 
+  counts <- runTestTT (TestList tests)
+  if errors counts + failures counts > 0 then exitFailure else exitSuccess
   where
     tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicRelVarContext tutd expected) simpleRelTests
     simpleRelTests = [("true", Right relationTrue),

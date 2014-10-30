@@ -13,4 +13,9 @@ Executable tutd
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
     main-is: TutorialDInterpreterTest.hs
-    Build-Depends: base,HUnit
+    Build-Depends: base,HUnit,Cabal
+
+Test-Suite test-relation
+    type: exitcode-stdio-1.0
+    main-is: RelationTest.hs
+    Build-Depends: base,HUnit,cabal-test-hunit,Cabal
