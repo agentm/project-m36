@@ -42,7 +42,6 @@ atomValueType :: Atom -> AtomType
 atomValueType (StringAtom _) = StringAtomType
 atomValueType (IntAtom _) = IntAtomType
 atomValueType (RelationAtom rel) = RelationAtomType (attributes rel)
-  
 
 instance Err.Error RelationalError where
 
@@ -52,6 +51,8 @@ mkRelation attrs tupleSet =
   --check that all tuples have keys (1-N) where N is the attribute count
   if differentTupleCounts
      then Left $ RelationalError 1 "Tuple attribute count mismatch"
+  else if not (fst (verifyRelationTupleSet tupleSet))
+     then Left $ RelationalError 1 "Tuple values not of the same type for same keys"
   else if attrCountMismatch
      then Left $ RelationalError 1 "Attribute count mismatch"
   else
@@ -64,35 +65,6 @@ mkRelation attrs tupleSet =
                         else False --empty tuple set is always OK
     differentTupleCounts = HS.size tupleCounts > 1
 
-r1 = case mkRelation attributes tupleSet1 of
-  Right x -> x
-  Left x -> relationFalse
-  where 
-    tupleSet1 = HS.fromList [tuple1,tuple2]
-    tuple1 = mkRelationTuple (S.fromList ["hair"]) $ M.fromList [("hair", StringAtom "brown")]
-    tuple2 = mkRelationTuple (S.fromList ["hair"]) $ M.fromList [("hair", StringAtom "blonde")]
-    attributes = M.singleton "hair" (Attribute "hair" StringAtomType)
-    
-testr1 = Relation attributes tupleSet
-  where
-    attributes = M.fromList [("hair", Attribute "hair" StringAtomType), ("name", Attribute "name" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attributes [M.fromList [("name", StringAtom "spammo"),("hair", StringAtom "brown")]]
-    
-testr2 = Relation attributes tupleSet
-  where
-    attributes = M.singleton "hair" (Attribute "hair" StringAtomType)
-    tupleSet = HS.fromList $ mkRelationTuples attributes [M.fromList [("name", StringAtom "spammo")],M.fromList [("name", StringAtom "gonk")]]
-    
-testcitiesr = Relation attributes tupleSet    
-  where
-    attributes = M.singleton "name" (Attribute "name" StringAtomType)
-    tupleSet = HS.fromList $ mkRelationTuples attributes [M.fromList [("name", StringAtom "Boston"), ("name", StringAtom "Cambridge")]]
-    
-testrinr = Relation attributes tupleSet    
-  where
-    attributes = M.fromList [("state", Attribute "state" StringAtomType), ("cities", Attribute "cities" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attributes [M.fromList [("state", StringAtom "MA"), ("cities", RelationAtom testcitiesr)]]
-    
 relationTrue = Relation M.empty $ HS.singleton (RelationTuple M.empty)
 relationFalse = Relation M.empty emptyTupleSet
 
@@ -173,8 +145,8 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 -}
   
 --algorithm: self-join with image relation
-group2 :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
-group2 groupAttrNames newAttrName rel@(Relation attrs tupleSet) = do
+group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
+group groupAttrNames newAttrName rel@(Relation attrs tupleSet) = do
   nonGroupProjection <- project nonGroupAttrNames rel
   relFold folder (Right $ Relation newAttrs emptyTupleSet) nonGroupProjection
     where
@@ -335,11 +307,3 @@ relvarSP = mkRelation attributes tupleSet
                  
 sp = case relvarSP of { Right r -> r }
 
-grouptest = case x of 
-  Right x -> x 
-  where
-    x = group2 (S.fromList ["CITY", "SNAME", "S#"]) "X" s
-
-ungrouptest = case x of 
-  Right x -> x
-  where x = ungroup "X" grouptest 
