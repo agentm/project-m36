@@ -2,6 +2,7 @@ import Test.HUnit
 import RelationType
 import Relation
 import RelationTuple
+import RelationTupleSet
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -49,6 +50,7 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation _ tupMapSet)
     
 simpleRel = case mkRelation attrs tupleSet of
   Right rel -> rel
+  Left err -> undefined
   where
     attrs = M.fromList [("a", Attribute "a" StringAtomType), ("b", Attribute "b" StringAtomType)]
     tupleSet = HS.fromList $ mkRelationTuples attrs [
@@ -62,4 +64,11 @@ testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relatio
 testRename2 :: Test
 testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRel) (Left $ RelationalError 1 "Attribute \"a\" already in use.")
 
-
+--mkRelation tests
+--test tupleset key mismatch failure
+testMkRelation1 :: Test
+testMkRelation1 = TestCase $ assertEqual "key mismatch" (mkRelation testAttrs testTupSet) (Left $ RelationalError 1 "Tuple values not of the same type for same keys")
+  where
+    testAttrs = M.singleton "a" (Attribute "a" StringAtomType)
+    testTupSet = HS.fromList [(RelationTuple (M.singleton "a" $ StringAtom "v")),
+                               RelationTuple (M.singleton "a" $ IntAtom 2)]
