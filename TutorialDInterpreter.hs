@@ -3,6 +3,7 @@ import RelationType
 import Relation
 import RelationExpr
 import RelationTuple
+import RelationTerm
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -135,7 +136,7 @@ reprLoop context = do
     Just line -> do 
       addHistory line
       case fst (interpret context line) of 
-        Right rel -> putStrLn $ show rel
+        Right rel -> putStrLn $ showRelation rel
         Left err -> putStrLn $ show err
       reprLoop context
       
