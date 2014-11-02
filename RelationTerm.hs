@@ -92,8 +92,10 @@ repeatString :: Int -> String -> String
 repeatString c s = concat (take c (repeat s))
 
 showRelation :: Relation -> String
-showRelation = renderTable . relationAsTable
-                                  
+showRelation rel
+  | rel == relationTrue = "true"
+  | rel == relationFalse = "false"                     
+  | otherwise = renderTable (relationAsTable rel)
   
     
 
