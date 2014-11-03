@@ -19,7 +19,7 @@ type Attributes = M.Map AttributeName Attribute --attributes keys by attribute n
 type RelationTupleSet = HS.HashSet RelationTuple 
 
 instance Hash.Hashable RelationTuple where
-  hash tup = Hash.hash $ show tup
+  hashWithSalt salt tup = Hash.hashWithSalt salt (show tup)
     
 data RelationTuple = RelationTuple (M.Map AttributeName Atom) deriving (Eq, Show)
 
