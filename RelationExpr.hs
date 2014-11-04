@@ -3,12 +3,10 @@ module RelationExpr where
 import Relation
 import RelationTuple
 import RelationType
-import RelationHTML
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
-import Debug.Trace
 
 type RelVarContext = M.Map String Relation
 

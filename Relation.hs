@@ -3,14 +3,10 @@
 module Relation where
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.List as L
 import qualified Data.HashSet as HS
-import qualified Data.Hashable as Hash
 import qualified Control.Monad.Error as Err
 
-import Debug.Trace
 import RelationType
-import RelationAtom
 import RelationTuple
 import RelationAttribute
 import RelationTupleSet
@@ -153,7 +149,6 @@ group groupAttrNames newAttrName rel@(Relation attrs tupleSet) = do
       newAttrs = M.insert newAttrName groupAttr (attributesForNames nonGroupAttrNames rel)
       groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames nonGroupAttrNames rel))
       nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
-      newAttrNames = S.insert newAttrName nonGroupAttrNames
       folder tupleIn acc = case acc of
         Left err -> Left err
         Right acc -> union acc (Relation newAttrs (HS.singleton (tupleExtend tupleIn (matchingRelTuple tupleIn))))
@@ -174,7 +169,6 @@ restrictEq (RelationTuple tupMap) rel = restrict filter rel
 ungroup :: AttributeName -> Relation -> Either RelationalError Relation
 ungroup relvalAttrName rel = relFold relFolder (Right $ Relation newAttrs emptyTupleSet) rel
   where
-    newAttrNames = M.keysSet newAttrs
     newAttrs = M.union (attributesForRelval relvalAttrName rel) nonGroupAttrs
     nonGroupAttrs = M.delete relvalAttrName (attributes rel)
     relFolder :: RelationTuple -> Either RelationalError Relation -> Either RelationalError Relation
@@ -191,7 +185,6 @@ tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either Relationa
 tupleUngroup relvalAttrName newAttrs tuple@(RelationTuple tupMap) = case (tupMap M.! relvalAttrName) of
   (RelationAtom relvalRelation) -> relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
     where
-      newAttrNameSet = M.keysSet newAttrs
       nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
       nonGroupAttrNames = M.keysSet newAttrs
       folder tupleIn acc = case acc of
@@ -207,7 +200,6 @@ tupleUngroup relvalAttrName newAttrs tuple@(RelationTuple tupMap) = case (tupMap
 attributesForRelval :: AttributeName -> Relation -> Attributes
 attributesForRelval relvalAttrName relIn@(Relation attrs tupleSet) = attributes relvalRelation 
   where
-    relvalRelationAttrs = attributes relvalRelation
     --this is only temporarily needed until the Relation stores the types of the columns as data- hack alert
     --find a tuple with attributes to steal to ungroup
     oneTuple :: RelationTupleSet -> RelationTuple
