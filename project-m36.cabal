@@ -9,6 +9,7 @@ Cabal-Version: >= 1.2
 Executable tutd
     Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,readline
     main-is: tutd.hs
+    GHC-Options: -fwarn-unused-imports -fwarn-unused-binds	
 
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0

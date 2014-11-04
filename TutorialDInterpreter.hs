@@ -1,8 +1,6 @@
 module TutorialDInterpreter where
 import RelationType
-import Relation
 import RelationExpr
-import RelationTuple
 import RelationTerm
 import Text.Parsec
 import Text.Parsec.String
@@ -12,7 +10,7 @@ import qualified Text.Parsec.Token as Token
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Control.Applicative ((<$), (<*), (*>), liftA, liftA2)
+import Control.Applicative (liftA)
 import Control.Monad.State
 import System.Console.Readline
 
