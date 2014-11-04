@@ -133,11 +133,12 @@ reprLoop context = do
     Nothing -> return ()
     Just line -> do 
       addHistory line
-      case interpret context line of
-        (Right rel, contextup) -> do
+      let (value, contextup) = interpret context line 
+      case value of
+        (Right rel) -> do
           putStrLn $ showRelation rel
           reprLoop contextup
-        (Left err, _) -> do
+        (Left err) -> do
           putStrLn $ show err
           reprLoop context
       
