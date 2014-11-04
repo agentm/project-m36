@@ -135,8 +135,11 @@ reprLoop context = do
     Nothing -> return ()
     Just line -> do 
       addHistory line
-      case fst (interpret context line) of 
-        Right rel -> putStrLn $ showRelation rel
-        Left err -> putStrLn $ show err
-      reprLoop context
+      case interpret context line of
+        (Right rel, contextup) -> do
+          putStrLn $ showRelation rel
+          reprLoop contextup
+        (Left err, _) -> do
+          putStrLn $ show err
+          reprLoop context
       
