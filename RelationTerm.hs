@@ -36,12 +36,23 @@ type Table = ([Cell], [[Cell]]) --header, body
 addRow :: [Cell] -> Table -> Table
 addRow cells (header,body) = (header, body ++ [cells])
 
-columnLocations :: Table -> [Int]
-columnLocations (header, body) = foldl sizeFolder (head cellSizes) cellSizes
+--calculate maximum per-row and per-column sizes    
+
+cellLocations :: Table -> ([Int],[Int]) --column size, row size
+cellLocations tab@(header, body) = (maxWidths, maxHeights)
   where
-    cellSizes = map (\row -> map length row) (body ++ [header]) --bar padding
-    sizeFolder acc row = mergeMax row acc
-    mergeMax a b = map (\(x,y) -> if x > y then x else y) (zip a b)
+    cellSizeMatrix = cellSizes tab
+    maxWidths = foldl mergeMax (baseSize (length cellSizeMatrix)) (map fst cellSizeMatrix)
+    baseSize num = take num (repeat 0)
+    rowHeights = map snd cellSizeMatrix
+    maxHeights = map (L.maximumBy compare) rowHeights
+    mergeMax a b = map (\(a,b) -> max a b) (zip a b)
+    
+cellSizes :: Table -> [([Int], [Int])]    
+cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . lines) row)) allRows
+  where
+    maxRowWidth row = L.maximumBy compare (map length (lines row))
+    allRows = [header] ++ body
 
 relationAsTable :: Relation -> Table
 relationAsTable rel@(Relation attributes tupleSet) = (header, body)
@@ -58,31 +69,38 @@ showAtom (IntAtom i) = show i
 showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
 
 renderTable :: Table -> String
-renderTable table = renderHeader table colLocations ++ renderBody (snd table) colLocations
+renderTable table = renderHeader table (fst cellLocs) ++ renderBody (snd table) cellLocs
   where
-    colLocations = columnLocations table  
+    cellLocs = cellLocations table  
     
 renderHeader :: Table -> [Int] -> String
 renderHeader (header, body) columnLocations = renderTopBar ++ renderHeaderNames ++ renderBottomBar ++ "\n"
   where
     renderTopBar = boxTL ++ concat (L.intersperse boxTB (map (\x -> repeatString x boxH) columnLocations)) ++ boxTR ++ "\n"
-    renderHeaderNames = renderRow header columnLocations boxV
+    renderHeaderNames = renderRow header columnLocations 1 boxV
     renderBottomBar = if length body == 0 then ""
                       else renderHBar boxLB boxC boxRB columnLocations
                         
 renderHBar :: String -> String -> String -> [Int] -> String
 renderHBar left middle end columnLocations = left ++ concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) ++ end
 
-leftPaddedString :: Int -> String -> String
-leftPaddedString size str = str ++ repeatString (size - length str) " "
-  
-renderRow :: [Cell] -> [Int] -> String -> String
-renderRow cells columnLocations interspersed = boxV ++ concat (L.intersperse interspersed (map (\(size, value) -> leftPaddedString size value) (zip columnLocations cells))) ++ boxV ++ "\n"
-
-renderBody :: [[Cell]] -> [Int] -> String
-renderBody cellMatrix columnLocations = renderRows ++ renderBottomBar
+leftPaddedString :: Int -> Int -> String -> String
+leftPaddedString lineNum size str = paddedLines !! lineNum
   where
-    renderRows = concat (map (\r-> renderRow r columnLocations boxV) cellMatrix)
+    paddedLines = map (\s -> s ++ repeatString (size - length s) " ") (lines str ++ repeat "") 
+  
+renderRow :: [Cell] -> [Int] -> Int -> String -> String
+renderRow cells columnLocations rowHeight interspersed = unlines $ map renderOneLine [0..rowHeight-1]
+  where
+    renderOneLine lineNum = boxV ++ concat (L.intersperse interspersed (map (\(size, value) -> leftPaddedString lineNum size value) (zip columnLocations cells))) ++ boxV
+
+renderBody :: [[Cell]] -> ([Int],[Int]) -> String
+renderBody cellMatrix cellLocations = renderRows ++ renderBottomBar
+  where
+    columnLocations = fst cellLocations
+    rowLocations = snd cellLocations
+    renderRows = concat (map (\(row, rowHeight)-> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
+    rowHeightMatrix = zip cellMatrix (tail rowLocations)
     renderBottomBar = renderHBar boxBL boxBB boxBR columnLocations
 
 orderedAttributeNames :: Relation -> [AttributeName]
@@ -97,6 +115,7 @@ showRelation rel
   | rel == relationFalse = "false"                     
   | otherwise = renderTable (relationAsTable rel)
   
-    
 
+simpleExample = s
+groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
   
