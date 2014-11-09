@@ -17,7 +17,7 @@ import System.Console.Readline
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
         where tutD = emptyDef {
-                Token.reservedOpNames = ["join", "where", "union"],
+                Token.reservedOpNames = ["join", "where", "union", "group", "ungroup"],
                 Token.reservedNames = [],
                 Token.identStart = letter,
                 Token.identLetter = alphaNum}
@@ -32,7 +32,7 @@ semi = Token.semi lexer
 
 --used in projection
 attributeList :: Parser [AttributeName]
-attributeList = braces (sepBy identifier comma)
+attributeList = sepBy identifier comma
 
 makeRelation :: Parser RelationalExpr
 makeRelation = do
@@ -72,7 +72,7 @@ relTerm = parens relExpr
           <|> relVarP
           
 projectOp = do
-  attrs <- attributeList
+  attrs <- braces attributeList
   return $ Project (S.fromList attrs)
   
 assignP = do
@@ -91,10 +91,31 @@ renameP = do
   reservedOp "rename"
   (oldAttr, newAttr) <- braces renameClause
   return $ Rename oldAttr newAttr 
+  
+groupClause = do  
+  attrs <- braces attributeList
+  reservedOp "as"
+  newAttrName <- identifier
+  return $ (attrs, newAttrName)
+  
+groupP :: Parser (RelationalExpr -> RelationalExpr)
+groupP = do
+  reservedOp "group"
+  (groupAttrList, groupAttrName) <- parens groupClause
+  return $ Group (S.fromList groupAttrList) groupAttrName
+  
+--in "Time and Relational Theory" (2014), Date's Tutorial D grammar for ungroup takes one attribute, while in previous books, it take multiple arguments. Let us assume that nested ungroups are the same as multiple attributes.
+ungroupP :: Parser (RelationalExpr -> RelationalExpr)
+ungroupP = do
+  reservedOp "ungroup"
+  rvaAttrName <- identifier
+  return $ Ungroup rvaAttrName
+           
 
 relOperators = [
   [Postfix projectOp],
   [Postfix renameP],
+  [Postfix groupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
   [Infix (reservedOp "union" >> return Union) AssocLeft],
   [Prefix (try assignP)]

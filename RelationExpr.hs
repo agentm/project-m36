@@ -24,6 +24,8 @@ data RelationalExpr where
   Assign :: String -> RelationalExpr -> RelationalExpr
   MultipleExpr :: [RelationalExpr] -> RelationalExpr
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
@@ -86,6 +88,18 @@ eval (Rename oldAttrName newAttrName relExpr) = do
   evald <- eval relExpr
   case evald of
     Right rel -> return $ rename oldAttrName newAttrName rel
+    Left err -> return $ Left err
+    
+eval (Group oldAttrNameSet newAttrName relExpr) = do
+  evald <- eval relExpr
+  case evald of 
+    Right rel -> return $ group oldAttrNameSet newAttrName rel
+    Left err -> return $ Left err
+    
+eval (Ungroup attrName relExpr) = do
+  evald <- eval relExpr
+  case evald of
+    Right rel -> return $ ungroup attrName rel
     Left err -> return $ Left err
       
 emptyRelVarContext :: RelVarContext
