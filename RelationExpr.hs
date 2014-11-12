@@ -3,6 +3,7 @@ module RelationExpr where
 import Relation
 import RelationTuple
 import RelationType
+import RelationalError
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -49,7 +50,7 @@ eval (RelationVariable name) = do
   relvarTable <- get
   return $ case M.lookup name relvarTable of
     Just res -> Right res
-    Nothing -> Left (RelationalError 1 (name ++ " has not been defined."))
+    Nothing -> Left $ RelvarNotDefinedError name 
 
 eval (Project attrNameSet expr) = do
     rel <- eval expr

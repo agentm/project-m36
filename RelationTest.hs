@@ -1,6 +1,7 @@
 import Test.HUnit
 import RelationType
 import Relation
+import RelationalError
 import RelationTuple
 import RelationTupleSet
 import qualified Data.Set as S
@@ -30,7 +31,7 @@ validateRelation rel = do
 validateAttrNamesMatchTupleAttrNames :: Relation -> Either RelationalError Relation
 validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet) 
   | HS.null invalidSet = Right rel
-  | otherwise = Left (RelationalError 1 "Tuple attributes do not match relation attributes")
+  | otherwise = Left $ AttributeNameMismatchError ""  
   where
     nameCheck (RelationTuple tupMap) = attributeNames rel == M.keysSet tupMap
     relAttrNames = attributeNames rel
@@ -40,7 +41,7 @@ validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet)
 validateAttrTypesMatchTupleAttrTypes :: Relation -> Either RelationalError Relation
 validateAttrTypesMatchTupleAttrTypes rel@(Relation _ tupMapSet) 
    | HS.null invalidSet = Right rel
-   | otherwise = Left (RelationalError 1 "Tuple types do not match relation attribute types")
+   | otherwise = Left (TupleAttributeTypeMismatchError 0)
   where
     tupleTypeCheck (RelationTuple tupMap) = M.null $ M.filterWithKey attrTypeCheck tupMap
     attrTypeCheck attrName atomValue = case attributeTypeForName attrName rel of
@@ -59,15 +60,15 @@ simpleRel = case mkRelation attrs tupleSet of
 
 --rename tests
 testRename1 :: Test
-testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ RelationalError 1 "No such attribute")
+testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ AttributeNameMismatchError "")
 
 testRename2 :: Test
-testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRel) (Left $ RelationalError 1 "Attribute \"a\" already in use.")
+testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRel) (Left $ AttributeNameInUseError "a")
 
 --mkRelation tests
 --test tupleset key mismatch failure
 testMkRelation1 :: Test
-testMkRelation1 = TestCase $ assertEqual "key mismatch" (mkRelation testAttrs testTupSet) (Left $ RelationalError 1 "Tuple values not of the same type for same keys")
+testMkRelation1 = TestCase $ assertEqual "key mismatch" (mkRelation testAttrs testTupSet) (Left $ AttributeCountMismatchError 0)
   where
     testAttrs = M.singleton "a" (Attribute "a" StringAtomType)
     testTupSet = HS.fromList [(RelationTuple (M.singleton "a" $ StringAtom "v")),

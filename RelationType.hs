@@ -27,4 +27,4 @@ data Relation = Relation Attributes RelationTupleSet deriving (Show, Eq)
 data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show)
 data RelationSizeInfinite = RelationSizeInfinite
 
-data RelationalError = RelationalError Int String deriving (Show,Eq) 
+

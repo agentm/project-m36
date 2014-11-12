@@ -1,5 +1,6 @@
 module TutorialDInterpreter where
 import RelationType
+import RelationalError
 import RelationExpr
 import RelationTerm
 import Text.Parsec
@@ -129,10 +130,10 @@ multipleRelExpr = do
   exprs <- sepBy1 relExpr semi
   return $ MultipleExpr exprs 
   
-parseString :: String -> RelationalExpr
+parseString :: String -> Either RelationalError RelationalExpr
 parseString str = case parse multipleRelExpr "" str of
-  Left err -> error $ show err
-  Right r -> r
+  Left err -> Left $ ParseError (show err)
+  Right r -> Right r
   
 example1 = "relA {a,b, c}"
 example2 = "relA join relB"
@@ -145,7 +146,9 @@ example8 = "relA := true; relB := false"
 example9 = "relA := relation { SNO CHAR }"
   
 interpret :: RelVarContext -> String -> (Either RelationalError Relation, RelVarContext)
-interpret context tutdstring = runState (eval (parseString tutdstring)) context
+interpret context tutdstring = case parseString tutdstring of
+                                    Left err -> (Left err, context)
+                                    Right parsed -> runState (eval parsed) context
 
 reprLoop :: RelVarContext -> IO ()
 reprLoop context = do

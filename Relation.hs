@@ -4,12 +4,12 @@ module Relation where
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
-import qualified Control.Monad.Error as Err
 
 import RelationType
 import RelationTuple
 import RelationAttribute
 import RelationTupleSet
+import RelationalError
 
 testTuple1 = mkRelationTuple (S.fromList ["hair"]) (M.fromList [("hair", StringAtom "brown")])
 
@@ -39,18 +39,16 @@ atomValueType (StringAtom _) = StringAtomType
 atomValueType (IntAtom _) = IntAtomType
 atomValueType (RelationAtom rel) = RelationAtomType (attributes rel)
 
-instance Err.Error RelationalError where
-
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet = 
   --check that all tuples have the same keys
   --check that all tuples have keys (1-N) where N is the attribute count
   if differentTupleCounts
-     then Left $ RelationalError 1 "Tuple attribute count mismatch"
+     then Left $ TupleAttributeCountMismatchError 0
   else if not (fst (verifyRelationTupleSet tupleSet))
-     then Left $ RelationalError 1 "Tuple values not of the same type for same keys"
+     then Left $ TupleAttributeTypeMismatchError 0
   else if attrCountMismatch
-     then Left $ RelationalError 1 "Attribute count mismatch"
+     then Left $ AttributeCountMismatchError 0
   else
     Right $ Relation attrs tupleSet
   where
@@ -70,7 +68,7 @@ madeFalse = mkRelation M.empty emptyTupleSet
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
   if not (attrs1 == attrs2) 
-     then Left $ RelationalError 1 ("Attribute mismatch " ++ show attrs1 ++ show attrs2)
+     then Left $ AttributeNameMismatchError (show attrs1 ++ show attrs2)
   else
     Right $ Relation attrs1 newtuples
   where
@@ -79,7 +77,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
 project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel@(Relation oldattrs rtuples) = 
   if not $ attributeNamesContained projectionAttrNames (attributeNames rel)
-     then Left $ RelationalError 1 "Attributes mismatch"
+     then Left $ AttributeNameMismatchError ""
   else
     relFold folder (Right $ Relation newAttrs HS.empty) rel
   where
@@ -98,9 +96,9 @@ tupleProject projectAttrs tupleIn@(RelationTuple tupleInMap) = RelationTuple $ M
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
   if not attributeValid
-       then Left $ RelationalError 1 "No such attribute"
+       then Left $ AttributeNameMismatchError ""
   else if newAttributeInUse
-       then Left $ RelationalError 1 ("Attribute \"" ++ newAttrName ++ "\" already in use.")
+       then Left $ AttributeNameInUseError newAttrName
   else
     mkRelation newAttrs newTupSet
   where
@@ -194,7 +192,7 @@ tupleUngroup relvalAttrName newAttrs tuple@(RelationTuple tupMap) = case (tupMap
         where
           unsafeRelValFromAtom :: Atom -> Relation
           unsafeRelValFromAtom (RelationAtom rel) = rel
-  _ -> Left $ RelationalError 1 "Attribute is not relation-valued."
+  _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
           
 --this is a hack needed because the relation attributes are untyped so we must dig into the relval to get the attribute names  
 attributesForRelval :: AttributeName -> Relation -> Attributes
