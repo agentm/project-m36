@@ -22,12 +22,19 @@ data RelationalExpr where
   Project :: S.Set AttributeName -> RelationalExpr -> RelationalExpr
   Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  Assign :: String -> RelationalExpr -> RelationalExpr
   MultipleExpr :: [RelationalExpr] -> RelationalExpr
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
-  --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr
+  --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr  
+  
+  --nominal relational expressions- the following operations could also be deemed non-relational, but I allow them to return relational expressions regardless- maybe this doesn't make sense since they should only be allowed as top-level commands
+  Define :: String -> Attributes -> RelationalExpr
+  Assign :: String -> RelationalExpr -> RelationalExpr
+  Insert :: String -> RelationalExpr -> RelationalExpr
+  Delete :: String -> RelationalExpr -- needs restriction support
+  Update :: String -> M.Map String Atom -> RelationalExpr -- needs restriction support
+
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
 2. create an execution plan (another system of nodes, another GADT)
@@ -37,14 +44,38 @@ data RelationalExpr where
 
 type RelVarState a = State RelVarContext a
 
+--helper function to process relation variable creation/assignment          
+setRelVar :: String -> Relation -> RelVarState (Either RelationalError Relation)
+setRelVar relVarName rel = do 
+  relVars <- get
+  put $ M.insert relVarName rel relVars
+  return $ Right rel
+
 eval :: RelationalExpr -> RelVarState (Either RelationalError Relation)
+
+--define a relvar by creating an empty-tupled relation
+eval (Define relVarName attributes) = do
+  relvars <- get
+  case M.member relVarName relvars of 
+    True -> return (Left (RelvarAlreadyDefined relVarName))
+    False -> setRelVar relVarName emptyRelation
+      where
+        emptyRelation = Relation attributes HS.empty
+            
 eval (Assign relVarName expr) = do
-  relvarTable <- get
-  value <- eval expr
+  relVarTable <- get
+  -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it
+  let existingRelVar = M.lookup relVarName relVarTable
+  value <- eval expr 
   case value of 
-    Right rel -> (put $ M.insert relVarName rel relvarTable) >>
-                 (return $ Right rel)
     Left err -> return $ Left err
+    Right rel -> case existingRelVar of 
+      Nothing -> setRelVar relVarName rel
+      Just existingRel -> if attributes existingRel == attributes rel then 
+                            setRelVar relVarName rel
+                          else
+                            return $ Left RelvarAssignmentTypeMismatch
+
 
 eval (RelationVariable name) = do
   relvarTable <- get
@@ -102,7 +133,13 @@ eval (Ungroup attrName relExpr) = do
   case evald of
     Right rel -> return $ ungroup attrName rel
     Left err -> return $ Left err
-      
+    
+eval (Insert relVarName relExpr) = do
+  evald <- eval $ Assign relVarName (Union relExpr (RelationVariable relVarName))
+  case evald of 
+    Right rel -> return $ evald
+    Left err -> return $ Left err
+    
 emptyRelVarContext :: RelVarContext
 emptyRelVarContext = M.empty
 

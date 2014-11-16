@@ -10,6 +10,8 @@ data RelationalError = NoSuchAttributeNameError String
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
                      | RelvarNotDefinedError String
+                     | RelvarAlreadyDefined String
+                     | RelvarAssignmentTypeMismatch
                      | ParseError String
                        deriving (Show,Eq) 
 

@@ -1,4 +1,6 @@
+{-# LANGUAGE GADTs #-}
 module TutorialDInterpreter where
+import Relation
 import RelationType
 import RelationalError
 import RelationExpr
@@ -11,6 +13,7 @@ import qualified Text.Parsec.Token as Token
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import qualified Data.List as L
 import Control.Applicative (liftA)
 import Control.Monad.State
 import System.Console.Readline
@@ -65,11 +68,19 @@ tutDTypeToAtomType tutDType = case tutDType of
   "int" -> Just IntAtomType
   _ -> Nothing
 
+atomTypeToTutDType :: AtomType -> Maybe String
+atomTypeToTutDType atomType = case atomType of
+  StringAtomType -> Just "char"
+  IntAtomType -> Just "int"
+  --RelationAtomType rel -> 
+  _ -> Nothing
+
 relVarP :: Parser RelationalExpr
 relVarP = liftA RelationVariable identifier
 
 relTerm = parens relExpr
           <|> makeRelation
+          <|> (try defineP)
           <|> relVarP
           
 projectOp = do
@@ -111,14 +122,29 @@ ungroupP = do
   reservedOp "ungroup"
   rvaAttrName <- identifier
   return $ Ungroup rvaAttrName
-           
-
+  
+insertP :: Parser (RelationalExpr -> RelationalExpr)
+insertP = do
+  reservedOp "insert"
+  relvar <- identifier
+  return $ Insert relvar
+  
+defineP :: Parser RelationalExpr
+defineP = do
+  relVarName <- identifier
+  reservedOp "::"
+  attributes <- makeAttributes
+  return $ Define relVarName attributes
+  
 relOperators = [
   [Postfix projectOp],
   [Postfix renameP],
   [Postfix groupP],
+  [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
   [Infix (reservedOp "union" >> return Union) AssocLeft],
+  [Prefix insertP],
+  
   [Prefix (try assignP)]
   ]
 
@@ -134,6 +160,29 @@ parseString :: String -> Either RelationalError RelationalExpr
 parseString str = case parse multipleRelExpr "" str of
   Left err -> Left $ ParseError (show err)
   Right r -> Right r
+
+data TutorialDOperator where
+  ShowRelationVariableType :: String -> TutorialDOperator
+  
+interpreterOps :: Parser TutorialDOperator
+interpreterOps = do
+  reservedOp ":t"
+  relVarName <- identifier
+  return $ ShowRelationVariableType relVarName
+
+showRelationAttributes :: Relation -> String
+showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
+  where
+    showAttribute (Attribute name atomType) = name ++ " " ++ case atomTypeToTutDType atomType of
+      Just t -> show t
+      Nothing -> "unknown"
+    attrs = values (attributes rel)
+    values m = map snd (M.toAscList m)
+    
+evalTutorialDOp :: RelVarContext -> TutorialDOperator -> String
+evalTutorialDOp context (ShowRelationVariableType relVarName) = case M.lookup relVarName context of
+  Just rel -> showRelationAttributes rel
+  Nothing -> relVarName ++ " not defined"
   
 example1 = "relA {a,b, c}"
 example2 = "relA join relB"
@@ -149,7 +198,13 @@ interpret :: RelVarContext -> String -> (Either RelationalError Relation, RelVar
 interpret context tutdstring = case parseString tutdstring of
                                     Left err -> (Left err, context)
                                     Right parsed -> runState (eval parsed) context
-
+                                    
+-- for interpreter-specific operations                               
+interpretOps :: RelVarContext -> String -> Maybe String                                    
+interpretOps context instring = case parse interpreterOps "" instring of
+  Left err -> Nothing
+  Right ops -> Just $ evalTutorialDOp context ops
+  
 reprLoop :: RelVarContext -> IO ()
 reprLoop context = do
   maybeLine <- readline "TutorialD: "
@@ -157,6 +212,13 @@ reprLoop context = do
     Nothing -> return ()
     Just line -> do 
       addHistory line
+      
+      case interpretOps context line of
+        Just out -> do 
+          putStrLn out
+          reprLoop context
+        Nothing -> return ()
+        
       let (value, contextup) = interpret context line 
       case value of
         (Right rel) -> do
