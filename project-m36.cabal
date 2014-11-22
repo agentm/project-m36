@@ -19,4 +19,4 @@ Test-Suite test-tutoriald
 Test-Suite test-relation
     type: exitcode-stdio-1.0
     main-is: RelationTest.hs
-    Build-Depends: base,HUnit,cabal-test-hunit,Cabal
+    Build-Depends: base,HUnit,Cabal
