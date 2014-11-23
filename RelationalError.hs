@@ -1,5 +1,4 @@
 module RelationalError where
-import qualified Control.Monad.Error as Err
 import RelationType
 
 data RelationalError = NoSuchAttributeNameError String
@@ -9,11 +8,10 @@ data RelationalError = NoSuchAttributeNameError String
                      | AttributeNameMismatchError String
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
-                     | RelvarNotDefinedError String
-                     | RelvarAlreadyDefined String
-                     | RelvarAssignmentTypeMismatch
+                     | RelVarNotDefinedError String
+                     | RelVarAlreadyDefinedError String
+                     | RelVarAssignmentTypeMismatchError
                      | ParseError String
                        deriving (Show,Eq) 
 
-instance Err.Error RelationalError where
 

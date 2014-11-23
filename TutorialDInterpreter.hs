@@ -14,7 +14,7 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.List as L
-import Control.Applicative (liftA)
+import Control.Applicative (liftA, (<*))
 import Control.Monad.State
 import System.Console.Readline
 
@@ -80,17 +80,18 @@ relVarP = liftA RelationVariable identifier
 
 relTerm = parens relExpr
           <|> makeRelation
-          <|> (try defineP)
           <|> relVarP
           
 projectOp = do
   attrs <- braces attributeList
   return $ Project (S.fromList attrs)
   
+assignP :: Parser DatabaseExpr
 assignP = do
   relVarName <- identifier
   reservedOp ":="
-  return $ Assign relVarName
+  expr <- relExpr
+  return $ Assign relVarName expr
   
 renameClause = do
   oldAttr <- identifier 
@@ -123,52 +124,90 @@ ungroupP = do
   rvaAttrName <- identifier
   return $ Ungroup rvaAttrName
   
-insertP :: Parser (RelationalExpr -> RelationalExpr)
-insertP = do
-  reservedOp "insert"
-  relvar <- identifier
-  return $ Insert relvar
-  
-defineP :: Parser RelationalExpr
-defineP = do
-  relVarName <- identifier
-  reservedOp "::"
-  attributes <- makeAttributes
-  return $ Define relVarName attributes
-  
 relOperators = [
   [Postfix projectOp],
   [Postfix renameP],
   [Postfix groupP],
   [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
-  [Infix (reservedOp "union" >> return Union) AssocLeft],
-  [Prefix insertP],
-  
-  [Prefix (try assignP)]
+  [Infix (reservedOp "union" >> return Union) AssocLeft]
   ]
 
 relExpr :: Parser RelationalExpr
 relExpr = buildExpressionParser relOperators relTerm
 
-multipleRelExpr :: Parser RelationalExpr
-multipleRelExpr = do 
-  exprs <- sepBy1 relExpr semi
-  return $ MultipleExpr exprs 
+databaseExpr :: Parser DatabaseExpr
+databaseExpr = insertP
+            <|> deleteP
+            <|> updateP
+            <|> try defineP
+            <|> try assignP
+            
+multipleDatabaseExpr :: Parser DatabaseExpr
+multipleDatabaseExpr = do
+  exprs <- sepBy1 databaseExpr semi
+  return $ MultipleExpr exprs
   
-parseString :: String -> Either RelationalError RelationalExpr
-parseString str = case parse multipleRelExpr "" str of
+insertP :: Parser DatabaseExpr
+insertP = do
+  reservedOp "insert"
+  relvar <- identifier
+  expr <- relExpr
+  return $ Insert relvar expr
+  
+defineP :: Parser DatabaseExpr
+defineP = do
+  relVarName <- identifier
+  reservedOp "::"
+  attributes <- makeAttributes
+  return $ Define relVarName attributes
+  
+deleteP :: Parser DatabaseExpr  
+deleteP = do
+  reservedOp "delete"
+  relVarName <- identifier
+  return $ Delete relVarName
+  
+updateP :: Parser DatabaseExpr
+updateP = do
+  reservedOp "update"
+  relVarName <- identifier  
+  -- where clause
+  attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
+  return $ Update relVarName attributeAssignments
+  
+attributeAssignment :: Parser (String, RelationalExpr)
+attributeAssignment = do
+  attrName <- identifier
+  reservedOp ":="
+  relExpr <- relExpr
+  return $ (attrName, relExpr)
+  
+parseString :: String -> Either RelationalError DatabaseExpr
+parseString str = case parse multipleDatabaseExpr "" str of
   Left err -> Left $ ParseError (show err)
   Right r -> Right r
 
 data TutorialDOperator where
+  ShowRelation :: RelationalExpr -> TutorialDOperator
   ShowRelationVariableType :: String -> TutorialDOperator
+  deriving (Show)
   
-interpreterOps :: Parser TutorialDOperator
-interpreterOps = do
+typeP :: Parser TutorialDOperator  
+typeP = do
   reservedOp ":t"
   relVarName <- identifier
   return $ ShowRelationVariableType relVarName
+  
+showP :: Parser TutorialDOperator
+showP = do
+  reservedOp ":s"
+  expr <- relExpr
+  return $ ShowRelation expr
+  
+interpreterOps :: Parser TutorialDOperator
+interpreterOps = typeP 
+                 <|> showP
 
 showRelationAttributes :: Relation -> String
 showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
@@ -179,10 +218,15 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
     attrs = values (attributes rel)
     values m = map snd (M.toAscList m)
     
-evalTutorialDOp :: RelVarContext -> TutorialDOperator -> String
-evalTutorialDOp context (ShowRelationVariableType relVarName) = case M.lookup relVarName context of
+evalTutorialDOp :: DatabaseContext -> TutorialDOperator -> String
+evalTutorialDOp context (ShowRelationVariableType relVarName) = case M.lookup relVarName (relationVariables context) of
   Just rel -> showRelationAttributes rel
   Nothing -> relVarName ++ " not defined"
+  
+evalTutorialDOp context (ShowRelation expr) = do
+  case runState (evalRelationalExpr expr) context of 
+    (Left err, _) -> show err
+    (Right rel, _) -> showRelation rel
   
 example1 = "relA {a,b, c}"
 example2 = "relA join relB"
@@ -194,18 +238,18 @@ example7 = "rv1 := relA union relB"
 example8 = "relA := true; relB := false"
 example9 = "relA := relation { SNO CHAR }"
   
-interpret :: RelVarContext -> String -> (Either RelationalError Relation, RelVarContext)
+interpret :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
 interpret context tutdstring = case parseString tutdstring of
-                                    Left err -> (Left err, context)
-                                    Right parsed -> runState (eval parsed) context
+                                    Left err -> (Just err, context)
+                                    Right parsed -> runState (evalContextExpr parsed) context
                                     
 -- for interpreter-specific operations                               
-interpretOps :: RelVarContext -> String -> Maybe String                                    
+interpretOps :: DatabaseContext -> String -> Maybe String                                    
 interpretOps context instring = case parse interpreterOps "" instring of
   Left err -> Nothing
   Right ops -> Just $ evalTutorialDOp context ops
   
-reprLoop :: RelVarContext -> IO ()
+reprLoop :: DatabaseContext -> IO ()
 reprLoop context = do
   maybeLine <- readline "TutorialD: "
   case maybeLine of
@@ -221,10 +265,8 @@ reprLoop context = do
         
       let (value, contextup) = interpret context line 
       case value of
-        (Right rel) -> do
-          putStrLn $ showRelation rel
-          reprLoop contextup
-        (Left err) -> do
+        Nothing -> reprLoop contextup
+        (Just err) -> do
           putStrLn $ show err
           reprLoop context
       
