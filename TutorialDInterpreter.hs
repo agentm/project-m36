@@ -18,13 +18,14 @@ import Control.Applicative (liftA, (<*))
 import Control.Monad.State
 import System.Console.Readline
 
+
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
         where tutD = emptyDef {
                 Token.reservedOpNames = ["join", "where", "union", "group", "ungroup"],
                 Token.reservedNames = [],
-                Token.identStart = letter,
-                Token.identLetter = alphaNum}
+                Token.identStart = letter <|> char '_',
+                Token.identLetter = alphaNum <|> char '_'}
 
 parens = Token.parens lexer
 reservedOp = Token.reservedOp lexer
