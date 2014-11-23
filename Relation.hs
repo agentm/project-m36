@@ -243,7 +243,7 @@ imageRelationFor matchTuple rel@(Relation attrs _) = do
 imageRelationTest = imageRelationFor tup s
   where
     tup = mkRelationTuple (S.fromList ["SNAME", "CITY", "S#"]) (M.fromList [("SNAME", StringAtom "Smith"), ("S#", StringAtom "S1"), ("CITY", StringAtom "London")])
-   
+    
 --returns a relation-valued attribute image relation for each tuple in rel1
 --algorithm: 
   {-

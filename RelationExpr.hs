@@ -1,154 +1,80 @@
-{-# LANGUAGE GADTs #-}
 module RelationExpr where
 import Relation
 import RelationTuple
+import RelationTupleSet
 import RelationType
 import RelationalError
-import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
 
-type RelVarContext = M.Map String Relation
-
-type AtomName = String
-
-data RelationalExpr where
-  MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
-  --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
-  --in Tutorial D, relational variables pick up the type of the first relation assigned to them
-  --relational variables should also be able to be explicitly-typed like in Haskell
-  RelationVariable :: String -> RelationalExpr
-  Project :: S.Set AttributeName -> RelationalExpr -> RelationalExpr
-  Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  MultipleExpr :: [RelationalExpr] -> RelationalExpr
-  Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
-  Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
-  Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
-  --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr  
-  
-  --nominal relational expressions- the following operations could also be deemed non-relational, but I allow them to return relational expressions regardless- maybe this doesn't make sense since they should only be allowed as top-level commands
-  Define :: String -> Attributes -> RelationalExpr
-  Assign :: String -> RelationalExpr -> RelationalExpr
-  Insert :: String -> RelationalExpr -> RelationalExpr
-  Delete :: String -> RelationalExpr -- needs restriction support
-  Update :: String -> M.Map String Atom -> RelationalExpr -- needs restriction support
-
-{- maybe break this into multiple steps:
-1. check relational types for match (attribute counts) (typechecking step
-2. create an execution plan (another system of nodes, another GADT)
-3. execute the plan
--}
-  deriving (Show)
-
-type RelVarState a = State RelVarContext a
-
---helper function to process relation variable creation/assignment          
-setRelVar :: String -> Relation -> RelVarState (Either RelationalError Relation)
-setRelVar relVarName rel = do 
-  relVars <- get
-  put $ M.insert relVarName rel relVars
-  return $ Right rel
-
-eval :: RelationalExpr -> RelVarState (Either RelationalError Relation)
-
---define a relvar by creating an empty-tupled relation
-eval (Define relVarName attributes) = do
-  relvars <- get
-  case M.member relVarName relvars of 
-    True -> return (Left (RelvarAlreadyDefined relVarName))
-    False -> setRelVar relVarName emptyRelation
-      where
-        emptyRelation = Relation attributes HS.empty
-            
-eval (Assign relVarName expr) = do
-  relVarTable <- get
-  -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it
-  let existingRelVar = M.lookup relVarName relVarTable
-  value <- eval expr 
-  case value of 
-    Left err -> return $ Left err
-    Right rel -> case existingRelVar of 
-      Nothing -> setRelVar relVarName rel
-      Just existingRel -> if attributes existingRel == attributes rel then 
-                            setRelVar relVarName rel
-                          else
-                            return $ Left RelvarAssignmentTypeMismatch
-
-
-eval (RelationVariable name) = do
-  relvarTable <- get
+--relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
+evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
+evalRelationalExpr (RelationVariable name) = do
+  relvarTable <- liftM relationVariables get
   return $ case M.lookup name relvarTable of
     Just res -> Right res
-    Nothing -> Left $ RelvarNotDefinedError name 
+    Nothing -> Left $ RelVarNotDefinedError name 
 
-eval (Project attrNameSet expr) = do
-    rel <- eval expr
+evalRelationalExpr (Project attrNameSet expr) = do
+    rel <- evalRelationalExpr expr
     case rel of 
       Right rel -> return $ project attrNameSet rel
       Left err -> return $ Left err
 
-eval (Union exprA exprB) = do
-  relA <- eval exprA
-  relB <- eval exprB
+evalRelationalExpr (Union exprA exprB) = do
+  relA <- evalRelationalExpr exprA
+  relB <- evalRelationalExpr exprB
   case relA of
     Left err -> return $ Left err
     Right relA -> case relB of
       Left err -> return $ Left err
       Right relB -> return $ union relA relB
 
-eval (Join exprA exprB) = do
-  relA <- eval exprA
-  relB <- eval exprB
+evalRelationalExpr (Join exprA exprB) = do
+  relA <- evalRelationalExpr exprA
+  relB <- evalRelationalExpr exprB
   case relA of
     Left err -> return $ Left err
     Right relA -> case relB of
       Left err -> return $ Left err
       Right relB -> return $ join relA relB
       
-eval (MultipleExpr exprs) = do      
-  evald <- mapM eval exprs
-  return $ last evald
-  
-eval (MakeStaticRelation attributes tupleSet) = do
+evalRelationalExpr (MakeStaticRelation attributes tupleSet) = do
   case mkRelation attributes tupleSet of
     Right rel -> return $ Right rel
     Left err -> return $ Left err
     
-eval (Rename oldAttrName newAttrName relExpr) = do
-  evald <- eval relExpr
+evalRelationalExpr (Rename oldAttrName newAttrName relExpr) = do
+  evald <- evalRelationalExpr relExpr
   case evald of
     Right rel -> return $ rename oldAttrName newAttrName rel
     Left err -> return $ Left err
     
-eval (Group oldAttrNameSet newAttrName relExpr) = do
-  evald <- eval relExpr
+evalRelationalExpr (Group oldAttrNameSet newAttrName relExpr) = do
+  evald <- evalRelationalExpr relExpr
   case evald of 
     Right rel -> return $ group oldAttrNameSet newAttrName rel
     Left err -> return $ Left err
     
-eval (Ungroup attrName relExpr) = do
-  evald <- eval relExpr
+evalRelationalExpr (Ungroup attrName relExpr) = do
+  evald <- evalRelationalExpr relExpr
   case evald of
     Right rel -> return $ ungroup attrName rel
     Left err -> return $ Left err
-    
-eval (Insert relVarName relExpr) = do
-  evald <- eval $ Assign relVarName (Union relExpr (RelationVariable relVarName))
-  case evald of 
-    Right rel -> return $ evald
-    Left err -> return $ Left err
-    
-emptyRelVarContext :: RelVarContext
-emptyRelVarContext = M.empty
+        
+emptyDatabaseContext :: DatabaseContext
+emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
+                                         relationVariables = M.empty}
 
-basicRelVarContext :: RelVarContext           
-basicRelVarContext = M.fromList [("true", relationTrue),
-                                 ("false", relationFalse)]
+basicDatabaseContext :: DatabaseContext
+basicDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
+                                         relationVariables = M.fromList [("true", relationTrue),
+                                                                         ("false", relationFalse)]}
 
-dateExamples :: RelVarContext
-dateExamples = M.union basicRelVarContext dateRelVars
+dateExamples :: DatabaseContext
+dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreign key relationships
+                                 relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars }
   where
     dateRelVars = M.fromList [("S", suppliers),
                               ("P", products),
@@ -212,3 +138,57 @@ supplierProductsRel = case mkRelation attributes tupleSet of
         M.fromList [("S#", StringAtom "S4"), ("P#", StringAtom "P4"), ("QTY", IntAtom 300)],
         M.fromList [("S#", StringAtom "S4"), ("P#", StringAtom "P5"), ("QTY", IntAtom 400)]   
         ]
+
+--helper function to process relation variable creation/assignment          
+setRelVar :: String -> Relation -> DatabaseState (Maybe RelationalError)
+setRelVar relVarName rel = do 
+  state <- get
+  let newRelVars = M.insert relVarName rel $ relationVariables state
+  put $ DatabaseContext (inclusionDependencies state) newRelVars
+  return Nothing
+
+evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
+evalContextExpr (Define relVarName attrs) = do
+  relvars <- liftM relationVariables get
+  case M.member relVarName relvars of 
+    True -> return (Just (RelVarAlreadyDefinedError relVarName))
+    False -> setRelVar relVarName emptyRelation
+      where
+        emptyRelation = Relation attrs HS.empty
+  
+evalContextExpr (Assign relVarName expr) = do
+  -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it
+  relVarTable <- liftM relationVariables get
+  let existingRelVar = M.lookup relVarName relVarTable
+  value <- evalRelationalExpr expr 
+  case value of 
+    Left err -> return $ Just err
+    Right rel -> case existingRelVar of 
+      Nothing -> setRelVar relVarName rel
+      Just existingRel -> if attributes existingRel == attributes rel then 
+                            setRelVar relVarName rel
+                          else
+                            return $ Just RelVarAssignmentTypeMismatchError
+                            
+evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName))
+
+--assign empty rel until restriction is implemented
+evalContextExpr (Delete relVarName) = do
+  relVarTable <- liftM relationVariables get
+  case M.lookup relVarName relVarTable of
+    Nothing -> return $ Just (RelVarNotDefinedError relVarName)
+    Just rel -> setRelVar relVarName (Relation (attributes rel) emptyTupleSet)
+    
+evalContextExpr (Update relVarName attrAssignments) = undefined
+
+evalContextExpr (AddInclusionDependency dep) = undefined
+
+evalContextExpr (MultipleExpr exprs) = do
+  evald <- mapM evalContextExpr exprs
+  return $ last evald
+  
+-- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples  
+--evalRelVarExpr (Update relVarName updateMap) = do
+
+
+
