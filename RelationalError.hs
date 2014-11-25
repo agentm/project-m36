@@ -11,6 +11,7 @@ data RelationalError = NoSuchAttributeNameError String
                      | RelVarNotDefinedError String
                      | RelVarAlreadyDefinedError String
                      | RelVarAssignmentTypeMismatchError
+                     | InclusionDependencyCheckError String
                      | ParseError String
                        deriving (Show,Eq) 
 

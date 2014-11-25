@@ -141,6 +141,7 @@ databaseExpr :: Parser DatabaseExpr
 databaseExpr = insertP
             <|> deleteP
             <|> updateP
+            <|> constraintP
             <|> try defineP
             <|> try assignP
             
@@ -177,6 +178,15 @@ updateP = do
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
   return $ Update relVarName attributeAssignments
   
+constraintP :: Parser DatabaseExpr
+constraintP = do
+  reservedOp "constraint"
+  constraintName <- identifier
+  subset <- relExpr
+  reservedOp "in"
+  superset <- relExpr
+  return $ AddInclusionDependency (InclusionDependency constraintName subset superset)
+  
 attributeAssignment :: Parser (String, RelationalExpr)
 attributeAssignment = do
   attrName <- identifier
@@ -192,6 +202,7 @@ parseString str = case parse multipleDatabaseExpr "" str of
 data TutorialDOperator where
   ShowRelation :: RelationalExpr -> TutorialDOperator
   ShowRelationVariableType :: String -> TutorialDOperator
+  ShowConstraint :: String -> TutorialDOperator
   deriving (Show)
   
 typeP :: Parser TutorialDOperator  
@@ -200,15 +211,22 @@ typeP = do
   relVarName <- identifier
   return $ ShowRelationVariableType relVarName
   
-showP :: Parser TutorialDOperator
-showP = do
+showRelP :: Parser TutorialDOperator
+showRelP = do
   reservedOp ":s"
   expr <- relExpr
   return $ ShowRelation expr
   
+showConstraintsP :: Parser TutorialDOperator
+showConstraintsP = do
+  reservedOp ":c"
+  constraintName <- option "" identifier
+  return $ ShowConstraint constraintName
+  
 interpreterOps :: Parser TutorialDOperator
 interpreterOps = typeP 
-                 <|> showP
+                 <|> showRelP
+                 <|> showConstraintsP
 
 showRelationAttributes :: Relation -> String
 showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
@@ -228,6 +246,14 @@ evalTutorialDOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of 
     (Left err, _) -> show err
     (Right rel, _) -> showRelation rel
+    
+evalTutorialDOp context (ShowConstraint name) = do
+  show filteredDeps
+  where
+    deps = inclusionDependencies context
+    filteredDeps = case name of
+      "" -> deps
+      name -> HS.filter (\(InclusionDependency n _ _) -> n == name) deps
   
 example1 = "relA {a,b, c}"
 example2 = "relA join relB"
