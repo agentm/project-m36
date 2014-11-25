@@ -58,10 +58,13 @@ data DatabaseContext = DatabaseContext {
   relationVariables :: M.Map String Relation
   } deriving (Show)
 
-data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show)
+data InclusionDependency = InclusionDependency String RelationalExpr RelationalExpr deriving (Show)
 
 instance Hash.Hashable InclusionDependency where
   hashWithSalt salt dep = Hash.hashWithSalt salt (show dep)
+  
+instance Eq InclusionDependency where
+  (==) (InclusionDependency nameA _ _) (InclusionDependency nameB _ _) = nameA == nameB
 
 --Database context expressions modify the database context while relational expressions do not
 data DatabaseExpr where

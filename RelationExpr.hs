@@ -7,6 +7,7 @@ import RelationalError
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
+import Data.Maybe
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -144,8 +145,12 @@ setRelVar :: String -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do 
   state <- get
   let newRelVars = M.insert relVarName rel $ relationVariables state
-  put $ DatabaseContext (inclusionDependencies state) newRelVars
-  return Nothing
+  case checkConstraints state of
+    Just err -> return $ Just err
+    Nothing -> do 
+      put $ DatabaseContext (inclusionDependencies state) newRelVars
+      return Nothing
+
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
 evalContextExpr (Define relVarName attrs) = do
@@ -181,7 +186,11 @@ evalContextExpr (Delete relVarName) = do
     
 evalContextExpr (Update relVarName attrAssignments) = undefined
 
-evalContextExpr (AddInclusionDependency dep) = undefined
+evalContextExpr (AddInclusionDependency dep) = do
+  state <- get
+  let newDeps = HS.insert dep (inclusionDependencies state)
+  put $ DatabaseContext newDeps (relationVariables state)
+  return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
   evald <- mapM evalContextExpr exprs
@@ -189,6 +198,38 @@ evalContextExpr (MultipleExpr exprs) = do
   
 -- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples  
 --evalRelVarExpr (Update relVarName updateMap) = do
+
+--run verification on all constraints
+checkConstraints :: DatabaseContext -> Maybe RelationalError
+checkConstraints context = case failures of 
+  [] -> Nothing
+  l:ls -> Just l
+  where
+    failures = catMaybes $ map checkIncDep (HS.toList deps)
+    deps = inclusionDependencies context
+    eval expr = runState (evalRelationalExpr expr) context
+    checkIncDep (InclusionDependency depName subsetExpr supersetExpr) = case evaldSub of
+        Left err -> Just err 
+        Right relSub -> case evaldSub of
+          Left err -> Just err
+          Right relSuper -> case union relSub relSuper of
+            Left err -> Just err
+            Right resultRel -> case resultRel of
+              False -> Just $ InclusionDependencyCheckError depName
+              True -> Nothing
+       where
+         evaldSub = eval subsetExpr
+         evaldSuper = eval supersetExpr
+
+checkConstraint :: InclusionDependency -> DatabaseState (Maybe RelationalError)
+checkConstraint (InclusionDependency name subDep superDep) = do
+  evalSub <- evalRelExpr subDep
+  evalSuper <- evalRelExpr superDep
+  result <- liftM2 union evalSub evalSuper
+
+
+    
+
 
 
 
