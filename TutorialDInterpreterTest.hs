@@ -2,6 +2,7 @@ import TutorialDInterpreter
 import Test.HUnit
 import RelationExpr
 import Relation
+import RelationalError
 import RelationType
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -18,7 +19,8 @@ main = do
                       ("x:=true; x:=false", Right relationFalse),
                       ("x:=relation{a int}", mkRelation simpleAAttributes HS.empty),
                       ("x:=relation{c int} rename {c as d}", mkRelation simpleBAttributes HS.empty),
-                      ("y:=relation{b int, c int}; x:=y{c}", mkRelation simpleProjectionAttributes HS.empty)
+                      ("y:=relation{b int, c int}; x:=y{c}", mkRelation simpleProjectionAttributes HS.empty),
+                      ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc")
                       ]
     simpleAAttributes = M.fromList [("a", Attribute "a" IntAtomType)]
     simpleBAttributes = M.fromList [("d", Attribute "d" IntAtomType)]

@@ -209,25 +209,29 @@ checkConstraints context = case failures of
     deps = inclusionDependencies context
     eval expr = runState (evalRelationalExpr expr) context
     checkIncDep (InclusionDependency depName subsetExpr supersetExpr) = case evaldSub of
-        Left err -> Just err 
-        Right relSub -> case evaldSub of
-          Left err -> Just err
-          Right relSuper -> case union relSub relSuper of
+        (Left err, _) -> Just err 
+        (Right relSub, _) -> case evaldSuper of
+          (Left err, _) -> Just err
+          (Right relSuper, _) -> case union relSub relSuper of
             Left err -> Just err
-            Right resultRel -> case resultRel of
+            Right resultRel -> case resultRel == relSuper of
               False -> Just $ InclusionDependencyCheckError depName
               True -> Nothing
        where
          evaldSub = eval subsetExpr
          evaldSuper = eval supersetExpr
 
+{-
 checkConstraint :: InclusionDependency -> DatabaseState (Maybe RelationalError)
 checkConstraint (InclusionDependency name subDep superDep) = do
-  evalSub <- evalRelExpr subDep
-  evalSuper <- evalRelExpr superDep
+  evalSub <- evalRelationalExpr subDep
+  evalSuper <- evalRelationalExpr superDep
+  case evalSub of 
+    Left err -> Just err
+    Right relSub 
   result <- liftM2 union evalSub evalSuper
-
-
+  return $ Nothing
+-}
     
 
 
