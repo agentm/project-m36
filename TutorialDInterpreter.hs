@@ -14,7 +14,7 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.List as L
-import Control.Applicative (liftA, (<*))
+import Control.Applicative (liftA)
 import Control.Monad.State
 import System.Console.Readline
 
@@ -89,8 +89,10 @@ projectOp = do
   
 assignP :: Parser DatabaseExpr
 assignP = do
-  relVarName <- identifier
-  reservedOp ":="
+  relVarName <- try $ do
+    relVarName <- identifier
+    reservedOp ":="
+    return relVarName
   expr <- relExpr
   return $ Assign relVarName expr
   
@@ -142,8 +144,8 @@ databaseExpr = insertP
             <|> deleteP
             <|> updateP
             <|> constraintP
-            <|> try defineP
-            <|> try assignP
+            <|> defineP
+            <|> assignP
             
 multipleDatabaseExpr :: Parser DatabaseExpr
 multipleDatabaseExpr = do
@@ -159,8 +161,10 @@ insertP = do
   
 defineP :: Parser DatabaseExpr
 defineP = do
-  relVarName <- identifier
-  reservedOp "::"
+  relVarName <- try $ do
+    relVarName <- identifier
+    reservedOp "::"
+    return relVarName
   attributes <- makeAttributes
   return $ Define relVarName attributes
   
@@ -177,6 +181,14 @@ updateP = do
   -- where clause
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
   return $ Update relVarName attributeAssignments
+  
+{-  
+restrictionPredicateP :: Parser RestrictionPredicateExpr
+restrictionPredicateP = do
+  sepBy1 subexpr (
+  where
+    subexpr = try attributeEqP <|>  
+-}                        
   
 constraintP :: Parser DatabaseExpr
 constraintP = do
