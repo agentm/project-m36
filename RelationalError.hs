@@ -13,6 +13,7 @@ data RelationalError = NoSuchAttributeNameError String
                      | RelVarAssignmentTypeMismatchError
                      | InclusionDependencyCheckError String
                      | ParseError String
+                     | PredicateExpressionError String
                        deriving (Show,Eq) 
 
 

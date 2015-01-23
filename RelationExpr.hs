@@ -63,6 +63,15 @@ evalRelationalExpr (Ungroup attrName relExpr) = do
   case evald of
     Right rel -> return $ ungroup attrName rel
     Left err -> return $ Left err
+    
+evalRelationalExpr (Restrict predicateExpr relExpr) = do
+  evald <- evalRelationalExpr relExpr
+  context <- get
+  case evald of 
+    Left err -> return $ Left err
+    Right rel -> case predicateRestrictionFilter context predicateExpr of
+      Left err -> return $ Left err
+      Right filterfunc -> return $ restrict filterfunc rel
         
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
@@ -233,6 +242,39 @@ checkConstraint (InclusionDependency name subDep superDep) = do
   return $ Nothing
 -}
     
+-- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
+-- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
+typeForRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
+typeForRelationalExpr expr = do
+  state <- get
+  --replace the relationVariables context element with a cloned set of relation devoid of tuples
+  put $ DatabaseContext (inclusionDependencies state) $ M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables state)
+  evalRelationalExpr expr
+  
+{- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
+predicateRestrictionFilter :: DatabaseContext -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)
+predicateRestrictionFilter context (AndPredicate expr1 expr2) = do
+  expr1v <- predicateRestrictionFilter context expr1
+  expr2v <- predicateRestrictionFilter context expr2
+  return $ \x -> expr1v x && expr2v x
+
+predicateRestrictionFilter context (OrPredicate expr1 expr2) = do
+  expr1v <- predicateRestrictionFilter context expr1
+  expr2v <- predicateRestrictionFilter context expr2
+  return $ \x -> expr1v x || expr2v x
+
+predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runState (evalRelationalExpr relExpr) context of
+  (Left err, _) -> Left err
+  (Right rel, _) -> if rel == relationTrue then
+                      Right $ \x -> True  
+                    else if rel == relationFalse then
+                     Right $ \x -> False      
+                         else
+                           Left $ PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'"
+    
+predicateRestrictionFilter context (AttributeEqualityPredicate attrName atom) = Right $ \(RelationTuple tupMap) -> tupValue tupMap == atom
+  where
+    tupValue tupMap = tupMap M.! attrName
 
 
 

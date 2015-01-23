@@ -42,7 +42,7 @@ cellLocations :: Table -> ([Int],[Int]) --column size, row size
 cellLocations tab@(header, body) = (maxWidths, maxHeights)
   where
     cellSizeMatrix = cellSizes tab
-    maxWidths = foldl mergeMax (baseSize (length cellSizeMatrix)) (map fst cellSizeMatrix)
+    maxWidths = foldl mergeMax (baseSize (length header)) (map fst cellSizeMatrix)
     baseSize num = take num (repeat 0)
     rowHeights = map snd cellSizeMatrix
     maxHeights = map (L.maximumBy compare) rowHeights

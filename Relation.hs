@@ -1,5 +1,5 @@
 -- this is an implementation of the Relation typeclass which creates a GADT DSL
-{-# LANGUAGE GADTs,ExistentialQuantification #-}
+{-# LANGUAGE GADTs,ExistentialQuantification,NoImplicitPrelude #-}
 module Relation where
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -10,6 +10,7 @@ import RelationTuple
 import RelationAttribute
 import RelationTupleSet
 import RelationalError
+import Prelude hiding (join)
 
 testTuple1 = mkRelationTuple (S.fromList ["hair"]) (M.fromList [("hair", StringAtom "brown")])
 
@@ -64,6 +65,19 @@ relationFalse = Relation M.empty emptyTupleSet
 
 madeTrue = mkRelation M.empty (HS.fromList [])
 madeFalse = mkRelation M.empty emptyTupleSet
+
+--used for predicate filtering- instead of allowing for tuple types to be floating around in Tutorial D, just created a "singleton value" relation with cardinality and arity 1 for tuple atom comparison purposes
+singletonValueFromRelation :: Relation -> Either RelationalError Atom
+singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Countable 1 then    
+                                                   Left (PredicateExpressionError "Relational expression must have cardinality 1")
+                                                 else if arity rel /= 1 then
+                                                        Left (PredicateExpressionError "Relation expression must have arity 1")
+                                                      else
+                                                        Right value
+  where
+    value = snd $ head $ M.toList tupMap
+    tupMap = tup2Map $ head (HS.toList tupSet)
+    tup2Map (RelationTuple tupMap) = tupMap
 
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
@@ -297,3 +311,6 @@ relvarSP = mkRelation attributes tupleSet
                  
 sp = case relvarSP of { Right r -> r }
 
+
+
+  

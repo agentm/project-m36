@@ -14,7 +14,7 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.List as L
-import Control.Applicative (liftA)
+import Control.Applicative (liftA, (<*), (*>))
 import Control.Monad.State
 import System.Console.Readline
 
@@ -108,6 +108,11 @@ renameP = do
   (oldAttr, newAttr) <- braces renameClause
   return $ Rename oldAttr newAttr 
   
+whereClauseP = do
+  reservedOp "where"  
+  boolExpr <- restrictionPredicateP
+  return $ Restrict boolExpr
+  
 groupClause = do  
   attrs <- braces attributeList
   reservedOp "as"
@@ -130,6 +135,7 @@ ungroupP = do
 relOperators = [
   [Postfix projectOp],
   [Postfix renameP],
+  [Postfix whereClauseP],
   [Postfix groupP],
   [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
@@ -182,14 +188,6 @@ updateP = do
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
   return $ Update relVarName attributeAssignments
   
-{-  
-restrictionPredicateP :: Parser RestrictionPredicateExpr
-restrictionPredicateP = do
-  sepBy1 subexpr (
-  where
-    subexpr = try attributeEqP <|>  
--}                        
-  
 constraintP :: Parser DatabaseExpr
 constraintP = do
   reservedOp "constraint"
@@ -213,15 +211,15 @@ parseString str = case parse multipleDatabaseExpr "" str of
 
 data TutorialDOperator where
   ShowRelation :: RelationalExpr -> TutorialDOperator
-  ShowRelationVariableType :: String -> TutorialDOperator
+  ShowRelationType :: RelationalExpr -> TutorialDOperator
   ShowConstraint :: String -> TutorialDOperator
   deriving (Show)
   
 typeP :: Parser TutorialDOperator  
 typeP = do
   reservedOp ":t"
-  relVarName <- identifier
-  return $ ShowRelationVariableType relVarName
+  expr <- relExpr
+  return $ ShowRelationType expr
   
 showRelP :: Parser TutorialDOperator
 showRelP = do
@@ -250,9 +248,9 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
     values m = map snd (M.toAscList m)
     
 evalTutorialDOp :: DatabaseContext -> TutorialDOperator -> String
-evalTutorialDOp context (ShowRelationVariableType relVarName) = case M.lookup relVarName (relationVariables context) of
-  Just rel -> showRelationAttributes rel
-  Nothing -> relVarName ++ " not defined"
+evalTutorialDOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
+  (Right rel, _) -> showRelationAttributes rel
+  (Left err, _) -> show err
   
 evalTutorialDOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of 
@@ -309,3 +307,35 @@ reprLoop context = do
           putStrLn $ show err
           reprLoop context
       
+restrictionPredicateP :: Parser RestrictionPredicateExpr
+restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
+  where
+    predicateOperators = [
+      [Infix (reservedOp "and" >> return AndPredicate) AssocLeft],
+      [Infix (reservedOp "or" >> return OrPredicate) AssocLeft]
+      ]
+    predicateTerm = parens restrictionPredicateP
+                    <|> try restrictionAttributeEqualityP
+                    <|> relationalBooleanExpr
+                    
+relationalBooleanExpr :: Parser RestrictionPredicateExpr                   
+relationalBooleanExpr = do
+  relexpr <- relExpr
+  return $ RelationalExprPredicate relexpr
+
+restrictionAttributeEqualityP :: Parser RestrictionPredicateExpr
+restrictionAttributeEqualityP = do
+  attributeName <- identifier
+  reservedOp "="
+  atom <- stringAtomP <|> intAtomP
+  return $ AttributeEqualityPredicate attributeName atom
+  
+quotedChar = noneOf "\""
+           <|> try (string "\"\"" >> return '"')
+           
+stringAtomP = liftA StringAtom (string "\"" *> many quotedChar <* string "\"")
+
+intAtomP = do
+  intstr <- many digit
+  return $ IntAtom (read intstr)
+  

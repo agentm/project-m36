@@ -13,7 +13,7 @@ data Atom = StringAtom String |
 data AtomType = StringAtomType |
                 IntAtomType |
                 RelationAtomType Attributes deriving (Eq, Show)
-                                                     
+
 type AttributeName = String
 type AtomName = String
 
@@ -44,7 +44,7 @@ data RelationalExpr where
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
-  --Restrict :: RExpr.RestrictionExpr -> RelationalExpr -> RelationalExpr  
+  Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
 
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
@@ -78,3 +78,10 @@ data DatabaseExpr where
   deriving (Show)
 
 type DatabaseState a = State DatabaseContext a
+
+data RestrictionPredicateExpr where
+  AndPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
+  OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
+  RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
+  AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
+  deriving (Show)
