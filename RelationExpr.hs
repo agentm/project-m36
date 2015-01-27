@@ -98,7 +98,7 @@ suppliersRel = case mkRelation attributes tupleSet of
   where
     attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
                                  ("SNAME", Attribute "SNAME" StringAtomType), 
-                                 ("STATUS", Attribute "STATUS" StringAtomType), 
+                                 ("STATUS", Attribute "STATUS" IntAtomType), 
                                  ("CITY", Attribute "CITY" StringAtomType)] 
     tupleSet = HS.fromList $ mkRelationTuples attributes [
       M.fromList [("S#", StringAtom "S1") , ("SNAME", StringAtom "Smith"), ("STATUS", IntAtom 20) , ("CITY", StringAtom "London")],
@@ -193,7 +193,27 @@ evalContextExpr (Delete relVarName) = do
     Nothing -> return $ Just (RelVarNotDefinedError relVarName)
     Just rel -> setRelVar relVarName (Relation (attributes rel) emptyTupleSet)
     
-evalContextExpr (Update relVarName attrAssignments) = undefined
+                                 
+--union of restricted+updated portion and the unrestricted+unupdated portion
+evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = do
+  state <- get
+  let relVarTable = relationVariables state 
+  case predicateRestrictionFilter state restrictionPredicateExpr of
+    Left err -> return $ Just err
+    Right predicateFunc -> do 
+                           case M.lookup relVarName relVarTable of
+                             Nothing -> return $ Just (RelVarNotDefinedError relVarName)
+                             Just rel -> case makeUpdatedRel rel of
+                               Left err -> return $ Just err
+                               Right updatedRel -> setRelVar relVarName updatedRel
+                               where
+                                 makeUpdatedRel rel = do
+                                   restrictedPortion <- restrict predicateFunc rel
+                                   unrestrictedPortion <- restrict (not . predicateFunc) rel
+                                   updatedPortion <- relMap tupleUpdater restrictedPortion
+                                   union updatedPortion unrestrictedPortion
+                                 tupleUpdater = \(RelationTuple tupMap) -> RelationTuple $ M.union attrAssignments tupMap
+
 
 evalContextExpr (AddInclusionDependency dep) = do
   state <- get
@@ -262,6 +282,12 @@ predicateRestrictionFilter context (OrPredicate expr1 expr2) = do
   expr1v <- predicateRestrictionFilter context expr1
   expr2v <- predicateRestrictionFilter context expr2
   return $ \x -> expr1v x || expr2v x
+  
+predicateRestrictionFilter context TruePredicate = Right $ \x -> True
+  
+predicateRestrictionFilter context (NotPredicate expr) = do
+  exprv <- predicateRestrictionFilter context expr
+  return $ \x -> not (exprv x)
 
 predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runState (evalRelationalExpr relExpr) context of
   (Left err, _) -> Left err

@@ -12,6 +12,11 @@ tupleSize (RelationTuple m) = M.size m
 tupleAttributeNameSet :: RelationTuple -> S.Set AttributeName
 tupleAttributeNameSet (RelationTuple tupMap) = M.keysSet tupMap
 
+tupleAttributes :: RelationTuple -> Attributes
+tupleAttributes (RelationTuple tupMap) = M.mapWithKey mapper tupMap
+  where
+    mapper key atom = Attribute key (atomTypeForAtom atom)
+
 tupleAtomForAttribute :: RelationTuple -> AttributeName -> Atom
 tupleAtomForAttribute (RelationTuple tupMap) attrName = tupMap M.! attrName
 

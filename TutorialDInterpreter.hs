@@ -17,7 +17,7 @@ import qualified Data.List as L
 import Control.Applicative (liftA, (<*), (*>))
 import Control.Monad.State
 import System.Console.Readline
-
+import System.IO
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -184,9 +184,9 @@ updateP :: Parser DatabaseExpr
 updateP = do
   reservedOp "update"
   relVarName <- identifier  
-  -- where clause
+  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaces)
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
-  return $ Update relVarName attributeAssignments
+  return $ Update relVarName attributeAssignments predicate
   
 constraintP :: Parser DatabaseExpr
 constraintP = do
@@ -197,12 +197,12 @@ constraintP = do
   superset <- relExpr
   return $ AddInclusionDependency (InclusionDependency constraintName subset superset)
   
-attributeAssignment :: Parser (String, RelationalExpr)
+attributeAssignment :: Parser (String, Atom)
 attributeAssignment = do
   attrName <- identifier
   reservedOp ":="
-  relExpr <- relExpr
-  return $ (attrName, relExpr)
+  atom <- stringAtomP <|> intAtomP
+  return $ (attrName, atom)
   
 parseString :: String -> Either RelationalError DatabaseExpr
 parseString str = case parse multipleDatabaseExpr "" str of
@@ -213,6 +213,7 @@ data TutorialDOperator where
   ShowRelation :: RelationalExpr -> TutorialDOperator
   ShowRelationType :: RelationalExpr -> TutorialDOperator
   ShowConstraint :: String -> TutorialDOperator
+  Quit :: TutorialDOperator
   deriving (Show)
   
 typeP :: Parser TutorialDOperator  
@@ -227,6 +228,11 @@ showRelP = do
   expr <- relExpr
   return $ ShowRelation expr
   
+quitP :: Parser TutorialDOperator
+quitP = do
+  reservedOp ":q"
+  return Quit
+  
 showConstraintsP :: Parser TutorialDOperator
 showConstraintsP = do
   reservedOp ":c"
@@ -237,6 +243,7 @@ interpreterOps :: Parser TutorialDOperator
 interpreterOps = typeP 
                  <|> showRelP
                  <|> showConstraintsP
+                 <|> quitP
 
 showRelationAttributes :: Relation -> String
 showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
@@ -247,23 +254,30 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
     attrs = values (attributes rel)
     values m = map snd (M.toAscList m)
     
-evalTutorialDOp :: DatabaseContext -> TutorialDOperator -> String
+data TutorialDOperatorResult = QuitResult |
+                               DisplayResult String |
+                               DisplayErrorResult String |
+                               NoActionResult
+    
+evalTutorialDOp :: DatabaseContext -> TutorialDOperator -> TutorialDOperatorResult
 evalTutorialDOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
-  (Right rel, _) -> showRelationAttributes rel
-  (Left err, _) -> show err
+  (Right rel, _) -> DisplayResult $ showRelationAttributes rel
+  (Left err, _) -> DisplayErrorResult $ show err
   
 evalTutorialDOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of 
-    (Left err, _) -> show err
-    (Right rel, _) -> showRelation rel
+    (Left err, _) -> DisplayErrorResult $ show err
+    (Right rel, _) -> DisplayResult $ showRelation rel
     
 evalTutorialDOp context (ShowConstraint name) = do
-  show filteredDeps
+  DisplayResult $ show filteredDeps
   where
     deps = inclusionDependencies context
     filteredDeps = case name of
       "" -> deps
       name -> HS.filter (\(InclusionDependency n _ _) -> n == name) deps
+      
+evalTutorialDOp context (Quit) = QuitResult
   
 example1 = "relA {a,b, c}"
 example2 = "relA join relB"
@@ -281,10 +295,10 @@ interpret context tutdstring = case parseString tutdstring of
                                     Right parsed -> runState (evalContextExpr parsed) context
                                     
 -- for interpreter-specific operations                               
-interpretOps :: DatabaseContext -> String -> Maybe String                                    
+interpretOps :: DatabaseContext -> String -> TutorialDOperatorResult
 interpretOps context instring = case parse interpreterOps "" instring of
-  Left err -> Nothing
-  Right ops -> Just $ evalTutorialDOp context ops
+  Left err -> NoActionResult
+  Right ops ->  evalTutorialDOp context ops
   
 reprLoop :: DatabaseContext -> IO ()
 reprLoop context = do
@@ -295,28 +309,31 @@ reprLoop context = do
       addHistory line
       
       case interpretOps context line of
-        Just out -> do 
+        QuitResult -> return ()
+        DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err)
+        DisplayResult out -> do
           putStrLn out
           reprLoop context
-        Nothing -> return ()
-        
-      let (value, contextup) = interpret context line 
-      case value of
-        Nothing -> reprLoop contextup
-        (Just err) -> do
-          putStrLn $ show err
-          reprLoop context
+        NoActionResult -> do
+          let (value, contextup) = interpret context line 
+          case value of
+            Nothing -> reprLoop contextup
+            (Just err) -> do
+              hPutStrLn stderr ("ERR:" ++ show err)
+              reprLoop context
       
 restrictionPredicateP :: Parser RestrictionPredicateExpr
 restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
   where
     predicateOperators = [
+      [Prefix (reservedOp "not" >> return NotPredicate)],
       [Infix (reservedOp "and" >> return AndPredicate) AssocLeft],
       [Infix (reservedOp "or" >> return OrPredicate) AssocLeft]
       ]
     predicateTerm = parens restrictionPredicateP
                     <|> try restrictionAttributeEqualityP
-                    <|> relationalBooleanExpr
+                    <|> try relationalBooleanExpr
+
                     
 relationalBooleanExpr :: Parser RestrictionPredicateExpr                   
 relationalBooleanExpr = do

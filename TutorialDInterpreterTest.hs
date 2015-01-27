@@ -8,6 +8,8 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import System.Exit
 
+import Debug.Trace
+
 main = do 
   counts <- runTestTT (TestList tests)
   if errors counts + failures counts > 0 then exitFailure else exitSuccess
@@ -33,9 +35,10 @@ main = do
     simpleProjectionAttributes = M.fromList [("c", Attribute "c" IntAtomType)]
     dateExampleRelTests = [("x:=S where true", Right s),
                            ("x:=S where CITY = \"London\"", restrict (\(RelationTuple tupMap) -> tupMap M.! "CITY" == StringAtom "London") s),
-                           ("x:=S where false", Right $ Relation (attributes s) HS.empty)]
-                           --("x:=S where SNO in S{SNO}", Right s)]
-
+                           ("x:=S where false", Right $ Relation (attributes s) HS.empty),
+                           ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (M.fromList [("STATUS", Attribute "STATUS" IntAtomType)]) (HS.fromList [RelationTuple $ M.fromList [("STATUS", IntAtom 50)]])),
+                           ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\(RelationTuple tupMap) -> RelationTuple $ if (traceShowId tupMap) M.! "SNAME" == StringAtom "Blake" then M.insert "CITY" (StringAtom "Boston") tupMap else tupMap) s)
+                          ]
 
 testSimple1 = TestCase $ assertTutdEqual basicDatabaseContext "true" (Right relationTrue)
 

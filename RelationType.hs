@@ -9,10 +9,16 @@ import Control.Monad.State hiding (join)
 data Atom = StringAtom String |
             IntAtom Int |
             RelationAtom Relation deriving (Show, Eq)
+                                                                                      
 
 data AtomType = StringAtomType |
                 IntAtomType |
                 RelationAtomType Attributes deriving (Eq, Show)
+                                                     
+atomTypeForAtom :: Atom -> AtomType                                                     
+atomTypeForAtom (StringAtom _) = StringAtomType
+atomTypeForAtom (IntAtom _) = IntAtomType
+atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
 
 type AttributeName = String
 type AtomName = String
@@ -72,7 +78,7 @@ data DatabaseExpr where
   Assign :: String -> RelationalExpr -> DatabaseExpr
   Insert :: String -> RelationalExpr -> DatabaseExpr
   Delete :: String -> DatabaseExpr -- needs restriction support
-  Update :: String -> M.Map String RelationalExpr -> DatabaseExpr -- needs restriction support
+  Update :: String -> M.Map String Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
   AddInclusionDependency :: InclusionDependency -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show)
@@ -80,8 +86,10 @@ data DatabaseExpr where
 type DatabaseState a = State DatabaseContext a
 
 data RestrictionPredicateExpr where
+  TruePredicate :: RestrictionPredicateExpr
   AndPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
   OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
+  NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
   AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
   deriving (Show)

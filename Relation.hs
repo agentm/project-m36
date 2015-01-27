@@ -4,6 +4,7 @@ module Relation where
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
+import Control.Monad
 
 import RelationType
 import RelationTuple
@@ -11,8 +12,6 @@ import RelationAttribute
 import RelationTupleSet
 import RelationalError
 import Prelude hiding (join)
-
-testTuple1 = mkRelationTuple (S.fromList ["hair"]) (M.fromList [("hair", StringAtom "brown")])
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -41,24 +40,12 @@ atomValueType (IntAtom _) = IntAtomType
 atomValueType (RelationAtom rel) = RelationAtomType (attributes rel)
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelation attrs tupleSet = 
+mkRelation attrs tupleSet = do
   --check that all tuples have the same keys
   --check that all tuples have keys (1-N) where N is the attribute count
-  if differentTupleCounts
-     then Left $ TupleAttributeCountMismatchError 0
-  else if not (fst (verifyRelationTupleSet tupleSet))
-     then Left $ TupleAttributeTypeMismatchError 0
-  else if attrCountMismatch
-     then Left $ AttributeCountMismatchError 0
-  else
-    Right $ Relation attrs tupleSet
-  where
-    attrCount = M.size attrs
-    tupleCounts = HS.map tupleSize tupleSet
-    attrCountMismatch = if HS.size tupleSet > 0 
-                        then not $ HS.member attrCount tupleCounts
-                        else False --empty tuple set is always OK
-    differentTupleCounts = HS.size tupleCounts > 1
+  case verifyRelationTupleSet attrs tupleSet of 
+    Left err -> Left err
+    Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
 
 relationTrue = Relation M.empty $ HS.singleton (RelationTuple M.empty)
 relationFalse = Relation M.empty emptyTupleSet
@@ -233,17 +220,26 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = Right $ Relation newA
     newAttrs = M.union attrs1 attrs2
     newTupSet = HS.foldr tupleSetJoiner emptyTupleSet tupSet1
     tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
-
+    
+--a map should NOT change the structure of a relation, so attributes should be constant                 
+relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
+relMap mapper (Relation attrs tupleSet) = do
+  case forM (HS.toList tupleSet) typeMapCheck of
+    Right remappedTupleSet -> Right $ Relation attrs $ HS.fromList remappedTupleSet
+    Left err -> Left err
+  where
+    typeMapCheck tupleIn = do
+      let remappedTuple = mapper tupleIn
+      if tupleAttributes remappedTuple == tupleAttributes tupleIn 
+        then Right remappedTuple 
+        else Left $ TupleAttributeTypeMismatchError 0
       
---a map should NOT change the structure of a relation, so attributes should be constant                  relMap :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
-relMap mapper newAttributes (Relation attrs tupleSet) = Right $ Relation newAttributes (HS.map mapper tupleSet)
+--in the future, the mapper should be able to return a RelationalError likely
+relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
+relMogrify mapper newAttributes (Relation _ tupSet) = mkRelation newAttributes (HS.map mapper tupSet)
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
 relFold folder acc (Relation attrs tupleSet) = HS.foldr folder acc tupleSet
-
-{- a specialized form of fold which always returns a Relation 
-relTuplesFold :: (RelationTuple -> RelationTupleSet -> RelationTupleSet) -> RelationTupleSet -> AttributeNameSet -> Relation -> Either RelationalError Relation
--}
 
 --image relation as defined by CJ Date
 --given tupleA and relationB, return restricted relation where tuple attributes are not the attribues in tupleA but are attributes in relationB and match the tuple's value 
@@ -277,7 +273,7 @@ relvarS = mkRelation attributes tupleSet
   where
     attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
                                  ("SNAME", Attribute "SNAME" StringAtomType), 
-                                 ("STATUS", Attribute "STATUS" StringAtomType), 
+                                 ("STATUS", Attribute "STATUS" IntAtomType), 
                                  ("CITY", Attribute "CITY" StringAtomType)] 
     tupleSet = HS.fromList $ mkRelationTuples attributes [
       M.fromList [("S#", StringAtom "S1") , ("SNAME", StringAtom "Smith"), ("STATUS", IntAtom 20) , ("CITY", StringAtom "London")],
