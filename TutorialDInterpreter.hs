@@ -2,6 +2,8 @@
 module TutorialDInterpreter where
 import Relation
 import RelationType
+import RelationTuple
+import RelationTupleSet
 import RelationalError
 import RelationExpr
 import RelationTerm
@@ -42,8 +44,12 @@ attributeList = sepBy identifier comma
 makeRelation :: Parser RelationalExpr
 makeRelation = do
   reservedOp "relation"
-  attrs <- makeAttributes
-  return $ MakeStaticRelation attrs HS.empty
+  attrs <- (try makeAttributes <|> return M.empty)
+  if not (M.null attrs) then do
+    return $ MakeStaticRelation attrs emptyTupleSet
+    else do
+    tuples <- braces (sepBy tupleP comma)
+    return $ MakeStaticRelation (tupleAttributes (head tuples)) (HS.fromList tuples)
 
 --used in relation creation
 makeAttributes :: Parser Attributes
