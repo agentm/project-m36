@@ -61,7 +61,25 @@ attributeAndType = do
   case tutDTypeToAtomType attrTypeName of
     Just t -> return $ Attribute attrName t
     Nothing -> fail (attrTypeName ++ " is not a valid type name.")
-
+    
+tupleP :: Parser RelationTuple    
+tupleP = do
+  reservedOp "tuple"
+  attrValues <- braces (sepBy tupleAtomP comma)
+  return $ RelationTuple (M.fromList attrValues)
+  
+tupleAtomP :: Parser (AttributeName, Atom)
+tupleAtomP = do
+  attributeName <- identifier
+  attrType <- identifier
+  atom <- parens (stringAtomP <|> intAtomP)
+  case tutDTypeToAtomType attrType of
+    Nothing -> fail (attrType ++ " is not a valid type name.")
+    Just typeA -> if typeA == atomTypeForAtom atom then
+                    return $ (attributeName, atom)
+                  else
+                    fail "type mismatch in tuple generation"
+  
 --convert Tutorial D type to AtomType
 tutDTypeToAtomType :: String -> Maybe AtomType
 tutDTypeToAtomType tutDType = case tutDType of
@@ -139,7 +157,8 @@ relOperators = [
   [Postfix groupP],
   [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
-  [Infix (reservedOp "union" >> return Union) AssocLeft]
+  [Infix (reservedOp "union" >> return Union) AssocLeft],
+  [Infix (reservedOp "=" >> return Equals) AssocNone]
   ]
 
 relExpr :: Parser RelationalExpr

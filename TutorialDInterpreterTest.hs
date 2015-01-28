@@ -28,7 +28,9 @@ main = do
                       ("x:=true where true or false", Right relationTrue),
                       ("x:=true where false or false", Right relationFalse),
                       ("x:=true where true and false", Right relationFalse),
-                      ("x:=true where true and true", Right relationTrue)
+                      ("x:=true where true and true", Right relationTrue),
+                      ("x:=true=true", Right relationTrue),
+                      ("x:=true=false", Right relationFalse)
                      ]
     simpleAAttributes = M.fromList [("a", Attribute "a" IntAtomType)]
     simpleBAttributes = M.fromList [("d", Attribute "d" IntAtomType)]

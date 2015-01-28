@@ -72,6 +72,17 @@ evalRelationalExpr (Restrict predicateExpr relExpr) = do
     Right rel -> case predicateRestrictionFilter context predicateExpr of
       Left err -> return $ Left err
       Right filterfunc -> return $ restrict filterfunc rel
+      
+evalRelationalExpr (Equals relExprA relExprB) = do
+  evaldA <- evalRelationalExpr relExprA
+  evaldB <- evalRelationalExpr relExprB
+  case evaldA of
+    Left err -> return $ Left err
+    Right relA -> case evaldB of 
+      Left err -> return $ Left err
+      Right relB -> return $ Right $ if relA == relB then relationTrue else relationFalse
+
+  
         
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
@@ -130,7 +141,7 @@ supplierProductsRel = case mkRelation attributes tupleSet of
   where
       attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
                                ("P#", Attribute "P#" StringAtomType), 
-                               ("QTY", Attribute "QTY" StringAtomType)]                 
+                               ("QTY", Attribute "QTY" IntAtomType)]                 
       tupleSet = HS.fromList $ mkRelationTuples attributes [
         M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P1"), ("QTY", IntAtom 300)],
         M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P2"), ("QTY", IntAtom 200)],

@@ -51,6 +51,7 @@ data RelationalExpr where
   Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
+  Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
 
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
