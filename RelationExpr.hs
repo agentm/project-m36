@@ -124,7 +124,7 @@ productsRel = case mkRelation attributes tupleSet of
     attributes = M.fromList [("P#", Attribute "P#" StringAtomType), 
                              ("PNAME", Attribute "PNAME" StringAtomType),
                              ("COLOR", Attribute "COLOR" StringAtomType), 
-                             ("WEIGHT", Attribute "WEIGHT" StringAtomType), 
+                             ("WEIGHT", Attribute "WEIGHT" IntAtomType), 
                              ("CITY", Attribute "CITY" StringAtomType)]
     tupleSet = HS.fromList $ mkRelationTuples attributes [
       M.fromList [("P#", StringAtom "P1"), ("PNAME", StringAtom "Nut"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 12), ("CITY", StringAtom "London")],
