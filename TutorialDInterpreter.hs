@@ -337,7 +337,7 @@ reprLoop context = do
     Just line -> do 
     case interpretOps context line of
       QuitResult -> return ()
-      DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err)
+      DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err) >> reprLoop context
       DisplayResult out -> do
         putStrLn out
         reprLoop context
