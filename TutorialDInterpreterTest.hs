@@ -30,6 +30,7 @@ main = do
                       ("x:=true where true and true", Right relationTrue),
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
+                      ("x:=true; undefine x", Right relationTrue),
                       ("x:=relation {b int, a char}; insert x relation{tuple{b int(5), a char(\"spam\")}}", mkRelation simpleCAttributes (HS.fromList [RelationTuple $ M.fromList [("a", StringAtom "spam"), ("b", IntAtom 5)]])),
                       ("x:=relation{tuple{b int(5),a char(\"spam\")},tuple{b int(6),a char(\"sam\")}}; delete x where b=6", mkRelation simpleCAttributes $ HS.fromList [RelationTuple $ M.fromList [("a", StringAtom "spam"), ("b", IntAtom 5)]])
                      ]
@@ -50,4 +51,6 @@ assertTutdEqual databaseContext tutd expected = assertEqual tutd interpreted exp
   where
     interpreted = case interpret databaseContext tutd of 
       (Just err, _) -> Left err
-      (Nothing, context) -> Right $ (relationVariables context) M.! "x"
+      (Nothing, context) -> case M.lookup "x" (relationVariables context) of
+        Nothing -> Left $ RelVarNotDefinedError "x"
+        Just rel -> Right rel

@@ -170,7 +170,14 @@ setRelVar relVarName rel = do
     Nothing -> do 
       put $ DatabaseContext (inclusionDependencies state) newRelVars
       return Nothing
-
+      
+-- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
+deleteRelVar :: String -> DatabaseState (Maybe RelationalError)
+deleteRelVar relVarName = do
+  state <- get
+  let newRelVars = M.delete relVarName (relationVariables state)
+  put $ DatabaseContext (inclusionDependencies state) newRelVars
+  return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
 evalContextExpr (Define relVarName attrs) = do
@@ -180,6 +187,9 @@ evalContextExpr (Define relVarName attrs) = do
     False -> setRelVar relVarName emptyRelation
       where
         emptyRelation = Relation attrs HS.empty
+        
+evalContextExpr (Undefine relVarName) = do
+  deleteRelVar relVarName
   
 evalContextExpr (Assign relVarName expr) = do
   -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it

@@ -177,6 +177,7 @@ databaseExpr = insertP
             <|> updateP
             <|> constraintP
             <|> defineP
+            <|> undefineP
             <|> assignP
             
 multipleDatabaseExpr :: Parser DatabaseExpr
@@ -199,6 +200,12 @@ defineP = do
     return relVarName
   attributes <- makeAttributes
   return $ Define relVarName attributes
+  
+undefineP :: Parser DatabaseExpr
+undefineP = do
+  reservedOp "undefine"
+  relVarName <- identifier
+  return $ Undefine relVarName
   
 deleteP :: Parser DatabaseExpr  
 deleteP = do
