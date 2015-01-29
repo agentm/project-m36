@@ -18,8 +18,9 @@ import qualified Data.Map as M
 import qualified Data.List as L
 import Control.Applicative (liftA, (<*), (*>))
 import Control.Monad.State
-import System.Console.Readline
+import System.Console.Haskeline
 import System.IO
+import System.Directory (getHomeDirectory)
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -327,25 +328,26 @@ interpretOps context instring = case parse interpreterOps "" instring of
   
 reprLoop :: DatabaseContext -> IO ()
 reprLoop context = do
-  maybeLine <- readline "TutorialD: "
+  homeDirectory <- getHomeDirectory
+  let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}      
+  maybeLine <- runInputT settings $ do
+                     getInputLine "TutorialD: "
   case maybeLine of
     Nothing -> return ()
     Just line -> do 
-      addHistory line
-      
-      case interpretOps context line of
-        QuitResult -> return ()
-        DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err)
-        DisplayResult out -> do
-          putStrLn out
+    case interpretOps context line of
+      QuitResult -> return ()
+      DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err)
+      DisplayResult out -> do
+        putStrLn out
+        reprLoop context
+      NoActionResult -> do
+      let (value, contextup) = interpret context line 
+      case value of
+        Nothing -> reprLoop contextup
+        (Just err) -> do
+          hPutStrLn stderr ("ERR:" ++ show err)
           reprLoop context
-        NoActionResult -> do
-          let (value, contextup) = interpret context line 
-          case value of
-            Nothing -> reprLoop contextup
-            (Just err) -> do
-              hPutStrLn stderr ("ERR:" ++ show err)
-              reprLoop context
       
 restrictionPredicateP :: Parser RestrictionPredicateExpr
 restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm

@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Executable tutd
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,readline
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory
     main-is: tutd.hs
     GHC-Options: -fwarn-unused-imports -fwarn-unused-binds	
 
