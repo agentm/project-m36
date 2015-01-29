@@ -29,7 +29,8 @@ main = do
                       ("x:=true where true and false", Right relationFalse),
                       ("x:=true where true and true", Right relationTrue),
                       ("x:=true=true", Right relationTrue),
-                      ("x:=true=false", Right relationFalse)
+                      ("x:=true=false", Right relationFalse),
+                      ("x:=relation {b int, a char}; insert x relation{tuple{b int(5), a char(\"spam\")}}", mkRelation simpleCAttributes (HS.fromList [RelationTuple $ M.fromList [("a", StringAtom "spam"), ("b", IntAtom 5)]]))
                      ]
     simpleAAttributes = M.fromList [("a", Attribute "a" IntAtomType)]
     simpleBAttributes = M.fromList [("d", Attribute "d" IntAtomType)]
