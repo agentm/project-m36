@@ -9,7 +9,7 @@ Project:M36 implements a relational algebra engine as inspired by the writings o
 1. ```git clone https://github.com/agentm/project-m36```
 2. ```cd project-m36```
 3. ```cabal configure --enable-tests```
-4. ```cabal build```
+4. ```cabal install --enable-tests```
 5. ```./dist/build/tutd/tutd``` to run the Tutorial D interpreter
 6. ```cabal test``` to run test suite
 
