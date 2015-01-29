@@ -94,3 +94,11 @@ data RestrictionPredicateExpr where
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
   AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
   deriving (Show)
+
+-- child + parent links
+-- the string represents the branch name and can be used to find the named HEADs
+data Transaction = Transaction UUID String Transaction (S.Set Transaction) |
+                   MergeTransaction UUID Transaction Transaction |
+                   NullTransaction -- the first transaction has no parent, a current head has no children
+                   
+--data NamedHeads = NamedHeads M.Map String Transaction                  
