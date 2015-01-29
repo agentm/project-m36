@@ -3,7 +3,6 @@ import RelationType
 import RelationTuple
 import RelationalError
 import qualified Data.Map as M
-import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 

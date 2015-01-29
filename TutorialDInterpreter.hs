@@ -204,7 +204,8 @@ deleteP :: Parser DatabaseExpr
 deleteP = do
   reservedOp "delete"
   relVarName <- identifier
-  return $ Delete relVarName
+  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
+  return $ Delete relVarName predicate
   
 updateP :: Parser DatabaseExpr
 updateP = do

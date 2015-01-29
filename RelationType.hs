@@ -76,9 +76,10 @@ instance Eq InclusionDependency where
 --Database context expressions modify the database context while relational expressions do not
 data DatabaseExpr where
   Define :: String -> Attributes -> DatabaseExpr
+  Undefine :: String -> DatabaseExpr --forget existence of relvar X
   Assign :: String -> RelationalExpr -> DatabaseExpr
   Insert :: String -> RelationalExpr -> DatabaseExpr
-  Delete :: String -> DatabaseExpr -- needs restriction support
+  Delete :: String -> RestrictionPredicateExpr -> DatabaseExpr 
   Update :: String -> M.Map String Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
   AddInclusionDependency :: InclusionDependency -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr

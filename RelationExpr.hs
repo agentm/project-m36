@@ -198,12 +198,11 @@ evalContextExpr (Assign relVarName expr) = do
 evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName))
 
 --assign empty rel until restriction is implemented
-evalContextExpr (Delete relVarName) = do
-  relVarTable <- liftM relationVariables get
-  case M.lookup relVarName relVarTable of
-    Nothing -> return $ Just (RelVarNotDefinedError relVarName)
-    Just rel -> setRelVar relVarName (Relation (attributes rel) emptyTupleSet)
-    
+evalContextExpr (Delete relVarName predicate) = do
+  updatedRel <- evalRelationalExpr (Restrict (NotPredicate predicate) (RelationVariable relVarName))
+  case updatedRel of
+    Left err -> return $ Just err
+    Right rel -> setRelVar relVarName rel
                                  
 --union of restricted+updated portion and the unrestricted+unupdated portion
 evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = do
