@@ -248,6 +248,7 @@ data TutorialDOperator where
   ShowRelation :: RelationalExpr -> TutorialDOperator
   ShowRelationType :: RelationalExpr -> TutorialDOperator
   ShowConstraint :: String -> TutorialDOperator
+  ShowPlan :: DatabaseExpr -> TutorialDOperator
   Quit :: TutorialDOperator
   deriving (Show)
   
@@ -262,6 +263,12 @@ showRelP = do
   reservedOp ":s"
   expr <- relExpr
   return $ ShowRelation expr
+  
+showPlanP :: Parser TutorialDOperator
+showPlanP = do
+  reservedOp ":p"
+  expr <- databaseExpr
+  return $ ShowPlan expr
   
 quitP :: Parser TutorialDOperator
 quitP = do
@@ -278,6 +285,7 @@ interpreterOps :: Parser TutorialDOperator
 interpreterOps = typeP 
                  <|> showRelP
                  <|> showConstraintsP
+                 <|> showPlanP
                  <|> quitP
 
 showRelationAttributes :: Relation -> String
@@ -311,6 +319,11 @@ evalTutorialDOp context (ShowConstraint name) = do
     filteredDeps = case name of
       "" -> deps
       name -> HS.filter (\(InclusionDependency n _ _) -> n == name) deps
+      
+evalTutorialDOp context (ShowPlan dbExpr) = do
+  DisplayResult $ show plan
+  where
+    plan = evalState (applyStaticDatabaseOptimization dbExpr) context
       
 evalTutorialDOp context (Quit) = QuitResult
   

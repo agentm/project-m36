@@ -59,6 +59,12 @@ fromList []
 ```
 which displays database constraints.
 
+  ```
+TutorialD: :p x:=S{CITY,S#,SNAME,STATUS}
+Right (Assign "x" (RelationVariable "S"))
+```
+which displays the optimized execution plan which would have been executed to evaluate the expression.
+
 3. expressions which modify the database context such as:
 
   ```
