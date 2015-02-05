@@ -52,13 +52,12 @@ data RelationalExpr where
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
 2. create an execution plan (another system of nodes, another GADT)
 3. execute the plan
 -}
-  deriving (Show)
+  deriving (Show,Eq)
 
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: HS.HashSet InclusionDependency,
@@ -83,7 +82,7 @@ data DatabaseExpr where
   Update :: String -> M.Map String Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
   AddInclusionDependency :: InclusionDependency -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
-  deriving (Show)
+  deriving (Show,Eq)
 
 type DatabaseState a = State DatabaseContext a
 
@@ -94,4 +93,4 @@ data RestrictionPredicateExpr where
   NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
   AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
-  deriving (Show)
+  deriving (Show, Eq)

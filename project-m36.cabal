@@ -9,7 +9,7 @@ Cabal-Version: >= 1.2
 Executable tutd
     Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory
     main-is: tutd.hs
-    GHC-Options: -fwarn-unused-imports -fwarn-unused-binds	
+    GHC-Options: -fwarn-unused-imports -fwarn-unused-binds -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns
 
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
@@ -19,4 +19,9 @@ Test-Suite test-tutoriald
 Test-Suite test-relation
     type: exitcode-stdio-1.0
     main-is: RelationTest.hs
+    Build-Depends: base,HUnit,Cabal
+
+Test-Suite test-static-optimizer
+    type: exitcode-stdio-1.0
+    main-is: RelationStaticOptimizerTest.hs
     Build-Depends: base,HUnit,Cabal

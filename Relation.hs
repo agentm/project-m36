@@ -193,6 +193,8 @@ tupleUngroup relvalAttrName newAttrs tuple@(RelationTuple tupMap) = case (tupMap
         where
           unsafeRelValFromAtom :: Atom -> Relation
           unsafeRelValFromAtom (RelationAtom rel) = rel
+          unsafeRelValFromAtom (StringAtom _) = undefined
+          unsafeRelValFromAtom (IntAtom _) = undefined
   _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
           
 --this is a hack needed because the relation attributes are untyped so we must dig into the relval to get the attribute names  
@@ -207,6 +209,8 @@ attributesForRelval relvalAttrName relIn@(Relation attrs tupleSet) = attributes 
       where
         unsafeRelValFromAtom :: Atom -> Relation
         unsafeRelValFromAtom (RelationAtom rel) = rel
+        unsafeRelValFromAtom (StringAtom _) = undefined
+        unsafeRelValFromAtom (IntAtom _) = undefined
 
 restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relation
 restrict filter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter filter tupset

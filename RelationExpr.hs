@@ -105,6 +105,7 @@ dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreig
     supplierProducts = supplierProductsRel
       
 suppliersRel = case mkRelation attributes tupleSet of
+  Left err -> undefined
   Right rel -> rel
   where
     attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
@@ -119,6 +120,7 @@ suppliersRel = case mkRelation attributes tupleSet of
       M.fromList [("S#", StringAtom "S5"), ("SNAME", StringAtom "Adams"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Athens")]]
       
 productsRel = case mkRelation attributes tupleSet of
+  Left err -> undefined
   Right rel -> rel
   where
     attributes = M.fromList [("P#", Attribute "P#" StringAtomType), 
@@ -137,6 +139,7 @@ productsRel = case mkRelation attributes tupleSet of
       ]
                               
 supplierProductsRel = case mkRelation attributes tupleSet of
+  Left err -> undefined
   Right rel -> rel
   where
       attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
@@ -242,8 +245,12 @@ evalContextExpr (AddInclusionDependency dep) = do
   return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
-  evald <- mapM evalContextExpr exprs
-  return $ last evald
+  --the multiple expressions must pass the same context around- not the old unmodified context
+  evald <- forM exprs evalContextExpr
+  --some lifting magic needed here
+  case catMaybes evald of
+    [] -> return $ Nothing
+    err:l -> return $ Just err
   
 -- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples  
 --evalRelVarExpr (Update relVarName updateMap) = do
@@ -284,12 +291,19 @@ checkConstraint (InclusionDependency name subDep superDep) = do
     
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
+         
 typeForRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
 typeForRelationalExpr expr = do
   state <- get
   --replace the relationVariables context element with a cloned set of relation devoid of tuples
-  put $ DatabaseContext (inclusionDependencies state) $ M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables state)
+  put $ contextWithEmptyTupleSets state
   evalRelationalExpr expr
+  
+--returns a database context with all tuples removed  
+--this is useful for type checking and optimization
+contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
+contextWithEmptyTupleSets contextIn = DatabaseContext (inclusionDependencies contextIn) $ M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
+
   
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
 predicateRestrictionFilter :: DatabaseContext -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)

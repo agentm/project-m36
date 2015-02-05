@@ -7,6 +7,7 @@ import RelationTupleSet
 import RelationalError
 import RelationExpr
 import RelationTerm
+import RelationStaticOptimizer
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -28,7 +29,7 @@ lexer = Token.makeTokenParser tutD
                 Token.reservedOpNames = ["join", "where", "union", "group", "ungroup"],
                 Token.reservedNames = [],
                 Token.identStart = letter <|> char '_',
-                Token.identLetter = alphaNum <|> char '_'}
+                Token.identLetter = alphaNum <|> char '_' <|> char '#'} -- # needed for Date examples
 
 parens = Token.parens lexer
 reservedOp = Token.reservedOp lexer
@@ -326,7 +327,22 @@ example9 = "relA := relation { SNO CHAR }"
 interpret :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
 interpret context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
+                                    Right parsed -> runState (evaluator parsed) context
+                               where 
+                                 evaluator expr = do
+                                   context <- get
+                                   optExpr <- applyStaticDatabaseOptimization expr 
+                                   --case optExpr of
+                                   case optExpr of
+                                     Left err -> return $ Just err
+                                     Right optExprA -> evalContextExpr optExprA
+
+--no optimization
+interpretNO :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
+interpretNO context tutdstring = case parseString tutdstring of
+                                    Left err -> (Just err, context)
                                     Right parsed -> runState (evalContextExpr parsed) context
+
                                     
 -- for interpreter-specific operations                               
 interpretOps :: DatabaseContext -> String -> TutorialDOperatorResult
