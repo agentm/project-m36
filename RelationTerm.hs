@@ -74,12 +74,12 @@ renderTable table = renderHeader table (fst cellLocs) ++ renderBody (snd table) 
     cellLocs = cellLocations table  
     
 renderHeader :: Table -> [Int] -> String
-renderHeader (header, body) columnLocations = renderTopBar ++ renderHeaderNames ++ renderBottomBar ++ "\n"
+renderHeader (header, body) columnLocations = renderTopBar ++ renderHeaderNames ++ renderBottomBar
   where
     renderTopBar = boxTL ++ concat (L.intersperse boxTB (map (\x -> repeatString x boxH) columnLocations)) ++ boxTR ++ "\n"
     renderHeaderNames = renderRow header columnLocations 1 boxV
     renderBottomBar = if length body == 0 then ""
-                      else renderHBar boxLB boxC boxRB columnLocations
+                      else renderHBar boxLB boxC boxRB columnLocations ++ "\n"
                         
 renderHBar :: String -> String -> String -> [Int] -> String
 renderHBar left middle end columnLocations = left ++ concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) ++ end
@@ -116,6 +116,6 @@ showRelation rel
   | otherwise = renderTable (relationAsTable rel)
   
 
-simpleExample = s
-groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
+--simpleExample = s
+--groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
   
