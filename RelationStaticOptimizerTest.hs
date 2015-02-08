@@ -1,6 +1,7 @@
 import RelationType
 import Relation
 import RelationExpr
+import RelationTupleSet
 import RelationStaticOptimizer
 import System.Exit
 import Control.Monad.State
@@ -17,7 +18,8 @@ main = do
       ("StaticProject", Right $ RelationVariable "S", Project (attributeNames s) (RelationVariable "S")),
       ("StaticUnion", Right $ RelationVariable "S", Union (RelationVariable "S") (RelationVariable "S")),
       ("StaticJoin", Right $ RelationVariable "S", Join (RelationVariable "S") (RelationVariable "S")),
-      ("StaticRestrict", Right $ RelationVariable "S", Restrict TruePredicate (RelationVariable "S"))
+      ("StaticRestrictTrue", Right $ RelationVariable "S", Restrict TruePredicate (RelationVariable "S")),
+      ("StaticRestrictFalse", Right $ MakeStaticRelation (attributes s) emptyTupleSet, Restrict (NotPredicate TruePredicate) (RelationVariable "S"))
       ]
     databaseOptTests = optTest applyStaticDatabaseOptimization [
       ("StaticAssign", 

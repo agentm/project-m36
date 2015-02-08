@@ -3,6 +3,7 @@ import RelationType
 import RelationExpr
 import Relation
 import RelationalError
+import RelationTupleSet
 import Control.Monad.State hiding (join)
 import Data.Either (rights, lefts)
 
@@ -75,11 +76,16 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
     Left err -> return $ Left err
     Right optimizedPredicate -> if optimizedPredicate == TruePredicate then
                                   applyStaticRelationalOptimization expr
-                                  else do
-                                    optimizedSubExpression <- applyStaticRelationalOptimization expr
-                                    case optimizedSubExpression of
+                                  else if optimizedPredicate == NotPredicate TruePredicate then do
+                                    attributesRel <- typeForRelationalExpr expr
+                                    case attributesRel of 
                                       Left err -> return $ Left err
-                                      Right optSubExpr -> return $ Right $ Restrict optimizedPredicate optSubExpr
+                                      Right attributesRelA -> return $ Right $ MakeStaticRelation (attributes attributesRelA) emptyTupleSet
+                                      else do
+                                      optimizedSubExpression <- applyStaticRelationalOptimization expr
+                                      case optimizedSubExpression of
+                                        Left err -> return $ Left err
+                                        Right optSubExpr -> return $ Right $ Restrict optimizedPredicate optSubExpr
   
 applyStaticRelationalOptimization (Equals exprA exprB) = do 
   return $ Right $ Equals exprA exprB
