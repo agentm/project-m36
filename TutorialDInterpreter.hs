@@ -240,7 +240,7 @@ attributeAssignment = do
   return $ (attrName, atom)
   
 parseString :: String -> Either RelationalError DatabaseExpr
-parseString str = case parse multipleDatabaseExpr "" str of
+parseString str = case parse (multipleDatabaseExpr <* eof) "" str of
   Left err -> Left $ ParseError (show err)
   Right r -> Right r
 
@@ -261,7 +261,7 @@ typeP = do
 showRelP :: Parser TutorialDOperator
 showRelP = do
   reservedOp ":s"
-  expr <- relExpr
+  expr <- relExpr <* eof
   return $ ShowRelation expr
   
 showPlanP :: Parser TutorialDOperator
