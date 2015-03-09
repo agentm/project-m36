@@ -1,5 +1,6 @@
 module RelationalError where
 import RelationType
+import qualified Data.UUID as U
 
 data RelationalError = NoSuchAttributeNameError String
                      | TupleAttributeCountMismatchError Int
@@ -14,6 +15,9 @@ data RelationalError = NoSuchAttributeNameError String
                      | InclusionDependencyCheckError String
                      | ParseError String
                      | PredicateExpressionError String
+                     | NoSuchTransactionError U.UUID
+                     | NoSuchHeadNameError HeadName
+                     | TransactionIsNotAHead U.UUID
                        deriving (Show,Eq) 
 
 

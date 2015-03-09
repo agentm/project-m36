@@ -7,6 +7,7 @@ import RelationType
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import System.Exit
+import Data.UUID.V4 (nextRandom)
 
 main = do 
   counts <- runTestTT (TestList tests)
@@ -50,3 +51,16 @@ assertTutdEqual databaseContext tutd expected = assertEqual tutd interpreted exp
     interpreted = case interpret databaseContext tutd of 
       (Just err, _) -> Left err
       (Nothing, context) -> Right $ (relationVariables context) M.! "x"
+      
+transactionGraphTest1 = TestCase $ assertEqual "validate bootstrapped graph" 
+  where
+    interpreted = interpretOps U.nextRandom 
+    (discon, graph) = dateExampleGraph
+
+dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
+dateExamplesGraph = do
+  firstTransactionUUID <- U.nextRandom                    
+  let graph = bootstrapTransactionGraph firstTransactionUUID dateExamples
+  let discon = newDisconnectedTransaction firstTransactionUUID dateExamples
+  return (discon, graph)
+
