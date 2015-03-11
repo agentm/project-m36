@@ -4,6 +4,7 @@ import RelationExpr
 import Relation
 import RelationalError
 import RelationType
+import RelationalTransaction
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import System.Exit
@@ -52,14 +53,15 @@ assertTutdEqual databaseContext tutd expected = assertEqual tutd interpreted exp
       (Just err, _) -> Left err
       (Nothing, context) -> Right $ (relationVariables context) M.! "x"
       
-transactionGraphTest1 = TestCase $ assertEqual "validate bootstrapped graph" 
-  where
-    interpreted = interpretOps U.nextRandom 
-    (discon, graph) = dateExampleGraph
+transactionGraphTest1 = TestCase $ do
+    (discon, graph) <-  dateExamplesGraph
+    assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
+
+
 
 dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
 dateExamplesGraph = do
-  firstTransactionUUID <- U.nextRandom                    
+  firstTransactionUUID <- nextRandom                    
   let graph = bootstrapTransactionGraph firstTransactionUUID dateExamples
   let discon = newDisconnectedTransaction firstTransactionUUID dateExamples
   return (discon, graph)

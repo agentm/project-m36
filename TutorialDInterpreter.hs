@@ -370,8 +370,8 @@ evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOpe
 
 --affects only disconncted transaction
 evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
-  Nothing -> Left $ NoSuchTransactionError jumpUUID
-  Just parentTrans -> Right (newTrans, graph)
+  Left err -> Left err
+  Right parentTrans -> Right (newTrans, graph)
     where
       newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
   
@@ -398,22 +398,22 @@ evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) gr
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
 evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
-  Nothing -> Left $ NoSuchTransactionError parentUUID
-  Just parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
-    Nothing -> Left $ NoSuchTransactionError parentUUID -- improve error
-    Just (newTrans, newGraph) -> Right (newDiscon, newGraph)
+  Left err -> Left err
+  Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
+    Left err -> Left err
+    Right (newTrans, newGraph) -> Right (newDiscon, newGraph)
      where
       newDiscon = DisconnectedTransaction newUUID disconContext
 
 -- add the disconnected transaction to the graph
 -- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
 evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) graph Commit = case transactionForUUID parentUUID graph of
-  Nothing -> Left $ NoSuchTransactionError parentUUID
-  Just parentTransaction -> case headNameForTransaction parentTransaction graph of 
-    Nothing -> Left $ TransactionIsNotAHead parentUUID
+  Left err -> Left err
+  Right parentTransaction -> case headNameForTransaction parentTransaction graph of 
+    Nothing -> Left $ TransactionIsNotAHeadError parentUUID
     Just headName -> case maybeUpdatedGraph of
-      Nothing -> Left $ TransactionIsNotAHead parentUUID -- add better error
-      Just (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
+      Left err-> Left err
+      Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
       where
         newDisconnectedTrans = newDisconnectedTransaction newTransUUID context
         --parentTransaction = transactionForUUID parentUUID graph
@@ -438,8 +438,8 @@ promptText :: DisconnectedTransaction -> TransactionGraph -> String
 promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" ++ transInfo ++ "): "
   where
     transInfo = case transactionForUUID parentUUID graph of 
-        Nothing -> "unknown"
-        Just parentTrans -> case headNameForTransaction parentTrans graph of
+      Left err -> "unknown"
+      Right parentTrans -> case headNameForTransaction parentTrans graph of
           Nothing -> show $ transactionUUID parentTrans
           Just headName -> headName
   

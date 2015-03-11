@@ -17,7 +17,8 @@ data RelationalError = NoSuchAttributeNameError String
                      | PredicateExpressionError String
                      | NoSuchTransactionError U.UUID
                      | NoSuchHeadNameError HeadName
-                     | TransactionIsNotAHead U.UUID
+                     | TransactionIsNotAHeadError U.UUID
+                     | TransactionGraphCycleError U.UUID
                        deriving (Show,Eq) 
 
 
