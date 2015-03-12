@@ -14,7 +14,7 @@ main = do
   counts <- runTestTT (TestList tests)
   if errors counts + failures counts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests ++ [transactionGraphTest1]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -56,8 +56,6 @@ assertTutdEqual databaseContext tutd expected = assertEqual tutd interpreted exp
 transactionGraphTest1 = TestCase $ do
     (discon, graph) <-  dateExamplesGraph
     assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
-
-
 
 dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
 dateExamplesGraph = do
