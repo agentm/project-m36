@@ -121,7 +121,7 @@ data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
 --represents an "in-progress" transaction which has not yet been added to the transaction graph
 --one the transaction is "complete", it is committed and no longer can be changed
 -- this is similar to the index in git
-data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parent UUID
+data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parentUUID, context
                             
 transactionUUID :: Transaction -> UUID
 transactionUUID (Transaction uuid _ _) = uuid

@@ -9,12 +9,13 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import System.Exit
 import Data.UUID.V4 (nextRandom)
+import Data.Either (isRight)
 
 main = do 
   counts <- runTestTT (TestList tests)
   if errors counts + failures counts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests ++ [transactionGraphTest1]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -53,10 +54,28 @@ assertTutdEqual databaseContext tutd expected = assertEqual tutd interpreted exp
       (Just err, _) -> Left err
       (Nothing, context) -> Right $ (relationVariables context) M.! "x"
       
-transactionGraphTest1 = TestCase $ do
+transactionGraphBasicTest = TestCase $ do
     (discon, graph) <-  dateExamplesGraph
     assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
-
+    
+--add a new transaction to the graph, validate it is in the graph    
+transactionGraphAddCommitTest = TestCase $ do    
+    (discon@(DisconnectedTransaction firstUUID context), graph) <- dateExamplesGraph
+    freshUUID <- nextRandom
+    case interpret context "x:=S" of
+      (Just err, newContext) -> assertFailure (show err)
+      (Nothing, newContext) -> do
+        let discon = newDisconnectedTransaction firstUUID newContext
+        let addTrans = addDisconnectedTransaction freshUUID "master" discon graph
+        case addTrans of
+          Left err -> assertFailure (show err)
+          Right (newTrans, graph) -> do
+            assertBool "transaction in graph" (isRight $ transactionForUUID freshUUID graph)
+            assertEqual "validate fresh commit with deleted S" (validateGraph graph) Nothing
+            assertEqual "ensure S was deleted in newContext" (M.lookup "x" (relationVariables (transactionContext newTrans))) (Just s)
+    
+--test rollback, jump, branch
+    
 dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
 dateExamplesGraph = do
   firstTransactionUUID <- nextRandom                    
