@@ -419,6 +419,13 @@ evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) gra
         --parentTransaction = transactionForUUID parentUUID graph
         maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
         
+-- refresh the disconnected transaction, return the same graph        
+evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTransaction -> Right (newDiscon, graph)
+    where
+      newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
+        
 --shouldn't this be Either RelationalError DatabaseContext?
 interpret :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
 interpret context tutdstring = case parseString tutdstring of

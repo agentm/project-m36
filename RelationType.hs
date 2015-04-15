@@ -103,7 +103,7 @@ type HeadName = String
 type TransactionHeads = M.Map HeadName Transaction
 
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
-                        deriving (Show)
+                        deriving (Show, Eq)
 
 transactionsForGraph :: TransactionGraph -> S.Set Transaction
 transactionsForGraph (TransactionGraph _ t) = t

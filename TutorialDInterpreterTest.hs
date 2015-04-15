@@ -7,15 +7,17 @@ import RelationType
 import RelationalTransaction
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import qualified Data.Set as S
 import System.Exit
 import Data.UUID.V4 (nextRandom)
+import Data.UUID (nil)
 import Data.Either (isRight)
 
 main = do 
   counts <- runTestTT (TestList tests)
   if errors counts + failures counts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext tutd expected) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples tutd expected) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -74,8 +76,69 @@ transactionGraphAddCommitTest = TestCase $ do
             assertEqual "validate fresh commit with deleted S" (validateGraph graph) Nothing
             assertEqual "ensure S was deleted in newContext" (M.lookup "x" (relationVariables (transactionContext newTrans))) (Just s)
     
---test rollback, jump, branch
-    
+transactionRollbackTest = TestCase $ do            
+    (origDiscon@(DisconnectedTransaction firstUUID origContext), graph) <- dateExamplesGraph
+    freshUUID <- nextRandom
+    case transactionForUUID firstUUID graph of 
+      Left err -> assertFailure (show err)
+      Right firstTrans -> do
+        case interpret origContext "x:=S" of
+          (Just err, _) -> assertFailure (show err)
+          (Nothing, newContext) -> do
+            let discon = newDisconnectedTransaction firstUUID newContext
+            let (updatedDiscon@(DisconnectedTransaction _ newContext2), newGraph, result) = interpretOps freshUUID discon graph ":rollback"
+            assertEqual "validate context" (M.lookup "x" (relationVariables newContext2)) Nothing
+            assertEqual "validate graph" graph newGraph
+
+--commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
+transactionJumpTest = TestCase $ do
+    (origDiscon@(DisconnectedTransaction firstUUID origContext), graph) <- dateExamplesGraph 
+    freshUUID <- nextRandom
+    case transactionForUUID firstUUID graph of
+      Left err -> assertFailure (show err)
+      Right firstTrans -> do
+        case interpret origContext "x:=S" of
+          (Just err, _) -> assertFailure (show err)
+          (Nothing, newContext) -> do
+            --modify the second transaction
+            case interpret newContext "x:=S" of
+              (Just err, _) -> assertFailure (show err)
+              (Nothing, newContext2) -> do
+                --add the transaction
+                let discon = newDisconnectedTransaction firstUUID newContext2
+                let addTrans = addDisconnectedTransaction freshUUID "master" discon graph
+                case addTrans of
+                  Left err -> assertFailure (show err)
+                  Right (newTrans, graph) -> do
+                    --jump to the first transaction
+                    let (updatedDiscon@(DisconnectedTransaction parentUUID newContext3), newGraph, result) = interpretOps freshUUID discon graph (":jump " ++ show firstUUID)
+                    assertEqual "validate discon" parentUUID firstUUID
+                    assertEqual "validate discon2" Nothing (M.lookup "x" (relationVariables newContext3))
+                    assertEqual "validate graph" transactionUUIDs (S.map transactionUUID (transactionsForGraph newGraph))
+                    where
+                      transactionUUIDs = S.fromList [firstUUID, freshUUID]
+                      
+--branch from the first transaction and verify that there are two heads
+transactionBranchTest = TestCase $ do
+    (origDiscon@(DisconnectedTransaction firstUUID origContext), graph) <- dateExamplesGraph
+    freshUUID1 <- nextRandom
+    freshUUID2 <- nextRandom
+    case transactionForUUID firstUUID graph of    
+      Left err -> assertFailure (show err)
+      Right firstTrans -> do
+        let disconMaster = newDisconnectedTransaction firstUUID origContext
+        let addTransMaster = addDisconnectedTransaction freshUUID1 "master" disconMaster graph
+        --add a second transaction to the "master" branch
+        case addTransMaster of
+          Left err -> assertFailure (show err)
+          Right (newTrans, graph) -> do
+            --add a third transaction to the "test" branch
+            let (updatedDiscon, newGraph, result) = interpretOps freshUUID2 origDiscon graph ":branch test"
+            assertEqual "verify test head" freshUUID2 $ maybeTransUUID (transactionForHead "test" newGraph)
+            assertEqual "verify master head" freshUUID1 $ maybeTransUUID (transactionForHead "master" newGraph)
+    where
+      maybeTransUUID t = maybe nil transactionUUID t
+        
 dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
 dateExamplesGraph = do
   firstTransactionUUID <- nextRandom                    

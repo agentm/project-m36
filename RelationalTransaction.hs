@@ -1,5 +1,5 @@
 module RelationalTransaction where
-import Data.UUID (UUID, nil)
+import qualified Data.UUID as U
 import RelationType
 import RelationalError
 import qualified Data.Set as S
@@ -7,11 +7,11 @@ import qualified Data.Map as M
 import Control.Applicative ((<$>))
 import Control.Monad
 
-bootstrapTransactionGraph :: UUID -> DatabaseContext -> TransactionGraph
+bootstrapTransactionGraph :: U.UUID -> DatabaseContext -> TransactionGraph
 bootstrapTransactionGraph freshUUID context = TransactionGraph bootstrapHeads bootstrapTransactions
   where
     bootstrapHeads = M.singleton "master" freshTransaction
-    freshTransaction = Transaction freshUUID (TransactionInfo nil S.empty) context
+    freshTransaction = Transaction freshUUID (TransactionInfo U.nil S.empty) context
     bootstrapTransactions = S.singleton freshTransaction
     
 transactionForHead :: String -> TransactionGraph -> Maybe Transaction
@@ -25,7 +25,7 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
   where
     matchingTrans = M.filter (transaction ==) heads
     
-transactionForUUID :: UUID -> TransactionGraph -> Either RelationalError Transaction
+transactionForUUID :: U.UUID -> TransactionGraph -> Either RelationalError Transaction
 transactionForUUID uuid graph = if S.null matchingTrans then
                                   Left $ NoSuchTransactionError uuid
                                 else
@@ -33,11 +33,13 @@ transactionForUUID uuid graph = if S.null matchingTrans then
   where
     matchingTrans = S.filter (\(Transaction uuidMatch _ _) -> uuidMatch == uuid) (transactionsForGraph graph)
 
-transactionsForUUIDs :: S.Set UUID -> TransactionGraph -> Either RelationalError (S.Set Transaction)    
+transactionsForUUIDs :: S.Set U.UUID -> TransactionGraph -> Either RelationalError (S.Set Transaction)    
 transactionsForUUIDs uuidSet graph = do
   transList <- forM (S.toList uuidSet) ((flip transactionForUUID) graph)
   return (S.fromList transList)
-
+  
+isRootTransaction :: Transaction -> TransactionGraph -> Bool
+isRootTransaction (Transaction _ (TransactionInfo pUUID _) _) graph = U.null pUUID
   
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
@@ -54,7 +56,7 @@ childTransactions (Transaction _ (MergeTransactionInfo _ _ children) _) = transa
 
     
 --create a disconnected transaction with a parent  
-newDisconnectedTransaction :: UUID -> DatabaseContext -> DisconnectedTransaction
+newDisconnectedTransaction :: U.UUID -> DatabaseContext -> DisconnectedTransaction
 newDisconnectedTransaction parentUUID context = DisconnectedTransaction parentUUID context
 
 {-
@@ -66,17 +68,17 @@ addBranch newBranchName branchPoint graph@(TransactionGraph heads transSet) = if
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-addBranch :: UUID -> HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addBranch :: U.UUID -> HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addBranch newUUID newBranchName branchPoint graph@(TransactionGraph heads transSet) = addTransactionToGraph newBranchName branchPoint newUUID (transactionContext branchPoint) graph
 
 --adds a disconnected transaction to a transaction graph at some head
-addDisconnectedTransaction :: UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addDisconnectedTransaction :: U.UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addDisconnectedTransaction newUUID headName dTrans@(DisconnectedTransaction parentUUID context) graph = do
   parentTrans <- transactionForUUID parentUUID graph                              
   addTransactionToGraph headName parentTrans newUUID context graph
 
 -- create a new transaction on "newHeadName" with the branchPointTrans
-addTransactionToGraph :: HeadName -> Transaction -> UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addTransactionToGraph :: HeadName -> Transaction -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addTransactionToGraph newHeadName branchPointTrans@(Transaction parentUUID _ parentInfo) newUUID newContext graph@(TransactionGraph heads transSet) = do
   let freshTransaction = Transaction newUUID (TransactionInfo (transactionUUID branchPointTrans) S.empty) newContext
   -- there are two parents for MergeTransactions! not implemented
@@ -86,18 +88,21 @@ addTransactionToGraph newHeadName branchPointTrans@(Transaction parentUUID _ par
   let updatedGraph = TransactionGraph (M.insert newHeadName freshTransaction heads) updatedTransSet
   return (freshTransaction, updatedGraph)
 
---check that all forward and backward links are in place
 validateGraph :: TransactionGraph -> Maybe [RelationalError]
 validateGraph graph@(TransactionGraph heads transSet) = do
+  --check that all UUIDs are unique in the graph
+  --uuids = map transactionUUID transSet
+  --check that all heads appear in the transSet
+  --check that all forward and backward links are in place  
   errors <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
   mapM (walkChildTransactions S.empty graph) (S.toList transSet)
   
 --verify that all parent links exist and that all children exist
 --maybe verify that all parents end at UUID nil and all children end at leaves
-walkParentTransactions :: S.Set UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
+walkParentTransactions :: S.Set U.UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
 walkParentTransactions seenTransSet graph trans =
   let transUUID = transactionUUID trans in 
-  if transUUID == nil then 
+  if transUUID == U.nil then 
     Nothing
   else if S.member transUUID seenTransSet then
     Just $ TransactionGraphCycleError transUUID
@@ -112,7 +117,7 @@ walkParentTransactions seenTransSet graph trans =
             _ -> Nothing
   
 --refactor: needless duplication in these two functions
-walkChildTransactions :: S.Set UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
+walkChildTransactions :: S.Set U.UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
 walkChildTransactions seenTransSet graph trans = 
   let transUUID = transactionUUID trans in 
   if childTransactions trans graph == Right S.empty then
@@ -128,4 +133,16 @@ walkChildTransactions seenTransSet graph trans =
          case walk of
            err:xs -> Just err
            _ -> Nothing
+    
+showTransactionStructure :: Transaction -> TransactionGraph -> String
+showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
+  where
+    headInfo = maybe "" show (headNameForTransaction trans graph)
+    parentTransactionsInfo = if isRootTransaction trans graph then "root" else case parentTransactions trans graph of
+      Left err -> show err
+      Right parentTransSet -> concat $ S.toList $ S.map (show . transactionUUID) parentTransSet
   
+showGraphStructure :: TransactionGraph -> String
+showGraphStructure graph@(TransactionGraph heads transSet) = S.foldr folder "" transSet
+  where
+    folder trans acc = acc ++ showTransactionStructure trans graph ++ "\n"
