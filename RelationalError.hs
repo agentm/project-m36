@@ -1,10 +1,12 @@
 module RelationalError where
 import RelationType
 import qualified Data.UUID as U
+import qualified Data.Set as S
+
 
 data RelationalError = NoSuchAttributeNameError String
-                     | TupleAttributeCountMismatchError Int
-                     | TupleAttributeTypeMismatchError Int
+                     | TupleAttributeCountMismatchError Int --attribute name
+                     | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNameMismatchError String
                      | AttributeNameInUseError AttributeName

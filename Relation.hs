@@ -232,7 +232,7 @@ relMap mapper (Relation attrs tupleSet) = do
       let remappedTuple = mapper tupleIn
       if tupleAttributes remappedTuple == tupleAttributes tupleIn 
         then Right remappedTuple 
-        else Left $ TupleAttributeTypeMismatchError 0
+        else Left $ TupleAttributeTypeMismatchError (attributesDifference (tupleAttributes tupleIn) attrs)
       
 --in the future, the mapper should be able to return a RelationalError likely
 relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation

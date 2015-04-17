@@ -134,15 +134,3 @@ walkChildTransactions seenTransSet graph trans =
            err:xs -> Just err
            _ -> Nothing
     
-showTransactionStructure :: Transaction -> TransactionGraph -> String
-showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
-  where
-    headInfo = maybe "" show (headNameForTransaction trans graph)
-    parentTransactionsInfo = if isRootTransaction trans graph then "root" else case parentTransactions trans graph of
-      Left err -> show err
-      Right parentTransSet -> concat $ S.toList $ S.map (show . transactionUUID) parentTransSet
-  
-showGraphStructure :: TransactionGraph -> String
-showGraphStructure graph@(TransactionGraph heads transSet) = S.foldr folder "" transSet
-  where
-    folder trans acc = acc ++ showTransactionStructure trans graph ++ "\n"

@@ -1,6 +1,7 @@
 module RelationTupleSet where
 import RelationType
 import RelationTuple
+import RelationAttribute
 import RelationalError
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -20,4 +21,4 @@ verifyRelationTupleSet attrs tupleSet = do
     verifyTuple tuple = if tupleAttributes tuple == attrs then
                           Right tuple
                         else
-                          Left $ TupleAttributeTypeMismatchError 0
+                          Left $ TupleAttributeTypeMismatchError (attributesDifference (tupleAttributes tuple) attrs)

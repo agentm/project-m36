@@ -8,6 +8,7 @@ import RelationalError
 import RelationExpr
 import RelationTerm
 import RelationalTransaction
+import RelationalTransactionShow
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -25,6 +26,21 @@ import System.Directory (getHomeDirectory)
 import qualified Data.UUID as U
 import Data.UUID.V4 (nextRandom)
 
+{-
+List of Tutorial D operators:
+show relation expression type :: relexpr -> context -> opresult
+show relvar :: relvar name -> context -> opresult
+quit :: ()
+show graph :: graph -> DisconnectedTransaction -> opresult
+show constraints :: context -> opresult
+jump to head :: head name -> graph -> DisconnectedTransaction (graph unchanged)
+jump to UUID :: uuid -> graph -> DisconnectedTransaction (graph unchanged)
+branch :: uuid -> branch name -> graph -> (DisconnectedTransation, graph)
+commit :: uuid -> DisconnectedTransaction -> graph -> (DisconnectedTransaction, graph)
+rollback :: DisconnectedTransaction -> graph -> (DisconnectedTransaction, graph)
+
+
+-}
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
         where tutD = emptyDef {
@@ -260,6 +276,7 @@ data GraphOperator where
   Branch :: HeadName -> GraphOperator
   Commit :: GraphOperator
   Rollback :: GraphOperator
+  ShowGraph :: GraphOperator
   deriving (Show)
   
 typeP :: Parser ContextOperator  
@@ -270,7 +287,7 @@ typeP = do
   
 showRelP :: Parser ContextOperator
 showRelP = do
-  reservedOp ":show"
+  reservedOp ":showExpr"
   expr <- relExpr
   return $ ShowRelation expr
   
@@ -313,12 +330,18 @@ rollbackTransactionP = do
   reservedOp ":rollback"
   return $ Rollback
   
+showGraphP :: Parser GraphOperator
+showGraphP = do
+  reservedOp ":showGraph"
+  return $ ShowGraph
+  
 transactionGraphOps = do
   jumpToHeadP
   <|> jumpToTransactionP
   <|> branchTransactionP
   <|> commitTransactionP
   <|> rollbackTransactionP
+  <|> showGraphP
 
 contextOps :: Parser ContextOperator
 contextOps = typeP 
@@ -341,6 +364,7 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult String |
                                DisplayErrorResult String |
+                               QuietSuccessResult |
                                NoActionResult
     
 evalContextOp :: DatabaseContext -> ContextOperator -> TutorialDOperatorResult
@@ -366,12 +390,12 @@ evalContextOp context (Quit) = QuitResult
 
 -- returns the new "current" transaction, updated graph, and tutorial d result
 -- the current transaction is not part of the transaction graph until it is committed
-evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
+evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
 
 --affects only disconncted transaction
 evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
   Left err -> Left err
-  Right parentTrans -> Right (newTrans, graph)
+  Right parentTrans -> Right (newTrans, graph, QuietSuccessResult)
     where
       newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
   
@@ -380,7 +404,7 @@ evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionF
 evalGraphOp newUUID currentTransaction graph (JumpToHead headName) = 
   case transactionForHead headName graph of
     Just newHeadTransaction -> let disconnectedTrans = newDisconnectedTransaction (transactionUUID newHeadTransaction) (transactionContext newHeadTransaction) in
-      Right (disconnectedTrans, graph)
+      Right (disconnectedTrans, graph, QuietSuccessResult)
     Nothing -> Left $ NoSuchHeadNameError headName
 -- add new head pointing to branchPoint
 -- repoint the disconnected transaction to the new branch commit (with a potentially different disconnected context)
@@ -401,7 +425,7 @@ evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) gr
   Left err -> Left err
   Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
     Left err -> Left err
-    Right (newTrans, newGraph) -> Right (newDiscon, newGraph)
+    Right (newTrans, newGraph) -> Right (newDiscon, newGraph, QuietSuccessResult)
      where
       newDiscon = DisconnectedTransaction newUUID disconContext
 
@@ -413,18 +437,23 @@ evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) gra
     Nothing -> Left $ TransactionIsNotAHeadError parentUUID
     Just headName -> case maybeUpdatedGraph of
       Left err-> Left err
-      Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
+      Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph, QuietSuccessResult)
       where
         newDisconnectedTrans = newDisconnectedTransaction newTransUUID context
         --parentTransaction = transactionForUUID parentUUID graph
         maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
         
 -- refresh the disconnected transaction, return the same graph        
-evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
+evalGraphOp _ discon@(DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
   Left err -> Left err
-  Right parentTransaction -> Right (newDiscon, graph)
+  Right parentTransaction -> Right (newDiscon, graph, QuietSuccessResult)
     where
       newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
+      
+--display transaction graph as relation
+evalGraphOp _ discon graph ShowGraph = do
+  graphStr <- graphAsRelation discon graph
+  return (discon, graph, DisplayResult $ showRelation graphStr)
         
 --shouldn't this be Either RelationalError DatabaseContext?
 interpret :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
@@ -440,7 +469,7 @@ interpretOps newUUID trans@(DisconnectedTransaction parentUUID context) transGra
     Left contextOp -> (trans, transGraph, (evalContextOp context contextOp))
     Right graphOp -> case evalGraphOp newUUID trans transGraph graphOp of
       Left err -> (trans, transGraph, DisplayErrorResult $ show err)
-      Right (newDiscon, newGraph) -> (newDiscon, newGraph, DisplayResult "Done.")
+      Right (newDiscon, newGraph, result) -> (newDiscon, newGraph, result)
   
 promptText :: DisconnectedTransaction -> TransactionGraph -> String  
 promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" ++ transInfo ++ "): "
