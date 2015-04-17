@@ -365,7 +365,7 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayResult String |
                                DisplayErrorResult String |
                                QuietSuccessResult |
-                               NoActionResult
+                               NoActionResult --refactor to make this dead- there should be only one parser
     
 evalContextOp :: DatabaseContext -> ContextOperator -> TutorialDOperatorResult
 evalContextOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
@@ -395,7 +395,7 @@ evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOpe
 --affects only disconncted transaction
 evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
   Left err -> Left err
-  Right parentTrans -> Right (newTrans, graph, QuietSuccessResult)
+  Right parentTrans -> Right (newTrans, graph, NoActionResult)
     where
       newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
   
@@ -440,7 +440,6 @@ evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) gra
       Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph, QuietSuccessResult)
       where
         newDisconnectedTrans = newDisconnectedTransaction newTransUUID context
-        --parentTransaction = transactionForUUID parentUUID graph
         maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
         
 -- refresh the disconnected transaction, return the same graph        
@@ -497,6 +496,9 @@ reprLoop currentTransaction@(DisconnectedTransaction currentParentUUID currentCo
       (_, _, DisplayErrorResult err) -> hPutStrLn stderr ("ERR: " ++ err) >> roloop
       (updatedTrans, updatedGraph, DisplayResult out) -> do
         putStrLn out
+        reprLoop updatedTrans updatedGraph
+      (updatedTrans, updatedGraph, QuietSuccessResult) -> do
+        putStrLn "Done."
         reprLoop updatedTrans updatedGraph
       (_, _, NoActionResult) -> do
         let (value, contextup) = interpret currentContext line 
