@@ -1,6 +1,7 @@
 --writes Relation to a String suitable for terminal output
 module RelationTerm where
 import RelationType
+import RelationTuple
 import Relation
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -48,10 +49,15 @@ cellLocations tab@(header, body) = (maxWidths, maxHeights)
     maxHeights = map (L.maximumBy compare) rowHeights
     mergeMax a b = map (\(a,b) -> max a b) (zip a b)
     
+--the normal "lines" function returns an empty list for an empty string which is not what we want
+breakLines :: String -> [String]
+breakLines "" = [""]
+breakLines x = lines x
+    
 cellSizes :: Table -> [([Int], [Int])]    
-cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . lines) row)) allRows
+cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . breakLines) row)) allRows
   where
-    maxRowWidth row = L.maximumBy compare (map length (lines row))
+    maxRowWidth row = L.maximumBy compare (map length (breakLines row))
     allRows = [header] ++ body
 
 relationAsTable :: Relation -> Table
@@ -87,7 +93,7 @@ renderHBar left middle end columnLocations = left ++ concat (L.intersperse middl
 leftPaddedString :: Int -> Int -> String -> String
 leftPaddedString lineNum size str = paddedLines !! lineNum
   where
-    paddedLines = map (\s -> s ++ repeatString (size - length s) " ") (lines str ++ repeat "") 
+    paddedLines = map (\s -> s ++ repeatString (size - length s) " ") (breakLines str ++ repeat "") 
   
 renderRow :: [Cell] -> [Int] -> Int -> String -> String
 renderRow cells columnLocations rowHeight interspersed = unlines $ map renderOneLine [0..rowHeight-1]
@@ -118,4 +124,11 @@ showRelation rel
 
 simpleExample = s
 groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
-  
+ 
+emptyStringExample = case mkRelation attributes tupleSet of
+  Right x -> x
+  _ -> undefined
+  where
+    attributes = M.fromList [("x", Attribute "x" StringAtomType)]
+    tupleSet = HS.singleton $ mkRelationTuple (S.fromList ["x"]) (M.singleton "x" $ StringAtom "")
+                          
