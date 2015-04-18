@@ -30,16 +30,21 @@ graphAsRelation discon@(DisconnectedTransaction parentUUID _) graph@(Transaction
   where
     attributes = M.fromList [("id", Attribute "id" StringAtomType), 
                              ("parents", Attribute "parents" (RelationAtomType parentAttributes)),
-                             ("current", Attribute "current" IntAtomType)
+                             ("current", Attribute "current" IntAtomType),
+                             ("head", Attribute "head" StringAtomType)
                              ]
     parentAttributes = M.fromList [("id", Attribute "id" StringAtomType)]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right parentTransRel -> Right $ mkRelationTuple (S.fromList ["id", "parents", "current"]) $ 
+      Right parentTransRel -> Right $ mkRelationTuple (S.fromList ["id", "parents", "current", "head"]) $ 
                               (M.fromList 
                                [("id", StringAtom $ show (transactionUUID transaction)),
                                 ("parents", RelationAtom parentTransRel),
-                                ("current", IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0)])
+                                ("current", IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0),
+                                ("head", StringAtom $ case headNameForTransaction transaction graph of
+                                    Just headName -> headName
+                                    Nothing -> "_")
+                                      ])
                               
 transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
 transactionParentsRelation trans graph = do

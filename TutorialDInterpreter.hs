@@ -395,7 +395,7 @@ evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOpe
 --affects only disconncted transaction
 evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
   Left err -> Left err
-  Right parentTrans -> Right (newTrans, graph, NoActionResult)
+  Right parentTrans -> Right (newTrans, graph, QuietSuccessResult)
     where
       newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
   

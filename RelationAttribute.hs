@@ -3,6 +3,7 @@ import RelationType
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
+import Debug.Trace
 
 renameAttribute :: AttributeName -> Attribute -> Attribute                
 renameAttribute newAttrName (Attribute oldAttrName typeo) = Attribute newAttrName typeo
@@ -34,8 +35,9 @@ matchingAttributeNameSet = S.intersection
 sortedAttributeNameList attrNameSet= L.sort $ S.toList attrNameSet
     
 -- take two attribute sets and return an attribute set with the attributes which do not match
+-- bug: missing attributes don't show up (?)
 attributesDifference :: Attributes -> Attributes -> Attributes
-attributesDifference attrA attrB = M.union mismatchA missingB
+attributesDifference attrA attrB = trace (show attrA ++ "\n" ++ show attrB) (M.union mismatchA missingB)
   where 
     mismatchA = M.foldrWithKey folder M.empty attrA
     missingB = M.difference attrA attrB
