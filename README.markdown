@@ -26,7 +26,7 @@ At this point, there are three types of command which can be executed:
 1. relational algebra expressions such as: 
 
   ```
-TutorialD: :s S join P
+TutorialD (master): :showExpr S join P
 ┌──────┬─────┬──┬─────┬──┬─────┬──────┬──────┐
 │CITY  │COLOR│P#│PNAME│S#│SNAME│STATUS│WEIGHT│
 ├──────┼─────┼──┼─────┼──┼─────┼──────┼──────┤
@@ -43,26 +43,76 @@ TutorialD: :s S join P
 └──────┴─────┴──┴─────┴──┴─────┴──────┴──────┘
 ```
 
-  where ":s" instructs the interpreter to show the resultant relation, "S" and "P" are relation names, and "join" is the join operator.
+  where ":show" instructs the interpreter to show the resultant relation, "S" and "P" are relation names, and "join" is the join operator.
 2. interpreter-level queries such as:
 
   ```
-TutorialD: :t S
+TutorialD (master): :type S
 {CITY "char", S# "char", SNAME "char", STATUS "char"}
 ```
 
   which shows the Tutorial D type for a relational expression and 
 
   ```
-TutorialD: :c
+TutorialD (master): :constraints
 fromList []
 ```
 which displays database constraints.
 
+  ```
+TutorialD (master): :commit
+```
+which commits the current "disconnected" transaction which is similar to the git staging area/index.
+
+  ```
+TutorialD (master): :jumphead master
+Done.
+```
+which changes the current disconnected transaction to reference another head.
+
+  ```
+TutorialD (master): :jump 4a4ee715-297d-49db-bfd1-afaefadc902b
+Done.
+```
+which resets the current "disconnected" transaction to refer to the committed transaction specified by the UUID.
+
+  ```
+TutorialD (master): :branch devel
+Done.
+```
+
+which creates a new head named "devel" in the transaction graph and resets the current "disconnected" transaction to refer to the 
+
+  ```
+TutorialD (devel): :rollback
+Done.
+```
+
+which resets the current "disconnected" transaction to discard any collected changes.
+
+  ```
+TutorialD (devel): :showGraph
+┌───────┬────────────────────────────────────┬──────────────────────────────────────┐
+│current│id                                  │parents                               │
+├───────┼────────────────────────────────────┼──────────────────────────────────────┤
+│1      │1d064d54-cd2a-4a43-822a-cbd18cf7c4e8│┌────────────────────────────────────┐│
+│       │                                    ││id                                  ││
+│       │                                    │├────────────────────────────────────┤│
+│       │                                    ││4a4ee715-297d-49db-bfd1-afaefadc902b││
+│       │                                    │└────────────────────────────────────┘│
+│0      │4a4ee715-297d-49db-bfd1-afaefadc902b│┌──┐                                  │
+│       │                                    ││id│                                  │
+│       │                                    │                                      │
+│       │                                    │└──┘                                  │
+└───────┴────────────────────────────────────┴──────────────────────────────────────┘
+```
+
+which displays all committed transactions and their parents. The "current" attribute indicates to which transactions the current "disconnected" transaction refers.
+
 3. expressions which modify the database context such as:
 
   ```
-TutorialD: x := S JOIN P
+TutorialD (master): x := S JOIN P
 ```
   which sets the relational variable named "x" to the results of "S join P" if the database constraint checking succeeds.
 
