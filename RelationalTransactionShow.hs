@@ -43,7 +43,7 @@ graphAsRelation discon@(DisconnectedTransaction parentUUID _) graph@(Transaction
                                 ("current", IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0),
                                 ("head", StringAtom $ case headNameForTransaction transaction graph of
                                     Just headName -> headName
-                                    Nothing -> "_")
+                                    Nothing -> "")
                                       ])
                               
 transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
