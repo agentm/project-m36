@@ -296,7 +296,7 @@ typeP = do
   
 showRelP :: Parser ContextOperator
 showRelP = do
-  reservedOp ":showExpr"
+  reservedOp ":showexpr"
   expr <- relExpr
   return $ ShowRelation expr
   
@@ -347,7 +347,7 @@ rollbackTransactionP = do
   
 showGraphP :: Parser GraphOperator
 showGraphP = do
-  reservedOp ":showGraph"
+  reservedOp ":showgraph"
   return $ ShowGraph
   
 transactionGraphOps = do
