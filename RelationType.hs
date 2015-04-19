@@ -5,6 +5,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Hashable as Hash
 import qualified Data.Set as S
 import Control.Monad.State hiding (join)
+import Data.UUID (UUID)
 
 data Atom = StringAtom String |
             IntAtom Int |
@@ -63,7 +64,7 @@ data DatabaseContext = DatabaseContext {
   inclusionDependencies :: HS.HashSet InclusionDependency,
   relationVariables :: M.Map String Relation
   } deriving (Show)
-
+             
 data InclusionDependency = InclusionDependency String RelationalExpr RelationalExpr deriving (Show)
 
 instance Hash.Hashable InclusionDependency where
@@ -94,3 +95,42 @@ data RestrictionPredicateExpr where
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
   AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq)
+
+-- child + parent links
+-- the string represents the branch name and can be used to find the named HEADs
+type HeadName = String
+
+type TransactionHeads = M.Map HeadName Transaction
+
+data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
+                        deriving (Show, Eq)
+
+transactionsForGraph :: TransactionGraph -> S.Set Transaction
+transactionsForGraph (TransactionGraph _ t) = t
+
+transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
+transactionHeadsForGraph (TransactionGraph heads _) = heads
+
+data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n children
+                       MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
+                     deriving(Show)
+                             
+data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
+                   deriving (Show)
+                            
+--represents an "in-progress" transaction which has not yet been added to the transaction graph
+--one the transaction is "complete", it is committed and no longer can be changed
+-- this is similar to the index in git
+data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parentUUID, context
+                            
+transactionUUID :: Transaction -> UUID
+transactionUUID (Transaction uuid _ _) = uuid
+
+transactionContext :: Transaction -> DatabaseContext
+transactionContext (Transaction _ _ context) = context
+                            
+instance Eq Transaction where                            
+  (Transaction uuidA _ _) == (Transaction uuidB _ _) = uuidA == uuidB
+                   
+instance Ord Transaction where                            
+  compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB

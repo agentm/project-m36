@@ -82,8 +82,6 @@ evalRelationalExpr (Equals relExprA relExprB) = do
       Left err -> return $ Left err
       Right relB -> return $ Right $ if relA == relB then relationTrue else relationFalse
 
-  
-        
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
                                          relationVariables = M.empty}
@@ -335,6 +333,7 @@ predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runS
 predicateRestrictionFilter context (AttributeEqualityPredicate attrName atom) = Right $ \(RelationTuple tupMap) -> tupValue tupMap == atom
   where
     tupValue tupMap = tupMap M.! attrName
+
 
 
 

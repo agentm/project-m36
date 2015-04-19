@@ -8,6 +8,8 @@ import RelationalError
 import RelationExpr
 import RelationTerm
 import RelationStaticOptimizer
+import RelationalTransaction
+import RelationalTransactionShow
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -22,7 +24,24 @@ import Control.Monad.State
 import System.Console.Haskeline
 import System.IO
 import System.Directory (getHomeDirectory)
+import qualified Data.UUID as U
+import Data.UUID.V4 (nextRandom)
 
+{-
+List of Tutorial D operators:
+show relation expression type :: relexpr -> context -> opresult
+show relvar :: relvar name -> context -> opresult
+quit :: ()
+show graph :: graph -> DisconnectedTransaction -> opresult
+show constraints :: context -> opresult
+jump to head :: head name -> graph -> DisconnectedTransaction (graph unchanged)
+jump to UUID :: uuid -> graph -> DisconnectedTransaction (graph unchanged)
+branch :: uuid -> branch name -> graph -> (DisconnectedTransation, graph)
+commit :: uuid -> DisconnectedTransaction -> graph -> (DisconnectedTransaction, graph)
+rollback :: DisconnectedTransaction -> graph -> (DisconnectedTransaction, graph)
+
+
+-}
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
         where tutD = emptyDef {
@@ -39,6 +58,13 @@ identifier = Token.identifier lexer
 comma = Token.comma lexer
 semi = Token.semi lexer
 
+uuidP :: Parser U.UUID
+uuidP = do
+  uuidStr <- many (alphaNum <|> char '-')
+  case U.fromString uuidStr of
+    Nothing -> fail "Invalid uuid string"
+    Just uuid -> return uuid
+                    
 --used in projection
 attributeList :: Parser [AttributeName]
 attributeList = sepBy identifier comma
@@ -244,49 +270,103 @@ parseString str = case parse (multipleDatabaseExpr <* eof) "" str of
   Left err -> Left $ ParseError (show err)
   Right r -> Right r
 
-data TutorialDOperator where
-  ShowRelation :: RelationalExpr -> TutorialDOperator
-  ShowRelationType :: RelationalExpr -> TutorialDOperator
-  ShowConstraint :: String -> TutorialDOperator
-  ShowPlan :: DatabaseExpr -> TutorialDOperator
-  Quit :: TutorialDOperator
+--operators which only rely on database context reading
+data ContextOperator where
+  ShowRelation :: RelationalExpr -> ContextOperator
+  ShowRelationType :: RelationalExpr -> ContextOperator
+  ShowConstraint :: String -> ContextOperator
+  ShowPlan :: DatabaseExpr -> ContextOperator
+  Quit :: ContextOperator
   deriving (Show)
+
+--operators which manipulate a transaction graph
+data GraphOperator where
+  JumpToHead :: String -> GraphOperator
+  JumpToTransaction :: U.UUID -> GraphOperator
+  Branch :: HeadName -> GraphOperator
+  Commit :: GraphOperator
+  Rollback :: GraphOperator
+  ShowGraph :: GraphOperator
   
-typeP :: Parser TutorialDOperator  
+typeP :: Parser ContextOperator  
 typeP = do
-  reservedOp ":t"
+  reservedOp ":type"
   expr <- relExpr
   return $ ShowRelationType expr
   
-showRelP :: Parser TutorialDOperator
+showRelP :: Parser ContextOperator
 showRelP = do
-  reservedOp ":s"
-  expr <- relExpr <* eof
+  reservedOp ":showExpr"
+  expr <- relExpr
   return $ ShowRelation expr
   
-showPlanP :: Parser TutorialDOperator
+showPlanP :: Parser ContextOperator
 showPlanP = do
-  reservedOp ":p"
+  reservedOp ":showplan"
   expr <- databaseExpr
   return $ ShowPlan expr
   
-quitP :: Parser TutorialDOperator
+quitP :: Parser ContextOperator
 quitP = do
-  reservedOp ":q"
+  reservedOp ":quit"
   return Quit
   
-showConstraintsP :: Parser TutorialDOperator
+showConstraintsP :: Parser ContextOperator
 showConstraintsP = do
-  reservedOp ":c"
+  reservedOp ":constraints"
   constraintName <- option "" identifier
   return $ ShowConstraint constraintName
   
-interpreterOps :: Parser TutorialDOperator
-interpreterOps = typeP 
-                 <|> showRelP
-                 <|> showConstraintsP
-                 <|> showPlanP
-                 <|> quitP
+jumpToHeadP :: Parser GraphOperator
+jumpToHeadP = do
+  reservedOp ":jumphead"
+  head <- identifier
+  return $ JumpToHead head
+  
+jumpToTransactionP :: Parser GraphOperator  
+jumpToTransactionP = do
+  reservedOp ":jump"
+  uuid <- uuidP 
+  return $ JumpToTransaction uuid
+  
+branchTransactionP :: Parser GraphOperator  
+branchTransactionP = do
+  reservedOp ":branch"
+  branchName <- identifier
+  return $ Branch branchName
+  
+commitTransactionP :: Parser GraphOperator  
+commitTransactionP = do
+  reservedOp ":commit"
+  return $ Commit
+  
+rollbackTransactionP :: Parser GraphOperator
+rollbackTransactionP = do
+  reservedOp ":rollback"
+  return $ Rollback
+  
+showGraphP :: Parser GraphOperator
+showGraphP = do
+  reservedOp ":showGraph"
+  return $ ShowGraph
+  
+transactionGraphOps = do
+  jumpToHeadP
+  <|> jumpToTransactionP
+  <|> branchTransactionP
+  <|> commitTransactionP
+  <|> rollbackTransactionP
+  <|> showGraphP
+
+contextOps :: Parser ContextOperator
+contextOps = typeP 
+             <|> showRelP
+             <|> showConstraintsP
+             <|> showPlanP
+             <|> quitP
+             
+interpreterOps :: Parser (Either ContextOperator GraphOperator)             
+interpreterOps = liftM Left contextOps <|> liftM Right transactionGraphOps
 
 showRelationAttributes :: Relation -> String
 showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
@@ -300,19 +380,20 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult String |
                                DisplayErrorResult String |
-                               NoActionResult
+                               QuietSuccessResult |
+                               NoActionResult --refactor to make this dead- there should be only one parser
     
-evalTutorialDOp :: DatabaseContext -> TutorialDOperator -> TutorialDOperatorResult
-evalTutorialDOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
+evalContextOp :: DatabaseContext -> ContextOperator -> TutorialDOperatorResult
+evalContextOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
   (Right rel, _) -> DisplayResult $ showRelationAttributes rel
   (Left err, _) -> DisplayErrorResult $ show err
   
-evalTutorialDOp context (ShowRelation expr) = do
+evalContextOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of 
     (Left err, _) -> DisplayErrorResult $ show err
     (Right rel, _) -> DisplayResult $ showRelation rel
     
-evalTutorialDOp context (ShowConstraint name) = do
+evalContextOp context (ShowConstraint name) = do
   DisplayResult $ show filteredDeps
   where
     deps = inclusionDependencies context
@@ -320,23 +401,80 @@ evalTutorialDOp context (ShowConstraint name) = do
       "" -> deps
       name -> HS.filter (\(InclusionDependency n _ _) -> n == name) deps
       
-evalTutorialDOp context (ShowPlan dbExpr) = do
+evalContextOp context (ShowPlan dbExpr) = do
   DisplayResult $ show plan
   where
     plan = evalState (applyStaticDatabaseOptimization dbExpr) context
       
-evalTutorialDOp context (Quit) = QuitResult
+evalContextOp context (Quit) = QuitResult
+
+-- returns the new "current" transaction, updated graph, and tutorial d result
+-- the current transaction is not part of the transaction graph until it is committed
+evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
+
+--affects only disconncted transaction
+evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
+  Left err -> Left err
+  Right parentTrans -> Right (newTrans, graph, QuietSuccessResult)
+    where
+      newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
   
-example1 = "relA {a,b, c}"
-example2 = "relA join relB"
-example3 = "relA join relB {x,y,z}"
-example4 = "(relA) {x,y,z}"
-example5 = "relA union relB"
-example6 = "rv1 := true"
-example7 = "rv1 := relA union relB"
-example8 = "relA := true; relB := false"
-example9 = "relA := relation { SNO CHAR }"
-  
+-- switch from one head to another
+-- affects only disconnectedtransaction 
+evalGraphOp newUUID currentTransaction graph (JumpToHead headName) = 
+  case transactionForHead headName graph of
+    Just newHeadTransaction -> let disconnectedTrans = newDisconnectedTransaction (transactionUUID newHeadTransaction) (transactionContext newHeadTransaction) in
+      Right (disconnectedTrans, graph, QuietSuccessResult)
+    Nothing -> Left $ NoSuchHeadNameError headName
+-- add new head pointing to branchPoint
+-- repoint the disconnected transaction to the new branch commit (with a potentially different disconnected context)
+-- affects transactiongraph and the disconnectedtransaction is recreated based off the branch
+    {-
+evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+  Nothing -> (discon, graph, DisplayErrorResult "Failed to find parent transaction.")
+  Just parentTrans -> case addBranch newBranchName parentTrans graph of
+    Nothing -> (discon, graph, DisplayErrorResult "Failed to add branch.")
+    Just newGraph -> (newDiscon, newGraph, DisplayResult "Branched.")
+     where
+       newDiscon = DisconnectedTransaction (transactionUUID parentTrans) disconContext
+-}
+       
+-- create a new commit and add it to the heads
+-- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
+evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
+    Left err -> Left err
+    Right (newTrans, newGraph) -> Right (newDiscon, newGraph, QuietSuccessResult)
+     where
+      newDiscon = DisconnectedTransaction newUUID disconContext
+
+-- add the disconnected transaction to the graph
+-- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
+evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) graph Commit = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTransaction -> case headNameForTransaction parentTransaction graph of 
+    Nothing -> Left $ TransactionIsNotAHeadError parentUUID
+    Just headName -> case maybeUpdatedGraph of
+      Left err-> Left err
+      Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph, QuietSuccessResult)
+      where
+        newDisconnectedTrans = newDisconnectedTransaction newTransUUID context
+        maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
+        
+-- refresh the disconnected transaction, return the same graph        
+evalGraphOp _ discon@(DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTransaction -> Right (newDiscon, graph, QuietSuccessResult)
+    where
+      newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
+      
+--display transaction graph as relation
+evalGraphOp _ discon graph ShowGraph = do
+  graphStr <- graphAsRelation discon graph
+  return (discon, graph, DisplayResult $ showRelation graphStr)
+        
+--shouldn't this be Either RelationalError DatabaseContext?
 interpret :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseContext)
 interpret context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
@@ -358,33 +496,53 @@ interpretNO context tutdstring = case parseString tutdstring of
 
                                     
 -- for interpreter-specific operations                               
-interpretOps :: DatabaseContext -> String -> TutorialDOperatorResult
-interpretOps context instring = case parse interpreterOps "" instring of
-  Left err -> NoActionResult
-  Right ops ->  evalTutorialDOp context ops
+interpretOps :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
+interpretOps newUUID trans@(DisconnectedTransaction parentUUID context) transGraph instring = case parse interpreterOps "" instring of
+  Left err -> (trans, transGraph, NoActionResult)
+  Right ops -> case ops of
+    Left contextOp -> (trans, transGraph, (evalContextOp context contextOp))
+    Right graphOp -> case evalGraphOp newUUID trans transGraph graphOp of
+      Left err -> (trans, transGraph, DisplayErrorResult $ show err)
+      Right (newDiscon, newGraph, result) -> (newDiscon, newGraph, result)
   
-reprLoop :: DatabaseContext -> IO ()
-reprLoop context = do
+promptText :: DisconnectedTransaction -> TransactionGraph -> String  
+promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" ++ transInfo ++ "): "
+  where
+    transInfo = case transactionForUUID parentUUID graph of 
+      Left err -> "unknown"
+      Right parentTrans -> case headNameForTransaction parentTrans graph of
+          Nothing -> show $ transactionUUID parentTrans
+          Just headName -> headName
+  
+reprLoop :: DisconnectedTransaction -> TransactionGraph -> IO ()
+reprLoop currentTransaction@(DisconnectedTransaction currentParentUUID currentContext) graph = do
   homeDirectory <- getHomeDirectory
-  let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}      
-  maybeLine <- runInputT settings $ do
-                     getInputLine "TutorialD: "
+  let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
+        
+  maybeLine <- runInputT settings $ getInputLine (promptText currentTransaction graph)
+
+  let roloop = reprLoop currentTransaction graph
   case maybeLine of
     Nothing -> return ()
     Just line -> do 
-    case interpretOps context line of
-      QuitResult -> return ()
-      DisplayErrorResult err -> hPutStrLn stderr ("ERR: " ++ err) >> reprLoop context
-      DisplayResult out -> do
+    newUUID <- nextRandom
+    case interpretOps newUUID currentTransaction graph line of
+      (_, _, QuitResult) -> return ()
+      (_, _, DisplayErrorResult err) -> hPutStrLn stderr ("ERR: " ++ err) >> roloop
+      (updatedTrans, updatedGraph, DisplayResult out) -> do
         putStrLn out
-        reprLoop context
-      NoActionResult -> do
-      let (value, contextup) = interpret context line 
-      case value of
-        Nothing -> reprLoop contextup
-        (Just err) -> do
-          hPutStrLn stderr ("ERR:" ++ show err)
-          reprLoop context
+        reprLoop updatedTrans updatedGraph
+      (updatedTrans, updatedGraph, QuietSuccessResult) -> do
+        putStrLn "Done."
+        reprLoop updatedTrans updatedGraph
+      (_, _, NoActionResult) -> do
+        let (value, contextup) = interpret currentContext line 
+        let updatedTransaction = DisconnectedTransaction currentParentUUID contextup
+        case value of
+          Nothing -> reprLoop updatedTransaction graph
+          Just err -> do
+                hPutStrLn stderr ("ERR:" ++ show err)
+                reprLoop currentTransaction graph
       
 restrictionPredicateP :: Parser RestrictionPredicateExpr
 restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
@@ -420,3 +578,7 @@ intAtomP = do
   intstr <- many digit
   return $ IntAtom (read intstr)
   
+--used by :dumpGraph
+displayTransactionGraph :: TransactionGraph -> String
+displayTransactionGraph (TransactionGraph heads transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
+    

@@ -41,7 +41,7 @@ validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet)
 validateAttrTypesMatchTupleAttrTypes :: Relation -> Either RelationalError Relation
 validateAttrTypesMatchTupleAttrTypes rel@(Relation _ tupMapSet) 
    | HS.null invalidSet = Right rel
-   | otherwise = Left (TupleAttributeTypeMismatchError 0)
+   | otherwise = Left (TupleAttributeTypeMismatchError M.empty) --fix to include invalid attrs
   where
     tupleTypeCheck (RelationTuple tupMap) = M.null $ M.filterWithKey attrTypeCheck tupMap
     attrTypeCheck attrName atomValue = case attributeTypeForName attrName rel of
