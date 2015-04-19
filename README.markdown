@@ -65,7 +65,9 @@ Right (Assign "x" (RelationVariable "S"))
 ```
 which displays the optimized execution plan which would have been executed to evaluate the expression.
 
+  ```
 TutorialD (master): :commit
+Done.
 ```
 which commits the current "disconnected" transaction which is similar to the git staging area/index.
 
