@@ -15,9 +15,9 @@ Project:M36 implements a relational algebra engine as inspired by the writings o
 
 ## Usage
 
-Currently, the best-supported frontend is the Tutorial D interpreter. Run `cabal run tutd` in newer versions of cabal or `./dist/build/tutd/tutd` in older version of cabal to start the command line interpreter. You will be greeted with:
+Currently, the best-supported frontend is the Tutorial D interpreter. Run `cabal run tutd` in newer versions of cabal or `./dist/build/tutd/tutd` in older versions of cabal to start the command line interpreter. You will be greeted with:
 
-`TutorialD:`
+`TutorialD (master):`
 
 The Tutorial D interpreter comes pre-loaded with the Chris Date supplier "S"/product "P"/supplier-product "SP" relations for experimentation. This TutorialD interpreter is case-sensitive. 
 
@@ -26,7 +26,7 @@ At this point, there are three types of command which can be executed:
 1. relational algebra expressions such as: 
 
   ```
-TutorialD (master): :showExpr S join P
+TutorialD (master): :showexpr S join P
 ┌──────┬─────┬──┬─────┬──┬─────┬──────┬──────┐
 │CITY  │COLOR│P#│PNAME│S#│SNAME│STATUS│WEIGHT│
 ├──────┼─────┼──┼─────┼──┼─────┼──────┼──────┤
@@ -43,7 +43,7 @@ TutorialD (master): :showExpr S join P
 └──────┴─────┴──┴─────┴──┴─────┴──────┴──────┘
 ```
 
-  where ":show" instructs the interpreter to show the resultant relation, "S" and "P" are relation names, and "join" is the join operator.
+  where ":showexpr" instructs the interpreter to show the resultant relation, "S" and "P" are relation names, and "join" is the join operator.
 2. interpreter-level queries such as:
 
   ```
