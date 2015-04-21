@@ -6,22 +6,45 @@ Homepage: https://github.com/agentm/project-m36
 Category: Relational Algebra
 Cabal-Version: >= 1.2
 
-Executable tutd
+Library
     Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid
-    main-is: tutd.hs
-    GHC-Options: -fwarn-unused-imports -fwarn-unused-binds -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns
+    Exposed-Modules: ProjectM36.Error,
+                     ProjectM36.Transaction,
+                     ProjectM36.Transaction.Show,
+                     ProjectM36.Base,
+                     ProjectM36.Attribute,
+                     ProjectM36.Tuple,
+                     ProjectM36.TupleSet,
+                     ProjectM36.Atom,
+                     ProjectM36.RelationalExpression,
+                     ProjectM36.Relation.Show.HTML,
+                     ProjectM36.StaticOptimizer,
+                     ProjectM36.Relation.Show.Term
+    GHC-Options: -Wall
+        
+Executable tutd
+    Build-Depends: base
+    Other-Modules: ProjectM36.Error,
+                   ProjectM36.Base,
+                   ProjectM36.RelationalExpression,
+                   ProjectM36.Transaction    
+    main-is: TutorialD/tutd.hs
+    GHC-Options: -Wall
 
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
-    main-is: TutorialDInterpreterTest.hs
+    main-is: test/TutorialD/Interpreter.hs
     Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
 
 Test-Suite test-relation
     type: exitcode-stdio-1.0
-    main-is: RelationTest.hs
+    main-is: test/Relation/Basic.hs
     Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
 
 Test-Suite test-static-optimizer
     type: exitcode-stdio-1.0
-    main-is: RelationStaticOptimizerTest.hs
+    main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall

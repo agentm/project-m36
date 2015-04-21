@@ -1,8 +1,8 @@
 --writes Relation to a String suitable for terminal output
-module RelationTerm where
-import RelationType
-import RelationTuple
-import Relation
+module ProjectM36.Relation.Show.Term where
+import ProjectM36.Base
+import ProjectM36.Tuple
+import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -61,7 +61,7 @@ cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . brea
     allRows = [header] ++ body
 
 relationAsTable :: Relation -> Table
-relationAsTable rel@(Relation attributes tupleSet) = (header, body)
+relationAsTable rel@(Relation _ tupleSet) = (header, body)
   where
     oAttrs = orderedAttributeNames rel
     header = oAttrs
@@ -70,8 +70,8 @@ relationAsTable rel@(Relation attributes tupleSet) = (header, body)
     tupleFolder acc (RelationTuple tupMap) = acc ++ [map (\n -> showAtom (tupMap M.! n)) oAttrs]
     
 showAtom :: Atom -> String    
-showAtom (StringAtom s) = s
-showAtom (IntAtom i) = show i
+showAtom (StringAtom atom) = atom
+showAtom (IntAtom atom) = show atom
 showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
 
 renderTable :: Table -> String
@@ -122,9 +122,10 @@ showRelation rel
   | otherwise = renderTable (relationAsTable rel)
   
 
-simpleExample = s
+groupedExample :: Relation
 groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
  
+emptyStringExample :: Relation
 emptyStringExample = case mkRelation attributes tupleSet of
   Right x -> x
   _ -> undefined

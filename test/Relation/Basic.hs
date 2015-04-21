@@ -1,15 +1,14 @@
 import Test.HUnit
-import RelationType
-import Relation
-import RelationalError
-import RelationTuple
-import RelationTupleSet
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.Error
+import ProjectM36.Tuple
+import ProjectM36.TupleSet
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import System.Exit
 import Control.Monad
-
 
 testList = TestList [testRelation relationTrue, testRelation relationFalse,
                      testRename1, testRename2]

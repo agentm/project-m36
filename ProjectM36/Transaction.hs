@@ -1,7 +1,7 @@
-module RelationalTransaction where
+module ProjectM36.Transaction where
 import qualified Data.UUID as U
-import RelationType
-import RelationalError
+import ProjectM36.Base
+import ProjectM36.Error
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Control.Applicative ((<$>))
@@ -39,7 +39,8 @@ transactionsForUUIDs uuidSet graph = do
   return (S.fromList transList)
   
 isRootTransaction :: Transaction -> TransactionGraph -> Bool
-isRootTransaction (Transaction _ (TransactionInfo pUUID _) _) graph = U.null pUUID
+isRootTransaction (Transaction _ (TransactionInfo pUUID _) _) _ = U.null pUUID
+isRootTransaction (Transaction _ (MergeTransactionInfo _ _ _) _) _  = False
   
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
@@ -69,17 +70,17 @@ addBranch newBranchName branchPoint graph@(TransactionGraph heads transSet) = if
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
 addBranch :: U.UUID -> HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addBranch newUUID newBranchName branchPoint graph@(TransactionGraph heads transSet) = addTransactionToGraph newBranchName branchPoint newUUID (transactionContext branchPoint) graph
+addBranch newUUID newBranchName branchPoint graph = addTransactionToGraph newBranchName branchPoint newUUID (transactionContext branchPoint) graph
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: U.UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction newUUID headName dTrans@(DisconnectedTransaction parentUUID context) graph = do
+addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph = do
   parentTrans <- transactionForUUID parentUUID graph                              
   addTransactionToGraph headName parentTrans newUUID context graph
 
 -- create a new transaction on "newHeadName" with the branchPointTrans
 addTransactionToGraph :: HeadName -> Transaction -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addTransactionToGraph newHeadName branchPointTrans@(Transaction parentUUID _ parentInfo) newUUID newContext graph@(TransactionGraph heads transSet) = do
+addTransactionToGraph newHeadName branchPointTrans newUUID newContext (TransactionGraph heads transSet) = do
   let freshTransaction = Transaction newUUID (TransactionInfo (transactionUUID branchPointTrans) S.empty) newContext
   -- there are two parents for MergeTransactions! not implemented
   --update parentTransaction to add child
@@ -89,12 +90,12 @@ addTransactionToGraph newHeadName branchPointTrans@(Transaction parentUUID _ par
   return (freshTransaction, updatedGraph)
 
 validateGraph :: TransactionGraph -> Maybe [RelationalError]
-validateGraph graph@(TransactionGraph heads transSet) = do
+validateGraph graph@(TransactionGraph _ transSet) = do
   --check that all UUIDs are unique in the graph
   --uuids = map transactionUUID transSet
   --check that all heads appear in the transSet
   --check that all forward and backward links are in place  
-  errors <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
+  _ <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
   mapM (walkChildTransactions S.empty graph) (S.toList transSet)
   
 --verify that all parent links exist and that all children exist
@@ -113,7 +114,7 @@ walkParentTransactions seenTransSet graph trans =
         Right parentTransSet -> do 
           walk <- mapM (walkParentTransactions (S.insert transUUID seenTransSet) graph) (S.toList parentTransSet)
           case walk of
-            err:xs -> Just err
+            err:_ -> Just err
             _ -> Nothing
   
 --refactor: needless duplication in these two functions
@@ -131,6 +132,6 @@ walkChildTransactions seenTransSet graph trans =
        Right childTransSet -> do
          walk <- mapM (walkChildTransactions (S.insert transUUID seenTransSet) graph) (S.toList childTransSet)
          case walk of
-           err:xs -> Just err
+           err:_ -> Just err
            _ -> Nothing
     

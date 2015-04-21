@@ -1,10 +1,10 @@
-import TutorialDInterpreter
+import TutorialD.Interpreter
 import Test.HUnit
-import RelationExpr
-import Relation
-import RelationalError
-import RelationType
-import RelationalTransaction
+import ProjectM36.RelationalExpression
+import ProjectM36.Relation
+import ProjectM36.Error
+import ProjectM36.Base
+import ProjectM36.Transaction
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Set as S

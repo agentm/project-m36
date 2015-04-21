@@ -1,9 +1,9 @@
-module RelationExpr where
-import Relation
-import RelationTuple
-import RelationTupleSet
-import RelationType
-import RelationalError
+module ProjectM36.RelationalExpression where
+import ProjectM36.Relation
+import ProjectM36.Tuple
+import ProjectM36.TupleSet
+import ProjectM36.Base
+import ProjectM36.Error
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
@@ -20,7 +20,7 @@ evalRelationalExpr (RelationVariable name) = do
 evalRelationalExpr (Project attrNameSet expr) = do
     rel <- evalRelationalExpr expr
     case rel of 
-      Right rel -> return $ project attrNameSet rel
+      Right rel2 -> return $ project attrNameSet rel2
       Left err -> return $ Left err
 
 evalRelationalExpr (Union exprA exprB) = do
@@ -28,21 +28,21 @@ evalRelationalExpr (Union exprA exprB) = do
   relB <- evalRelationalExpr exprB
   case relA of
     Left err -> return $ Left err
-    Right relA -> case relB of
+    Right relA2 -> case relB of
       Left err -> return $ Left err
-      Right relB -> return $ union relA relB
+      Right relB2 -> return $ union relA2 relB2
 
 evalRelationalExpr (Join exprA exprB) = do
   relA <- evalRelationalExpr exprA
   relB <- evalRelationalExpr exprB
   case relA of
     Left err -> return $ Left err
-    Right relA -> case relB of
+    Right relA2 -> case relB of
       Left err -> return $ Left err
-      Right relB -> return $ join relA relB
+      Right relB2 -> return $ join relA2 relB2
       
-evalRelationalExpr (MakeStaticRelation attributes tupleSet) = do
-  case mkRelation attributes tupleSet of
+evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
+  case mkRelation attributeSet tupleSet of
     Right rel -> return $ Right rel
     Left err -> return $ Left err
     
@@ -102,31 +102,33 @@ dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreig
     products = productsRel
     supplierProducts = supplierProductsRel
       
-suppliersRel = case mkRelation attributes tupleSet of
-  Left err -> undefined
+suppliersRel :: Relation
+suppliersRel = case mkRelation attributeSet tupleSet of
+  Left _ -> undefined
   Right rel -> rel
   where
-    attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
+    attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
                                  ("SNAME", Attribute "SNAME" StringAtomType), 
                                  ("STATUS", Attribute "STATUS" IntAtomType), 
                                  ("CITY", Attribute "CITY" StringAtomType)] 
-    tupleSet = HS.fromList $ mkRelationTuples attributes [
+    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
       M.fromList [("S#", StringAtom "S1") , ("SNAME", StringAtom "Smith"), ("STATUS", IntAtom 20) , ("CITY", StringAtom "London")],
       M.fromList [("S#", StringAtom "S2"), ("SNAME", StringAtom "Jones"), ("STATUS", IntAtom 10), ("CITY", StringAtom "Paris")],
       M.fromList [("S#", StringAtom "S3"), ("SNAME", StringAtom "Blake"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Paris")],
       M.fromList [("S#", StringAtom "S4"), ("SNAME", StringAtom "Clark"), ("STATUS", IntAtom 20), ("CITY", StringAtom "London")],
       M.fromList [("S#", StringAtom "S5"), ("SNAME", StringAtom "Adams"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Athens")]]
       
-productsRel = case mkRelation attributes tupleSet of
-  Left err -> undefined
+productsRel :: Relation
+productsRel = case mkRelation attributeSet tupleSet of
+  Left _ -> undefined
   Right rel -> rel
   where
-    attributes = M.fromList [("P#", Attribute "P#" StringAtomType), 
+    attributeSet = M.fromList [("P#", Attribute "P#" StringAtomType), 
                              ("PNAME", Attribute "PNAME" StringAtomType),
                              ("COLOR", Attribute "COLOR" StringAtomType), 
                              ("WEIGHT", Attribute "WEIGHT" IntAtomType), 
                              ("CITY", Attribute "CITY" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attributes [
+    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
       M.fromList [("P#", StringAtom "P1"), ("PNAME", StringAtom "Nut"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 12), ("CITY", StringAtom "London")],
       M.fromList [("P#", StringAtom "P2"), ("PNAME", StringAtom "Bolt"), ("COLOR", StringAtom "Green"), ("WEIGHT", IntAtom 17), ("CITY", StringAtom "Paris")],
       M.fromList [("P#", StringAtom "P3"), ("PNAME", StringAtom "Screw"), ("COLOR", StringAtom "Blue"), ("WEIGHT", IntAtom 17), ("CITY", StringAtom "Oslo")],      
@@ -135,15 +137,16 @@ productsRel = case mkRelation attributes tupleSet of
       M.fromList [("P#", StringAtom "P6"), ("PNAME", StringAtom "Cog"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 19), ("CITY", StringAtom "London")]
 
       ]
-                              
-supplierProductsRel = case mkRelation attributes tupleSet of
-  Left err -> undefined
+
+supplierProductsRel :: Relation                             
+supplierProductsRel = case mkRelation attributeSet tupleSet of
+  Left _ -> undefined
   Right rel -> rel
   where
-      attributes = M.fromList [("S#", Attribute "S#" StringAtomType), 
+      attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
                                ("P#", Attribute "P#" StringAtomType), 
                                ("QTY", Attribute "QTY" IntAtomType)]                 
-      tupleSet = HS.fromList $ mkRelationTuples attributes [
+      tupleSet = HS.fromList $ mkRelationTuples attributeSet [
         M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P1"), ("QTY", IntAtom 300)],
         M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P2"), ("QTY", IntAtom 200)],
         M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P3"), ("QTY", IntAtom 400)],
@@ -164,20 +167,20 @@ supplierProductsRel = case mkRelation attributes tupleSet of
 --helper function to process relation variable creation/assignment          
 setRelVar :: String -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do 
-  state <- get
-  let newRelVars = M.insert relVarName rel $ relationVariables state
-  case checkConstraints state of
+  currstate <- get
+  let newRelVars = M.insert relVarName rel $ relationVariables currstate
+  case checkConstraints currstate of
     Just err -> return $ Just err
     Nothing -> do 
-      put $ DatabaseContext (inclusionDependencies state) newRelVars
+      put $ DatabaseContext (inclusionDependencies currstate) newRelVars
       return Nothing
       
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
 deleteRelVar :: String -> DatabaseState (Maybe RelationalError)
 deleteRelVar relVarName = do
-  state <- get
-  let newRelVars = M.delete relVarName (relationVariables state)
-  put $ DatabaseContext (inclusionDependencies state) newRelVars
+  currstate <- get
+  let newRelVars = M.delete relVarName (relationVariables currstate)
+  put $ DatabaseContext (inclusionDependencies currstate) newRelVars
   return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
@@ -217,9 +220,9 @@ evalContextExpr (Delete relVarName predicate) = do
                                  
 --union of restricted+updated portion and the unrestricted+unupdated portion
 evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = do
-  state <- get
-  let relVarTable = relationVariables state 
-  case predicateRestrictionFilter state restrictionPredicateExpr of
+  currstate <- get
+  let relVarTable = relationVariables currstate 
+  case predicateRestrictionFilter currstate restrictionPredicateExpr of
     Left err -> return $ Just err
     Right predicateFunc -> do 
                            case M.lookup relVarName relVarTable of
@@ -228,18 +231,18 @@ evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = d
                                Left err -> return $ Just err
                                Right updatedRel -> setRelVar relVarName updatedRel
                                where
-                                 makeUpdatedRel rel = do
-                                   restrictedPortion <- restrict predicateFunc rel
-                                   unrestrictedPortion <- restrict (not . predicateFunc) rel
+                                 makeUpdatedRel relin = do
+                                   restrictedPortion <- restrict predicateFunc relin
+                                   unrestrictedPortion <- restrict (not . predicateFunc) relin
                                    updatedPortion <- relMap tupleUpdater restrictedPortion
                                    union updatedPortion unrestrictedPortion
                                  tupleUpdater = \(RelationTuple tupMap) -> RelationTuple $ M.union attrAssignments tupMap
 
 
 evalContextExpr (AddInclusionDependency dep) = do
-  state <- get
-  let newDeps = HS.insert dep (inclusionDependencies state)
-  put $ DatabaseContext newDeps (relationVariables state)
+  currstate <- get
+  let newDeps = HS.insert dep (inclusionDependencies currstate)
+  put $ DatabaseContext newDeps (relationVariables currstate)
   return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
@@ -248,7 +251,7 @@ evalContextExpr (MultipleExpr exprs) = do
   --some lifting magic needed here
   case catMaybes evald of
     [] -> return $ Nothing
-    err:l -> return $ Just err
+    err:_ -> return $ Just err
   
 -- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples  
 --evalRelVarExpr (Update relVarName updateMap) = do
@@ -257,7 +260,7 @@ evalContextExpr (MultipleExpr exprs) = do
 checkConstraints :: DatabaseContext -> Maybe RelationalError
 checkConstraints context = case failures of 
   [] -> Nothing
-  l:ls -> Just l
+  l:_ -> Just l
   where
     failures = catMaybes $ map checkIncDep (HS.toList deps)
     deps = inclusionDependencies context
@@ -292,9 +295,9 @@ checkConstraint (InclusionDependency name subDep superDep) = do
          
 typeForRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
 typeForRelationalExpr expr = do
-  state <- get
+  currstate <- get
   --replace the relationVariables context element with a cloned set of relation devoid of tuples
-  put $ contextWithEmptyTupleSets state
+  put $ contextWithEmptyTupleSets currstate
   evalRelationalExpr expr
   
 --returns a database context with all tuples removed  
@@ -315,7 +318,7 @@ predicateRestrictionFilter context (OrPredicate expr1 expr2) = do
   expr2v <- predicateRestrictionFilter context expr2
   return $ \x -> expr1v x || expr2v x
   
-predicateRestrictionFilter context TruePredicate = Right $ \x -> True
+predicateRestrictionFilter _ TruePredicate = Right $ \_ -> True
   
 predicateRestrictionFilter context (NotPredicate expr) = do
   exprv <- predicateRestrictionFilter context expr
@@ -324,13 +327,13 @@ predicateRestrictionFilter context (NotPredicate expr) = do
 predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runState (evalRelationalExpr relExpr) context of
   (Left err, _) -> Left err
   (Right rel, _) -> if rel == relationTrue then
-                      Right $ \x -> True  
+                      Right $ \_ -> True  
                     else if rel == relationFalse then
-                     Right $ \x -> False      
+                     Right $ \_ -> False      
                          else
                            Left $ PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'"
     
-predicateRestrictionFilter context (AttributeEqualityPredicate attrName atom) = Right $ \(RelationTuple tupMap) -> tupValue tupMap == atom
+predicateRestrictionFilter _ (AttributeEqualityPredicate attrName atom) = Right $ \(RelationTuple tupMap) -> tupValue tupMap == atom
   where
     tupValue tupMap = tupMap M.! attrName
 

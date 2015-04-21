@@ -1,12 +1,11 @@
-module RelationAttribute where
-import RelationType
+module ProjectM36.Attribute where
+import ProjectM36.Base
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-import Debug.Trace
 
 renameAttribute :: AttributeName -> Attribute -> Attribute                
-renameAttribute newAttrName (Attribute oldAttrName typeo) = Attribute newAttrName typeo
+renameAttribute newAttrName (Attribute _ typeo) = Attribute newAttrName typeo
 
 remapWithAttributes :: S.Set AttributeName -> M.Map AttributeName Atom -> M.Map AttributeName Atom
 remapWithAttributes attrs m = M.intersection m hollowMap
@@ -32,12 +31,13 @@ matchingAttributeNameSet = S.intersection
 
 
 -- this is sorted so the tuples know in which order to output- the ordering is arbitrary
+sortedAttributeNameList :: S.Set AttributeName -> [AttributeName]
 sortedAttributeNameList attrNameSet= L.sort $ S.toList attrNameSet
     
 -- take two attribute sets and return an attribute set with the attributes which do not match
 -- bug: missing attributes don't show up (?)
 attributesDifference :: Attributes -> Attributes -> Attributes
-attributesDifference attrA attrB = trace (show attrA ++ "\n" ++ show attrB) (M.union mismatchA missingB)
+attributesDifference attrA attrB = M.union mismatchA missingB
   where 
     mismatchA = M.foldrWithKey folder M.empty attrA
     missingB = M.difference attrA attrB

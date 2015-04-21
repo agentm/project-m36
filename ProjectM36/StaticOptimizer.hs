@@ -1,9 +1,9 @@
-module RelationStaticOptimizer where
-import RelationType
-import RelationExpr
-import Relation
-import RelationalError
-import RelationTupleSet
+module ProjectM36.StaticOptimizer where
+import ProjectM36.Base
+import ProjectM36.RelationalExpression
+import ProjectM36.Relation
+import ProjectM36.Error
+import ProjectM36.TupleSet
 import Control.Monad.State hiding (join)
 import Data.Either (rights, lefts)
 
@@ -21,7 +21,7 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
   relType <- typeForRelationalExpr expr
   case relType of
     Left err -> return $ Left err
-    Right relType -> if attributeNames relType == attrNameSet then
+    Right relType2 -> if attributeNames relType2 == attrNameSet then
                        applyStaticRelationalOptimization expr
                        else do
                          optimizedSubExpression <- applyStaticRelationalOptimization expr 
@@ -44,12 +44,11 @@ applyStaticRelationalOptimization (Union exprA exprB) = do
 applyStaticRelationalOptimization (Join exprA exprB) = do
   typeA <- typeForRelationalExpr exprA
   typeB <- typeForRelationalExpr exprB
-  context <- get
   case typeA of 
     Left err -> return $ Left err
-    Right typeA -> case typeB of
+    Right typeA2 -> case typeB of
       Left err -> return $ Left err
-      Right typeB -> if typeA == typeB then --no new attributes to add
+      Right typeB2 -> if typeA2 == typeB2 then --no new attributes to add
                        return $ Right exprA
                      else do
                        optExprA <- applyStaticRelationalOptimization exprA
@@ -57,9 +56,9 @@ applyStaticRelationalOptimization (Join exprA exprB) = do
   
                        case optExprA of
                          Left err -> return $ Left err
-                         Right optExprA -> case optExprB of
+                         Right optExprA2 -> case optExprB of
                            Left err -> return $ Left err
-                           Right optExprB -> return $ Right (Join optExprA optExprB)
+                           Right optExprB2 -> return $ Right (Join optExprA2 optExprB2)
                            
 applyStaticRelationalOptimization e@(Rename _ _ _) = return $ Right e
 
@@ -74,9 +73,9 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
   optimizedPredicate <- applyStaticPredicateOptimization predicate
   case optimizedPredicate of
     Left err -> return $ Left err
-    Right optimizedPredicate -> if optimizedPredicate == TruePredicate then
+    Right optimizedPredicate2 -> if optimizedPredicate2 == TruePredicate then
                                   applyStaticRelationalOptimization expr
-                                  else if optimizedPredicate == NotPredicate TruePredicate then do
+                                  else if optimizedPredicate2 == NotPredicate TruePredicate then do
                                     attributesRel <- typeForRelationalExpr expr
                                     case attributesRel of 
                                       Left err -> return $ Left err
@@ -85,7 +84,7 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
                                       optimizedSubExpression <- applyStaticRelationalOptimization expr
                                       case optimizedSubExpression of
                                         Left err -> return $ Left err
-                                        Right optSubExpr -> return $ Right $ Restrict optimizedPredicate optSubExpr
+                                        Right optSubExpr -> return $ Right $ Restrict optimizedPredicate2 optSubExpr
   
 applyStaticRelationalOptimization (Equals exprA exprB) = do 
   return $ Right $ Equals exprA exprB
@@ -99,25 +98,25 @@ applyStaticDatabaseOptimization (Assign name expr) = do
   optimizedExpr <- applyStaticRelationalOptimization expr
   case optimizedExpr of
     Left err -> return $ Left err
-    Right optimizedExpr -> return $ Right (Assign name optimizedExpr)
+    Right optimizedExpr2 -> return $ Right (Assign name optimizedExpr2)
     
 applyStaticDatabaseOptimization (Insert name expr) = do
   optimizedExpr <- applyStaticRelationalOptimization expr
   case optimizedExpr of
     Left err -> return $ Left err
-    Right optimizedExpr -> return $ Right (Insert name optimizedExpr)
+    Right optimizedExpr2 -> return $ Right (Insert name optimizedExpr2)
   
 applyStaticDatabaseOptimization (Delete name predicate) = do  
   optimizedPredicate <- applyStaticPredicateOptimization predicate
   case optimizedPredicate of
       Left err -> return $ Left err
-      Right optimizedPredicate -> return $ Right (Delete name optimizedPredicate)
+      Right optimizedPredicate2 -> return $ Right (Delete name optimizedPredicate2)
 
-applyStaticDatabaseOptimization (Update name map predicate) = do 
+applyStaticDatabaseOptimization (Update name upmap predicate) = do 
   optimizedPredicate <- applyStaticPredicateOptimization predicate
   case optimizedPredicate of
       Left err -> return $ Left err
-      Right optimizedPredicate -> return $ Right (Update name map optimizedPredicate)
+      Right optimizedPredicate2 -> return $ Right (Update name upmap optimizedPredicate2)
       
 applyStaticDatabaseOptimization (AddInclusionDependency dep) = return $ Right (AddInclusionDependency dep)
 
@@ -136,8 +135,8 @@ applyStaticDatabaseOptimization (MultipleExpr exprs) = do
    where
      substateRunner = forM exprs $ \expr -> do
                                     --a previous expression could create a relvar, we don't want to miss it, so we clear the tuples and execute the expression to get an empty relation in the relvar                                
-                                    evalContextExpr expr    
-                                    applyStaticDatabaseOptimization expr
+       _ <- evalContextExpr expr    
+       applyStaticDatabaseOptimization expr
   --this error handling could be improved with some lifting presumably
   --restore original context
 

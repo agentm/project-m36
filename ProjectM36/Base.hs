@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs #-}
-module RelationType where
+module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Hashable as Hash

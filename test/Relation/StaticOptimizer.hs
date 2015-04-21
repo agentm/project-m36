@@ -1,8 +1,8 @@
-import RelationType
-import Relation
-import RelationExpr
-import RelationTupleSet
-import RelationStaticOptimizer
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.RelationalExpression
+import ProjectM36.TupleSet
+import ProjectM36.StaticOptimizer
 import System.Exit
 import Control.Monad.State
 import Test.HUnit

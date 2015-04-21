@@ -1,8 +1,6 @@
-module RelationalError where
-import RelationType
+module ProjectM36.Error where
+import ProjectM36.Base
 import qualified Data.UUID as U
-import qualified Data.Set as S
-
 
 data RelationalError = NoSuchAttributeNameError String
                      | TupleAttributeCountMismatchError Int --attribute name

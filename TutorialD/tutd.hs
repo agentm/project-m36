@@ -1,7 +1,7 @@
-import TutorialDInterpreter
-import RelationExpr
-import RelationalTransaction
-import RelationType
+import TutorialD.Interpreter
+import ProjectM36.RelationalExpression
+import ProjectM36.Transaction
+import ProjectM36.Base
 import Data.UUID.V4 (nextRandom)
 
 main = do

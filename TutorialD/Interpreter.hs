@@ -1,15 +1,15 @@
 {-# LANGUAGE GADTs #-}
-module TutorialDInterpreter where
-import Relation
-import RelationType
-import RelationTuple
-import RelationTupleSet
-import RelationalError
-import RelationExpr
-import RelationTerm
-import RelationStaticOptimizer
-import RelationalTransaction
-import RelationalTransactionShow
+module TutorialD.Interpreter where
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.Tuple
+import ProjectM36.TupleSet
+import ProjectM36.Error
+import ProjectM36.RelationalExpression
+import ProjectM36.Relation.Show.Term
+import ProjectM36.StaticOptimizer
+import ProjectM36.Transaction
+import ProjectM36.Transaction.Show
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -225,8 +225,8 @@ defineP = do
     relVarName <- identifier
     reservedOp "::"
     return relVarName
-  attributes <- makeAttributes
-  return $ Define relVarName attributes
+  attributeSet <- makeAttributes
+  return $ Define relVarName attributeSet
   
 undefineP :: Parser DatabaseExpr
 undefineP = do
@@ -320,8 +320,8 @@ showConstraintsP = do
 jumpToHeadP :: Parser GraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
-  head <- identifier
-  return $ JumpToHead head
+  headid <- identifier
+  return $ JumpToHead headid
   
 jumpToTransactionP :: Parser GraphOperator  
 jumpToTransactionP = do
@@ -350,6 +350,7 @@ showGraphP = do
   reservedOp ":showgraph"
   return $ ShowGraph
   
+transactionGraphOps :: Parser GraphOperator
 transactionGraphOps = do
   jumpToHeadP
   <|> jumpToTransactionP
@@ -399,21 +400,21 @@ evalContextOp context (ShowConstraint name) = do
     deps = inclusionDependencies context
     filteredDeps = case name of
       "" -> deps
-      name -> HS.filter (\(InclusionDependency n _ _) -> n == name) deps
+      name2 -> HS.filter (\(InclusionDependency n _ _) -> n == name2) deps
       
 evalContextOp context (ShowPlan dbExpr) = do
   DisplayResult $ show plan
   where
     plan = evalState (applyStaticDatabaseOptimization dbExpr) context
       
-evalContextOp context (Quit) = QuitResult
+evalContextOp _ (Quit) = QuitResult
 
 -- returns the new "current" transaction, updated graph, and tutorial d result
 -- the current transaction is not part of the transaction graph until it is committed
 evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> GraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
 
 --affects only disconncted transaction
-evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
+evalGraphOp _ _ graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
   Left err -> Left err
   Right parentTrans -> Right (newTrans, graph, QuietSuccessResult)
     where
@@ -421,7 +422,7 @@ evalGraphOp newUUID trans graph (JumpToTransaction jumpUUID) = case transactionF
   
 -- switch from one head to another
 -- affects only disconnectedtransaction 
-evalGraphOp newUUID currentTransaction graph (JumpToHead headName) = 
+evalGraphOp _ _ graph (JumpToHead headName) = 
   case transactionForHead headName graph of
     Just newHeadTransaction -> let disconnectedTrans = newDisconnectedTransaction (transactionUUID newHeadTransaction) (transactionContext newHeadTransaction) in
       Right (disconnectedTrans, graph, QuietSuccessResult)
@@ -441,11 +442,11 @@ evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) gr
        
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+evalGraphOp newUUID (DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
   Left err -> Left err
   Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
     Left err -> Left err
-    Right (newTrans, newGraph) -> Right (newDiscon, newGraph, QuietSuccessResult)
+    Right (_, newGraph) -> Right (newDiscon, newGraph, QuietSuccessResult)
      where
       newDiscon = DisconnectedTransaction newUUID disconContext
 
@@ -463,7 +464,7 @@ evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) gra
         maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
         
 -- refresh the disconnected transaction, return the same graph        
-evalGraphOp _ discon@(DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
+evalGraphOp _ (DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
   Left err -> Left err
   Right parentTransaction -> Right (newDiscon, graph, QuietSuccessResult)
     where
@@ -481,7 +482,6 @@ interpret context tutdstring = case parseString tutdstring of
                                     Right parsed -> runState (evaluator parsed) context
                                where 
                                  evaluator expr = do
-                                   context <- get
                                    optExpr <- applyStaticDatabaseOptimization expr 
                                    --case optExpr of
                                    case optExpr of
@@ -580,5 +580,5 @@ intAtomP = do
   
 --used by :dumpGraph
 displayTransactionGraph :: TransactionGraph -> String
-displayTransactionGraph (TransactionGraph heads transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
+displayTransactionGraph (TransactionGraph _ transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
     

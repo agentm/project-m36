@@ -1,6 +1,7 @@
-module RelationTuple where
-import RelationType
-import RelationAttribute
+module ProjectM36.Tuple where
+import ProjectM36.Base
+import ProjectM36.Attribute
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
@@ -37,11 +38,11 @@ tupleRenameAttribute oldattr newattr old@(RelationTuple tmap) =
 
 --in case the map does not contain the attributes, filter them out
 mkRelationTuple :: S.Set AttributeName-> M.Map AttributeName Atom -> RelationTuple
-mkRelationTuple attrs map = RelationTuple newMap
+mkRelationTuple attrs attrmap = RelationTuple newMap
   where
     --make sure only attributes in the name set are in the tuple
     --check that Atoms are all of the same type- change to Either return value
-    newMap = remapWithAttributes attrs map
+    newMap = remapWithAttributes attrs attrmap
 
 mkRelationTuples :: Attributes -> [M.Map AttributeName Atom] -> [RelationTuple]
 mkRelationTuples attrs maplist = map mapper maplist

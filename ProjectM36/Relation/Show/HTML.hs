@@ -1,10 +1,10 @@
-module RelationHTML where
-import RelationType
-import Relation
-import RelationTuple
+module ProjectM36.Relation.Show.HTML where
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.Tuple
 import qualified Data.HashSet as HS
 import qualified Data.List as L
-import RelationAttribute
+import ProjectM36.Attribute
 
 attributesAsHTML :: Attributes -> String
 attributesAsHTML attrs = "<tr>" ++ (foldr folder "" attrNameList) ++ "</tr>"
@@ -24,8 +24,8 @@ writeRel :: Relation -> IO ()
 writeRel = writeHTML . relationAsHTML 
 
 atomAsHTML :: Atom -> String
-atomAsHTML (StringAtom s) = s
-atomAsHTML (IntAtom i) = show i
+atomAsHTML (StringAtom atom) = atom
+atomAsHTML (IntAtom int) = show int
 atomAsHTML (RelationAtom rel) = relationAsHTML rel
 
 tupleAsHTML :: RelationTuple -> String                          

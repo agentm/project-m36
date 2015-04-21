@@ -1,10 +1,10 @@
-module RelationalTransactionShow where
-import RelationType
-import Relation
-import RelationTuple
-import RelationTupleSet
-import RelationalError
-import RelationalTransaction
+module ProjectM36.Transaction.Show where
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.Tuple
+import ProjectM36.TupleSet
+import ProjectM36.Error
+import ProjectM36.Transaction
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
@@ -18,17 +18,17 @@ showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID 
       Right parentTransSet -> concat $ S.toList $ S.map (show . transactionUUID) parentTransSet
   
 showGraphStructure :: TransactionGraph -> String
-showGraphStructure graph@(TransactionGraph heads transSet) = S.foldr folder "" transSet
+showGraphStructure graph@(TransactionGraph _ transSet) = S.foldr folder "" transSet
   where
     folder trans acc = acc ++ showTransactionStructure trans graph ++ "\n"
     
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction    
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation    
-graphAsRelation discon@(DisconnectedTransaction parentUUID _) graph@(TransactionGraph heads transSet) = do
+graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _ transSet) = do
   tupleSet <- mapM tupleGenerator (S.toList transSet)
-  mkRelation attributes (HS.fromList tupleSet)
+  mkRelation attributeSet (HS.fromList tupleSet)
   where
-    attributes = M.fromList [("id", Attribute "id" StringAtomType), 
+    attributeSet = M.fromList [("id", Attribute "id" StringAtomType), 
                              ("parents", Attribute "parents" (RelationAtomType parentAttributes)),
                              ("current", Attribute "current" IntAtomType),
                              ("head", Attribute "head" StringAtomType)
@@ -56,7 +56,7 @@ transactionParentsRelation trans graph = do
       mkRelation attributes tupleSet
   where
     attributes = M.fromList [("id", Attribute "id" StringAtomType)]
-    trans2tuple trans = mkRelationTuple (S.fromList ["id"]) $ M.singleton "id" (StringAtom (show $ transactionUUID trans))
+    trans2tuple trans2 = mkRelationTuple (S.fromList ["id"]) $ M.singleton "id" (StringAtom (show $ transactionUUID trans2))
 
 
                              
