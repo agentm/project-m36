@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.Transaction.Show,
@@ -19,7 +19,8 @@ Library
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
-                     ProjectM36.Relation.Show.Term
+                     ProjectM36.Relation.Show.Term,
+                     ProjectM36.Relation.Show.CSV
     GHC-Options: -Wall
         
 Executable tutd
@@ -48,3 +49,9 @@ Test-Suite test-static-optimizer
     main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
+
+benchmark bench
+    type: exitcode-stdio-1.0
+    main-is: benchmark/Relation.hs
+    build-depends: base,criterion
+    GHC-Options: -Wall -rtsopts
