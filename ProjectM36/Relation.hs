@@ -325,5 +325,15 @@ sp :: Relation
 sp = case relvarSP of { Right r -> r }
 
 
+-- returns a relation with tupleCount tuples with a set of integer attributes attributesCount long
+-- this is useful for performance and resource usage testing
+matrixRelation :: Int -> Int -> Either RelationalError Relation
+matrixRelation attributeCount tupleCount = mkRelation attributeSet tupleSet
+  where
+    attributeSet = M.fromList $ map (\c-> (show c, Attribute (show c) IntAtomType)) [0 .. attributeCount]
+    tupleSet = HS.fromList $ mkRelationTuples attributeSet $ map (\c -> tuple c) [0 .. tupleCount]
+    tuple tupleX = M.fromList $ map (\c -> (show c, IntAtom tupleX)) [0..attributeCount]
+
+
 
   
