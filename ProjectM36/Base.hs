@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs,DeriveGeneric #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -6,17 +6,23 @@ import qualified Data.Hashable as Hash
 import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.UUID (UUID)
+import Control.DeepSeq (NFData, rnf)
+import Control.DeepSeq.Generics (genericRnf)
+import GHC.Generics (Generic)
 
 data Atom = StringAtom String |
             IntAtom Int |
-            RelationAtom Relation deriving (Show, Eq)
-                                                                                      
+            RelationAtom Relation deriving (Show, Eq, Generic)
+                                           
+instance NFData Atom where rnf = genericRnf                  
 
 data AtomType = StringAtomType |
                 IntAtomType |
-                RelationAtomType Attributes deriving (Eq, Show)
+                RelationAtomType Attributes deriving (Eq, Show, Generic)
                                                      
-atomTypeForAtom :: Atom -> AtomType                                                     
+instance NFData AtomType where rnf = genericRnf
+                                                     
+atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (StringAtom _) = StringAtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
 atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
@@ -24,7 +30,9 @@ atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attrib
 type AttributeName = String
 type AtomName = String
 
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show)
+data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
+
+instance NFData Attribute where rnf = genericRnf
 
 type Attributes = M.Map AttributeName Attribute --attributes keys by attribute name for ease of access
 
@@ -32,11 +40,16 @@ type RelationTupleSet = HS.HashSet RelationTuple
 
 instance Hash.Hashable RelationTuple where
   hashWithSalt salt tup = Hash.hashWithSalt salt (show tup)
-    
-data RelationTuple = RelationTuple (M.Map AttributeName Atom) deriving (Eq, Show)
+  
+data RelationTuple = RelationTuple (M.Map AttributeName Atom) deriving (Eq, Show, Generic)
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Eq)
-data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show)
+instance NFData RelationTuple where rnf = genericRnf
+
+data Relation = Relation Attributes RelationTupleSet deriving (Show, Eq, Generic)
+
+instance NFData Relation where rnf = genericRnf
+  
+data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic)
 data RelationSizeInfinite = RelationSizeInfinite
 
 data RelationalExpr where

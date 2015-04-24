@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.Transaction.Show,
