@@ -2,3 +2,5 @@
 *.hi
 *~
 dist/
+.cabal-sandbox/
+cabal.sandbox.config
