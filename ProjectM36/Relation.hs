@@ -1,14 +1,14 @@
 -- this is an implementation of the Relation typeclass which creates a GADT DSL
 {-# LANGUAGE GADTs,ExistentialQuantification,NoImplicitPrelude #-}
 module ProjectM36.Relation where
-import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
+import qualified Data.Vector as V
 
 import ProjectM36.Base
 import ProjectM36.Tuple
-import ProjectM36.Attribute
+import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import Prelude hiding (join)
@@ -17,48 +17,48 @@ attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
 
 attributeNames :: Relation -> S.Set AttributeName
-attributeNames (Relation attrs _) = M.keysSet attrs
+attributeNames (Relation attrs _) = A.attributeNameSet attrs
 
 attributeForName :: AttributeName -> Relation -> Maybe Attribute
-attributeForName attrName (Relation attrs _) = M.lookup attrName attrs 
+attributeForName attrName (Relation attrs _) = A.attributeForName attrName attrs
 
 attributesForNames :: S.Set AttributeName -> Relation -> Attributes
-attributesForNames attrNameSet (Relation attrs _) = M.intersection attrs hollowMap
-  where
-    hollowMap = M.fromList $ zip (S.toList attrNameSet) (repeat (Attribute "" StringAtomType))
+attributesForNames attrNameSet (Relation attrs _) = A.attributesForNames attrNameSet attrs
     
-attributeTypeForName :: AttributeName -> Relation -> Maybe AtomType
-attributeTypeForName attrName rel = case attr of
-  (Just (Attribute _ atomType)) -> Just atomType
-  _ -> Nothing
-  where 
-    attr = attributeForName attrName rel
+atomTypeForName :: AttributeName -> Relation -> Maybe AtomType
+atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
     
 atomValueType :: Atom -> AtomType
 atomValueType (StringAtom _) = StringAtomType
 atomValueType (IntAtom _) = IntAtomType
 atomValueType (RelationAtom rel) = RelationAtomType (attributes rel)
 
+mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
+mkRelationFromList attrs atomMatrix = do
+  tupSet <- mkTupleSetFromList attrs atomMatrix
+  return $ Relation attrs tupSet
+
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet = do
   --check that all tuples have the same keys
   --check that all tuples have keys (1-N) where N is the attribute count
-  case verifyRelationTupleSet attrs tupleSet of 
+  case verifyTupleSet attrs tupleSet of 
     Left err -> Left err
     Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
 
 relationTrue :: Relation
-relationTrue = Relation M.empty $ HS.singleton (RelationTuple M.empty)
+relationTrue = Relation A.emptyAttributes singletonTupleSet
 
 relationFalse :: Relation
-relationFalse = Relation M.empty emptyTupleSet
+relationFalse = Relation A.emptyAttributes emptyTupleSet
 
 madeTrue :: Either RelationalError Relation
-madeTrue = mkRelation M.empty (HS.fromList [])
+madeTrue = mkRelation A.emptyAttributes (HS.fromList [])
 
 madeFalse :: Either RelationalError Relation
-madeFalse = mkRelation M.empty emptyTupleSet
+madeFalse = mkRelation A.emptyAttributes emptyTupleSet
 
+{-
 --used for predicate filtering- instead of allowing for tuple types to be floating around in Tutorial D, just created a "singleton value" relation with cardinality and arity 1 for tuple atom comparison purposes
 singletonValueFromRelation :: Relation -> Either RelationalError Atom
 singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Countable 1 then    
@@ -71,6 +71,7 @@ singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Count
     value = snd $ head $ M.toList tupMap
     tupMap = tup2Map $ head (HS.toList tupSet)
     tup2Map (RelationTuple tupmap) = tupmap
+-}
 
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
@@ -83,7 +84,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
 
 project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel = 
-  if not $ attributeNamesContained projectionAttrNames (attributeNames rel)
+  if not $ A.attributeNamesContained projectionAttrNames (attributeNames rel)
      then Left $ AttributeNameMismatchError ""
   else
     relFold folder (Right $ Relation newAttrs HS.empty) rel
@@ -94,12 +95,6 @@ project projectionAttrNames rel =
       Left err -> Left err
       Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject projectionAttrNames tupleToProject)))
     
-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple    
-tupleProject projectAttrs (RelationTuple tupleInMap) = RelationTuple $ M.filterWithKey attrFilter tupleInMap
-  where
-    attrFilter key _ = S.member key projectAttrs
-
---the expensive rename is why I wanted to use IntMap instead of attribute names in the tupleset
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
   if not attributeValid
@@ -109,15 +104,15 @@ rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
   else
     mkRelation newAttrs newTupSet
   where
-    newAttributeInUse = attributeNamesContained (S.singleton newAttrName) (attributeNames rel)
-    attributeValid = attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
-    newAttrs = M.delete oldAttrName $ M.insert newAttrName (renameAttribute newAttrName (oldAttrs M.! oldAttrName)) oldAttrs
+    newAttributeInUse = A.attributeNamesContained (S.singleton newAttrName) (attributeNames rel)
+    attributeValid = A.attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
+    newAttrs = A.renameAttributes oldAttrName newAttrName oldAttrs
     newTupSet = HS.map tupsetmapper oldTupSet
     tupsetmapper tuple = tupleRenameAttribute oldAttrName newAttrName tuple
     
 --the algebra should return a relation of one attribute and one row with the arity
 arity :: Relation -> Int
-arity (Relation attrs _) = M.size attrs
+arity (Relation attrs _) = A.arity attrs
 
 cardinality :: Relation -> RelationCardinality 
 cardinality (Relation _ tupSet) = Countable (HS.size tupSet)
@@ -151,31 +146,33 @@ group groupAttrNames newAttrName rel = do
   nonGroupProjection <- project nonGroupAttrNames rel
   relFold folder (Right $ Relation newAttrs emptyTupleSet) nonGroupProjection
     where
-      newAttrs = M.insert newAttrName groupAttr (attributesForNames nonGroupAttrNames rel)
+      newAttrs = A.addAttribute groupAttr (attributesForNames nonGroupAttrNames rel)
       groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames nonGroupAttrNames rel))
-      nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
+      nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
       folder tupleIn acc = case acc of
         Left err -> Left err
         Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleExtend tupleIn (matchingRelTuple tupleIn))))
       matchingRelTuple groupTuple = case imageRelationFor groupTuple rel of
-        Right rel2 -> RelationTuple $ M.singleton newAttrName (RelationAtom rel2)
+        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
   
 --help restriction function
 --returns a subrelation of 
 restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
-restrictEq (RelationTuple tupMap) rel = restrict rfilter rel
+restrictEq tuple rel = restrict rfilter rel
   where
     rfilter :: RelationTuple -> Bool
-    rfilter (RelationTuple tupMap2) = M.isSubmapOf tupMap tupMap2
+    rfilter tupleIn = tupleIntersection tuple tupleIn /= emptyTuple
     
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
 ungroup :: AttributeName -> Relation -> Either RelationalError Relation
-ungroup relvalAttrName rel = relFold relFolder (Right $ Relation newAttrs emptyTupleSet) rel
-  where
-    newAttrs = M.union (attributesForRelval relvalAttrName rel) nonGroupAttrs
-    nonGroupAttrs = M.delete relvalAttrName (attributes rel)
+ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
+  Left err -> Left err
+  Right relvalAttrs -> relFold relFolder (Right $ Relation newAttrs emptyTupleSet) rel
+   where
+    newAttrs = A.addAttributes relvalAttrs nonGroupAttrs
+    nonGroupAttrs = A.deleteAttributeName relvalAttrName (attributes rel)
     relFolder :: RelationTuple -> Either RelationalError Relation -> Either RelationalError Relation
     relFolder tupleIn acc = case (tupleUngroup relvalAttrName newAttrs tupleIn) of 
       Right ungroupRelation -> case acc of
@@ -187,36 +184,20 @@ ungroup relvalAttrName rel = relFold relFolder (Right $ Relation newAttrs emptyT
       
 --take an relval attribute name and a tuple and ungroup the relval 
 tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either RelationalError Relation
-tupleUngroup relvalAttrName newAttrs tuple@(RelationTuple tupMap) = case (tupMap M.! relvalAttrName) of
-  (RelationAtom relvalRelation) -> relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
-    where
-      nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
-      nonGroupAttrNames = M.keysSet newAttrs
-      folder tupleIn acc = case acc of
-        Left err -> Left err
-        Right accRel -> union accRel $ Relation newAttrs (HS.singleton (tupleExtend nonGroupTupleProjection tupleIn))
-      relvalRelation = unsafeRelValFromAtom $ tupleAtomForAttribute tuple relvalAttrName
-        where
-          unsafeRelValFromAtom :: Atom -> Relation
-          unsafeRelValFromAtom (RelationAtom rel) = rel
-          unsafeRelValFromAtom (StringAtom _) = undefined
-          unsafeRelValFromAtom (IntAtom _) = undefined
-  _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
-          
---this is a hack needed because the relation attributes are untyped so we must dig into the relval to get the attribute names  
-attributesForRelval :: AttributeName -> Relation -> Attributes
-attributesForRelval relvalAttrName (Relation _ tupleSet) = attributes relvalRelation 
+tupleUngroup relvalAttrName newAttrs tuple = do
+  relvalRelation <- relationForAttributeName relvalAttrName tuple
+  relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
   where
-    --this is only temporarily needed until the Relation stores the types of the columns as data- hack alert
-    --find a tuple with attributes to steal to ungroup
-    oneTuple :: RelationTupleSet -> RelationTuple
-    oneTuple tupSet = head $ HS.toList $ HS.filter (\(RelationTuple tupMap) -> M.size tupMap > 0) tupSet
-    relvalRelation = unsafeRelValFromAtom $ tupleAtomForAttribute (oneTuple tupleSet) relvalAttrName
-      where
-        unsafeRelValFromAtom :: Atom -> Relation
-        unsafeRelValFromAtom (RelationAtom rel) = rel
-        unsafeRelValFromAtom (StringAtom _) = undefined
-        unsafeRelValFromAtom (IntAtom _) = undefined
+    nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
+    nonGroupAttrNames = A.attributeNameSet newAttrs
+    folder tupleIn acc = case acc of
+      Left err -> Left err
+      Right accRel -> union accRel $ Relation newAttrs (HS.singleton (tupleExtend nonGroupTupleProjection tupleIn))
+          
+attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
+attributesForRelval relvalAttrName (Relation attrs _) = case A.atomTypeForAttributeName relvalAttrName attrs of
+  (Just (RelationAtomType relAttrs)) -> Right relAttrs
+  _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
 
 restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relation
 restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset
@@ -225,11 +206,11 @@ restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rf
 --after changing from string atoms, there needs to be a type-checking step!
 --this is a "nested loop" scan as described by the postgresql documentation
 join :: Relation -> Relation -> Either RelationalError Relation
-join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = Right $ Relation newAttrs newTupSet
-  where
-    newAttrs = M.union attrs1 attrs2
-    newTupSet = HS.foldr tupleSetJoiner emptyTupleSet tupSet1
-    tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
+join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
+  let newTupSet = HS.foldr tupleSetJoiner emptyTupleSet tupSet1
+      tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
+  newAttrs <- A.joinAttributes attrs1 attrs2
+  return $ Relation newAttrs newTupSet
     
 --a map should NOT change the structure of a relation, so attributes should be constant                 
 relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
@@ -242,7 +223,7 @@ relMap mapper (Relation attrs tupleSet) = do
       let remappedTuple = mapper tupleIn
       if tupleAttributes remappedTuple == tupleAttributes tupleIn 
         then Right remappedTuple 
-        else Left $ TupleAttributeTypeMismatchError (attributesDifference (tupleAttributes tupleIn) attrs)
+        else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)
       
 --in the future, the mapper should be able to return a RelationalError likely
 relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
@@ -258,12 +239,8 @@ relFold folder acc (Relation _ tupleSet) = HS.foldr folder acc tupleSet
 imageRelationFor ::  RelationTuple -> Relation -> Either RelationalError Relation
 imageRelationFor matchTuple rel = do
   restricted <- restrictEq matchTuple rel --restrict across matching tuples
-  project (nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)) restricted --project across attributes not in rel
+  project (A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)) restricted --project across attributes not in rel
   
-imageRelationTest :: Either RelationalError Relation
-imageRelationTest = imageRelationFor tup s
-  where
-    tup = mkRelationTuple (S.fromList ["SNAME", "CITY", "S#"]) (M.fromList [("SNAME", StringAtom "Smith"), ("S#", StringAtom "S1"), ("CITY", StringAtom "London")])
     
 --returns a relation-valued attribute image relation for each tuple in rel1
 --algorithm: 
@@ -278,61 +255,15 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
     tupleSetJoiner tup1 acc = undefined
 -}
   
-{- C.J. Date's canonical example relvars -}
-  
-relvarS :: Either RelationalError Relation    
-relvarS = mkRelation attributeSet tupleSet
-  where
-    attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
-                                 ("SNAME", Attribute "SNAME" StringAtomType), 
-                                 ("STATUS", Attribute "STATUS" IntAtomType), 
-                                 ("CITY", Attribute "CITY" StringAtomType)] 
-    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-      M.fromList [("S#", StringAtom "S1") , ("SNAME", StringAtom "Smith"), ("STATUS", IntAtom 20) , ("CITY", StringAtom "London")],
-      M.fromList [("S#", StringAtom "S2"), ("SNAME", StringAtom "Jones"), ("STATUS", IntAtom 10), ("CITY", StringAtom "Paris")],
-      M.fromList [("S#", StringAtom "S3"), ("SNAME", StringAtom "Blake"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Paris")],
-      M.fromList [("S#", StringAtom "S4"), ("SNAME", StringAtom "Clark"), ("STATUS", IntAtom 20), ("CITY", StringAtom "London")],
-      M.fromList [("S#", StringAtom "S5"), ("SNAME", StringAtom "Adams"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Athens")]]
-                 
-s :: Relation    
-s = case relvarS of { Right r -> r } 
-
-relvarP :: Either RelationalError Relation
-relvarP = mkRelation attributeSet tupleSet
-  where
-    attributeSet = M.fromList [("P#", Attribute "P#" StringAtomType), 
-                             ("PNAME", Attribute "PNAME" StringAtomType),
-                             ("COLOR", Attribute "COLOR" StringAtomType), 
-                             ("WEIGHT", Attribute "WEIGHT" StringAtomType), 
-                             ("CITY", Attribute "CITY" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-      M.fromList [("P#", StringAtom "P1"), ("PNAME", StringAtom "Nut"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 12), ("CITY", StringAtom "London")]
-      ]
-p :: Relation
-p = case relvarP of { Right r -> r }
-                       
-relvarSP :: Either RelationalError Relation
-relvarSP = mkRelation attributeSet tupleSet                       
-  where
-      attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
-                               ("P#", Attribute "P#" StringAtomType), 
-                               ("QTY", Attribute "QTY" StringAtomType)]                 
-      tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P1"), ("QTY", IntAtom 300)]
-        ]
-                 
-sp :: Relation
-sp = case relvarSP of { Right r -> r }
-
-
 -- returns a relation with tupleCount tuples with a set of integer attributes attributesCount long
 -- this is useful for performance and resource usage testing
 matrixRelation :: Int -> Int -> Either RelationalError Relation
-matrixRelation attributeCount tupleCount = mkRelation attributeSet tupleSet
-  where
-    attributeSet = M.fromList $ map (\c-> (show c, Attribute (show c) IntAtomType)) [0 .. attributeCount]
-    tupleSet = HS.fromList $ mkRelationTuples attributeSet $ map (\c -> tuple c) [0 .. tupleCount]
-    tuple tupleX = M.fromList $ map (\c -> (show c, IntAtom tupleX)) [0..attributeCount]
+matrixRelation attributeCount tupleCount = do
+  let attrs = A.attributesFromList $ map (\c-> Attribute (show c) IntAtomType) [0 .. attributeCount]
+      tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
+  tupleSet <- mkTupleSet attrs $ map (\c -> tuple c) [0 .. tupleCount]
+  mkRelation attrs tupleSet
+
 
 
 

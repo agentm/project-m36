@@ -4,27 +4,40 @@ import ProjectM36.Base
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import qualified Data.Set as S
-import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 
+boxV :: String
 boxV = "│"
+boxH :: String
 boxH = "─"
 
+boxTL :: String
 boxTL = "┌"
+boxTR :: String
 boxTR = "┐"
+boxBL :: String
 boxBL = "└"
+boxBR :: String
 boxBR = "┘"
 
+boxLB :: String
 boxLB = "├"
+boxRB :: String
 boxRB = "┤"
+boxTB :: String
 boxTB = "┬"
+boxBB :: String
 boxBB = "┴"
 
+boxC :: String
 boxC = "┼"
 
+dboxH :: String
 dboxH = "═"
+dboxL :: String
 dboxL = "╞"
+dboxR :: String
 dboxR = "╡"
 
 class TermSize a where
@@ -40,14 +53,14 @@ addRow cells (header,body) = (header, body ++ [cells])
 --calculate maximum per-row and per-column sizes    
 
 cellLocations :: Table -> ([Int],[Int]) --column size, row size
-cellLocations tab@(header, body) = (maxWidths, maxHeights)
+cellLocations tab@(header, _) = (maxWidths, maxHeights)
   where
     cellSizeMatrix = cellSizes tab
     maxWidths = foldl mergeMax (baseSize (length header)) (map fst cellSizeMatrix)
     baseSize num = take num (repeat 0)
     rowHeights = map snd cellSizeMatrix
     maxHeights = map (L.maximumBy compare) rowHeights
-    mergeMax a b = map (\(a,b) -> max a b) (zip a b)
+    mergeMax a b = map (\(c,d) -> max c d) (zip a b)
     
 --the normal "lines" function returns an empty list for an empty string which is not what we want
 breakLines :: String -> [String]
@@ -67,7 +80,10 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
     header = oAttrs
     body :: [[Cell]]
     body = HS.foldl' tupleFolder [] tupleSet
-    tupleFolder acc (RelationTuple tupMap) = acc ++ [map (\n -> showAtom (tupMap M.! n)) oAttrs]
+    tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
+                                            Left _ -> "?"
+                                            Right atom -> showAtom atom
+                                            ) oAttrs]
     
 showAtom :: Atom -> String    
 showAtom (StringAtom atom) = atom
@@ -93,7 +109,7 @@ renderHBar left middle end columnLocations = left ++ concat (L.intersperse middl
 leftPaddedString :: Int -> Int -> String -> String
 leftPaddedString lineNum size str = paddedLines !! lineNum
   where
-    paddedLines = map (\s -> s ++ repeatString (size - length s) " ") (breakLines str ++ repeat "") 
+    paddedLines = map (\line -> line ++ repeatString (size - length line) " ") (breakLines str ++ repeat "") 
   
 renderRow :: [Cell] -> [Int] -> Int -> String -> String
 renderRow cells columnLocations rowHeight interspersed = unlines $ map renderOneLine [0..rowHeight-1]
@@ -122,14 +138,7 @@ showRelation rel
   | otherwise = renderTable (relationAsTable rel)
   
 
+{-
 groupedExample :: Relation
 groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
- 
-emptyStringExample :: Relation
-emptyStringExample = case mkRelation attributes tupleSet of
-  Right x -> x
-  _ -> undefined
-  where
-    attributes = M.fromList [("x", Attribute "x" StringAtomType)]
-    tupleSet = HS.singleton $ mkRelationTuple (S.fromList ["x"]) (M.singleton "x" $ StringAtom "")
-                          
+-}

@@ -4,6 +4,7 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
+import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
@@ -101,69 +102,65 @@ dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreig
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel
-      
-suppliersRel :: Relation
-suppliersRel = case mkRelation attributeSet tupleSet of
+    
+suppliersRel :: Relation    
+suppliersRel = case mkRelationFromList attrs atomMatrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
-                                 ("SNAME", Attribute "SNAME" StringAtomType), 
-                                 ("STATUS", Attribute "STATUS" IntAtomType), 
-                                 ("CITY", Attribute "CITY" StringAtomType)] 
-    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-      M.fromList [("S#", StringAtom "S1") , ("SNAME", StringAtom "Smith"), ("STATUS", IntAtom 20) , ("CITY", StringAtom "London")],
-      M.fromList [("S#", StringAtom "S2"), ("SNAME", StringAtom "Jones"), ("STATUS", IntAtom 10), ("CITY", StringAtom "Paris")],
-      M.fromList [("S#", StringAtom "S3"), ("SNAME", StringAtom "Blake"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Paris")],
-      M.fromList [("S#", StringAtom "S4"), ("SNAME", StringAtom "Clark"), ("STATUS", IntAtom 20), ("CITY", StringAtom "London")],
-      M.fromList [("S#", StringAtom "S5"), ("SNAME", StringAtom "Adams"), ("STATUS", IntAtom 30), ("CITY", StringAtom "Athens")]]
-      
-productsRel :: Relation
-productsRel = case mkRelation attributeSet tupleSet of
+    attrs = A.attributesFromList [Attribute "S#" StringAtomType, 
+                                  Attribute "SNAME" StringAtomType, 
+                                  Attribute "STATUS" IntAtomType, 
+                                  Attribute "CITY" StringAtomType]
+    atomMatrix = [
+      [StringAtom "S1", StringAtom "Smith", IntAtom 20, StringAtom "London"],
+      [StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"],
+      [StringAtom "S3", StringAtom "Blake", IntAtom 30, StringAtom "Paris"],
+      [StringAtom "S4", StringAtom "Clark", IntAtom 20, StringAtom "London"],
+      [StringAtom "S5", StringAtom "Adams", IntAtom 30, StringAtom "Athens"]]
+    
+supplierProductsRel :: Relation
+supplierProductsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attributeSet = M.fromList [("P#", Attribute "P#" StringAtomType), 
-                             ("PNAME", Attribute "PNAME" StringAtomType),
-                             ("COLOR", Attribute "COLOR" StringAtomType), 
-                             ("WEIGHT", Attribute "WEIGHT" IntAtomType), 
-                             ("CITY", Attribute "CITY" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-      M.fromList [("P#", StringAtom "P1"), ("PNAME", StringAtom "Nut"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 12), ("CITY", StringAtom "London")],
-      M.fromList [("P#", StringAtom "P2"), ("PNAME", StringAtom "Bolt"), ("COLOR", StringAtom "Green"), ("WEIGHT", IntAtom 17), ("CITY", StringAtom "Paris")],
-      M.fromList [("P#", StringAtom "P3"), ("PNAME", StringAtom "Screw"), ("COLOR", StringAtom "Blue"), ("WEIGHT", IntAtom 17), ("CITY", StringAtom "Oslo")],      
-      M.fromList [("P#", StringAtom "P4"), ("PNAME", StringAtom "Screw"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 14), ("CITY", StringAtom "London")],
-      M.fromList [("P#", StringAtom "P5"), ("PNAME", StringAtom "Cam"), ("COLOR", StringAtom "Blue"), ("WEIGHT", IntAtom 12), ("CITY", StringAtom "Paris")],
-      M.fromList [("P#", StringAtom "P6"), ("PNAME", StringAtom "Cog"), ("COLOR", StringAtom "Red"), ("WEIGHT", IntAtom 19), ("CITY", StringAtom "London")]
-
+    attrs = A.attributesFromList [Attribute "S#" StringAtomType,
+                                  Attribute "P#" StringAtomType, 
+                                  Attribute "QTY" StringAtomType]                 
+    matrix = [
+      [StringAtom "S1", StringAtom "P1", IntAtom 300],
+      [StringAtom "S1", StringAtom "P2", IntAtom 200],
+      [StringAtom "S1", StringAtom "P3", IntAtom 400],
+      [StringAtom "S1", StringAtom "P4", IntAtom 200],
+      [StringAtom "S1", StringAtom "P5", IntAtom 100],
+      [StringAtom "S1", StringAtom "P6", IntAtom 100],
+      [StringAtom "S2", StringAtom "P1", IntAtom 300],
+      [StringAtom "S2", StringAtom "P2", IntAtom 400],
+      [StringAtom "S3", StringAtom "P2", IntAtom 200],
+      [StringAtom "S4", StringAtom "P2", IntAtom 200],
+      [StringAtom "S4", StringAtom "P4", IntAtom 300],
+      [StringAtom "S4", StringAtom "P5", IntAtom 400]
       ]
-
-supplierProductsRel :: Relation                             
-supplierProductsRel = case mkRelation attributeSet tupleSet of
+             
+productsRel :: Relation             
+productsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-      attributeSet = M.fromList [("S#", Attribute "S#" StringAtomType), 
-                               ("P#", Attribute "P#" StringAtomType), 
-                               ("QTY", Attribute "QTY" IntAtomType)]                 
-      tupleSet = HS.fromList $ mkRelationTuples attributeSet [
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P1"), ("QTY", IntAtom 300)],
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P2"), ("QTY", IntAtom 200)],
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P3"), ("QTY", IntAtom 400)],
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P4"), ("QTY", IntAtom 200)],    
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P5"), ("QTY", IntAtom 100)],   
-        M.fromList [("S#", StringAtom "S1"), ("P#", StringAtom "P6"), ("QTY", IntAtom 100)],
-        
-        M.fromList [("S#", StringAtom "S2"), ("P#", StringAtom "P1"), ("QTY", IntAtom 300)],
-        M.fromList [("S#", StringAtom "S2"), ("P#", StringAtom "P2"), ("QTY", IntAtom 400)],
-
-        M.fromList [("S#", StringAtom "S3"), ("P#", StringAtom "P2"), ("QTY", IntAtom 200)],  
-        
-        M.fromList [("S#", StringAtom "S4"), ("P#", StringAtom "P2"), ("QTY", IntAtom 200)],    
-        M.fromList [("S#", StringAtom "S4"), ("P#", StringAtom "P4"), ("QTY", IntAtom 300)],
-        M.fromList [("S#", StringAtom "S4"), ("P#", StringAtom "P5"), ("QTY", IntAtom 400)]   
-        ]
-
+    attrs = A.attributesFromList [Attribute "P#" StringAtomType,
+                                  Attribute "PNAME" StringAtomType,
+                                  Attribute "COLOR" StringAtomType, 
+                                  Attribute "WEIGHT" StringAtomType, 
+                                  Attribute "CITY" StringAtomType]
+    matrix = [      
+      [StringAtom "P1", StringAtom "Nut", StringAtom "Red", IntAtom 12, StringAtom "London"],
+      [StringAtom "P2", StringAtom "Bolt", StringAtom "Green", IntAtom 17, StringAtom "Paris"],
+      [StringAtom "P3", StringAtom "Screw", StringAtom "Blue", IntAtom 17, StringAtom "Oslo"],
+      [StringAtom "P4", StringAtom "Screw", StringAtom "Red", IntAtom 14, StringAtom "London"],
+      [StringAtom "P5", StringAtom "Cam", StringAtom "Blue", IntAtom 12, StringAtom "Paris"],
+      [StringAtom "P6", StringAtom "Cog", StringAtom "Red", IntAtom 19, StringAtom "London"]
+      ]
+             
 --helper function to process relation variable creation/assignment          
 setRelVar :: String -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do 
@@ -234,10 +231,8 @@ evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = d
                                  makeUpdatedRel relin = do
                                    restrictedPortion <- restrict predicateFunc relin
                                    unrestrictedPortion <- restrict (not . predicateFunc) relin
-                                   updatedPortion <- relMap tupleUpdater restrictedPortion
+                                   updatedPortion <- relMap (updateTuple attrAssignments) restrictedPortion
                                    union updatedPortion unrestrictedPortion
-                                 tupleUpdater = \(RelationTuple tupMap) -> RelationTuple $ M.union attrAssignments tupMap
-
 
 evalContextExpr (AddInclusionDependency dep) = do
   currstate <- get
@@ -333,9 +328,9 @@ predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runS
                          else
                            Left $ PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'"
     
-predicateRestrictionFilter _ (AttributeEqualityPredicate attrName atom) = Right $ \(RelationTuple tupMap) -> tupValue tupMap == atom
-  where
-    tupValue tupMap = tupMap M.! attrName
+predicateRestrictionFilter _ (AttributeEqualityPredicate attrName atom) = Right $ \tupleIn -> case atomForAttributeName attrName tupleIn of
+  Left _ -> False
+  Right atom2 -> atom2 == atom
 
 
 

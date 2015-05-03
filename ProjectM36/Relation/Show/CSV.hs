@@ -1,9 +1,10 @@
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
 import Data.Csv
-import qualified Data.Map as M
+import ProjectM36.Tuple
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.Vector as V
 
 --maybe support a header in the future
 relationAsCSV :: Relation -> BS.ByteString
@@ -13,7 +14,7 @@ tupleSetAsCSV :: RelationTupleSet -> BS.ByteString
 tupleSetAsCSV tupleSet = encode $ HS.toList tupleSet
 
 instance ToRecord RelationTuple where
-  toRecord (RelationTuple tupMap) = toRecord $ map toField (M.elems tupMap)
+  toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)
       
 instance ToField Atom where
   toField (StringAtom atom) = toField atom

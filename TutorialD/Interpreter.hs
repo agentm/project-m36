@@ -5,11 +5,13 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
+import qualified ProjectM36.Attribute as A
 import ProjectM36.RelationalExpression
 import ProjectM36.Relation.Show.Term
 import ProjectM36.StaticOptimizer
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Show
+import ProjectM36.Atom
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -26,6 +28,7 @@ import System.IO
 import System.Directory (getHomeDirectory)
 import qualified Data.UUID as U
 import Data.UUID.V4 (nextRandom)
+import qualified Data.Vector as V
 
 {-
 List of Tutorial D operators:
@@ -72,8 +75,8 @@ attributeList = sepBy identifier comma
 makeRelation :: Parser RelationalExpr
 makeRelation = do
   reservedOp "relation"
-  attrs <- (try makeAttributes <|> return M.empty)
-  if not (M.null attrs) then do
+  attrs <- (try makeAttributes <|> return A.emptyAttributes)
+  if not (A.null attrs) then do
     return $ MakeStaticRelation attrs emptyTupleSet
     else do
     tuples <- braces (sepBy tupleP comma)
@@ -83,9 +86,7 @@ makeRelation = do
 makeAttributes :: Parser Attributes
 makeAttributes = do
    attrList <- braces (sepBy attributeAndType comma)
-   return $ M.fromList $ map toAttributeAssocList attrList
-     where
-       toAttributeAssocList attr@(Attribute attrName _) = (attrName, attr)
+   return $ A.attributesFromList attrList
 
 attributeAndType :: Parser Attribute
 attributeAndType = do
@@ -99,8 +100,10 @@ attributeAndType = do
 tupleP :: Parser RelationTuple    
 tupleP = do
   reservedOp "tuple"
-  attrValues <- braces (sepBy tupleAtomP comma)
-  return $ RelationTuple (M.fromList attrValues)
+  attrAssocs <- braces (sepBy tupleAtomP comma)
+  let attrs = A.attributesFromList $ map (\(attrName, atom) -> Attribute attrName (atomTypeForAtom atom)) attrAssocs
+  let atoms = V.fromList $ map snd attrAssocs
+  return $ mkRelationTuple attrs atoms
   
 tupleAtomP :: Parser (AttributeName, Atom)
 tupleAtomP = do
@@ -375,8 +378,7 @@ showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribu
     showAttribute (Attribute name atomType) = name ++ " " ++ case atomTypeToTutDType atomType of
       Just t -> show t
       Nothing -> "unknown"
-    attrs = values (attributes rel)
-    values m = map snd (M.toAscList m)
+    attrs = V.toList $ attributes rel
     
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult String |
@@ -497,7 +499,7 @@ interpretNO context tutdstring = case parseString tutdstring of
                                     
 -- for interpreter-specific operations                               
 interpretOps :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
-interpretOps newUUID trans@(DisconnectedTransaction parentUUID context) transGraph instring = case parse interpreterOps "" instring of
+interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instring = case parse interpreterOps "" instring of
   Left err -> (trans, transGraph, NoActionResult)
   Right ops -> case ops of
     Left contextOp -> (trans, transGraph, (evalContextOp context contextOp))
@@ -509,7 +511,7 @@ promptText :: DisconnectedTransaction -> TransactionGraph -> String
 promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" ++ transInfo ++ "): "
   where
     transInfo = case transactionForUUID parentUUID graph of 
-      Left err -> "unknown"
+      Left _ -> "unknown"
       Right parentTrans -> case headNameForTransaction parentTrans graph of
           Nothing -> show $ transactionUUID parentTrans
           Just headName -> headName

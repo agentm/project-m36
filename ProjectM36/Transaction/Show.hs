@@ -5,9 +5,10 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.Transaction
-import qualified Data.Map as M
+import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
+import qualified Data.Vector as V
 
 showTransactionStructure :: Transaction -> TransactionGraph -> String
 showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
@@ -25,38 +26,36 @@ showGraphStructure graph@(TransactionGraph _ transSet) = S.foldr folder "" trans
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction    
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation    
 graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _ transSet) = do
-  tupleSet <- mapM tupleGenerator (S.toList transSet)
-  mkRelation attributeSet (HS.fromList tupleSet)
+  tupleMatrix <- mapM tupleGenerator (S.toList transSet)
+  mkRelationFromList attrs tupleMatrix
   where
-    attributeSet = M.fromList [("id", Attribute "id" StringAtomType), 
-                             ("parents", Attribute "parents" (RelationAtomType parentAttributes)),
-                             ("current", Attribute "current" IntAtomType),
-                             ("head", Attribute "head" StringAtomType)
-                             ]
-    parentAttributes = M.fromList [("id", Attribute "id" StringAtomType)]
+    attrs = A.attributesFromList [Attribute "id" StringAtomType,
+                                  Attribute "parents" (RelationAtomType parentAttributes),
+                                  Attribute "current" IntAtomType,
+                                  Attribute "head" StringAtomType
+                                 ]
+    parentAttributes = A.attributesFromList [Attribute "id" StringAtomType]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right parentTransRel -> Right $ mkRelationTuple (S.fromList ["id", "parents", "current", "head"]) $ 
-                              (M.fromList 
-                               [("id", StringAtom $ show (transactionUUID transaction)),
-                                ("parents", RelationAtom parentTransRel),
-                                ("current", IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0),
-                                ("head", StringAtom $ case headNameForTransaction transaction graph of
-                                    Just headName -> headName
-                                    Nothing -> "")
-                                      ])
+      Right parentTransRel -> Right [StringAtom $ show (transactionUUID transaction),
+                                     RelationAtom parentTransRel,
+                                     IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0,
+                                     StringAtom $ case headNameForTransaction transaction graph of
+                                       Just headName -> headName
+                                       Nothing -> ""
+                                      ]
                               
 transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
 transactionParentsRelation trans graph = do
   if isRootTransaction trans graph then do
-    mkRelation attributes emptyTupleSet
+    mkRelation attrs emptyTupleSet
     else do
       parentTransSet <- parentTransactions trans graph
       let tupleSet = HS.fromList $ map trans2tuple (S.toList parentTransSet)
-      mkRelation attributes tupleSet
+      mkRelation attrs tupleSet
   where
-    attributes = M.fromList [("id", Attribute "id" StringAtomType)]
-    trans2tuple trans2 = mkRelationTuple (S.fromList ["id"]) $ M.singleton "id" (StringAtom (show $ transactionUUID trans2))
+    attrs = A.attributesFromList [Attribute "id" StringAtomType]
+    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (show $ transactionUUID trans2))
 
 
                              

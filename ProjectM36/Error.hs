@@ -2,7 +2,7 @@ module ProjectM36.Error where
 import ProjectM36.Base
 import qualified Data.UUID as U
 
-data RelationalError = NoSuchAttributeNameError String
+data RelationalError = NoSuchAttributeNameError AttributeName
                      | TupleAttributeCountMismatchError Int --attribute name
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int

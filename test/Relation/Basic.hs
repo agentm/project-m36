@@ -3,28 +3,31 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.Tuple
-import ProjectM36.TupleSet
-import qualified Data.Set as S
-import qualified Data.Map as M
+import ProjectM36.Atom
+import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
+import qualified Data.Vector as V
 import System.Exit
-import Control.Monad
 
-testList = TestList [testRelation relationTrue, testRelation relationFalse,
+testList :: Test
+testList = TestList [testRelation "relationTrue" relationTrue, testRelation "relationFalse" relationFalse,
+                     testMkRelation1,
                      testRename1, testRename2]
-main = do 
-  counts <- runTestTT testList
-  if errors counts + failures counts > 0 then exitFailure else exitSuccess
 
-testRelation :: Relation -> Test
-testRelation rel = TestCase $ assertEqual "nope" relationValidation (Right rel)
+main :: IO ()           
+main = do 
+  tcounts <- runTestTT testList
+  if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
+
+testRelation :: String -> Relation -> Test
+testRelation testName rel = TestCase $ assertEqual testName relationValidation (Right rel)
   where
     relationValidation = validateRelation rel
 
 -- run common relation checks
 validateRelation :: Relation -> Either RelationalError Relation
 validateRelation rel = do
-  validateAttrNamesMatchTupleAttrNames rel
+  _ <- validateAttrNamesMatchTupleAttrNames rel
   validateAttrTypesMatchTupleAttrTypes rel
   
 validateAttrNamesMatchTupleAttrNames :: Relation -> Either RelationalError Relation
@@ -32,30 +35,30 @@ validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet)
   | HS.null invalidSet = Right rel
   | otherwise = Left $ AttributeNameMismatchError ""  
   where
-    nameCheck (RelationTuple tupMap) = attributeNames rel == M.keysSet tupMap
-    relAttrNames = attributeNames rel
+    nameCheck tuple = attributeNames rel == tupleAttributeNameSet tuple
     invalidSet =  HS.filter (not . nameCheck) tupMapSet
     
-    
 validateAttrTypesMatchTupleAttrTypes :: Relation -> Either RelationalError Relation
-validateAttrTypesMatchTupleAttrTypes rel@(Relation _ tupMapSet) 
-   | HS.null invalidSet = Right rel
-   | otherwise = Left (TupleAttributeTypeMismatchError M.empty) --fix to include invalid attrs
+validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = HS.foldr (\tuple acc -> 
+                                                                              if (tupleAttributes tuple) == attrs && tupleAtomCheck tuple then 
+                                                                                acc 
+                                                                              else
+                                                                                Left $ TupleAttributeTypeMismatchError A.emptyAttributes
+                                                                            ) (Right rel) tupSet
   where
-    tupleTypeCheck (RelationTuple tupMap) = M.null $ M.filterWithKey attrTypeCheck tupMap
-    attrTypeCheck attrName atomValue = case attributeTypeForName attrName rel of
-      Just t -> atomValueType atomValue == t
-      _ -> False
-    invalidSet = HS.filter (not . tupleTypeCheck) tupMapSet
+    tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
+    attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
+                                 Left _ -> False
+                                 Right atom -> (Just $ atomTypeForAtom atom) ==
+                                  A.atomTypeForAttributeName (A.attributeName attr) attrs) (attributes rel)
     
+simpleRel :: Relation    
 simpleRel = case mkRelation attrs tupleSet of
   Right rel -> rel
-  Left err -> undefined
+  Left _ -> undefined
   where
-    attrs = M.fromList [("a", Attribute "a" StringAtomType), ("b", Attribute "b" StringAtomType)]
-    tupleSet = HS.fromList $ mkRelationTuples attrs [
-      M.fromList [("a", StringAtom "spam"), ("b", StringAtom "spam2")]
-      ]
+    attrs = A.attributesFromList [Attribute "a" StringAtomType, Attribute "b" StringAtomType]
+    tupleSet = HS.singleton $ mkRelationTuple attrs (V.fromList [StringAtom "spam", StringAtom "spam2"])
 
 --rename tests
 testRename1 :: Test
@@ -67,8 +70,8 @@ testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRe
 --mkRelation tests
 --test tupleset key mismatch failure
 testMkRelation1 :: Test
-testMkRelation1 = TestCase $ assertEqual "key mismatch" (mkRelation testAttrs testTupSet) (Left $ AttributeCountMismatchError 0)
+testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "a" StringAtomType])) (mkRelation testAttrs testTupSet)
   where
-    testAttrs = M.singleton "a" (Attribute "a" StringAtomType)
-    testTupSet = HS.fromList [(RelationTuple (M.singleton "a" $ StringAtom "v")),
-                               RelationTuple (M.singleton "a" $ IntAtom 2)]
+    testAttrs = A.attributesFromList [Attribute "a" StringAtomType]
+    testTupSet = HS.fromList [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],
+                              mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]

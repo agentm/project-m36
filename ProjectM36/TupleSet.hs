@@ -1,27 +1,31 @@
 module ProjectM36.TupleSet where
 import ProjectM36.Base
 import ProjectM36.Tuple
-import ProjectM36.Attribute
 import ProjectM36.Error
-import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad
+import qualified Data.Vector as V
 
 emptyTupleSet :: RelationTupleSet
 emptyTupleSet = HS.empty
 
-emptyAttributeSet :: Attributes
-emptyAttributeSet = M.empty  
+singletonTupleSet :: RelationTupleSet
+singletonTupleSet = HS.singleton emptyTuple
 
 --ensure that all maps have the same keys and key count
 
-verifyRelationTupleSet :: Attributes -> RelationTupleSet -> Either RelationalError RelationTupleSet
-verifyRelationTupleSet attrs tupleSet = do
+verifyTupleSet :: Attributes -> RelationTupleSet -> Either RelationalError RelationTupleSet
+verifyTupleSet attrs tupleSet = do
   --check that all tuples have the same types
   tupleList <- forM (HS.toList tupleSet) verifyTuple
   return $ HS.fromList tupleList
+
+mkTupleSet :: Attributes -> [RelationTuple] -> Either RelationalError RelationTupleSet
+mkTupleSet attrs tuples = verifyTupleSet attrs tupSet
   where 
-    verifyTuple tuple = if tupleAttributes tuple == attrs then
-                          Right tuple
-                        else
-                          Left $ TupleAttributeTypeMismatchError (attributesDifference (tupleAttributes tuple) attrs)
+    tupSet = HS.fromList tuples
+
+mkTupleSetFromList :: Attributes -> [[Atom]] -> Either RelationalError RelationTupleSet
+mkTupleSetFromList attrs atomMatrix = verifyTupleSet attrs tupSet
+  where
+    tupSet = HS.fromList $ map (\atomList -> mkRelationTuple attrs (V.fromList atomList)) atomMatrix

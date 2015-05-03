@@ -4,6 +4,7 @@ import ProjectM36.Transaction
 import ProjectM36.Base
 import Data.UUID.V4 (nextRandom)
 
+main :: IO ()
 main = do
   freshUUID <- nextRandom
   let currentHeadName = "master"

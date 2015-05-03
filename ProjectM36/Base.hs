@@ -9,45 +9,81 @@ import Data.UUID (UUID)
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
+import qualified Data.Vector as V
+import qualified Data.List as L
 
 data Atom = StringAtom String |
             IntAtom Int |
             RelationAtom Relation deriving (Show, Eq, Generic)
                                            
-instance NFData Atom where rnf = genericRnf                  
+instance NFData Atom where rnf = genericRnf
+                           
+instance Hash.Hashable Atom                           
 
 data AtomType = StringAtomType |
                 IntAtomType |
                 RelationAtomType Attributes deriving (Eq, Show, Generic)
                                                      
 instance NFData AtomType where rnf = genericRnf
-                                                     
-atomTypeForAtom :: Atom -> AtomType
-atomTypeForAtom (StringAtom _) = StringAtomType
-atomTypeForAtom (IntAtom _) = IntAtomType
-atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
 
 type AttributeName = String
 type AtomName = String
 
 data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
 
+instance Hash.Hashable Attribute where
+  hashWithSalt salt (Attribute attrName _) = Hash.hashWithSalt salt attrName
+
 instance NFData Attribute where rnf = genericRnf
 
-type Attributes = M.Map AttributeName Attribute --attributes keys by attribute name for ease of access
+type Attributes = V.Vector Attribute
+
+attributesEqual :: Attributes -> Attributes -> Bool
+attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
+  where
+    attrsAsSet = HS.fromList . V.toList
+    
+sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
+sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
 type RelationTupleSet = HS.HashSet RelationTuple 
 
+--the same hash must be generated for equal tuples so that the hashset equality works
 instance Hash.Hashable RelationTuple where
-  hashWithSalt salt tup = Hash.hashWithSalt salt (show tup)
+  hashWithSalt salt (RelationTuple attrs tupVec) = salt `Hash.hashWithSalt` 
+                                                   sortedAttrs `Hash.hashWithSalt`
+                                                   (V.toList sortedTupVec)
+    where
+      sortedAttrsIndices = sortedAttributesIndices attrs
+      sortedAttrs = map snd sortedAttrsIndices
+      sortedTupVec = V.map (\(index, _) -> tupVec V.! index) $ V.fromList sortedAttrsIndices
   
-data RelationTuple = RelationTuple (M.Map AttributeName Atom) deriving (Eq, Show, Generic)
+--maybe the attribute->int mapping should be stored once in the relation and then passed down when needed  
+data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Generic)
+
+instance Eq RelationTuple where
+  (==) tuple1@(RelationTuple attrs1 _) tuple2@(RelationTuple attrs2 _) = attributesEqual attrs1 attrs2 && atomsEqual
+    where
+    atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) attrs of
+      Nothing -> Nothing
+      Just index -> tupVec V.!? index
+    atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) attrs1
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Eq, Generic)
+data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic)
+
+instance Eq Relation where
+  Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
 
 instance NFData Relation where rnf = genericRnf
+                               
+instance Hash.Hashable Relation where                               
+  hashWithSalt salt (Relation attrs tupSet) = salt `Hash.hashWithSalt` 
+                                              sortedAttrs `Hash.hashWithSalt`
+                                              HS.toList tupSet
+    where
+      sortedAttrs = map snd (sortedAttributesIndices attrs)
   
 data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic)
 data RelationSizeInfinite = RelationSizeInfinite
