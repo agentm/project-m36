@@ -40,7 +40,8 @@ Executable bigrel
                    ProjectM36.Error,
                    ProjectM36.Relation.Show.CSV
     main-is: benchmark/bigrel.hs
-    GHC-Options: -Wall
+    GHC-Options: -Wall 
+    GHC-Prof-Options: -fprof-auto "-with-rtsopts -p -s -h -i0.1"
 
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
