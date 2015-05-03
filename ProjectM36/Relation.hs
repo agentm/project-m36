@@ -259,7 +259,7 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
 -- this is useful for performance and resource usage testing
 matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
-  let attrs = A.attributesFromList $ map (\c-> Attribute (show c) IntAtomType) [0 .. attributeCount]
+  let attrs = A.attributesFromList $ map (\c-> Attribute (show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
   tupleSet <- mkTupleSet attrs $ map (\c -> tuple c) [0 .. tupleCount]
   mkRelation attrs tupleSet

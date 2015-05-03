@@ -21,7 +21,7 @@ Library
                      ProjectM36.StaticOptimizer,
                      ProjectM36.Relation.Show.Term,
                      ProjectM36.Relation.Show.CSV
-    GHC-Options: -Wall
+    GHC-Options: -Wall -rtsopts
         
 Executable tutd
     Build-Depends: base
@@ -30,6 +30,16 @@ Executable tutd
                    ProjectM36.RelationalExpression,
                    ProjectM36.Transaction    
     main-is: TutorialD/tutd.hs
+    GHC-Options: -Wall
+
+Executable bigrel
+    Build-Depends: base,deepseq
+    Other-Modules: ProjectM36.Base,
+                   ProjectM36.Relation
+                   ProjectM36.Tuple,
+                   ProjectM36.Error,
+                   ProjectM36.Relation.Show.CSV
+    main-is: benchmark/bigrel.hs
     GHC-Options: -Wall
 
 Test-Suite test-tutoriald

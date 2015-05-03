@@ -145,8 +145,12 @@ tupleToMap (RelationTuple attrs tupVec) = M.fromList assocList
   where
     assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed attrs)
     
-verifyTuple :: RelationTuple -> Either RelationalError RelationTuple
-verifyTuple tuple = V.foldr (\attr acc -> 
+verifyTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
+verifyTuple attrs tuple = if V.length attrs /= V.length (tupleAtoms tuple) then
+                            Left $ TupleAttributeCountMismatchError 0
+                            else
+                            
+                             V.foldr (\attr acc ->
                               case atomForAttributeName (attributeName attr) tuple of
                                 Left err -> Left err
                                 Right atom -> case atomTypeForAttributeName (attributeName attr) (tupleAttributes tuple) of
@@ -156,6 +160,7 @@ verifyTuple tuple = V.foldr (\attr acc ->
                                                              acc
                                                            else
                                                              Left $ TupleAttributeTypeMismatchError (attributesFromList [attr])
-                            ) (Right tuple) (tupleAttributes tuple)
+                            ) (Right tuple) attrs
+
 
     

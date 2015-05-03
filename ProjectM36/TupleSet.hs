@@ -17,7 +17,7 @@ singletonTupleSet = HS.singleton emptyTuple
 verifyTupleSet :: Attributes -> RelationTupleSet -> Either RelationalError RelationTupleSet
 verifyTupleSet attrs tupleSet = do
   --check that all tuples have the same types
-  tupleList <- forM (HS.toList tupleSet) verifyTuple
+  tupleList <- forM (HS.toList tupleSet) (verifyTuple attrs)
   return $ HS.fromList tupleList
 
 mkTupleSet :: Attributes -> [RelationTuple] -> Either RelationalError RelationTupleSet
