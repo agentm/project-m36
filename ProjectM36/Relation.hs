@@ -261,7 +261,7 @@ matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
-  tupleSet <- mkTupleSet attrs $ map (\c -> tuple c) [0 .. tupleCount]
+      tupleSet = HS.fromList $ map (\c -> tuple c) [0 .. tupleCount]
   mkRelation attrs tupleSet
 
 
