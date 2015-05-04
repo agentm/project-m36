@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics,vector
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.Transaction.Show,
@@ -40,7 +40,7 @@ Executable bigrel
                    ProjectM36.Error,
                    ProjectM36.Relation.Show.CSV
     main-is: benchmark/bigrel.hs
-    GHC-Options: -Wall 
+    GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto "-with-rtsopts -p -s -h -i0.1"
 
 Test-Suite test-tutoriald

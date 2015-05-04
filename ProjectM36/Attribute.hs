@@ -31,6 +31,9 @@ attributesFromList attrList = mergedAttributes
 attributeName :: Attribute -> AttributeName
 attributeName (Attribute name _) = name
 
+atomType :: Attribute -> AtomType    
+atomType (Attribute _ atype) = atype
+
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
@@ -67,11 +70,11 @@ renameAttributes oldAttrName newAttrName attrs = V.map renamer attrs
                      
 atomTypeForAttributeName :: AttributeName -> Attributes -> Maybe AtomType
 atomTypeForAttributeName attrName attrs = case attr of
-  (Just (Attribute _ atomType)) -> Just atomType
+  (Just (Attribute _ atype)) -> Just atype
   _ -> Nothing
   where 
     attr = attributeForName attrName attrs
-                     
+    
 attributeForName :: AttributeName -> Attributes -> Maybe Attribute
 attributeForName attrName attrs = V.find ((attrName ==) . attributeName) attrs
 

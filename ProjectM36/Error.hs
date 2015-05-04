@@ -1,6 +1,11 @@
+{-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.Error where
 import ProjectM36.Base
 import qualified Data.UUID as U
+import Control.DeepSeq (NFData, rnf)
+import Control.DeepSeq.Generics (genericRnf)
+import GHC.Generics (Generic)
+
 
 data RelationalError = NoSuchAttributeNameError AttributeName
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -19,6 +24,7 @@ data RelationalError = NoSuchAttributeNameError AttributeName
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
-                       deriving (Show,Eq) 
+                       deriving (Show,Eq,Generic) 
 
 
+instance NFData RelationalError where rnf = genericRnf

@@ -20,12 +20,17 @@ main = matrixRun
        --intmapMatrixRun
   
 -- takes 30 minutes to run and 1.1 GB       
-matrixRun = do  
+matrixRestrictRun = do  
   case matrixRelation 100 100000 of
     Left err -> putStrLn (show err)
     Right rel -> case restrict (\tuple -> atomForAttributeName "0" tuple == Right (IntAtom 5)) rel of
       Left err -> putStrLn (show err)
       Right rel -> dumpcsv rel
+      
+matrixRun = do  
+  case matrixRelation 100 100000 of
+    Left err -> putStrLn (show err)
+    Right rel -> putStrLn "Done"
       
 intmapMatrixRun = do      
   let matrix = intmapMatrixRelation 100 100000

@@ -146,21 +146,14 @@ tupleToMap (RelationTuple attrs tupVec) = M.fromList assocList
     assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed attrs)
     
 verifyTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
-verifyTuple attrs tuple = if V.length attrs /= V.length (tupleAtoms tuple) then
-                            Left $ TupleAttributeCountMismatchError 0
-                            else
-                            
-                             V.foldr (\attr acc ->
-                              case atomForAttributeName (attributeName attr) tuple of
-                                Left err -> Left err
-                                Right atom -> case atomTypeForAttributeName (attributeName attr) (tupleAttributes tuple) of
-                                  Nothing -> Left $ NoSuchAttributeNameError (attributeName attr)
-                                  Just expectedAtomType -> if atomTypeForAtom atom == expectedAtomType 
-                                                           then 
-                                                             acc
-                                                           else
-                                                             Left $ TupleAttributeTypeMismatchError (attributesFromList [attr])
-                            ) (Right tuple) attrs
+verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs 
+                              tupleTypes = V.map atomTypeForAtom (tupleAtoms tuple) in
+  if V.length attrs /= V.length tupleTypes then
+    Left $ TupleAttributeCountMismatchError 0
+  else if attrsTypes /= tupleTypes then
+         Left $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
+       else
+         Right $ tuple
 
 
     
