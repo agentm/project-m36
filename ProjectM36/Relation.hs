@@ -1,5 +1,5 @@
 -- this is an implementation of the Relation typeclass which creates a GADT DSL
-{-# LANGUAGE GADTs,ExistentialQuantification,NoImplicitPrelude #-}
+{-# LANGUAGE GADTs,ExistentialQuantification,NoImplicitPrelude,OverloadedStrings #-}
 module ProjectM36.Relation where
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
@@ -12,6 +12,7 @@ import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import Prelude hiding (join)
+import qualified Data.Text as T
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -76,7 +77,7 @@ singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Count
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
   if not (attrs1 == attrs2) 
-     then Left $ AttributeNameMismatchError (show attrs1 ++ show attrs2)
+     then Left $ AttributeNameMismatchError (T.pack (show attrs1 ++ show attrs2))
   else
     Right $ Relation attrs1 newtuples
   where
@@ -259,7 +260,7 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
 -- this is useful for performance and resource usage testing
 matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
-  let attrs = A.attributesFromList $ map (\c-> Attribute (show c) IntAtomType) [0 .. attributeCount-1]
+  let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
       tupleSet = HS.fromList $ map (\c -> tuple c) [0 .. tupleCount]
   mkRelation attrs tupleSet

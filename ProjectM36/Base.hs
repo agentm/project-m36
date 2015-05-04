@@ -11,8 +11,11 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
+import qualified Data.Text as T
 
-data Atom = StringAtom String |
+type StringType = T.Text
+
+data Atom = StringAtom StringType |
             IntAtom Int |
             RelationAtom Relation deriving (Show, Eq, Generic)
                                            
@@ -26,8 +29,7 @@ data AtomType = StringAtomType |
                                                      
 instance NFData AtomType where rnf = genericRnf
 
-type AttributeName = String
-type AtomName = String
+type AttributeName = T.Text
 
 data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
 
@@ -88,12 +90,14 @@ instance Hash.Hashable Relation where
 data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic)
 data RelationSizeInfinite = RelationSizeInfinite
 
+type RelVarName = StringType
+
 data RelationalExpr where
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
   --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
-  RelationVariable :: String -> RelationalExpr
+  RelationVariable :: RelVarName -> RelationalExpr
   Project :: S.Set AttributeName -> RelationalExpr -> RelationalExpr
   Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
@@ -111,10 +115,12 @@ data RelationalExpr where
 
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: HS.HashSet InclusionDependency,
-  relationVariables :: M.Map String Relation
+  relationVariables :: M.Map RelVarName  Relation
   } deriving (Show)
              
-data InclusionDependency = InclusionDependency String RelationalExpr RelationalExpr deriving (Show)
+type IncDepName = StringType             
+
+data InclusionDependency = InclusionDependency IncDepName RelationalExpr RelationalExpr deriving (Show)
 
 instance Hash.Hashable InclusionDependency where
   hashWithSalt salt dep = Hash.hashWithSalt salt (show dep)
@@ -124,12 +130,12 @@ instance Eq InclusionDependency where
 
 --Database context expressions modify the database context while relational expressions do not
 data DatabaseExpr where
-  Define :: String -> Attributes -> DatabaseExpr
-  Undefine :: String -> DatabaseExpr --forget existence of relvar X
-  Assign :: String -> RelationalExpr -> DatabaseExpr
-  Insert :: String -> RelationalExpr -> DatabaseExpr
-  Delete :: String -> RestrictionPredicateExpr -> DatabaseExpr 
-  Update :: String -> M.Map String Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
+  Define :: RelVarName -> Attributes -> DatabaseExpr
+  Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
+  Assign :: RelVarName -> RelationalExpr -> DatabaseExpr
+  Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
+  Delete :: RelVarName -> RestrictionPredicateExpr -> DatabaseExpr 
+  Update :: RelVarName  -> M.Map AttributeName Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
   AddInclusionDependency :: InclusionDependency -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show,Eq)
@@ -147,7 +153,7 @@ data RestrictionPredicateExpr where
 
 -- child + parent links
 -- the string represents the branch name and can be used to find the named HEADs
-type HeadName = String
+type HeadName = StringType
 
 type TransactionHeads = M.Map HeadName Transaction
 

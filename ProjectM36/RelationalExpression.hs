@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
@@ -162,7 +163,7 @@ productsRel = case mkRelationFromList attrs matrix of
       ]
              
 --helper function to process relation variable creation/assignment          
-setRelVar :: String -> Relation -> DatabaseState (Maybe RelationalError)
+setRelVar :: RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do 
   currstate <- get
   let newRelVars = M.insert relVarName rel $ relationVariables currstate
@@ -173,7 +174,7 @@ setRelVar relVarName rel = do
       return Nothing
       
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
-deleteRelVar :: String -> DatabaseState (Maybe RelationalError)
+deleteRelVar :: RelVarName -> DatabaseState (Maybe RelationalError)
 deleteRelVar relVarName = do
   currstate <- get
   let newRelVars = M.delete relVarName (relationVariables currstate)

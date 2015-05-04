@@ -33,7 +33,7 @@ Executable tutd
     GHC-Options: -Wall
 
 Executable bigrel
-    Build-Depends: base,deepseq
+    Build-Depends: base,deepseq,optparse-applicative
     Other-Modules: ProjectM36.Base,
                    ProjectM36.Relation
                    ProjectM36.Tuple,
@@ -41,7 +41,7 @@ Executable bigrel
                    ProjectM36.Relation.Show.CSV
     main-is: benchmark/bigrel.hs
     GHC-Options: -Wall -threaded -rtsopts
-    GHC-Prof-Options: -fprof-auto "-with-rtsopts -p -s -h -i0.1"
+    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
 Test-Suite test-tutoriald
     type: exitcode-stdio-1.0

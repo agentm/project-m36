@@ -1,37 +1,52 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances,OverloadedStrings #-}
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import ProjectM36.Error
 import ProjectM36.Relation.Show.CSV
-import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.IntMap as IM
 import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
-import Control.DeepSeq
+import Options.Applicative
                      
 dumpcsv :: Relation -> IO ()
 dumpcsv = BS.putStrLn . relationAsCSV
 
-main = matrixRun
-       --vectorMatrixRun 
-       --intmapMatrixRun
+parseAttributeCount :: Parser Int
+parseAttributeCount = option auto (short 'a' <> long "attribute-count")
+
+parseTupleCount :: Parser Int
+parseTupleCount = option auto (short 't' <> long "tuple-count")
+  
+parseArgs :: Parser (Int, Int)
+parseArgs = (,) <$> parseAttributeCount <*>  parseTupleCount
+
+
+main :: IO ()
+main = do
+  (attributeCount, tupleCount) <- execParser $ info (helper <*> parseArgs) fullDesc
+  --matrixRestrictRun
+  matrixRun attributeCount tupleCount
+    --vectorMatrixRun 
+    --intmapMatrixRun
   
 -- takes 30 minutes to run and 1.1 GB       
+matrixRestrictRun :: IO ()
 matrixRestrictRun = do  
-  case matrixRelation 100 100000 of
+  case matrixRelation 100 1000000 of
     Left err -> putStrLn (show err)
     Right rel -> case restrict (\tuple -> atomForAttributeName "0" tuple == Right (IntAtom 5)) rel of
       Left err -> putStrLn (show err)
       Right rel -> dumpcsv rel
       
-matrixRun = do  
-  case matrixRelation 100 100000 of
+matrixRun :: Int -> Int -> IO ()
+matrixRun attributeCount tupleCount= do  
+  case matrixRelation attributeCount tupleCount of
     Left err -> putStrLn (show err)
     Right rel -> putStrLn "Done"
       
+intmapMatrixRun :: IO ()
 intmapMatrixRun = do      
   let matrix = intmapMatrixRelation 100 100000
   putStrLn (show matrix)
@@ -46,6 +61,7 @@ intmapMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tu
 instance Hash.Hashable (IM.IntMap Atom) where
   hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
 
+vectorMatrixRun :: IO ()
 vectorMatrixRun = do
   let matrix = vectorMatrixRelation 100 100000
   putStrLn (show matrix)

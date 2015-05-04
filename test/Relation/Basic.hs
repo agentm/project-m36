@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -70,7 +71,7 @@ testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRe
 --mkRelation tests
 --test tupleset key mismatch failure
 testMkRelation1 :: Test
-testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "a" StringAtomType])) (mkRelation testAttrs testTupSet)
+testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError A.emptyAttributes) (mkRelation testAttrs testTupSet) -- the error attribute set is empty due to an optimization- the tuple attrs do not match the atoms' types
   where
     testAttrs = A.attributesFromList [Attribute "a" StringAtomType]
     testTupSet = HS.fromList [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],

@@ -19,7 +19,8 @@ singletonTupleSet = HS.singleton emptyTuple
 verifyTupleSet :: Attributes -> RelationTupleSet -> Either RelationalError RelationTupleSet
 verifyTupleSet attrs tupleSet = do
   --check that all tuples have the same attributes and that the atom types match
-  let tupleList = (map (verifyTuple attrs) (HS.toList tupleSet)) `P.using` P.parListChunk (100000 `div` 24) P.rdeepseq
+  let tupleList = (map (verifyTuple attrs) (HS.toList tupleSet)) `P.using` P.parListChunk chunkSize P.rdeepseq
+      chunkSize = HS.size tupleSet `div` 24                                                                                     
   --let tupleList = P.parMap P.rdeepseq (verifyTuple attrs) (HS.toList tupleSet)
   if length (lefts tupleList) > 0 then
     Left $ head (lefts tupleList)

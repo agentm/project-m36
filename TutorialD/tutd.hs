@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 import TutorialD.Interpreter
 import ProjectM36.RelationalExpression
 import ProjectM36.Transaction

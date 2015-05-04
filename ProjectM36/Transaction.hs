@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Transaction where
 import qualified Data.UUID as U
 import ProjectM36.Base
@@ -14,10 +15,10 @@ bootstrapTransactionGraph freshUUID context = TransactionGraph bootstrapHeads bo
     freshTransaction = Transaction freshUUID (TransactionInfo U.nil S.empty) context
     bootstrapTransactions = S.singleton freshTransaction
     
-transactionForHead :: String -> TransactionGraph -> Maybe Transaction
+transactionForHead :: HeadName -> TransactionGraph -> Maybe Transaction
 transactionForHead headName (TransactionGraph heads _) = M.lookup headName heads
 
-headNameForTransaction :: Transaction -> TransactionGraph -> Maybe String
+headNameForTransaction :: Transaction -> TransactionGraph -> Maybe HeadName
 headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchingTrans then
                                                                   Nothing
                                                                 else

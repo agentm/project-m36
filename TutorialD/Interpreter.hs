@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs,OverloadedStrings #-}
 module TutorialD.Interpreter where
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -29,6 +29,8 @@ import System.Directory (getHomeDirectory)
 import qualified Data.UUID as U
 import Data.UUID.V4 (nextRandom)
 import qualified Data.Vector as V
+import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 
 {-
 List of Tutorial D operators:
@@ -70,7 +72,9 @@ uuidP = do
                     
 --used in projection
 attributeList :: Parser [AttributeName]
-attributeList = sepBy identifier comma
+attributeList = do 
+  attrs <- sepBy identifier comma
+  return $ map T.pack attrs
 
 makeRelation :: Parser RelationalExpr
 makeRelation = do
@@ -94,7 +98,7 @@ attributeAndType = do
   attrTypeName <- identifier
   --convert type name into type
   case tutDTypeToAtomType attrTypeName of
-    Just t -> return $ Attribute attrName t
+    Just t -> return $ Attribute (T.pack attrName) t
     Nothing -> fail (attrTypeName ++ " is not a valid type name.")
     
 tupleP :: Parser RelationTuple    
@@ -113,7 +117,7 @@ tupleAtomP = do
   case tutDTypeToAtomType attrType of
     Nothing -> fail (attrType ++ " is not a valid type name.")
     Just typeA -> if typeA == atomTypeForAtom atom then
-                    return $ (attributeName, atom)
+                    return $ (T.pack attributeName, atom)
                   else
                     fail "type mismatch in tuple generation"
   
@@ -132,7 +136,7 @@ atomTypeToTutDType atomType = case atomType of
   _ -> Nothing
 
 relVarP :: Parser RelationalExpr
-relVarP = liftA RelationVariable identifier
+relVarP = liftA (RelationVariable . T.pack) identifier
 
 relTerm = parens relExpr
           <|> makeRelation
@@ -149,7 +153,7 @@ assignP = do
     reservedOp ":="
     return relVarName
   expr <- relExpr
-  return $ Assign relVarName expr
+  return $ Assign (T.pack relVarName) expr
   
 renameClause = do
   oldAttr <- identifier 
@@ -161,7 +165,7 @@ renameP :: Parser (RelationalExpr -> RelationalExpr)
 renameP = do
   reservedOp "rename"
   (oldAttr, newAttr) <- braces renameClause
-  return $ Rename oldAttr newAttr 
+  return $ Rename (T.pack oldAttr) (T.pack newAttr)
   
 whereClauseP = do
   reservedOp "where"  
@@ -178,14 +182,14 @@ groupP :: Parser (RelationalExpr -> RelationalExpr)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClause
-  return $ Group (S.fromList groupAttrList) groupAttrName
+  return $ Group (S.fromList groupAttrList) (T.pack groupAttrName)
   
 --in "Time and Relational Theory" (2014), Date's Tutorial D grammar for ungroup takes one attribute, while in previous books, it take multiple arguments. Let us assume that nested ungroups are the same as multiple attributes.
 ungroupP :: Parser (RelationalExpr -> RelationalExpr)
 ungroupP = do
   reservedOp "ungroup"
   rvaAttrName <- identifier
-  return $ Ungroup rvaAttrName
+  return $ Ungroup (T.pack rvaAttrName)
   
 relOperators = [
   [Postfix projectOp],
@@ -220,7 +224,7 @@ insertP = do
   reservedOp "insert"
   relvar <- identifier
   expr <- relExpr
-  return $ Insert relvar expr
+  return $ Insert (T.pack relvar) expr
   
 defineP :: Parser DatabaseExpr
 defineP = do
@@ -229,20 +233,20 @@ defineP = do
     reservedOp "::"
     return relVarName
   attributeSet <- makeAttributes
-  return $ Define relVarName attributeSet
+  return $ Define (T.pack relVarName) attributeSet
   
 undefineP :: Parser DatabaseExpr
 undefineP = do
   reservedOp "undefine"
   relVarName <- identifier
-  return $ Undefine relVarName
+  return $ Undefine (T.pack relVarName)
   
 deleteP :: Parser DatabaseExpr  
 deleteP = do
   reservedOp "delete"
   relVarName <- identifier
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
-  return $ Delete relVarName predicate
+  return $ Delete (T.pack relVarName) predicate
   
 updateP :: Parser DatabaseExpr
 updateP = do
@@ -250,7 +254,7 @@ updateP = do
   relVarName <- identifier  
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaces)
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignment comma)
-  return $ Update relVarName attributeAssignments predicate
+  return $ Update (T.pack relVarName) (M.mapKeys T.pack $ attributeAssignments) predicate
   
 constraintP :: Parser DatabaseExpr
 constraintP = do
@@ -259,7 +263,7 @@ constraintP = do
   subset <- relExpr
   reservedOp "in"
   superset <- relExpr
-  return $ AddInclusionDependency (InclusionDependency constraintName subset superset)
+  return $ AddInclusionDependency (InclusionDependency (T.pack constraintName) subset superset)
   
 attributeAssignment :: Parser (String, Atom)
 attributeAssignment = do
@@ -270,21 +274,21 @@ attributeAssignment = do
   
 parseString :: String -> Either RelationalError DatabaseExpr
 parseString str = case parse (multipleDatabaseExpr <* eof) "" str of
-  Left err -> Left $ ParseError (show err)
+  Left err -> Left $ ParseError (T.pack (show err))
   Right r -> Right r
 
 --operators which only rely on database context reading
 data ContextOperator where
   ShowRelation :: RelationalExpr -> ContextOperator
   ShowRelationType :: RelationalExpr -> ContextOperator
-  ShowConstraint :: String -> ContextOperator
+  ShowConstraint :: StringType -> ContextOperator
   ShowPlan :: DatabaseExpr -> ContextOperator
   Quit :: ContextOperator
   deriving (Show)
 
 --operators which manipulate a transaction graph
 data GraphOperator where
-  JumpToHead :: String -> GraphOperator
+  JumpToHead :: HeadName -> GraphOperator
   JumpToTransaction :: U.UUID -> GraphOperator
   Branch :: HeadName -> GraphOperator
   Commit :: GraphOperator
@@ -318,13 +322,13 @@ showConstraintsP :: Parser ContextOperator
 showConstraintsP = do
   reservedOp ":constraints"
   constraintName <- option "" identifier
-  return $ ShowConstraint constraintName
+  return $ ShowConstraint (T.pack constraintName)
   
 jumpToHeadP :: Parser GraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
   headid <- identifier
-  return $ JumpToHead headid
+  return $ JumpToHead (T.pack headid)
   
 jumpToTransactionP :: Parser GraphOperator  
 jumpToTransactionP = do
@@ -336,7 +340,7 @@ branchTransactionP :: Parser GraphOperator
 branchTransactionP = do
   reservedOp ":branch"
   branchName <- identifier
-  return $ Branch branchName
+  return $ Branch (T.pack branchName)
   
 commitTransactionP :: Parser GraphOperator  
 commitTransactionP = do
@@ -372,32 +376,32 @@ contextOps = typeP
 interpreterOps :: Parser (Either ContextOperator GraphOperator)             
 interpreterOps = liftM Left contextOps <|> liftM Right transactionGraphOps
 
-showRelationAttributes :: Relation -> String
-showRelationAttributes rel = "{" ++ concat (L.intersperse ", " $ map showAttribute attrs) ++ "}"
+showRelationAttributes :: Relation -> T.Text
+showRelationAttributes rel = "{" `T.append` T.concat (L.intersperse ", " $ map showAttribute attrs) `T.append` "}"
   where
-    showAttribute (Attribute name atomType) = name ++ " " ++ case atomTypeToTutDType atomType of
-      Just t -> show t
-      Nothing -> "unknown"
+    showAttribute (Attribute name atomType) = name `T.append` " " `T.append` case atomTypeToTutDType atomType of
+      Just t -> T.pack (show t)
+      Nothing -> T.pack "unknown"
     attrs = V.toList $ attributes rel
     
 data TutorialDOperatorResult = QuitResult |
-                               DisplayResult String |
-                               DisplayErrorResult String |
+                               DisplayResult StringType |
+                               DisplayErrorResult StringType |
                                QuietSuccessResult |
                                NoActionResult --refactor to make this dead- there should be only one parser
     
 evalContextOp :: DatabaseContext -> ContextOperator -> TutorialDOperatorResult
 evalContextOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
   (Right rel, _) -> DisplayResult $ showRelationAttributes rel
-  (Left err, _) -> DisplayErrorResult $ show err
+  (Left err, _) -> DisplayErrorResult $ T.pack (show err)
   
 evalContextOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of 
-    (Left err, _) -> DisplayErrorResult $ show err
+    (Left err, _) -> DisplayErrorResult $ T.pack (show err)
     (Right rel, _) -> DisplayResult $ showRelation rel
     
 evalContextOp context (ShowConstraint name) = do
-  DisplayResult $ show filteredDeps
+  DisplayResult $ T.pack (show filteredDeps)
   where
     deps = inclusionDependencies context
     filteredDeps = case name of
@@ -405,7 +409,7 @@ evalContextOp context (ShowConstraint name) = do
       name2 -> HS.filter (\(InclusionDependency n _ _) -> n == name2) deps
       
 evalContextOp context (ShowPlan dbExpr) = do
-  DisplayResult $ show plan
+  DisplayResult $ T.pack (show plan)
   where
     plan = evalState (applyStaticDatabaseOptimization dbExpr) context
       
@@ -500,20 +504,20 @@ interpretNO context tutdstring = case parseString tutdstring of
 -- for interpreter-specific operations                               
 interpretOps :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
 interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instring = case parse interpreterOps "" instring of
-  Left err -> (trans, transGraph, NoActionResult)
+  Left _ -> (trans, transGraph, NoActionResult)
   Right ops -> case ops of
     Left contextOp -> (trans, transGraph, (evalContextOp context contextOp))
     Right graphOp -> case evalGraphOp newUUID trans transGraph graphOp of
-      Left err -> (trans, transGraph, DisplayErrorResult $ show err)
+      Left err -> (trans, transGraph, DisplayErrorResult $ T.pack (show err))
       Right (newDiscon, newGraph, result) -> (newDiscon, newGraph, result)
   
-promptText :: DisconnectedTransaction -> TransactionGraph -> String  
-promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" ++ transInfo ++ "): "
+promptText :: DisconnectedTransaction -> TransactionGraph -> StringType
+promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" `T.append` transInfo `T.append` "): "
   where
     transInfo = case transactionForUUID parentUUID graph of 
       Left _ -> "unknown"
       Right parentTrans -> case headNameForTransaction parentTrans graph of
-          Nothing -> show $ transactionUUID parentTrans
+          Nothing -> T.pack (show $ transactionUUID parentTrans)
           Just headName -> headName
   
 reprLoop :: DisconnectedTransaction -> TransactionGraph -> IO ()
@@ -521,7 +525,7 @@ reprLoop currentTransaction@(DisconnectedTransaction currentParentUUID currentCo
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
         
-  maybeLine <- runInputT settings $ getInputLine (promptText currentTransaction graph)
+  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText currentTransaction graph))
 
   let roloop = reprLoop currentTransaction graph
   case maybeLine of
@@ -530,12 +534,12 @@ reprLoop currentTransaction@(DisconnectedTransaction currentParentUUID currentCo
     newUUID <- nextRandom
     case interpretOps newUUID currentTransaction graph line of
       (_, _, QuitResult) -> return ()
-      (_, _, DisplayErrorResult err) -> hPutStrLn stderr ("ERR: " ++ err) >> roloop
+      (_, _, DisplayErrorResult err) -> TIO.hPutStrLn stderr ("ERR: " `T.append` err) >> roloop
       (updatedTrans, updatedGraph, DisplayResult out) -> do
-        putStrLn out
+        TIO.putStrLn out
         reprLoop updatedTrans updatedGraph
       (updatedTrans, updatedGraph, QuietSuccessResult) -> do
-        putStrLn "Done."
+        TIO.putStrLn "Done."
         reprLoop updatedTrans updatedGraph
       (_, _, NoActionResult) -> do
         let (value, contextup) = interpret currentContext line 
@@ -543,7 +547,7 @@ reprLoop currentTransaction@(DisconnectedTransaction currentParentUUID currentCo
         case value of
           Nothing -> reprLoop updatedTransaction graph
           Just err -> do
-                hPutStrLn stderr ("ERR:" ++ show err)
+                TIO.hPutStrLn stderr ("ERR:" `T.append` T.pack (show err))
                 reprLoop currentTransaction graph
       
 restrictionPredicateP :: Parser RestrictionPredicateExpr
@@ -569,18 +573,19 @@ restrictionAttributeEqualityP = do
   attributeName <- identifier
   reservedOp "="
   atom <- stringAtomP <|> intAtomP
-  return $ AttributeEqualityPredicate attributeName atom
+  return $ AttributeEqualityPredicate (T.pack attributeName) atom
   
 quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
            
-stringAtomP = liftA StringAtom (string "\"" *> many quotedChar <* string "\"")
+stringAtomP = liftA (StringAtom . T.pack) (string "\"" *> many quotedChar <* string "\"")
 
 intAtomP = do
   intstr <- many digit
   return $ IntAtom (read intstr)
   
 --used by :dumpGraph
+{-
 displayTransactionGraph :: TransactionGraph -> String
 displayTransactionGraph (TransactionGraph _ transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
-    
+-}    

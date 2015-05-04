@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 --writes Relation to a String suitable for terminal output
 module ProjectM36.Relation.Show.Term where
 import ProjectM36.Base
@@ -6,45 +7,46 @@ import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.List as L
+import qualified Data.Text as T
 
-boxV :: String
+boxV :: StringType
 boxV = "│"
-boxH :: String
+boxH :: StringType
 boxH = "─"
 
-boxTL :: String
+boxTL :: StringType
 boxTL = "┌"
-boxTR :: String
+boxTR :: StringType
 boxTR = "┐"
-boxBL :: String
+boxBL :: StringType
 boxBL = "└"
-boxBR :: String
+boxBR :: StringType
 boxBR = "┘"
 
-boxLB :: String
+boxLB :: StringType
 boxLB = "├"
-boxRB :: String
+boxRB :: StringType
 boxRB = "┤"
-boxTB :: String
+boxTB :: StringType
 boxTB = "┬"
-boxBB :: String
+boxBB :: StringType
 boxBB = "┴"
 
-boxC :: String
+boxC :: StringType
 boxC = "┼"
 
-dboxH :: String
+dboxH :: StringType
 dboxH = "═"
-dboxL :: String
+dboxL :: StringType
 dboxL = "╞"
-dboxR :: String
+dboxR :: StringType
 dboxR = "╡"
 
 class TermSize a where
   termLength :: a -> Int
   
 --represent a relation as a table similar to those drawn by Date  
-type Cell = String
+type Cell = StringType
 type Table = ([Cell], [[Cell]]) --header, body
 
 addRow :: [Cell] -> Table -> Table
@@ -63,14 +65,14 @@ cellLocations tab@(header, _) = (maxWidths, maxHeights)
     mergeMax a b = map (\(c,d) -> max c d) (zip a b)
     
 --the normal "lines" function returns an empty list for an empty string which is not what we want
-breakLines :: String -> [String]
+breakLines :: StringType -> [StringType]
 breakLines "" = [""]
-breakLines x = lines x
+breakLines x = T.lines x
     
 cellSizes :: Table -> [([Int], [Int])]    
 cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . breakLines) row)) allRows
   where
-    maxRowWidth row = L.maximumBy compare (map length (breakLines row))
+    maxRowWidth row = L.maximumBy compare (map T.length (breakLines row))
     allRows = [header] ++ body
 
 relationAsTable :: Relation -> Table
@@ -85,53 +87,53 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
                                             Right atom -> showAtom atom
                                             ) oAttrs]
     
-showAtom :: Atom -> String    
+showAtom :: Atom -> StringType    
 showAtom (StringAtom atom) = atom
-showAtom (IntAtom atom) = show atom
+showAtom (IntAtom atom) = T.pack $ show atom
 showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
 
-renderTable :: Table -> String
-renderTable table = renderHeader table (fst cellLocs) ++ renderBody (snd table) cellLocs
+renderTable :: Table -> StringType
+renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs
   where
     cellLocs = cellLocations table  
     
-renderHeader :: Table -> [Int] -> String
-renderHeader (header, body) columnLocations = renderTopBar ++ renderHeaderNames ++ renderBottomBar
+renderHeader :: Table -> [Int] -> StringType
+renderHeader (header, body) columnLocations = renderTopBar `T.append` renderHeaderNames `T.append` renderBottomBar
   where
-    renderTopBar = boxTL ++ concat (L.intersperse boxTB (map (\x -> repeatString x boxH) columnLocations)) ++ boxTR ++ "\n"
+    renderTopBar = boxTL `T.append` T.concat (L.intersperse boxTB (map (\x -> repeatString x boxH) columnLocations)) `T.append` boxTR `T.append` "\n"
     renderHeaderNames = renderRow header columnLocations 1 boxV
     renderBottomBar = if length body == 0 then ""
-                      else renderHBar boxLB boxC boxRB columnLocations ++ "\n"
+                      else renderHBar boxLB boxC boxRB columnLocations `T.append` "\n"
                         
-renderHBar :: String -> String -> String -> [Int] -> String
-renderHBar left middle end columnLocations = left ++ concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) ++ end
+renderHBar :: StringType -> StringType -> StringType -> [Int] -> StringType
+renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) `T.append` end
 
-leftPaddedString :: Int -> Int -> String -> String
+leftPaddedString :: Int -> Int -> StringType -> StringType
 leftPaddedString lineNum size str = paddedLines !! lineNum
   where
-    paddedLines = map (\line -> line ++ repeatString (size - length line) " ") (breakLines str ++ repeat "") 
+    paddedLines = map (\line -> line `T.append` repeatString (size - T.length line) " ") (breakLines str)
   
-renderRow :: [Cell] -> [Int] -> Int -> String -> String
-renderRow cells columnLocations rowHeight interspersed = unlines $ map renderOneLine [0..rowHeight-1]
+renderRow :: [Cell] -> [Int] -> Int -> StringType -> StringType
+renderRow cells columnLocations rowHeight interspersed = T.unlines $ map renderOneLine [0..rowHeight-1]
   where
-    renderOneLine lineNum = boxV ++ concat (L.intersperse interspersed (map (\(size, value) -> leftPaddedString lineNum size value) (zip columnLocations cells))) ++ boxV
+    renderOneLine lineNum = boxV `T.append` T.concat (L.intersperse interspersed (map (\(size, value) -> leftPaddedString lineNum size value) (zip columnLocations cells))) `T.append` boxV
 
-renderBody :: [[Cell]] -> ([Int],[Int]) -> String
-renderBody cellMatrix cellLocations = renderRows ++ renderBottomBar
+renderBody :: [[Cell]] -> ([Int],[Int]) -> StringType
+renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
   where
-    columnLocations = fst cellLocations
-    rowLocations = snd cellLocations
-    renderRows = concat (map (\(row, rowHeight)-> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
+    columnLocations = fst cellLocs
+    rowLocations = snd cellLocs
+    renderRows = T.concat (map (\(row, rowHeight)-> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
     rowHeightMatrix = zip cellMatrix (tail rowLocations)
     renderBottomBar = renderHBar boxBL boxBB boxBR columnLocations
 
 orderedAttributeNames :: Relation -> [AttributeName]
 orderedAttributeNames = S.toAscList . attributeNames
                     
-repeatString :: Int -> String -> String
-repeatString c s = concat (take c (repeat s))
+repeatString :: Int -> StringType -> StringType
+repeatString c s = T.concat (take c (repeat s))
 
-showRelation :: Relation -> String
+showRelation :: Relation -> StringType
 showRelation rel
   | rel == relationTrue = "true"
   | rel == relationFalse = "false"                     

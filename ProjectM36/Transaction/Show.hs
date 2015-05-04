@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Transaction.Show where
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -9,6 +10,7 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import qualified Data.Vector as V
+import qualified Data.Text as T
 
 showTransactionStructure :: Transaction -> TransactionGraph -> String
 showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
@@ -37,7 +39,7 @@ graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _
     parentAttributes = A.attributesFromList [Attribute "id" StringAtomType]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right parentTransRel -> Right [StringAtom $ show (transactionUUID transaction),
+      Right parentTransRel -> Right [StringAtom $ T.pack $ show (transactionUUID transaction),
                                      RelationAtom parentTransRel,
                                      IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0,
                                      StringAtom $ case headNameForTransaction transaction graph of
@@ -55,7 +57,7 @@ transactionParentsRelation trans graph = do
       mkRelation attrs tupleSet
   where
     attrs = A.attributesFromList [Attribute "id" StringAtomType]
-    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (show $ transactionUUID trans2))
+    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (T.pack (show $ transactionUUID trans2)))
 
 
                              
