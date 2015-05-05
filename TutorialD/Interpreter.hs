@@ -487,7 +487,7 @@ interpret context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
                                     Right parsed -> runState (evaluator parsed) context
                                where 
-                                 evaluator expr = do
+                                 evaluator expr = do                                   
                                    optExpr <- applyStaticDatabaseOptimization expr 
                                    --case optExpr of
                                    case optExpr of
@@ -499,7 +499,6 @@ interpretNO :: DatabaseContext -> String -> (Maybe RelationalError, DatabaseCont
 interpretNO context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
                                     Right parsed -> runState (evalContextExpr parsed) context
-
                                     
 -- for interpreter-specific operations                               
 interpretOps :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)

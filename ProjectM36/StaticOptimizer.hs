@@ -14,6 +14,8 @@ import Data.Either (rights, lefts)
 applyStaticRelationalOptimization :: RelationalExpr -> DatabaseState (Either RelationalError RelationalExpr)
 applyStaticRelationalOptimization e@(MakeStaticRelation _ _) = return $ Right e
 
+applyStaticRelationalOptimization e@(ExistingRelation _) = return $ Right e
+
 applyStaticRelationalOptimization e@(RelationVariable _) = return $ Right e
 
 --remove project of attributes which removes no attributes
@@ -139,7 +141,6 @@ applyStaticDatabaseOptimization (MultipleExpr exprs) = do
        applyStaticDatabaseOptimization expr
   --this error handling could be improved with some lifting presumably
   --restore original context
-
 
 applyStaticPredicateOptimization :: RestrictionPredicateExpr -> DatabaseState (Either RelationalError RestrictionPredicateExpr)
 applyStaticPredicateOptimization predicate = return $ Right predicate

@@ -7,12 +7,13 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 import ProjectM36.Attribute
 import Data.Text (append, Text, pack)
+import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
 attributesAsHTML :: Attributes -> Text
-attributesAsHTML attrs = "<tr>" `append` (foldr folder "" attrNameList) `append` "</tr>"
+attributesAsHTML attrs = "<tr>" `append` (T.concat $ map oneAttrHTML attrNameList) `append` "</tr>"
   where 
-    folder attrName acc = acc `append` "<th>" `append` attrName `append` "</th>"
+    oneAttrHTML attrName = "<th>" `append` attrName `append` "</th>"
     attrNameList = sortedAttributeNameList (attributeNameSet attrs)
 
 relationAsHTML :: Relation -> Text
@@ -32,9 +33,9 @@ atomAsHTML (IntAtom int) = pack (show int)
 atomAsHTML (RelationAtom rel) = relationAsHTML rel
 
 tupleAsHTML :: RelationTuple -> Text
-tupleAsHTML tuple = "<tr>" `append` L.foldr folder "" (tupleSortedAssocs tuple) `append` "</tr>"
+tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"
   where
-    folder tup acc = acc `append` "<td>" `append` (atomAsHTML (snd tup)) `append` "</td>"
+    tupleFrag tup = "<td>" `append` atomAsHTML (snd tup) `append` "</td>"
 
 tupleSetAsHTML :: RelationTupleSet -> Text
 tupleSetAsHTML tupSet = HS.foldr folder "" tupSet

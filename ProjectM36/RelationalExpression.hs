@@ -48,6 +48,8 @@ evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
     Right rel -> return $ Right rel
     Left err -> return $ Left err
     
+evalRelationalExpr (ExistingRelation rel) = return (Right rel)
+    
 evalRelationalExpr (Rename oldAttrName newAttrName relExpr) = do
   evald <- evalRelationalExpr relExpr
   case evald of

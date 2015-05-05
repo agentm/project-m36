@@ -6,7 +6,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Hashable as Hash
 import qualified Data.HashSet as HS
-import Data.Maybe
 
 arity :: Attributes -> Int
 arity = V.length
@@ -17,16 +16,8 @@ emptyAttributes = V.empty
 null :: Attributes -> Bool
 null = V.null
 
---merges duplicates
 attributesFromList :: [Attribute] -> Attributes
-attributesFromList attrList = mergedAttributes
-  where
-    mergedAttributes = V.reverse $ V.foldr (\attr acc -> if containsAttributeName (attributeName attr) acc then
-                                               acc
-                                             else
-                                               acc `V.snoc` attr
-                               ) V.empty $ V.fromList attrList
-    containsAttributeName name attrs = isJust $ V.find (\attr -> attributeName attr == name) attrs 
+attributesFromList = V.fromList -- . L.nub
 
 attributeName :: Attribute -> AttributeName
 attributeName (Attribute name _) = name

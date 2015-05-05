@@ -13,6 +13,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Error
 import Prelude hiding (join)
 import qualified Data.Text as T
+import qualified Control.Parallel.Strategies as P
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -201,7 +202,11 @@ attributesForRelval relvalAttrName (Relation attrs _) = case A.atomTypeForAttrib
   _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
 
 restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relation
-restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset
+--restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset
+restrict rfilter (Relation attrs tupset) = Right $ Relation attrs processedTupSet 
+  where
+    tupSetList = HS.toList tupset
+    processedTupSet = HS.fromList ((filter rfilter tupSetList) `P.using` (P.parListChunk 1000 P.rdeepseq))
 
 --joins on columns with the same name- use rename to avoid this- base case: cartesian product
 --after changing from string atoms, there needs to be a type-checking step!
@@ -260,7 +265,7 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
 -- this is useful for performance and resource usage testing
 matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
-  let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ show c) IntAtomType) [0 .. attributeCount-1]
+  let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
       tupleSet = HS.fromList $ map (\c -> tuple c) [0 .. tupleCount]
   mkRelation attrs tupleSet

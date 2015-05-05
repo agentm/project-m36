@@ -3,35 +3,45 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.Relation.Show.CSV
+import ProjectM36.Relation.Show.HTML
+import TutorialD.Interpreter (interpret)
+import ProjectM36.RelationalExpression
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.IntMap as IM
 import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
 import Options.Applicative
+import Control.Monad.State
+import qualified Data.Map as M
+import qualified Data.Text.IO as TIO
+import System.IO
                      
 dumpcsv :: Relation -> IO ()
 dumpcsv = BS.putStrLn . relationAsCSV
+
+data BigrelArgs = BigrelArgs Int Int String
 
 parseAttributeCount :: Parser Int
 parseAttributeCount = option auto (short 'a' <> long "attribute-count")
 
 parseTupleCount :: Parser Int
 parseTupleCount = option auto (short 't' <> long "tuple-count")
-  
-parseArgs :: Parser (Int, Int)
-parseArgs = (,) <$> parseAttributeCount <*>  parseTupleCount
 
+parseTutD :: Parser String
+parseTutD = strOption (short 'd' <> long "tutoriald")
+  
+parseArgs :: Parser BigrelArgs
+parseArgs =  BigrelArgs <$> parseAttributeCount <*> parseTupleCount <*> parseTutD
 
 main :: IO ()
 main = do
-  (attributeCount, tupleCount) <- execParser $ info (helper <*> parseArgs) fullDesc
+  bigrelArgs <- execParser $ info (helper <*> parseArgs) fullDesc
   --matrixRestrictRun
-  matrixRun attributeCount tupleCount
+  matrixRun bigrelArgs
     --vectorMatrixRun 
     --intmapMatrixRun
   
--- takes 30 minutes to run and 1.1 GB       
 matrixRestrictRun :: IO ()
 matrixRestrictRun = do  
   case matrixRelation 100 1000000 of
@@ -40,11 +50,20 @@ matrixRestrictRun = do
       Left err -> putStrLn (show err)
       Right rel -> dumpcsv rel
       
-matrixRun :: Int -> Int -> IO ()
-matrixRun attributeCount tupleCount= do  
+matrixRun :: BigrelArgs -> IO ()
+matrixRun (BigrelArgs attributeCount tupleCount tutd) = do  
   case matrixRelation attributeCount tupleCount of
     Left err -> putStrLn (show err)
-    Right rel -> putStrLn "Done"
+    Right rel -> if tutd == "" then
+                   putStrLn "Done."
+                 else do 
+                   let setx = Assign "x" (ExistingRelation rel)
+                       (_, context) = runState (evalContextExpr setx) dateExamples
+                       (err, context2) = interpret context tutd
+                   case err of
+                     Nothing -> TIO.putStrLn $ relationAsHTML ((relationVariables context2) M.! "x")
+                     Just err -> hPutStrLn stderr (show err)
+                   
       
 intmapMatrixRun :: IO ()
 intmapMatrixRun = do      

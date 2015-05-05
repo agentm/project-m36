@@ -94,6 +94,7 @@ type RelVarName = StringType
 
 data RelationalExpr where
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
+  ExistingRelation :: Relation -> RelationalExpr
   --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
@@ -189,3 +190,4 @@ instance Eq Transaction where
                    
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
+
