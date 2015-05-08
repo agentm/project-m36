@@ -88,8 +88,9 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
                                         Left err -> return $ Left err
                                         Right optSubExpr -> return $ Right $ Restrict optimizedPredicate2 optSubExpr
   
-applyStaticRelationalOptimization (Equals exprA exprB) = do 
-  return $ Right $ Equals exprA exprB
+applyStaticRelationalOptimization e@(Equals _ _) = return $ Right e 
+  
+applyStaticRelationalOptimization e@(Extend _ _) = return $ Right e  
 
 applyStaticDatabaseOptimization :: DatabaseExpr -> DatabaseState (Either RelationalError DatabaseExpr)
 applyStaticDatabaseOptimization (Define name attrs) = return $ Right (Define name attrs)

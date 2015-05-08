@@ -217,7 +217,7 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
       tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
   newAttrs <- A.joinAttributes attrs1 attrs2
   return $ Relation newAttrs newTupSet
-    
+  
 --a map should NOT change the structure of a relation, so attributes should be constant                 
 relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
 relMap mapper (Relation attrs tupleSet) = do
@@ -231,7 +231,6 @@ relMap mapper (Relation attrs tupleSet) = do
         then Right remappedTuple 
         else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)
       
---in the future, the mapper should be able to return a RelationalError likely
 relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = mkRelation newAttributes (HS.map mapper tupSet)
 

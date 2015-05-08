@@ -107,6 +107,7 @@ data RelationalExpr where
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
 {- maybe break this into multiple steps:
 1. check relational types for match (attribute counts) (typechecking step
 2. create an execution plan (another system of nodes, another GADT)
@@ -191,3 +192,7 @@ instance Eq Transaction where
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
+--used to extend a relation
+data TupleExpr = AttributeTupleExpr AttributeName AttributeName | 
+                 MultipleTupleExpr [TupleExpr] --new attr, old attr to clone
+  deriving (Show, Eq)

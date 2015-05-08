@@ -21,7 +21,7 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.List as L
-import Control.Applicative (liftA, (<*), (*>))
+import Control.Applicative (liftA, (<*), (*>), (<*>), (<$>))
 import Control.Monad.State
 import System.Console.Haskeline
 import System.IO
@@ -191,6 +191,14 @@ ungroupP = do
   rvaAttrName <- identifier
   return $ Ungroup (T.pack rvaAttrName)
   
+extendP :: Parser RelationalExpr
+extendP = do
+  reservedOp "extend"
+  expr <- relExpr
+  reservedOp ":"
+  tupleExpr <- braces tupleExpressionP
+  return $ Extend tupleExpr expr
+  
 relOperators = [
   [Postfix projectOp],
   [Postfix renameP],
@@ -203,7 +211,7 @@ relOperators = [
   ]
 
 relExpr :: Parser RelationalExpr
-relExpr = buildExpressionParser relOperators relTerm
+relExpr = extendP <|> buildExpressionParser relOperators relTerm
 
 databaseExpr :: Parser DatabaseExpr
 databaseExpr = insertP
@@ -500,7 +508,7 @@ interpretNO context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
                                     Right parsed -> runState (evalContextExpr parsed) context
                                     
--- for interpreter-specific operations                               
+-- for interpreter-specific operations
 interpretOps :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (DisconnectedTransaction, TransactionGraph, TutorialDOperatorResult)
 interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instring = case parse interpreterOps "" instring of
   Left _ -> (trans, transGraph, NoActionResult)
@@ -588,3 +596,17 @@ intAtomP = do
 displayTransactionGraph :: TransactionGraph -> String
 displayTransactionGraph (TransactionGraph _ transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
 -}    
+
+multiTupleExpressionP :: Parser TupleExpr
+multiTupleExpressionP = MultipleTupleExpr <$> (sepBy tupleExpressionP comma)
+
+tupleExpressionP :: Parser TupleExpr
+tupleExpressionP = attributeTupleExpressionP
+
+attributeTupleExpressionP :: Parser TupleExpr
+attributeTupleExpressionP = do
+  newAttr <- identifier
+  reservedOp ":="
+  attr <- identifier
+  return $ AttributeTupleExpr (T.pack newAttr) (T.pack attr)
+                   

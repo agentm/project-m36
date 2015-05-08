@@ -8,6 +8,8 @@ import ProjectM36.Error
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import qualified Data.Set as S
+import qualified Data.Vector as V
 import Control.Monad.State hiding (join)
 import Data.Maybe
 
@@ -85,6 +87,16 @@ evalRelationalExpr (Equals relExprA relExprB) = do
     Right relA -> case evaldB of 
       Left err -> return $ Left err
       Right relB -> return $ Right $ if relA == relB then relationTrue else relationFalse
+      
+-- extending a relation adds a single attribute with the results of the per-tuple expression evaluated      
+evalRelationalExpr (Extend tupleExpression relExpr) = do      
+  evald <- evalRelationalExpr relExpr
+  case evald of 
+    Left err -> return $ Left err
+    Right rel -> do
+      case tupleExpressionProcessor rel tupleExpression of
+        Left err -> return $ Left err
+        Right (newAttrs, tupProc) -> return $ relMogrify tupProc newAttrs rel
 
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
@@ -335,7 +347,23 @@ predicateRestrictionFilter _ (AttributeEqualityPredicate attrName atom) = Right 
   Left _ -> False
   Right atom2 -> atom2 == atom
 
+tupleExpressionProcessor :: Relation -> TupleExpr -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
 
+--just clone an existing tuple as a new attribute
+tupleExpressionProcessor relIn 
+  (AttributeTupleExpr newAttrName oldAttrName) = if isNothing $ attributeForName oldAttrName relIn then
+                                                   Left $ NoSuchAttributeNameError oldAttrName
+                                                 else if isJust $ attributeForName newAttrName relIn then
+                                                        Left $ AttributeNameInUseError newAttrName
+                                                      else do
+                                                        let newAttrs = A.renameAttributes oldAttrName newAttrName (attributesForNames (S.singleton oldAttrName) relIn)
+                                                        let newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
+                                                        return $ (newAndOldAttrs, \tup -> tupleExtend tup (RelationTuple newAttrs (atomsForAttributeNames (V.singleton oldAttrName) tup)))
 
+tupleExpressionProcessor relIn (MultipleTupleExpr exprList) = do
+  procList <- mapM (tupleExpressionProcessor relIn) exprList
+  -- add up all the new attributes from the procList
+  let folder (attrs, tupProc) (accAttrs, accTupProc) = (A.addAttributes attrs accAttrs, tupProc . accTupProc)
+  return $ foldl folder (A.emptyAttributes, id) procList
 
 
