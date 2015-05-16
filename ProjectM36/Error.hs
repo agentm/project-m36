@@ -25,6 +25,9 @@ data RelationalError = NoSuchAttributeNameError AttributeName
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
+                     | NoSuchTupleExprFunctionError AtomFunctionName
+                     | AtomTypeMismatchError AtomType AtomType
+                     | AtomTypeCountError [AtomType] [AtomType]
                        deriving (Show,Eq,Generic) 
 
 

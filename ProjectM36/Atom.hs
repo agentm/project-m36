@@ -11,4 +11,3 @@ atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (StringAtom _) = StringAtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
 atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
-

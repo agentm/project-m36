@@ -21,13 +21,13 @@ attributes (Relation attrs _ ) = attrs
 attributeNames :: Relation -> S.Set AttributeName
 attributeNames (Relation attrs _) = A.attributeNameSet attrs
 
-attributeForName :: AttributeName -> Relation -> Maybe Attribute
+attributeForName :: AttributeName -> Relation -> Either RelationalError Attribute
 attributeForName attrName (Relation attrs _) = A.attributeForName attrName attrs
 
 attributesForNames :: S.Set AttributeName -> Relation -> Attributes
 attributesForNames attrNameSet (Relation attrs _) = A.attributesForNames attrNameSet attrs
     
-atomTypeForName :: AttributeName -> Relation -> Maybe AtomType
+atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
     
 atomValueType :: Atom -> AtomType
@@ -197,9 +197,11 @@ tupleUngroup relvalAttrName newAttrs tuple = do
       Right accRel -> union accRel $ Relation newAttrs (HS.singleton (tupleExtend nonGroupTupleProjection tupleIn))
           
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
-attributesForRelval relvalAttrName (Relation attrs _) = case A.atomTypeForAttributeName relvalAttrName attrs of
-  (Just (RelationAtomType relAttrs)) -> Right relAttrs
-  _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
+attributesForRelval relvalAttrName (Relation attrs _) = do 
+  atomType <- A.atomTypeForAttributeName relvalAttrName attrs
+  case atomType of 
+    (RelationAtomType relAttrs) -> Right relAttrs
+    _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
 
 restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relation
 --restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset

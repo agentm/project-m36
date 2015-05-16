@@ -5,13 +5,13 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Atom
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.Set as S
-import qualified Data.Vector as V
 import Control.Monad.State hiding (join)
 import Data.Maybe
+import Data.Either
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -91,25 +91,31 @@ evalRelationalExpr (Equals relExprA relExprB) = do
 -- extending a relation adds a single attribute with the results of the per-tuple expression evaluated      
 evalRelationalExpr (Extend tupleExpression relExpr) = do      
   evald <- evalRelationalExpr relExpr
+  funcs <- liftM atomFunctions get
   case evald of 
     Left err -> return $ Left err
     Right rel -> do
-      case tupleExpressionProcessor rel tupleExpression of
+      case tupleExpressionProcessor rel tupleExpression funcs of
         Left err -> return $ Left err
         Right (newAttrs, tupProc) -> return $ relMogrify tupProc newAttrs rel
 
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
-                                         relationVariables = M.empty}
+                                         relationVariables = M.empty,
+                                         atomFunctions = HS.empty
+                                         }
 
 basicDatabaseContext :: DatabaseContext
 basicDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
-                                                                         ("false", relationFalse)]}
+                                                                         ("false", relationFalse)],
+                                         atomFunctions = basicAtomFunctions
+                                         }
 
 dateExamples :: DatabaseContext
 dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreign key relationships
-                                 relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars }
+                                 relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars, 
+                                 atomFunctions = basicAtomFunctions}
   where
     dateRelVars = M.fromList [("S", suppliers),
                               ("P", products),
@@ -184,7 +190,7 @@ setRelVar relVarName rel = do
   case checkConstraints currstate of
     Just err -> return $ Just err
     Nothing -> do 
-      put $ DatabaseContext (inclusionDependencies currstate) newRelVars
+      put $ DatabaseContext (inclusionDependencies currstate) newRelVars (atomFunctions currstate)
       return Nothing
       
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
@@ -192,7 +198,7 @@ deleteRelVar :: RelVarName -> DatabaseState (Maybe RelationalError)
 deleteRelVar relVarName = do
   currstate <- get
   let newRelVars = M.delete relVarName (relationVariables currstate)
-  put $ DatabaseContext (inclusionDependencies currstate) newRelVars
+  put $ DatabaseContext (inclusionDependencies currstate) newRelVars (atomFunctions currstate)
   return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
@@ -252,7 +258,7 @@ evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = d
 evalContextExpr (AddInclusionDependency dep) = do
   currstate <- get
   let newDeps = HS.insert dep (inclusionDependencies currstate)
-  put $ DatabaseContext newDeps (relationVariables currstate)
+  put $ DatabaseContext newDeps (relationVariables currstate) (atomFunctions currstate)
   return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
@@ -313,8 +319,11 @@ typeForRelationalExpr expr = do
 --returns a database context with all tuples removed  
 --this is useful for type checking and optimization
 contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
-contextWithEmptyTupleSets contextIn = DatabaseContext (inclusionDependencies contextIn) $ M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
-
+contextWithEmptyTupleSets contextIn = DatabaseContext incDeps relVars funcs
+  where
+    incDeps = inclusionDependencies contextIn 
+    relVars = M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
+    funcs = atomFunctions contextIn
   
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
 predicateRestrictionFilter :: DatabaseContext -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)
@@ -347,23 +356,82 @@ predicateRestrictionFilter _ (AttributeEqualityPredicate attrName atom) = Right 
   Left _ -> False
   Right atom2 -> atom2 == atom
 
-tupleExpressionProcessor :: Relation -> TupleExpr -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
+tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
+tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName rel then
+                                           Left $ AttributeNameInUseError attrName
+                                         else
+                                           Right rel
 
---just clone an existing tuple as a new attribute
+tupleExpressionProcessor :: Relation -> TupleExpr -> AtomFunctions -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
 tupleExpressionProcessor relIn 
-  (AttributeTupleExpr newAttrName oldAttrName) = if isNothing $ attributeForName oldAttrName relIn then
-                                                   Left $ NoSuchAttributeNameError oldAttrName
-                                                 else if isJust $ attributeForName newAttrName relIn then
-                                                        Left $ AttributeNameInUseError newAttrName
-                                                      else do
-                                                        let newAttrs = A.renameAttributes oldAttrName newAttrName (attributesForNames (S.singleton oldAttrName) relIn)
-                                                        let newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
-                                                        return $ (newAndOldAttrs, \tup -> tupleExtend tup (RelationTuple newAttrs (atomsForAttributeNames (V.singleton oldAttrName) tup)))
+  (AttributeTupleExpr newAttrName atomExpr) functions = do    
+    _ <- tupleExprCheckNewAttrName newAttrName relIn
+    atomExprType <- typeFromAtomExpr (attributes relIn) functions atomExpr
+    _ <- verifyAtomExprTypes relIn functions atomExpr atomExprType
+    let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType]
+        newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
+    return $ (newAndOldAttrs, \tup -> case evalAtomExpr tup functions atomExpr of
+                 Left _ -> undefined -- ?!
+                 Right atom -> tupleAtomExtend newAttrName atom tup)
 
-tupleExpressionProcessor relIn (MultipleTupleExpr exprList) = do
-  procList <- mapM (tupleExpressionProcessor relIn) exprList
-  -- add up all the new attributes from the procList
-  let folder (attrs, tupProc) (accAttrs, accTupProc) = (A.addAttributes attrs accAttrs, tupProc . accTupProc)
-  return $ foldl folder (A.emptyAttributes, id) procList
+basicAtomFunctions :: AtomFunctions
+basicAtomFunctions = HS.fromList [
+  --match on any relation type
+  AtomFunction "add" [IntAtomType, IntAtomType, IntAtomType] (\(i1:i2:_) -> (\(IntAtom a) (IntAtom b) -> IntAtom (a + b)) i1 i2),
+  AtomFunction { atomFuncName = "id",
+                 atomFuncType = [AnyAtomType],
+                 atomFunc = (\(x:_) -> x)}
 
+--  AtomFunction "count" [RelationAtomType , IntAtom],
+--  AtomFunction "sum" [RelationAtomType IntAtomType
+  ]
 
+atomFunctionForName :: AtomFunctionName -> AtomFunctions -> Either RelationalError AtomFunction
+atomFunctionForName funcName funcSet = if HS.null foundFunc then
+                                         Left $ NoSuchTupleExprFunctionError funcName
+                                        else
+                                         Right $ head $ HS.toList foundFunc
+  where
+    foundFunc = HS.filter (\(AtomFunction name _ _) -> name == funcName) funcSet
+
+typeFromAtomExpr :: Attributes -> AtomFunctions -> AtomExpr -> Either RelationalError AtomType
+typeFromAtomExpr attrs _ (AttributeAtomExpr attrName) = A.atomTypeForAttributeName attrName attrs
+typeFromAtomExpr _ _ (NakedAtomExpr atom) = Right (atomTypeForAtom atom)
+typeFromAtomExpr _ funcs (FunctionAtomExpr funcName _) = do 
+  func <- atomFunctionForName funcName funcs
+  return $ last (atomFuncType func)
+
+verifyAtomExprTypes :: Relation -> AtomFunctions -> AtomExpr -> AtomType -> Either RelationalError AtomType
+verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
+  attrType <- A.atomTypeForAttributeName attrName (attributes relIn)
+  atomTypeVerify expectedType attrType
+verifyAtomExprTypes _ _ (NakedAtomExpr atom) expectedType = atomTypeVerify expectedType (atomTypeForAtom atom)
+verifyAtomExprTypes relIn functions (FunctionAtomExpr funcName funcArgExprs) expectedType = do
+  func <- atomFunctionForName funcName functions
+  let expectedArgTypes = atomFuncType func
+  funcArgTypes <- mapM (\(atomExpr,expectedType) -> verifyAtomExprTypes relIn functions atomExpr expectedType) $ zip funcArgExprs expectedArgTypes
+  if length funcArgTypes /= length expectedArgTypes - 1 then
+    Left $ AtomTypeCountError funcArgTypes expectedArgTypes
+    else do
+    atomTypeVerify expectedType (last expectedArgTypes)
+  
+--determine if two types are equal or compatible
+atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
+atomTypeVerify AnyAtomType x = Right x
+atomTypeVerify x AnyAtomType = Right x
+atomTypeVerify x y = if x == y then
+                       Right x
+                     else
+                       Left $ AtomTypeMismatchError x y
+                                          
+evalAtomExpr :: RelationTuple -> AtomFunctions -> AtomExpr -> Either RelationalError Atom
+evalAtomExpr tupIn _ (AttributeAtomExpr attrName) = atomForAttributeName attrName tupIn
+evalAtomExpr _ _ (NakedAtomExpr atom) = Right atom
+evalAtomExpr tupIn functions (FunctionAtomExpr funcName arguments) = do
+  func <- atomFunctionForName funcName functions
+  argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) functions) arguments
+  _ <- mapM (uncurry atomTypeVerify) $ init (zip (atomFuncType func) argTypes)
+  evaldArgs <- mapM (evalAtomExpr tupIn functions) arguments
+  return $ (atomFunc func) evaldArgs
+                                                    
+                                          

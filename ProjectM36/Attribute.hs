@@ -59,15 +59,15 @@ renameAttributes oldAttrName newAttrName attrs = V.map renamer attrs
                    else  
                      attr
                      
-atomTypeForAttributeName :: AttributeName -> Attributes -> Maybe AtomType
-atomTypeForAttributeName attrName attrs = case attr of
-  (Just (Attribute _ atype)) -> Just atype
-  _ -> Nothing
-  where 
-    attr = attributeForName attrName attrs
-    
-attributeForName :: AttributeName -> Attributes -> Maybe Attribute
-attributeForName attrName attrs = V.find ((attrName ==) . attributeName) attrs
+atomTypeForAttributeName :: AttributeName -> Attributes -> Either RelationalError AtomType
+atomTypeForAttributeName attrName attrs = do
+  (Attribute _ atype) <- attributeForName attrName attrs
+  return atype
+                         
+attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
+attributeForName attrName attrs = case V.find ((attrName ==) . attributeName) attrs of
+  Nothing -> Left $ NoSuchAttributeNameError attrName
+  Just attr -> Right attr
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
 attributesForNames attrNameSet attrs = V.foldr folder V.empty attrs

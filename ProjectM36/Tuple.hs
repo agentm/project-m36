@@ -32,6 +32,13 @@ atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex
   Just index -> case tupVec V.!? index of 
     Nothing -> Left $ NoSuchAttributeNameError attrName
     Just atom -> Right atom
+    
+{- -- resolve naming clash with Attribute and Relation later    
+atomTypeForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Atom    
+atomTypeForAttributeName attrName tup = do
+  atom <- atomForAttributeName attrName tup
+  return $ atomTypeForAtom atom
+-}
 
 atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> V.Vector Atom
 atomsForAttributeNames attrNames tuple = V.foldr folder V.empty attrNames
@@ -41,13 +48,13 @@ atomsForAttributeNames attrNames tuple = V.foldr folder V.empty attrNames
       Right atom -> V.snoc acc atom
       
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
-relationForAttributeName attrName tuple = if maybe False isRelationAtomType (atomTypeForAttributeName attrName (tupleAttributes tuple)) then
-                                        Left $ AttributeIsNotRelationValuedError attrName
-                                      else do
-                                        atomVal <- atomForAttributeName attrName tuple
-                                        relationForAtom atomVal
-
-
+relationForAttributeName attrName tuple = do
+  aType <- atomTypeForAttributeName attrName (tupleAttributes tuple)
+  if not (isRelationAtomType aType) then
+    Left $ AttributeIsNotRelationValuedError attrName    
+    else do 
+     atomVal <- atomForAttributeName attrName tuple
+     relationForAtom atomVal    
 
 --in case the oldattr does not exist in the tuple, then return the old tuple
 tupleRenameAttribute :: AttributeName -> AttributeName -> RelationTuple -> RelationTuple
@@ -103,6 +110,11 @@ tupleExtend (RelationTuple tupAttrs1 tupVec1) (RelationTuple tupAttrs2 tupVec2) 
   where
     newAttrs = tupAttrs1 V.++ tupAttrs2
     newVec = tupVec1 V.++ tupVec2
+    
+tupleAtomExtend :: AttributeName -> Atom -> RelationTuple -> RelationTuple
+tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
+  where
+    newTup = RelationTuple (V.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
 
 {- sort the associative list to match the header sorting -}    
 tupleSortedAssocs :: RelationTuple -> [(AttributeName, Atom)]

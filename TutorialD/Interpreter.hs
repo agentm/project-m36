@@ -21,7 +21,7 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.List as L
-import Control.Applicative (liftA, (<*), (*>), (<*>), (<$>))
+import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Control.Monad.State
 import System.Console.Haskeline
 import System.IO
@@ -597,8 +597,8 @@ displayTransactionGraph :: TransactionGraph -> String
 displayTransactionGraph (TransactionGraph _ transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
 -}    
 
-multiTupleExpressionP :: Parser TupleExpr
-multiTupleExpressionP = MultipleTupleExpr <$> (sepBy tupleExpressionP comma)
+multiTupleExpressionP :: Parser [TupleExpr]
+multiTupleExpressionP = sepBy tupleExpressionP comma
 
 tupleExpressionP :: Parser TupleExpr
 tupleExpressionP = attributeTupleExpressionP
@@ -607,6 +607,27 @@ attributeTupleExpressionP :: Parser TupleExpr
 attributeTupleExpressionP = do
   newAttr <- identifier
   reservedOp ":="
-  attr <- identifier
-  return $ AttributeTupleExpr (T.pack newAttr) (T.pack attr)
+  atom <- atomExprP
+  return $ AttributeTupleExpr (T.pack newAttr) atom
                    
+atomExprP :: Parser AtomExpr
+atomExprP = try functionAtomExprP <|>
+            attributeAtomExprP <|>
+            nakedAtomExprP
+
+attributeAtomExprP :: Parser AtomExpr            
+attributeAtomExprP = do
+  attrName <- identifier
+  return $ AttributeAtomExpr (T.pack attrName)
+
+nakedAtomExprP :: Parser AtomExpr
+nakedAtomExprP = NakedAtomExpr <$> (stringAtomP <|> intAtomP)
+
+functionAtomExprP :: Parser AtomExpr
+functionAtomExprP = do
+  funcName <- identifier
+  argList <- parens (sepBy atomExprP comma)
+  return $ FunctionAtomExpr (T.pack funcName) argList
+  
+relationalAtomExprP :: Parser AtomExpr  
+relationalAtomExprP = RelationAtomExpr <$> relExpr

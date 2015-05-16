@@ -17,7 +17,8 @@ type StringType = T.Text
 
 data Atom = StringAtom StringType |
             IntAtom Int |
-            RelationAtom Relation deriving (Show, Eq, Generic)
+            RelationAtom Relation 
+          deriving (Show, Eq, Generic)
                                            
 instance NFData Atom where rnf = genericRnf
                            
@@ -25,7 +26,9 @@ instance Hash.Hashable Atom
 
 data AtomType = StringAtomType |
                 IntAtomType |
-                RelationAtomType Attributes deriving (Eq, Show, Generic)
+                RelationAtomType Attributes |
+                AnyAtomType --AnyAtomType is used as a wildcard
+              deriving (Eq, Show, Generic)
                                                      
 instance NFData AtomType where rnf = genericRnf
 
@@ -117,7 +120,8 @@ data RelationalExpr where
 
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: HS.HashSet InclusionDependency,
-  relationVariables :: M.Map RelVarName  Relation
+  relationVariables :: M.Map RelVarName  Relation,
+  atomFunctions :: AtomFunctions
   } deriving (Show)
              
 type IncDepName = StringType             
@@ -192,7 +196,35 @@ instance Eq Transaction where
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
+--used on the right side of attribute assignments
+data AtomExpr = AttributeAtomExpr AttributeName |
+                NakedAtomExpr Atom |
+                FunctionAtomExpr AtomFunctionName [AtomExpr] |
+                RelationAtomExpr RelationalExpr
+              deriving (Eq,Show)
+
 --used to extend a relation
-data TupleExpr = AttributeTupleExpr AttributeName AttributeName | 
-                 MultipleTupleExpr [TupleExpr] --new attr, old attr to clone
+data TupleExpr = AttributeTupleExpr AttributeName AtomExpr
   deriving (Show, Eq)
+           
+--enumerates the list of functions available to be run as part of tuple expressions           
+type AtomFunctions = HS.HashSet AtomFunction
+
+type AtomFunctionName = StringType
+
+data AtomFunction = AtomFunction {
+  atomFuncName :: AtomFunctionName,
+  atomFuncType :: [AtomType],
+  atomFunc :: [Atom] -> Atom
+  }
+           
+instance Hash.Hashable AtomFunction where
+  hashWithSalt salt func = salt `Hash.hashWithSalt` (atomFuncName func)
+                           
+instance Eq AtomFunction where                           
+  f1 == f2 = (atomFuncName f1) == (atomFuncName f2)
+  
+instance Show AtomFunction where  
+  show aFunc = T.unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
+   where
+     showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))

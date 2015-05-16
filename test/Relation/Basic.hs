@@ -50,7 +50,7 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = HS.foldr (\tu
     tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
     attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
                                  Left _ -> False
-                                 Right atom -> (Just $ atomTypeForAtom atom) ==
+                                 Right atom -> (Right $ atomTypeForAtom atom) ==
                                   A.atomTypeForAttributeName (A.attributeName attr) attrs) (attributes rel)
     
 simpleRel :: Relation    
