@@ -154,7 +154,7 @@ data RestrictionPredicateExpr where
   OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
   NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
-  AttributeEqualityPredicate :: AttributeName -> Atom -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
+  AttributeEqualityPredicate :: AttributeName -> AtomExpr -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq)
 
 -- child + parent links

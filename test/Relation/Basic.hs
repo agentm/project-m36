@@ -9,11 +9,15 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import System.Exit
+import ProjectM36.RelationalExpression
 
 testList :: Test
 testList = TestList [testRelation "relationTrue" relationTrue, testRelation "relationFalse" relationFalse,
                      testMkRelation1,
-                     testRename1, testRename2]
+                     testRename1, testRename2,
+                     testRelation "suppliers" suppliersRel,
+                     testRelation "products" productsRel,
+                     testRelation "supplierProducts" supplierProductsRel]
 
 main :: IO ()           
 main = do 
@@ -76,3 +80,4 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTy
     testAttrs = A.attributesFromList [Attribute "a" StringAtomType]
     testTupSet = HS.fromList [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],
                               mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]
+

@@ -28,6 +28,7 @@ data RelationalError = NoSuchAttributeNameError AttributeName
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeCountError [AtomType] [AtomType]
+                     | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
                        deriving (Show,Eq,Generic) 
 
 

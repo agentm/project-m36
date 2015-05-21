@@ -45,19 +45,27 @@ main = do
                       ("x:=true; undefine x", Left (RelVarNotDefinedError "x")),
                       ("x:=relation {b int, a char}; insert x relation{tuple{b int(5), a char(\"spam\")}}", mkRelation simpleCAttributes (HS.fromList [RelationTuple simpleCAttributes $ V.fromList [StringAtom "spam", IntAtom 5]])),
                       ("x:=relation{tuple{b int(5),a char(\"spam\")},tuple{b int(6),a char(\"sam\")}}; delete x where b=6", mkRelation simpleCAttributes $ HS.singleton $ RelationTuple simpleCAttributes (V.fromList [StringAtom "spam", IntAtom 5])),
-                      ("x:=extend relation{tuple{a int(5)}} : {b:=a}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 5]))
+                      ("x:=relation{tuple{a int(5)}} : {b:=@a}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 5])),
+                      ("x:=relation{tuple{a int(5)}} : {b:=6}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 6])),
+                      ("x:=relation{tuple{a int(5)}} : {b:=add(@a,5)}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 10])),
+                      ("x:=relation{tuple{a int(5)}} : {b:=add(@a,\"spam\")}", Left (AtomFunctionTypeError "add" 2 IntAtomType StringAtomType)),
+                      ("x:=relation{tuple{a int(5)}} : {b:=add(add(@a,2),5)}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 12]))
                      ]
     simpleAAttributes = A.attributesFromList [Attribute "a" IntAtomType]
     simpleBAttributes = A.attributesFromList [Attribute "d" IntAtomType]
     simpleCAttributes = A.attributesFromList [Attribute "a" StringAtomType, Attribute "b" IntAtomType]
     simpleDAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" IntAtomType]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" IntAtomType]
+    extendTestAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
     dateExampleRelTests = [("x:=S where true", Right suppliersRel),
                            ("x:=S where CITY = \"London\"", restrict (\tuple -> atomForAttributeName "CITY" tuple == (Right $ StringAtom "London")) suppliersRel),
                            ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
                            ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (HS.singleton $ mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50]))),
-                           ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ StringAtom "Blake") then updateTuple (M.singleton "CITY" (StringAtom "Boston")) tuple else tuple) suppliersRel)
+                           ("x:=(S : {STATUS2 := add(10,@STATUS)} where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel), 
+                           ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ StringAtom "Blake") then updateTuple (M.singleton "CITY" (StringAtom "Boston")) tuple else tuple) suppliersRel),
+                           ("x:=relation{tuple{a int(5)}} : {b:=S}", mkRelation extendTestAttributes (HS.singleton $ mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel])))
                           ]
+
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
 assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted
   where

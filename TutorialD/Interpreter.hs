@@ -53,6 +53,7 @@ lexer = Token.makeTokenParser tutD
                 Token.reservedOpNames = ["join", "where", "union", "group", "ungroup"],
                 Token.reservedNames = [],
                 Token.identStart = letter <|> char '_',
+                Token.opLetter = oneOf ":!#$%&*+./<=>?\\^|-~", -- remove "@" so it can be used as attribute marker without spaces
                 Token.identLetter = alphaNum <|> char '_' <|> char '#'} -- # needed for Date examples
 
 parens = Token.parens lexer
@@ -191,15 +192,14 @@ ungroupP = do
   rvaAttrName <- identifier
   return $ Ungroup (T.pack rvaAttrName)
   
-extendP :: Parser RelationalExpr
+extendP :: Parser (RelationalExpr -> RelationalExpr)
 extendP = do
-  reservedOp "extend"
-  expr <- relExpr
   reservedOp ":"
   tupleExpr <- braces tupleExpressionP
-  return $ Extend tupleExpr expr
+  return $ Extend tupleExpr
   
 relOperators = [
+  [Postfix extendP],
   [Postfix projectOp],
   [Postfix renameP],
   [Postfix whereClauseP],
@@ -211,7 +211,7 @@ relOperators = [
   ]
 
 relExpr :: Parser RelationalExpr
-relExpr = extendP <|> buildExpressionParser relOperators relTerm
+relExpr = buildExpressionParser relOperators relTerm
 
 databaseExpr :: Parser DatabaseExpr
 databaseExpr = insertP
@@ -579,8 +579,8 @@ restrictionAttributeEqualityP :: Parser RestrictionPredicateExpr
 restrictionAttributeEqualityP = do
   attributeName <- identifier
   reservedOp "="
-  atom <- stringAtomP <|> intAtomP
-  return $ AttributeEqualityPredicate (T.pack attributeName) atom
+  atomexpr <- atomExprP
+  return $ AttributeEqualityPredicate (T.pack attributeName) atomexpr
   
 quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
@@ -588,7 +588,7 @@ quotedChar = noneOf "\""
 stringAtomP = liftA (StringAtom . T.pack) (string "\"" *> many quotedChar <* string "\"")
 
 intAtomP = do
-  intstr <- many digit
+  intstr <- many1 digit
   return $ IntAtom (read intstr)
   
 --used by :dumpGraph
@@ -612,11 +612,13 @@ attributeTupleExpressionP = do
                    
 atomExprP :: Parser AtomExpr
 atomExprP = try functionAtomExprP <|>
-            attributeAtomExprP <|>
-            nakedAtomExprP
+  attributeAtomExprP <|>  
+  nakedAtomExprP <|>
+  relationalAtomExprP
 
 attributeAtomExprP :: Parser AtomExpr            
 attributeAtomExprP = do
+  _ <- string "@"
   attrName <- identifier
   return $ AttributeAtomExpr (T.pack attrName)
 

@@ -109,7 +109,10 @@ renderHBar :: StringType -> StringType -> StringType -> [Int] -> StringType
 renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) `T.append` end
 
 leftPaddedString :: Int -> Int -> StringType -> StringType
-leftPaddedString lineNum size str = paddedLines !! lineNum
+leftPaddedString lineNum size str = if lineNum > length paddedLines -1 then
+                                      repeatString size " "
+                                    else
+                                      paddedLines !! lineNum
   where
     paddedLines = map (\line -> line `T.append` repeatString (size - T.length line) " ") (breakLines str)
   
