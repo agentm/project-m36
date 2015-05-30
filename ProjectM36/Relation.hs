@@ -151,7 +151,7 @@ group groupAttrNames newAttrName rel = do
       newAttrs = A.addAttribute groupAttr (attributesForNames nonGroupAttrNames rel)
       groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames groupAttrNames rel))
       nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
-      mogrifier tupIn = tupleExtend (traceShowId tupIn) (matchingRelTuple tupIn)
+      mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
@@ -277,7 +277,21 @@ matrixRelation attributeCount tupleCount = do
       tupleSet = HS.fromList $ map (\c -> tuple c) [0 .. tupleCount]
   mkRelation attrs tupleSet
 
+--used by sum atom function
+relationSum :: Relation -> Atom
+relationSum relIn = IntAtom $ relFold (\tupIn acc -> acc + (newVal tupIn)) 0 relIn
+  where
+    newVal tupIn = (\(IntAtom i) -> i) $ (tupleAtoms tupIn) V.! 0
 
+relationCount :: Relation -> Atom
+relationCount relIn = IntAtom $ relFold (\_ acc -> acc + 1) 0 relIn
 
-
+relationMax :: Relation -> Atom
+relationMax relIn = IntAtom $ relFold (\tupIn acc -> max acc (newVal tupIn)) minBound relIn
+  where
+    newVal tupIn = (\(IntAtom i) -> i) $ (tupleAtoms tupIn) V.! 0
   
+relationMin :: Relation -> Atom
+relationMin relIn = IntAtom $ relFold (\tupIn acc -> min acc (newVal tupIn)) maxBound relIn
+  where
+    newVal tupIn = (\(IntAtom i) -> i) $ (tupleAtoms tupIn) V.! 0

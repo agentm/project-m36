@@ -129,11 +129,11 @@ tutDTypeToAtomType tutDType = case tutDType of
   "int" -> Just IntAtomType
   _ -> Nothing
 
-atomTypeToTutDType :: AtomType -> Maybe String
+atomTypeToTutDType :: AtomType -> Maybe T.Text 
 atomTypeToTutDType atomType = case atomType of
   StringAtomType -> Just "char"
   IntAtomType -> Just "int"
-  --RelationAtomType rel -> 
+  RelationAtomType attrs -> Just $ "relation" `T.append` showRelationAttributes attrs
   _ -> Nothing
 
 relVarP :: Parser RelationalExpr
@@ -198,8 +198,33 @@ extendP = do
   tupleExpr <- braces tupleExpressionP
   return $ Extend tupleExpr
   
+{-
+rewrite summarize as extend as evaluate 
+
+summarize SP per (SP{SNO}) add (sum(@QTY) as SUMQ) === ((SP rename {QTY as _}) group ({_} as x)) : {QTY:=sum(@x)}{S#,QTY}
+so, in general,
+summarize rX per (relExpr) add (func(@attr) as funcd) === ((rX rename {attr as _}) group ({_} as _)) : {QTY:=sum(@_)}{relExpr, _}
+-}
+{-
+summarizeP :: Parser (RelationalExpr -> RelationalExpr)  
+summarizeP = do
+  reservedOp "per"
+  -- "summarize in Tutorial D requires the heading of the per relation to be a subset  of that of the relation to be summarized"
+  perExpr <- parens relExpr
+  reservedOp "add"
+  (funcAtomExpr, newAttrName) <- parens summaryP
+  --rewrite summarize as extend
+  --return $ Summarize funcAtomExpr newAttrName perExpr
+  
+summaryP :: Parser (AtomExpr, AttributeName)
+summaryP = do
+  expr <- atomExprP
+  reserved "as"
+  attrName <- identifier
+  return (expr, T.pack attrName)
+-}  
+
 relOperators = [
-  [Postfix extendP],
   [Postfix projectOp],
   [Postfix renameP],
   [Postfix whereClauseP],
@@ -207,7 +232,8 @@ relOperators = [
   [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
   [Infix (reservedOp "union" >> return Union) AssocLeft],
-  [Infix (reservedOp "=" >> return Equals) AssocNone]
+  [Infix (reservedOp "=" >> return Equals) AssocNone],
+  [Postfix extendP]
   ]
 
 relExpr :: Parser RelationalExpr
@@ -384,13 +410,13 @@ contextOps = typeP
 interpreterOps :: Parser (Either ContextOperator GraphOperator)             
 interpreterOps = liftM Left contextOps <|> liftM Right transactionGraphOps
 
-showRelationAttributes :: Relation -> T.Text
-showRelationAttributes rel = "{" `T.append` T.concat (L.intersperse ", " $ map showAttribute attrs) `T.append` "}"
+showRelationAttributes :: Attributes -> T.Text
+showRelationAttributes attrs = "{" `T.append` T.concat (L.intersperse ", " $ map showAttribute attrsL) `T.append` "}"
   where
     showAttribute (Attribute name atomType) = name `T.append` " " `T.append` case atomTypeToTutDType atomType of
-      Just t -> T.pack (show t)
-      Nothing -> T.pack "unknown"
-    attrs = V.toList $ attributes rel
+      Just t -> t
+      Nothing -> "unknown"
+    attrsL = V.toList attrs
     
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
@@ -400,7 +426,7 @@ data TutorialDOperatorResult = QuitResult |
     
 evalContextOp :: DatabaseContext -> ContextOperator -> TutorialDOperatorResult
 evalContextOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
-  (Right rel, _) -> DisplayResult $ showRelationAttributes rel
+  (Right rel, _) -> DisplayResult $ showRelationAttributes (attributes rel)
   (Left err, _) -> DisplayErrorResult $ T.pack (show err)
   
 evalContextOp context (ShowRelation expr) = do

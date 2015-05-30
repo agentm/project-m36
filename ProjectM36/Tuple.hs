@@ -163,9 +163,19 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
   if V.length attrs /= V.length tupleTypes then
     Left $ TupleAttributeCountMismatchError 0
   else if attrsTypes /= tupleTypes then
-         Left $  TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
+         --Left $ traceShow (show attrsTypes ++ "gonk" ++ show tupleTypes ++ "done") $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
+         Left $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
        else
          Right $ tuple
 
-
-    
+--two tuples can be equal but the vectors of attributes could be out-of-order 
+--reorder if necessary- this is useful during relMogrify so that all the relation's tuples have identical atom/attribute ordering
+reorderTuple :: Attributes -> RelationTuple -> RelationTuple
+reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
+                             tupIn
+                           else do
+                             RelationTuple attrs (V.map mapper attrs)
+  where
+    mapper attr = case atomForAttributeName (attributeName attr) tupIn of
+      Left _ -> undefined
+      Right atom -> atom

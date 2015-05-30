@@ -111,11 +111,7 @@ data RelationalExpr where
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
-{- maybe break this into multiple steps:
-1. check relational types for match (attribute counts) (typechecking step
-2. create an execution plan (another system of nodes, another GADT)
-3. execute the plan
--}
+  --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   deriving (Show,Eq)
 
 data DatabaseContext = DatabaseContext { 
@@ -214,7 +210,7 @@ type AtomFunctionName = StringType
 
 data AtomFunction = AtomFunction {
   atomFuncName :: AtomFunctionName,
-  atomFuncType :: [AtomType],
+  atomFuncType :: [AtomType], 
   atomFunc :: [Atom] -> Atom
   }
            

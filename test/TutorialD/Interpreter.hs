@@ -18,6 +18,7 @@ import Data.UUID (nil)
 import Data.Either (isRight)
 import qualified Data.Vector as V
 
+--urgent: add group and ungroup tests- I missed the group relation type bug
 main :: IO ()
 main = do 
   tcounts <- runTestTT (TestList tests)
@@ -57,14 +58,24 @@ main = do
     simpleDAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" IntAtomType]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" IntAtomType]
     extendTestAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
+    groupCountAttrs = A.attributesFromList [Attribute "z" IntAtomType]
+    minMaxAttrs = A.attributesFromList [Attribute "S#" StringAtomType, Attribute "z" IntAtomType]
     dateExampleRelTests = [("x:=S where true", Right suppliersRel),
                            ("x:=S where CITY = \"London\"", restrict (\tuple -> atomForAttributeName "CITY" tuple == (Right $ StringAtom "London")) suppliersRel),
                            ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
                            ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (HS.singleton $ mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50]))),
-                           ("x:=(S : {STATUS2 := add(10,@STATUS)} where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel), 
+                           --atom function tests
+                           ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel), 
                            ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ StringAtom "Blake") then updateTuple (M.singleton "CITY" (StringAtom "Boston")) tuple else tuple) suppliersRel),
-                           ("x:=relation{tuple{a int(5)}} : {b:=S}", mkRelation extendTestAttributes (HS.singleton $ mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel])))
-                          ]
+                           ("x:=relation{tuple{a int(5)}} : {b:=S}", mkRelation extendTestAttributes (HS.singleton $ mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel]))),
+                           --relatom function tests                           
+                           ("x:=((S group ({CITY} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (HS.singleton $ mkRelationTuple groupCountAttrs (V.singleton $ IntAtom 1))),
+                           ("x:=(SP group ({S#} as y)) ungroup y", Right supplierProductsRel),
+                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=max(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
+                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=min(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
+                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=sum(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)]))
+                           ]
+
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
 assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted

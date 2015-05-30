@@ -6,6 +6,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Atom
+import ProjectM36.AtomFunction
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -99,7 +100,7 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
       case tupleExpressionProcessor rel tupleExpression context of
         Left err -> return $ Left err
         Right (newAttrs, tupProc) -> return $ relMogrify tupProc newAttrs rel
-
+        
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
                                          relationVariables = M.empty,
@@ -359,7 +360,6 @@ predicateRestrictionFilter context (AttributeEqualityPredicate attrName atomexpr
     case evalAtomExpr tupleIn context atomexpr of
       Left _ -> False
       Right atomCmp -> atomCmp == atomIn
-    
 
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
 tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName rel then
@@ -379,25 +379,19 @@ tupleExpressionProcessor relIn
                  Left _ -> undefined -- ?!
                  Right atom -> tupleAtomExtend newAttrName atom tup)
 
-basicAtomFunctions :: AtomFunctions
-basicAtomFunctions = HS.fromList [
-  --match on any relation type
-  AtomFunction "add" [IntAtomType, IntAtomType, IntAtomType] (\(i1:i2:_) -> (\(IntAtom a) (IntAtom b) -> IntAtom (a + b)) i1 i2),
-  AtomFunction { atomFuncName = "id",
-                 atomFuncType = [AnyAtomType],
-                 atomFunc = (\(x:_) -> x)}
-
---  AtomFunction "count" [RelationAtomType , IntAtom],
---  AtomFunction "sum" [RelationAtomType IntAtomType
-  ]
-
-atomFunctionForName :: AtomFunctionName -> AtomFunctions -> Either RelationalError AtomFunction
-atomFunctionForName funcName funcSet = if HS.null foundFunc then
-                                         Left $ NoSuchTupleExprFunctionError funcName
-                                        else
-                                         Right $ head $ HS.toList foundFunc
-  where
-    foundFunc = HS.filter (\(AtomFunction name _ _) -> name == funcName) funcSet
+evalAtomExpr :: RelationTuple -> DatabaseContext -> AtomExpr -> Either RelationalError Atom
+evalAtomExpr tupIn _ (AttributeAtomExpr attrName) = atomForAttributeName attrName tupIn
+evalAtomExpr _ _ (NakedAtomExpr atom) = Right atom
+evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
+  let functions = atomFunctions context
+  func <- atomFunctionForName funcName functions
+  argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) context) arguments
+  _ <- mapM (uncurry atomTypeVerify) $ init (zip (atomFuncType func) argTypes)
+  evaldArgs <- mapM (evalAtomExpr tupIn context) arguments
+  return $ (atomFunc func) evaldArgs
+evalAtomExpr _ context (RelationAtomExpr relExpr) = do
+  relAtom <- evalState (evalRelationalExpr relExpr) context
+  return $ RelationAtom relAtom
 
 typeFromAtomExpr :: Attributes -> DatabaseContext -> AtomExpr -> Either RelationalError AtomType
 typeFromAtomExpr attrs _ (AttributeAtomExpr attrName) = A.atomTypeForAttributeName attrName attrs
@@ -409,7 +403,6 @@ typeFromAtomExpr _ context (FunctionAtomExpr funcName _) = do
 typeFromAtomExpr _ context (RelationAtomExpr relExpr) = do
   relType <- evalState (typeForRelationalExpr relExpr) context
   return $ RelationAtomType (attributes relType)
-  
 
 verifyAtomExprTypes :: Relation -> DatabaseContext -> AtomExpr -> AtomType -> Either RelationalError AtomType
 verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
@@ -433,27 +426,25 @@ verifyAtomExprTypes _ context (RelationAtomExpr relationExpr) expectedType = do
   case runState (typeForRelationalExpr relationExpr) context of
     (Left err, _) -> Left err
     (Right relType, _) -> atomTypeVerify expectedType (RelationAtomType (attributes relType))
-  
---determine if two types are equal or compatible
-atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
-atomTypeVerify AnyAtomType x = Right x
-atomTypeVerify x AnyAtomType = Right x
-atomTypeVerify x y = if x == y then
-                       Right x
-                     else
-                       Left $ AtomTypeMismatchError x y
-                                          
-evalAtomExpr :: RelationTuple -> DatabaseContext -> AtomExpr -> Either RelationalError Atom
-evalAtomExpr tupIn _ (AttributeAtomExpr attrName) = atomForAttributeName attrName tupIn
-evalAtomExpr _ _ (NakedAtomExpr atom) = Right atom
-evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
-  let functions = atomFunctions context
-  func <- atomFunctionForName funcName functions
-  argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) context) arguments
-  _ <- mapM (uncurry atomTypeVerify) $ init (zip (atomFuncType func) argTypes)
-  evaldArgs <- mapM (evalAtomExpr tupIn context) arguments
-  return $ (atomFunc func) evaldArgs
-evalAtomExpr _ context (RelationAtomExpr relExpr) = do
-  relAtom <- evalState (evalRelationalExpr relExpr) context
-  return $ RelationAtom relAtom
-                                          
+
+basicAtomFunctions :: AtomFunctions
+basicAtomFunctions = HS.fromList [
+  --match on any relation type
+  AtomFunction "add" [IntAtomType, IntAtomType, IntAtomType] (\(i1:i2:_) -> (\(IntAtom a) (IntAtom b) -> IntAtom (a + b)) i1 i2),
+  AtomFunction { atomFuncName = "id",
+                 atomFuncType = [AnyAtomType, AnyAtomType],
+                 atomFunc = (\(x:_) -> x)},
+  AtomFunction { atomFuncName = "sum",
+                 atomFuncType = foldAtomFuncType IntAtomType IntAtomType,
+                 atomFunc = (\((RelationAtom relIn):_) -> relationSum relIn)},
+  AtomFunction { atomFuncName = "count",
+                 atomFuncType = foldAtomFuncType AnyAtomType IntAtomType,
+                 atomFunc = (\((RelationAtom relIn):_) -> relationCount relIn)},
+  AtomFunction { atomFuncName = "max",
+                 atomFuncType = foldAtomFuncType IntAtomType IntAtomType,
+                 atomFunc = (\((RelationAtom relIn):_) -> relationMax relIn)},
+  AtomFunction { atomFuncName = "min",
+                 atomFuncType = foldAtomFuncType IntAtomType IntAtomType,
+                 atomFunc = (\((RelationAtom relIn):_) -> relationMin relIn)}
+
+  ]
