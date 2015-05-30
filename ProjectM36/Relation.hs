@@ -146,17 +146,23 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
   nonGroupProjection <- project nonGroupAttrNames rel
-  relFold folder (Right $ Relation newAttrs emptyTupleSet) nonGroupProjection
+  relMogrify mogrifier newAttrs nonGroupProjection
     where
       newAttrs = A.addAttribute groupAttr (attributesForNames nonGroupAttrNames rel)
-      groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames nonGroupAttrNames rel))
+      groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames groupAttrNames rel))
       nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
+      mogrifier tupIn = tupleExtend (traceShowId tupIn) (matchingRelTuple tupIn)
+      matchingRelTuple tupIn = case imageRelationFor tupIn rel of
+        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
+        Left _ -> undefined
+{-
       folder tupleIn acc = case acc of
         Left err -> Left err
         Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleExtend tupleIn (matchingRelTuple tupleIn))))
       matchingRelTuple groupTuple = case imageRelationFor groupTuple rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
+-}
   
 --help restriction function
 --returns a subrelation of 
@@ -164,7 +170,7 @@ restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
 restrictEq tuple rel = restrict rfilter rel
   where
     rfilter :: RelationTuple -> Bool
-    rfilter tupleIn = tupleIntersection tuple tupleIn /= emptyTuple
+    rfilter tupleIn = tupleIntersection tuple tupleIn == tuple
     
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
