@@ -61,7 +61,7 @@ cellLocations tab@(header, _) = (maxWidths, maxHeights)
     maxWidths = foldl mergeMax (baseSize (length header)) (map fst cellSizeMatrix)
     baseSize num = take num (repeat 0)
     rowHeights = map snd cellSizeMatrix
-    maxHeights = map (L.maximumBy compare) rowHeights
+    maxHeights = map (\l -> if length l == 0 then 0 else L.maximumBy compare l) rowHeights
     mergeMax a b = map (\(c,d) -> max c d) (zip a b)
     
 --the normal "lines" function returns an empty list for an empty string which is not what we want
@@ -72,7 +72,11 @@ breakLines x = T.lines x
 cellSizes :: Table -> [([Int], [Int])]    
 cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . breakLines) row)) allRows
   where
-    maxRowWidth row = L.maximumBy compare (map T.length (breakLines row))
+    maxRowWidth row = if length (lengths row) == 0 then
+                         0
+                      else 
+                        L.maximumBy compare (lengths row)
+    lengths row = map T.length (breakLines row)
     allRows = [header] ++ body
 
 relationAsTable :: Relation -> Table
@@ -137,13 +141,4 @@ repeatString :: Int -> StringType -> StringType
 repeatString c s = T.concat (take c (repeat s))
 
 showRelation :: Relation -> StringType
-showRelation rel
-  | rel == relationTrue = "true"
-  | rel == relationFalse = "false"                     
-  | otherwise = renderTable (relationAsTable rel)
-  
-
-{-
-groupedExample :: Relation
-groupedExample = case group (S.fromList ["CITY"]) "CITYREL" s of {Right rel -> rel}
--}
+showRelation rel = renderTable (relationAsTable rel)
