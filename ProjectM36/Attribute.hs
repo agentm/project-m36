@@ -70,12 +70,9 @@ attributeForName attrName attrs = case V.find ((attrName ==) . attributeName) at
   Just attr -> Right attr
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
-attributesForNames attrNameSet attrs = V.foldr folder V.empty attrs
+attributesForNames attrNameSet attrs = V.filter filt attrs
   where
-    folder attr acc = if S.member (attributeName attr) attrNameSet then
-                        acc `V.snoc` attr
-                      else
-                        acc
+    filt attr = S.member (attributeName attr) attrNameSet
                         
 attributeNameSet :: Attributes -> S.Set AttributeName
 attributeNameSet attrVec = S.fromList $ V.toList $ V.map (\(Attribute name _) -> name) attrVec
@@ -117,3 +114,5 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
   where
     collapsedAttrs = vectorUniqueify attrs
   
+attributesEqual :: Attributes -> Attributes -> Bool
+attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
