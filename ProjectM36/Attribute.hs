@@ -22,7 +22,7 @@ attributesFromList = V.fromList -- . L.nub
 attributeName :: Attribute -> AttributeName
 attributeName (Attribute name _) = name
 
-atomType :: Attribute -> AtomType    
+atomType :: Attribute -> AtomType
 atomType (Attribute _ atype) = atype
 
 isRelationAtomType :: AtomType -> Bool
@@ -38,9 +38,9 @@ joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
 joinAttributes attrs1 attrs2 = if V.length (vectorUniqueify overlappingAttributes) /= V.length overlappingAttributes then
                                  Left $ TupleAttributeTypeMismatchError overlappingAttributes
                                else
-                                 Right $ attrs1 V.++ otherAttributes
+                                 Right $ vectorUniqueify (attrs1 V.++ attrs2)
   where
-    (overlappingAttributes, otherAttributes) = V.partition (\attr -> V.elem attr attrs2) attrs1
+    overlappingAttributes = V.filter (\attr -> V.elem attr attrs2) attrs1
 
 addAttributes :: Attributes -> Attributes -> Attributes
 addAttributes = (V.++)
@@ -48,22 +48,22 @@ addAttributes = (V.++)
 deleteAttributeName :: AttributeName -> Attributes -> Attributes
 deleteAttributeName attrName = V.filter (\attr -> attributeName attr /= attrName)
 
-renameAttribute :: AttributeName -> Attribute -> Attribute                
+renameAttribute :: AttributeName -> Attribute -> Attribute
 renameAttribute newAttrName (Attribute _ typeo) = Attribute newAttrName typeo
 
 renameAttributes :: AttributeName -> AttributeName -> Attributes -> Attributes
 renameAttributes oldAttrName newAttrName attrs = V.map renamer attrs
   where
-    renamer attr = if attributeName attr == oldAttrName then 
+    renamer attr = if attributeName attr == oldAttrName then
                      renameAttribute newAttrName attr
-                   else  
+                   else
                      attr
-                     
+
 atomTypeForAttributeName :: AttributeName -> Attributes -> Either RelationalError AtomType
 atomTypeForAttributeName attrName attrs = do
   (Attribute _ atype) <- attributeForName attrName attrs
   return atype
-                         
+
 attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
 attributeForName attrName attrs = case V.find ((attrName ==) . attributeName) attrs of
   Nothing -> Left $ NoSuchAttributeNameError attrName
@@ -73,7 +73,7 @@ attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
 attributesForNames attrNameSet attrs = V.filter filt attrs
   where
     filt attr = S.member (attributeName attr) attrNameSet
-                        
+
 attributeNameSet :: Attributes -> S.Set AttributeName
 attributeNameSet attrVec = S.fromList $ V.toList $ V.map (\(Attribute name _) -> name) attrVec
 
@@ -95,13 +95,13 @@ matchingAttributeNameSet = S.intersection
 -- this is sorted so the tuples know in which order to output- the ordering is arbitrary
 sortedAttributeNameList :: S.Set AttributeName -> [AttributeName]
 sortedAttributeNameList attrNameSet= L.sort $ S.toList attrNameSet
-    
+
 -- take two attribute sets and return an attribute set with the attributes which do not match
-attributesDifference :: Attributes -> Attributes -> Attributes                           
+attributesDifference :: Attributes -> Attributes -> Attributes
 attributesDifference attrsA attrsB = V.fromList $ diff (V.toList attrsA) (V.toList attrsB)
   where
     diff a b = (a L.\\ b)  ++ (b L.\\ a)
-    
+
 vectorUniqueify :: (Hash.Hashable a, Eq a) => V.Vector a -> V.Vector a
 vectorUniqueify vecIn = V.fromList $ HS.toList $ HS.fromList $ V.toList vecIn
 
@@ -113,6 +113,6 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
                            Right attrs
   where
     collapsedAttrs = vectorUniqueify attrs
-  
+
 attributesEqual :: Attributes -> Attributes -> Bool
 attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
