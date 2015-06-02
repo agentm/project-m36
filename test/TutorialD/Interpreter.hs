@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter
 import Test.HUnit
 import ProjectM36.RelationalExpression
@@ -20,11 +21,11 @@ import qualified Data.Vector as V
 
 --urgent: add group and ungroup tests- I missed the group relation type bug
 main :: IO ()
-main = do 
+main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -65,10 +66,10 @@ main = do
                            ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
                            ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (HS.singleton $ mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50]))),
                            --atom function tests
-                           ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel), 
+                           ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel),
                            ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ StringAtom "Blake") then updateTuple (M.singleton "CITY" (StringAtom "Boston")) tuple else tuple) suppliersRel),
                            ("x:=relation{tuple{a int(5)}} : {b:=S}", mkRelation extendTestAttributes (HS.singleton $ mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel]))),
-                           --relatom function tests                           
+                           --relatom function tests
                            ("x:=((S group ({CITY} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (HS.singleton $ mkRelationTuple groupCountAttrs (V.singleton $ IntAtom 1))),
                            ("x:=(SP group ({S#} as y)) ungroup y", Right supplierProductsRel),
                            ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=max(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
@@ -80,25 +81,25 @@ main = do
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
 assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted
   where
-    interpreted = case interpret databaseContext tutd of 
-      (Just err, _) -> Left err
-      (Nothing, context) -> case M.lookup "x" (relationVariables context) of
+    interpreted = case interpretDatabaseExpr databaseContext tutd of
+      Left err -> Left err
+      Right context -> case M.lookup "x" (relationVariables context) of
         Nothing -> Left $ RelVarNotDefinedError "x"
-        Just rel -> Right rel 
-      
+        Just rel -> Right rel
+
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
     (_, graph) <-  dateExamplesGraph
     assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
-    
---add a new transaction to the graph, validate it is in the graph    
+
+--add a new transaction to the graph, validate it is in the graph
 transactionGraphAddCommitTest :: Test
-transactionGraphAddCommitTest = TestCase $ do    
+transactionGraphAddCommitTest = TestCase $ do
     ((DisconnectedTransaction firstUUID context), origGraph) <- dateExamplesGraph
     freshUUID <- nextRandom
-    case interpret context "x:=S" of
-      (Just err, _) -> assertFailure (show err)
-      (Nothing, newContext) -> do
+    case interpretDatabaseExpr context "x:=S" of
+      Left err -> assertFailure (show err)
+      Right newContext -> do
         let discon = newDisconnectedTransaction firstUUID newContext
         let addTrans = addDisconnectedTransaction freshUUID "master" discon origGraph
         case addTrans of
@@ -107,37 +108,37 @@ transactionGraphAddCommitTest = TestCase $ do
             assertBool "transaction in graph" (isRight $ transactionForUUID freshUUID graph)
             assertEqual "validate fresh commit with deleted S" (validateGraph graph) Nothing
             assertEqual "ensure S was deleted in newContext" (M.lookup "x" (relationVariables (transactionContext newTrans))) (Just suppliersRel)
-    
+
 transactionRollbackTest :: Test
-transactionRollbackTest = TestCase $ do            
+transactionRollbackTest = TestCase $ do
     ((DisconnectedTransaction firstUUID origContext), graph) <- dateExamplesGraph
     freshUUID <- nextRandom
-    case transactionForUUID firstUUID graph of 
+    case transactionForUUID firstUUID graph of
       Left err -> assertFailure (show err)
       Right _ -> do
-        case interpret origContext "x:=S" of
-          (Just err, _) -> assertFailure (show err)
-          (Nothing, newContext) -> do
+        case interpretDatabaseExpr origContext "x:=S" of
+          Left err -> assertFailure (show err)
+          Right newContext -> do
             let discon = newDisconnectedTransaction firstUUID newContext
-            let ((DisconnectedTransaction _ newContext2), newGraph, _) = interpretOps freshUUID discon graph ":rollback"
+            let (_, (DisconnectedTransaction _ newContext2), newGraph) = interpret freshUUID discon graph ":rollback"
             assertEqual "validate context" (M.lookup "x" (relationVariables newContext2)) Nothing
             assertEqual "validate graph" graph newGraph
 
 --commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
-transactionJumpTest :: Test            
+transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
-    ((DisconnectedTransaction firstUUID origContext), origGraph) <- dateExamplesGraph 
+    ((DisconnectedTransaction firstUUID origContext), origGraph) <- dateExamplesGraph
     freshUUID <- nextRandom
     case transactionForUUID firstUUID origGraph of
       Left err -> assertFailure (show err)
       Right _ -> do
-        case interpret origContext "x:=S" of
-          (Just err, _) -> assertFailure (show err)
-          (Nothing, newContext) -> do
+        case interpretDatabaseExpr origContext "x:=S" of
+          Left err -> assertFailure (show err)
+          Right newContext -> do
             --modify the second transaction
-            case interpret newContext "x:=S" of
-              (Just err, _) -> assertFailure (show err)
-              (Nothing, newContext2) -> do
+            case interpretDatabaseExpr newContext "x:=S" of
+              Left err-> assertFailure (show err)
+              Right newContext2 -> do
                 --add the transaction
                 let discon = newDisconnectedTransaction firstUUID newContext2
                 let addTrans = addDisconnectedTransaction freshUUID "master" discon origGraph
@@ -145,20 +146,20 @@ transactionJumpTest = TestCase $ do
                   Left err -> assertFailure (show err)
                   Right (_, graph) -> do
                     --jump to the first transaction
-                    let ((DisconnectedTransaction parentUUID newContext3), newGraph, _) = interpretOps freshUUID discon graph (":jump " ++ show firstUUID)
+                    let (_, (DisconnectedTransaction parentUUID newContext3), newGraph) = interpret freshUUID discon graph (":jump " ++ show firstUUID)
                     assertEqual "validate discon" parentUUID firstUUID
                     assertEqual "validate discon2" Nothing (M.lookup "x" (relationVariables newContext3))
                     assertEqual "validate graph" transactionUUIDs (S.map transactionUUID (transactionsForGraph newGraph))
                     where
                       transactionUUIDs = S.fromList [firstUUID, freshUUID]
-                      
+
 --branch from the first transaction and verify that there are two heads
-transactionBranchTest :: Test                     
+transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
     (origDiscon@(DisconnectedTransaction firstUUID origContext), origGraph) <- dateExamplesGraph
     freshUUID1 <- nextRandom
     freshUUID2 <- nextRandom
-    case transactionForUUID firstUUID origGraph of    
+    case transactionForUUID firstUUID origGraph of
       Left err -> assertFailure (show err)
       Right _ -> do
         let disconMaster = newDisconnectedTransaction firstUUID origContext
@@ -168,15 +169,38 @@ transactionBranchTest = TestCase $ do
           Left err -> assertFailure (show err)
           Right (_, graph) -> do
             --add a third transaction to the "test" branch
-            let (_, newGraph, _) = interpretOps freshUUID2 origDiscon graph ":branch test"
+            let (_, _, newGraph) = interpret freshUUID2 origDiscon graph ":branch test"
             assertEqual "verify test head" freshUUID2 $ maybeTransUUID (transactionForHead "test" newGraph)
             assertEqual "verify master head" freshUUID1 $ maybeTransUUID (transactionForHead "master" newGraph)
     where
       maybeTransUUID t = maybe nil transactionUUID t
-        
+
+simpleJoinTest :: Test
+simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP"
+    where
+        attrs = A.attributesFromList [Attribute "CITY" StringAtomType,
+                                      Attribute "QTY" IntAtomType,
+                                      Attribute "P#" StringAtomType,
+                                      Attribute "S#" StringAtomType,
+                                      Attribute "SNAME" StringAtomType,
+                                      Attribute "STATUS" IntAtomType]
+        joinedRel = mkRelationFromList attrs [[StringAtom "London", IntAtom 100, StringAtom "P6", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "London", IntAtom 400, StringAtom "P3", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "London", IntAtom 400, StringAtom "P5", StringAtom "S4", StringAtom "Clark", IntAtom 20],
+                                              [StringAtom "London", IntAtom 300, StringAtom "P1", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "Paris", IntAtom 200, StringAtom "P2", StringAtom "S3", StringAtom "Blake", IntAtom 30],
+                                              [StringAtom "Paris", IntAtom 300, StringAtom "P1", StringAtom "S2", StringAtom "Jones", IntAtom 10],
+                                              [StringAtom "London", IntAtom 100, StringAtom "P5", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "London", IntAtom 300, StringAtom "P4", StringAtom "S4", StringAtom "Clark", IntAtom 20],
+                                              [StringAtom "Paris", IntAtom 400, StringAtom "P2", StringAtom "S2", StringAtom "Jones", IntAtom 10],
+                                              [StringAtom "London", IntAtom 200, StringAtom "P2", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "London", IntAtom 200, StringAtom "P4", StringAtom "S1", StringAtom "Smith", IntAtom 20],
+                                              [StringAtom "London", IntAtom 200, StringAtom "P2", StringAtom "S4", StringAtom "Clark", IntAtom 20]
+                                              ]
+
 dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
 dateExamplesGraph = do
-  firstTransactionUUID <- nextRandom                    
+  firstTransactionUUID <- nextRandom
   let graph = bootstrapTransactionGraph firstTransactionUUID dateExamples
   let discon = newDisconnectedTransaction firstTransactionUUID dateExamples
   return (discon, graph)

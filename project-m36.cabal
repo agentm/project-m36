@@ -23,13 +23,18 @@ Library
                      ProjectM36.Relation.Show.Term,
                      ProjectM36.Relation.Show.CSV
     GHC-Options: -Wall -rtsopts
-        
+
 Executable tutd
     Build-Depends: base
     Other-Modules: ProjectM36.Error,
                    ProjectM36.Base,
                    ProjectM36.RelationalExpression,
-                   ProjectM36.Transaction    
+                   ProjectM36.Transaction,
+                   TutorialD.Interpreter,
+                   TutorialD.Interpreter.Base,
+                   TutorialD.Interpreter.DatabaseExpr,
+                   TutorialD.Interpreter.RODatabaseContextOperator,
+                   TutorialD.Interpreter.TransactionGraphOperator
     main-is: TutorialD/tutd.hs
     GHC-Options: -Wall
 

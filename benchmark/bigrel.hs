@@ -4,7 +4,7 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
-import TutorialD.Interpreter (interpret)
+import TutorialD.Interpreter.DatabaseExpr (interpretDatabaseExpr)
 import ProjectM36.RelationalExpression
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -12,11 +12,10 @@ import qualified Data.IntMap as IM
 import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
 import Options.Applicative
-import Control.Monad.State
 import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import System.IO
-                     
+
 dumpcsv :: Relation -> IO ()
 dumpcsv = BS.putStrLn . relationAsCSV
 
@@ -30,7 +29,7 @@ parseTupleCount = option auto (short 't' <> long "tuple-count")
 
 parseTutD :: Parser String
 parseTutD = strOption (short 'd' <> long "tutoriald")
-  
+
 parseArgs :: Parser BigrelArgs
 parseArgs =  BigrelArgs <$> parseAttributeCount <*> parseTupleCount <*> parseTutD
 
@@ -39,37 +38,36 @@ main = do
   bigrelArgs <- execParser $ info (helper <*> parseArgs) fullDesc
   --matrixRestrictRun
   matrixRun bigrelArgs
-    --vectorMatrixRun 
+    --vectorMatrixRun
     --intmapMatrixRun
-  
+
 matrixRestrictRun :: IO ()
-matrixRestrictRun = do  
+matrixRestrictRun = do
   case matrixRelation 100 1000000 of
     Left err -> putStrLn (show err)
     Right rel -> case restrict (\tuple -> atomForAttributeName "0" tuple == Right (IntAtom 5)) rel of
       Left err -> putStrLn (show err)
       Right rel -> dumpcsv rel
-      
+
 matrixRun :: BigrelArgs -> IO ()
-matrixRun (BigrelArgs attributeCount tupleCount tutd) = do  
+matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
   case matrixRelation attributeCount tupleCount of
     Left err -> putStrLn (show err)
     Right rel -> if tutd == "" then
                    putStrLn "Done."
-                 else do 
+                 else do
                    let setx = Assign "x" (ExistingRelation rel)
-                       (_, context) = runState (evalContextExpr setx) dateExamples
-                       (err, context2) = interpret context tutd
-                   case err of
-                     Nothing -> TIO.putStrLn $ relationAsHTML ((relationVariables context2) M.! "x")
-                     Just err -> hPutStrLn stderr (show err)
-                   
-      
+                       interpreted = interpretDatabaseExpr dateExamples tutd
+                   case interpreted of
+                     Right context' -> TIO.putStrLn $ relationAsHTML ((relationVariables context') M.! "x")
+                     Left err -> hPutStrLn stderr (show err)
+
+
 intmapMatrixRun :: IO ()
-intmapMatrixRun = do      
+intmapMatrixRun = do
   let matrix = intmapMatrixRelation 100 100000
   putStrLn (show matrix)
-  
+
 --compare IntMap speed and size
 --this is about 3 times faster (9 minutes) for 10x100000 and uses 800 MB
 intmapMatrixRelation :: Int -> Int -> HS.HashSet (IM.IntMap Atom)
@@ -91,6 +89,6 @@ vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
     mapper tupCount = V.replicate attributeCount (IntAtom tupCount)
-    
-instance Hash.Hashable (V.Vector Atom) where    
+
+instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)
