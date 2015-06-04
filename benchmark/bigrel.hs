@@ -15,6 +15,7 @@ import Options.Applicative
 import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import System.IO
+import Control.Monad.State
 
 dumpcsv :: Relation -> IO ()
 dumpcsv = BS.putStrLn . relationAsCSV
@@ -57,7 +58,8 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                    putStrLn "Done."
                  else do
                    let setx = Assign "x" (ExistingRelation rel)
-                       interpreted = interpretDatabaseExpr dateExamples tutd
+                       context = execState (evalContextExpr setx) dateExamples
+                       interpreted = interpretDatabaseExpr context tutd
                    case interpreted of
                      Right context' -> TIO.putStrLn $ relationAsHTML ((relationVariables context') M.! "x")
                      Left err -> hPutStrLn stderr (show err)

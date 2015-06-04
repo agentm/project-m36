@@ -17,8 +17,9 @@ instance ToRecord RelationTuple where
   toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)
       
 instance ToField Atom where
+  toField (BoolAtom atom) = toField (if atom then "t" else "f")
   toField (StringAtom atom) = toField atom
   toField (IntAtom atom) = toField atom
-  toField (RelationAtom atom) = undefined -- CSV does not support nested relations- this should likely be detected and rejected
+  toField (RelationAtom _) = undefined -- CSV does not support nested relations- this should likely be detected and rejected
     
                  

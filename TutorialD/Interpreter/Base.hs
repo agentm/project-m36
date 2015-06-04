@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module TutorialD.Interpreter.Base where
 import Text.Parsec
+import Text.Parsec.String
 import qualified Text.Parsec.Token as Token
 import Text.Parsec.Language
 import ProjectM36.Base
@@ -16,13 +17,26 @@ lexer = Token.makeTokenParser tutD
                 Token.identStart = letter <|> char '_',
                 Token.opLetter = oneOf ":!#$%&*+./<=>?\\^|-~", -- remove "@" so it can be used as attribute marker without spaces
                 Token.identLetter = alphaNum <|> char '_' <|> char '#'} -- # needed for Date examples
-
+                     
+parens :: Parser a -> Parser a
 parens = Token.parens lexer
+
+reservedOp :: String -> Parser ()
 reservedOp = Token.reservedOp lexer
+
+reserved :: String -> Parser ()
 reserved = Token.reserved lexer
+
+braces :: Parser a -> Parser a
 braces = Token.braces lexer
+
+identifier :: Parser String
 identifier = Token.identifier lexer
+
+comma :: Parser String
 comma = Token.comma lexer
+
+semi :: Parser String
 semi = Token.semi lexer
 
 --convert Tutorial D type to AtomType

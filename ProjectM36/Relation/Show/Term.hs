@@ -95,6 +95,7 @@ showAtom :: Atom -> StringType
 showAtom (StringAtom atom) = atom
 showAtom (IntAtom atom) = T.pack $ show atom
 showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
+showAtom (BoolAtom bool) = T.pack $ show bool
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs

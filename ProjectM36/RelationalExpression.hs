@@ -13,7 +13,6 @@ import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
-import Debug.Trace
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -77,7 +76,7 @@ evalRelationalExpr (Restrict predicateExpr relExpr) = do
   context <- get
   case evald of 
     Left err -> return $ Left err
-    Right rel -> case predicateRestrictionFilter context predicateExpr of
+    Right rel -> case predicateRestrictionFilter context (attributes rel) predicateExpr of
       Left err -> return $ Left err
       Right filterfunc -> return $ restrict filterfunc rel
       
@@ -167,7 +166,7 @@ supplierProductsRel = case mkRelationFromList attrs matrix of
              
 productsRel :: Relation             
 productsRel = case mkRelationFromList attrs matrix of
-  Left err -> traceShow (show err) undefined
+  Left _ -> undefined
   Right rel -> rel
   where
     attrs = A.attributesFromList [Attribute "P#" StringAtomType,
@@ -242,20 +241,20 @@ evalContextExpr (Delete relVarName predicate) = do
 evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = do
   currstate <- get
   let relVarTable = relationVariables currstate 
-  case predicateRestrictionFilter currstate restrictionPredicateExpr of
-    Left err -> return $ Just err
-    Right predicateFunc -> do 
-                           case M.lookup relVarName relVarTable of
-                             Nothing -> return $ Just (RelVarNotDefinedError relVarName)
-                             Just rel -> case makeUpdatedRel rel of
-                               Left err -> return $ Just err
-                               Right updatedRel -> setRelVar relVarName updatedRel
-                               where
-                                 makeUpdatedRel relin = do
-                                   restrictedPortion <- restrict predicateFunc relin
-                                   unrestrictedPortion <- restrict (not . predicateFunc) relin
-                                   updatedPortion <- relMap (updateTuple attrAssignments) restrictedPortion
-                                   union updatedPortion unrestrictedPortion
+  case M.lookup relVarName relVarTable of
+    Nothing -> return $ Just (RelVarNotDefinedError relVarName)
+    Just rel -> case predicateRestrictionFilter currstate (attributes rel) restrictionPredicateExpr of
+      Left err -> return $ Just err
+      Right predicateFunc -> do 
+        case makeUpdatedRel rel of
+          Left err -> return $ Just err
+          Right updatedRel -> setRelVar relVarName updatedRel
+        where
+          makeUpdatedRel relin = do
+            restrictedPortion <- restrict predicateFunc relin
+            unrestrictedPortion <- restrict (not . predicateFunc) relin
+            updatedPortion <- relMap (updateTuple attrAssignments) restrictedPortion
+            union updatedPortion unrestrictedPortion
 
 evalContextExpr (AddInclusionDependency dep) = do
   currstate <- get
@@ -328,24 +327,24 @@ contextWithEmptyTupleSets contextIn = DatabaseContext incDeps relVars funcs
     funcs = atomFunctions contextIn
   
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
-predicateRestrictionFilter :: DatabaseContext -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)
-predicateRestrictionFilter context (AndPredicate expr1 expr2) = do
-  expr1v <- predicateRestrictionFilter context expr1
-  expr2v <- predicateRestrictionFilter context expr2
+predicateRestrictionFilter :: DatabaseContext -> Attributes -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)
+predicateRestrictionFilter context attrs (AndPredicate expr1 expr2) = do
+  expr1v <- predicateRestrictionFilter context attrs expr1
+  expr2v <- predicateRestrictionFilter context attrs expr2
   return $ \x -> expr1v x && expr2v x
 
-predicateRestrictionFilter context (OrPredicate expr1 expr2) = do
-  expr1v <- predicateRestrictionFilter context expr1
-  expr2v <- predicateRestrictionFilter context expr2
+predicateRestrictionFilter context attrs (OrPredicate expr1 expr2) = do
+  expr1v <- predicateRestrictionFilter context attrs expr1
+  expr2v <- predicateRestrictionFilter context attrs expr2
   return $ \x -> expr1v x || expr2v x
   
-predicateRestrictionFilter _ TruePredicate = Right $ \_ -> True
+predicateRestrictionFilter _ _ TruePredicate = Right $ \_ -> True
   
-predicateRestrictionFilter context (NotPredicate expr) = do
-  exprv <- predicateRestrictionFilter context expr
+predicateRestrictionFilter context attrs (NotPredicate expr) = do
+  exprv <- predicateRestrictionFilter context attrs expr
   return $ \x -> not (exprv x)
 
-predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runState (evalRelationalExpr relExpr) context of
+predicateRestrictionFilter context _ (RelationalExprPredicate relExpr) = case runState (evalRelationalExpr relExpr) context of
   (Left err, _) -> Left err
   (Right rel, _) -> if rel == relationTrue then
                       Right $ \_ -> True  
@@ -354,12 +353,22 @@ predicateRestrictionFilter context (RelationalExprPredicate relExpr) = case runS
                          else
                            Left $ PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'"
     
-predicateRestrictionFilter context (AttributeEqualityPredicate attrName atomexpr) = Right $ \tupleIn -> case atomForAttributeName attrName tupleIn of
+predicateRestrictionFilter context _ (AttributeEqualityPredicate attrName atomexpr) = Right $ \tupleIn -> case atomForAttributeName attrName tupleIn of
   Left _ -> False
   Right atomIn -> 
     case evalAtomExpr tupleIn context atomexpr of
       Left _ -> False
       Right atomCmp -> atomCmp == atomIn
+      
+-- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance      
+predicateRestrictionFilter context attrs (AtomExprPredicate atomExpr) = do 
+  aType <- typeFromAtomExpr attrs context atomExpr
+  if aType /= BoolAtomType then
+    Left $ AtomTypeMismatchError aType BoolAtomType
+    else
+    Right (\tupleIn -> case evalAtomExpr tupleIn context atomExpr of
+                Left _ -> False
+                Right boolAtomValue -> boolAtomValue == BoolAtom True)
 
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
 tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName rel then
@@ -445,6 +454,30 @@ basicAtomFunctions = HS.fromList [
                  atomFunc = (\((RelationAtom relIn):_) -> relationMax relIn)},
   AtomFunction { atomFuncName = "min",
                  atomFuncType = foldAtomFuncType IntAtomType IntAtomType,
-                 atomFunc = (\((RelationAtom relIn):_) -> relationMin relIn)}
-
+                 atomFunc = (\((RelationAtom relIn):_) -> relationMin relIn)},
+  AtomFunction { atomFuncName = "lt",
+                 atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
+                 atomFunc = intAtomFuncLessThan False},
+  AtomFunction { atomFuncName = "lte",
+                 atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
+                 atomFunc = intAtomFuncLessThan True},
+  AtomFunction { atomFuncName = "gte",
+                 atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
+                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan False},
+  AtomFunction { atomFuncName = "gt",
+                 atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
+                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan True},
+  AtomFunction { atomFuncName = "not",
+                 atomFuncType = [BoolAtomType, BoolAtomType],
+                 atomFunc = boolAtomNot}
   ]
+
+intAtomFuncLessThan :: Bool -> [Atom] -> Atom
+intAtomFuncLessThan equality (iatom1:iatom2:_) = (\(IntAtom i1) (IntAtom i2) -> BoolAtom $ i1 `op` i2) iatom1 iatom2
+  where
+    op = if equality then (<=) else (<)
+intAtomFuncLessThan _ _= BoolAtom False
+
+boolAtomNot :: [Atom] -> Atom
+boolAtomNot (BoolAtom bool:_) = BoolAtom $ not bool
+boolAtomNot _ = BoolAtom False

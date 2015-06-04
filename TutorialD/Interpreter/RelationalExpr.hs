@@ -13,6 +13,7 @@ import ProjectM36.Atom
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import Control.Applicative (liftA, (<*), (*>), (<$>))
+import Data.Functor.Identity (Identity)
 
 --used in projection
 attributeListP :: Parser [AttributeName]
@@ -142,6 +143,7 @@ summaryP = do
   return (expr, T.pack attrName)
 -}
 
+relOperators :: [[Operator String () Identity RelationalExpr]]
 relOperators = [
   [Postfix projectP],
   [Postfix renameP],
@@ -174,14 +176,16 @@ restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
       [Infix (reservedOp "or" >> return OrPredicate) AssocLeft]
       ]
     predicateTerm = parens restrictionPredicateP
+    		    <|> try restrictionAtomExprP	   
                     <|> try restrictionAttributeEqualityP
                     <|> try relationalBooleanExprP
+
 
 relationalBooleanExprP :: Parser RestrictionPredicateExpr
 relationalBooleanExprP = do
   relexpr <- relExprP
   return $ RelationalExprPredicate relexpr
-
+  
 restrictionAttributeEqualityP :: Parser RestrictionPredicateExpr
 restrictionAttributeEqualityP = do
   attributeName <- identifier
@@ -189,6 +193,10 @@ restrictionAttributeEqualityP = do
   atomexpr <- atomExprP
   return $ AttributeEqualityPredicate (T.pack attributeName) atomexpr
 
+restrictionAtomExprP :: Parser RestrictionPredicateExpr --atoms which are of type "boolean"
+restrictionAtomExprP = do
+  _ <- char '^' -- not ideal, but allows me to continue to use a context-free grammar
+  AtomExprPredicate <$> atomExprP
 
 multiTupleExpressionP :: Parser [TupleExpr]
 multiTupleExpressionP = sepBy tupleExpressionP comma
@@ -216,7 +224,7 @@ attributeAtomExprP = do
   return $ AttributeAtomExpr (T.pack attrName)
 
 nakedAtomExprP :: Parser AtomExpr
-nakedAtomExprP = NakedAtomExpr <$> (stringAtomP <|> intAtomP)
+nakedAtomExprP = NakedAtomExpr <$> (stringAtomP <|> intAtomP <|> boolAtomP)
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -227,11 +235,20 @@ functionAtomExprP = do
 relationalAtomExprP :: Parser AtomExpr
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
+quotedChar :: Parser Char
 quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
 
+stringAtomP :: Parser Atom
 stringAtomP = liftA (StringAtom . T.pack) (string "\"" *> many quotedChar <* string "\"")
 
+intAtomP :: Parser Atom
 intAtomP = do
   intstr <- many1 digit
   return $ IntAtom (read intstr)
+
+boolAtomP :: Parser Atom
+boolAtomP = do
+  val <- char 't' <|> char 'f'
+  return $ BoolAtom (val == 't')
+  

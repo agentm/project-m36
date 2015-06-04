@@ -17,6 +17,7 @@ type StringType = T.Text
 
 data Atom = StringAtom StringType |
             IntAtom Int |
+            BoolAtom Bool |
             RelationAtom Relation 
           deriving (Show, Eq, Generic)
                                            
@@ -26,6 +27,7 @@ instance Hash.Hashable Atom
 
 data AtomType = StringAtomType |
                 IntAtomType |
+                BoolAtomType |
                 RelationAtomType Attributes |
                 AnyAtomType --AnyAtomType is used as a wildcard
               deriving (Eq, Show, Generic)
@@ -150,6 +152,7 @@ data RestrictionPredicateExpr where
   OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
   NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
+  AtomExprPredicate :: AtomExpr -> RestrictionPredicateExpr --atom must evaluate to boolean
   AttributeEqualityPredicate :: AttributeName -> AtomExpr -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq)
 

@@ -30,11 +30,6 @@ attributesForNames attrNameSet (Relation attrs _) = A.attributesForNames attrNam
 atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
     
-atomValueType :: Atom -> AtomType
-atomValueType (StringAtom _) = StringAtomType
-atomValueType (IntAtom _) = IntAtomType
-atomValueType (RelationAtom rel) = RelationAtomType (attributes rel)
-
 mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
 mkRelationFromList attrs atomMatrix = do
   tupSet <- mkTupleSetFromList attrs atomMatrix
@@ -182,13 +177,11 @@ ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
     newAttrs = A.addAttributes relvalAttrs nonGroupAttrs
     nonGroupAttrs = A.deleteAttributeName relvalAttrName (attributes rel)
     relFolder :: RelationTuple -> Either RelationalError Relation -> Either RelationalError Relation
-    relFolder tupleIn acc = case (tupleUngroup relvalAttrName newAttrs tupleIn) of 
-      Right ungroupRelation -> case acc of
+    relFolder tupleIn acc = case acc of
         Left err -> Left err
         Right accRel -> do
                         ungrouped <- tupleUngroup relvalAttrName newAttrs tupleIn
                         union accRel ungrouped
-      Left err -> Left err
       
 --take an relval attribute name and a tuple and ungroup the relval 
 tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either RelationalError Relation
