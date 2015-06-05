@@ -16,10 +16,12 @@ import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Data.Functor.Identity (Identity)
 
 --used in projection
-attributeListP :: Parser [AttributeName]
+attributeListP :: Parser AttributeNames
 attributeListP = do
+  but <- try (string "all but " <* whiteSpace) <|> string ""
+  let constructor = if but == "" then AttributeNames else InvertedAttributeNames
   attrs <- sepBy identifier comma
-  return $ map T.pack attrs
+  return $ constructor (S.fromList (map T.pack attrs))
 
 makeRelationP :: Parser RelationalExpr
 makeRelationP = do
@@ -69,7 +71,7 @@ tupleAtomP = do
 projectP :: Parser (RelationalExpr -> RelationalExpr)
 projectP = do
   attrs <- braces attributeListP
-  return $ Project (S.fromList attrs)
+  return $ Project attrs
 
 renameClauseP :: Parser (String, String)
 renameClauseP = do
@@ -90,7 +92,7 @@ whereClauseP = do
   boolExpr <- restrictionPredicateP
   return $ Restrict boolExpr
 
-groupClauseP :: Parser ([AttributeName], String)
+groupClauseP :: Parser (AttributeNames, String)
 groupClauseP = do
   attrs <- braces attributeListP
   reservedOp "as"
@@ -101,7 +103,7 @@ groupP :: Parser (RelationalExpr -> RelationalExpr)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClauseP
-  return $ Group (S.fromList groupAttrList) (T.pack groupAttrName)
+  return $ Group groupAttrList (T.pack groupAttrName)
 
 --in "Time and Relational Theory" (2014), Date's Tutorial D grammar for ungroup takes one attribute, while in previous books, it take multiple arguments. Let us assume that nested ungroups are the same as multiple attributes.
 ungroupP :: Parser (RelationalExpr -> RelationalExpr)

@@ -22,10 +22,10 @@ evalRelationalExpr (RelationVariable name) = do
     Just res -> Right res
     Nothing -> Left $ RelVarNotDefinedError name 
 
-evalRelationalExpr (Project attrNameSet expr) = do
+evalRelationalExpr (Project attrNames expr) = do
     rel <- evalRelationalExpr expr
     case rel of 
-      Right rel2 -> return $ project attrNameSet rel2
+      Right rel2 -> return $ project attrNames rel2
       Left err -> return $ Left err
 
 evalRelationalExpr (Union exprA exprB) = do

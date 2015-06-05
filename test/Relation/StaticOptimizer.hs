@@ -16,7 +16,7 @@ main = do
     tests = relationOptTests ++ databaseOptTests
     optTest optfunc testparams = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (evalState (optfunc unopt) dateExamples)) $ testparams
     relationOptTests = optTest applyStaticRelationalOptimization [
-      ("StaticProject", Right $ RelationVariable "S", Project (attributeNames suppliersRel) (RelationVariable "S")),
+      ("StaticProject", Right $ RelationVariable "S", Project (AttributeNames (attributeNames suppliersRel)) (RelationVariable "S")),
       ("StaticUnion", Right $ RelationVariable "S", Union (RelationVariable "S") (RelationVariable "S")),
       ("StaticJoin", Right $ RelationVariable "S", Join (RelationVariable "S") (RelationVariable "S")),
       ("StaticRestrictTrue", Right $ RelationVariable "S", Restrict TruePredicate (RelationVariable "S")),

@@ -13,6 +13,7 @@ Library
                      ProjectM36.Transaction.Show,
                      ProjectM36.Base,
                      ProjectM36.Attribute,
+                     ProjectM36.AttributeNames,
                      ProjectM36.Tuple,
                      ProjectM36.TupleSet,
                      ProjectM36.Atom,

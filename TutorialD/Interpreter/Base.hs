@@ -39,6 +39,9 @@ comma = Token.comma lexer
 semi :: Parser String
 semi = Token.semi lexer
 
+whiteSpace :: Parser ()
+whiteSpace = Token.whiteSpace lexer
+
 --convert Tutorial D type to AtomType
 tutDTypeToAtomType :: String -> Maybe AtomType
 tutDTypeToAtomType tutDType = case tutDType of
@@ -65,3 +68,4 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
                                DisplayErrorResult StringType |
                                QuietSuccessResult
+

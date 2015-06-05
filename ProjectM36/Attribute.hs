@@ -116,3 +116,4 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
 
 attributesEqual :: Attributes -> Attributes -> Bool
 attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
+

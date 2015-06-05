@@ -104,11 +104,11 @@ data RelationalExpr where
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   RelationVariable :: RelVarName -> RelationalExpr
-  Project :: S.Set AttributeName -> RelationalExpr -> RelationalExpr
+  Project :: AttributeNames -> RelationalExpr -> RelationalExpr
   Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
-  Group :: S.Set AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  Group :: AttributeNames -> AttributeName -> RelationalExpr -> RelationalExpr
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
@@ -227,3 +227,7 @@ instance Show AtomFunction where
   show aFunc = T.unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
    where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
+
+data AttributeNames = AttributeNames (S.Set AttributeName) |
+     		      InvertedAttributeNames (S.Set AttributeName)
+		       deriving (Eq, Show)

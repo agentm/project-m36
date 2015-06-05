@@ -9,6 +9,7 @@ import qualified Data.Vector as V
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
+import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import Prelude hiding (join)
@@ -79,18 +80,19 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   where
     newtuples = HS.union tupSet1 tupSet2
 
-project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
+project :: AttributeNames -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel = 
-  if not $ A.attributeNamesContained projectionAttrNames (attributeNames rel)
+  if not $ A.attributeNamesContained selectedAttrNames (attributeNames rel)
      then Left $ AttributeNameMismatchError ""
   else
     relFold folder (Right $ Relation newAttrs HS.empty) rel
   where
-    newAttrs = attributesForNames projectionAttrNames rel
+    selectedAttrNames = A.attributeNameSet newAttrs
+    newAttrs = AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames
     folder :: RelationTuple -> Either RelationalError Relation -> Either RelationalError Relation
     folder tupleToProject acc = case acc of
       Left err -> Left err
-      Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject projectionAttrNames tupleToProject)))
+      Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject selectedAttrNames tupleToProject)))
     
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
@@ -127,9 +129,8 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
   relFold folder (Right (Relation newAttrs emptyTupleSet)) nonGroupProjection
   where
     newAttrs = M.union (attributesForNames nonGroupAttrNames rel) groupAttr
-    groupAttr = Attribute newAttrName RelationAtomType (attributesForNames nonGroupAttrNames rel)
-    newAttrNameSet = S.insert newAttrName nonGroupAttrNames
-    nonGroupAttrNames = S.difference groupAttrNames (attributeNames rel)
+    groupAttr = Attribute newAttrName RelationAtomType (invertedAttributeNames groupAttrNames (attributes rel))
+    nonGroupAttrNames = invertAttributeNames (attributes rel) groupAttrNames
     --map the projection to add the additional new attribute
     --create the new attribute (a new relation) by filtering and projecting the tupleSet
     folder tupleFromProjection acc = case acc of 
@@ -138,26 +139,18 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 -}
   
 --algorithm: self-join with image relation
-group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
+group :: AttributeNames -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
   nonGroupProjection <- project nonGroupAttrNames rel
   relMogrify mogrifier newAttrs nonGroupProjection
     where
-      newAttrs = A.addAttribute groupAttr (attributesForNames nonGroupAttrNames rel)
-      groupAttr = Attribute newAttrName (RelationAtomType (attributesForNames groupAttrNames rel))
-      nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (attributeNames rel)
+      newAttrs = A.addAttribute groupAttr (AS.projectionAttributesForAttributeNames (attributes rel) nonGroupAttrNames)
+      groupAttr = Attribute newAttrName (RelationAtomType (AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames))
+      nonGroupAttrNames = AS.invertAttributeNames groupAttrNames
       mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
-{-
-      folder tupleIn acc = case acc of
-        Left err -> Left err
-        Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleExtend tupleIn (matchingRelTuple tupleIn))))
-      matchingRelTuple groupTuple = case imageRelationFor groupTuple rel of
-        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
-        Left _ -> undefined
--}
   
 --help restriction function
 --returns a subrelation of 
@@ -245,8 +238,8 @@ relFold folder acc (Relation _ tupleSet) = HS.foldr folder acc tupleSet
 imageRelationFor ::  RelationTuple -> Relation -> Either RelationalError Relation
 imageRelationFor matchTuple rel = do
   restricted <- restrictEq matchTuple rel --restrict across matching tuples
-  project (A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)) restricted --project across attributes not in rel
-  
+  let projectionAttrNames = AttributeNames $ A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)
+  project projectionAttrNames restricted --project across attributes not in rel
     
 --returns a relation-valued attribute image relation for each tuple in rel1
 --algorithm: 

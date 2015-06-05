@@ -80,7 +80,9 @@ main = do
 			   ("x:=S where ^gt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[StringAtom "S3", StringAtom "Blake", IntAtom 30, StringAtom "Paris"],
 			   	  			  		     		 	        [StringAtom "S5", StringAtom "Adams", IntAtom 30, StringAtom "Athens"]]),
 			   ("x:=S where ^sum(@STATUS)", Left $ AtomTypeMismatchError IntAtomType BoolAtomType),
-			   ("x:=S where ^not(gte(@STATUS,20))", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]])
+			   ("x:=S where ^not(gte(@STATUS,20))", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]]),
+			   --test "all but" attribute inversion syntax
+			   ("x:=S{all but S#} = S{CITY,SNAME,STATUS}",Right $ relationTrue)
                            ]
 
 

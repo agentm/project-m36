@@ -3,6 +3,7 @@ import ProjectM36.Base
 import ProjectM36.RelationalExpression
 import ProjectM36.Relation
 import ProjectM36.Error
+import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import Control.Monad.State hiding (join)
 import Data.Either (rights, lefts)
@@ -23,7 +24,7 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
   relType <- typeForRelationalExpr expr
   case relType of
     Left err -> return $ Left err
-    Right relType2 -> if attributeNames relType2 == attrNameSet then
+    Right relType2 -> if attributeNames relType2 == AS.attributeNameSet attrNameSet then
                        applyStaticRelationalOptimization expr
                        else do
                          optimizedSubExpression <- applyStaticRelationalOptimization expr 
