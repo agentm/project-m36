@@ -91,6 +91,8 @@ nonMatchingAttributeNameSet a1 a2 = S.difference (S.union a1 a2) (S.intersection
 matchingAttributeNameSet :: S.Set AttributeName -> S.Set AttributeName -> S.Set AttributeName
 matchingAttributeNameSet = S.intersection
 
+attributeNamesNotContained :: S.Set AttributeName -> S.Set AttributeName -> S.Set AttributeName
+attributeNamesNotContained subset superset = S.filter (flip S.notMember superset) subset
 
 -- this is sorted so the tuples know in which order to output- the ordering is arbitrary
 sortedAttributeNameList :: S.Set AttributeName -> [AttributeName]

@@ -74,7 +74,7 @@ singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Count
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
   if not (attrs1 == attrs2) 
-     then Left $ AttributeNameMismatchError (T.pack (show attrs1 ++ show attrs2))
+     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
   else
     Right $ Relation attrs1 newtuples
   where
@@ -82,22 +82,18 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
 
 project :: AttributeNames -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel = 
-  if not $ A.attributeNamesContained selectedAttrNames (attributeNames rel)
-     then Left $ AttributeNameMismatchError ""
-  else
-    relFold folder (Right $ Relation newAttrs HS.empty) rel
+  case AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames of
+    Left err -> Left err
+    Right newAttrs -> relFold (folder newAttrs) (Right $ Relation newAttrs HS.empty) rel
   where
-    selectedAttrNames = A.attributeNameSet newAttrs
-    newAttrs = AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames
-    folder :: RelationTuple -> Either RelationalError Relation -> Either RelationalError Relation
-    folder tupleToProject acc = case acc of
+    folder newAttrs tupleToProject acc = case acc of
       Left err -> Left err
-      Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject selectedAttrNames tupleToProject)))
+      Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject (A.attributeNameSet newAttrs) tupleToProject)))
     
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
   if not attributeValid
-       then Left $ AttributeNameMismatchError ""
+       then Left $ AttributeNamesMismatchError (S.singleton oldAttrName)
   else if newAttributeInUse
        then Left $ AttributeNameInUseError newAttrName
   else
@@ -141,16 +137,18 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 --algorithm: self-join with image relation
 group :: AttributeNames -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
-  nonGroupProjection <- project nonGroupAttrNames rel
-  relMogrify mogrifier newAttrs nonGroupProjection
-    where
-      newAttrs = A.addAttribute groupAttr (AS.projectionAttributesForAttributeNames (attributes rel) nonGroupAttrNames)
-      groupAttr = Attribute newAttrName (RelationAtomType (AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames))
-      nonGroupAttrNames = AS.invertAttributeNames groupAttrNames
-      mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
+  let nonGroupAttrNames = AS.invertAttributeNames groupAttrNames
+  nonGroupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) nonGroupAttrNames  
+  groupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames
+  let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
+      mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
+      newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
+  nonGroupProjection <- project nonGroupAttrNames rel
+  relMogrify mogrifier newAttrs nonGroupProjection
+
   
 --help restriction function
 --returns a subrelation of 

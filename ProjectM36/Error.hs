@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import qualified Data.Set as S
 import qualified Data.UUID as U
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -12,7 +13,7 @@ data RelationalError = NoSuchAttributeNameError AttributeName
                      | TupleAttributeCountMismatchError Int --attribute name
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
-                     | AttributeNameMismatchError AttributeName
+                     | AttributeNamesMismatchError (S.Set AttributeName)
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
                      | RelVarNotDefinedError RelVarName

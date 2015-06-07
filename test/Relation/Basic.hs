@@ -8,6 +8,7 @@ import ProjectM36.Atom
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
+import qualified Data.Set as S
 import System.Exit
 import ProjectM36.RelationalExpression
 
@@ -38,7 +39,7 @@ validateRelation rel = do
 validateAttrNamesMatchTupleAttrNames :: Relation -> Either RelationalError Relation
 validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet) 
   | HS.null invalidSet = Right rel
-  | otherwise = Left $ AttributeNameMismatchError ""  
+  | otherwise = Left $ AttributeNamesMismatchError S.empty
   where
     nameCheck tuple = attributeNames rel == tupleAttributeNameSet tuple
     invalidSet =  HS.filter (not . nameCheck) tupMapSet
@@ -67,7 +68,7 @@ simpleRel = case mkRelation attrs tupleSet of
 
 --rename tests
 testRename1 :: Test
-testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ AttributeNameMismatchError "")
+testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ AttributeNamesMismatchError (S.singleton "a"))
 
 testRename2 :: Test
 testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRel) (Left $ AttributeNameInUseError "a")
