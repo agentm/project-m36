@@ -4,7 +4,9 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
+import TutorialD.Interpreter.Base (displayOpResult)
 import TutorialD.Interpreter.DatabaseExpr (interpretDatabaseExpr)
+import TutorialD.Interpreter.RODatabaseContextOperator (interpretRODatabaseContextOp)
 import ProjectM36.RelationalExpression
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -42,14 +44,6 @@ main = do
     --vectorMatrixRun
     --intmapMatrixRun
 
-matrixRestrictRun :: IO ()
-matrixRestrictRun = do
-  case matrixRelation 100 1000000 of
-    Left err -> putStrLn (show err)
-    Right rel -> case restrict (\tuple -> atomForAttributeName "0" tuple == Right (IntAtom 5)) rel of
-      Left err -> putStrLn (show err)
-      Right rel -> dumpcsv rel
-
 matrixRun :: BigrelArgs -> IO ()
 matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
   case matrixRelation attributeCount tupleCount of
@@ -60,6 +54,8 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                    let setx = Assign "x" (ExistingRelation rel)
                        context = execState (evalContextExpr setx) dateExamples
                        interpreted = interpretDatabaseExpr context tutd
+                       plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
+                   displayOpResult plan
                    case interpreted of
                      Right context' -> TIO.putStrLn $ relationAsHTML ((relationVariables context') M.! "x")
                      Left err -> hPutStrLn stderr (show err)

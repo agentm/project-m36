@@ -8,6 +8,8 @@ import ProjectM36.Base
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Vector as V
+import qualified Data.Text.IO as TIO
+import System.IO
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -69,3 +71,8 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayErrorResult StringType |
                                QuietSuccessResult
 
+displayOpResult :: TutorialDOperatorResult -> IO ()
+displayOpResult QuitResult = return ()
+displayOpResult (DisplayResult out) = TIO.putStrLn out
+displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
+displayOpResult QuietSuccessResult = return ()

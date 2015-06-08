@@ -83,3 +83,8 @@ evalRODatabaseContextOp context (ShowPlan dbExpr) = do
     plan = evalState (applyStaticDatabaseOptimization dbExpr) context
 
 evalRODatabaseContextOp _ (Quit) = QuitResult
+
+interpretRODatabaseContextOp :: DatabaseContext -> String -> TutorialDOperatorResult
+interpretRODatabaseContextOp context tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
+  Left err -> DisplayErrorResult (T.pack (show err))
+  Right parsed -> evalRODatabaseContextOp context parsed
