@@ -45,23 +45,16 @@ applyStaticRelationalOptimization (Union exprA exprB) = do
                             return $ Right $ Union optExprAx optExprBx
                             
 applyStaticRelationalOptimization (Join exprA exprB) = do
-  typeA <- typeForRelationalExpr exprA
-  typeB <- typeForRelationalExpr exprB
-  case typeA of 
+  optExprA <- applyStaticRelationalOptimization exprA
+  optExprB <- applyStaticRelationalOptimization exprB
+  case optExprA of
     Left err -> return $ Left err
-    Right typeA2 -> case typeB of
+    Right optExprA2 -> case optExprB of
       Left err -> return $ Left err
-      Right typeB2 -> if typeA2 == typeB2 then --no new attributes to add
-                       return $ Right exprA
-                     else do
-                       optExprA <- applyStaticRelationalOptimization exprA
-                       optExprB <- applyStaticRelationalOptimization exprB
-  
-                       case optExprA of
-                         Left err -> return $ Left err
-                         Right optExprA2 -> case optExprB of
-                           Left err -> return $ Left err
-                           Right optExprB2 -> return $ Right (Join optExprA2 optExprB2)
+      Right optExprB2 -> if optExprA == optExprB then --A join A == A
+                           return optExprA
+                         else
+                           return $ Right (Join optExprA2 optExprB2)
                            
 applyStaticRelationalOptimization e@(Rename _ _ _) = return $ Right e
 
