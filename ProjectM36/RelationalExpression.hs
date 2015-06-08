@@ -223,10 +223,12 @@ evalContextExpr (Assign relVarName expr) = do
     Left err -> return $ Just err
     Right rel -> case existingRelVar of 
       Nothing -> setRelVar relVarName rel
-      Just existingRel -> if attributes existingRel == attributes rel then 
+      Just existingRel -> let expectedAttributes = attributes existingRel
+                              foundAttributes = attributes rel in
+                          if A.attributesEqual expectedAttributes foundAttributes then 
                             setRelVar relVarName rel
                           else
-                            return $ Just RelVarAssignmentTypeMismatchError
+                            return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
                             
 evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName))
 

@@ -9,7 +9,7 @@ import GHC.Generics (Generic)
 import qualified Data.Text as T
 
 
-data RelationalError = NoSuchAttributeNameError AttributeName
+data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
@@ -18,7 +18,7 @@ data RelationalError = NoSuchAttributeNameError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
-                     | RelVarAssignmentTypeMismatchError
+                     | RelVarAssignmentTypeMismatchError Attributes Attributes --expected, found
                      | InclusionDependencyCheckError IncDepName
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
