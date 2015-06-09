@@ -28,9 +28,9 @@ tupleAtoms (RelationTuple _ tupVec) = tupVec
 
 atomForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Atom
 atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) tupAttrs of
-  Nothing -> Left $ NoSuchAttributeNameError attrName
+  Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
   Just index -> case tupVec V.!? index of
-    Nothing -> Left $ NoSuchAttributeNameError attrName
+    Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
     Just atom -> Right atom
 
 {- -- resolve naming clash with Attribute and Relation later
@@ -40,12 +40,21 @@ atomTypeForAttributeName attrName tup = do
   return $ atomTypeForAtom atom
 -}
 
-atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> V.Vector Atom
-atomsForAttributeNames attrNames tuple = V.foldr folder V.empty attrNames
+atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> Either RelationalError (V.Vector Atom)
+atomsForAttributeNames attrNames tuple = do
+  vindices <- vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)
+  return $ V.map (\index -> tupleAtoms tuple V.! index) vindices
+      
+vectorIndicesForAttributeNames :: V.Vector AttributeName -> Attributes -> Either RelationalError (V.Vector Int)
+vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNames then
+                                                     Left $ NoSuchAttributeNamesError (S.fromList (V.toList unknownAttrNames))
+                                                   else
+                                                     Right $ V.map mapper attrNameVec
   where
-    folder attrName acc = case atomForAttributeName attrName tuple of
-      Left _ -> acc
-      Right atom -> V.snoc acc atom
+    unknownAttrNames = V.filter ((flip V.notElem) (attributeNames attrs)) attrNameVec
+    mapper attrName = case V.elemIndex attrName (V.map attributeName attrs) of
+      Nothing -> undefined
+      Just index -> index
 
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
 relationForAttributeName attrName tuple = do
@@ -71,13 +80,20 @@ mkRelationTuples attrs atomsVec = map mapper atomsVec
     mapper = mkRelationTuple attrs
 
 singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet
-singleTupleSetJoin tup tupSet = HS.foldr tupleJoiner HS.empty tupSet
+singleTupleSetJoin tup tupSet = HS.foldr tupleJoiner HS.empty tupSet --get rid of this fold here
   where
     tupleJoiner tuple2 accumulator = case joinedTuple of
       Nothing -> accumulator
       Just relTuple -> HS.insert relTuple accumulator
       where joinedTuple = singleTupleJoin tup tuple2
-
+            
+{-            
+singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet
+singleTupleSetJoin tup1 tupSet = HS.union 
+  where
+    mapper tup2 = singleTupleJoin tup1 tup2
+-}
+            
 -- the keys/values don't need to be resorted
 -- if the keys share some keys and values, then merge the tuples
 singleTupleJoin :: RelationTuple -> RelationTuple -> Maybe RelationTuple

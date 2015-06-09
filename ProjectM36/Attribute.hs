@@ -66,7 +66,7 @@ atomTypeForAttributeName attrName attrs = do
 
 attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
 attributeForName attrName attrs = case V.find ((attrName ==) . attributeName) attrs of
-  Nothing -> Left $ NoSuchAttributeNameError attrName
+  Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
   Just attr -> Right attr
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
@@ -76,6 +76,9 @@ attributesForNames attrNameSet attrs = V.filter filt attrs
 
 attributeNameSet :: Attributes -> S.Set AttributeName
 attributeNameSet attrVec = S.fromList $ V.toList $ V.map (\(Attribute name _) -> name) attrVec
+
+attributeNames :: Attributes -> V.Vector AttributeName
+attributeNames = V.map attributeName
 
 --checks if set s1 is wholly contained in the set s2
 attributesContained :: Attributes -> Attributes -> Bool
