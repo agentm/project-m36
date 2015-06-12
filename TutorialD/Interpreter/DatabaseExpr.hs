@@ -78,7 +78,7 @@ updateP = do
 
 constraintP :: Parser DatabaseExpr
 constraintP = do
-  reservedOp "constraint"
+  reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
   subset <- relExprP
   reservedOp "in"
@@ -94,7 +94,7 @@ keyP = do
   uniquenessExpr <- relExprP
   let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
   return $ AddInclusionDependency (T.pack keyName) newIncDep
-
+  
 attributeAssignmentP :: Parser (String, Atom)
 attributeAssignmentP = do
   attrName <- identifier
