@@ -18,6 +18,7 @@ Library
                      ProjectM36.TupleSet,
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
+                     ProjectM36.Key,
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,

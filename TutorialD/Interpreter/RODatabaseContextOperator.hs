@@ -11,8 +11,8 @@ import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseExpr
 import Control.Monad.State
 import qualified Data.Text as T
-import qualified Data.HashSet as HS
 import ProjectM36.Relation.Show.Term
+import qualified Data.Map as M
 
 --operators which only rely on database context reading
 data RODatabaseContextOperator where
@@ -69,13 +69,14 @@ evalRODatabaseContextOp context (ShowRelation expr) = do
     (Left err, _) -> DisplayErrorResult $ T.pack (show err)
     (Right rel, _) -> DisplayResult $ showRelation rel
 
-evalRODatabaseContextOp context (ShowConstraint name) = do
-  DisplayResult $ T.pack (show filteredDeps)
+evalRODatabaseContextOp context (ShowConstraint name) = 
+  case name of
+    "" -> DisplayResult $ T.pack (show deps)
+    depName -> case M.lookup depName deps of
+      Nothing -> DisplayErrorResult "No such constraint."
+      Just dep -> DisplayResult $ T.pack (show dep)
   where
     deps = inclusionDependencies context
-    filteredDeps = case name of
-      "" -> deps
-      name2 -> HS.filter (\(InclusionDependency n _ _) -> n == name2) deps
 
 evalRODatabaseContextOp context (ShowPlan dbExpr) = do
   DisplayResult $ T.pack (show plan)

@@ -73,12 +73,12 @@ singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Count
 
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
-  if not (attrs1 == attrs2) 
+  if not (A.attributesEqual attrs1 attrs2) 
      then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
   else
     Right $ Relation attrs1 newtuples
   where
-    newtuples = HS.union tupSet1 tupSet2
+    newtuples = HS.union tupSet1 (HS.map (reorderTuple attrs1) tupSet2)
 
 project :: AttributeNames -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel = 
@@ -209,8 +209,8 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
       tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
   newAttrs <- A.joinAttributes attrs1 attrs2
   return $ Relation newAttrs newTupSet
-  
---a map should NOT change the structure of a relation, so attributes should be constant                 
+
+--a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
 relMap mapper (Relation attrs tupleSet) = do
   case forM (HS.toList tupleSet) typeMapCheck of
@@ -221,7 +221,7 @@ relMap mapper (Relation attrs tupleSet) = do
       let remappedTuple = mapper tupleIn
       if tupleAttributes remappedTuple == tupleAttributes tupleIn 
         then Right remappedTuple 
-        else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)
+        else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)             
       
 relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = mkRelation newAttributes (HS.map mapper tupSet)

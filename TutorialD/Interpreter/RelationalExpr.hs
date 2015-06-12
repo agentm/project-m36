@@ -8,12 +8,19 @@ import qualified Data.Text as T
 import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
+import ProjectM36.Relation
 import qualified Data.HashSet as HS
 import ProjectM36.Atom
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Data.Functor.Identity (Identity)
+
+
+atomTypeP :: Parser AtomType
+atomTypeP = (reserved "char" *> return StringAtomType) <|>
+  (reserved "int" *> return IntAtomType) <|>
+  (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
 
 --used in projection
 attributeListP :: Parser AttributeNames
@@ -24,14 +31,7 @@ attributeListP = do
   return $ constructor (S.fromList (map T.pack attrs))
 
 makeRelationP :: Parser RelationalExpr
-makeRelationP = do
-  reservedOp "relation"
-  attrs <- (try makeAttributesP <|> return A.emptyAttributes)
-  if not (A.null attrs) then do
-    return $ MakeStaticRelation attrs emptyTupleSet
-    else do
-    tuples <- braces (sepBy tupleP comma)
-    return $ MakeStaticRelation (tupleAttributes (head tuples)) (HS.fromList tuples)
+makeRelationP = ExistingRelation <$> relationP
 
 --used in relation creation
 makeAttributesP :: Parser Attributes
@@ -42,11 +42,9 @@ makeAttributesP = do
 attributeAndTypeP :: Parser Attribute
 attributeAndTypeP = do
   attrName <- identifier
-  attrTypeName <- identifier
   --convert type name into type
-  case tutDTypeToAtomType attrTypeName of
-    Just t -> return $ Attribute (T.pack attrName) t
-    Nothing -> fail (attrTypeName ++ " is not a valid type name.")
+  atomType <- atomTypeP
+  return $ Attribute (T.pack attrName) atomType
 
 tupleP :: Parser RelationTuple
 tupleP = do
@@ -59,15 +57,9 @@ tupleP = do
 tupleAtomP :: Parser (AttributeName, Atom)
 tupleAtomP = do
   attributeName <- identifier
-  attrType <- identifier
-  atom <- parens (stringAtomP <|> intAtomP)
-  case tutDTypeToAtomType attrType of
-    Nothing -> fail (attrType ++ " is not a valid type name.")
-    Just typeA -> if typeA == atomTypeForAtom atom then
-                    return $ (T.pack attributeName, atom)
-                  else
-                    fail "type mismatch in tuple generation"
-
+  atom <- atomP
+  return $ (T.pack attributeName, atom)      
+    
 projectP :: Parser (RelationalExpr -> RelationalExpr)
 projectP = do
   attrs <- braces attributeListP
@@ -226,7 +218,10 @@ attributeAtomExprP = do
   return $ AttributeAtomExpr (T.pack attrName)
 
 nakedAtomExprP :: Parser AtomExpr
-nakedAtomExprP = NakedAtomExpr <$> (stringAtomP <|> intAtomP <|> boolAtomP)
+nakedAtomExprP = NakedAtomExpr <$> atomP
+
+atomP :: Parser Atom
+atomP = stringAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -253,4 +248,22 @@ boolAtomP :: Parser Atom
 boolAtomP = do
   val <- char 't' <|> char 'f'
   return $ BoolAtom (val == 't')
+  
+relationAtomP :: Parser Atom
+relationAtomP = RelationAtom <$> relationP
+
+--relation constructor -- no choice but to propagate relation-construction errors as parse errors. Perhaps this could be improved in the future
+relationP :: Parser Relation
+relationP = do
+  reserved "relation"
+  attrs <- (try makeAttributesP <|> return A.emptyAttributes)
+  if not (A.null attrs) then do
+    case mkRelation attrs emptyTupleSet of 
+      Left err -> fail (show err)
+      Right rel -> return rel
+    else do
+    tuples <- braces (sepBy tupleP comma)
+    case mkRelation (tupleAttributes (head tuples)) (HS.fromList tuples) of
+      Left err -> fail (show err)
+      Right rel -> return rel
   

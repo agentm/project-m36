@@ -83,6 +83,8 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
                                         Right optSubExpr -> return $ Right $ Restrict optimizedPredicate2 optSubExpr
   
 applyStaticRelationalOptimization e@(Equals _ _) = return $ Right e 
+
+applyStaticRelationalOptimization e@(NotEquals _ _) = return $ Right e 
   
 applyStaticRelationalOptimization e@(Extend _ _) = return $ Right e  
 
@@ -115,7 +117,9 @@ applyStaticDatabaseOptimization (Update name upmap predicate) = do
       Left err -> return $ Left err
       Right optimizedPredicate2 -> return $ Right (Update name upmap optimizedPredicate2)
       
-applyStaticDatabaseOptimization (AddInclusionDependency dep) = return $ Right (AddInclusionDependency dep)
+applyStaticDatabaseOptimization dep@(AddInclusionDependency _ _) = return $ Right dep
+
+applyStaticDatabaseOptimization (RemoveInclusionDependency name) = return $ Right (RemoveInclusionDependency name)
 
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 

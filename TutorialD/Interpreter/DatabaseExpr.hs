@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module TutorialD.Interpreter.DatabaseExpr where
 import Text.Parsec
 import Text.Parsec.String
@@ -11,6 +12,7 @@ import Control.Monad.State
 import ProjectM36.StaticOptimizer
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
+import ProjectM36.Key
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseExprP :: Parser DatabaseExpr
@@ -18,6 +20,7 @@ databaseExprP = insertP
             <|> deleteP
             <|> updateP
             <|> constraintP
+            <|> keyP
             <|> defineP
             <|> undefineP
             <|> assignP
@@ -80,7 +83,17 @@ constraintP = do
   subset <- relExprP
   reservedOp "in"
   superset <- relExprP
-  return $ AddInclusionDependency (InclusionDependency (T.pack constraintName) subset superset)
+  return $ AddInclusionDependency (T.pack constraintName) (InclusionDependency subset superset)
+  
+-- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
+keyP :: Parser DatabaseExpr  
+keyP = do
+  reserved "key"
+  keyName <- identifier
+  uniquenessAttrNames <- braces attributeListP
+  uniquenessExpr <- relExprP
+  let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
+  return $ AddInclusionDependency (T.pack keyName) newIncDep
 
 attributeAssignmentP :: Parser (String, Atom)
 attributeAssignmentP = do

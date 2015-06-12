@@ -44,13 +44,6 @@ semi = Token.semi lexer
 whiteSpace :: Parser ()
 whiteSpace = Token.whiteSpace lexer
 
---convert Tutorial D type to AtomType
-tutDTypeToAtomType :: String -> Maybe AtomType
-tutDTypeToAtomType tutDType = case tutDType of
-  "char" -> Just StringAtomType
-  "int" -> Just IntAtomType
-  _ -> Nothing
-
 atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of
   StringAtomType -> Just "char"

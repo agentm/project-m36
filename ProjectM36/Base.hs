@@ -112,25 +112,20 @@ data RelationalExpr where
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   deriving (Show,Eq)
 
 data DatabaseContext = DatabaseContext { 
-  inclusionDependencies :: HS.HashSet InclusionDependency,
-  relationVariables :: M.Map RelVarName  Relation,
+  inclusionDependencies :: M.Map IncDepName InclusionDependency,
+  relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions
   } deriving (Show)
              
 type IncDepName = StringType             
 
-data InclusionDependency = InclusionDependency IncDepName RelationalExpr RelationalExpr deriving (Show)
-
-instance Hash.Hashable InclusionDependency where
-  hashWithSalt salt dep = Hash.hashWithSalt salt (show dep)
-  
-instance Eq InclusionDependency where
-  (==) (InclusionDependency nameA _ _) (InclusionDependency nameB _ _) = nameA == nameB
+data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq)
 
 --Database context expressions modify the database context while relational expressions do not
 data DatabaseExpr where
@@ -140,7 +135,8 @@ data DatabaseExpr where
   Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
   Delete :: RelVarName -> RestrictionPredicateExpr -> DatabaseExpr 
   Update :: RelVarName  -> M.Map AttributeName Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
-  AddInclusionDependency :: InclusionDependency -> DatabaseExpr
+  AddInclusionDependency :: IncDepName -> InclusionDependency -> DatabaseExpr
+  RemoveInclusionDependency :: IncDepName -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show,Eq)
 

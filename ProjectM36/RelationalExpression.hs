@@ -89,6 +89,16 @@ evalRelationalExpr (Equals relExprA relExprB) = do
       Left err -> return $ Left err
       Right relB -> return $ Right $ if relA == relB then relationTrue else relationFalse
       
+--warning: copy-pasta from above- refactor
+evalRelationalExpr (NotEquals relExprA relExprB) = do
+  evaldA <- evalRelationalExpr relExprA
+  evaldB <- evalRelationalExpr relExprB
+  case evaldA of
+    Left err -> return $ Left err
+    Right relA -> case evaldB of 
+      Left err -> return $ Left err
+      Right relB -> return $ Right $ if relA /= relB then relationTrue else relationFalse
+      
 -- extending a relation adds a single attribute with the results of the per-tuple expression evaluated      
 evalRelationalExpr (Extend tupleExpression relExpr) = do      
   evald <- evalRelationalExpr relExpr
@@ -101,20 +111,20 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
         Right (newAttrs, tupProc) -> return $ relMogrify tupProc newAttrs rel
         
 emptyDatabaseContext :: DatabaseContext
-emptyDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
+emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
                                          atomFunctions = HS.empty
                                          }
 
 basicDatabaseContext :: DatabaseContext
-basicDatabaseContext = DatabaseContext { inclusionDependencies = HS.empty,
+basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
                                                                          ("false", relationFalse)],
                                          atomFunctions = basicAtomFunctions
                                          }
 
 dateExamples :: DatabaseContext
-dateExamples = DatabaseContext { inclusionDependencies = HS.empty, -- add foreign key relationships
+dateExamples = DatabaseContext { inclusionDependencies = M.empty, 
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars, 
                                  atomFunctions = basicAtomFunctions}
   where
@@ -186,12 +196,13 @@ productsRel = case mkRelationFromList attrs matrix of
 --helper function to process relation variable creation/assignment          
 setRelVar :: RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do 
-  currstate <- get
-  let newRelVars = M.insert relVarName rel $ relationVariables currstate
-  case checkConstraints currstate of
+  currentContext <- get
+  let newRelVars = M.insert relVarName rel $ relationVariables currentContext
+  let potentialContext = DatabaseContext (inclusionDependencies currentContext) newRelVars (atomFunctions currentContext)
+  case checkConstraints potentialContext of
     Just err -> return $ Just err
     Nothing -> do 
-      put $ DatabaseContext (inclusionDependencies currstate) newRelVars (atomFunctions currstate)
+      put potentialContext
       return Nothing
       
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
@@ -258,10 +269,21 @@ evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = d
             updatedPortion <- relMap (updateTuple attrAssignments) restrictedPortion
             union updatedPortion unrestrictedPortion
 
-evalContextExpr (AddInclusionDependency dep) = do
-  currstate <- get
-  let newDeps = HS.insert dep (inclusionDependencies currstate)
-  put $ DatabaseContext newDeps (relationVariables currstate) (atomFunctions currstate)
+evalContextExpr (AddInclusionDependency newDepName newDep) = do
+  currContext <- get
+  let currDeps = inclusionDependencies currContext
+      newDeps = M.insert newDepName newDep currDeps
+  if M.member newDepName currDeps then
+    return $ Just (InclusionDepedencyNameInUseError newDepName)
+    else do
+      put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
+      return Nothing
+  
+evalContextExpr (RemoveInclusionDependency depName) = do  
+  currContext <- get
+  let currDeps = inclusionDependencies currContext
+      newDeps = M.delete depName currDeps
+  put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
   return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
@@ -281,18 +303,19 @@ checkConstraints context = case failures of
   [] -> Nothing
   l:_ -> Just l
   where
-    failures = catMaybes $ map checkIncDep (HS.toList deps)
+    failures = M.elems $ M.mapMaybeWithKey checkIncDep deps
     deps = inclusionDependencies context
     eval expr = runState (evalRelationalExpr expr) context
-    checkIncDep (InclusionDependency depName subsetExpr supersetExpr) = case evaldSub of
+    checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = case evaldSub of
         (Left err, _) -> Just err 
         (Right relSub, _) -> case evaldSuper of
           (Left err, _) -> Just err
           (Right relSuper, _) -> case union relSub relSuper of
             Left err -> Just err
-            Right resultRel -> case resultRel == relSuper of
-              False -> Just $ InclusionDependencyCheckError depName
-              True -> Nothing
+            Right resultRel -> if resultRel == relSuper then 
+                                 Nothing 
+                               else
+                                 Just $ InclusionDependencyCheckError depName
        where
          evaldSub = eval subsetExpr
          evaldSuper = eval supersetExpr
