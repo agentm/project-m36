@@ -17,7 +17,7 @@ null :: Attributes -> Bool
 null = V.null
 
 attributesFromList :: [Attribute] -> Attributes
-attributesFromList = V.fromList -- . L.nub
+attributesFromList = V.fromList -- . L.nub --too expensive
 
 attributeName :: Attribute -> AttributeName
 attributeName (Attribute name _) = name

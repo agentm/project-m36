@@ -378,12 +378,18 @@ predicateRestrictionFilter context _ (RelationalExprPredicate relExpr) = case ru
                          else
                            Left $ PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'"
     
-predicateRestrictionFilter context _ (AttributeEqualityPredicate attrName atomexpr) = Right $ \tupleIn -> case atomForAttributeName attrName tupleIn of
-  Left _ -> False
-  Right atomIn -> 
-    case evalAtomExpr tupleIn context atomexpr of
+predicateRestrictionFilter context attrs (AttributeEqualityPredicate attrName atomExpr) = do
+  attr <- A.attributeForName attrName attrs
+  atomExprType <- typeFromAtomExpr attrs context atomExpr
+  if atomExprType /= A.atomType attr then
+    Left $ TupleAttributeTypeMismatchError (A.attributesFromList [attr])
+    else
+    Right $ \tupleIn -> case atomForAttributeName attrName tupleIn of
       Left _ -> False
-      Right atomCmp -> atomCmp == atomIn
+      Right atomIn -> 
+        case evalAtomExpr tupleIn context atomExpr of
+          Left _ -> False
+          Right atomCmp -> atomCmp == atomIn
       
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance      
 predicateRestrictionFilter context attrs (AtomExprPredicate atomExpr) = do 
