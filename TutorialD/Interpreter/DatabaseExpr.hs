@@ -17,9 +17,10 @@ import ProjectM36.Key
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseExprP :: Parser DatabaseExpr
 databaseExprP = insertP
+            <|> deleteConstraintP
             <|> deleteP
             <|> updateP
-            <|> constraintP
+            <|> addConstraintP
             <|> keyP
             <|> defineP
             <|> undefineP
@@ -76,14 +77,20 @@ updateP = do
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignmentP comma)
   return $ Update (T.pack relVarName) (M.mapKeys T.pack $ attributeAssignments) predicate
 
-constraintP :: Parser DatabaseExpr
-constraintP = do
+addConstraintP :: Parser DatabaseExpr
+addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
   subset <- relExprP
   reservedOp "in"
   superset <- relExprP
   return $ AddInclusionDependency (T.pack constraintName) (InclusionDependency subset superset)
+  
+deleteConstraintP :: Parser DatabaseExpr  
+deleteConstraintP = do
+  reserved "deleteconstraint"
+  constraintName <- identifier
+  return $ RemoveInclusionDependency (T.pack constraintName)
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
 keyP :: Parser DatabaseExpr  

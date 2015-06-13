@@ -6,10 +6,12 @@ import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Atom
+import ProjectM36.Key
 import ProjectM36.AtomFunction
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
@@ -124,7 +126,7 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          }
 
 dateExamples :: DatabaseContext
-dateExamples = DatabaseContext { inclusionDependencies = M.empty, 
+dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps, 
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars, 
                                  atomFunctions = basicAtomFunctions}
   where
@@ -134,6 +136,11 @@ dateExamples = DatabaseContext { inclusionDependencies = M.empty,
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel
+    dateIncDeps = M.fromList [("S_pkey", simplePKey ["S#"] "S"),
+                              ("P_pkey", simplePKey ["P#"] "P"),
+                              ("SP_pkey", simplePKey ["S#", "P#"] "SP")
+                              ]
+    simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName)
     
 suppliersRel :: Relation    
 suppliersRel = case mkRelationFromList attrs atomMatrix of
@@ -274,17 +281,20 @@ evalContextExpr (AddInclusionDependency newDepName newDep) = do
   let currDeps = inclusionDependencies currContext
       newDeps = M.insert newDepName newDep currDeps
   if M.member newDepName currDeps then
-    return $ Just (InclusionDepedencyNameInUseError newDepName)
+    return $ Just (InclusionDependencyNameInUseError newDepName)
     else do
       put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
       return Nothing
-  
+      
 evalContextExpr (RemoveInclusionDependency depName) = do  
   currContext <- get
   let currDeps = inclusionDependencies currContext
       newDeps = M.delete depName currDeps
-  put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
-  return Nothing
+  if M.notMember depName currDeps then
+    return $ Just (InclusionDependencyNameNotInUseError depName)
+    else do
+    put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
+    return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context

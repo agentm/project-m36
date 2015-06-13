@@ -20,7 +20,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelVarAlreadyDefinedError RelVarName
                      | RelVarAssignmentTypeMismatchError Attributes Attributes --expected, found
                      | InclusionDependencyCheckError IncDepName
-                     | InclusionDepedencyNameInUseError IncDepName
+                     | InclusionDependencyNameInUseError IncDepName
+                     | InclusionDependencyNameNotInUseError IncDepName
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
                      | NoSuchTransactionError U.UUID
