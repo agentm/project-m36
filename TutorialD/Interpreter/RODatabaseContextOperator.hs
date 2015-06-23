@@ -12,11 +12,13 @@ import TutorialD.Interpreter.DatabaseExpr
 import Control.Monad.State
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Term
+import ProjectM36.Relation.Show.Gnuplot
 import qualified Data.Map as M
 
 --operators which only rely on database context reading
 data RODatabaseContextOperator where
   ShowRelation :: RelationalExpr -> RODatabaseContextOperator
+  PlotRelation :: RelationalExpr -> RODatabaseContextOperator
   ShowRelationType :: RelationalExpr -> RODatabaseContextOperator
   ShowConstraint :: StringType -> RODatabaseContextOperator
   ShowPlan :: DatabaseExpr -> RODatabaseContextOperator
@@ -51,10 +53,17 @@ showConstraintsP = do
   reservedOp ":constraints"
   constraintName <- option "" identifier
   return $ ShowConstraint (T.pack constraintName)
+  
+plotRelExprP :: Parser RODatabaseContextOperator  
+plotRelExprP = do
+  reserved ":plotexpr"
+  expr <- relExprP
+  return $ PlotRelation expr
 
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
 roDatabaseContextOperatorP = typeP
              <|> showRelP
+             <|> plotRelExprP
              <|> showConstraintsP
              <|> showPlanP
              <|> quitP
@@ -68,6 +77,10 @@ evalRODatabaseContextOp context (ShowRelation expr) = do
   case runState (evalRelationalExpr expr) context of
     (Left err, _) -> DisplayErrorResult $ T.pack (show err)
     (Right rel, _) -> DisplayResult $ showRelation rel
+    
+evalRODatabaseContextOp context (PlotRelation expr) = case runState (evalRelationalExpr expr) context of
+  (Left err, _) -> DisplayErrorResult $ T.pack (show err)
+  (Right rel, _) -> DisplayIOResult $ showPlottedRelation rel
 
 evalRODatabaseContextOp context (ShowConstraint name) = 
   case name of
@@ -89,3 +102,5 @@ interpretRODatabaseContextOp :: DatabaseContext -> String -> TutorialDOperatorRe
 interpretRODatabaseContextOp context tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
   Left err -> DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp context parsed
+  
+  

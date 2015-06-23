@@ -69,6 +69,9 @@ reprLoop currentTransaction graph = do
     case interpret newUUID currentTransaction graph line of
       (QuitResult, _, _) -> return ()
       (DisplayErrorResult err, _, _) -> TIO.hPutStrLn stderr ("ERR: " `T.append` err) >> roloop
+      (DisplayIOResult outio, updatedTrans, updatedGraph) -> do
+        outio
+        reprLoop updatedTrans updatedGraph        
       (DisplayResult out, updatedTrans, updatedGraph) -> do
         TIO.putStrLn out
         reprLoop updatedTrans updatedGraph

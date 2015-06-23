@@ -61,11 +61,13 @@ showRelationAttributes attrs = "{" `T.append` T.concat (L.intersperse ", " $ map
 
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
+                               DisplayIOResult (IO ()) |
                                DisplayErrorResult StringType |
                                QuietSuccessResult
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
+displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
 displayOpResult QuietSuccessResult = return ()

@@ -25,6 +25,9 @@ attributeName (Attribute name _) = name
 atomType :: Attribute -> AtomType
 atomType (Attribute _ atype) = atype
 
+atomTypes :: Attributes -> V.Vector AtomType
+atomTypes attrs = V.map atomType attrs
+
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
