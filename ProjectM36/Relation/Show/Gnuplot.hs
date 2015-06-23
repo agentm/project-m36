@@ -35,8 +35,11 @@ points2DRelation rel = relFold folder [] rel
   where
     folder tup acc = (intFromAtomIndex 0 tup, intFromAtomIndex 1 tup) : acc
 
-graph3DRelation :: Relation -> Graph3D Double Double Double
-graph3DRelation rel = Data3D [Title "rel"] [StepX 1.0, StepY 1.0] $ map (\(x,y,z) -> (fromIntegral x, fromIntegral y, fromIntegral z)) $ points3DRelation rel
+graph3DRelation :: Relation -> [Graph3D Double Double Double]
+graph3DRelation rel = map lineGraph $ points3DRelation rel
+  where 
+    lineGraph (x,y,z) = Data3D [Title "rel", Style Lines] [StepX 1.0, StepY 1.0] $ [(fromIntegral x, fromIntegral y, fromIntegral z),
+                                                                       (fromIntegral x, 0, 0)]
                                                                          
 points3DRelation :: Relation -> [(Int, Int, Int)]                      
 points3DRelation rel = relFold folder [] rel
@@ -60,7 +63,7 @@ sample3dRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" 
 type G2D = Graph2D Double Double                     
 type G3D = Graph3D Double Double Double
 
-plotRelation :: Relation -> Either PlotError (Either G2D G3D)
+plotRelation :: Relation -> Either PlotError (Either G2D [G3D])
 plotRelation rel = let attrTypes = V.replicate (arity rel) IntAtomType in
   if attrTypes /= A.atomTypes (attributes rel) then
     Left InvalidAttributeTypeError

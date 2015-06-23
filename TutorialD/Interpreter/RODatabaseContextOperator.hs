@@ -80,7 +80,8 @@ evalRODatabaseContextOp context (ShowRelation expr) = do
     
 evalRODatabaseContextOp context (PlotRelation expr) = case runState (evalRelationalExpr expr) context of
   (Left err, _) -> DisplayErrorResult $ T.pack (show err)
-  (Right rel, _) -> DisplayIOResult $ showPlottedRelation rel
+--(Right rel, _) -> DisplayIOResult $ showPlottedRelation rel
+  (Right rel, _) -> DisplayIOResult $ savePlottedRelation "/tmp/graph.png" rel  
 
 evalRODatabaseContextOp context (ShowConstraint name) = 
   case name of
