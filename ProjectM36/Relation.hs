@@ -109,6 +109,9 @@ rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
 arity :: Relation -> Int
 arity (Relation attrs _) = A.arity attrs
 
+degree :: Relation -> Int
+degree = arity
+
 cardinality :: Relation -> RelationCardinality 
 cardinality (Relation _ tupSet) = Countable (HS.size tupSet)
 
