@@ -9,8 +9,9 @@ main :: IO ()
 main = do
   freshUUID <- nextRandom
   let currentHeadName = "master"
-  let newGraph = bootstrapTransactionGraph freshUUID dateExamples
-  let headTransaction = case transactionForHead currentHeadName newGraph of { Just x -> x; _ -> undefined}
-  let currentTransaction = newDisconnectedTransaction (transactionUUID headTransaction) (transactionContext headTransaction)
-  reprLoop currentTransaction newGraph
+      newGraph = bootstrapTransactionGraph freshUUID dateExamples
+      headTransaction = case transactionForHead currentHeadName newGraph of { Just x -> x; _ -> undefined}
+      dbdir = "/tmp/testdb"
+      currentTransaction = newDisconnectedTransaction (transactionUUID headTransaction) (transactionContext headTransaction)
+  reprLoop dbdir currentTransaction newGraph
 

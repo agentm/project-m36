@@ -6,6 +6,7 @@ import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import ProjectM36.Base
 import ProjectM36.Transaction
+import ProjectM36.TransactionGraph.Persist
 import Text.Parsec
 import Text.Parsec.String
 import Control.Monad.State
@@ -52,32 +53,32 @@ interpret freshUUID discon@(DisconnectedTransaction parentUUID context) graph in
                                 Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph)
                                 Right (discon', graph', result') -> (result', discon', graph')
 
-
-
-reprLoop :: DisconnectedTransaction -> TransactionGraph -> IO ()
-reprLoop currentTransaction graph = do
+reprLoop :: FilePath -> DisconnectedTransaction -> TransactionGraph -> IO ()
+reprLoop transGraphDir currentTransaction graph = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
+  --save the current transaction graph
+  transactionGraphPersist transGraphDir graph
 
   maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText currentTransaction graph))
 
-  let roloop = reprLoop currentTransaction graph
+  let roloop = reprLoop transGraphDir currentTransaction graph
   case maybeLine of
     Nothing -> return ()
     Just line -> do
     newUUID <- nextRandom
     case interpret newUUID currentTransaction graph line of
       (QuitResult, _, _) -> return ()
-      (DisplayErrorResult err, _, _) -> TIO.hPutStrLn stderr ("ERR: " `T.append` err) >> roloop
+      (DisplayErrorResult err, _, _) -> TIO.hPutStrLn stderr ("ERROR: " `T.append` err) >> roloop
       (DisplayIOResult outio, updatedTrans, updatedGraph) -> do
         outio
-        reprLoop updatedTrans updatedGraph        
+        reprLoop transGraphDir updatedTrans updatedGraph        
       (DisplayResult out, updatedTrans, updatedGraph) -> do
         TIO.putStrLn out
-        reprLoop updatedTrans updatedGraph
+        reprLoop transGraphDir updatedTrans updatedGraph
       (QuietSuccessResult, updatedTrans, updatedGraph) -> do
         TIO.putStrLn "Done."
-        reprLoop updatedTrans updatedGraph
+        reprLoop transGraphDir updatedTrans updatedGraph
 
 --used by :dumpGraph
 {-

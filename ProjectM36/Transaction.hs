@@ -136,3 +136,6 @@ walkChildTransactions seenTransSet graph trans =
            err:_ -> Just err
            _ -> Nothing
     
+transactionParentUUIDs :: Transaction -> S.Set U.UUID
+transactionParentUUIDs (Transaction _ (TransactionInfo pUUID _) _) = S.singleton pUUID
+transactionParentUUIDs (Transaction _ (MergeTransactionInfo pUUID1 pUUID2 _) _) = S.fromList [pUUID1, pUUID2]

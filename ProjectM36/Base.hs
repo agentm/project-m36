@@ -12,6 +12,9 @@ import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
 import qualified Data.Text as T
+import Data.Binary
+import Data.Vector.Binary()
+import ProjectM36.HashSetBinary()
 
 type StringType = T.Text
 
@@ -23,7 +26,9 @@ data Atom = StringAtom StringType |
                                            
 instance NFData Atom where rnf = genericRnf
                            
-instance Hash.Hashable Atom                           
+instance Hash.Hashable Atom                    
+
+instance Binary Atom
 
 data AtomType = StringAtomType |
                 IntAtomType |
@@ -33,6 +38,7 @@ data AtomType = StringAtomType |
               deriving (Eq, Show, Generic)
                                                      
 instance NFData AtomType where rnf = genericRnf
+instance Binary AtomType
 
 type AttributeName = T.Text
 
@@ -42,6 +48,8 @@ instance Hash.Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = Hash.hashWithSalt salt attrName
 
 instance NFData Attribute where rnf = genericRnf
+                                
+instance Binary Attribute
 
 type Attributes = V.Vector Attribute
 
@@ -68,6 +76,8 @@ instance Hash.Hashable RelationTuple where
 --maybe the attribute->int mapping should be stored once in the relation and then passed down when needed  
 data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Generic)
 
+instance Binary RelationTuple
+
 instance Eq RelationTuple where
   (==) tuple1@(RelationTuple attrs1 _) tuple2@(RelationTuple attrs2 _) = attributesEqual attrs1 attrs2 && atomsEqual
     where
@@ -91,6 +101,8 @@ instance Hash.Hashable Relation where
                                               HS.toList tupSet
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
+      
+instance Binary Relation      
   
 data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic)
 data RelationSizeInfinite = RelationSizeInfinite
@@ -115,17 +127,23 @@ data RelationalExpr where
   NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
-  deriving (Show,Eq)
+  deriving (Show,Eq, Generic)
+
+instance Binary RelationalExpr
 
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: M.Map IncDepName InclusionDependency,
   relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions
-  } deriving (Show)
+  } deriving (Show, Generic)
+             
+--instance Binary DatabaseContext             
              
 type IncDepName = StringType             
 
-data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq)
+data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic)
+
+instance Binary InclusionDependency
 
 --Database context expressions modify the database context while relational expressions do not
 data DatabaseExpr where
@@ -150,7 +168,9 @@ data RestrictionPredicateExpr where
   RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
   AtomExprPredicate :: AtomExpr -> RestrictionPredicateExpr --atom must evaluate to boolean
   AttributeEqualityPredicate :: AttributeName -> AtomExpr -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+
+instance Binary RestrictionPredicateExpr
 
 -- child + parent links
 -- the string represents the branch name and can be used to find the named HEADs
@@ -169,10 +189,14 @@ transactionHeadsForGraph (TransactionGraph heads _) = heads
 
 data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n children
                        MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
-                     deriving(Show)
+                     deriving(Show, Generic)
+                             
+--instance Binary TransactionInfo                             
                              
 data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
-                   deriving (Show)
+                   deriving (Show, Generic)
+
+--instance Binary Transaction
                             
 --represents an "in-progress" transaction which has not yet been added to the transaction graph
 --one the transaction is "complete", it is committed and no longer can be changed
@@ -196,11 +220,15 @@ data AtomExpr = AttributeAtomExpr AttributeName |
                 NakedAtomExpr Atom |
                 FunctionAtomExpr AtomFunctionName [AtomExpr] |
                 RelationAtomExpr RelationalExpr
-              deriving (Eq,Show)
+              deriving (Eq,Show,Generic)
+                       
+instance Binary AtomExpr                       
 
 --used to extend a relation
 data TupleExpr = AttributeTupleExpr AttributeName AtomExpr
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+           
+instance Binary TupleExpr           
            
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -223,7 +251,10 @@ instance Show AtomFunction where
   show aFunc = T.unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
    where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
-
+     
 data AttributeNames = AttributeNames (S.Set AttributeName) |
      		      InvertedAttributeNames (S.Set AttributeName)
-		       deriving (Eq, Show)
+		       deriving (Eq, Show, Generic)
+                                
+instance Binary AttributeNames 
+
