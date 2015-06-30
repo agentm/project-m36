@@ -14,6 +14,7 @@ import qualified Data.Text as T
 import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation.Show.Gnuplot
 import qualified Data.Map as M
+import Data.Maybe
 
 --operators which only rely on database context reading
 data RODatabaseContextOperator where
@@ -81,7 +82,9 @@ evalRODatabaseContextOp context (ShowRelation expr) = do
 evalRODatabaseContextOp context (PlotRelation expr) = case runState (evalRelationalExpr expr) context of
   (Left err, _) -> DisplayErrorResult $ T.pack (show err)
 --(Right rel, _) -> DisplayIOResult $ showPlottedRelation rel
-  (Right rel, _) -> DisplayIOResult $ savePlottedRelation "/tmp/graph.png" rel  
+  (Right rel, _) -> DisplayIOResult $ do
+    err <- plotRelation rel
+    when (isJust err) $ putStrLn (show err)
 
 evalRODatabaseContextOp context (ShowConstraint name) = 
   case name of
