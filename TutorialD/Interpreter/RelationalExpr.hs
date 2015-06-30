@@ -240,9 +240,7 @@ stringAtomP :: Parser Atom
 stringAtomP = liftA (StringAtom . T.pack) (string "\"" *> many quotedChar <* string "\"")
 
 intAtomP :: Parser Atom
-intAtomP = do
-  intstr <- many1 digit
-  return $ IntAtom (read intstr)
+intAtomP = (IntAtom . fromIntegral) <$> integer
 
 boolAtomP :: Parser Atom
 boolAtomP = do

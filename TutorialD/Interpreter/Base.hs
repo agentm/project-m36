@@ -44,6 +44,9 @@ semi = Token.semi lexer
 whiteSpace :: Parser ()
 whiteSpace = Token.whiteSpace lexer
 
+integer :: Parser (Integer)
+integer = Token.integer lexer
+
 atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of
   StringAtomType -> Just "char"
