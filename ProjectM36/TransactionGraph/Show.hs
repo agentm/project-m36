@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
-module ProjectM36.Transaction.Show where
+module ProjectM36.TransactionGraph.Show where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.Transaction
+import ProjectM36.TransactionGraph
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Set as S

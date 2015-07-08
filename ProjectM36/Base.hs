@@ -191,7 +191,7 @@ data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n child
                        MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
                      deriving(Show, Generic)
                              
---instance Binary TransactionInfo                             
+instance Binary TransactionInfo                             
                              
 data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
                    deriving (Show, Generic)
@@ -208,6 +208,9 @@ transactionUUID (Transaction uuid _ _) = uuid
 
 transactionContext :: Transaction -> DatabaseContext
 transactionContext (Transaction _ _ context) = context
+
+transactionInfo :: Transaction -> TransactionInfo
+transactionInfo (Transaction _ info _) = info
                             
 instance Eq Transaction where                            
   (Transaction uuidA _ _) == (Transaction uuidB _ _) = uuidA == uuidB

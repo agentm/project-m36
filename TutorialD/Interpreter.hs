@@ -5,7 +5,7 @@ import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import ProjectM36.Base
-import ProjectM36.Transaction
+import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import Text.Parsec
 import Text.Parsec.String
@@ -57,8 +57,6 @@ reprLoop :: FilePath -> DisconnectedTransaction -> TransactionGraph -> IO ()
 reprLoop transGraphDir currentTransaction graph = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  --save the current transaction graph
-  transactionGraphPersist transGraphDir graph
 
   maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText currentTransaction graph))
 
@@ -75,9 +73,13 @@ reprLoop transGraphDir currentTransaction graph = do
         reprLoop transGraphDir updatedTrans updatedGraph        
       (DisplayResult out, updatedTrans, updatedGraph) -> do
         TIO.putStrLn out
+        --save the current transaction graph
+        transactionGraphPersist transGraphDir updatedGraph
         reprLoop transGraphDir updatedTrans updatedGraph
       (QuietSuccessResult, updatedTrans, updatedGraph) -> do
-        TIO.putStrLn "Done."
+        --save the current transaction graph
+        transactionGraphPersist transGraphDir updatedGraph        
+        TIO.putStrLn "Done."        
         reprLoop transGraphDir updatedTrans updatedGraph
 
 --used by :dumpGraph

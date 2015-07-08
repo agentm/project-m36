@@ -8,7 +8,8 @@ import qualified Data.UUID as U
 import qualified Data.Text as T
 import ProjectM36.Error
 import ProjectM36.Transaction
-import ProjectM36.Transaction.Show
+import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Show
 import ProjectM36.Relation.Show.Term
 
 --operators which manipulate a transaction graph
