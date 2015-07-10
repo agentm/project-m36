@@ -10,6 +10,12 @@ import System.FilePath
 import System.Directory
 import qualified Data.Text as T
 import Control.Monad
+import ProjectM36.RelationalExpression (basicAtomFunctions)
+
+getDirectoryNames :: FilePath -> IO [FilePath]
+getDirectoryNames path = do
+  subpaths <- getDirectoryContents path
+  return $ filter (\n -> n `notElem` ["..", "."]) subpaths
 
 tempTransactionDir :: FilePath -> U.UUID -> FilePath
 tempTransactionDir dbdir transUUID = dbdir </> "." ++ U.toString transUUID
@@ -18,16 +24,16 @@ transactionDir :: FilePath -> U.UUID -> FilePath
 transactionDir dbdir transUUID = dbdir </> U.toString transUUID
 
 transactionInfoPath :: FilePath -> FilePath
-transactionInfoPath = (</>) "info"
+transactionInfoPath transdir = transdir </> "info"
 
 relvarsDir :: FilePath -> FilePath        
-relvarsDir = (</>) "relvars"
+relvarsDir transdir = transdir </> "relvars"
 
 incDepsDir :: FilePath -> FilePath
-incDepsDir = (</>) "incdeps"
+incDepsDir transdir = transdir </> "incdeps"
 
 atomFuncsDir :: FilePath -> FilePath
-atomFuncsDir = (</>) "atomfuncs"
+atomFuncsDir transdir = transdir </> "atomfuncs"
 
 readTransaction :: FilePath -> U.UUID -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transUUID = do
@@ -39,7 +45,8 @@ readTransaction dbdir transUUID = do
     relvars <- readRelVars transDir
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
-    atomFuncs <- readAtomFuncs transDir
+    --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
+    let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
                                        atomFunctions = atomFuncs }
@@ -75,19 +82,19 @@ writeRelVars transDir relvars = mapM_ (writeRelVar transDir) $ M.toList relvars
 readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
 readRelVars transDir = do
   let relvarsPath = relvarsDir transDir
-  relvarNames <- getDirectoryContents relvarsPath
+  relvarNames <- getDirectoryNames relvarsPath
   relvars <- mapM (\name -> do
                       rel <- liftM B.decode $ BS.readFile (relvarsPath </> name)
                       return (T.pack name, rel)) relvarNames
   return $ M.fromList relvars
 
 writeAtomFuncs :: FilePath -> AtomFunctions -> IO ()
-writeAtomFuncs transDir funcs = mapM_ (writeAtomFunc (atomFuncsDir transDir)) $ HS.toList funcs
+writeAtomFuncs transDir funcs = mapM_ (writeAtomFunc transDir) $ HS.toList funcs
 
 --all the atom functions are in one file (???)
 readAtomFuncs :: FilePath -> IO (AtomFunctions)
 readAtomFuncs transDir = do
-  funcNames <- getDirectoryContents (incDepsDir transDir)
+  funcNames <- getDirectoryNames (atomFuncsDir transDir)
   funcs <- mapM (readAtomFunc transDir) (map T.pack funcNames)
   return $ HS.fromList funcs
   
@@ -119,6 +126,6 @@ readIncDep transDir incdepName = do
 readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)  
 readIncDeps transDir = do
   let incDepsPath = incDepsDir transDir
-  incDepNames <- getDirectoryContents incDepsPath
+  incDepNames <- getDirectoryNames incDepsPath
   incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
   return $ M.fromList incDeps

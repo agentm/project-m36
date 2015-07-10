@@ -73,6 +73,12 @@ Test-Suite test-static-optimizer
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
+Test-Suite test-transactiongraph-persist
+    type: exitcode-stdio-1.0
+    main-is: test/TransactionGraph/Persist.hs
+    Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
 benchmark bench
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs

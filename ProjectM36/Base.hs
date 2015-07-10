@@ -261,3 +261,6 @@ data AttributeNames = AttributeNames (S.Set AttributeName) |
                                 
 instance Binary AttributeNames 
 
+data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-only database
+                           MinimalPersistence  --fsync off
+                           --CrashSafePersistence --full fsync- not yet implemented

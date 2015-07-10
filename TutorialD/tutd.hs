@@ -7,6 +7,7 @@ import ProjectM36.Transaction
 import ProjectM36.Base
 import System.IO
 import Data.UUID.V4 (nextRandom)
+import qualified Data.Text as T
 
 main :: IO ()
 main = do
@@ -14,16 +15,19 @@ main = do
   let currentHeadName = "master"
       --if the database is empty, bootstrap it with the bootstrap graph
       bootstrapGraph = bootstrapTransactionGraph freshUUID dateExamples
-      dbdir = "/tmp/testdb"
-  err <- setupDatabaseDir dbdir bootstrapGraph
+      interpreterConfig = InterpreterConfig { persistenceStrategy = MinimalPersistence,
+                                       databaseDirectory = "/tmp/testdb" }
+      dbdir = databaseDirectory interpreterConfig
+  err <- setupDatabaseDir dbdir  bootstrapGraph
   case err of
-    Just err -> hPutStrLn stderr $ "Database setup failed: " ++ show err
+    Just err' -> hPutStrLn stderr $ "Database setup failed: " ++ show err'
     Nothing -> do
       freshGraph <- transactionGraphLoad dbdir emptyTransactionGraph
       case freshGraph of
-        Left err -> hPutStrLn stderr $ "Database load failed: " ++ show err
-        Right freshGraph' -> do
-          let headTransaction = case transactionForHead currentHeadName freshGraph' of { Just x -> x; _ -> undefined}
-              currentTransaction = newDisconnectedTransaction (transactionUUID headTransaction) (transactionContext headTransaction)
-          reprLoop dbdir currentTransaction freshGraph'
+        Left err'' -> hPutStrLn stderr $ "Database load failed: " ++ show err''
+        Right freshGraph' -> case transactionForHead currentHeadName freshGraph' of 
+                Nothing -> hPutStrLn stderr $ "Failed to find head transaction for " ++ T.unpack currentHeadName ++ "."
+                Just headTransaction -> do 
+                  let currentTransaction = newDisconnectedTransaction (transactionUUID headTransaction) (transactionContext headTransaction)
+                  reprLoop interpreterConfig currentTransaction freshGraph'
 

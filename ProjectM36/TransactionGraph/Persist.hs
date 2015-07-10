@@ -18,6 +18,7 @@ import Control.Monad (foldM)
 import Data.Either (isRight)
 import Data.Maybe (catMaybes)
 
+
 {-
 The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of UUIDs referencing their parents (1 or more)
 Each Transaction is written to it own directory named by its UUID. Partially written transactions UUIDs are prefixed with a "." to indicate incompleteness in the graph.
@@ -25,10 +26,10 @@ Each Transaction is written to it own directory named by its UUID. Partially wri
 -}
 
 transactionLogPath :: FilePath -> FilePath
-transactionLogPath = (</>) "m36v1"
+transactionLogPath dbdir = dbdir </> "m36v1"
 
-headsDir :: FilePath -> FilePath
-headsDir = (</>) "heads"
+headsPath :: FilePath -> FilePath
+headsPath dbdir = dbdir </> "heads"
 
 {-
 verify that the database directory is valid or bootstrap it 
@@ -54,6 +55,8 @@ bootstrapDatabaseDir :: FilePath -> TransactionGraph -> IO ()
 bootstrapDatabaseDir dbdir bootstrapGraph = do
   createDirectory dbdir
   transactionGraphPersist dbdir bootstrapGraph
+  putStrLn "Bootstrapped DB."
+
 
 {- 
 incrementally updates an existing database directory
@@ -70,24 +73,26 @@ transactionGraphPersist destDirectory graph = do
   return ()
   
 {- 
-write a head datum to the file system
-1. create a symlink in a temporary directory
-2. atomically rename it
+write graph heads to a file which can be atomically swapped
 -}
---should updating all the heads be atomic (create temp directory and new symlinks for every persistence?
+--writing the heads in a directory is a synchronization nightmare, so just write the binary to a file and swap atomically
 transactionGraphHeadsPersist :: FilePath -> TransactionGraph -> IO ()
 transactionGraphHeadsPersist dbdir graph = do
-  let writeHead headsPath (headName, trans) = do
-        let symlinkPath = ".." </> U.toString (transactionUUID trans)
-        createSymbolicLink symlinkPath (headsPath </> T.unpack headName)
-      finalHeadsDir = headsDir dbdir
-  withTempDirectory dbdir ".headsdir.XXXXX" $ \newHeadsDir -> do
-                                                             let tempHeadsDir = (newHeadsDir </> "heads")
-                                                             createDirectory tempHeadsDir
-                                                             mapM_ (writeHead tempHeadsDir) $ M.toList (transactionHeadsForGraph graph)
-                                                             --move the new heads dir into place atomically
-                                                             renameDirectory tempHeadsDir finalHeadsDir
-                                                        
+  let headFileStr :: (HeadName, Transaction) -> String
+      headFileStr (headName, trans) =  T.unpack headName ++ " " ++ U.toString (transactionUUID trans)
+  withTempDirectory dbdir ".heads.tmp" $ \tempHeadsDir -> do
+    let tempHeadsPath = tempHeadsDir </> "heads"
+        headsStrLines = map headFileStr $ M.toList (transactionHeadsForGraph graph)
+    writeFile tempHeadsPath $ intercalate "\n" headsStrLines
+    rename tempHeadsPath (headsPath dbdir)
+                                                             
+transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,U.UUID)]
+transactionGraphHeadsLoad dbdir = do
+  headsData <- readFile (headsPath dbdir)
+  let headsAssocs = map (\l -> let headName:uuidStr:[] = words l in
+                          (headName,uuidStr)
+                          ) (lines headsData)
+  return [(T.pack headName, uuid) | (headName, Just uuid) <- map (\(h,u) -> (h, U.fromString u)) headsAssocs]
   
 {-  
 load any transactions which are not already part of the incoming transaction graph
@@ -99,13 +104,20 @@ transactionGraphLoad dbdir graphIn = do
   --optimization: perform tail-bisection search to find last-recorded transaction in the existing stream- replay the rest
   --read in all missing transactions from transaction directories and add to graph
   uuidInfo <- readGraphUUIDFile dbdir
+  freshHeadsAssoc <- transactionGraphHeadsLoad dbdir
   case uuidInfo of
     Left err -> return $ Left err
     Right info -> do  
       let folder = \eitherGraph transUUID -> case eitherGraph of
             Left err -> return $ Left err
             Right graph -> readTransactionIfNecessary dbdir transUUID graph
-      foldM folder (Right graphIn) (map fst info)
+      loadedGraph <- foldM folder (Right graphIn) (map fst info)
+      case loadedGraph of 
+        Left err -> return $ Left err
+        Right freshGraph -> do
+          let maybeTransHeads = [(headName, transactionForUUID uuid freshGraph) | (headName, uuid) <- freshHeadsAssoc]
+              freshHeads = M.fromList [(headName,trans) | (headName, Right trans) <- maybeTransHeads]
+          return $ Right $ TransactionGraph freshHeads (transactionsForGraph freshGraph)
   
 {-  
 if the transaction with the UUID argument is not yet part of the graph, then read the transaction and add it - this does not update the heads
