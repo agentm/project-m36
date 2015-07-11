@@ -53,8 +53,7 @@ interpret freshUUID discon@(DisconnectedTransaction parentUUID context) graph in
                                 Right (discon', graph', result') -> (result', discon', graph', True)
                                 
 data InterpreterConfig = InterpreterConfig { 
-  persistenceStrategy :: PersistenceStrategy,
-  databaseDirectory :: FilePath
+  persistenceStrategy :: PersistenceStrategy
   }
 
 reprLoop :: InterpreterConfig -> DisconnectedTransaction -> TransactionGraph -> IO ()
@@ -70,7 +69,7 @@ reprLoop config currentTransaction graph = do
     Just line -> do
     newUUID <- nextRandom
     let (opResult, disconTrans, updatedGraph, graphWasUpdated) = interpret newUUID currentTransaction graph line
-    when graphWasUpdated $ processPersistence (databaseDirectory config) (persistenceStrategy config)  updatedGraph
+    when graphWasUpdated $ processPersistence (persistenceStrategy config) updatedGraph
     case (opResult, disconTrans, updatedGraph) of
       (QuitResult, _, _) -> return ()
       (DisplayErrorResult err, _, _) -> TIO.hPutStrLn stderr ("ERROR: " `T.append` err) >> roloop

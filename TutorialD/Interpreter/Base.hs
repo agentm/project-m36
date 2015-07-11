@@ -75,6 +75,6 @@ displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
 displayOpResult QuietSuccessResult = return ()
 
-processPersistence :: FilePath -> PersistenceStrategy -> TransactionGraph -> IO ()
-processPersistence _ NoPersistence _ = return ()
-processPersistence dbdir MinimalPersistence graph = transactionGraphPersist dbdir graph
+processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
+processPersistence  NoPersistence _ = return ()
+processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist dbdir graph
