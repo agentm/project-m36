@@ -261,6 +261,7 @@ data AttributeNames = AttributeNames (S.Set AttributeName) |
                                 
 instance Binary AttributeNames 
 
+--used for global dbms configuration- per-transaction flag is elsewhere
 data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-only database
                            MinimalPersistence FilePath  --fsync off
                            --CrashSafePersistence FilePath --full fsync- not yet implemented

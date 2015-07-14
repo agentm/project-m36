@@ -7,7 +7,6 @@ import ProjectM36.Transaction
 import ProjectM36.Base
 import System.IO
 import Options.Applicative
-import Text.Read (readEither)
 import Data.UUID.V4 (nextRandom)
 import qualified Data.Text as T
 import System.Exit
@@ -16,20 +15,23 @@ import System.Exit
 invocation:
 tutd 
 -no arguments indicates to run without persistence
-tutd -d /database-directory -p MinimalPersistence
+tutd -d /database-directory
 -persist to the database directory
 -}
 parseArgs :: Parser InterpreterConfig
 parseArgs = InterpreterConfig <$> parsePersistenceStrategy
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
-parsePersistenceStrategy = option (eitherReader readEither)
-                           (short 'p' <> 
-                            long "persistence-strategy" <> 
-                            metavar "strategy" <>
-                            value NoPersistence <>
-                            showDefaultWith show
-                           )
+parsePersistenceStrategy = do
+  MinimalPersistence <$> strOption (short 'd' <> 
+                                    long "database-directory" <> 
+                                    metavar "DIRECTORY" <>
+                                    showDefaultWith show
+                                   )
+    <|> pure NoPersistence
+
+     
+       
                            
 configSetup :: InterpreterConfig -> IO (TransactionGraph)                           
 configSetup config = do
@@ -40,7 +42,7 @@ configSetup config = do
   let bootstrapGraph = bootstrapTransactionGraph firstGraphUUID dateExamples
   case persistenceStrategy config of
     --create date examples graph for now- probably should be empty context in the future
-    NoPersistence -> return bootstrapGraph
+    NoPersistence -> do { putStrLn "Running without filesystem persistence."; return bootstrapGraph}
     MinimalPersistence dbdir -> do
       err <- setupDatabaseDir dbdir bootstrapGraph 
       case err of
