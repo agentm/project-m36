@@ -9,6 +9,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.Base
 import ProjectM36.Transaction
+import ProjectM36.TransactionGraph
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -135,7 +136,7 @@ transactionRollbackTest = TestCase $ do
           Left err -> assertFailure (show err)
           Right newContext -> do
             let discon = newDisconnectedTransaction firstUUID newContext
-            let (_, (DisconnectedTransaction _ newContext2), newGraph) = interpret freshUUID discon graph ":rollback"
+            let (_, (DisconnectedTransaction _ newContext2), newGraph, _) = interpret freshUUID discon graph ":rollback"
             assertEqual "validate context" (M.lookup "x" (relationVariables newContext2)) Nothing
             assertEqual "validate graph" graph newGraph
 
@@ -161,7 +162,7 @@ transactionJumpTest = TestCase $ do
                   Left err -> assertFailure (show err)
                   Right (_, graph) -> do
                     --jump to the first transaction
-                    let (_, (DisconnectedTransaction parentUUID newContext3), newGraph) = interpret freshUUID discon graph (":jump " ++ show firstUUID)
+                    let (_, (DisconnectedTransaction parentUUID newContext3), newGraph, _) = interpret freshUUID discon graph (":jump " ++ show firstUUID)
                     assertEqual "validate discon" parentUUID firstUUID
                     assertEqual "validate discon2" Nothing (M.lookup "x" (relationVariables newContext3))
                     assertEqual "validate graph" transactionUUIDs (S.map transactionUUID (transactionsForGraph newGraph))
@@ -184,7 +185,7 @@ transactionBranchTest = TestCase $ do
           Left err -> assertFailure (show err)
           Right (_, graph) -> do
             --add a third transaction to the "test" branch
-            let (_, _, newGraph) = interpret freshUUID2 origDiscon graph ":branch test"
+            let (_, _, newGraph, _) = interpret freshUUID2 origDiscon graph ":branch test"
             assertEqual "verify test head" freshUUID2 $ maybeTransUUID (transactionForHead "test" newGraph)
             assertEqual "verify master head" freshUUID1 $ maybeTransUUID (transactionForHead "master" newGraph)
     where

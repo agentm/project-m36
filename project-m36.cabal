@@ -7,10 +7,12 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
-                     ProjectM36.Transaction.Show,
+                     ProjectM36.TransactionGraph,
+                     ProjectM36.TransactionGraph.Show,
+                     ProjectM36.TransactionGraph.Persist,
                      ProjectM36.Base,
                      ProjectM36.Attribute,
                      ProjectM36.AttributeNames,
@@ -19,6 +21,7 @@ Library
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
                      ProjectM36.Key,
+                     ProjectM36.DatabaseContext,
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
@@ -67,6 +70,12 @@ Test-Suite test-relation
 Test-Suite test-static-optimizer
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
+    Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
+Test-Suite test-transactiongraph-persist
+    type: exitcode-stdio-1.0
+    main-is: test/TransactionGraph/Persist.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 

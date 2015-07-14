@@ -34,5 +34,10 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
                        deriving (Show,Eq,Generic) 
 
-
 instance NFData RelationalError where rnf = genericRnf
+                                      
+data PersistenceError = InvalidDirectoryError FilePath | 
+                        MissingTransactionError U.UUID
+                      deriving (Show, Eq)
+
+                                      
