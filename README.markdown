@@ -8,14 +8,17 @@ Project:M36 implements a relational algebra engine as inspired by the writings o
 1. Install [Haskell Platform](https://www.haskell.org/platform/)
 1. ```git clone https://github.com/agentm/project-m36```
 2. ```cd project-m36```
-3. ```cabal configure --enable-tests```
-4. ```cabal install --enable-tests```
-5. ```./dist/build/tutd/tutd``` to run the Tutorial D interpreter
-6. ```cabal test``` to run test suite
+3. ```cabal sandbox init```
+4. ```cabal configure --enable-tests```
+5. ```cabal install --enable-tests```
+6. ```cabal run tutd``` to run the Tutorial D interpreter
+7. ```cabal test``` to run test suite
 
 ## Usage
 
-Currently, the best-supported frontend is the Tutorial D interpreter. Run `cabal run tutd` in newer versions of cabal or `./dist/build/tutd/tutd` in older versions of cabal to start the command line interpreter. You will be greeted with:
+Currently, the best-supported frontend is the Tutorial D interpreter. Run `cabal run tutd` to start the command line interpreter linked to an in-memory database. Alternatively, to create a database backed by the filesystem (to be able to save committed transactions in the filesystem), use `cabal run tutd -- -d <db directory>`.
+
+You will be greeted with:
 
 `TutorialD (master):`
 
