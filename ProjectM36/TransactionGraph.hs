@@ -2,11 +2,28 @@
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Transaction
+import ProjectM36.Relation
+import ProjectM36.TupleSet
+import ProjectM36.Tuple
+import qualified Data.HashSet as HS
+import qualified Data.Vector as V
+import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Control.Applicative ((<$>))
 import Control.Monad
+import qualified Data.Text as T
+
+--operators which manipulate a transaction graph
+data TransactionGraphOperator = JumpToHead HeadName  |
+                                JumpToTransaction U.UUID |
+                                Branch HeadName |
+                                Commit |
+                                Rollback 
+
+data ROTransactionGraphOperator = ShowGraph 
 
 bootstrapTransactionGraph :: U.UUID -> DatabaseContext -> TransactionGraph
 bootstrapTransactionGraph freshUUID context = TransactionGraph bootstrapHeads bootstrapTransactions
@@ -126,3 +143,104 @@ walkChildTransactions seenTransSet graph trans =
          case walk of
            err:_ -> Just err
            _ -> Nothing
+
+-- returns the new "current" transaction, updated graph, and tutorial d result
+-- the current transaction is not part of the transaction graph until it is committed
+evalGraphOp :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
+
+--affects only disconncted transaction
+evalGraphOp _ _ graph (JumpToTransaction jumpUUID) = case transactionForUUID jumpUUID graph of
+  Left err -> Left err
+  Right parentTrans -> Right (newTrans, graph)
+    where
+      newTrans = DisconnectedTransaction jumpUUID (transactionContext parentTrans)
+
+-- switch from one head to another
+-- affects only disconnectedtransaction
+evalGraphOp _ _ graph (JumpToHead headName) =
+  case transactionForHead headName graph of
+    Just newHeadTransaction -> let disconnectedTrans = newDisconnectedTransaction (transactionUUID newHeadTransaction) (transactionContext newHeadTransaction) in
+      Right (disconnectedTrans, graph)
+    Nothing -> Left $ NoSuchHeadNameError headName
+-- add new head pointing to branchPoint
+-- repoint the disconnected transaction to the new branch commit (with a potentially different disconnected context)
+-- affects transactiongraph and the disconnectedtransaction is recreated based off the branch
+    {-
+evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+  Nothing -> (discon, graph, DisplayErrorResult "Failed to find parent transaction.")
+  Just parentTrans -> case addBranch newBranchName parentTrans graph of
+    Nothing -> (discon, graph, DisplayErrorResult "Failed to add branch.")
+    Just newGraph -> (newDiscon, newGraph, DisplayResult "Branched.")
+     where
+       newDiscon = DisconnectedTransaction (transactionUUID parentTrans) disconContext
+-}
+
+-- create a new commit and add it to the heads
+-- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
+evalGraphOp newUUID (DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
+    Left err -> Left err
+    Right (_, newGraph) -> Right (newDiscon, newGraph)
+     where
+      newDiscon = DisconnectedTransaction newUUID disconContext
+
+-- add the disconnected transaction to the graph
+-- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
+evalGraphOp newTransUUID discon@(DisconnectedTransaction parentUUID context) graph Commit = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTransaction -> case headNameForTransaction parentTransaction graph of
+    Nothing -> Left $ TransactionIsNotAHeadError parentUUID
+    Just headName -> case maybeUpdatedGraph of
+      Left err-> Left err
+      Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
+      where
+        newDisconnectedTrans = newDisconnectedTransaction newTransUUID context
+        maybeUpdatedGraph = addDisconnectedTransaction newTransUUID headName discon graph
+
+-- refresh the disconnected transaction, return the same graph
+evalGraphOp _ (DisconnectedTransaction parentUUID _) graph Rollback = case transactionForUUID parentUUID graph of
+  Left err -> Left err
+  Right parentTransaction -> Right (newDiscon, graph)
+    where
+      newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
+
+--display transaction graph as relation
+evalROGraphOp :: DisconnectedTransaction -> TransactionGraph -> ROTransactionGraphOperator -> Either RelationalError Relation
+evalROGraphOp discon graph ShowGraph = do
+  graphRel <- graphAsRelation discon graph
+  return graphRel
+
+--present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction    
+graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation    
+graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _ transSet) = do
+  tupleMatrix <- mapM tupleGenerator (S.toList transSet)
+  mkRelationFromList attrs tupleMatrix
+  where
+    attrs = A.attributesFromList [Attribute "id" StringAtomType,
+                                  Attribute "parents" (RelationAtomType parentAttributes),
+                                  Attribute "current" IntAtomType,
+                                  Attribute "head" StringAtomType
+                                 ]
+    parentAttributes = A.attributesFromList [Attribute "id" StringAtomType]
+    tupleGenerator transaction = case transactionParentsRelation transaction graph of
+      Left err -> Left err
+      Right parentTransRel -> Right [StringAtom $ T.pack $ show (transactionUUID transaction),
+                                     RelationAtom parentTransRel,
+                                     IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0,
+                                     StringAtom $ case headNameForTransaction transaction graph of
+                                       Just headName -> headName
+                                       Nothing -> ""
+                                      ]
+
+transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
+transactionParentsRelation trans graph = do
+  if isRootTransaction trans graph then do
+    mkRelation attrs emptyTupleSet
+    else do
+      parentTransSet <- parentTransactions trans graph
+      let tupleSet = HS.fromList $ map trans2tuple (S.toList parentTransSet)
+      mkRelation attrs tupleSet
+  where
+    attrs = A.attributesFromList [Attribute "id" StringAtomType]
+    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (T.pack (show $ transactionUUID trans2)))

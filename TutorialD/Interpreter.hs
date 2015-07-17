@@ -5,6 +5,7 @@ import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import ProjectM36.Base
+import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
 import Text.Parsec
 import Text.Parsec.String
@@ -25,12 +26,14 @@ graph ops are read-write operations which change the transaction graph
 -}
 data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseExprOp DatabaseExpr |
-                       GraphOp TransactionGraphOperator
+                       GraphOp TransactionGraphOperator |
+                       ROGraphOp ROTransactionGraphOperator
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
                     liftM GraphOp (transactionGraphOpP <* eof) <|>
-                    liftM DatabaseExprOp (databaseExprOpP <* eof)
+                    liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
+                    liftM DatabaseExprOp (databaseExprOpP <* eof) 
 
 promptText :: DisconnectedTransaction -> TransactionGraph -> StringType
 promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" `T.append` transInfo `T.append` "): "
@@ -50,7 +53,10 @@ interpret freshUUID discon@(DisconnectedTransaction parentUUID context) graph in
                                         Right context' -> (QuietSuccessResult, DisconnectedTransaction parentUUID context', graph, False)
   Right (GraphOp execOp) -> case evalGraphOp freshUUID discon graph execOp of
                                 Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph, False)
-                                Right (discon', graph', result') -> (result', discon', graph', True)
+                                Right (discon', graph') -> (QuietSuccessResult, discon', graph', True)
+  Right (ROGraphOp execOp) -> case evalROGraphOp discon graph execOp of
+    Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph, False)
+    Right rel -> (DisplayResult $ showRelation rel, discon, graph, False)
                                 
 data InterpreterConfig = InterpreterConfig { 
   persistenceStrategy :: PersistenceStrategy
