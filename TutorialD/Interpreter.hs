@@ -7,16 +7,13 @@ import TutorialD.Interpreter.TransactionGraphOperator
 import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
+import ProjectM36.Client
 import Text.Parsec
 import Text.Parsec.String
 import Control.Monad.State
 import System.Console.Haskeline
-import System.IO
 import System.Directory (getHomeDirectory)
-import qualified Data.UUID as U
-import Data.UUID.V4 (nextRandom)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
 import Control.Applicative ((<*))
 
 {-
@@ -43,56 +40,61 @@ promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" `T.appen
       Right parentTrans -> case headNameForTransaction parentTrans graph of
           Nothing -> T.pack (show $ transactionUUID parentTrans)
           Just headName -> headName
+          
+parseTutorialD :: Connection -> String -> Either ParseError ParsedOperation
+parseTutorialD (InProcessConnection _ _) inputString = parse interpreterParserP "" inputString
 
-interpret :: U.UUID -> DisconnectedTransaction -> TransactionGraph -> String -> (TutorialDOperatorResult, DisconnectedTransaction, TransactionGraph, TransactionGraphWasUpdated) 
-interpret freshUUID discon@(DisconnectedTransaction parentUUID context) graph inputString = case parse interpreterParserP "" inputString of
-  Left err -> (DisplayErrorResult (T.pack $ show err), discon, graph, False)
-  Right (RODatabaseContextOp execOp) -> (evalRODatabaseContextOp context execOp, discon, graph, False)
-  Right (DatabaseExprOp execOp) -> case evalDatabaseExpr True context execOp of
-                                        Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph, False)
-                                        Right context' -> (QuietSuccessResult, DisconnectedTransaction parentUUID context', graph, False)
-  Right (GraphOp execOp) -> case evalGraphOp freshUUID discon graph execOp of
-                                Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph, False)
-                                Right (discon', graph') -> (QuietSuccessResult, discon', graph', True)
-  Right (ROGraphOp execOp) -> case evalROGraphOp discon graph execOp of
-    Left err -> (DisplayErrorResult $ T.pack (show err), discon, graph, False)
-    Right rel -> (DisplayResult $ showRelation rel, discon, graph, False)
-                                
+--execute the operation and display result
+evalTutorialD :: Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
+evalTutorialD conn expr = case expr of
+  
+  --this does not pass through the ProjectM36.Client library because the operations
+  --are specific to the interpreter, though some operations may be of general use in the future
+  (RODatabaseContextOp execOp) -> do
+    (DisconnectedTransaction _ context) <- disconnectedTransaction conn
+    return $ evalRODatabaseContextOp context execOp
+    
+  (DatabaseExprOp execOp) -> do 
+    maybeErr <- executeDatabaseContextExpr conn execOp 
+    case maybeErr of
+      Just err -> barf err
+      Nothing -> return $ QuietSuccessResult
+    
+  (GraphOp execOp) -> do
+    maybeErr <- executeGraphExpr conn execOp
+    case maybeErr of
+      Just err -> barf err
+      Nothing -> return $ QuietSuccessResult
+
+  (ROGraphOp execOp) -> do
+    discon <- disconnectedTransaction conn
+    graph <- transactionGraph conn
+    case evalROGraphOp discon graph execOp of
+      Left err -> barf err
+      Right rel -> return $ DisplayResult $ showRelation rel
+   
+  where
+    barf err = return $ DisplayErrorResult (T.pack (show err))
+  
 data InterpreterConfig = InterpreterConfig { 
   persistenceStrategy :: PersistenceStrategy
   }
 
-reprLoop :: InterpreterConfig -> DisconnectedTransaction -> TransactionGraph -> IO ()
-reprLoop config currentTransaction graph = do
+reprLoop :: InterpreterConfig -> Connection -> IO ()
+reprLoop config conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-
-  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText currentTransaction graph))
-
-  let roloop = reprLoop config currentTransaction graph
+  discon <- disconnectedTransaction conn
+  graph <- transactionGraph conn
+  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText discon graph))
+  let roloop = reprLoop config conn
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-    newUUID <- nextRandom
-    let (opResult, disconTrans, updatedGraph, graphWasUpdated) = interpret newUUID currentTransaction graph line
-    when graphWasUpdated $ processPersistence (persistenceStrategy config) updatedGraph
-    case (opResult, disconTrans, updatedGraph) of
-      (QuitResult, _, _) -> return ()
-      (DisplayErrorResult err, _, _) -> TIO.hPutStrLn stderr ("ERROR: " `T.append` err) >> roloop
-      (DisplayIOResult outio, updatedTrans', updatedGraph') -> do
-        outio
-        reprLoop config updatedTrans' updatedGraph'        
-      (DisplayResult out, updatedTrans', updatedGraph') -> do
-        TIO.putStrLn out
-        --assume that the DisplayResult type implies that the transaction graph was not updated
-        reprLoop config updatedTrans' updatedGraph'
-      (QuietSuccessResult, updatedTrans', updatedGraph') -> do
-        --save the current transaction graph
-        TIO.putStrLn "Done."        
-        reprLoop config updatedTrans' updatedGraph'
-
---used by :dumpGraph
-{-
-displayTransactionGraph :: TransactionGraph -> String
-displayTransactionGraph (TransactionGraph _ transSet) = L.intercalate "\n" $ S.foldr (\(Transaction tUUID pUUID _ ) acc -> acc ++ [show tUUID ++ " " ++ show pUUID]) [] transSet
--}
+      case parseTutorialD conn line of
+        Left err -> do
+          displayOpResult $ DisplayErrorResult (T.pack (show err))
+          roloop
+        Right parsed -> do 
+          evald <- evalTutorialD conn parsed
+          displayOpResult evald

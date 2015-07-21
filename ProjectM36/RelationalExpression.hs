@@ -522,3 +522,4 @@ intAtomFuncLessThan _ _= BoolAtom False
 boolAtomNot :: [Atom] -> Atom
 boolAtomNot (BoolAtom bool:_) = BoolAtom $ not bool
 boolAtomNot _ = BoolAtom False
+

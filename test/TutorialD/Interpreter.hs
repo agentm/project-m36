@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter
+import TutorialD.Interpreter.Base
 import Test.HUnit
 import ProjectM36.RelationalExpression
 import ProjectM36.Relation
@@ -8,16 +9,14 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.Base
-import ProjectM36.Transaction
 import ProjectM36.TransactionGraph
+import ProjectM36.Client
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import qualified Data.Set as S
 import System.Exit
-import Data.UUID.V4 (nextRandom)
-import Data.UUID (nil)
-import Data.Either (isRight)
+import Data.Maybe (isJust)
+import System.IO
 import qualified Data.Vector as V
 
 --urgent: add group and ungroup tests- I missed the group relation type bug
@@ -105,91 +104,78 @@ assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interp
 
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
-    (_, graph) <-  dateExamplesGraph
-    assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
+  dbconn <- dateExamplesConnection
+  graph <- transactionGraph dbconn
+  assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
 
 --add a new transaction to the graph, validate it is in the graph
 transactionGraphAddCommitTest :: Test
 transactionGraphAddCommitTest = TestCase $ do
-    ((DisconnectedTransaction firstUUID context), origGraph) <- dateExamplesGraph
-    freshUUID <- nextRandom
-    case interpretDatabaseExpr context "x:=S" of
-      Left err -> assertFailure (show err)
-      Right newContext -> do
-        let discon = newDisconnectedTransaction firstUUID newContext
-        let addTrans = addDisconnectedTransaction freshUUID "master" discon origGraph
-        case addTrans of
-          Left err -> assertFailure (show err)
-          Right (newTrans, graph) -> do
-            assertBool "transaction in graph" (isRight $ transactionForUUID freshUUID graph)
-            assertEqual "validate fresh commit with deleted S" (validateGraph graph) Nothing
-            assertEqual "ensure S was deleted in newContext" (M.lookup "x" (relationVariables (transactionContext newTrans))) (Just suppliersRel)
+  dbconn <- dateExamplesConnection
+  case parseTutorialD dbconn "x:=S" of
+    Left err -> assertFailure (show err)
+    Right parsed -> do 
+      result <- evalTutorialD dbconn parsed
+      case result of
+        QuitResult -> assertFailure "quit?"
+        DisplayResult _ -> assertFailure "display?"
+        DisplayIOResult _ -> assertFailure "displayIO?"
+        DisplayErrorResult err -> assertFailure (show err)        
+        QuietSuccessResult -> do
+          commit dbconn >>= maybeFail
+          (DisconnectedTransaction _ context) <- disconnectedTransaction dbconn
+          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
-    ((DisconnectedTransaction firstUUID origContext), graph) <- dateExamplesGraph
-    freshUUID <- nextRandom
-    case transactionForUUID firstUUID graph of
-      Left err -> assertFailure (show err)
-      Right _ -> do
-        case interpretDatabaseExpr origContext "x:=S" of
-          Left err -> assertFailure (show err)
-          Right newContext -> do
-            let discon = newDisconnectedTransaction firstUUID newContext
-            let (_, (DisconnectedTransaction _ newContext2), newGraph, _) = interpret freshUUID discon graph ":rollback"
-            assertEqual "validate context" (M.lookup "x" (relationVariables newContext2)) Nothing
-            assertEqual "validate graph" graph newGraph
+  dbconn <- dateExamplesConnection
+  graph <- transactionGraph dbconn
+  maybeErr <- executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S"))
+  case maybeErr of
+    Just err -> assertFailure (show err)
+    Nothing -> do
+      rollback dbconn >>= maybeFail
+      (DisconnectedTransaction _ context') <- disconnectedTransaction dbconn
+      graph' <- transactionGraph dbconn
+      assertEqual "validate context" Nothing (M.lookup "x" (relationVariables context'))
+      assertEqual "validate graph" graph graph'
 
 --commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
-    ((DisconnectedTransaction firstUUID origContext), origGraph) <- dateExamplesGraph
-    freshUUID <- nextRandom
-    case transactionForUUID firstUUID origGraph of
-      Left err -> assertFailure (show err)
-      Right _ -> do
-        case interpretDatabaseExpr origContext "x:=S" of
-          Left err -> assertFailure (show err)
-          Right newContext -> do
-            --modify the second transaction
-            case interpretDatabaseExpr newContext "x:=S" of
-              Left err-> assertFailure (show err)
-              Right newContext2 -> do
-                --add the transaction
-                let discon = newDisconnectedTransaction firstUUID newContext2
-                let addTrans = addDisconnectedTransaction freshUUID "master" discon origGraph
-                case addTrans of
-                  Left err -> assertFailure (show err)
-                  Right (_, graph) -> do
-                    --jump to the first transaction
-                    let (_, (DisconnectedTransaction parentUUID newContext3), newGraph, _) = interpret freshUUID discon graph (":jump " ++ show firstUUID)
-                    assertEqual "validate discon" parentUUID firstUUID
-                    assertEqual "validate discon2" Nothing (M.lookup "x" (relationVariables newContext3))
-                    assertEqual "validate graph" transactionUUIDs (S.map transactionUUID (transactionsForGraph newGraph))
-                    where
-                      transactionUUIDs = S.fromList [firstUUID, freshUUID]
+  dbconn <- dateExamplesConnection
+  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction dbconn
+  maybeErr <- executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S"))
+  case maybeErr of
+    Just err -> assertFailure (show err)
+    Nothing -> do
+      commit dbconn >>= maybeFail
+      --perform the jump
+      maybeErr2 <- executeGraphExpr dbconn (JumpToTransaction firstUUID)
+      case maybeErr2 of
+        Just err -> assertFailure (show err)
+        Nothing -> do
+          --check that the disconnected transaction does not include "x"
+          (DisconnectedTransaction _ context') <- disconnectedTransaction dbconn
+          assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables context'))          
+
+maybeFail :: (Show a) => Maybe a -> IO ()
+maybeFail (Just err) = assertFailure (show err)
+maybeFail Nothing = return ()
 
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
-    (origDiscon@(DisconnectedTransaction firstUUID origContext), origGraph) <- dateExamplesGraph
-    freshUUID1 <- nextRandom
-    freshUUID2 <- nextRandom
-    case transactionForUUID firstUUID origGraph of
-      Left err -> assertFailure (show err)
-      Right _ -> do
-        let disconMaster = newDisconnectedTransaction firstUUID origContext
-        let addTransMaster = addDisconnectedTransaction freshUUID1 "master" disconMaster origGraph
-        --add a second transaction to the "master" branch
-        case addTransMaster of
-          Left err -> assertFailure (show err)
-          Right (_, graph) -> do
-            --add a third transaction to the "test" branch
-            let (_, _, newGraph, _) = interpret freshUUID2 origDiscon graph ":branch test"
-            assertEqual "verify test head" freshUUID2 $ maybeTransUUID (transactionForHead "test" newGraph)
-            assertEqual "verify master head" freshUUID1 $ maybeTransUUID (transactionForHead "master" newGraph)
-    where
-      maybeTransUUID t = maybe nil transactionUUID t
+  dbconn <- dateExamplesConnection
+  mapM_ (\x -> x >>= maybeFail) [executeGraphExpr dbconn (Branch "test"),
+                  executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S")),
+                  commit dbconn,
+                  executeGraphExpr dbconn (JumpToHead "master"),
+                  executeDatabaseContextExpr dbconn (Assign "y" (RelationVariable "S"))
+                  ]
+  graph <- transactionGraph dbconn
+  assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
+  assertBool "test branch exists" $ isJust (transactionForHead "test" graph)
 
 simpleJoinTest :: Test
 simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP"
@@ -214,10 +200,18 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP
                                               [StringAtom "London", IntAtom 200, StringAtom "P2", StringAtom "S4", StringAtom "Clark", IntAtom 20]
                                               ]
 
-dateExamplesGraph :: IO (DisconnectedTransaction, TransactionGraph)
-dateExamplesGraph = do
-  firstTransactionUUID <- nextRandom
-  let graph = bootstrapTransactionGraph firstTransactionUUID dateExamples
-  let discon = newDisconnectedTransaction firstTransactionUUID dateExamples
-  return (discon, graph)
+dateExamplesConnection :: IO (Connection)
+dateExamplesConnection = do
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
+  case dbconn of 
+    Left err -> do
+      hPutStrLn stderr (show err)
+      exitFailure
+    Right conn -> do
+      mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr conn (Assign rvName (ExistingRelation rvRel))) (M.toList (relationVariables dateExamples))
+      mapM_ (\(idName,incDep) -> executeDatabaseContextExpr conn (AddInclusionDependency idName incDep)) (M.toList (inclusionDependencies dateExamples))
+      --skipping atom functions for now- there are no atom function manipulation operators yet
+      commit conn >>= maybeFail
+      return conn 
+      
 

@@ -6,7 +6,6 @@ import Text.Parsec.String
 import qualified Data.UUID as U
 import qualified Data.Text as T
 import ProjectM36.TransactionGraph
-import ProjectM36.Relation.Show.Term
 
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do

@@ -10,7 +10,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
-import ProjectM36.TransactionGraph.Persist
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -78,6 +77,3 @@ displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
 displayOpResult QuietSuccessResult = return ()
 
-processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
-processPersistence  NoPersistence _ = return ()
-processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist dbdir graph

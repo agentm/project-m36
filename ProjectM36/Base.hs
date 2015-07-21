@@ -266,3 +266,4 @@ data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-on
                            MinimalPersistence FilePath  --fsync off
                            --CrashSafePersistence FilePath --full fsync- not yet implemented
                            deriving (Show, Read)
+                                    
