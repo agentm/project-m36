@@ -51,6 +51,7 @@ atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of
   StringAtomType -> Just "char"
   IntAtomType -> Just "int"
+  DateTimeAtomType -> Just "datetime"
   RelationAtomType attrs -> Just $ "relation" `T.append` showRelationAttributes attrs
   _ -> Nothing
 

@@ -4,7 +4,7 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Hashable as Hash
 import qualified Data.Set as S
-import Control.Monad.State hiding (join)
+import Control.Monad.State (State)
 import Data.UUID (UUID)
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -14,15 +14,26 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Binary
 import Data.Vector.Binary()
-import ProjectM36.HashSetBinary()
+import ProjectM36.HashSetBinary ()
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
+import Data.Hashable.Time ()
 
 type StringType = T.Text
 
 data Atom = StringAtom StringType |
             IntAtom Int |
             BoolAtom Bool |
-            RelationAtom Relation 
+            RelationAtom Relation |
+            DateTimeAtom UTCTime
           deriving (Show, Eq, Generic)
+                   
+--not so great orphan instance                   
+instance Binary UTCTime where
+  put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
+  get = do 
+    r <- get :: Get Rational
+    return (posixSecondsToUTCTime (fromRational r))
                                            
 instance NFData Atom where rnf = genericRnf
                            
@@ -34,6 +45,7 @@ data AtomType = StringAtomType |
                 IntAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
+                DateTimeAtomType |
                 AnyAtomType --AnyAtomType is used as a wildcard
               deriving (Eq, Show, Generic)
                                                      

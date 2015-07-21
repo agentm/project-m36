@@ -15,11 +15,13 @@ import qualified Data.Vector as V
 import qualified Data.Set as S
 import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Data.Functor.Identity (Identity)
-
+import Data.Time.Format
+import System.Locale
 
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return StringAtomType) <|>
   (reserved "int" *> return IntAtomType) <|>
+  (reserved "datetime" *> return DateTimeAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
 
 --used in projection
@@ -221,7 +223,7 @@ nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 atomP :: Parser Atom
-atomP = stringAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
+atomP = dateTimeAtomP <|> stringAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP 
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -237,7 +239,21 @@ quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
 
 stringAtomP :: Parser Atom
-stringAtomP = liftA (StringAtom . T.pack) (string "\"" *> many quotedChar <* string "\"")
+stringAtomP = liftA (StringAtom . T.pack) quotedString
+
+quotedString :: Parser String
+quotedString = string "\"" *> many quotedChar <* string "\""
+
+dateTimeAtomP :: Parser Atom
+dateTimeAtomP = do
+  dateString' <- try $ do
+    dateString <- quotedString
+    reserved "::dt"
+    return dateString
+  --deprecated in time 1.5- needs update for GHC 7.10
+  case parseTime defaultTimeLocale "%Y-%m-%d %H:%M" dateString' of
+    Just utctime -> return $ DateTimeAtom utctime
+    Nothing -> fail "Failed to parse datetime"
 
 intAtomP :: Parser Atom
 intAtomP = (IntAtom . fromIntegral) <$> integer
