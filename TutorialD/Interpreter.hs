@@ -96,4 +96,4 @@ reprLoop config conn = do
         Right parsed -> do 
           evald <- evalTutorialD conn parsed
           displayOpResult evald
-  reprLoop config conn
+      reprLoop config conn
