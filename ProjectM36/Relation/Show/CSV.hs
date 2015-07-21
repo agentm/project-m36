@@ -11,7 +11,7 @@ relationAsCSV :: Relation -> BS.ByteString
 relationAsCSV (Relation _ tupleSet) = tupleSetAsCSV tupleSet
 
 tupleSetAsCSV :: RelationTupleSet -> BS.ByteString
-tupleSetAsCSV tupleSet = encode $ HS.toList tupleSet
+tupleSetAsCSV tupleSet = encode $ V.fromList (HS.toList tupleSet)
 
 instance ToRecord RelationTuple where
   toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)
@@ -20,6 +20,7 @@ instance ToField Atom where
   toField (BoolAtom atom) = toField (if atom then "t" else "f")
   toField (StringAtom atom) = toField atom
   toField (IntAtom atom) = toField atom
+  toField (DateTimeAtom atom) = toField (show atom)
   toField (RelationAtom _) = undefined -- CSV does not support nested relations- this should likely be detected and rejected
     
                  
