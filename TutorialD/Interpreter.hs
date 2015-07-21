@@ -87,14 +87,13 @@ reprLoop config conn = do
   discon <- disconnectedTransaction conn
   graph <- transactionGraph conn
   maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText discon graph))
-  let roloop = reprLoop config conn
   case maybeLine of
     Nothing -> return ()
     Just line -> do
       case parseTutorialD conn line of
         Left err -> do
           displayOpResult $ DisplayErrorResult (T.pack (show err))
-          roloop
         Right parsed -> do 
           evald <- evalTutorialD conn parsed
           displayOpResult evald
+  reprLoop config conn
