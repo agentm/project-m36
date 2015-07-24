@@ -283,8 +283,12 @@ evalContextExpr (AddInclusionDependency newDepName newDep) = do
   if M.member newDepName currDeps then
     return $ Just (InclusionDependencyNameInUseError newDepName)
     else do
-      put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
-      return Nothing
+      let potentialContext = DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
+      case checkConstraints potentialContext of
+        Just err -> return $ Just err
+        Nothing -> do
+          put potentialContext
+          return Nothing
       
 evalContextExpr (RemoveInclusionDependency depName) = do  
   currContext <- get
