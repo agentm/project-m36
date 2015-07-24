@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -28,6 +28,7 @@ Library
                      ProjectM36.Relation.Show.Term,
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
+                     ProjectM36.Relation.Parse.CSV,
                      ProjectM36.Client
     GHC-Options: -Wall -rtsopts
 
@@ -80,8 +81,21 @@ Test-Suite test-transactiongraph-persist
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
+Test-Suite test-relation-import-csv
+    type: exitcode-stdio-1.0
+    main-is: test/Relation/Import/CSV.hs
+    Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
+Test-Suite test-tutoriald-import-tutoriald
+    type: exitcode-stdio-1.0
+    main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
+    Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
 benchmark bench
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
     build-depends: base,criterion
     GHC-Options: -Wall -rtsopts
+

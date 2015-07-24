@@ -10,6 +10,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
+import Control.Applicative ((<*),(*>))
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -77,4 +78,11 @@ displayOpResult (DisplayResult out) = TIO.putStrLn out
 displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
 displayOpResult QuietSuccessResult = return ()
+
+quotedChar :: Parser Char
+quotedChar = noneOf "\""
+           <|> try (string "\"\"" >> return '"')
+
+quotedString :: Parser String
+quotedString = string "\"" *> many quotedChar <* string "\""
 

@@ -234,15 +234,8 @@ functionAtomExprP = do
 relationalAtomExprP :: Parser AtomExpr
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
-quotedChar :: Parser Char
-quotedChar = noneOf "\""
-           <|> try (string "\"\"" >> return '"')
-
 stringAtomP :: Parser Atom
 stringAtomP = liftA (StringAtom . T.pack) quotedString
-
-quotedString :: Parser String
-quotedString = string "\"" *> many quotedChar <* string "\""
 
 dateTimeAtomP :: Parser Atom
 dateTimeAtomP = do
