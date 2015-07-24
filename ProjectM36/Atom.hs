@@ -17,6 +17,8 @@ atomTypeForAtom (IntAtom _) = IntAtomType
 atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
 atomTypeForAtom (BoolAtom _) = BoolAtomType
 atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
+atomTypeForAtom (DateAtom _) = DateAtomType
+atomTypeForAtom (DoubleAtom _) = DoubleAtomType
 
 {- a generic string constructor for atoms
 used by CSV relation generation
@@ -36,4 +38,10 @@ atomFromString DateTimeAtomType strIn =
   case parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" strIn of
     Just utctime -> Right $ DateTimeAtom utctime
     Nothing -> Left $ ParseError "Failed to parse datetime"
+atomFromString DoubleAtomType strIn = case readMaybe strIn of
+  Just d -> Right $ DoubleAtom d
+  Nothing -> Left (ParseError "Failed to parse double")
+atomFromString DateAtomType strIn = case parseTime defaultTimeLocale "%Y-%m-%d" strIn of
+  Just date -> Right $ DateTimeAtom date
+  Nothing -> Left $ ParseError "Failed to parse datetime"
 atomFromString AnyAtomType _ = Left $ ParseError "Parsing AnyAtomType is not supported"

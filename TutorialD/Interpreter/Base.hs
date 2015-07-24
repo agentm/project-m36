@@ -45,14 +45,19 @@ semi = Token.semi lexer
 whiteSpace :: Parser ()
 whiteSpace = Token.whiteSpace lexer
 
-integer :: Parser (Integer)
+integer :: Parser Integer
 integer = Token.integer lexer
+
+float :: Parser Double
+float = Token.float lexer
 
 atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of
   StringAtomType -> Just "char"
   IntAtomType -> Just "int"
   DateTimeAtomType -> Just "datetime"
+  DoubleAtomType -> Just "double"
+  DateAtomType -> Just "date"
   RelationAtomType attrs -> Just $ "relation" `T.append` showRelationAttributes attrs
   _ -> Nothing
 

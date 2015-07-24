@@ -17,7 +17,9 @@ import Data.Vector.Binary()
 import ProjectM36.HashSetBinary ()
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
+import Control.Monad (liftM)
 
 type StringType = T.Text
 
@@ -25,7 +27,9 @@ data Atom = StringAtom StringType |
             IntAtom Int |
             BoolAtom Bool |
             RelationAtom Relation |
-            DateTimeAtom UTCTime
+            DateTimeAtom UTCTime |
+            DateAtom Day |
+            DoubleAtom Double
           deriving (Show, Eq, Generic)
                    
 --not so great orphan instance                   
@@ -34,6 +38,12 @@ instance Binary UTCTime where
   get = do 
     r <- get :: Get Rational
     return (posixSecondsToUTCTime (fromRational r))
+    
+instance Binary Day where    
+  put day = put $ toGregorian day
+  get = do
+    (y,m,d) <- get :: Get (Integer, Int, Int)
+    return $ fromGregorian y m d
                                            
 instance NFData Atom where rnf = genericRnf
                            
@@ -46,6 +56,8 @@ data AtomType = StringAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
                 DateTimeAtomType |
+                DateAtomType |
+                DoubleAtomType |
                 AnyAtomType --AnyAtomType is used as a wildcard
               deriving (Eq, Show, Generic)
                                                      

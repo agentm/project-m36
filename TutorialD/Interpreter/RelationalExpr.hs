@@ -223,7 +223,7 @@ nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 atomP :: Parser Atom
-atomP = dateTimeAtomP <|> stringAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP 
+atomP = dateTimeAtomP <|> dateAtomP <|> stringAtomP <|> doubleAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -239,15 +239,28 @@ stringAtomP = liftA (StringAtom . T.pack) quotedString
 
 dateTimeAtomP :: Parser Atom
 dateTimeAtomP = do
-  dateString' <- try $ do
-    dateString <- quotedString
-    reserved "::dt"
-    return dateString
+  dateTimeString' <- try $ do
+    dateTimeString <- quotedString
+    reserved "::datetime"
+    return dateTimeString
   --deprecated in time 1.5- needs update for GHC 7.10
-  case parseTime defaultTimeLocale "%Y-%m-%d %H:%M" dateString' of
+  case parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" dateTimeString' of
     Just utctime -> return $ DateTimeAtom utctime
     Nothing -> fail "Failed to parse datetime"
-
+    
+dateAtomP :: Parser Atom    
+dateAtomP = do
+  dateString' <- try $ do
+    dateString <- quotedString
+    reserved "::date"
+    return dateString
+  case parseTime defaultTimeLocale "%Y-%m-%d" dateString' of
+    Just utctime -> return $ DateAtom utctime
+    Nothing -> fail "Failed to parse date"
+    
+doubleAtomP :: Parser Atom    
+doubleAtomP = DoubleAtom <$> (try float)
+  
 intAtomP :: Parser Atom
 intAtomP = (IntAtom . fromIntegral) <$> integer
 

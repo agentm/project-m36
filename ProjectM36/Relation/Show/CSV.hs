@@ -11,7 +11,7 @@ relationAsCSV :: Relation -> BS.ByteString
 relationAsCSV (Relation _ tupleSet) = tupleSetAsCSV tupleSet
 
 tupleSetAsCSV :: RelationTupleSet -> BS.ByteString
-tupleSetAsCSV tupleSet = encode $ V.fromList (HS.toList tupleSet)
+tupleSetAsCSV tupleSet = encode (HS.toList tupleSet)
 
 instance ToRecord RelationTuple where
   toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)

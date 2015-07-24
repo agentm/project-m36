@@ -1,8 +1,6 @@
 module TutorialD.Interpreter.Import.Base where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Relation
-import qualified Data.Map as M
 
 data DataImportOperator = DataImportOperator FilePath (FilePath -> DatabaseContext -> IO (Either RelationalError DatabaseExpr))
 
