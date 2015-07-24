@@ -1,0 +1,5 @@
+S := relation{tuple{S# "S1",SNAME "Smith",STATUS 20, CITY "London"}, tuple{S# "S2",SNAME "Jones",STATUS 10,CITY "Paris"}, tuple{S# "S3",SNAME "Blake",STATUS 30,CITY "Paris"}, tuple{S# "S4",SNAME "Clark",STATUS 20,CITY "London"}, tuple{S# "S5",SNAME "Adams",STATUS 30,CITY "Athens"}}
+P := relation{tuple{P# "P1",PNAME "Nut",COLOR "Red",WEIGHT 12,CITY "London"}, tuple{P# "P2",PNAME "Bolt",COLOR "Green",WEIGHT 17,CITY "Paris"}, tuple{P# "P3",PNAME "Screw",COLOR "Blue",WEIGHT 17,CITY "Oslo"}, tuple{P# "P4",PNAME "Screw",COLOR "Red",WEIGHT 14,CITY "London"}, tuple{P# "P5",PNAME "Cam",COLOR "Blue",WEIGHT 12,CITY "Paris"}, tuple{P# "P6", PNAME "Cog", COLOR "Red",WEIGHT 19,CITY "London"}}
+SP := relation{tuple{S# "S1",P# "P1",QTY 300}, tuple{S# "S1",P# "P2",QTY 200}, tuple{S# "S1",P# "P3",QTY 400}, tuple{S# "S1",P# "P4",QTY 200}, tuple{S# "S1",P# "P5",QTY 100}, tuple{S# "S1",P# "P6",QTY 100}, tuple{S# "S2",P# "P1",QTY 300}, tuple{S# "S2",P# "P2",QTY 400}, tuple{S# "S3",P# "P2",QTY 200}, tuple{S# "S4",P# "P4",QTY 300}, tuple{S# "S4",P# "P5",QTY 400}}
+foreign key SP2S SP{S#} in S{S#}
+foreign key SP2P SP{P#} in P{P#}
