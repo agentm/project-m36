@@ -93,7 +93,7 @@ TutorialD (master): :branch devel
 Done.
 ```
 
-which creates a new head named "devel" in the transaction graph and resets the current "disconnected" transaction to refer to the 
+which creates a new head named "devel" in the transaction graph and resets the current "disconnected" transaction to refer to the new branch.
 
   ```
 TutorialD (devel): :rollback
@@ -107,12 +107,12 @@ TutorialD (devel): :showGraph
 ┌───────┬────────────────────────────────────┬──────────────────────────────────────┐
 │current│id                                  │parents                               │
 ├───────┼────────────────────────────────────┼──────────────────────────────────────┤
-│1      │1d064d54-cd2a-4a43-822a-cbd18cf7c4e8│┌────────────────────────────────────┐│
+│True   │1d064d54-cd2a-4a43-822a-cbd18cf7c4e8│┌────────────────────────────────────┐│
 │       │                                    ││id                                  ││
 │       │                                    │├────────────────────────────────────┤│
 │       │                                    ││4a4ee715-297d-49db-bfd1-afaefadc902b││
 │       │                                    │└────────────────────────────────────┘│
-│0      │4a4ee715-297d-49db-bfd1-afaefadc902b│┌──┐                                  │
+│False  │4a4ee715-297d-49db-bfd1-afaefadc902b│┌──┐                                  │
 │       │                                    ││id│                                  │
 │       │                                    │                                      │
 │       │                                    │└──┘                                  │

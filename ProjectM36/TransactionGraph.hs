@@ -219,7 +219,7 @@ graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _
   where
     attrs = A.attributesFromList [Attribute "id" StringAtomType,
                                   Attribute "parents" (RelationAtomType parentAttributes),
-                                  Attribute "current" IntAtomType,
+                                  Attribute "current" BoolAtomType,
                                   Attribute "head" StringAtomType
                                  ]
     parentAttributes = A.attributesFromList [Attribute "id" StringAtomType]
@@ -227,7 +227,7 @@ graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _
       Left err -> Left err
       Right parentTransRel -> Right [StringAtom $ T.pack $ show (transactionUUID transaction),
                                      RelationAtom parentTransRel,
-                                     IntAtom $ if parentUUID == transactionUUID transaction then 1 else 0,
+                                     BoolAtom $ parentUUID == transactionUUID transaction,
                                      StringAtom $ case headNameForTransaction transaction graph of
                                        Just headName -> headName
                                        Nothing -> ""
