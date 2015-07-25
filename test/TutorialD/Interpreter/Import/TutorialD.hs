@@ -18,10 +18,10 @@ main = do
 
 testTutdImport :: Test
 testTutdImport = TestCase $ do
-  withSystemTempFile "m.tutd" $ \path handle -> do
+  withSystemTempFile "m.tutd" $ \tempPath handle -> do
     hPutStrLn handle "x:=relation{tuple{a 5,b \"spam\"}}"
     hClose handle
     let expectedExpr = MultipleExpr [Assign "x" (ExistingRelation (Relation expectedAttrs $ HS.singleton (RelationTuple expectedAttrs $ V.fromList [IntAtom 5, StringAtom "spam"])))]
         expectedAttrs = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" StringAtomType]
-    imported <- importTutorialD path DC.empty  
+    imported <- importTutorialD tempPath DC.empty  
     assertEqual "import tutd" (Right expectedExpr) imported
