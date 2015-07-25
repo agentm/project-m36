@@ -151,3 +151,5 @@ Other modules include:
 * relational expression static optimizer
 * relational expression cost-based optimizer
 * relational error enumeration
+* import of CSV as a relation and export of a relation to CSV
+* import of TutorialD from files
