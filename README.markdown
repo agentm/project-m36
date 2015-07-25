@@ -22,7 +22,9 @@ You will be greeted with:
 
 `TutorialD (master):`
 
-The Tutorial D interpreter comes pre-loaded with the Chris Date supplier "S"/product "P"/supplier-product "SP" relations for experimentation. This TutorialD interpreter is case-sensitive. 
+To load Chris Date's supplier/product examples, run `:importtutd "scripts/DateExamples.tutd"` from within the tutd interpreter. After this, the `S`, `P`, and `SP` relation variables are available within the current context.
+
+This TutorialD interpreter is case-sensitive. 
 
 At this point, there are three types of command which can be executed:
 
