@@ -22,6 +22,9 @@ atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return StringAtomType) <|>
   (reserved "int" *> return IntAtomType) <|>
   (reserved "datetime" *> return DateTimeAtomType) <|>
+  (reserved "date" *> return DateAtomType) <|>
+  (reserved "double" *> return DoubleAtomType) <|>
+  (reserved "bool" *> return BoolAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
 
 --used in projection

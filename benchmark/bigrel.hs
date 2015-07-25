@@ -20,7 +20,9 @@ import System.IO
 import Control.Monad.State
 
 dumpcsv :: Relation -> IO ()
-dumpcsv = BS.putStrLn . relationAsCSV
+dumpcsv rel = case relationAsCSV rel of
+  Left err -> hPutStrLn stderr (show err)
+  Right bsData -> BS.putStrLn bsData
 
 data BigrelArgs = BigrelArgs Int Int String
 

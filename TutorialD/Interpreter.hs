@@ -4,9 +4,14 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter.TransactionGraphOperator
+
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
 import TutorialD.Interpreter.Import.Base
+
+import TutorialD.Interpreter.Export.CSV
+import TutorialD.Interpreter.Export.Base
+
 import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
@@ -28,14 +33,16 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseExprOp DatabaseExpr |
                        GraphOp TransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
-                       ImportOp DataImportOperator
+                       ImportOp DataImportOperator |
+                       ExportOp DataExportOperator
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
                      liftM GraphOp (transactionGraphOpP <* eof) <|>
                      liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
                      liftM DatabaseExprOp (databaseExprOpP <* eof) <|>
-                     liftM ImportOp ((importCSVP <|> tutdImportP) <* eof) 
+                     liftM ImportOp ((importCSVP <|> tutdImportP) <* eof) <|>
+                     liftM ExportOp (exportCSVP <* eof)
 
 promptText :: DisconnectedTransaction -> TransactionGraph -> StringType
 promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" `T.append` transInfo `T.append` "): "
@@ -63,13 +70,13 @@ evalTutorialD conn expr = case expr of
     maybeErr <- executeDatabaseContextExpr conn execOp 
     case maybeErr of
       Just err -> barf err
-      Nothing -> return $ QuietSuccessResult
+      Nothing -> return QuietSuccessResult
     
   (GraphOp execOp) -> do
     maybeErr <- executeGraphExpr conn execOp
     case maybeErr of
       Just err -> barf err
-      Nothing -> return $ QuietSuccessResult
+      Nothing -> return QuietSuccessResult
 
   (ROGraphOp execOp) -> do
     discon <- disconnectedTransaction conn
@@ -84,6 +91,13 @@ evalTutorialD conn expr = case expr of
     case exprErr of
       Left err -> barf err
       Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)
+      
+  (ExportOp execOp) -> do
+    (DisconnectedTransaction _ context) <- disconnectedTransaction conn
+    exprErr <- evalDataExportOperator execOp context
+    case exprErr of
+      Just err -> barf err
+      Nothing -> return QuietSuccessResult
         
   where
     barf err = return $ DisplayErrorResult (T.pack (show err))

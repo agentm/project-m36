@@ -19,7 +19,6 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
-import Control.Monad (liftM)
 
 type StringType = T.Text
 

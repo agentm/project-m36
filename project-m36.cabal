@@ -93,6 +93,12 @@ Test-Suite test-tutoriald-import-tutoriald
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
+Test-Suite test-relation-export-csv
+    type: exitcode-stdio-1.0
+    main-is: test/Relation/Export/CSV.hs
+    Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
 benchmark bench
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs

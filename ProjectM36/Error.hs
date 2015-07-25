@@ -32,7 +32,9 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeCountError [AtomType] [AtomType]
                      | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
+                     | RelationValuedAttributesNotSupportedError [AttributeName]
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
+                     | ExportError T.Text
                        deriving (Show,Eq,Generic) 
 
 instance NFData RelationalError where rnf = genericRnf
