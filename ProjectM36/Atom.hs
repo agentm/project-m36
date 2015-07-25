@@ -42,6 +42,6 @@ atomFromString DoubleAtomType strIn = case readMaybe strIn of
   Just d -> Right $ DoubleAtom d
   Nothing -> Left (ParseError "Failed to parse double")
 atomFromString DateAtomType strIn = case parseTime defaultTimeLocale "%Y-%m-%d" strIn of
-  Just date -> Right $ DateTimeAtom date
+  Just date -> Right $ DateAtom date
   Nothing -> Left $ ParseError "Failed to parse datetime"
 atomFromString AnyAtomType _ = Left $ ParseError "Parsing AnyAtomType is not supported"
