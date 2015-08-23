@@ -5,27 +5,34 @@ import Data.Csv
 import ProjectM36.Tuple
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString as BSS
 import qualified Data.Vector as V
 import ProjectM36.Error
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
 
---maybe support a header in the future
+--spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
 relationAsCSV :: Relation -> Either RelationalError BS.ByteString
-relationAsCSV (Relation attrs tupleSet) = case relValAttrs of 
-  [] -> Right $ encodeHeader `BS.append` tupleSetAsCSV tupleSet
-  attrs' -> Left $ RelationValuedAttributesNotSupportedError (map attributeName attrs')
+relationAsCSV (Relation attrs tupleSet) = if relValAttrs /= [] then --check for relvalued attributes
+                                            Left $ RelationValuedAttributesNotSupportedError (map attributeName relValAttrs)
+                                            else if V.length attrs == 0 then --check that there is at least one attribute
+                                                   Left $ TupleAttributeCountMismatchError 0
+                                                 else
+                                                   Right $ encodeByName bsAttrNames (HS.toList tupleSet)
   where
-    --figure out how to make cassava responsible for printing the header even for non-named records or make NamedRecord instance for RelationTuple ?
-    -- this will break on attribute names which need quoting
-    encodeHeader = (BS.intercalate (BS.fromStrict . TE.encodeUtf8 . T.pack $ ",") $ V.toList $ V.map (BS.fromStrict . TE.encodeUtf8 . attributeName) attrs) `BS.append` (BS.fromStrict . TE.encodeUtf8 . T.pack) "\n"
     relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) attrs
-
-tupleSetAsCSV :: RelationTupleSet -> BS.ByteString
-tupleSetAsCSV tupleSet = encode (HS.toList tupleSet)
-
+    bsAttrNames = V.map (TE.encodeUtf8 . attributeName) attrs
+    
+{-
 instance ToRecord RelationTuple where
   toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)
+-}
+  
+instance ToNamedRecord RelationTuple where  
+  toNamedRecord tuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= v) (tupleAssocs tuple)
+  
+instance DefaultOrdered RelationTuple where  
+  headerOrder tuple = V.map (TE.encodeUtf8 . attributeName) (tupleAttributes tuple)
       
 instance ToField Atom where
   toField (BoolAtom atom) = toField (if atom then "t" else "f")
@@ -34,6 +41,6 @@ instance ToField Atom where
   toField (DateTimeAtom atom) = toField (show atom)
   toField (DateAtom atom) = toField (show atom)
   toField (DoubleAtom atom) = toField atom
-  toField (RelationAtom _) = undefined -- CSV does not support nested relations
+  toField (RelationAtom _) = error "Relation atoms cannot be used in CSV."
     
                  

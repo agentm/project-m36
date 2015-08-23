@@ -9,7 +9,6 @@ import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
-import qualified Data.Map as M
 import Data.Word
 
 type DatabaseName = StringType       
@@ -32,9 +31,7 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat) = do
   freshUUID <- nextRandom
-  let bootstrapContext = DatabaseContext { inclusionDependencies = M.empty,
-                                           relationVariables = M.empty,
-                                           atomFunctions = basicAtomFunctions }
+  let bootstrapContext = basicDatabaseContext
       freshDiscon = newDisconnectedTransaction freshUUID bootstrapContext
       freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
   case strat of

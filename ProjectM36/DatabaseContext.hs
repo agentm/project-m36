@@ -7,3 +7,4 @@ empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
                           relationVariables = M.empty, 
                           atomFunctions = HS.empty }
+        

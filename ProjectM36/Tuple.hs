@@ -22,6 +22,9 @@ tupleAttributeNameSet (RelationTuple tupAttrs _) = S.fromList $ V.toList $ V.map
 tupleAttributes :: RelationTuple -> Attributes
 tupleAttributes (RelationTuple tupAttrs _) = tupAttrs
 
+tupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
+tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (\(k,v) -> (attributeName k, v)) (V.zip attrVec tupVec)
+
 -- return atoms in some arbitrary but consistent key order
 tupleAtoms :: RelationTuple -> V.Vector Atom
 tupleAtoms (RelationTuple _ tupVec) = tupVec
