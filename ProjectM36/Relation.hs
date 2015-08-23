@@ -50,27 +50,6 @@ relationTrue = Relation A.emptyAttributes singletonTupleSet
 relationFalse :: Relation
 relationFalse = Relation A.emptyAttributes emptyTupleSet
 
-madeTrue :: Either RelationalError Relation
-madeTrue = mkRelation A.emptyAttributes (HS.fromList [])
-
-madeFalse :: Either RelationalError Relation
-madeFalse = mkRelation A.emptyAttributes emptyTupleSet
-
-{-
---used for predicate filtering- instead of allowing for tuple types to be floating around in Tutorial D, just created a "singleton value" relation with cardinality and arity 1 for tuple atom comparison purposes
-singletonValueFromRelation :: Relation -> Either RelationalError Atom
-singletonValueFromRelation rel@(Relation _ tupSet) = if cardinality rel /= Countable 1 then    
-                                                   Left (PredicateExpressionError "Relational expression must have cardinality 1")
-                                                 else if arity rel /= 1 then
-                                                        Left (PredicateExpressionError "Relation expression must have arity 1")
-                                                      else
-                                                        Right value
-  where
-    value = snd $ head $ M.toList tupMap
-    tupMap = tup2Map $ head (HS.toList tupSet)
-    tup2Map (RelationTuple tupmap) = tupmap
--}
-
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
   if not (A.attributesEqual attrs1 attrs2) 
