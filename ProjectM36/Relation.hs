@@ -50,6 +50,13 @@ relationTrue = Relation A.emptyAttributes singletonTupleSet
 relationFalse :: Relation
 relationFalse = Relation A.emptyAttributes emptyTupleSet
 
+--if the relation contains one tuple, return it, otherwise Nothing
+singletonTuple :: Relation -> Maybe RelationTuple
+singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Countable 1 then
+                                         Just $ head $ HS.toList tupleSet
+                                       else
+                                         Nothing
+
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = 
   if not (A.attributesEqual attrs1 attrs2) 

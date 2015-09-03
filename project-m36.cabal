@@ -7,7 +7,8 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec, persistent,persistent-sqlite,persistent-template,aeson 
+--required for persistent db driver
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -29,7 +30,8 @@ Library
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
-                     ProjectM36.Client
+                     ProjectM36.Client,
+                     Database.Persist.ProjectM36
     GHC-Options: -Wall -rtsopts
 
 Executable tutd
