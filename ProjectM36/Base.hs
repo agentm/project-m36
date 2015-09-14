@@ -127,7 +127,7 @@ instance Hash.Hashable Relation where
       
 instance Binary Relation      
   
-data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic)
+data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic, Ord)
 data RelationSizeInfinite = RelationSizeInfinite
 
 type RelVarName = StringType

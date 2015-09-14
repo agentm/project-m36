@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec, persistent,persistent-sqlite,persistent-template,aeson 
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec, persistent,persistent-template,aeson,path-pieces
 --required for persistent db driver
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
@@ -99,6 +99,12 @@ Test-Suite test-relation-export-csv
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
     Build-Depends: base,HUnit,Cabal
+    GHC-Options: -Wall
+
+Test-Suite test-persistent-driver
+    type: exitcode-stdio-1.0
+    main-is: test/persistent-driver/test.hs
+    Build-Depends: base,HUnit,Cabal,template-haskell
     GHC-Options: -Wall
 
 benchmark bench

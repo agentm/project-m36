@@ -16,11 +16,15 @@ import Control.Monad.Trans.Reader (ask, ReaderT)
 import Control.Exception (throw, throwIO)
 import qualified Data.Text as T
 import ProjectM36.Atom
-import Data.Aeson (FromJSON(..), ToJSON(..), withText)
+import Data.Aeson (FromJSON(..), ToJSON(..), withText, withObject, (.:))
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Control.Monad (when)
 import Data.Maybe (isJust)
+import Data.Aeson.Types (modifyFailure)
+import Control.Monad.Reader (runReaderT)
+import Web.PathPieces (PathPiece (..))
+import qualified Database.Persist.Sql as Sql
       
 type ProjectM36Backend = C.Connection  
                          
@@ -216,6 +220,9 @@ dummyFromKey = Just . recordTypeFromKey
 recordTypeFromKey :: Key record -> record
 recordTypeFromKey _ = error "dummyFromKey"
 
+dummyFromUnique :: Unique v -> Maybe v
+dummyFromUnique _ = Nothing
+
 keyToUUID:: (PersistEntity record) => Key record -> U.UUID
 keyToUUID key = case keyToValues key of
   ([PersistText uuidText]) -> case U.fromString (T.unpack uuidText) of
@@ -278,13 +285,6 @@ relVarNameFromRecord :: (PersistEntity record, PersistEntityBackend record ~ C.C
                => record -> RelVarName
 relVarNameFromRecord = unDBName . entityDB . entityDef . Just
         
-instance PersistField U.UUID where
-  toPersistValue val = PersistText $ T.pack (U.toString val)
-  fromPersistValue (PersistText uuidText) = case U.fromString $ T.unpack uuidText of
-    Nothing -> Left "uuid text read failure"
-    Just uuid -> Right uuid
-  fromPersistValue _ = Left $ T.pack "expected PersistObjectId"    
-    
 {- unfortunately copy-pasted from Database.Persist.Sql.Orphan.PersistStore -}
 updateFieldDef :: PersistEntity v => DP.Update v -> FieldDef
 updateFieldDef (DP.Update f _ _) = persistFieldDef f
@@ -293,3 +293,84 @@ updateFieldDef (BackendUpdate {}) = error "updateFieldDef did not expect Backend
 updatePersistValue :: DP.Update v -> PersistValue
 updatePersistValue (DP.Update _ v _) = toPersistValue v
 updatePersistValue (BackendUpdate {}) = error "updatePersistValue did not expect BackendUpdate"
+
+instance PersistField U.UUID where
+  toPersistValue val = PersistText $ T.pack (U.toString val)
+  fromPersistValue (PersistText uuidText) = case U.fromString $ T.unpack uuidText of
+    Nothing -> Left "uuid text read failure"
+    Just uuid -> Right uuid
+  fromPersistValue _ = Left $ T.pack "expected PersistObjectId"    
+
+instance FromJSON C.ConnectionInfo where
+         parseJSON v = modifyFailure ("Persistent: error loading ProjectM36 conf: " ++) $
+           flip (withObject "ProjectM36Conf") v $ \o -> do
+           ctype <- parseJSON =<< ( o .: "connectionType")
+           return ctype
+             
+instance PersistConfig C.ConnectionInfo where
+         type PersistConfigBackend C.ConnectionInfo = ReaderT C.Connection
+         type PersistConfigPool C.ConnectionInfo = C.Connection
+         
+         loadConfig = parseJSON
+         applyEnv = return -- no environment variables are used
+         createPoolConfig conf = do
+           connErr <- C.connectProjectM36 conf
+           case connErr of
+               Left err -> throwIO $ PersistError "Failed to create connection"
+               Right conn -> return conn
+         --runPool :: (MonadBaseControl IO m, MonadIO m) => c -> PersistConfigBackend c m a -> PersistConfigPool c -> m a
+         runPool _ r = runReaderT r
+           
+withProjectM36Conn :: (Monad m, Trans.MonadIO m) => C.ConnectionInfo -> (C.Connection -> m a) -> m a
+withProjectM36Conn conf connReader = do
+    conn <- Trans.liftIO $ createPoolConfig conf
+    connReader conn
+
+runProjectM36Conn :: (Trans.MonadIO m) => ReaderT C.Connection m a -> C.Connection -> m a
+runProjectM36Conn m1 conn = runReaderT m1 conn
+
+instance PathPiece (BackendKey ProjectM36Backend) where
+    toPathPiece (ProjectM36Key uuid) = U.toText uuid
+    fromPathPiece txt = do
+      uuid <- U.fromText txt
+      return $ ProjectM36Key uuid
+
+instance Sql.PersistFieldSql U.UUID where
+    sqlType _ = Sql.SqlOther "doesn't make much sense for ProjectM36"
+
+instance Sql.PersistFieldSql (BackendKey C.Connection) where
+    sqlType _ = Sql.SqlOther "doesn't make much sense for ProjectM36"
+
+persistUniqueToRestrictionPredicate :: PersistEntity record => Unique record -> Either RelationalError RestrictionPredicateExpr
+persistUniqueToRestrictionPredicate unique = do
+    atoms <- mapM (\v -> maybe (Left $ AtomTypeNotSupported "") Right $ persistValueAtom v) $ persistUniqueToValues unique
+    let attrNames = map (unDBName . snd) $ persistUniqueToFieldNames unique
+        andify [] = TruePredicate  
+        andify ((attrName, atom):xs) = AndPredicate (AttributeEqualityPredicate attrName (NakedAtomExpr atom)) $ andify xs
+    return $ andify (zip attrNames atoms)
+   
+instance PersistUnique C.Connection where
+    getBy unique = do
+        conn <- ask
+        let predicate = persistUniqueToRestrictionPredicate unique
+            relVarName = unDBName $ entityDB entDef
+            entDef = entityDef $ dummyFromUnique unique
+            throwRelErr err = Trans.liftIO $ throwIO (PersistError (T.pack $ show err)) 
+        case predicate of
+            Left err -> throwRelErr err
+            Right predicate' -> do
+                let restrictExpr = Restrict predicate' (RelationVariable relVarName)
+                singletonRel <- Trans.liftIO $ C.executeRelationalExpr conn restrictExpr
+                case singletonRel of
+                    Left err -> throwRelErr err
+                    Right singletonRel' -> do
+                        if cardinality singletonRel' == Countable 0 then
+                            return Nothing
+                            else if cardinality singletonRel' > Countable 1 then
+                                Trans.liftIO $ throwIO (PersistError "getBy returned more than one tuple")
+                                else -- exactly one tuple
+                                    case singletonTuple singletonRel' of
+                                        Nothing -> Trans.liftIO $ throwIO (PersistMarshalError "singletonTuple failure")
+                                        Just tuple -> do
+                                            newEnt <- Trans.liftIO $ fromPersistValuesThrow entDef tuple
+                                            return $ Just newEnt
