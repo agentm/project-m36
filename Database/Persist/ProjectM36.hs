@@ -25,6 +25,9 @@ import Data.Aeson.Types (modifyFailure)
 import Control.Monad.Reader (runReaderT)
 import Web.PathPieces (PathPiece (..))
 import qualified Database.Persist.Sql as Sql
+import Control.Monad.Trans.Either
+import Database.Persist.Class
+import qualified Database.Persist.Types as DPT
       
 type ProjectM36Backend = C.Connection  
                          
@@ -223,6 +226,12 @@ recordTypeFromKey _ = error "dummyFromKey"
 dummyFromUnique :: Unique v -> Maybe v
 dummyFromUnique _ = Nothing
 
+dummyFromFilter :: Filter v -> Maybe v
+dummyFromFilter _ = Nothing
+
+dummyFromUpdate :: DPT.Update v -> Maybe v
+dummyFromUpdate _ = Nothing
+
 keyToUUID:: (PersistEntity record) => Key record -> U.UUID
 keyToUUID key = case keyToValues key of
   ([PersistText uuidText]) -> case U.fromString (T.unpack uuidText) of
@@ -374,3 +383,76 @@ instance PersistUnique C.Connection where
                                         Just tuple -> do
                                             newEnt <- Trans.liftIO $ fromPersistValuesThrow entDef tuple
                                             return $ Just newEnt
+    deleteBy unique = do
+        conn <- ask
+        let predicate = persistUniqueToRestrictionPredicate unique
+            relVarName = unDBName $ entityDB entDef
+            entDef = entityDef $ dummyFromUnique unique
+            throwRelErr err = Trans.liftIO $ throwIO (PersistError (T.pack $ show err))
+        case predicate of
+            Left err -> throwRelErr err
+            Right predicate' -> do
+                let deleteExpr = Delete relVarName predicate'
+                maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn deleteExpr
+                case maybeErr of
+                   Just err -> throwRelErr err
+                   Nothing -> return ()
+
+multiFilterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Bool -> [Filter val] -> Either RelationalError RestrictionPredicateExpr
+multiFilterAsRestrictionPredicate _ [] = Right $ TruePredicate
+multiFilterAsRestrictionPredicate andOr (x:xs) = do
+    let pred = if andOr then AndPredicate else OrPredicate    
+    filtHead <- filterAsRestrictionPredicate x  
+    filtTail <- multiFilterAsRestrictionPredicate andOr xs
+    return $ pred filtHead filtTail
+
+filterValueToPersistValues :: forall a.  PersistField a => Either a [a] -> [PersistValue]
+filterValueToPersistValues v = map toPersistValue $ either return id v
+
+filterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Filter val -> Either RelationalError RestrictionPredicateExpr
+filterAsRestrictionPredicate filter = case filter of
+    FilterAnd filters -> multiFilterAsRestrictionPredicate True filters
+    FilterOr filters -> multiFilterAsRestrictionPredicate False filters
+    Filter field value pfilter -> let attrName = unDBName $ fieldDB (persistFieldDef field) in
+                                  case value of
+                                      Left val -> case pfilter of
+                                          Eq -> let entDef = entityDef $ dummyFromFilter filter
+                                                    atom = persistValueAtom $ toPersistValue val
+                                                in case atom of
+                                                    Nothing -> Left $ AtomTypeNotSupported attrName
+                                                    Just atom' -> Right $ AttributeEqualityPredicate attrName (NakedAtomExpr atom')
+                                          op -> Left $ AtomOperatorNotSupported $ T.pack (show op)
+                                      Right vals -> Left $ AtomTypeNotSupported attrName
+
+updateToUpdateTuple :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => DPT.Update val -> Either RelationalError (AttributeName, Atom)
+updateToUpdateTuple up@(DPT.Update field value op) = let entDef = entityDef $ dummyFromUpdate up
+                                                         attrName = unDBName $ fieldDB (persistFieldDef field)
+                                                         atom = persistValueAtom $ toPersistValue value
+                                                     in case op of
+                                                       DPT.Assign -> case atom of
+                                                         Nothing -> Left $ AtomTypeNotSupported attrName
+                                                         Just atom' -> Right $ (attrName, atom')
+                                                       op' -> Left $ AtomOperatorNotSupported $ T.pack (show op')
+                                            
+instance PersistQuery C.Connection where
+         updateWhere _ [] = return ()
+         updateWhere filters updates = do
+             conn <- ask
+             e <- runEitherT $ do
+                 restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
+                 tuples <- hoistEither $ mapM updateToUpdateTuple updates
+                 let updateMap = M.fromList tuples
+                     entDef = entityDef $ dummyFromUpdate (head updates)
+                     relVarName = unDBName $ entityDB entDef
+                     updateExpr = Update relVarName updateMap restrictionPredicate
+                 maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn updateExpr
+                 case maybeErr of 
+                     Just err -> left err
+                     Nothing -> right ()
+             case e of
+               Left err -> Trans.liftIO $ throwIO $ PersistError "updateWhere pooped"
+               Right () -> return ()
+
+
+
+                     
