@@ -229,6 +229,9 @@ dummyFromUnique _ = Nothing
 dummyFromFilter :: Filter v -> Maybe v
 dummyFromFilter _ = Nothing
 
+dummyFromFilters :: [Filter v] -> Maybe v
+dummyFromFilters _ = Nothing
+
 dummyFromUpdate :: DPT.Update v -> Maybe v
 dummyFromUpdate _ = Nothing
 
@@ -453,6 +456,17 @@ instance PersistQuery C.Connection where
                Left err -> Trans.liftIO $ throwIO $ PersistError "updateWhere pooped"
                Right () -> return ()
 
-
-
-                     
+         deleteWhere filters = do
+             conn <- ask           
+             e <- runEitherT $ do
+                 restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
+                 let entDef = entityDef $ dummyFromFilters filters 
+                     relVarName = unDBName $ entityDB entDef
+                     deleteExpr = Delete relVarName restrictionPredicate
+                 maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn deleteExpr
+                 case maybeErr of 
+                     Just err -> left err
+                     Nothing -> right ()
+             case e of
+               Left err -> Trans.liftIO $ throwIO $ PersistError "updateWhere pooped"
+               Right () -> return ()
