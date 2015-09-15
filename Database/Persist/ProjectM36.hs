@@ -28,6 +28,7 @@ import qualified Database.Persist.Sql as Sql
 import Control.Monad.Trans.Either
 import Database.Persist.Class
 import qualified Database.Persist.Types as DPT
+import qualified Data.Set as S
       
 type ProjectM36Backend = C.Connection  
                          
@@ -416,6 +417,7 @@ filterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C
 filterAsRestrictionPredicate filter = case filter of
     FilterAnd filters -> multiFilterAsRestrictionPredicate True filters
     FilterOr filters -> multiFilterAsRestrictionPredicate False filters
+    BackendFilter _ -> error "BackendFilter not supported"
     Filter field value pfilter -> let attrName = unDBName $ fieldDB (persistFieldDef field) in
                                   case value of
                                       Left val -> case pfilter of
@@ -428,6 +430,7 @@ filterAsRestrictionPredicate filter = case filter of
                                       Right vals -> Left $ AtomTypeNotSupported attrName
 
 updateToUpdateTuple :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => DPT.Update val -> Either RelationalError (AttributeName, Atom)
+updateToUpdateTuple (BackendUpdate _) = error "BackendUpdate not supported"
 updateToUpdateTuple up@(DPT.Update field value op) = let entDef = entityDef $ dummyFromUpdate up
                                                          attrName = unDBName $ fieldDB (persistFieldDef field)
                                                          atom = persistValueAtom $ toPersistValue value
@@ -468,5 +471,32 @@ instance PersistQuery C.Connection where
                      Just err -> left err
                      Nothing -> right ()
              case e of
-               Left err -> Trans.liftIO $ throwIO $ PersistError "updateWhere pooped"
+               Left err -> Trans.liftIO $ throwIO $ PersistError "deleteWhere pooped"
                Right () -> return ()
+
+         count filters = do
+             conn <- ask
+             e <- runEitherT $ do
+                 restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
+                 let entDef = entityDef $ dummyFromFilters filters 
+                     relVarName = unDBName $ entityDB entDef
+                     allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef)
+                     allAttrNames = AttributeNames $ S.fromList allAttrNamesList
+                     groupExpr = Group allAttrNames "persistcountrel" (RelationVariable relVarName)
+                     tupleExpr = AttributeTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
+                     countExpr = Extend tupleExpr groupExpr
+                 rel <- Trans.liftIO $ C.executeRelationalExpr conn countExpr
+                 case rel of 
+                    Left err -> left err
+                    Right rel' -> case singletonTuple rel' of
+                          Nothing -> Trans.liftIO $ throwIO $ PersistError "failed to get count tuple"
+                          Just tuple -> case atomForAttributeName "persistcount" tuple of
+                             (Right (IntAtom c)) -> return c
+                             Right _ -> Trans.liftIO $ throwIO $ PersistError "count returned wrong data type"
+                             Left err -> left err
+             case e of
+               Left err -> Trans.liftIO $ throwIO $ PersistError "count pooped"
+               Right c -> return c
+
+         selectSourceRes = undefined
+         selectKeysRes = undefined
