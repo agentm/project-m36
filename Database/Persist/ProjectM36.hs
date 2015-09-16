@@ -29,6 +29,7 @@ import Control.Monad.Trans.Either
 import Database.Persist.Class
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
+import qualified Data.Conduit.List as CL
       
 type ProjectM36Backend = C.Connection  
                          
@@ -498,5 +499,22 @@ instance PersistQuery C.Connection where
                Left err -> Trans.liftIO $ throwIO $ PersistError "count pooped"
                Right c -> return c
 
-         selectSourceRes = undefined
+         --no select options currently supported (sorting, limiting)
+         selectSourceRes _ (_:_) = Trans.liftIO $ throwIO $ PersistError "select options not yet supported"
+         selectSourceRes filters [] = do
+             conn <- ask
+             entities <- runEitherT $ do
+                 restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
+                 let entDef = entityDef $ dummyFromFilters filters 
+                     relVarName = unDBName $ entityDB entDef
+                     restrictionExpr = Restrict restrictionPredicate (RelationVariable relVarName)
+                     tupleMapper tuple = Trans.liftIO $ fromPersistValuesThrow entDef tuple                                      
+                 rel <- Trans.liftIO $ C.executeRelationalExpr conn restrictionExpr
+                 case rel of
+                     Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack (show err))
+                     Right (Relation _ tupleSet) -> mapM tupleMapper $ HS.toList tupleSet --refactor to use some relation accessors- here we convert a relation to a matrix, effectively (especially to support future sorting)
+             case entities of
+                 Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack $ show err)
+                 Right entities' -> return $ return $ CL.sourceList entities'
+
          selectKeysRes = undefined
