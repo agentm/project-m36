@@ -16,7 +16,7 @@ import qualified Data.Set as S
 import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Data.Functor.Identity (Identity)
 import Data.Time.Format
-import System.Locale
+--import System.Locale
 
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return StringAtomType) <|>

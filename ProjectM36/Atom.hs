@@ -5,7 +5,7 @@ import ProjectM36.Error
 import qualified Data.Text as T
 import Text.Read (readMaybe)
 import Data.Time.Format
-import System.Locale
+--import System.Locale
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (RelationAtom rel) = Right rel
