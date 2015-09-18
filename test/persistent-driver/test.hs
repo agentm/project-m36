@@ -31,7 +31,7 @@ Person
 |]
 
 testList :: Test
-testList = TestList $ map mkInProcessTest [testGetBy, testDelete, testUpdate, testCount, testSelect]
+testList = TestList $ map mkInProcessTest [testGetBy, testDelete, testUpdate, testCount, testSelect, testSelectKeys]
 
 main :: IO ()
 main = do 
@@ -156,4 +156,15 @@ testSelect = do
     namesList <- selectList [] []
     liftIO $ assertEqual "select names len" 2 (length (namesList :: [Entity Person]))
 
+testSelectKeys :: ReaderT ProjectM36Backend IO ()
+testSelectKeys = do
+    let name1 = "Michael"
+        age1 = 26
+        name2 = "John"
+        age2 = 30
+    m1 <- insert $ Person name1 age1
+    m2 <- insert $ Person name2 age2
+    keysList <- selectKeysList [PersonAge ==. age2] []
+    liftIO $ assertEqual "select keysList len" 1 (length keysList)
+    liftIO $ assertEqual "select keysList val" m2 (head keysList)
     
