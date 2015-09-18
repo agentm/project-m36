@@ -31,7 +31,7 @@ Person
 |]
 
 testList :: Test
-testList = TestList $ map mkInProcessTest [testGetBy, testDelete, testUpdate, testCount]
+testList = TestList $ map mkInProcessTest [testGetBy, testDelete, testUpdate, testCount, testSelect]
 
 main :: IO ()
 main = do 
@@ -139,8 +139,21 @@ testCount = do
     liftIO $ assertEqual "count age" 1 c1
     c2 <- count [PersonAge !=. 400]
     liftIO $ assertEqual "count age2" 2 c2
-    
-    
 
+--currently, selection only supports filter/restriction and not sorting
+--insert two people, test that restriction locates each and both
+testSelect :: ReaderT ProjectM36Backend IO ()
+testSelect = do
+    let name1 = "Michael"
+        age1 = 26
+        name2 = "John"
+        age2 = 30
+    m1 <- insert $ Person name1 age1
+    m2 <- insert $ Person name2 age2    
+    name1List <- selectList [PersonName ==. name1] []
+    liftIO $ assertEqual "select name1 len" 1 (length name1List)
+    liftIO $ assertEqual "select name1 val" name1 ((personName . entityVal . head) name1List)
+    namesList <- selectList [] []
+    liftIO $ assertEqual "select names len" 2 (length (namesList :: [Entity Person]))
 
     
