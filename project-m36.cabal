@@ -7,7 +7,7 @@ Category: Relational Algebra
 Cabal-Version: >= 1.2
 
 Library
-    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec,either, persistent,persistent-template,aeson,path-pieces
+    Build-Depends: base,mtl,containers,unordered-containers,parsec,hashable,haskeline,directory,uuid,cassava ==0.4.*,text,bytestring,deepseq,deepseq-generics,vector,parallel,monad-parallel,transformers,gnuplot,binary,filepath,directory,vector-binary-instances,unix,temporary,stm,time,hashable-time,old-locale,attoparsec,either, persistent,persistent-template,aeson,path-pieces,conduit,resourcet
 --required for persistent db driver
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
