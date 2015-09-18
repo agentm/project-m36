@@ -12,6 +12,7 @@ import qualified Data.Vector as V
 import ProjectM36.Error
 import ProjectM36.Relation
 import qualified Control.Monad.IO.Class as Trans
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader (ask, ReaderT)
 import Control.Exception (throw, throwIO)
 import qualified Data.Text as T
@@ -440,7 +441,17 @@ updateToUpdateTuple up@(DPT.Update field value op) = let entDef = entityDef $ du
                                                          Nothing -> Left $ AtomTypeNotSupported attrName
                                                          Just atom' -> Right $ (attrName, atom')
                                                        op' -> Left $ AtomOperatorNotSupported $ T.pack (show op')
-                                            
+
+selectionFromRestriction :: (PersistEntity val, PersistEntityBackend val ~ backend, Trans.MonadIO m, backend ~ C.Connection) => [Filter val] -> ReaderT backend m (Either RelationalError RelationalExpr)
+selectionFromRestriction filters = do
+    conn <- ask
+    runEitherT $ do
+        restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
+        let entDef = entityDef $ dummyFromFilters filters 
+            relVarName = unDBName $ entityDB entDef
+        right $ Restrict restrictionPredicate (RelationVariable relVarName)
+        
+                             
 instance PersistQuery C.Connection where
          updateWhere _ [] = return ()
          updateWhere filters updates = do
@@ -504,11 +515,10 @@ instance PersistQuery C.Connection where
          selectSourceRes filters [] = do
              conn <- ask
              entities <- runEitherT $ do
-                 restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
-                 let entDef = entityDef $ dummyFromFilters filters 
-                     relVarName = unDBName $ entityDB entDef
-                     restrictionExpr = Restrict restrictionPredicate (RelationVariable relVarName)
-                     tupleMapper tuple = Trans.liftIO $ fromPersistValuesThrow entDef tuple                                      
+                 restrictionExpr <- (lift $ selectionFromRestriction filters) >>= hoistEither
+                 --restrictionExpr' <- hoistEither restrictionExpr
+                 let entDef = entityDef $ dummyFromFilters filters
+                 let tupleMapper tuple = Trans.liftIO $ fromPersistValuesThrow entDef tuple
                  rel <- Trans.liftIO $ C.executeRelationalExpr conn restrictionExpr
                  case rel of
                      Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack (show err))
@@ -517,4 +527,23 @@ instance PersistQuery C.Connection where
                  Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack $ show err)
                  Right entities' -> return $ return $ CL.sourceList entities'
 
-         selectKeysRes = undefined
+         selectKeysRes _ (_:_) = Trans.liftIO $ throwIO $ PersistError "select options not yet supported"
+         selectKeysRes filters [] = do
+            conn <- ask
+            keys <- runEitherT $ do
+               restrictionExpr <- (lift $ selectionFromRestriction filters) >>= hoistEither
+               let entDef = entityDef $ dummyFromFilters filters
+                   keyAttrNames = ["id"] --no support for multi-attribute keys yet
+                   keyExpr = Project (AttributeNames $ S.fromList keyAttrNames) restrictionExpr
+               (Relation _ tupleSet) <- (Trans.liftIO $ C.executeRelationalExpr conn keyExpr) >>= hoistEither
+               let keyMapper :: (PersistEntity record, Trans.MonadIO m) => RelationTuple -> EitherT RelationalError (ReaderT C.Connection m) (Key record)
+                   keyMapper tuple = do
+                                       atoms <- hoistEither (atomsForAttributeNames (V.fromList keyAttrNames) tuple)
+                                       case keyFromValues (map atomAsPersistValue (V.toList atoms)) of
+                                           Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure"
+                                           Right key -> right key
+               mapM keyMapper $ HS.toList tupleSet
+            case keys of
+                Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure2"
+                Right keys' -> return $ return (CL.sourceList keys')
+               
