@@ -31,6 +31,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeNotSupported AttributeName --used by persistent driver
+                     | AtomOperatorNotSupported T.Text --used by persistent driver
                      | EmptyTuplesError -- used by persistent driver
                      | AtomTypeCountError [AtomType] [AtomType]
                      | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
