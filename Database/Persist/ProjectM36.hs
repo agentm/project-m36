@@ -31,7 +31,7 @@ import Database.Persist.Class
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
-      
+
 type ProjectM36Backend = C.Connection  
                          
 --convert a PersistEntity to a RelationTuple
@@ -416,18 +416,21 @@ filterValueToPersistValues :: forall a.  PersistField a => Either a [a] -> [Pers
 filterValueToPersistValues v = map toPersistValue $ either return id v
 
 filterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Filter val -> Either RelationalError RestrictionPredicateExpr
-filterAsRestrictionPredicate filter = case filter of
+filterAsRestrictionPredicate filter = let entDef = entityDef $ dummyFromFilter filter in
+  case filter of
     FilterAnd filters -> multiFilterAsRestrictionPredicate True filters
     FilterOr filters -> multiFilterAsRestrictionPredicate False filters
     BackendFilter _ -> error "BackendFilter not supported"
     Filter field value pfilter -> let attrName = unDBName $ fieldDB (persistFieldDef field) in
                                   case value of
-                                      Left val -> case pfilter of
-                                          Eq -> let entDef = entityDef $ dummyFromFilter filter
-                                                    atom = persistValueAtom $ toPersistValue val
-                                                in case atom of
+                                      Left val -> let atom = persistValueAtom $ toPersistValue val in
+                                        case pfilter of
+                                          Eq -> case atom of
                                                     Nothing -> Left $ AtomTypeNotSupported attrName
                                                     Just atom' -> Right $ AttributeEqualityPredicate attrName (NakedAtomExpr atom')
+                                          Ne -> case atom of
+                                                    Nothing -> Left $ AtomTypeNotSupported attrName
+                                                    Just atom' -> Right $ NotPredicate (AttributeEqualityPredicate attrName (NakedAtomExpr atom'))
                                           op -> Left $ AtomOperatorNotSupported $ T.pack (show op)
                                       Right vals -> Left $ AtomTypeNotSupported attrName
 
@@ -492,9 +495,9 @@ instance PersistQuery C.Connection where
                  restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
                  let entDef = entityDef $ dummyFromFilters filters 
                      relVarName = unDBName $ entityDB entDef
-                     allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef)
+                     allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef) ++ [unDBName (fieldDB (entityId entDef))]
                      allAttrNames = AttributeNames $ S.fromList allAttrNamesList
-                     groupExpr = Group allAttrNames "persistcountrel" (RelationVariable relVarName)
+                     groupExpr = Group allAttrNames "persistcountrel" (Restrict restrictionPredicate (RelationVariable relVarName))
                      tupleExpr = AttributeTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
                      countExpr = Extend tupleExpr groupExpr
                  rel <- Trans.liftIO $ C.executeRelationalExpr conn countExpr
@@ -503,7 +506,7 @@ instance PersistQuery C.Connection where
                     Right rel' -> case singletonTuple rel' of
                           Nothing -> Trans.liftIO $ throwIO $ PersistError "failed to get count tuple"
                           Just tuple -> case atomForAttributeName "persistcount" tuple of
-                             (Right (IntAtom c)) -> return c
+                             (Right (IntAtom c)) -> (Trans.liftIO $ putStrLn (show c)) >> return c
                              Right _ -> Trans.liftIO $ throwIO $ PersistError "count returned wrong data type"
                              Left err -> left err
              case e of
