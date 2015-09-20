@@ -34,7 +34,7 @@ testList :: Test
 testList = TestList $ map mkInProcessTest [testGetBy, testDelete, testUpdate, testCount, testSelect, testSelectKeys]
 
 main :: IO ()
-main = do 
+main = do
   tcounts <- runTestTT testList
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
@@ -70,11 +70,11 @@ testGetBy :: ReaderT ProjectM36Backend IO ()
 testGetBy = do
     let name = "Michael"
         age = 26
-    m <- insert $ Person name age
+    _ <- insert $ Person name age
     michael <- getBy $ UniqueName name
-    michael <- liftIO $ entityFromMaybe michael
-    liftIO $ assertEqual "name equality" name (personName $ entityVal michael)
-    liftIO $ assertEqual "age equality" age (personAge $ entityVal michael)
+    michael' <- liftIO $ entityFromMaybe michael
+    liftIO $ assertEqual "name equality" name (personName $ entityVal michael')
+    liftIO $ assertEqual "age equality" age (personAge $ entityVal michael')
     return ()
 
 --insert two people, delete one, check one remains
@@ -84,24 +84,24 @@ testDelete = do
         age1 = 26
         name2 = "John"
         age2 = 30
-    m1 <- insert $ Person name1 age1
+    _ <- insert $ Person name1 age1
     m2 <- insert $ Person name2 age2
     deleteBy $ UniqueName name1 --delete michael
     nom1 <- getBy $ UniqueName name1
     --check that m1 was deleted
     case nom1 of
-        Just m -> liftIO $ assertFailure "deleteBy failure"
+        Just _ -> liftIO $ assertFailure "deleteBy failure"
         Nothing -> return ()
     --check that m2 still exists
     m2check <- getBy $ UniqueName name2
     case m2check of
        Nothing -> liftIO $ assertFailure "deleteBy failure2"
-       Just m -> return ()
+       Just _ -> return ()
     --delete m2
     deleteWhere [PersonName ==. name2]
     m2del <- get m2
     case m2del of
-      Just m -> liftIO $ assertFailure "deleteBy failure m2"
+      Just _ -> liftIO $ assertFailure "deleteBy failure m2"
       Nothing -> return ()
     return ()
 
@@ -118,13 +118,13 @@ testUpdate = do
     update m1 [PersonAge =. 35] -- update m1's age
     updateWhere [PersonName ==. name2] [PersonName =. name3] --update m2's name
     m1up <- get m1
-    m1up <- liftIO $ valFromMaybe m1up
+    m1up' <- liftIO $ valFromMaybe m1up
     m2up <- get m2
-    m2up <- liftIO $ valFromMaybe m2up
-    liftIO $ assertEqual "m1 update" name1 (personName m1up)
-    liftIO $ assertEqual "m1 update" 35 (personAge m1up)
-    liftIO $ assertEqual "m2 update" name3 (personName m2up)
-    liftIO $ assertEqual "m2 update" age2 (personAge m2up)
+    m2up' <- liftIO $ valFromMaybe m2up
+    liftIO $ assertEqual "m1 update" name1 (personName m1up')
+    liftIO $ assertEqual "m1 update" 35 (personAge m1up')
+    liftIO $ assertEqual "m2 update" name3 (personName m2up')
+    liftIO $ assertEqual "m2 update" age2 (personAge m2up')
     return ()
 
 testCount :: ReaderT ProjectM36Backend IO ()
@@ -133,8 +133,8 @@ testCount = do
         age1 = 26
         name2 = "John"
         age2 = 30
-    m1 <- insert $ Person name1 age1
-    m2 <- insert $ Person name2 age2
+    _ <- insert $ Person name1 age1
+    _ <- insert $ Person name2 age2
     c1 <- count [PersonAge ==. 26]
     liftIO $ assertEqual "count age" 1 c1
     c2 <- count [PersonAge !=. 400]
@@ -148,8 +148,8 @@ testSelect = do
         age1 = 26
         name2 = "John"
         age2 = 30
-    m1 <- insert $ Person name1 age1
-    m2 <- insert $ Person name2 age2    
+    _ <- insert $ Person name1 age1
+    _ <- insert $ Person name2 age2    
     name1List <- selectList [PersonName ==. name1] []
     liftIO $ assertEqual "select name1 len" 1 (length name1List)
     liftIO $ assertEqual "select name1 val" name1 ((personName . entityVal . head) name1List)
@@ -162,7 +162,7 @@ testSelectKeys = do
         age1 = 26
         name2 = "John"
         age2 = 30
-    m1 <- insert $ Person name1 age1
+    _ <- insert $ Person name1 age1
     m2 <- insert $ Person name2 age2
     keysList <- selectKeysList [PersonAge ==. age2] []
     liftIO $ assertEqual "select keysList len" 1 (length keysList)

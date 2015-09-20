@@ -18,7 +18,6 @@ import Control.Exception (throw, throwIO)
 import qualified Data.Text as T
 import ProjectM36.Atom
 import Data.Aeson (FromJSON(..), ToJSON(..), withText, withObject, (.:))
-import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Control.Monad (when)
 import Data.Maybe (isJust)
@@ -27,7 +26,6 @@ import Control.Monad.Reader (runReaderT)
 import Web.PathPieces (PathPiece (..))
 import qualified Database.Persist.Sql as Sql
 import Control.Monad.Trans.Either
-import Database.Persist.Class
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
@@ -123,7 +121,10 @@ insertNewRecords uuids records = do
         conn <- ask
         Trans.liftIO $ executeDatabaseContextExpr conn (insertExpr (ExistingRelation rel))
         mapM (\uuid -> keyFromValuesOrDie [PersistText $ T.pack (U.toString uuid)]) uuids
-        
+
+throwIOPersistError :: (Trans.MonadIO m) => String -> m a
+throwIOPersistError msg = Trans.liftIO $ throwIO $ PersistError (T.pack msg)
+
 lookupByKey :: forall record m.
                (Trans.MonadIO m, 
                 PersistEntity record, 
@@ -135,7 +136,7 @@ lookupByKey key = do
   conn <- ask
   resultRel <- Trans.liftIO $ C.executeRelationalExpr conn query
   case resultRel of
-    Left err -> Trans.liftIO $ throwIO $ PersistError "executeRelationExpr error"
+    Left err -> throwIOPersistError ("executeRelationExpr error: " ++ show err)
     Right resultRel' -> case singletonTuple resultRel' of
       Nothing -> return Nothing --no match on key
       Just tuple -> do 
@@ -150,14 +151,14 @@ fromPersistValuesThrow entDef tuple = do
   let body = fromPersistValues $ map getValue (entityFields entDef)
       getValue field = case atomForAttributeName (unDBName (fieldDB field)) tuple of
         Right atom -> atomAsPersistValue atom
-        Left err -> throw $ PersistError "missing field"
+        Left err -> throw $ PersistError ("missing field: " `T.append` (T.pack $ show err))
       keyAtom = atomForAttributeName (unDBName (fieldDB (entityId entDef))) tuple
   case keyAtom of
-    Left err -> Trans.liftIO $ throwIO $ PersistError "missing key atom"
+    Left err -> throwIOPersistError ("missing key atom" ++ show err)
     Right keyAtom' -> case keyFromValues [atomAsPersistValue keyAtom'] of
-      Left err -> throw $ PersistError "key failure"
+      Left err -> throw $ PersistError ("key failure" `T.append` (T.pack $ show err))
       Right key -> case body of
-        Left err -> Trans.liftIO $ throwIO $ PersistError err
+        Left err -> throwIOPersistError (show err)
         Right body' -> return $ Entity key body'
         
 commonKeyQueryProperties :: (Trans.MonadIO m, PersistEntityBackend val ~ C.Connection, PersistEntity val) => Key val -> ReaderT C.Connection m (RelVarName, RestrictionPredicateExpr)
@@ -202,7 +203,7 @@ updateByKey key updates = do
   conn <- ask
   maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn query
   case maybeErr of
-    Just err -> Trans.liftIO $ throwIO $ PersistError "executeDatabaseExpr error"
+    Just err -> throwIOPersistError ("executeDatabaseExpr error" ++ show err)
     Nothing -> return ()
     
 --set the truth unconditionally    
@@ -331,7 +332,7 @@ instance PersistConfig C.ConnectionInfo where
          createPoolConfig conf = do
            connErr <- C.connectProjectM36 conf
            case connErr of
-               Left err -> throwIO $ PersistError "Failed to create connection"
+               Left err -> throwIO $ PersistError ("Failed to create connection: " `T.append` (T.pack $ show err))
                Right conn -> return conn
          --runPool :: (MonadBaseControl IO m, MonadIO m) => c -> PersistConfigBackend c m a -> PersistConfigPool c -> m a
          runPool _ r = runReaderT r
@@ -407,17 +408,16 @@ instance PersistUnique C.Connection where
 multiFilterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Bool -> [Filter val] -> Either RelationalError RestrictionPredicateExpr
 multiFilterAsRestrictionPredicate _ [] = Right $ TruePredicate
 multiFilterAsRestrictionPredicate andOr (x:xs) = do
-    let pred = if andOr then AndPredicate else OrPredicate    
+    let predicate = if andOr then AndPredicate else OrPredicate    
     filtHead <- filterAsRestrictionPredicate x  
     filtTail <- multiFilterAsRestrictionPredicate andOr xs
-    return $ pred filtHead filtTail
+    return $ predicate filtHead filtTail
 
-filterValueToPersistValues :: forall a.  PersistField a => Either a [a] -> [PersistValue]
+filterValueToPersistValues :: forall a. PersistField a => Either a [a] -> [PersistValue]
 filterValueToPersistValues v = map toPersistValue $ either return id v
 
 filterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Filter val -> Either RelationalError RestrictionPredicateExpr
-filterAsRestrictionPredicate filter = let entDef = entityDef $ dummyFromFilter filter in
-  case filter of
+filterAsRestrictionPredicate filterIn = case filterIn of
     FilterAnd filters -> multiFilterAsRestrictionPredicate True filters
     FilterOr filters -> multiFilterAsRestrictionPredicate False filters
     BackendFilter _ -> error "BackendFilter not supported"
@@ -432,14 +432,13 @@ filterAsRestrictionPredicate filter = let entDef = entityDef $ dummyFromFilter f
                                                     Nothing -> Left $ AtomTypeNotSupported attrName
                                                     Just atom' -> Right $ NotPredicate (AttributeEqualityPredicate attrName (NakedAtomExpr atom'))
                                           op -> Left $ AtomOperatorNotSupported $ T.pack (show op)
-                                      Right vals -> Left $ AtomTypeNotSupported attrName
+                                      Right _ -> Left $ AtomTypeNotSupported attrName
 
 updateToUpdateTuple :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => DPT.Update val -> Either RelationalError (AttributeName, Atom)
 updateToUpdateTuple (BackendUpdate _) = error "BackendUpdate not supported"
-updateToUpdateTuple up@(DPT.Update field value op) = let entDef = entityDef $ dummyFromUpdate up
-                                                         attrName = unDBName $ fieldDB (persistFieldDef field)
-                                                         atom = persistValueAtom $ toPersistValue value
-                                                     in case op of
+updateToUpdateTuple (DPT.Update field value op) = let attrName = unDBName $ fieldDB (persistFieldDef field)
+                                                      atom = persistValueAtom $ toPersistValue value
+                                                  in case op of
                                                        DPT.Assign -> case atom of
                                                          Nothing -> Left $ AtomTypeNotSupported attrName
                                                          Just atom' -> Right $ (attrName, atom')
@@ -447,10 +446,9 @@ updateToUpdateTuple up@(DPT.Update field value op) = let entDef = entityDef $ du
 
 selectionFromRestriction :: (PersistEntity val, PersistEntityBackend val ~ backend, Trans.MonadIO m, backend ~ C.Connection) => [Filter val] -> ReaderT backend m (Either RelationalError RelationalExpr)
 selectionFromRestriction filters = do
-    conn <- ask
     runEitherT $ do
         restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
-        let entDef = entityDef $ dummyFromFilters filters 
+        let entDef = entityDef $ dummyFromFilters filters
             relVarName = unDBName $ entityDB entDef
         right $ Restrict restrictionPredicate (RelationVariable relVarName)
         
@@ -471,7 +469,7 @@ instance PersistQuery C.Connection where
                      Just err -> left err
                      Nothing -> right ()
              case e of
-               Left err -> Trans.liftIO $ throwIO $ PersistError "updateWhere pooped"
+               Left err -> throwIOPersistError ("updateWhere failure: " ++ show err)
                Right () -> return ()
 
          deleteWhere filters = do
@@ -486,7 +484,7 @@ instance PersistQuery C.Connection where
                      Just err -> left err
                      Nothing -> right ()
              case e of
-               Left err -> Trans.liftIO $ throwIO $ PersistError "deleteWhere pooped"
+               Left err -> throwIOPersistError ("deleteWhere failure: " ++ show err)
                Right () -> return ()
 
          count filters = do
@@ -510,7 +508,7 @@ instance PersistQuery C.Connection where
                              Right _ -> Trans.liftIO $ throwIO $ PersistError "count returned wrong data type"
                              Left err -> left err
              case e of
-               Left err -> Trans.liftIO $ throwIO $ PersistError "count pooped"
+               Left err -> throwIOPersistError ("count failure: " ++ show err)
                Right c -> return c
 
          --no select options currently supported (sorting, limiting)
@@ -535,18 +533,17 @@ instance PersistQuery C.Connection where
             conn <- ask
             keys <- runEitherT $ do
                restrictionExpr <- (lift $ selectionFromRestriction filters) >>= hoistEither
-               let entDef = entityDef $ dummyFromFilters filters
-                   keyAttrNames = ["id"] --no support for multi-attribute keys yet
+               let keyAttrNames = ["id"] --no support for multi-attribute keys yet
                    keyExpr = Project (AttributeNames $ S.fromList keyAttrNames) restrictionExpr
                (Relation _ tupleSet) <- (Trans.liftIO $ C.executeRelationalExpr conn keyExpr) >>= hoistEither
                let keyMapper :: (PersistEntity record, Trans.MonadIO m) => RelationTuple -> EitherT RelationalError (ReaderT C.Connection m) (Key record)
                    keyMapper tuple = do
                                        atoms <- hoistEither (atomsForAttributeNames (V.fromList keyAttrNames) tuple)
                                        case keyFromValues (map atomAsPersistValue (V.toList atoms)) of
-                                           Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure"
+                                           Left err -> throwIOPersistError ("keyFromValues failure: " ++ show err)
                                            Right key -> right key
                mapM keyMapper $ asList tupleSet
             case keys of
-                Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure2"
+                Left err -> throwIOPersistError ("keyFromValues failure2: " ++ show err)
                 Right keys' -> return $ return (CL.sourceList keys')
                
