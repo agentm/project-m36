@@ -5,7 +5,6 @@ import Text.Parsec.String
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
-import Control.Applicative ((<*), (*>))
 import TutorialD.Interpreter.RelationalExpr
 import qualified Data.Map as M
 import Control.Monad.State

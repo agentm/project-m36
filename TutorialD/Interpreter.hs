@@ -22,7 +22,6 @@ import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
-import Control.Applicative ((<*))
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)

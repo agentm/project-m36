@@ -10,7 +10,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
-import Control.Applicative ((<*),(*>))
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
