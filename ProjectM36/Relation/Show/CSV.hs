@@ -5,11 +5,9 @@ import Data.Csv
 import ProjectM36.Tuple
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy as BS
-import qualified Data.ByteString as BSS
 import qualified Data.Vector as V
 import ProjectM36.Error
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text as T
 
 --spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
 relationAsCSV :: Relation -> Either RelationalError BS.ByteString
@@ -18,7 +16,7 @@ relationAsCSV (Relation attrs tupleSet) = if relValAttrs /= [] then --check for 
                                             else if V.length attrs == 0 then --check that there is at least one attribute
                                                    Left $ TupleAttributeCountMismatchError 0
                                                  else
-                                                   Right $ encodeByName bsAttrNames (HS.toList tupleSet)
+                                                   Right $ encodeByName bsAttrNames (asList tupleSet)
   where
     relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) attrs
     bsAttrNames = V.map (TE.encodeUtf8 . attributeName) attrs

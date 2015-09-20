@@ -227,7 +227,7 @@ evalContextExpr (Define relVarName attrs) = do
     True -> return (Just (RelVarAlreadyDefinedError relVarName))
     False -> setRelVar relVarName emptyRelation
       where
-        emptyRelation = Relation attrs HS.empty
+        emptyRelation = Relation attrs emptyTupleSet
         
 evalContextExpr (Undefine relVarName) = do
   deleteRelVar relVarName

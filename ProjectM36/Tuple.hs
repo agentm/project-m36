@@ -6,9 +6,9 @@ import ProjectM36.Atom
 
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import Data.Either (rights)
+import Control.Monad
 
 emptyTuple :: RelationTuple
 emptyTuple = RelationTuple V.empty V.empty
@@ -82,13 +82,16 @@ mkRelationTuples attrs atomsVec = map mapper atomsVec
   where
     mapper = mkRelationTuple attrs
 
-singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet
-singleTupleSetJoin tup tupSet = HS.foldr tupleJoiner HS.empty tupSet --get rid of this fold here
+--return error if attribute names match but their types do not
+singleTupleSetJoin :: Attributes -> RelationTuple -> RelationTupleSet -> Either RelationalError [RelationTuple]
+singleTupleSetJoin joinAttrs tup tupSet = do
+    foldM tupleJoiner [] (asList tupSet) 
   where
-    tupleJoiner tuple2 accumulator = case joinedTuple of
-      Nothing -> accumulator
-      Just relTuple -> HS.insert relTuple accumulator
-      where joinedTuple = singleTupleJoin tup tuple2
+    tupleJoiner :: [RelationTuple] -> RelationTuple -> Either RelationalError [RelationTuple]
+    tupleJoiner accumulator tuple2 = case singleTupleJoin joinAttrs tup tuple2 of
+        Right Nothing -> Right accumulator
+        Right (Just relTuple) -> Right $ relTuple : accumulator
+        Left err -> Left err
             
 {-            
 singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet
@@ -97,21 +100,20 @@ singleTupleSetJoin tup1 tupSet = HS.union
     mapper tup2 = singleTupleJoin tup1 tup2
 -}
             
--- the keys/values don't need to be resorted
 -- if the keys share some keys and values, then merge the tuples
-singleTupleJoin :: RelationTuple -> RelationTuple -> Maybe RelationTuple
-singleTupleJoin tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = if
+-- if there are shared attributes, if they match, create a new tuple from the atoms of both tuples based on the attribute ordering argument
+singleTupleJoin :: Attributes -> RelationTuple -> RelationTuple -> Either RelationalError (Maybe RelationTuple)
+singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = if
   V.null keysIntersection || atomsForAttributeNames keysIntersection tup1 /= atomsForAttributeNames keysIntersection tup2
   then
-    Nothing
+    return $ Nothing
   else
-    Just $ RelationTuple newAttrs newVec
+    return $ Just $ RelationTuple joinedAttrs newVec
   where
     keysIntersection = V.map attributeName attrsIntersection
     attrsIntersection = V.filter (flip V.elem $ tupAttrs1) tupAttrs2
-    newAttrs = vectorUnion tupAttrs1 tupAttrs2
-    newVec = V.map (findAtomForAttributeName . attributeName) newAttrs
-    --search both tuples for the
+    newVec = V.map (findAtomForAttributeName . attributeName) joinedAttrs
+    --search both tuples for the attribute
     findAtomForAttributeName attrName = head $ rights $ fmap (atomForAttributeName attrName) [tup1, tup2]
 
 --same consideration as Data.List.union- duplicates in v1 are not de-duped
@@ -182,7 +184,7 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
   if V.length attrs /= V.length tupleTypes then
     Left $ TupleAttributeCountMismatchError 0
   else if attrsTypes /= tupleTypes then
-         --Left $ traceShow (show attrsTypes ++ "gonk" ++ show tupleTypes ++ "done") $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
+         -- Left $ traceShow (show attrsTypes ++ "gonk" ++ show tupleTypes ++ "done") $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
          Left $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
        else
          Right $ tuple

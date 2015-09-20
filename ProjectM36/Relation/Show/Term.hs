@@ -85,7 +85,7 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
     oAttrs = orderedAttributeNames rel
     header = oAttrs
     body :: [[Cell]]
-    body = HS.foldl' tupleFolder [] tupleSet
+    body = L.foldl' tupleFolder [] (asList tupleSet)
     tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom atom
