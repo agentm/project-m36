@@ -8,30 +8,28 @@ import qualified Control.Parallel.Strategies as P
 import Data.Either
 
 emptyTupleSet :: RelationTupleSet
-emptyTupleSet = HS.empty
+emptyTupleSet = RelationTupleSet []
 
 singletonTupleSet :: RelationTupleSet
-singletonTupleSet = HS.singleton emptyTuple
+singletonTupleSet = RelationTupleSet [emptyTuple]
 
 --ensure that all maps have the same keys and key count
 
 verifyTupleSet :: Attributes -> RelationTupleSet -> Either RelationalError RelationTupleSet
 verifyTupleSet attrs tupleSet = do
   --check that all tuples have the same attributes and that the atom types match
-  let tupleList = (map (verifyTuple attrs) (HS.toList tupleSet)) `P.using` P.parListChunk chunkSize P.r0
-      chunkSize = HS.size tupleSet `div` 24
+  let tupleList = (map (verifyTuple attrs) (asList tupleSet)) `P.using` P.parListChunk chunkSize P.r0
+      chunkSize = ((length . asList) tupleSet) `div` 24
   --let tupleList = P.parMap P.rdeepseq (verifyTuple attrs) (HS.toList tupleSet)
   if length (lefts tupleList) > 0 then
     Left $ head (lefts tupleList)
    else
-     return $ HS.fromList (rights tupleList)
+     return $ RelationTupleSet (rights tupleList)
 
 mkTupleSet :: Attributes -> [RelationTuple] -> Either RelationalError RelationTupleSet
 mkTupleSet attrs tuples = verifyTupleSet attrs tupSet
   where
-    tupSet = HS.fromList tuples
+    tupSet = RelationTupleSet $ (HS.toList . HS.fromList) tuples
 
 mkTupleSetFromList :: Attributes -> [[Atom]] -> Either RelationalError RelationTupleSet
-mkTupleSetFromList attrs atomMatrix = verifyTupleSet attrs tupSet
-  where
-    tupSet = HS.fromList $ map (\atomList -> mkRelationTuple attrs (V.fromList atomList)) atomMatrix
+mkTupleSetFromList attrs atomMatrix = mkTupleSet attrs $ map (\atomList -> mkRelationTuple attrs (V.fromList atomList)) atomMatrix

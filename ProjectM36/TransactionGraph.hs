@@ -6,13 +6,11 @@ import ProjectM36.Transaction
 import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
-import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
-import Control.Applicative ((<$>))
 import Control.Monad
 import qualified Data.Text as T
 
@@ -239,8 +237,8 @@ transactionParentsRelation trans graph = do
     mkRelation attrs emptyTupleSet
     else do
       parentTransSet <- parentTransactions trans graph
-      let tupleSet = HS.fromList $ map trans2tuple (S.toList parentTransSet)
-      mkRelation attrs tupleSet
+      let tuples = map trans2tuple (S.toList parentTransSet)
+      mkRelationFromTuples attrs tuples
   where
     attrs = A.attributesFromList [Attribute "id" StringAtomType]
     trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (T.pack (show $ transactionUUID trans2)))

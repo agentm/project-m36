@@ -6,7 +6,6 @@ import ProjectM36.Error
 import ProjectM36.Tuple
 import ProjectM36.Atom
 import qualified ProjectM36.Attribute as A
-import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import System.Exit
@@ -37,20 +36,20 @@ validateRelation rel = do
   validateAttrTypesMatchTupleAttrTypes rel
   
 validateAttrNamesMatchTupleAttrNames :: Relation -> Either RelationalError Relation
-validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupMapSet) 
-  | HS.null invalidSet = Right rel
+validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupSet) 
+  | null invalidSet = Right rel
   | otherwise = Left $ AttributeNamesMismatchError S.empty
   where
     nameCheck tuple = attributeNames rel == tupleAttributeNameSet tuple
-    invalidSet =  HS.filter (not . nameCheck) tupMapSet
+    invalidSet = filter (not . nameCheck) (asList tupSet)
     
 validateAttrTypesMatchTupleAttrTypes :: Relation -> Either RelationalError Relation
-validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = HS.foldr (\tuple acc -> 
+validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple acc -> 
                                                                               if (tupleAttributes tuple) == attrs && tupleAtomCheck tuple then 
                                                                                 acc 
                                                                               else
                                                                                 Left $ TupleAttributeTypeMismatchError A.emptyAttributes
-                                                                            ) (Right rel) tupSet
+                                                                            ) (Right rel) (asList tupSet)
   where
     tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
     attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
@@ -64,7 +63,7 @@ simpleRel = case mkRelation attrs tupleSet of
   Left _ -> undefined
   where
     attrs = A.attributesFromList [Attribute "a" StringAtomType, Attribute "b" StringAtomType]
-    tupleSet = HS.singleton $ mkRelationTuple attrs (V.fromList [StringAtom "spam", StringAtom "spam2"])
+    tupleSet = RelationTupleSet [mkRelationTuple attrs (V.fromList [StringAtom "spam", StringAtom "spam2"])]
 
 --rename tests
 testRename1 :: Test
@@ -79,6 +78,6 @@ testMkRelation1 :: Test
 testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError A.emptyAttributes) (mkRelation testAttrs testTupSet) -- the error attribute set is empty due to an optimization- the tuple attrs do not match the atoms' types
   where
     testAttrs = A.attributesFromList [Attribute "a" StringAtomType]
-    testTupSet = HS.fromList [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],
-                              mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]
+    testTupSet = RelationTupleSet [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],
+                                   mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]
 

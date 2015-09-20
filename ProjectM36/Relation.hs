@@ -1,5 +1,4 @@
--- this is an implementation of the Relation typeclass which creates a GADT DSL
-{-# LANGUAGE GADTs,ExistentialQuantification,NoImplicitPrelude,OverloadedStrings #-}
+{-# LANGUAGE GADTs,ExistentialQuantification,OverloadedStrings #-}
 module ProjectM36.Relation where
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
@@ -12,7 +11,6 @@ import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
-import Prelude hiding (join)
 import qualified Data.Text as T
 import qualified Control.Parallel.Strategies as P
 
@@ -44,6 +42,11 @@ mkRelation attrs tupleSet = do
     Left err -> Left err
     Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
 
+mkRelationFromTuples :: Attributes -> [RelationTuple] -> Either RelationalError Relation
+mkRelationFromTuples attrs tupleSetList = do
+   tupSet <- mkTupleSet attrs tupleSetList
+   mkRelation attrs tupSet
+
 relationTrue :: Relation
 relationTrue = Relation A.emptyAttributes singletonTupleSet
 
@@ -57,17 +60,17 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   else
     Right $ Relation attrs1 newtuples
   where
-    newtuples = HS.union tupSet1 (HS.map (reorderTuple attrs1) tupSet2)
+    newtuples = RelationTupleSet $ HS.toList . HS.fromList $ (asList tupSet1) ++ (map (reorderTuple attrs1) (asList tupSet2))
 
 project :: AttributeNames -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel = 
   case AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames of
     Left err -> Left err
-    Right newAttrs -> relFold (folder newAttrs) (Right $ Relation newAttrs HS.empty) rel
+    Right newAttrs -> relFold (folder newAttrs) (Right $ Relation newAttrs emptyTupleSet) rel
   where
     folder newAttrs tupleToProject acc = case acc of
       Left err -> Left err
-      Right acc2 -> union acc2 (Relation newAttrs (HS.singleton (tupleProject (A.attributeNameSet newAttrs) tupleToProject)))
+      Right acc2 -> union acc2 (Relation newAttrs (RelationTupleSet [tupleProject (A.attributeNameSet newAttrs) tupleToProject]))
     
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
@@ -81,7 +84,7 @@ rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
     newAttributeInUse = A.attributeNamesContained (S.singleton newAttrName) (attributeNames rel)
     attributeValid = A.attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
     newAttrs = A.renameAttributes oldAttrName newAttrName oldAttrs
-    newTupSet = HS.map tupsetmapper oldTupSet
+    newTupSet = RelationTupleSet $ map tupsetmapper (asList oldTupSet)
     tupsetmapper tuple = tupleRenameAttribute oldAttrName newAttrName tuple
     
 --the algebra should return a relation of one attribute and one row with the arity
@@ -91,8 +94,8 @@ arity (Relation attrs _) = A.arity attrs
 degree :: Relation -> Int
 degree = arity
 
-cardinality :: Relation -> RelationCardinality 
-cardinality (Relation _ tupSet) = Countable (HS.size tupSet)
+cardinality :: Relation -> RelationCardinality --we need to detect infinite tuple sets- perhaps with a flag
+cardinality (Relation _ tupSet) = Countable (length (asList tupSet))
 
 --find tuples where the atoms in the relation which are NOT in the AttributeNameSet are equal
 -- create a relation for each tuple where the attributes NOT in the AttributeNameSet are equal
@@ -166,7 +169,7 @@ tupleUngroup relvalAttrName newAttrs tuple = do
     nonGroupAttrNames = A.attributeNameSet newAttrs
     folder tupleIn acc = case acc of
       Left err -> Left err
-      Right accRel -> union accRel $ Relation newAttrs (HS.singleton (tupleExtend nonGroupTupleProjection tupleIn))
+      Right accRel -> union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
           
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
 attributesForRelval relvalAttrName (Relation attrs _) = do 
@@ -179,24 +182,26 @@ restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relati
 --restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset
 restrict rfilter (Relation attrs tupset) = Right $ Relation attrs processedTupSet 
   where
-    tupSetList = HS.toList tupset
-    processedTupSet = HS.fromList ((filter rfilter tupSetList) `P.using` (P.parListChunk 1000 P.rdeepseq))
+    processedTupSet = RelationTupleSet ((filter rfilter (asList tupset)) `P.using` (P.parListChunk 1000 P.rdeepseq))
 
 --joins on columns with the same name- use rename to avoid this- base case: cartesian product
 --after changing from string atoms, there needs to be a type-checking step!
 --this is a "nested loop" scan as described by the postgresql documentation
 join :: Relation -> Relation -> Either RelationalError Relation
 join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
-  let newTupSet = HS.foldr tupleSetJoiner emptyTupleSet tupSet1
-      tupleSetJoiner tuple1 accumulator = HS.union (singleTupleSetJoin tuple1 tupSet2) accumulator
   newAttrs <- A.joinAttributes attrs1 attrs2
+  let tupleSetJoiner accumulator tuple1 = do
+        joinedTupSet <- singleTupleSetJoin newAttrs tuple1 tupSet2
+        return $ joinedTupSet ++ accumulator  
+  newTupSetList <- foldM tupleSetJoiner [] (asList tupSet1)
+  newTupSet <- mkTupleSet newAttrs newTupSetList
   return $ Relation newAttrs newTupSet
 
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
 relMap mapper (Relation attrs tupleSet) = do
-  case forM (HS.toList tupleSet) typeMapCheck of
-    Right remappedTupleSet -> Right $ Relation attrs $ HS.fromList remappedTupleSet
+  case forM (asList tupleSet) typeMapCheck of
+    Right remappedTupleSet -> mkRelation attrs (RelationTupleSet remappedTupleSet)
     Left err -> Left err
   where
     typeMapCheck tupleIn = do
@@ -206,10 +211,13 @@ relMap mapper (Relation attrs tupleSet) = do
         else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)             
       
 relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
-relMogrify mapper newAttributes (Relation _ tupSet) = mkRelation newAttributes (HS.map mapper tupSet)
+relMogrify mapper newAttributes (Relation _ tupSet) = do
+    mkRelationFromTuples newAttributes newTuples
+    where
+        newTuples = map mapper (asList tupSet)
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
-relFold folder acc (Relation _ tupleSet) = HS.foldr folder acc tupleSet
+relFold folder acc (Relation _ tupleSet) = foldr folder acc (asList tupleSet)
 
 --image relation as defined by CJ Date
 --given tupleA and relationB, return restricted relation where tuple attributes are not the attribues in tupleA but are attributes in relationB and match the tuple's value 
@@ -240,8 +248,8 @@ matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
-      tupleSet = HS.fromList $ map (\c -> tuple c) [0 .. tupleCount]
-  mkRelation attrs tupleSet
+      tuples = map (\c -> tuple c) [0 .. tupleCount]
+  mkRelationFromTuples attrs tuples
 
 --used by sum atom function
 relationSum :: Relation -> Atom

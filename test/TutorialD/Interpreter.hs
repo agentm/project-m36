@@ -12,7 +12,6 @@ import ProjectM36.Base
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import qualified ProjectM36.Attribute as A
-import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import System.Exit
 import Data.Maybe (isJust)
@@ -33,7 +32,7 @@ main = do
                       ("x:=relation{a int}", mkRelation simpleAAttributes emptyTupleSet),
                       ("x:=relation{c int} rename {c as d}", mkRelation simpleBAttributes emptyTupleSet),
                       ("y:=relation{b int, c int}; x:=y{c}", mkRelation simpleProjectionAttributes emptyTupleSet),
-                      ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ HS.singleton ((RelationTuple simpleCAttributes) (V.fromList [StringAtom "spam", IntAtom 5]))),
+                      ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [(RelationTuple simpleCAttributes) (V.fromList [StringAtom "spam", IntAtom 5])]),
                       ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc"),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
                       ("x:=true where true", Right relationTrue),
@@ -45,15 +44,15 @@ main = do
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
                       ("x:=true; undefine x", Left (RelVarNotDefinedError "x")),
-                      ("x:=relation {b int, a char}; insert x relation{tuple{b 5, a \"spam\"}}", mkRelation simpleCAttributes (HS.fromList [RelationTuple simpleCAttributes $ V.fromList [StringAtom "spam", IntAtom 5]])),
+                      ("x:=relation {b int, a char}; insert x relation{tuple{b 5, a \"spam\"}}", mkRelationFromTuples simpleCAttributes [RelationTuple simpleCAttributes $ V.fromList [StringAtom "spam", IntAtom 5]]),
                       -- test nested relation constructor
-                      ("x:=relation{tuple{a 5, b relation{tuple{a 6}}}}", mkRelation nestedRelationAttributes $ HS.singleton $ RelationTuple nestedRelationAttributes (V.fromList [IntAtom 5, RelationAtom (Relation simpleAAttributes (HS.singleton $ RelationTuple simpleAAttributes $ V.fromList [IntAtom 6]))])),
-                      ("x:=relation{tuple{b 5,a \"spam\"},tuple{b 6,a \"sam\"}}; delete x where b=6", mkRelation simpleCAttributes $ HS.singleton $ RelationTuple simpleCAttributes (V.fromList [StringAtom "spam", IntAtom 5])),
-                      ("x:=relation{tuple{a 5}} : {b:=@a}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 5])),
-                      ("x:=relation{tuple{a 5}} : {b:=6}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 6])),
-                      ("x:=relation{tuple{a 5}} : {b:=add(@a,5)}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 10])),
+                      ("x:=relation{tuple{a 5, b relation{tuple{a 6}}}}", mkRelation nestedRelationAttributes $ RelationTupleSet [RelationTuple nestedRelationAttributes (V.fromList [IntAtom 5, RelationAtom (Relation simpleAAttributes $ RelationTupleSet [RelationTuple simpleAAttributes $ V.fromList [IntAtom 6]])])]),
+                      ("x:=relation{tuple{b 5,a \"spam\"},tuple{b 6,a \"sam\"}}; delete x where b=6", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [StringAtom "spam", IntAtom 5])]),
+                      ("x:=relation{tuple{a 5}} : {b:=@a}", mkRelation simpleDAttributes $ RelationTupleSet [RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 5])]),
+                      ("x:=relation{tuple{a 5}} : {b:=6}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 6])]),
+                      ("x:=relation{tuple{a 5}} : {b:=add(@a,5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 10])]),
                       ("x:=relation{tuple{a 5}} : {b:=add(@a,\"spam\")}", Left (AtomFunctionTypeError "add" 2 IntAtomType StringAtomType)),
-                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelation simpleDAttributes $ HS.singleton $ RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 12]))
+                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntAtom 5, IntAtom 12])])
                      ]
     simpleAAttributes = A.attributesFromList [Attribute "a" IntAtomType]
     simpleBAttributes = A.attributesFromList [Attribute "d" IntAtomType]
@@ -67,29 +66,28 @@ main = do
     dateExampleRelTests = [("x:=S where true", Right suppliersRel),
                            ("x:=S where CITY = \"London\"", restrict (\tuple -> atomForAttributeName "CITY" tuple == (Right $ StringAtom "London")) suppliersRel),
                            ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
-                           ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (HS.singleton $ mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50]))),
+                           ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50])])),
                            --atom function tests
                            ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel),
                            ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ StringAtom "Blake") then updateTuple (M.singleton "CITY" (StringAtom "Boston")) tuple else tuple) suppliersRel),
-                           ("x:=relation{tuple{a 5}} : {b:=S}", mkRelation extendTestAttributes (HS.singleton $ mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel]))),
+                           ("x:=relation{tuple{a 5}} : {b:=S}", mkRelation extendTestAttributes (RelationTupleSet [mkRelationTuple extendTestAttributes (V.fromList [IntAtom 5, RelationAtom suppliersRel])])),
                            --relatom function tests
-                           ("x:=((S group ({CITY} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (HS.singleton $ mkRelationTuple groupCountAttrs (V.singleton $ IntAtom 1))),
+                           ("x:=((S group ({CITY} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ IntAtom 1)])),
                            ("x:=(SP group ({S#} as y)) ungroup y", Right supplierProductsRel),
                            ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=max(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
                            ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=min(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
                            ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=sum(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [StringAtom s,IntAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
-			   --boolean function restriction
-			   ("x:=S where ^lt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]]),
-			   ("x:=S where ^gt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[StringAtom "S3", StringAtom "Blake", IntAtom 30, StringAtom "Paris"],
-			   	  			  		     		 	        [StringAtom "S5", StringAtom "Adams", IntAtom 30, StringAtom "Athens"]]),
-			   ("x:=S where ^sum(@STATUS)", Left $ AtomTypeMismatchError IntAtomType BoolAtomType),
-			   ("x:=S where ^not(gte(@STATUS,20))", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]]),
-			   --test "all but" attribute inversion syntax
-			   ("x:=S{all but S#} = S{CITY,SNAME,STATUS}", Right $ relationTrue),
+                           --boolean function restriction
+                           ("x:=S where ^lt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]]),
+                           ("x:=S where ^gt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[StringAtom "S3", StringAtom "Blake", IntAtom 30, StringAtom "Paris"],
+                                                                                                       [StringAtom "S5", StringAtom "Adams", IntAtom 30, StringAtom "Athens"]]),
+                           ("x:=S where ^sum(@STATUS)", Left $ AtomTypeMismatchError IntAtomType BoolAtomType),
+                           ("x:=S where ^not(gte(@STATUS,20))", mkRelationFromList (attributes suppliersRel) [[StringAtom "S2", StringAtom "Jones", IntAtom 10, StringAtom "Paris"]]),
+                           --test "all but" attribute inversion syntax
+                           ("x:=S{all but S#} = S{CITY,SNAME,STATUS}", Right $ relationTrue),
                            --test key syntax
                            ("x:=S; key testconstraint {S#,CITY} x; insert x relation{tuple{CITY \"London\", S# \"S1\", SNAME \"gonk\", STATUS 50}}", Left (InclusionDependencyCheckError "testconstraint")),
                            ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue)
-
                            ]
 
 

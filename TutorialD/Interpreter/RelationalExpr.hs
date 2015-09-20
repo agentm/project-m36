@@ -9,14 +9,13 @@ import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
 import ProjectM36.Relation
-import qualified Data.HashSet as HS
 import ProjectM36.Atom
 import qualified Data.Vector as V
 import qualified Data.Set as S
-import Control.Applicative (liftA, (<*), (*>), (<$>))
 import Data.Functor.Identity (Identity)
 import Data.Time.Format
-import System.Locale
+import Control.Applicative (liftA)
+--import System.Locale
 
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return StringAtomType) <|>
@@ -175,7 +174,7 @@ restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
       [Infix (reservedOp "or" >> return OrPredicate) AssocLeft]
       ]
     predicateTerm = parens restrictionPredicateP
-    		    <|> try restrictionAtomExprP	   
+                    <|> try restrictionAtomExprP	   
                     <|> try restrictionAttributeEqualityP
                     <|> try relationalBooleanExprP
 
@@ -286,7 +285,7 @@ relationP = do
       Right rel -> return rel
     else do
     tuples <- braces (sepBy tupleP comma)
-    case mkRelation (tupleAttributes (head tuples)) (HS.fromList tuples) of
+    case mkRelationFromTuples (tupleAttributes (head tuples)) tuples of
       Left err -> fail (show err)
       Right rel -> return rel
   

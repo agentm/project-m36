@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,DeriveGeneric #-}
+{-# LANGUAGE GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -84,7 +84,14 @@ attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
 sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
-type RelationTupleSet = HS.HashSet RelationTuple 
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hash.Hashable, Show, Generic, Binary)
+
+instance Eq RelationTupleSet where
+ set1 == set2 = hset set1 == hset set2
+   where
+     hset = HS.fromList . asList
+
+instance NFData RelationTupleSet where rnf = genericRnf
 
 --the same hash must be generated for equal tuples so that the hashset equality works
 instance Hash.Hashable RelationTuple where
@@ -121,7 +128,7 @@ instance NFData Relation where rnf = genericRnf
 instance Hash.Hashable Relation where                               
   hashWithSalt salt (Relation attrs tupSet) = salt `Hash.hashWithSalt` 
                                               sortedAttrs `Hash.hashWithSalt`
-                                              HS.toList tupSet
+                                              asList tupSet
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
       
@@ -279,8 +286,8 @@ instance Show AtomFunction where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
      
 data AttributeNames = AttributeNames (S.Set AttributeName) |
-     		      InvertedAttributeNames (S.Set AttributeName)
-		       deriving (Eq, Show, Generic)
+                      InvertedAttributeNames (S.Set AttributeName)
+                      deriving (Eq, Show, Generic)
                                 
 instance Binary AttributeNames 
 
