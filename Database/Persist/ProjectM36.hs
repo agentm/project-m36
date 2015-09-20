@@ -100,7 +100,7 @@ recordsAsRelation [] = Left EmptyTuplesError
 recordsAsRelation recordZips = do
   tupleList <- mapM (uncurry recordAsTuple) recordZips
   let oneTuple = head tupleList
-  mkRelation (tupleAttributes oneTuple) (HS.fromList tupleList)
+  mkRelation (tupleAttributes oneTuple) (RelationTupleSet tupleList)
      
 keyFromValuesOrDie :: (Trans.MonadIO m, 
                        PersistEntity record, 
@@ -525,7 +525,7 @@ instance PersistQuery C.Connection where
                  rel <- Trans.liftIO $ C.executeRelationalExpr conn restrictionExpr
                  case rel of
                      Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack (show err))
-                     Right (Relation _ tupleSet) -> mapM tupleMapper $ HS.toList tupleSet --refactor to use some relation accessors- here we convert a relation to a matrix, effectively (especially to support future sorting)
+                     Right (Relation _ tupleSet) -> mapM tupleMapper $ asList tupleSet --refactor to use some relation accessors- here we convert a relation to a matrix, effectively (especially to support future sorting)
              case entities of
                  Left err -> Trans.liftIO $ throwIO $ PersistError (T.pack $ show err)
                  Right entities' -> return $ return $ CL.sourceList entities'
@@ -545,7 +545,7 @@ instance PersistQuery C.Connection where
                                        case keyFromValues (map atomAsPersistValue (V.toList atoms)) of
                                            Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure"
                                            Right key -> right key
-               mapM keyMapper $ HS.toList tupleSet
+               mapM keyMapper $ asList tupleSet
             case keys of
                 Left err -> Trans.liftIO $ throwIO $ PersistError "keyFromValues failure2"
                 Right keys' -> return $ return (CL.sourceList keys')
