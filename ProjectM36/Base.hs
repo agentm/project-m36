@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS

@@ -5,7 +5,6 @@ import ProjectM36.Error
 import qualified Data.Text as T
 import Text.Read (readMaybe)
 import Data.Time.Format
---import System.Locale
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (RelationAtom rel) = Right rel
@@ -34,14 +33,13 @@ atomFromString BoolAtomType strIn = case strIn of
   _ -> Left (ParseError "Failed to parse boolean")
 atomFromString (RelationAtomType _) _ = Left $ ParseError "Nested relation parsing not supported"
 atomFromString DateTimeAtomType strIn =   
-  --deprecated in time 1.5- needs update for GHC 7.10
-  case parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" strIn of
+  case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" strIn of
     Just utctime -> Right $ DateTimeAtom utctime
     Nothing -> Left $ ParseError "Failed to parse datetime"
 atomFromString DoubleAtomType strIn = case readMaybe strIn of
   Just d -> Right $ DoubleAtom d
   Nothing -> Left (ParseError "Failed to parse double")
-atomFromString DateAtomType strIn = case parseTime defaultTimeLocale "%Y-%m-%d" strIn of
+atomFromString DateAtomType strIn = case parseTimeM False defaultTimeLocale "%Y-%m-%d" strIn of
   Just date -> Right $ DateAtom date
   Nothing -> Left $ ParseError "Failed to parse datetime"
 atomFromString AnyAtomType _ = Left $ ParseError "Parsing AnyAtomType is not supported"
