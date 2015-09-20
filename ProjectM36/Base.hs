@@ -14,7 +14,6 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Binary
 import Data.Vector.Binary()
-import ProjectM36.HashSetBinary ()
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
