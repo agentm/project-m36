@@ -88,5 +88,5 @@ quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
 
 quotedString :: Parser String
-quotedString = string "\"" *> many quotedChar <* string "\""
+quotedString = string "\"" *> many quotedChar <* string "\"" <* whiteSpace
 

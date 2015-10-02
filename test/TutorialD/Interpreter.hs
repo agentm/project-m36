@@ -66,6 +66,7 @@ main = do
     dateExampleRelTests = [("x:=S where true", Right suppliersRel),
                            ("x:=S where CITY = \"London\"", restrict (\tuple -> atomForAttributeName "CITY" tuple == (Right $ StringAtom "London")) suppliersRel),
                            ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
+                           ("x:=P where COLOR=\"Blue\" and CITY=\"Paris\"", mkRelationFromList (attributes productsRel) [[StringAtom "P5", StringAtom "Cam", StringAtom "Blue", IntAtom 12, StringAtom "Paris"]]),
                            ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [ Attribute "STATUS" IntAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "STATUS" IntAtomType]) (V.fromList [IntAtom 50])])),
                            --atom function tests
                            ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel),
