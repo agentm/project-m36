@@ -95,7 +95,7 @@ showAtom :: Atom -> StringType
 showAtom (StringAtom atom) = atom
 showAtom (IntAtom atom) = T.pack $ show atom
 showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
-showAtom (BoolAtom bool) = T.pack $ show bool
+showAtom (BoolAtom bool) = T.pack $ if bool then "t" else "f"
 showAtom (DateTimeAtom dt) = T.pack $ show dt
 showAtom (DateAtom d) = T.pack $ show d
 showAtom (DoubleAtom d) = T.pack $ show d
