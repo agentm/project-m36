@@ -244,7 +244,6 @@ dateTimeAtomP = do
     dateTimeString <- quotedString
     reserved "::datetime"
     return dateTimeString
-  --deprecated in time 1.5- needs update for GHC 7.10
   case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" dateTimeString' of
     Just utctime -> return $ DateTimeAtom utctime
     Nothing -> fail "Failed to parse datetime"
