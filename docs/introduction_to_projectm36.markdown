@@ -23,10 +23,10 @@ Requirements:
 
 Compilation steps:
 
-* git clone https://github.com/agentm/project-m36
-* cd project-m36
-* cabal sandbox init
-* cabal install
+* ```git clone https://github.com/agentm/project-m36```
+* ```cd project-m36```
+* ```cabal sandbox init``` (optional but recommended)
+* ```cabal install```
 
 At this point, the TutorialD interactive interpreter can be run using ```cabal run tutd```.
 

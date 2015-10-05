@@ -1,4 +1,4 @@
-## Transaction Operators
+## Transaction Graph Operators
 
 Relational operators generate new relations and database context operators alter the relations referenced by relation variables. Finally, transaction operators alter the state of the database's transaction graph. This includes adding new transactions, branching, and changing the current database context to point at an arbitrary transaction in the past (time-travel).
 
@@ -10,7 +10,7 @@ When a new database is created, a new transaction graph is created for it with o
 
 As the user interactively alters the database context such as by adding a new relation variable, the database context is no longer equal to that of the first transactions. This is called "database context divergence" because many of the same components exist in both the updated context and the context of the first transaction.
 
-[Initial database starting state](http://g.gravizo.com/g?
+![Initial database starting state](http://g.gravizo.com/g?
 digraph G {
  base[label="base transaction",shape=rectangle];
  new[label="mutable database context"];
@@ -19,7 +19,7 @@ digraph G {
 
 Once the user decides that the changes in the updated database context are worth adding to the transaction graph, the user issues a "commit" request. The commit operation converts the current database context into a new transaction which is then added to the graph with the parent transaction set to the same parent transaction as the database context. The user's mutable database context is shifted to be a copy of the context of the newly-committed transaction.
 
-[Freshly committed transaction](http://g.gravizo.com/g?
+![Freshly committed transaction](http://g.gravizo.com/g?
 digraph G {
  base[label="base transaction",shape=rectangle];
  discon[label="mutable database context"];
