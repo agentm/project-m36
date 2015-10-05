@@ -28,6 +28,15 @@ TutorialD is strongly-typed. The basic built-in types are:
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
+Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
+
+```
+TutorialD (master): :showexpr S:{more:=add(10,@SNAME)}
+ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
+```
+
+The integer "10" cannot be added to the string SNAME value.
+
 ### Using Relation Variables
 
 Relation Variables are named cells which reference relations within a transaction state. The relation can be replaced with another relation through assignment.
@@ -429,3 +438,41 @@ TutorialD (master): constraint S_status_less_than_50 (S where ^lt(50,@STATUS)){}
 This expression ensures that the relation variable's relation can never include a tuple with STATUS greater than 50.
 
 ## Aggregate Queries
+
+Aggregate queries in TutorialD are able to provide much more information than SQL queries due to the support for relation-valued attributes. For example, a single query can return aggregate results alongside its constituent tuples. 
+
+SQL supports aggregate queries using aggregate functions (SUM(), COUNT(), AVERAGE(), etc.) and GROUP BY while the aggregate functions in the relational algebra simply accept relation values as arguments. 
+
+```
+TutorialD (master): :showexpr S group ({S#,SNAME,STATUS} as subrel):{citycount:=count(@subrel)}
+┌──────┬─────────┬─────────────────┐
+│CITY  │citycount│subrel           │
+├──────┼─────────┼─────────────────┤
+│Paris │2        │┌──┬─────┬──────┐│
+│      │         ││S#│SNAME│STATUS││
+│      │         │├──┼─────┼──────┤│
+│      │         ││S3│Blake│30    ││
+│      │         ││S2│Jones│10    ││
+│      │         │└──┴─────┴──────┘│
+│London│2        │┌──┬─────┬──────┐│
+│      │         ││S#│SNAME│STATUS││
+│      │         │├──┼─────┼──────┤│
+│      │         ││S1│Smith│20    ││
+│      │         ││S4│Clark│20    ││
+│      │         │└──┴─────┴──────┘│
+│Athens│1        │┌──┬─────┬──────┐│
+│      │         ││S#│SNAME│STATUS││
+│      │         │├──┼─────┼──────┤│
+│      │         ││S5│Adams│30    ││
+│      │         │└──┴─────┴──────┘│
+└──────┴─────────┴─────────────────┘
+```
+
+In this query result, we can simultaneously answer how many suppliers are located in each city and which suppliers they are. The expression is constructed by first grouping to isolate the city, then extending the query to add a attribute containing the tuple count for each subrelation.
+
+|Function Name|Description|
+|-|-|
+|count(relation{any tuple types})|return the number of tuples in each relation value|
+|sum(relation{int})|return the int sum of the relation's values|
+|max(relation{int})|return the maximum int from all the relation's values|
+|min(relation{int})|return the minimum int from all the relation's values|
