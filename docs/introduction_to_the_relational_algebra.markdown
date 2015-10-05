@@ -135,7 +135,7 @@ Project ("Name") in
 ===>
 
 |(Name, NameType)|
-|-|
+|----------------|
 |Steve|
 |Bob|
 
@@ -149,7 +149,7 @@ Examples:
 Restrict (tuples where attribute "Fruit" is true) in
 
 |(Product Name, Product Name Type)|(Is Fruit, Fruit Boolean Flag)|(Price, Price Type)|
-|-|-|-|
+|---------------------------------|------------------------------|-------------------|
 |Orange|True|$2.50|
 |Pineapple|True|$5.00|
 |Cucumber|False|$3.00|
@@ -157,7 +157,7 @@ Restrict (tuples where attribute "Fruit" is true) in
 ===>
 
 |(Product Name, Product Name Type)|(Is Fruit, Fruit Boolean Flag)|(Price, Price Type)|
-|-|-|-|
+|---------------------------------|------------------------------|-------------------|
 |Orange|True|$2.50|
 |Pineapple|True|$5.00|
 
@@ -171,14 +171,14 @@ Examples:
 * Rename the "Age" attribute to be "Years Old".
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Bob|42|
 |Jen|55|
 
 ===>
 
 |(Name, Name Type)|(Years Old, Age Type)|
-|-|-|
+|-----------------|---------------------|
 |Jen|55|
 |Bob|42|
 
@@ -196,14 +196,14 @@ Examples:
 Join (Instructor relation)
 
 |(Instructor Name, Instructor Name Type)|(Office Number, Office Number Type)|
-|-|-|-|
+|----------------------------------------|----------------------------------|
 |Steve|Office 45|
 |Bob|Office 30|
 
 (Course Relation)
 
 |(Course Name, Course Name Type)|(Instructor, Instructor Name Type)|(Course Room Number, Room Number Type)|
-|-|-|-|
+|-------------------------------|----------------------------------|--------------------------------------|
 |English 1|Steve|Room 104|
 |French 2|Bob|Room 103|
 |English 2|Steve|Room 104|
@@ -212,7 +212,7 @@ Join (Instructor relation)
 ===>
 
 |(Instructor Name, Instructor Name Type)|(Office Number, Office Number Type)|(Course Name, Course Name Type)|(Course Room Number, Room Number Type)|
-|-|-|-|-|
+|---------------------------------------|-----------------------------------|-------------------------------|--------------------------------------|
 |Steve|Office 45|English 1|Room 104|
 |Steve|Office 45|English 2|Room 104|
 |Bob|Office 30|French 2|Room 103|
@@ -229,21 +229,21 @@ Examples:
 union (Parents relation)
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Bob|45|
 |Cindy|32|
 
 (Children relation)
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Steve|12|
 |Tom|11|
 
 ===>
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Steve|12|
 |Cindy|32|
 |Bob|45|
@@ -258,7 +258,7 @@ union (Parents relation)
 Note that in the above operator examples, the order of the tuples appears to shift around. Since a relation body is a set of tuples, any ordering, such as required to represent a relation in two-dimenstional space as a table, is completely arbitrary. Note that the following two relations are two representations of *same* relation:
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Bob|40|
 |Sam|41|
 |Cindy|42|
@@ -266,7 +266,7 @@ Note that in the above operator examples, the order of the tuples appears to shi
 and 
 
 |(Name, Name Type)|(Age, Age Type)|
-|-|-|
+|-----------------|---------------|
 |Sam|41|
 |Cindy|42|
 |Bob|40|
@@ -274,7 +274,7 @@ and
 The relation header is a set of attributes, so the attributes also have no ordering. Here is a third representation of the above relation:
 
 |(Age, Age Type)|(Name, Name Type)|
-|-|-|
+|---------------|-----------------|
 |42|Cindy|
 |40|Bob|
 |41|Sam|
@@ -308,7 +308,7 @@ Example:
 (Employees relation)
 
 |(Name, Name Type)|(Salary, Salary Type)|(Department, Department Type)|
-|-|-|-|
+|-----------------|---------------------|-----------------------------|
 |Steve|$32000|Marketing|
 |Bob|$40000|Marketing|
 |Sam|$41000|Sales|
@@ -318,7 +318,7 @@ Example:
 ====>
 
 |(Department, Department Type)|(Average Salary, Salary Type)|(Employees, (Name, Name Type))|
-|-|-|-|
+|-----------------------------|-----------------------------|------------------------------|
 |Marketing|$36000|<table><tr><th>(Name, Name Type)</th></tr><tr><td>Steve</td></tr><tr><td>Bob</td></tr></table>|
 |Sales|$41000|<table><tr><th>(Name, Name Type)</th></tr><tr><td>Sam</td></tr></table>|
 
