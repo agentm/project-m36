@@ -22,7 +22,7 @@ module ProjectM36.Client
        Attribute(..),
        attributesFromList,
        Attribute,
-       
+       TransactionGraphOperator(..),       
        AtomType(..)) where
 import ProjectM36.Base
 import ProjectM36.Error
