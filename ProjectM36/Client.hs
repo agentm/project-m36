@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Client
        (ConnectionInfo(..),
-       Connection,
+       Connection(..),
        Port,
        Hostname,
        DatabaseName,
@@ -22,6 +22,7 @@ module ProjectM36.Client
        Attribute(..),
        attributesFromList,
        Attribute,
+       
        AtomType(..)) where
 import ProjectM36.Base
 import ProjectM36.Error
