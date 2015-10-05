@@ -128,7 +128,7 @@ Example:
 Project ("Name") in
 
 |(Name, NameType)|(Department, Department Type)|(Room Number, Room Number Type|
-|-|-|-|
+|----------------|-----------------------------|------------------------------|
 |Steve|Marketing|445|
 |Bob|Printing|112|
 
