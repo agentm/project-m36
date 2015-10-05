@@ -19,7 +19,7 @@ TutorialD (master):
 TutorialD is strongly-typed. The basic built-in types are:
 
 |Type Name|Explanation|Example|
-|-|-|-|
+|---------|-----------|-------|
 |char|arbitrary text|"The Old Man and the Sea"|
 |int|any integer|-4|
 |datetime|timestamp UTC|"2015-02-02 04:05:02"::datetime|
@@ -73,7 +73,7 @@ The examples in this tutorial can be executed after loading Chris Date's sample 
 Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
 
 |Relation Variable Name|Description|
-|-|-|
+|----------------------|-----------|
 |S|suppliers|
 |P|parts|
 |SP|contains mapping of which suppliers supply which parts|
@@ -223,7 +223,7 @@ The "@" is required in the above query in order to distinguish the attribute's n
 Supported atom functions include:
 
 |Function|Purpose|
-|-|-|
+|--------|-------|
 |add(int,int)|Return the sum of two integers.|
 |not(bool)|Invert a boolean expression.|
 |lt(int,int)|Returns boolean true atom if he first argument is less than the second argument.|
@@ -471,7 +471,7 @@ TutorialD (master): :showexpr S group ({S#,SNAME,STATUS} as subrel):{citycount:=
 In this query result, we can simultaneously answer how many suppliers are located in each city and which suppliers they are. The expression is constructed by first grouping to isolate the city, then extending the query to add a attribute containing the tuple count for each subrelation.
 
 |Function Name|Description|
-|-|-|
+|-------------|-----------|
 |count(relation{any tuple types})|return the number of tuples in each relation value|
 |sum(relation{int})|return the int sum of the relation's values|
 |max(relation{int})|return the maximum int from all the relation's values|
