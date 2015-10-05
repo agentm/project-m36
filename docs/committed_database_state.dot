@@ -1,0 +1,7 @@
+digraph G {
+ base[label="base transaction",shape=rectangle];
+ discon[label="mutable database context"];
+ fresh[label="newly committed transaction",shape=rectangle];
+ fresh -> base;
+ discon -> fresh;
+}
