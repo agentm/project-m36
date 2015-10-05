@@ -25,8 +25,7 @@ Note that a value can also be a relation. This creates a recursively-defined dat
 Examples:
 * A number:
 
-|3|
-|-|
+3
 
 * A name:
 
@@ -83,11 +82,11 @@ Examples:
 |S2 |P1 |250|
 
 * Predicate: "A person named Name is an employee and works in department Department."
-*  Propositions: "A person named Steve is an employee and works in the Accounting department."
+* Propositions: "A person named Steve is an employee and works in the Accounting department."
 
 |(Name, Name Type)|(Department, Department Type)|
-|-|-|
-|Steve|Accounting|
+|-----------------|-----------------------------|
+|Steve            |Accounting                   |
 
 Note that the absence of a tuple representing "Bob" indicates that Bob is not an employee and not that, for example, Bob could be an employee in an unspecified department.
 
@@ -103,15 +102,15 @@ Examples:
 T1: (Employees, (Name, Name Type)) ->
 
 |(Name, Name Type)|
-|-|
-|Bob|
+|-----------------|
+|Bob              |
 
 T2: (Employees, (Name, Name Type)) ->
 
 |(Name, Name Type)|
-|-|
-|Bob|
-|Steve|
+|-----------------|
+|Bob              |
+|Steve            |
 
 To reiterate, the transition from T1 to T2 replaced the "Employees" relation variable reference found at T1 with the reference to the new relation found at T2.
 
