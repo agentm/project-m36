@@ -1,5 +1,28 @@
 {-# LANGUAGE OverloadedStrings #-}
-module ProjectM36.Client where
+module ProjectM36.Client
+       (ConnectionInfo(..),
+       Connection,
+       Port,
+       Hostname,
+       DatabaseName,
+       ConnectionError,
+       connectProjectM36,
+       disconnectedTransaction,
+       transactionGraph,
+       close,
+       executeRelationalExpr,
+       executeDatabaseContextExpr,
+       executeGraphExpr,
+       commit,
+       rollback,
+       processPersistence,
+       PersistenceStrategy(..),
+       RelationalExpr(..),
+       DatabaseExpr(..),
+       Attribute(..),
+       attributesFromList,
+       Attribute,
+       AtomType(..)) where
 import ProjectM36.Base
 import ProjectM36.Error
 import Control.Monad.State
@@ -7,6 +30,7 @@ import ProjectM36.Transaction
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
+import ProjectM36.Attribute
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word

@@ -9,8 +9,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import Database.Persist.ProjectM36
-import ProjectM36.Base --shouldn't be here
-import ProjectM36.Attribute --useful functions should be exported through the Client interface
 import ProjectM36.Client
 import qualified ProjectM36.Client as C
 import System.Exit
