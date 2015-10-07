@@ -17,6 +17,7 @@ import System.Exit
 import Data.Maybe (isJust)
 import System.IO
 import qualified Data.Vector as V
+import Data.Text.Encoding as TE
 
 --urgent: add group and ungroup tests- I missed the group relation type bug
 main :: IO ()
@@ -58,6 +59,7 @@ main = do
     simpleBAttributes = A.attributesFromList [Attribute "d" IntAtomType]
     simpleCAttributes = A.attributesFromList [Attribute "a" StringAtomType, Attribute "b" IntAtomType]
     simpleDAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" IntAtomType]
+    byteStringAttributes = A.attributesFromList [Attribute "y" ByteStringAtomType]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" IntAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" IntAtomType])]
     extendTestAttributes = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
@@ -88,7 +90,9 @@ main = do
                            ("x:=S{all but S#} = S{CITY,SNAME,STATUS}", Right $ relationTrue),
                            --test key syntax
                            ("x:=S; key testconstraint {S#,CITY} x; insert x relation{tuple{CITY \"London\", S# \"S1\", SNAME \"gonk\", STATUS 50}}", Left (InclusionDependencyCheckError "testconstraint")),
-                           ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue)
+                           ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue),
+                           --test binary bytestring data type
+                           ("x:=relation{tuple{y \"dGVzdGRhdGE=\"::bytestring}}", mkRelationFromList byteStringAttributes [[ByteStringAtom (TE.encodeUtf8 "testdata")]])
                            ]
 
 

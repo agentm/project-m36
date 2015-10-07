@@ -16,7 +16,7 @@ relationAsCSV (Relation attrs tupleSet) = if relValAttrs /= [] then --check for 
                                             else if V.length attrs == 0 then --check that there is at least one attribute
                                                    Left $ TupleAttributeCountMismatchError 0
                                                  else
-                                                   Right $ encodeByName bsAttrNames (asList tupleSet)
+                                                   Right $ encodeByName bsAttrNames $ map RecordRelationTuple (asList tupleSet)
   where
     relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) attrs
     bsAttrNames = V.map (TE.encodeUtf8 . attributeName) attrs
@@ -26,19 +26,24 @@ instance ToRecord RelationTuple where
   toRecord tuple = toRecord $ map toField (V.toList $ tupleAtoms tuple)
 -}
 
-instance ToNamedRecord RelationTuple where  
-  toNamedRecord tuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= v) (tupleAssocs tuple)
+newtype RecordRelationTuple = RecordRelationTuple {unTuple :: RelationTuple}
+
+instance ToNamedRecord RecordRelationTuple where  
+  toNamedRecord rTuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= (RecordAtom v)) (tupleAssocs $ unTuple rTuple)
   
-instance DefaultOrdered RelationTuple where  
-  headerOrder tuple = V.map (TE.encodeUtf8 . attributeName) (tupleAttributes tuple)
+instance DefaultOrdered RecordRelationTuple where  
+  headerOrder (RecordRelationTuple tuple) = V.map (TE.encodeUtf8 . attributeName) (tupleAttributes tuple)
+  
+newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
-instance ToField Atom where
-  toField (BoolAtom atom) = toField (if atom then "t" else "f")
-  toField (StringAtom atom) = toField atom
-  toField (IntAtom atom) = toField atom
-  toField (DateTimeAtom atom) = toField (show atom)
-  toField (DateAtom atom) = toField (show atom)
-  toField (DoubleAtom atom) = toField atom
-  toField (RelationAtom _) = error "Relation atoms cannot be used in CSV."
-    
+instance ToField RecordAtom where
+  toField ratom = case unAtom ratom of
+    BoolAtom atom -> toField (if atom then "t" else "f")
+    StringAtom atom -> toField atom
+    IntAtom atom -> toField atom
+    DateTimeAtom atom -> toField (show atom)
+    DateAtom atom -> toField (show atom)
+    DoubleAtom atom -> toField atom
+    RelationAtom _ -> error "Relation atoms cannot be used in CSV."
+    ByteStringAtom bs -> toField bs
                  

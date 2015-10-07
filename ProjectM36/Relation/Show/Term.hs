@@ -7,6 +7,7 @@ import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 
 boxV :: StringType
 boxV = "│"
@@ -98,6 +99,7 @@ showAtom (BoolAtom bool) = T.pack $ if bool then "t" else "f"
 showAtom (DateTimeAtom dt) = T.pack $ show dt
 showAtom (DateAtom d) = T.pack $ show d
 showAtom (DoubleAtom d) = T.pack $ show d
+showAtom (ByteStringAtom bs) = TE.decodeUtf8 bs
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs

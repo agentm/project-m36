@@ -5,6 +5,8 @@ import ProjectM36.Error
 import qualified Data.Text as T
 import Text.Read (readMaybe)
 import Data.Time.Format
+import Data.ByteString.Base64
+import qualified Data.Text.Encoding as TE
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (RelationAtom rel) = Right rel
@@ -18,6 +20,7 @@ atomTypeForAtom (BoolAtom _) = BoolAtomType
 atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
 atomTypeForAtom (DateAtom _) = DateAtomType
 atomTypeForAtom (DoubleAtom _) = DoubleAtomType
+atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
 
 {- a generic string constructor for atoms
 used by CSV relation generation
@@ -42,4 +45,7 @@ atomFromString DoubleAtomType strIn = case readMaybe strIn of
 atomFromString DateAtomType strIn = case parseTimeM False defaultTimeLocale "%Y-%m-%d" strIn of
   Just date -> Right $ DateAtom date
   Nothing -> Left $ ParseError "Failed to parse datetime"
+atomFromString ByteStringAtomType strIn = case decode (TE.encodeUtf8 (T.pack strIn)) of
+  Left err -> Left $ ParseError (T.pack err)
+  Right bsVal -> Right $ ByteStringAtom bsVal
 atomFromString AnyAtomType _ = Left $ ParseError "Parsing AnyAtomType is not supported"

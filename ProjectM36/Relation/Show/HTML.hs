@@ -3,12 +3,12 @@ module ProjectM36.Relation.Show.HTML where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import qualified Data.HashSet as HS
 import qualified Data.List as L
 import ProjectM36.Attribute
 import Data.Text (append, Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Data.Text.Encoding as TE
 
 attributesAsHTML :: Attributes -> Text
 attributesAsHTML attrs = "<tr>" `append` (T.concat $ map oneAttrHTML attrNameList) `append` "</tr>"
@@ -35,6 +35,7 @@ atomAsHTML (BoolAtom bool) = pack (show bool)
 atomAsHTML (DateTimeAtom dt) = pack (show dt)
 atomAsHTML (DoubleAtom d) = pack (show d)
 atomAsHTML (DateAtom d) = pack (show d)
+atomAsHTML (ByteStringAtom bs) = TE.decodeUtf8 bs
 
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"

@@ -15,6 +15,8 @@ import qualified Data.Set as S
 import Data.Functor.Identity (Identity)
 import Data.Time.Format
 import Control.Applicative (liftA)
+import Data.ByteString.Base64 as B64
+import Data.Text.Encoding as TE
 
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return StringAtomType) <|>
@@ -23,6 +25,7 @@ atomTypeP = (reserved "char" *> return StringAtomType) <|>
   (reserved "date" *> return DateAtomType) <|>
   (reserved "double" *> return DoubleAtomType) <|>
   (reserved "bool" *> return BoolAtomType) <|>
+  (reserved "bytestring" *> return ByteStringAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
 
 --used in projection
@@ -224,7 +227,8 @@ nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 atomP :: Parser Atom
-atomP = dateTimeAtomP <|> dateAtomP <|> stringAtomP <|> doubleAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
+atomP = dateTimeAtomP <|> dateAtomP <|> byteStringAtomP <|>
+        stringAtomP <|> doubleAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -271,6 +275,16 @@ boolAtomP = do
   
 relationAtomP :: Parser Atom
 relationAtomP = RelationAtom <$> relationP
+
+byteStringAtomP :: Parser Atom
+byteStringAtomP = do
+  byteString' <- try $ do
+    byteString <- quotedString
+    reserved "::bytestring"
+    return byteString
+  case B64.decode $ TE.encodeUtf8 (T.pack byteString') of
+    Left err -> fail err
+    Right bsVal -> return $ ByteStringAtom bsVal
 
 --relation constructor -- no choice but to propagate relation-construction errors as parse errors. Perhaps this could be improved in the future
 relationP :: Parser Relation

@@ -19,6 +19,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
+import qualified Data.ByteString as BS
 
 type StringType = T.Text
 
@@ -28,10 +29,10 @@ data Atom = StringAtom StringType |
             RelationAtom Relation |
             DateTimeAtom UTCTime |
             DateAtom Day |
-            DoubleAtom Double
+            DoubleAtom Double |
+            ByteStringAtom BS.ByteString
           deriving (Show, Eq, Generic)
                    
---not so great orphan instance                   
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
   get = do 
@@ -57,6 +58,7 @@ data AtomType = StringAtomType |
                 DateTimeAtomType |
                 DateAtomType |
                 DoubleAtomType |
+                ByteStringAtomType |
                 AnyAtomType --AnyAtomType is used as a wildcard
               deriving (Eq, Show, Generic)
                                                      

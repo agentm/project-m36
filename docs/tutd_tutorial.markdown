@@ -25,6 +25,7 @@ TutorialD is strongly-typed. The basic built-in types are:
 |datetime|timestamp UTC|"2015-02-02 04:05:02"::datetime|
 |double|floating point number|3.1459|
 |bool|boolean value|t|
+|bytestring|arbitrary-length string of bytes- input is base64-encoded|"dGVzdGRhdGE="::bytestring|
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
