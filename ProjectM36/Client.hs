@@ -21,7 +21,6 @@ module ProjectM36.Client
        DatabaseExpr(..),
        Attribute(..),
        attributesFromList,
-       Attribute,
        TransactionGraphOperator(..),       
        AtomType(..)) where
 import ProjectM36.Base

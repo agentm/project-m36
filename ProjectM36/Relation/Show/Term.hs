@@ -5,7 +5,6 @@ import ProjectM36.Base
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import qualified Data.Set as S
-import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Text as T
 
