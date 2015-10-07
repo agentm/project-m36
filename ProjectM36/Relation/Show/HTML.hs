@@ -33,6 +33,8 @@ atomAsHTML (IntAtom int) = pack (show int)
 atomAsHTML (RelationAtom rel) = relationAsHTML rel
 atomAsHTML (BoolAtom bool) = pack (show bool)
 atomAsHTML (DateTimeAtom dt) = pack (show dt)
+atomAsHTML (DoubleAtom d) = pack (show d)
+atomAsHTML (DateAtom d) = pack (show d)
 
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"
