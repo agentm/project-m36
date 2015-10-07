@@ -40,6 +40,6 @@ tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs
     tupleFrag tup = "<td>" `append` atomAsHTML (snd tup) `append` "</td>"
 
 tupleSetAsHTML :: RelationTupleSet -> Text
-tupleSetAsHTML tupSet = HS.foldr folder "" tupSet
+tupleSetAsHTML tupSet = foldr folder "" (asList tupSet)
   where
     folder tuple acc = acc `append` tupleAsHTML tuple
