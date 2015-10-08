@@ -1,9 +1,8 @@
-{-# LANGUAGE GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.Hashable as Hash
+import Data.Hashable (Hashable, hashWithSalt)
 import qualified Data.Set as S
 import Control.Monad.State (State)
 import Data.UUID (UUID)
@@ -12,24 +11,64 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
-import qualified Data.Text as T
+import Data.Text (Text,pack,unpack)
 import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
+import Data.Typeable
+import Text.Read (readMaybe)
+import Data.ByteString (ByteString)
+import ProjectM36.ConcreteTypeRep
 
-type StringType = T.Text
+type StringType = Text
 
-data Atom = StringAtom StringType |
-            IntAtom Int |
-            BoolAtom Bool |
-            RelationAtom Relation |
-            DateTimeAtom UTCTime |
-            DateAtom Day |
-            DoubleAtom Double
-          deriving (Show, Eq, Generic)
+class (Read a, 
+       Hashable a, 
+       Binary a, 
+       Eq a, 
+       Show a, 
+       Typeable a, 
+       NFData a) => Atomable a where
+  fromText :: Text -> Either String a
+  fromText t = case readMaybe (unpack t) of
+    Just v -> Right v
+    Nothing -> Left "parse error"
+  
+  toText :: a -> Text
+  toText a = pack $ show a
+  
+instance Atomable Int 
+instance Atomable Double
+instance Atomable Text
+instance Atomable Day
+instance Atomable UTCTime
+instance Atomable ByteString
+instance Atomable Bool
+instance Atomable Relation
+instance (Atomable a) => Atomable (Maybe a)
+  
+data Atom = forall a. Atomable a => Atom a
+
+instance Eq Atom where
+  (Atom a) == (Atom b) = Just a == cast b
+  
+instance Show Atom where
+  show (Atom atom) = "Atom " ++ show atom
+  
+instance Binary Atom where
+  put atom = put atom
+  get = do
+    r <- get :: (Get Atom)
+    return r
+
+instance NFData Atom where 
+  rnf !(Atom a) = rnf a
+  
+instance Hashable Atom where  
+  hashWithSalt salt (Atom a) = hashWithSalt salt a
                    
 --not so great orphan instance                   
 instance Binary UTCTime where
@@ -44,31 +83,14 @@ instance Binary Day where
     (y,m,d) <- get :: Get (Integer, Int, Int)
     return $ fromGregorian y m d
                                            
-instance NFData Atom where rnf = genericRnf
-                           
-instance Hash.Hashable Atom                    
+type AtomType = ConcreteTypeRep
 
-instance Binary Atom
-
-data AtomType = StringAtomType |
-                IntAtomType |
-                BoolAtomType |
-                RelationAtomType Attributes |
-                DateTimeAtomType |
-                DateAtomType |
-                DoubleAtomType |
-                AnyAtomType --AnyAtomType is used as a wildcard
-              deriving (Eq, Show, Generic)
-                                                     
-instance NFData AtomType where rnf = genericRnf
-instance Binary AtomType
-
-type AttributeName = T.Text
+type AttributeName = StringType
 
 data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
 
-instance Hash.Hashable Attribute where
-  hashWithSalt salt (Attribute attrName _) = Hash.hashWithSalt salt attrName
+instance Hashable Attribute where
+  hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
 
 instance NFData Attribute where rnf = genericRnf
                                 
@@ -84,7 +106,10 @@ attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
 sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hash.Hashable, Show, Generic, Binary)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
+
+instance Read Relation where
+  readsPrec = error "relation read not supported"
 
 instance Eq RelationTupleSet where
  set1 == set2 = hset set1 == hset set2
@@ -94,9 +119,9 @@ instance Eq RelationTupleSet where
 instance NFData RelationTupleSet where rnf = genericRnf
 
 --the same hash must be generated for equal tuples so that the hashset equality works
-instance Hash.Hashable RelationTuple where
-  hashWithSalt salt (RelationTuple attrs tupVec) = salt `Hash.hashWithSalt` 
-                                                   sortedAttrs `Hash.hashWithSalt`
+instance Hashable RelationTuple where
+  hashWithSalt salt (RelationTuple attrs tupVec) = salt `hashWithSalt` 
+                                                   sortedAttrs `hashWithSalt`
                                                    (V.toList sortedTupVec)
     where
       sortedAttrsIndices = sortedAttributesIndices attrs
@@ -125,9 +150,9 @@ instance Eq Relation where
 
 instance NFData Relation where rnf = genericRnf
                                
-instance Hash.Hashable Relation where                               
-  hashWithSalt salt (Relation attrs tupSet) = salt `Hash.hashWithSalt` 
-                                              sortedAttrs `Hash.hashWithSalt`
+instance Hashable Relation where                               
+  hashWithSalt salt (Relation attrs tupSet) = salt `hashWithSalt` 
+                                              sortedAttrs `hashWithSalt`
                                               asList tupSet
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
@@ -274,14 +299,14 @@ data AtomFunction = AtomFunction {
   atomFunc :: [Atom] -> Atom
   }
            
-instance Hash.Hashable AtomFunction where
-  hashWithSalt salt func = salt `Hash.hashWithSalt` (atomFuncName func)
+instance Hashable AtomFunction where
+  hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
                            
 instance Eq AtomFunction where                           
   f1 == f2 = (atomFuncName f1) == (atomFuncName f2)
   
 instance Show AtomFunction where  
-  show aFunc = T.unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
+  show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
    where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
      
