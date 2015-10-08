@@ -12,6 +12,14 @@ Project:M36 can be used as an in-process or remote DBMS.
 
 Project:M36 is written entirely in the [Haskell programming language](https://www.haskell.org/).
 
+## Use-Cases
+
+Project:M36 supports multiple frontends which target different audiences.
+
+* learn about the relational algebra via TutorialD
+* store and manipulate databases
+* use Project:M36 as a native Haskell database backend
+
 ## Documentation
 
 1. [Installation and Introduction to Project:M36](docs/introduction_to_projectm36.markdown)
