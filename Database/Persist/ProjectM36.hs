@@ -29,9 +29,11 @@ import Control.Monad.Trans.Either
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
+import Data.Typeable (cast)
+import ProjectM36.RelationalExpression (unsafeCast)
 
-type ProjectM36Backend = C.Connection  
-                         
+type ProjectM36Backend = C.Connection
+
 --convert a PersistEntity to a RelationTuple
 recordAsTuple :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
             => Maybe U.UUID -> record -> Either RelationalError RelationTuple
@@ -42,43 +44,43 @@ recordAsTuple uuid record = do -- if the uuid is passed in, set the idDBName att
   attrVec <- recordAttributes entInfo record
   atomVec <- recordAsAtoms uuid attrVec record
   return $ RelationTuple attrVec atomVec
-      
+
 recordAttributes :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
            => [(EmbedFieldDef, PersistValue)] -> record -> Either RelationalError Attributes
 recordAttributes entInfo record = do
   let convertAttr = uncurry fieldDefAsAttribute
       idDBName = unDBName $ fieldDB $ entityId (entityDef $ Just record)
   attrList <- mapM convertAttr entInfo
-  return $ V.fromList ([Attribute idDBName StringAtomType] ++ attrList)
-      
+  return $ V.fromList ([Attribute idDBName stringAtomType] ++ attrList)
+
 fieldDefAsAttribute :: EmbedFieldDef -> PersistValue -> Either RelationalError Attribute
 fieldDefAsAttribute fieldDef pVal = case persistValueAtomType pVal of
   Nothing -> Left $ AtomTypeNotSupported attrName
   Just fType -> Right $ Attribute attrName fType
-  where 
+  where
     attrName = unDBName $ emFieldDB fieldDef
-    
-persistValueAtomType :: PersistValue -> Maybe AtomType    
+
+persistValueAtomType :: PersistValue -> Maybe AtomType
 persistValueAtomType val = do
   atom <- persistValueAtom val
   return $ atomTypeForAtom atom
-  
+
 persistValueAtom :: PersistValue -> Maybe Atom
 persistValueAtom val = case val of
-  PersistText v -> return $ StringAtom v
-  PersistInt64 v -> return $ IntAtom (fromIntegral v)
-  PersistBool v -> return $ BoolAtom v
-  PersistDay v -> return $ DateAtom v
+  PersistText v -> return $ Atom v
+  PersistInt64 v -> return $ Atom ((fromIntegral v)::Int)
+  PersistBool v -> return $ Atom v
+  PersistDay v -> return $ Atom v
   _ -> Nothing
-  
-atomAsPersistValue :: Atom -> PersistValue  
-atomAsPersistValue a = case a of 
-  StringAtom v -> PersistText v
-  IntAtom v -> PersistInt64 (fromIntegral v)
-  BoolAtom v -> PersistBool v
-  DateAtom v -> PersistDay v
+
+atomAsPersistValue :: Atom -> PersistValue
+atomAsPersistValue atom = case atomTypeForAtom atom of
+  stringAtomType -> PersistText (unsafeCast atom)
+  intAtomType -> PersistInt64 (fromIntegral ((unsafeCast atom)::Int))
+  boolAtomType -> PersistBool (unsafeCast atom)
+  dateAtomType -> PersistDay (unsafeCast atom)
   _ -> error "missing conversion"
-  
+
 recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
            => Maybe U.UUID -> Attributes -> record -> Either RelationalError (V.Vector Atom)
 recordAsAtoms freshUUID _ record = do
@@ -87,37 +89,37 @@ recordAsAtoms freshUUID _ record = do
         Nothing -> Left $ AtomTypeNotSupported ""
         Just atom -> Right atom
   atoms <- mapM valAtom pValues
-  return $ V.fromList $ case freshUUID of 
+  return $ V.fromList $ case freshUUID of
     Nothing -> atoms
-    Just uuid -> [StringAtom $ T.pack (U.toString uuid)] ++ atoms
-  
+    Just uuid -> [Atom $ T.pack (U.toString uuid)] ++ atoms
+
 --used by insert operations
-recordsAsRelation :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection) => 
+recordsAsRelation :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection) =>
                      [(Maybe U.UUID, record)] -> Either RelationalError Relation
 recordsAsRelation [] = Left EmptyTuplesError
 recordsAsRelation recordZips = do
   tupleList <- mapM (uncurry recordAsTuple) recordZips
   let oneTuple = head tupleList
   mkRelation (tupleAttributes oneTuple) (RelationTupleSet tupleList)
-     
-keyFromValuesOrDie :: (Trans.MonadIO m, 
-                       PersistEntity record, 
+
+keyFromValuesOrDie :: (Trans.MonadIO m,
+                       PersistEntity record,
                        PersistEntityBackend record ~ C.Connection
                        ) => [PersistValue] -> m (Key record)
 keyFromValuesOrDie val = case keyFromValues val of
   Right k -> return k
   Left _ -> Trans.liftIO $ throwIO $ PersistError "key pooped"
-  
+
 insertNewRecords :: (Trans.MonadIO m,
                      PersistEntity record,
                      PersistEntityBackend record ~ C.Connection) =>
                     [U.UUID] -> [record] -> ReaderT C.Connection m [Key record]
 insertNewRecords uuids records = do
-  let recordsZip = zip (map Just uuids) records  
-      insertExpr = Insert (relVarNameFromRecord $ head records) 
+  let recordsZip = zip (map Just uuids) records
+      insertExpr = Insert (relVarNameFromRecord $ head records)
   case recordsAsRelation recordsZip of
       Left err -> throw $ PersistError (T.pack $ show err)
-      Right rel -> do               
+      Right rel -> do
         conn <- ask
         Trans.liftIO $ executeDatabaseContextExpr conn (insertExpr (ExistingRelation rel))
         mapM (\uuid -> keyFromValuesOrDie [PersistText $ T.pack (U.toString uuid)]) uuids
@@ -126,8 +128,8 @@ throwIOPersistError :: (Trans.MonadIO m) => String -> m a
 throwIOPersistError msg = Trans.liftIO $ throwIO $ PersistError (T.pack msg)
 
 lookupByKey :: forall record m.
-               (Trans.MonadIO m, 
-                PersistEntity record, 
+               (Trans.MonadIO m,
+                PersistEntity record,
                 PersistEntityBackend record ~ C.Connection)
            => Key record -> ReaderT C.Connection m (Maybe (Entity record))
 lookupByKey key = do
@@ -139,13 +141,13 @@ lookupByKey key = do
     Left err -> throwIOPersistError ("executeRelationExpr error: " ++ show err)
     Right resultRel' -> case singletonTuple resultRel' of
       Nothing -> return Nothing --no match on key
-      Just tuple -> do 
-        let entityInfo = entityDefFromKey key              
+      Just tuple -> do
+        let entityInfo = entityDefFromKey key
         entity <- fromPersistValuesThrow entityInfo tuple --correct, one match
         return $ Just entity
-    
-fromPersistValuesThrow :: (Trans.MonadIO m, 
-                           PersistEntity record, 
+
+fromPersistValuesThrow :: (Trans.MonadIO m,
+                           PersistEntity record,
                            PersistEntityBackend record ~ C.Connection) => EntityDef -> RelationTuple -> m (Entity record)
 fromPersistValuesThrow entDef tuple = do
   let body = fromPersistValues $ map getValue (entityFields entDef)
@@ -160,17 +162,17 @@ fromPersistValuesThrow entDef tuple = do
       Right key -> case body of
         Left err -> throwIOPersistError (show err)
         Right body' -> return $ Entity key body'
-        
+
 commonKeyQueryProperties :: (Trans.MonadIO m, PersistEntityBackend val ~ C.Connection, PersistEntity val) => Key val -> ReaderT C.Connection m (RelVarName, RestrictionPredicateExpr)
-commonKeyQueryProperties key = do        
+commonKeyQueryProperties key = do
   let matchUUID = keyToUUID key
       keyAttributeName = unDBName (fieldDB $ entityId entityInfo)
-      relVarName = unDBName $ entityDB entityInfo      
+      relVarName = unDBName $ entityDB entityInfo
       matchUUIDText = T.pack $ U.toString matchUUID
-      entityInfo = entityDefFromKey key      
-      restrictionPredicate = AttributeEqualityPredicate keyAttributeName (NakedAtomExpr (StringAtom matchUUIDText))
+      entityInfo = entityDefFromKey key
+      restrictionPredicate = AttributeEqualityPredicate keyAttributeName (NakedAtomExpr (Atom matchUUIDText))
   return (relVarName, restrictionPredicate)
-        
+
 deleteByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ C.Connection, PersistEntity val) => Key val -> ReaderT C.Connection m (Bool)
 deleteByKey key = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
@@ -178,15 +180,15 @@ deleteByKey key = do
   conn <- ask
   maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn query
   return $ isJust maybeErr
-    
---convert persistent update list to ProjectM36 Update map    
-updatesToUpdateMap :: (Trans.MonadIO m, 
+
+--convert persistent update list to ProjectM36 Update map
+updatesToUpdateMap :: (Trans.MonadIO m,
                        PersistEntityBackend val ~ C.Connection,
                        PersistEntity val) =>
                       [DP.Update val] -> ReaderT C.Connection m (M.Map AttributeName Atom)
-updatesToUpdateMap updates = do 
+updatesToUpdateMap updates = do
   let convertMap upd = case updateUpdate upd of
-        DP.Assign -> let attrName = unDBName $ fieldDB $ updateFieldDef upd 
+        DP.Assign -> let attrName = unDBName $ fieldDB $ updateFieldDef upd
                          newAttrValue = persistValueAtom (updatePersistValue upd) in
                      case newAttrValue of
                        Nothing -> Trans.liftIO $ throwIO $ PersistError "atom conversion failed"
@@ -194,8 +196,8 @@ updatesToUpdateMap updates = do
         _ -> Trans.liftIO $ throwIO $ PersistError "update type not supported"
   updateAtomList <- mapM convertMap updates
   return $ M.fromList updateAtomList
-      
-updateByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ C.Connection, PersistEntity val) => Key val -> [DP.Update val] -> ReaderT C.Connection m ()    
+
+updateByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ C.Connection, PersistEntity val) => Key val -> [DP.Update val] -> ReaderT C.Connection m ()
 updateByKey key updates = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
   updateMap <- updatesToUpdateMap updates
@@ -205,22 +207,22 @@ updateByKey key updates = do
   case maybeErr of
     Just err -> throwIOPersistError ("executeDatabaseExpr error" ++ show err)
     Nothing -> return ()
-    
---set the truth unconditionally    
+
+--set the truth unconditionally
 repsertByKey :: (Trans.MonadIO m, C.Connection ~ PersistEntityBackend val, PersistEntity val) => Key val -> val -> ReaderT C.Connection m ()
 repsertByKey key val = do
   _ <- delete key
   insertKey key val
-    
-replaceByKey :: (Trans.MonadIO m, C.Connection ~ PersistEntityBackend val, PersistEntity val) => Key val -> val -> ReaderT C.Connection m ()     
+
+replaceByKey :: (Trans.MonadIO m, C.Connection ~ PersistEntityBackend val, PersistEntity val) => Key val -> val -> ReaderT C.Connection m ()
 replaceByKey key val = do
   deletionSuccess <- deleteByKey key
   when (not deletionSuccess) (Trans.liftIO $ throwIO $ PersistError "entity missing during replace")
   insertKey key val
-      
+
 entityDefFromKey :: PersistEntity record => Key record -> EntityDef
 entityDefFromKey = entityDef . Just . recordTypeFromKey
-      
+
 dummyFromKey :: Key record -> Maybe record
 dummyFromKey = Just . recordTypeFromKey
 
@@ -245,7 +247,7 @@ keyToUUID key = case keyToValues key of
     Nothing -> error "error reading uuid from text in key construction"
     Just uuid -> uuid
   _ -> error "unexpected persist value in key construction"
-  
+
 instance PersistStore C.Connection where
   newtype BackendKey C.Connection = ProjectM36Key { unPM36Key :: U.UUID }
           deriving (Show, Read, Eq, Ord, PersistField)
@@ -254,19 +256,19 @@ instance PersistStore C.Connection where
   insertMany records = do
     freshUUIDs <- Trans.liftIO $ mapM (\_-> nextRandom) records
     insertNewRecords freshUUIDs records
-    
+
   insert record = do
    keys <- insertMany [record]
    return $ head keys
-  
+
   --insertEntityMany [] = return []
-  --insertKey :: (Trans.MonadIO m, backend ~ PersistEntityBackend val, PersistEntity val) => Key val -> val -> ReaderT backend m () 
+  --insertKey :: (Trans.MonadIO m, backend ~ PersistEntityBackend val, PersistEntity val) => Key val -> val -> ReaderT backend m ()
   insertKey key record = do
     let uuid = keyToUUID key
-    _ <- insertNewRecords [uuid] [record] 
+    _ <- insertNewRecords [uuid] [record]
     return ()
-                  
-  --get :: (MonadIO m, backend ~ PersistEntityBackend val, PersistEntity val) => Key val -> ReaderT backend m (Maybe val) 
+
+  --get :: (MonadIO m, backend ~ PersistEntityBackend val, PersistEntity val) => Key val -> ReaderT backend m (Maybe val)
   get key = do
     ent <- lookupByKey key
     case ent of
@@ -275,37 +277,37 @@ instance PersistStore C.Connection where
 
   repsert = repsertByKey
     --delete followed by insert "set the record as the truth
-    
+
   delete key = deleteByKey key >> return ()
-    
+
   replace = replaceByKey
-  
-  --update :: (MonadIO m, PersistEntity val, backend ~ PersistEntityBackend val) => Key val -> [Update val] -> ReaderT backend m () 
+
+  --update :: (MonadIO m, PersistEntity val, backend ~ PersistEntityBackend val) => Key val -> [Update val] -> ReaderT backend m ()
   update = updateByKey
-                  
-instance FromJSON (BackendKey C.Connection) where                  
+
+instance FromJSON (BackendKey C.Connection) where
   parseJSON = withText "ProjectM36Key" $ \t -> maybe (fail "Invalid UUID") (return . ProjectM36Key) (U.fromString (T.unpack t))
-  
+
 instance ToJSON (BackendKey C.Connection) where
   toJSON (ProjectM36Key uuid) = toJSON $ U.toString uuid
-    
---wrapped version which throws exceptions    
+
+--wrapped version which throws exceptions
 executeDatabaseContextExpr :: C.Connection -> DatabaseExpr -> IO ()
 executeDatabaseContextExpr conn expr = do
   res <- C.executeDatabaseContextExpr conn expr
   case res of
     Nothing -> return ()
     Just err -> throwIO (PersistError $ T.pack (show err))
-    
+
 relVarNameFromRecord :: (PersistEntity record, PersistEntityBackend record ~ C.Connection)
                => record -> RelVarName
 relVarNameFromRecord = unDBName . entityDB . entityDef . Just
-        
+
 {- unfortunately copy-pasted from Database.Persist.Sql.Orphan.PersistStore -}
 updateFieldDef :: PersistEntity v => DP.Update v -> FieldDef
 updateFieldDef (DP.Update f _ _) = persistFieldDef f
 updateFieldDef (BackendUpdate {}) = error "updateFieldDef did not expect BackendUpdate"
-  
+
 updatePersistValue :: DP.Update v -> PersistValue
 updatePersistValue (DP.Update _ v _) = toPersistValue v
 updatePersistValue (BackendUpdate {}) = error "updatePersistValue did not expect BackendUpdate"
@@ -315,18 +317,18 @@ instance PersistField U.UUID where
   fromPersistValue (PersistText uuidText) = case U.fromString $ T.unpack uuidText of
     Nothing -> Left "uuid text read failure"
     Just uuid -> Right uuid
-  fromPersistValue _ = Left $ T.pack "expected PersistObjectId"    
+  fromPersistValue _ = Left $ T.pack "expected PersistObjectId"
 
 instance FromJSON C.ConnectionInfo where
          parseJSON v = modifyFailure ("Persistent: error loading ProjectM36 conf: " ++) $
            flip (withObject "ProjectM36Conf") v $ \o -> do
            ctype <- parseJSON =<< ( o .: "connectionType")
            return ctype
-             
+
 instance PersistConfig C.ConnectionInfo where
          type PersistConfigBackend C.ConnectionInfo = ReaderT C.Connection
          type PersistConfigPool C.ConnectionInfo = C.Connection
-         
+
          loadConfig = parseJSON
          applyEnv = return -- no environment variables are used
          createPoolConfig conf = do
@@ -336,7 +338,7 @@ instance PersistConfig C.ConnectionInfo where
                Right conn -> return conn
          --runPool :: (MonadBaseControl IO m, MonadIO m) => c -> PersistConfigBackend c m a -> PersistConfigPool c -> m a
          runPool _ r = runReaderT r
-           
+
 withProjectM36Conn :: (Monad m, Trans.MonadIO m) => C.ConnectionInfo -> (C.Connection -> m a) -> m a
 withProjectM36Conn conf connReader = do
     conn <- Trans.liftIO $ createPoolConfig conf
@@ -361,17 +363,17 @@ persistUniqueToRestrictionPredicate :: PersistEntity record => Unique record -> 
 persistUniqueToRestrictionPredicate unique = do
     atoms <- mapM (\v -> maybe (Left $ AtomTypeNotSupported "") Right $ persistValueAtom v) $ persistUniqueToValues unique
     let attrNames = map (unDBName . snd) $ persistUniqueToFieldNames unique
-        andify [] = TruePredicate  
+        andify [] = TruePredicate
         andify ((attrName, atom):xs) = AndPredicate (AttributeEqualityPredicate attrName (NakedAtomExpr atom)) $ andify xs
     return $ andify (zip attrNames atoms)
-   
+
 instance PersistUnique C.Connection where
     getBy unique = do
         conn <- ask
         let predicate = persistUniqueToRestrictionPredicate unique
             relVarName = unDBName $ entityDB entDef
             entDef = entityDef $ dummyFromUnique unique
-            throwRelErr err = Trans.liftIO $ throwIO (PersistError (T.pack $ show err)) 
+            throwRelErr err = Trans.liftIO $ throwIO (PersistError (T.pack $ show err))
         case predicate of
             Left err -> throwRelErr err
             Right predicate' -> do
@@ -408,8 +410,8 @@ instance PersistUnique C.Connection where
 multiFilterAsRestrictionPredicate :: (PersistEntity val, PersistEntityBackend val ~ C.Connection) => Bool -> [Filter val] -> Either RelationalError RestrictionPredicateExpr
 multiFilterAsRestrictionPredicate _ [] = Right $ TruePredicate
 multiFilterAsRestrictionPredicate andOr (x:xs) = do
-    let predicate = if andOr then AndPredicate else OrPredicate    
-    filtHead <- filterAsRestrictionPredicate x  
+    let predicate = if andOr then AndPredicate else OrPredicate
+    filtHead <- filterAsRestrictionPredicate x
     filtTail <- multiFilterAsRestrictionPredicate andOr xs
     return $ predicate filtHead filtTail
 
@@ -451,8 +453,8 @@ selectionFromRestriction filters = do
         let entDef = entityDef $ dummyFromFilters filters
             relVarName = unDBName $ entityDB entDef
         right $ Restrict restrictionPredicate (RelationVariable relVarName)
-        
-                             
+
+
 instance PersistQuery C.Connection where
          updateWhere _ [] = return ()
          updateWhere filters updates = do
@@ -465,7 +467,7 @@ instance PersistQuery C.Connection where
                      relVarName = unDBName $ entityDB entDef
                      updateExpr = Update relVarName updateMap restrictionPredicate
                  maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn updateExpr
-                 case maybeErr of 
+                 case maybeErr of
                      Just err -> left err
                      Nothing -> right ()
              case e of
@@ -473,14 +475,14 @@ instance PersistQuery C.Connection where
                Right () -> return ()
 
          deleteWhere filters = do
-             conn <- ask           
+             conn <- ask
              e <- runEitherT $ do
                  restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
-                 let entDef = entityDef $ dummyFromFilters filters 
+                 let entDef = entityDef $ dummyFromFilters filters
                      relVarName = unDBName $ entityDB entDef
                      deleteExpr = Delete relVarName restrictionPredicate
                  maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr conn deleteExpr
-                 case maybeErr of 
+                 case maybeErr of
                      Just err -> left err
                      Nothing -> right ()
              case e of
@@ -491,7 +493,7 @@ instance PersistQuery C.Connection where
              conn <- ask
              e <- runEitherT $ do
                  restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
-                 let entDef = entityDef $ dummyFromFilters filters 
+                 let entDef = entityDef $ dummyFromFilters filters
                      relVarName = unDBName $ entityDB entDef
                      allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef) ++ [unDBName (fieldDB (entityId entDef))]
                      allAttrNames = AttributeNames $ S.fromList allAttrNamesList
@@ -499,12 +501,12 @@ instance PersistQuery C.Connection where
                      tupleExpr = AttributeTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
                      countExpr = Extend tupleExpr groupExpr
                  rel <- Trans.liftIO $ C.executeRelationalExpr conn countExpr
-                 case rel of 
+                 case rel of
                     Left err -> left err
                     Right rel' -> case singletonTuple rel' of
                           Nothing -> Trans.liftIO $ throwIO $ PersistError "failed to get count tuple"
                           Just tuple -> case atomForAttributeName "persistcount" tuple of
-                             (Right (IntAtom c)) -> (Trans.liftIO $ putStrLn (show c)) >> return c
+                             (Right c) -> return (castInt c)
                              Right _ -> Trans.liftIO $ throwIO $ PersistError "count returned wrong data type"
                              Left err -> left err
              case e of
@@ -546,4 +548,4 @@ instance PersistQuery C.Connection where
             case keys of
                 Left err -> throwIOPersistError ("keyFromValues failure2: " ++ show err)
                 Right keys' -> return $ return (CL.sourceList keys')
-               
+

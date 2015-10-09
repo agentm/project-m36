@@ -6,6 +6,7 @@ import ProjectM36.Transaction
 import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
+import ProjectM36.Atom
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
@@ -19,9 +20,9 @@ data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction U.UUID |
                                 Branch HeadName |
                                 Commit |
-                                Rollback 
+                                Rollback
 
-data ROTransactionGraphOperator = ShowGraph 
+data ROTransactionGraphOperator = ShowGraph
 
 bootstrapTransactionGraph :: U.UUID -> DatabaseContext -> TransactionGraph
 bootstrapTransactionGraph freshUUID context = TransactionGraph bootstrapHeads bootstrapTransactions
@@ -29,10 +30,10 @@ bootstrapTransactionGraph freshUUID context = TransactionGraph bootstrapHeads bo
     bootstrapHeads = M.singleton "master" freshTransaction
     freshTransaction = Transaction freshUUID (TransactionInfo U.nil S.empty) context
     bootstrapTransactions = S.singleton freshTransaction
-    
-emptyTransactionGraph :: TransactionGraph    
+
+emptyTransactionGraph :: TransactionGraph
 emptyTransactionGraph = TransactionGraph M.empty S.empty
-    
+
 transactionForHead :: HeadName -> TransactionGraph -> Maybe Transaction
 transactionForHead headName (TransactionGraph heads _) = M.lookup headName heads
 
@@ -43,7 +44,7 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
                                                                   Just $ (head . M.keys) matchingTrans
   where
     matchingTrans = M.filter (transaction ==) heads
-    
+
 transactionForUUID :: U.UUID -> TransactionGraph -> Either RelationalError Transaction
 transactionForUUID uuid graph = if S.null matchingTrans then
                                   Left $ NoSuchTransactionError uuid
@@ -52,15 +53,15 @@ transactionForUUID uuid graph = if S.null matchingTrans then
   where
     matchingTrans = S.filter (\(Transaction uuidMatch _ _) -> uuidMatch == uuid) (transactionsForGraph graph)
 
-transactionsForUUIDs :: S.Set U.UUID -> TransactionGraph -> Either RelationalError (S.Set Transaction)    
+transactionsForUUIDs :: S.Set U.UUID -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 transactionsForUUIDs uuidSet graph = do
   transList <- forM (S.toList uuidSet) ((flip transactionForUUID) graph)
   return (S.fromList transList)
-  
+
 isRootTransaction :: Transaction -> TransactionGraph -> Bool
 isRootTransaction (Transaction _ (TransactionInfo pUUID _) _) _ = U.null pUUID
 isRootTransaction (Transaction _ (MergeTransactionInfo _ _ _) _) _  = False
-  
+
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 parentTransactions (Transaction _ (TransactionInfo pUUID _) _) graph = do
@@ -68,8 +69,8 @@ parentTransactions (Transaction _ (TransactionInfo pUUID _) _) graph = do
   return (S.singleton trans)
 
 parentTransactions (Transaction _ (MergeTransactionInfo pUUID1 pUUID2 _) _ ) graph = transactionsForUUIDs (S.fromList [pUUID1, pUUID2]) graph
-  
-  
+
+
 childTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 childTransactions (Transaction _ (TransactionInfo _ children) _) = transactionsForUUIDs children
 childTransactions (Transaction _ (MergeTransactionInfo _ _ children) _) = transactionsForUUIDs children
@@ -82,7 +83,7 @@ addBranch newUUID newBranchName branchPoint graph = addTransactionToGraph newBra
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: U.UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph = do
-  parentTrans <- transactionForUUID parentUUID graph                              
+  parentTrans <- transactionForUUID parentUUID graph
   addTransactionToGraph headName parentTrans newUUID context graph
 
 -- create a new transaction on "newHeadName" with the branchPointTrans
@@ -101,38 +102,38 @@ validateGraph graph@(TransactionGraph _ transSet) = do
   --check that all UUIDs are unique in the graph
   --uuids = map transactionUUID transSet
   --check that all heads appear in the transSet
-  --check that all forward and backward links are in place  
+  --check that all forward and backward links are in place
   _ <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
   mapM (walkChildTransactions S.empty graph) (S.toList transSet)
-  
+
 --verify that all parent links exist and that all children exist
 --maybe verify that all parents end at UUID nil and all children end at leaves
 walkParentTransactions :: S.Set U.UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
 walkParentTransactions seenTransSet graph trans =
-  let transUUID = transactionUUID trans in 
-  if transUUID == U.nil then 
+  let transUUID = transactionUUID trans in
+  if transUUID == U.nil then
     Nothing
   else if S.member transUUID seenTransSet then
     Just $ TransactionGraphCycleError transUUID
-    else 
+    else
       let parentTransSetOrError = parentTransactions trans graph in
-      case parentTransSetOrError of 
+      case parentTransSetOrError of
         Left err -> Just err
-        Right parentTransSet -> do 
+        Right parentTransSet -> do
           walk <- mapM (walkParentTransactions (S.insert transUUID seenTransSet) graph) (S.toList parentTransSet)
           case walk of
             err:_ -> Just err
             _ -> Nothing
-  
+
 --refactor: needless duplication in these two functions
 walkChildTransactions :: S.Set U.UUID -> TransactionGraph -> Transaction -> Maybe RelationalError
-walkChildTransactions seenTransSet graph trans = 
-  let transUUID = transactionUUID trans in 
+walkChildTransactions seenTransSet graph trans =
+  let transUUID = transactionUUID trans in
   if childTransactions trans graph == Right S.empty then
     Nothing
   else if S.member transUUID seenTransSet then
     Just $ TransactionGraphCycleError transUUID
-    else 
+    else
      let childTransSetOrError = childTransactions trans graph in
      case childTransSetOrError of
        Left err -> Just err
@@ -209,24 +210,24 @@ evalROGraphOp discon graph ShowGraph = do
   graphRel <- graphAsRelation discon graph
   return graphRel
 
---present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction    
-graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation    
+--present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
+graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation
 graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _ transSet) = do
   tupleMatrix <- mapM tupleGenerator (S.toList transSet)
   mkRelationFromList attrs tupleMatrix
   where
-    attrs = A.attributesFromList [Attribute "id" StringAtomType,
+    attrs = A.attributesFromList [Attribute "id" stringAtomType,
                                   Attribute "parents" (RelationAtomType parentAttributes),
-                                  Attribute "current" BoolAtomType,
-                                  Attribute "head" StringAtomType
+                                  Attribute "current" boolAtomType,
+                                  Attribute "head" stringAtomType
                                  ]
-    parentAttributes = A.attributesFromList [Attribute "id" StringAtomType]
+    parentAttributes = A.attributesFromList [Attribute "id" stringAtomType]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right parentTransRel -> Right [StringAtom $ T.pack $ show (transactionUUID transaction),
-                                     RelationAtom parentTransRel,
-                                     BoolAtom $ parentUUID == transactionUUID transaction,
-                                     StringAtom $ case headNameForTransaction transaction graph of
+      Right parentTransRel -> Right [Atom $ T.pack $ show (transactionUUID transaction),
+----                                  Atom parentTransRel,
+                                      Atom $ parentUUID == transactionUUID transaction,
+                                      Atom $ case headNameForTransaction transaction graph of
                                        Just headName -> headName
                                        Nothing -> ""
                                       ]
@@ -240,5 +241,5 @@ transactionParentsRelation trans graph = do
       let tuples = map trans2tuple (S.toList parentTransSet)
       mkRelationFromTuples attrs tuples
   where
-    attrs = A.attributesFromList [Attribute "id" StringAtomType]
-    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (StringAtom (T.pack (show $ transactionUUID trans2)))
+    attrs = A.attributesFromList [Attribute "id" stringAtomType]
+    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (Atom (T.pack (show $ transactionUUID trans2)))

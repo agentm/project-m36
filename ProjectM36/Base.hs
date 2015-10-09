@@ -1,4 +1,5 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,DeriveAnyClass #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -83,7 +84,14 @@ instance Binary Day where
     (y,m,d) <- get :: Get (Integer, Int, Int)
     return $ fromGregorian y m d
                                            
-type AtomType = ConcreteTypeRep
+data AtomType = AtomType ConcreteTypeRep | 
+                RelationAtomType Attributes |
+                AnyAtomType --wildcard used in Atom Functions
+              deriving (Eq,Show,NFData,Generic,Binary)
+
+isRelationAtomType :: AtomType -> Bool
+isRelationAtomType (RelationAtomType _) = True
+isRelationAtomType _ = False
 
 type AttributeName = StringType
 
@@ -143,7 +151,7 @@ instance Eq RelationTuple where
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic)
+data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
@@ -322,3 +330,4 @@ data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-on
                            --CrashSafePersistence FilePath --full fsync- not yet implemented
                            deriving (Show, Read)
                                     
+    

@@ -10,7 +10,6 @@ newtype ConcreteTypeRep = CTR { unCTR :: TypeRep } deriving (Eq, Typeable, Show,
 
 newtype SerialRep = SR (TyConRep, [SerialRep]) deriving(Binary)
 
-
 type TyConRep = (String, String, String)
 toTyConRep :: TyCon -> TyConRep
 toTyConRep (TyCon _ pack modul name) = (pack, modul, name)

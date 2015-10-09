@@ -3,7 +3,6 @@ module ProjectM36.Relation.Show.HTML where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import qualified Data.HashSet as HS
 import qualified Data.List as L
 import ProjectM36.Attribute
 import Data.Text (append, Text, pack)
@@ -12,7 +11,7 @@ import qualified Data.Text.IO as TIO
 
 attributesAsHTML :: Attributes -> Text
 attributesAsHTML attrs = "<tr>" `append` (T.concat $ map oneAttrHTML attrNameList) `append` "</tr>"
-  where 
+  where
     oneAttrHTML attrName = "<th>" `append` attrName `append` "</th>"
     attrNameList = sortedAttributeNameList (attributeNameSet attrs)
 
@@ -25,14 +24,10 @@ writeHTML :: Text -> IO ()
 writeHTML = TIO.writeFile "/home/agentm/rel.html"
 
 writeRel :: Relation -> IO ()
-writeRel = writeHTML . relationAsHTML 
+writeRel = writeHTML . relationAsHTML
 
 atomAsHTML :: Atom -> Text
-atomAsHTML (StringAtom atom) = atom
-atomAsHTML (IntAtom int) = pack (show int)
-atomAsHTML (RelationAtom rel) = relationAsHTML rel
-atomAsHTML (BoolAtom bool) = pack (show bool)
-atomAsHTML (DateTimeAtom dt) = pack (show dt)
+atomAsHTML (Atom atom) = toText atom
 
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"
@@ -40,6 +35,6 @@ tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs
     tupleFrag tup = "<td>" `append` atomAsHTML (snd tup) `append` "</td>"
 
 tupleSetAsHTML :: RelationTupleSet -> Text
-tupleSetAsHTML tupSet = HS.foldr folder "" tupSet
+tupleSetAsHTML tupSet = foldr folder "" (asList tupSet)
   where
     folder tuple acc = acc `append` tupleAsHTML tuple

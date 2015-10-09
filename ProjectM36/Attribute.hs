@@ -28,10 +28,6 @@ atomType (Attribute _ atype) = atype
 atomTypes :: Attributes -> V.Vector AtomType
 atomTypes attrs = V.map atomType attrs
 
-isRelationAtomType :: AtomType -> Bool
-isRelationAtomType (RelationAtomType _) = True
-isRelationAtomType _ = False
-
 --hm- no error-checking here
 addAttribute :: Attribute -> Attributes -> Attributes
 addAttribute attr attrs = attrs `V.snoc` attr

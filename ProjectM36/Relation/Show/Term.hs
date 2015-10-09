@@ -5,9 +5,9 @@ import ProjectM36.Base
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import qualified Data.Set as S
-import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Text as T
+import Data.Typeable (cast)
 
 boxV :: StringType
 boxV = "│"
@@ -44,15 +44,15 @@ dboxR = "╡"
 
 class TermSize a where
   termLength :: a -> Int
-  
---represent a relation as a table similar to those drawn by Date  
+
+--represent a relation as a table similar to those drawn by Date
 type Cell = StringType
 type Table = ([Cell], [[Cell]]) --header, body
 
 addRow :: [Cell] -> Table -> Table
 addRow cells (header,body) = (header, body ++ [cells])
 
---calculate maximum per-row and per-column sizes    
+--calculate maximum per-row and per-column sizes
 
 cellLocations :: Table -> ([Int],[Int]) --column size, row size
 cellLocations tab@(header, _) = (maxWidths, maxHeights)
@@ -63,18 +63,18 @@ cellLocations tab@(header, _) = (maxWidths, maxHeights)
     rowHeights = map snd cellSizeMatrix
     maxHeights = map (\l -> if length l == 0 then 0 else L.maximumBy compare l) rowHeights
     mergeMax a b = map (\(c,d) -> max c d) (zip a b)
-    
+
 --the normal "lines" function returns an empty list for an empty string which is not what we want
 breakLines :: StringType -> [StringType]
 breakLines "" = [""]
 breakLines x = T.lines x
-    
-cellSizes :: Table -> [([Int], [Int])]    
+
+cellSizes :: Table -> [([Int], [Int])]
 cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . breakLines) row)) allRows
   where
     maxRowWidth row = if length (lengths row) == 0 then
                          0
-                      else 
+                      else
                         L.maximumBy compare (lengths row)
     lengths row = map T.length (breakLines row)
     allRows = [header] ++ body
@@ -90,21 +90,17 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
                                             Left _ -> "?"
                                             Right atom -> showAtom atom
                                             ) oAttrs]
-    
-showAtom :: Atom -> StringType    
-showAtom (StringAtom atom) = atom
-showAtom (IntAtom atom) = T.pack $ show atom
-showAtom (RelationAtom rel) = renderTable $ relationAsTable rel
-showAtom (BoolAtom bool) = T.pack $ if bool then "t" else "f"
-showAtom (DateTimeAtom dt) = T.pack $ show dt
-showAtom (DateAtom d) = T.pack $ show d
-showAtom (DoubleAtom d) = T.pack $ show d
+
+showAtom :: Atom -> StringType
+showAtom (Atom atom) = case cast atom of
+                          Just rel -> renderTable $ relationAsTable rel
+                          Nothing -> T.pack $ show atom
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs
   where
-    cellLocs = cellLocations table  
-    
+    cellLocs = cellLocations table
+
 renderHeader :: Table -> [Int] -> StringType
 renderHeader (header, body) columnLocations = renderTopBar `T.append` renderHeaderNames `T.append` renderBottomBar
   where
@@ -112,7 +108,7 @@ renderHeader (header, body) columnLocations = renderTopBar `T.append` renderHead
     renderHeaderNames = renderRow header columnLocations 1 boxV
     renderBottomBar = if length body == 0 then ""
                       else renderHBar boxLB boxC boxRB columnLocations `T.append` "\n"
-                        
+
 renderHBar :: StringType -> StringType -> StringType -> [Int] -> StringType
 renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) `T.append` end
 
@@ -123,7 +119,7 @@ leftPaddedString lineNum size str = if lineNum > length paddedLines -1 then
                                       paddedLines !! lineNum
   where
     paddedLines = map (\line -> line `T.append` repeatString (size - T.length line) " ") (breakLines str)
-  
+
 renderRow :: [Cell] -> [Int] -> Int -> StringType -> StringType
 renderRow cells columnLocations rowHeight interspersed = T.unlines $ map renderOneLine [0..rowHeight-1]
   where
@@ -140,7 +136,7 @@ renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
 
 orderedAttributeNames :: Relation -> [AttributeName]
 orderedAttributeNames = S.toAscList . attributeNames
-                    
+
 repeatString :: Int -> StringType -> StringType
 repeatString c s = T.concat (take c (repeat s))
 

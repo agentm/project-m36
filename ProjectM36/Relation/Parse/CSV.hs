@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Relation.Parse.CSV where
 --parse Relations from CSV
 import Data.Csv.Parser
@@ -15,6 +16,7 @@ import Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Attoparsec.ByteString.Lazy
+import Text.Read (readMaybe)
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -36,8 +38,8 @@ csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inStr
         headerSet = S.fromList (V.toList strHeader)
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
         makeTupleList tupMap = V.toList $ V.map (\attr -> makeAtom (A.atomType attr) (tupMap HM.! (A.attributeName attr))) attrs
-        makeAtom aType strIn = case atomFromString aType strIn of 
-          Left err -> Left $ AttributeMappingError err
+        makeAtom aType strIn = case readMaybe strIn of
+          Nothing -> Left $ AttributeMappingError (ParseError
           Right atom -> Right atom
     case attrNameSet == headerSet of
       False -> Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
