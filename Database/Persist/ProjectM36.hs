@@ -29,7 +29,6 @@ import Control.Monad.Trans.Either
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
-import Data.Typeable (cast)
 import ProjectM36.RelationalExpression (unsafeCast)
 
 type ProjectM36Backend = C.Connection
@@ -74,11 +73,11 @@ persistValueAtom val = case val of
   _ -> Nothing
 
 atomAsPersistValue :: Atom -> PersistValue
-atomAsPersistValue atom = case atomTypeForAtom atom of
-  stringAtomType -> PersistText (unsafeCast atom)
-  intAtomType -> PersistInt64 (fromIntegral ((unsafeCast atom)::Int))
-  boolAtomType -> PersistBool (unsafeCast atom)
-  dateAtomType -> PersistDay (unsafeCast atom)
+atomAsPersistValue (Atom atom) = map (cast atom) (PersistText, PersistInt64, PersistBool, PersistDay)
+  atom -> PersistText (unsafeCast atom)
+  atom -> PersistInt64 (fromIntegral ((unsafeCast atom)::Int))
+  atom -> PersistBool (unsafeCast atom)
+  atom -> PersistDay (unsafeCast atom)
   _ -> error "missing conversion"
 
 recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
