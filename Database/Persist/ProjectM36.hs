@@ -30,6 +30,8 @@ import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
 import ProjectM36.RelationalExpression (unsafeCast)
+import Data.Typeable (typeRep, typeOf, Proxy(..))
+import Data.Time.Calendar (Day)
 
 type ProjectM36Backend = C.Connection
 
@@ -73,12 +75,16 @@ persistValueAtom val = case val of
   _ -> Nothing
 
 atomAsPersistValue :: Atom -> PersistValue
-atomAsPersistValue (Atom atom) = map (cast atom) (PersistText, PersistInt64, PersistBool, PersistDay)
-  atom -> PersistText (unsafeCast atom)
-  atom -> PersistInt64 (fromIntegral ((unsafeCast atom)::Int))
-  atom -> PersistBool (unsafeCast atom)
-  atom -> PersistDay (unsafeCast atom)
-  _ -> error "missing conversion"
+atomAsPersistValue atom@(Atom atomv) = if typeRep (Proxy :: Proxy Int) == typeOf atomv then
+                                          PersistInt64 (fromIntegral ((unsafeCast atom) :: Int))
+                                       else if typeRep (Proxy :: Proxy T.Text) == typeOf atomv then
+                                          PersistText (unsafeCast atom)
+                                        else if typeRep (Proxy :: Proxy Bool) == typeOf atomv then
+                                           PersistBool (unsafeCast atom)
+                                         else if typeRep (Proxy :: Proxy Day) == typeOf atomv then
+                                            PersistDay (unsafeCast atom)
+                                          else
+                                             error "missing conversion"
 
 recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
            => Maybe U.UUID -> Attributes -> record -> Either RelationalError (V.Vector Atom)
@@ -506,7 +512,6 @@ instance PersistQuery C.Connection where
                           Nothing -> Trans.liftIO $ throwIO $ PersistError "failed to get count tuple"
                           Just tuple -> case atomForAttributeName "persistcount" tuple of
                              (Right c) -> return (castInt c)
-                             Right _ -> Trans.liftIO $ throwIO $ PersistError "count returned wrong data type"
                              Left err -> left err
              case e of
                Left err -> throwIOPersistError ("count failure: " ++ show err)

@@ -33,7 +33,7 @@ class (Read a,
        Show a, 
        Typeable a, 
        NFData a) => Atomable a where
-  fromText :: Text -> Either String a
+  fromText :: (Atomable a) => Text -> Either String a
   fromText t = case readMaybe (unpack t) of
     Just v -> Right v
     Nothing -> Left "parse error"
