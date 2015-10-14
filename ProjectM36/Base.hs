@@ -43,7 +43,10 @@ class (Read a,
   
 instance Atomable Int 
 instance Atomable Double
-instance Atomable Text
+instance Atomable Text where
+  --no need to require quoted strings
+  fromText t = Right t
+  toText t = t
 instance Atomable Day
 instance Atomable UTCTime
 instance Atomable ByteString
@@ -60,18 +63,42 @@ instance Show Atom where
   show (Atom atom) = "Atom " ++ show atom
   
 instance Binary Atom where
-  put atom = put atom
+  put atom@(Atom val) = put (atomTypeForAtom atom) >> put val
   get = do
-    r <- get :: (Get Atom)
-    return r
+    atomtype <- get
+    --not-so-great for this to be hardcoded here- it would be nicer to have a dispatch table linked to the instances themselves
+    --http://stackoverflow.com/questions/8101067/binary-instance-for-an-existential
+    case atomtype of
+      AnyAtomType -> error "unsupported serialization AnyAtomType"
+      (RelationAtomType _) -> Atom <$> (get :: Get Relation)
+      (AtomType cTypeRep) -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
+                               Atom <$> (get :: Get Int)
+                             else if unCTR cTypeRep == typeRep (Proxy :: Proxy Text) then
+                                    Atom <$> (get :: Get Text)
+                                  else if unCTR cTypeRep == typeRep (Proxy :: Proxy Double) then
+                                         Atom <$> (get :: Get Double)
+                                       else if unCTR cTypeRep == typeRep (Proxy :: Proxy Day) then
+                                              Atom <$> (get :: Get Day)
+                                            else if unCTR cTypeRep == typeRep (Proxy :: Proxy UTCTime) then
+                                                   Atom <$> (get :: Get UTCTime)
+                                                 else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then
+                                                        Atom <$> (get :: Get ByteString)
+                                                   else if unCTR cTypeRep == typeRep (Proxy :: Proxy Bool) then
+                                                          Atom <$> (get :: Get Bool)
+                                                      else
+                                                        error "unsupported typerep serialization"
 
 instance NFData Atom where 
   rnf !(Atom a) = rnf a
   
 instance Hashable Atom where  
   hashWithSalt salt (Atom a) = hashWithSalt salt a
-                   
---not so great orphan instance                   
+  
+atomTypeForAtom :: Atom -> AtomType
+atomTypeForAtom (Atom atom) = case cast atom of
+  Just (Relation attrs _) -> RelationAtomType attrs
+  Nothing -> AtomType $ CTR (typeOf atom)
+
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
   get = do 
@@ -82,13 +109,13 @@ instance Binary Day where
   put day = put $ toGregorian day
   get = do
     (y,m,d) <- get :: Get (Integer, Int, Int)
-    return $ fromGregorian y m d
+    return (fromGregorian y m d)
                                            
 data AtomType = AtomType ConcreteTypeRep | 
                 RelationAtomType Attributes |
                 AnyAtomType --wildcard used in Atom Functions
-              deriving (Eq,Show,NFData,Generic,Binary)
-
+              deriving (Eq,NFData,Generic,Binary,Show)
+                       
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False

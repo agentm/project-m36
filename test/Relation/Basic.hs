@@ -62,8 +62,8 @@ simpleRel = case mkRelation attrs tupleSet of
   Right rel -> rel
   Left _ -> undefined
   where
-    attrs = A.attributesFromList [Attribute "a" StringAtomType, Attribute "b" StringAtomType]
-    tupleSet = RelationTupleSet [mkRelationTuple attrs (V.fromList [StringAtom "spam", StringAtom "spam2"])]
+    attrs = A.attributesFromList [Attribute "a" stringAtomType, Attribute "b" stringAtomType]
+    tupleSet = RelationTupleSet [mkRelationTuple attrs (V.fromList [stringAtom "spam", stringAtom "spam2"])]
 
 --rename tests
 testRename1 :: Test
@@ -77,7 +77,7 @@ testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRe
 testMkRelation1 :: Test
 testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError A.emptyAttributes) (mkRelation testAttrs testTupSet) -- the error attribute set is empty due to an optimization- the tuple attrs do not match the atoms' types
   where
-    testAttrs = A.attributesFromList [Attribute "a" StringAtomType]
-    testTupSet = RelationTupleSet [mkRelationTuple testAttrs $ V.fromList [StringAtom "v"],
-                                   mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]
+    testAttrs = A.attributesFromList [Attribute "a" stringAtomType]
+    testTupSet = RelationTupleSet [mkRelationTuple testAttrs $ V.fromList [stringAtom "v"],
+                                   mkRelationTuple testAttrs $ V.fromList [intAtom 2]]
 

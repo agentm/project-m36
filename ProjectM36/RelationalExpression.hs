@@ -16,7 +16,6 @@ import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
 import Data.Typeable (cast)
-import qualified Data.Text as T
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -144,14 +143,6 @@ dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                               ]
     simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName)
 
---textAtom shortcut
-tAtom :: T.Text -> Atom
-tAtom t = Atom t
-
---intAtom shortcut
-iAtom ::Int -> Atom
-iAtom i = Atom i
-
 suppliersRel :: Relation
 suppliersRel = case mkRelationFromList attrs atomMatrix of
   Left _ -> undefined
@@ -162,11 +153,11 @@ suppliersRel = case mkRelationFromList attrs atomMatrix of
                                   Attribute "STATUS" intAtomType,
                                   Attribute "CITY" stringAtomType]
     atomMatrix = [
-      [tAtom "S1", tAtom "Smith", iAtom 20, tAtom "London"],
-      [tAtom "S2", tAtom "Jones", iAtom 10, tAtom "Paris"],
-      [tAtom "S3", tAtom "Blake", iAtom 30, tAtom "Paris"],
-      [tAtom "S4", tAtom "Clark", iAtom 20, tAtom "London"],
-      [tAtom "S5", tAtom "Adams", iAtom 30, tAtom "Athens"]]
+      [stringAtom "S1", stringAtom "Smith", intAtom 20, stringAtom "London"],
+      [stringAtom "S2", stringAtom "Jones", intAtom 10, stringAtom "Paris"],
+      [stringAtom "S3", stringAtom "Blake", intAtom 30, stringAtom "Paris"],
+      [stringAtom "S4", stringAtom "Clark", intAtom 20, stringAtom "London"],
+      [stringAtom "S5", stringAtom "Adams", intAtom 30, stringAtom "Athens"]]
 
 supplierProductsRel :: Relation
 supplierProductsRel = case mkRelationFromList attrs matrix of
@@ -177,18 +168,18 @@ supplierProductsRel = case mkRelationFromList attrs matrix of
                                   Attribute "P#" stringAtomType,
                                   Attribute "QTY" intAtomType]
     matrix = [
-      [tAtom "S1", tAtom "P1", iAtom 300],
-      [tAtom "S1", tAtom "P2", iAtom 200],
-      [tAtom "S1", tAtom "P3", iAtom 400],
-      [tAtom "S1", tAtom "P4", iAtom 200],
-      [tAtom "S1", tAtom "P5", iAtom 100],
-      [tAtom "S1", tAtom "P6", iAtom 100],
-      [tAtom "S2", tAtom "P1", iAtom 300],
-      [tAtom "S2", tAtom "P2", iAtom 400],
-      [tAtom "S3", tAtom "P2", iAtom 200],
-      [tAtom "S4", tAtom "P2", iAtom 200],
-      [tAtom "S4", tAtom "P4", iAtom 300],
-      [tAtom "S4", tAtom "P5", iAtom 400]
+      [stringAtom "S1", stringAtom "P1", intAtom 300],
+      [stringAtom "S1", stringAtom "P2", intAtom 200],
+      [stringAtom "S1", stringAtom "P3", intAtom 400],
+      [stringAtom "S1", stringAtom "P4", intAtom 200],
+      [stringAtom "S1", stringAtom "P5", intAtom 100],
+      [stringAtom "S1", stringAtom "P6", intAtom 100],
+      [stringAtom "S2", stringAtom "P1", intAtom 300],
+      [stringAtom "S2", stringAtom "P2", intAtom 400],
+      [stringAtom "S3", stringAtom "P2", intAtom 200],
+      [stringAtom "S4", stringAtom "P2", intAtom 200],
+      [stringAtom "S4", stringAtom "P4", intAtom 300],
+      [stringAtom "S4", stringAtom "P5", intAtom 400]
       ]
 
 productsRel :: Relation
@@ -202,12 +193,12 @@ productsRel = case mkRelationFromList attrs matrix of
                                   Attribute "WEIGHT" intAtomType,
                                   Attribute "CITY" stringAtomType]
     matrix = [
-      [tAtom "P1", tAtom "Nut", tAtom "Red", iAtom 12, tAtom "London"],
-      [tAtom "P2", tAtom "Bolt", tAtom "Green", iAtom 17, tAtom "Paris"],
-      [tAtom "P3", tAtom "Screw", tAtom "Blue", iAtom 17, tAtom "Oslo"],
-      [tAtom "P4", tAtom "Screw", tAtom "Red", iAtom 14, tAtom "London"],
-      [tAtom "P5", tAtom "Cam", tAtom "Blue", iAtom 12, tAtom "Paris"],
-      [tAtom "P6", tAtom "Cog", tAtom "Red", iAtom 19, tAtom "London"]
+      [stringAtom "P1", stringAtom "Nut", stringAtom "Red", intAtom 12, stringAtom "London"],
+      [stringAtom "P2", stringAtom "Bolt", stringAtom "Green", intAtom 17, stringAtom "Paris"],
+      [stringAtom "P3", stringAtom "Screw", stringAtom "Blue", intAtom 17, stringAtom "Oslo"],
+      [stringAtom "P4", stringAtom "Screw", stringAtom "Red", intAtom 14, stringAtom "London"],
+      [stringAtom "P5", stringAtom "Cam", stringAtom "Blue", intAtom 12, stringAtom "Paris"],
+      [stringAtom "P6", stringAtom "Cog", stringAtom "Red", intAtom 19, stringAtom "London"]
       ]
 
 --helper function to process relation variable creation/assignment

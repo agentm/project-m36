@@ -15,14 +15,16 @@ import qualified Data.Set as S
 import Data.Functor.Identity (Identity)
 import Data.Time.Format
 import Control.Applicative (liftA)
+import Data.Time.Calendar (Day)
+import Data.Time.Clock (UTCTime)
 
 atomTypeP :: Parser AtomType
-atomTypeP = (reserved "char" *> return StringAtomType) <|>
-  (reserved "int" *> return IntAtomType) <|>
-  (reserved "datetime" *> return DateTimeAtomType) <|>
-  (reserved "date" *> return DateAtomType) <|>
-  (reserved "double" *> return DoubleAtomType) <|>
-  (reserved "bool" *> return BoolAtomType) <|>
+atomTypeP = (reserved "char" *> return stringAtomType) <|>
+  (reserved "int" *> return intAtomType) <|>
+  (reserved "datetime" *> return dateTimeAtomType) <|>
+  (reserved "date" *> return dateAtomType) <|>
+  (reserved "double" *> return doubleAtomType) <|>
+  (reserved "bool" *> return boolAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
 
 --used in projection
@@ -236,7 +238,7 @@ relationalAtomExprP :: Parser AtomExpr
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
 stringAtomP :: Parser Atom
-stringAtomP = liftA (StringAtom . T.pack) quotedString
+stringAtomP = liftA (Atom . T.pack) quotedString
 
 dateTimeAtomP :: Parser Atom
 dateTimeAtomP = do
@@ -245,7 +247,7 @@ dateTimeAtomP = do
     reserved "::datetime"
     return dateTimeString
   case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" dateTimeString' of
-    Just utctime -> return $ DateTimeAtom utctime
+    Just utctime -> return $ Atom (utctime :: UTCTime)
     Nothing -> fail "Failed to parse datetime"
     
 dateAtomP :: Parser Atom    
@@ -255,22 +257,24 @@ dateAtomP = do
     reserved "::date"
     return dateString
   case parseTimeM False defaultTimeLocale "%Y-%m-%d" dateString' of
-    Just utctime -> return $ DateAtom utctime
+    Just todaytime -> return $ Atom (todaytime :: Day)
     Nothing -> fail "Failed to parse date"
     
 doubleAtomP :: Parser Atom    
-doubleAtomP = DoubleAtom <$> (try float)
+doubleAtomP = Atom <$> (try float)
   
 intAtomP :: Parser Atom
-intAtomP = (IntAtom . fromIntegral) <$> integer
+intAtomP = do
+  i <- integer
+  return $ Atom ((fromIntegral i) :: Int)
 
 boolAtomP :: Parser Atom
 boolAtomP = do
   val <- char 't' <|> char 'f'
-  return $ BoolAtom (val == 't')
+  return $ Atom (val == 't')
   
 relationAtomP :: Parser Atom
-relationAtomP = RelationAtom <$> relationP
+relationAtomP = Atom <$> relationP
 
 --relation constructor -- no choice but to propagate relation-construction errors as parse errors. Perhaps this could be improved in the future
 relationP :: Parser Relation

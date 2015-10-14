@@ -7,7 +7,6 @@ import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Base
 import ProjectM36.Relation
-import ProjectM36.Atom
 import ProjectM36.Error
 import Data.Text.Encoding (decodeUtf8)
 import qualified ProjectM36.Attribute as A
@@ -16,31 +15,15 @@ import Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Attoparsec.ByteString.Lazy
-import Text.Read (readMaybe)
-import Data.Typeable (typeRep, Proxy(Proxy))
-import ProjectM36.ConcreteTypeRep
-import Data.Either (either)
+import ProjectM36.Atom
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
-                      UnsupportedAtomTypeError AttributeName |
                       HeaderAttributeMismatchError (S.Set AttributeName)
                     deriving (Show)
 
 csvDecodeOptions :: DecodeOptions
 csvDecodeOptions = DecodeOptions {decDelimiter = fromIntegral (ord ',')}
-
-makeAtom :: AttributeName -> AtomType -> T.Text -> Either CsvImportError Atom
-makeAtom attrName (AtomType cTypeRep) strIn = if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
-                                                either (Left . AttributeMappingError . ParseError . T.pack) (Right . Atom) ((fromText strIn) :: Either String Int)
-                                              else
-                                                Left $ AttributeMappingError (ParseError strIn)
-                                             {- where readAtomable :: (Atomable a) => Proxy a -> T.Text -> Either CsvImportError Atom
-                                                    readAtomable _ strIn' = case fromText strIn of
-                                                                              Right val -> Right $ Atom (val :: a)
-                                                                              Left err -> Left $ AttributeMappingError (ParseError (T.pack err))-}
-makeAtom attrName _ _ = Left $ UnsupportedAtomTypeError attrName
-
 
 csvAsRelation :: BS.ByteString -> Attributes -> Either CsvImportError Relation
 csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inString of
@@ -53,7 +36,7 @@ csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inStr
         attrNameSet = S.fromList (V.toList attrNames)
         headerSet = S.fromList (V.toList strHeader)
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
-        makeTupleList tupMap = V.toList $ V.map (\attr -> makeAtom (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
+        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
     case attrNameSet == headerSet of
       False -> Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
       True -> do
