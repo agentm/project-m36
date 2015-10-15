@@ -94,7 +94,7 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
 showAtom :: Atom -> StringType
 showAtom (Atom atom) = case cast atom of
                           Just rel -> renderTable $ relationAsTable rel
-                          Nothing -> T.pack $ show atom
+                          Nothing -> toText atom
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs
