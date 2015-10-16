@@ -32,6 +32,7 @@ import qualified Data.Conduit.List as CL
 import ProjectM36.RelationalExpression (unsafeCast)
 import Data.Typeable (typeRep, typeOf, Proxy(..))
 import Data.Time.Calendar (Day)
+import Data.ByteString (ByteString)
 
 type ProjectM36Backend = C.Connection
 
@@ -76,15 +77,17 @@ persistValueAtom val = case val of
 
 atomAsPersistValue :: Atom -> PersistValue
 atomAsPersistValue atom@(Atom atomv) = if typeRep (Proxy :: Proxy Int) == typeOf atomv then
-                                          PersistInt64 (fromIntegral ((unsafeCast atom) :: Int))
+                                         PersistInt64 (fromIntegral ((unsafeCast atom) :: Int))
                                        else if typeRep (Proxy :: Proxy T.Text) == typeOf atomv then
-                                          PersistText (unsafeCast atom)
-                                        else if typeRep (Proxy :: Proxy Bool) == typeOf atomv then
-                                           PersistBool (unsafeCast atom)
-                                         else if typeRep (Proxy :: Proxy Day) == typeOf atomv then
-                                            PersistDay (unsafeCast atom)
-                                          else
-                                             error "missing conversion"
+                                              PersistText (unsafeCast atom)
+                                            else if typeRep (Proxy :: Proxy Bool) == typeOf atomv then
+                                                   PersistBool (unsafeCast atom)
+                                                 else if typeRep (Proxy :: Proxy Day) == typeOf atomv then
+                                                        PersistDay (unsafeCast atom)
+                                                      else if typeRep (Proxy :: Proxy ByteString) == typeOf atomv then
+                                                             PersistByteString (unsafeCast atom)
+                                                           else
+                                                             error "missing conversion"
 
 recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ C.Connection)
            => Maybe U.UUID -> Attributes -> record -> Either RelationalError (V.Vector Atom)
