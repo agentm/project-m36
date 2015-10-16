@@ -257,13 +257,13 @@ stringAtomP = liftA (Atom . T.pack) quotedString
 maybeTextAtomP :: Parser Atom
 maybeTextAtomP = do
   maybeText <- try $ ((Just . T.pack <$> (reserved "Just" *> quotedString)) <|> 
-                      (reserved "nothing" *> return Nothing)) <* reserved "::maybe char"   
+                      (reserved "Nothing" *> return Nothing)) <* reserved "::maybe char"   
   return $ Atom maybeText
   
 maybeIntAtomP :: Parser Atom  
 maybeIntAtomP = do
   maybeInt <- try $ ((Just . fromIntegral <$> (reserved "Just" *> integer)) <|>
-                     (reserved "nothing" *> return Nothing)) <* reserved "::maybe int"
+                     (reserved "Nothing" *> return Nothing)) <* reserved "::maybe int"
   return $ Atom (maybeInt :: Maybe Int)
 
 dateTimeAtomP :: Parser Atom
