@@ -18,6 +18,8 @@ import System.Exit
 import Data.Maybe (isJust)
 import System.IO
 import qualified Data.Vector as V
+import Data.Typeable (Proxy(..))
+import Data.Text (Text)
 
 --urgent: add group and ungroup tests- I missed the group relation type bug
 main :: IO ()
@@ -59,6 +61,8 @@ main = do
     simpleBAttributes = A.attributesFromList [Attribute "d" intAtomType]
     simpleCAttributes = A.attributesFromList [Attribute "a" stringAtomType, Attribute "b" intAtomType]
     simpleDAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" intAtomType]
+    simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Text))]
+    simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Int))]    
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" intAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" intAtomType])]
     extendTestAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
@@ -89,7 +93,11 @@ main = do
                            ("x:=S{all but S#} = S{CITY,SNAME,STATUS}", Right $ relationTrue),
                            --test key syntax
                            ("x:=S; key testconstraint {S#,CITY} x; insert x relation{tuple{CITY \"London\", S# \"S1\", SNAME \"gonk\", STATUS 50}}", Left (InclusionDependencyCheckError "testconstraint")),
-                           ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue)
+                           ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue),
+                           --test Maybe Text
+                           ("x:=relation{tuple{a Just \"spam\"::maybe char}}", mkRelationFromList simpleMaybeTextAttributes [[Atom (Just "spam" :: Maybe Text)]]),
+                           --test Maybe Int
+                           ("x:=relation{tuple{a Just 3::maybe int}}", mkRelationFromList simpleMaybeIntAttributes [[Atom (Just 3 :: Maybe Int)]])                           
                            ]
 
 

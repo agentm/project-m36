@@ -226,7 +226,15 @@ nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 atomP :: Parser Atom
-atomP = dateTimeAtomP <|> dateAtomP <|> stringAtomP <|> doubleAtomP <|> intAtomP <|> boolAtomP <|> relationAtomP
+atomP = dateTimeAtomP <|> 
+        dateAtomP <|> 
+        maybeTextAtomP <|> 
+        maybeIntAtomP <|>
+        stringAtomP <|> 
+        doubleAtomP <|> 
+        intAtomP <|> 
+        boolAtomP <|> 
+        relationAtomP
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -239,6 +247,19 @@ relationalAtomExprP = RelationAtomExpr <$> relExprP
 
 stringAtomP :: Parser Atom
 stringAtomP = liftA (Atom . T.pack) quotedString
+
+--until polymorphic type constructors and algebraic data types are properly supported, such constructs must be unfortunately hard-coded
+maybeTextAtomP :: Parser Atom
+maybeTextAtomP = do
+  maybeText <- try $ ((Just . T.pack <$> (reserved "Just" *> quotedString)) <|> 
+                      (reserved "nothing" *> return Nothing)) <* reserved "::maybe char"   
+  return $ Atom maybeText
+  
+maybeIntAtomP :: Parser Atom  
+maybeIntAtomP = do
+  maybeInt <- try $ ((Just . fromIntegral <$> (reserved "Just" *> integer)) <|>
+                     (reserved "nothing" *> return Nothing)) <* reserved "::maybe int"
+  return $ Atom (maybeInt :: Maybe Int)
 
 dateTimeAtomP :: Parser Atom
 dateTimeAtomP = do
