@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances,OverloadedStrings #-}
 import ProjectM36.Base
 import ProjectM36.Relation
-import ProjectM36.Tuple
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
 import TutorialD.Interpreter.Base (displayOpResult)
@@ -73,7 +72,7 @@ intmapMatrixRun = do
 intmapMatrixRelation :: Int -> Int -> HS.HashSet (IM.IntMap Atom)
 intmapMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
-    mapper tupCount = IM.fromList $ map (\c-> (c, IntAtom tupCount)) [0..attributeCount]
+    mapper tupCount = IM.fromList $ map (\c-> (c, Atom tupCount)) [0..attributeCount]
 
 instance Hash.Hashable (IM.IntMap Atom) where
   hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
@@ -88,7 +87,7 @@ vectorMatrixRun = do
 vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
-    mapper tupCount = V.replicate attributeCount (IntAtom tupCount)
+    mapper tupCount = V.replicate attributeCount (Atom tupCount)
 
 instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)

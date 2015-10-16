@@ -2,50 +2,69 @@
 module ProjectM36.Atom where
 import ProjectM36.Base
 import ProjectM36.Error
+import Data.Typeable
+import ProjectM36.ConcreteTypeRep
 import qualified Data.Text as T
-import Text.Read (readMaybe)
-import Data.Time.Format
-import Data.ByteString.Base64
-import qualified Data.Text.Encoding as TE
+import Data.Time.Calendar (Day)
+import Data.Time.Clock
+import Data.ByteString (ByteString)
 
 relationForAtom :: Atom -> Either RelationalError Relation
-relationForAtom (RelationAtom rel) = Right rel
-relationForAtom _ = Left $ AttributeIsNotRelationValuedError ""
+relationForAtom (Atom atom) = case cast atom of
+  Just rel@(Relation _ _) -> Right rel
+  Nothing -> Left $ AttributeIsNotRelationValuedError ""
 
-atomTypeForAtom :: Atom -> AtomType
-atomTypeForAtom (StringAtom _) = StringAtomType
-atomTypeForAtom (IntAtom _) = IntAtomType
-atomTypeForAtom (RelationAtom (Relation attributes _)) = RelationAtomType attributes
-atomTypeForAtom (BoolAtom _) = BoolAtomType
-atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
-atomTypeForAtom (DateAtom _) = DateAtomType
-atomTypeForAtom (DoubleAtom _) = DoubleAtomType
-atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
+atomTypeForProxy :: (Atomable a) => Proxy a -> AtomType
+atomTypeForProxy prox = AtomType $ CTR (typeRep prox)
 
-{- a generic string constructor for atoms
-used by CSV relation generation
--}
-atomFromString :: AtomType -> String -> Either RelationalError Atom
-atomFromString StringAtomType strIn = Right $ StringAtom (T.pack strIn)
-atomFromString IntAtomType strIn = case readMaybe strIn of
-  Just i -> Right $ IntAtom i
-  Nothing -> Left (ParseError "Failed to parse integer")
-atomFromString BoolAtomType strIn = case strIn of
-  "true" -> Right $ BoolAtom True
-  "false" -> Right $ BoolAtom False
-  _ -> Left (ParseError "Failed to parse boolean")
-atomFromString (RelationAtomType _) _ = Left $ ParseError "Nested relation parsing not supported"
-atomFromString DateTimeAtomType strIn =   
-  case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" strIn of
-    Just utctime -> Right $ DateTimeAtom utctime
-    Nothing -> Left $ ParseError "Failed to parse datetime"
-atomFromString DoubleAtomType strIn = case readMaybe strIn of
-  Just d -> Right $ DoubleAtom d
-  Nothing -> Left (ParseError "Failed to parse double")
-atomFromString DateAtomType strIn = case parseTimeM False defaultTimeLocale "%Y-%m-%d" strIn of
-  Just date -> Right $ DateAtom date
-  Nothing -> Left $ ParseError "Failed to parse datetime"
-atomFromString ByteStringAtomType strIn = case decode (TE.encodeUtf8 (T.pack strIn)) of
-  Left err -> Left $ ParseError (T.pack err)
-  Right bsVal -> Right $ ByteStringAtom bsVal
-atomFromString AnyAtomType _ = Left $ ParseError "Parsing AnyAtomType is not supported"
+--some convenience functions
+stringAtomType :: AtomType
+stringAtomType = atomTypeForProxy (Proxy :: Proxy StringType)
+
+intAtomType :: AtomType
+intAtomType = atomTypeForProxy (Proxy :: Proxy Int)
+
+boolAtomType :: AtomType
+boolAtomType = atomTypeForProxy (Proxy :: Proxy Bool)
+
+dateAtomType :: AtomType
+dateAtomType = atomTypeForProxy (Proxy :: Proxy Day)
+
+dateTimeAtomType :: AtomType
+dateTimeAtomType = atomTypeForProxy (Proxy :: Proxy UTCTime)
+
+byteStringAtomType :: AtomType
+byteStringAtomType = atomTypeForProxy (Proxy :: Proxy ByteString)
+
+doubleAtomType :: AtomType
+doubleAtomType = atomTypeForProxy (Proxy :: Proxy Double)
+
+--another hard-coded typerep dispatch table :/
+makeAtomFromText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
+makeAtomFromText _ (AtomType cTypeRep) textIn = if 
+  unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then               
+    either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String Int)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy Double) then                      
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String Double)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy T.Text) then                      
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String T.Text)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy Day) then                      
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String Day)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy UTCTime) then                   
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String UTCTime)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then                 
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String ByteString)
+  else if unCTR cTypeRep == typeRep (Proxy :: Proxy Bool) then
+         either (Left . ParseError . T.pack) (Right . Atom) (fromText textIn :: Either String Bool)
+       else
+         Left $ ParseError textIn
+makeAtomFromText attrName _ _ = Left $ AtomTypeNotSupported attrName
+
+--textAtom shortcut
+stringAtom :: T.Text -> Atom
+stringAtom t = Atom t
+
+--intAtom shortcut
+intAtom :: Int -> Atom
+intAtom i = Atom i
+

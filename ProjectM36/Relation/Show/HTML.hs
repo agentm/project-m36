@@ -12,7 +12,7 @@ import qualified Data.Text.Encoding as TE
 
 attributesAsHTML :: Attributes -> Text
 attributesAsHTML attrs = "<tr>" `append` (T.concat $ map oneAttrHTML attrNameList) `append` "</tr>"
-  where 
+  where
     oneAttrHTML attrName = "<th>" `append` attrName `append` "</th>"
     attrNameList = sortedAttributeNameList (attributeNameSet attrs)
 
@@ -25,17 +25,10 @@ writeHTML :: Text -> IO ()
 writeHTML = TIO.writeFile "/home/agentm/rel.html"
 
 writeRel :: Relation -> IO ()
-writeRel = writeHTML . relationAsHTML 
+writeRel = writeHTML . relationAsHTML
 
 atomAsHTML :: Atom -> Text
-atomAsHTML (StringAtom atom) = atom
-atomAsHTML (IntAtom int) = pack (show int)
-atomAsHTML (RelationAtom rel) = relationAsHTML rel
-atomAsHTML (BoolAtom bool) = pack (show bool)
-atomAsHTML (DateTimeAtom dt) = pack (show dt)
-atomAsHTML (DoubleAtom d) = pack (show d)
-atomAsHTML (DateAtom d) = pack (show d)
-atomAsHTML (ByteStringAtom bs) = TE.decodeUtf8 bs
+atomAsHTML (Atom atom) = toText atom
 
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"

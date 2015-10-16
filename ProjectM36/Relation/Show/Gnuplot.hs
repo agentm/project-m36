@@ -3,6 +3,7 @@ module ProjectM36.Relation.Show.Gnuplot where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
+import ProjectM36.Atom
 import qualified ProjectM36.Attribute as A
 import qualified Data.Vector as V
 
@@ -18,20 +19,20 @@ import qualified Graphics.Gnuplot.Advanced as GPA
 --nested relations?
 
 data PlotError = InvalidAttributeCountError |
-                 InvalidAttributeTypeError 
+                 InvalidAttributeTypeError
                  deriving (Show)
-                 
---plotRelation :: Relation -> Either PlotError 
+
+--plotRelation :: Relation -> Either PlotError
 
 intFromAtomIndex :: Int -> RelationTuple -> Int
-intFromAtomIndex index tup = (\(IntAtom i) -> i) $ (tupleAtoms tup) V.! index
+intFromAtomIndex index tup = (\i -> castInt i) $ (tupleAtoms tup) V.! index
 
 graph1DRelation :: Relation -> Plot2D.T Int Int
 graph1DRelation rel = Plot2D.list Graph2D.listPoints $ points1DRelation rel
-    
+
 points1DRelation :: Relation -> [Int]
 points1DRelation rel = relFold folder [] rel
-  where    
+  where
     folder tup acc = intFromAtomIndex 0 tup : acc
 
 graph2DRelation :: Relation -> Plot2D.T Int Int
@@ -45,8 +46,8 @@ points2DRelation rel = relFold folder [] rel
 graph3DRelation :: Relation -> Plot3D.T Int Int Int
 graph3DRelation rel = do
   Plot3D.cloud Graph3D.points $ points3DRelation rel
-                                                                         
-points3DRelation :: Relation -> [(Int, Int, Int)]                      
+
+points3DRelation :: Relation -> [(Int, Int, Int)]
 points3DRelation rel = relFold folder [] rel
   where
     folder tup acc = (intFromAtomIndex 0 tup, intFromAtomIndex 1 tup, intFromAtomIndex 2 tup) : acc
@@ -55,21 +56,21 @@ points3DRelation rel = relFold folder [] rel
 sample1DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" IntAtomType]) [[IntAtom 2], [IntAtom 3]] of
   Right rel -> rel
   Left _ -> undefined
-  
-sample2DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" IntAtomType, Attribute "y" IntAtomType]) [[IntAtom 2, IntAtom 3],   
-                                                                                                                          [IntAtom 2, IntAtom 4]] of                                                                                             
+
+sample2DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" IntAtomType, Attribute "y" IntAtomType]) [[IntAtom 2, IntAtom 3],
+                                                                                                                          [IntAtom 2, IntAtom 4]] of
                      Right rel -> rel
                      Left _ -> undefined
-                     
-sample3DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" IntAtomType, Attribute "y" IntAtomType, Attribute "z" IntAtomType]) [[IntAtom 2, IntAtom 3, IntAtom 3],   
-                             [IntAtom 2, IntAtom 4, IntAtom 4]] of                                                                                             
+
+sample3DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" IntAtomType, Attribute "y" IntAtomType, Attribute "z" IntAtomType]) [[IntAtom 2, IntAtom 3, IntAtom 3],
+                             [IntAtom 2, IntAtom 4, IntAtom 4]] of
                      Right rel -> rel
                      Left _ -> undefined
 
 -}
-                     
+
 plotRelation :: Relation -> IO (Maybe PlotError)
-plotRelation rel = let attrTypes = V.replicate (arity rel) IntAtomType in
+plotRelation rel = let attrTypes = V.replicate (arity rel) intAtomType in
   if attrTypes /= A.atomTypes (attributes rel) then
     return $ Just InvalidAttributeTypeError
   else do
@@ -78,14 +79,14 @@ plotRelation rel = let attrTypes = V.replicate (arity rel) IntAtomType in
       2 -> (GPA.plotDefault $ graph2DRelation rel) >> return Nothing
       3 -> (GPA.plotDefault $ graph3DRelation rel) >> return Nothing
       _ -> return $ Just InvalidAttributeCountError
-      
-      
+
+
 {-
 --PNG
 savePlottedRelation :: String -> Relation -> IO ()
-savePlottedRelation path rel = case plotRelation rel of 
+savePlottedRelation path rel = case plotRelation rel of
   Left err -> putStrLn (show err)
   Right (Left g2d) -> plot' [] (PNG path) g2d >> return ()
   Right (Right g3d) -> plot' [] (PNG path) g3d >> return ()
--}  
+-}
 

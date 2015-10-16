@@ -1,9 +1,9 @@
-{-# LANGUAGE GADTs,DeriveGeneric,GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.Hashable as Hash
+import Data.Hashable (Hashable, hashWithSalt)
 import qualified Data.Set as S
 import Control.Monad.State (State)
 import Data.UUID (UUID)
@@ -12,27 +12,93 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
-import qualified Data.Text as T
+import Data.Text (Text,pack,unpack)
 import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
-import qualified Data.ByteString as BS
+import Data.Typeable
+import Text.Read (readMaybe)
+import Data.ByteString (ByteString)
+import ProjectM36.ConcreteTypeRep
 
-type StringType = T.Text
+type StringType = Text
 
-data Atom = StringAtom StringType |
-            IntAtom Int |
-            BoolAtom Bool |
-            RelationAtom Relation |
-            DateTimeAtom UTCTime |
-            DateAtom Day |
-            DoubleAtom Double |
-            ByteStringAtom BS.ByteString
-          deriving (Show, Eq, Generic)
-                   
+class (Read a, 
+       Hashable a, 
+       Binary a, 
+       Eq a, 
+       Show a, 
+       Typeable a, 
+       NFData a) => Atomable a where
+  fromText :: (Atomable a) => Text -> Either String a
+  fromText t = case readMaybe (unpack t) of
+    Just v -> Right v
+    Nothing -> Left "parse error"
+  
+  toText :: a -> Text
+  toText a = pack $ show a
+  
+instance Atomable Int 
+instance Atomable Double
+instance Atomable Text where
+  --no need to require quoted strings
+  fromText t = Right t
+  toText t = t
+instance Atomable Day
+instance Atomable UTCTime
+instance Atomable ByteString
+instance Atomable Bool
+instance Atomable Relation
+instance (Atomable a) => Atomable (Maybe a)
+  
+data Atom = forall a. Atomable a => Atom a
+
+instance Eq Atom where
+  (Atom a) == (Atom b) = Just a == cast b
+  
+instance Show Atom where
+  show (Atom atom) = "Atom " ++ show atom
+  
+instance Binary Atom where
+  put atom@(Atom val) = put (atomTypeForAtom atom) >> put val
+  get = do
+    atomtype <- get
+    --not-so-great for this to be hardcoded here- it would be nicer to have a dispatch table linked to the instances themselves
+    --http://stackoverflow.com/questions/8101067/binary-instance-for-an-existential
+    case atomtype of
+      AnyAtomType -> error "unsupported serialization AnyAtomType"
+      (RelationAtomType _) -> Atom <$> (get :: Get Relation)
+      (AtomType cTypeRep) -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
+                               Atom <$> (get :: Get Int)
+                             else if unCTR cTypeRep == typeRep (Proxy :: Proxy Text) then
+                                    Atom <$> (get :: Get Text)
+                                  else if unCTR cTypeRep == typeRep (Proxy :: Proxy Double) then
+                                         Atom <$> (get :: Get Double)
+                                       else if unCTR cTypeRep == typeRep (Proxy :: Proxy Day) then
+                                              Atom <$> (get :: Get Day)
+                                            else if unCTR cTypeRep == typeRep (Proxy :: Proxy UTCTime) then
+                                                   Atom <$> (get :: Get UTCTime)
+                                                 else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then
+                                                        Atom <$> (get :: Get ByteString)
+                                                   else if unCTR cTypeRep == typeRep (Proxy :: Proxy Bool) then
+                                                          Atom <$> (get :: Get Bool)
+                                                      else
+                                                        error "unsupported typerep serialization"
+
+instance NFData Atom where 
+  rnf !(Atom a) = rnf a
+  
+instance Hashable Atom where  
+  hashWithSalt salt (Atom a) = hashWithSalt salt a
+  
+atomTypeForAtom :: Atom -> AtomType
+atomTypeForAtom (Atom atom) = case cast atom of
+  Just (Relation attrs _) -> RelationAtomType attrs
+  Nothing -> AtomType $ CTR (typeOf atom)
+
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
   get = do 
@@ -43,34 +109,23 @@ instance Binary Day where
   put day = put $ toGregorian day
   get = do
     (y,m,d) <- get :: Get (Integer, Int, Int)
-    return $ fromGregorian y m d
+    return (fromGregorian y m d)
                                            
-instance NFData Atom where rnf = genericRnf
-                           
-instance Hash.Hashable Atom                    
-
-instance Binary Atom
-
-data AtomType = StringAtomType |
-                IntAtomType |
-                BoolAtomType |
+data AtomType = AtomType ConcreteTypeRep | 
                 RelationAtomType Attributes |
-                DateTimeAtomType |
-                DateAtomType |
-                DoubleAtomType |
-                ByteStringAtomType |
-                AnyAtomType --AnyAtomType is used as a wildcard
-              deriving (Eq, Show, Generic)
-                                                     
-instance NFData AtomType where rnf = genericRnf
-instance Binary AtomType
+                AnyAtomType --wildcard used in Atom Functions
+              deriving (Eq,NFData,Generic,Binary,Show)
+                       
+isRelationAtomType :: AtomType -> Bool
+isRelationAtomType (RelationAtomType _) = True
+isRelationAtomType _ = False
 
-type AttributeName = T.Text
+type AttributeName = StringType
 
 data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
 
-instance Hash.Hashable Attribute where
-  hashWithSalt salt (Attribute attrName _) = Hash.hashWithSalt salt attrName
+instance Hashable Attribute where
+  hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
 
 instance NFData Attribute where rnf = genericRnf
                                 
@@ -86,7 +141,10 @@ attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
 sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hash.Hashable, Show, Generic, Binary)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
+
+instance Read Relation where
+  readsPrec = error "relation read not supported"
 
 instance Eq RelationTupleSet where
  set1 == set2 = hset set1 == hset set2
@@ -96,9 +154,9 @@ instance Eq RelationTupleSet where
 instance NFData RelationTupleSet where rnf = genericRnf
 
 --the same hash must be generated for equal tuples so that the hashset equality works
-instance Hash.Hashable RelationTuple where
-  hashWithSalt salt (RelationTuple attrs tupVec) = salt `Hash.hashWithSalt` 
-                                                   sortedAttrs `Hash.hashWithSalt`
+instance Hashable RelationTuple where
+  hashWithSalt salt (RelationTuple attrs tupVec) = salt `hashWithSalt` 
+                                                   sortedAttrs `hashWithSalt`
                                                    (V.toList sortedTupVec)
     where
       sortedAttrsIndices = sortedAttributesIndices attrs
@@ -120,16 +178,16 @@ instance Eq RelationTuple where
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic)
+data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
 
 instance NFData Relation where rnf = genericRnf
                                
-instance Hash.Hashable Relation where                               
-  hashWithSalt salt (Relation attrs tupSet) = salt `Hash.hashWithSalt` 
-                                              sortedAttrs `Hash.hashWithSalt`
+instance Hashable Relation where                               
+  hashWithSalt salt (Relation attrs tupSet) = salt `hashWithSalt` 
+                                              sortedAttrs `hashWithSalt`
                                               asList tupSet
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
@@ -276,14 +334,14 @@ data AtomFunction = AtomFunction {
   atomFunc :: [Atom] -> Atom
   }
            
-instance Hash.Hashable AtomFunction where
-  hashWithSalt salt func = salt `Hash.hashWithSalt` (atomFuncName func)
+instance Hashable AtomFunction where
+  hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
                            
 instance Eq AtomFunction where                           
   f1 == f2 = (atomFuncName f1) == (atomFuncName f2)
   
 instance Show AtomFunction where  
-  show aFunc = T.unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
+  show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
    where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
      
@@ -299,3 +357,4 @@ data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-on
                            --CrashSafePersistence FilePath --full fsync- not yet implemented
                            deriving (Show, Read)
                                     
+    

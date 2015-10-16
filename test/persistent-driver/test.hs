@@ -10,6 +10,7 @@
 import Test.HUnit
 import Database.Persist.ProjectM36
 import ProjectM36.Client
+import ProjectM36.Atom
 import qualified ProjectM36.Client as C
 import System.Exit
 import Database.Persist
@@ -41,7 +42,7 @@ inProcSettings = InProcessConnectionInfo NoPersistence
 
 defPersonRel :: Connection -> IO ()
 defPersonRel conn = do
-    maybeErr <- C.executeDatabaseContextExpr conn (Define "person" (attributesFromList [Attribute "name" StringAtomType, Attribute "age" IntAtomType, Attribute "id" StringAtomType]))
+    maybeErr <- C.executeDatabaseContextExpr conn (Define "person" (attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType, Attribute "id" stringAtomType]))
     case maybeErr of
         Nothing -> return ()
         Just err -> assertFailure $ "defPersonRel" ++ show err

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Relation.Parse.CSV where
 --parse Relations from CSV
 import Data.Csv.Parser
@@ -6,7 +7,6 @@ import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Base
 import ProjectM36.Relation
-import ProjectM36.Atom
 import ProjectM36.Error
 import Data.Text.Encoding (decodeUtf8)
 import qualified ProjectM36.Attribute as A
@@ -15,6 +15,7 @@ import Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Attoparsec.ByteString.Lazy
+import ProjectM36.Atom
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -35,10 +36,7 @@ csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inStr
         attrNameSet = S.fromList (V.toList attrNames)
         headerSet = S.fromList (V.toList strHeader)
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
-        makeTupleList tupMap = V.toList $ V.map (\attr -> makeAtom (A.atomType attr) (tupMap HM.! (A.attributeName attr))) attrs
-        makeAtom aType strIn = case atomFromString aType strIn of 
-          Left err -> Left $ AttributeMappingError err
-          Right atom -> Right atom
+        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
     case attrNameSet == headerSet of
       False -> Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
       True -> do
