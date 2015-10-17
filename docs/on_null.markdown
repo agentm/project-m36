@@ -309,7 +309,7 @@ and some examples values:
  
 Already, we can see that this single data type can pack far more useful information than any combination of an integer and NULL.
 
-### In SQL
+### Algebraic Data Types In SQL
 
 An algebraic data type may be emulated in SQL, albeit in a convoluted fashion and without type safety. Here is the above example translated using SQL enumerations:
 
@@ -340,7 +340,7 @@ from hospital_patient;
 
 But all we have really done is add even more NULLs. Retrieving a sensible value is convoluted and not strongly-typed. In addition, the table constraints (not shown) necessary to ensure that, for example, precise_age is NULL if age is "forgot_to_ask" make this scheme even more complicated to implement.
 
-### In Project:M36
+### Algebraic Data Types In Project:M36
 
 Any Haskell data type can be turned into a value (called an "atom") in Project:M36. The following example illustrates:
 
