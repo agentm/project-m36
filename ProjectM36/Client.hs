@@ -21,7 +21,9 @@ module ProjectM36.Client
        DatabaseExpr(..),
        Attribute(..),
        attributesFromList,
-       TransactionGraphOperator(..),       
+       TransactionGraphOperator(..),
+       Atomable,
+       Atom(..),
        AtomType(..)) where
 import ProjectM36.Base
 import ProjectM36.Error
