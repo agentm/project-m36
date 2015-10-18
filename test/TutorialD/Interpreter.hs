@@ -22,7 +22,6 @@ import Data.Text.Encoding as TE
 import Data.Typeable (Proxy(..))
 import Data.Text (Text)
 
---urgent: add group and ungroup tests- I missed the group relation type bug
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList tests)
