@@ -8,7 +8,6 @@ import ProjectM36.Attribute
 import Data.Text (append, Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import qualified Data.Text.Encoding as TE
 
 attributesAsHTML :: Attributes -> Text
 attributesAsHTML attrs = "<tr>" `append` (T.concat $ map oneAttrHTML attrNameList) `append` "</tr>"
