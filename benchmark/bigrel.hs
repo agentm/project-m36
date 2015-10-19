@@ -17,6 +17,7 @@ import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import System.IO
 import Control.Monad.State
+import Control.DeepSeq
 
 dumpcsv :: Relation -> IO ()
 dumpcsv rel = case relationAsCSV rel of
@@ -52,7 +53,7 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
     Right rel -> if tutd == "" then
                    putStrLn "Done."
                  else do
-                   let setx = Assign "x" (ExistingRelation rel)
+                   let setx = Assign "x" (ExistingRelation (force rel))
                        context = execState (evalContextExpr setx) dateExamples
                        interpreted = interpretDatabaseExpr context tutd
                        plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
