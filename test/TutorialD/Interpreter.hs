@@ -21,6 +21,9 @@ import qualified Data.Vector as V
 import Data.Text.Encoding as TE
 import Data.Typeable (Proxy(..))
 import Data.Text (Text)
+import Data.Time.Clock (UTCTime(..))
+import Data.Time.Calendar (fromGregorian)
+import Data.Interval (interval, Interval, Extended(Finite))
 
 main :: IO ()
 main = do
@@ -63,6 +66,7 @@ main = do
     simpleDAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" intAtomType]
     simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Text))]
     simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Int))]    
+    simpleIntervalDateTimeAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Interval UTCTime))]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" intAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" intAtomType])]
     extendTestAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
@@ -100,9 +104,13 @@ main = do
                            --test Maybe Text
                            ("x:=relation{tuple{a Just \"spam\"::maybe char}}", mkRelationFromList simpleMaybeTextAttributes [[Atom (Just "spam" :: Maybe Text)]]),
                            --test Maybe Int
-                           ("x:=relation{tuple{a Just 3::maybe int}}", mkRelationFromList simpleMaybeIntAttributes [[Atom (Just 3 :: Maybe Int)]])                           
-                           ]
-
+                           ("x:=relation{tuple{a Just 3::maybe int}}", mkRelationFromList simpleMaybeIntAttributes [[Atom (Just 3 :: Maybe Int)]]),
+                           --test datetime interval
+                           ("x:=relation{tuple{a interval_datetime((\"2015-01-01 00:00:00\",\"2016-01-01 00:00:00\"])}}", mkRelationFromList simpleIntervalDateTimeAttributes [
+                               [Atom $ interval (Finite (UTCTime (fromGregorian 2015 1 1) 0), False)
+                                                (Finite (UTCTime (fromGregorian 2016 1 1) 0), True)]
+                           ])
+                          ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
 assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted

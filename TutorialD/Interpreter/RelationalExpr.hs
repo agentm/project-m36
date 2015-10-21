@@ -17,9 +17,10 @@ import Data.Time.Format
 import Control.Applicative (liftA)
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding as TE
+import TutorialD.Interpreter.DataTypes.DateTime
+import TutorialD.Interpreter.DataTypes.Interval
 
 import Data.Time.Calendar (Day)
-import Data.Time.Clock (UTCTime)
 
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return stringAtomType) <|>
@@ -30,7 +31,7 @@ atomTypeP = (reserved "char" *> return stringAtomType) <|>
   (reserved "bool" *> return boolAtomType) <|>
   (reserved "bytestring" *> return byteStringAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
-
+  
 --used in projection
 attributeListP :: Parser AttributeNames
 attributeListP = do
@@ -231,6 +232,7 @@ nakedAtomExprP = NakedAtomExpr <$> atomP
 
 atomP :: Parser Atom
 atomP = dateTimeAtomP <|> 
+        intervalDateTimeAtomP <|>
         dateAtomP <|> 
         maybeTextAtomP <|> 
         maybeIntAtomP <|>
@@ -265,16 +267,6 @@ maybeIntAtomP = do
   maybeInt <- try $ ((Just . fromIntegral <$> (reserved "Just" *> integer)) <|>
                      (reserved "Nothing" *> return Nothing)) <* reserved "::maybe int"
   return $ Atom (maybeInt :: Maybe Int)
-
-dateTimeAtomP :: Parser Atom
-dateTimeAtomP = do
-  dateTimeString' <- try $ do
-    dateTimeString <- quotedString
-    reserved "::datetime"
-    return dateTimeString
-  case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" dateTimeString' of
-    Just utctime -> return $ Atom (utctime :: UTCTime)
-    Nothing -> fail "Failed to parse datetime"
     
 dateAtomP :: Parser Atom    
 dateAtomP = do

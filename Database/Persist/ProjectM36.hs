@@ -16,7 +16,7 @@ import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader (ask, ReaderT)
 import Control.Exception (throw, throwIO)
 import qualified Data.Text as T
-import ProjectM36.Atom
+import ProjectM36.Atom 
 import Data.Aeson (FromJSON(..), ToJSON(..), withText, withObject, (.:))
 import qualified Data.Map as M
 import Control.Monad (when)
@@ -29,7 +29,6 @@ import Control.Monad.Trans.Either
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
-import ProjectM36.RelationalExpression (unsafeCast)
 import Data.Typeable (typeRep, typeOf, Proxy(..))
 import Data.Time.Calendar (Day)
 import Data.ByteString (ByteString)

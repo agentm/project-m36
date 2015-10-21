@@ -8,6 +8,7 @@ import ProjectM36.Error
 import ProjectM36.Atom
 import ProjectM36.Key
 import ProjectM36.AtomFunction
+import ProjectM36.DataTypes.Interval
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -15,7 +16,6 @@ import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
-import Data.Typeable (cast)
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -482,19 +482,9 @@ verifyAtomExprTypes _ context (RelationAtomExpr relationExpr) expectedType = do
     (Left err, _) -> Left err
     (Right relType, _) -> atomTypeVerify expectedType (RelationAtomType (attributes relType))
 
---not safe to use without upfront type-checking
-castRelation :: Atom -> Relation
-castRelation (Atom atom) = case cast atom of
-                             Just rel -> rel
-                             Nothing -> error "castRelation failure"
-
-unsafeCast :: (Atomable a) => Atom -> a
-unsafeCast (Atom atom) = case cast atom of
-                          Just x -> x
-                          Nothing -> error "unsafeCast failed"
 
 basicAtomFunctions :: AtomFunctions
-basicAtomFunctions = HS.fromList [
+basicAtomFunctions = HS.fromList $ [
   --match on any relation type
   AtomFunction { atomFuncName = "add",
                  atomFuncType = [intAtomType, intAtomType, intAtomType],
@@ -529,7 +519,7 @@ basicAtomFunctions = HS.fromList [
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [boolAtomType, boolAtomType],
                  atomFunc = boolAtomNot}
-  ]
+  ] ++ intervalFunctions
 
 intAtomFuncLessThan :: Bool -> [Atom] -> Atom
 intAtomFuncLessThan equality (iatom1:iatom2:_) = (\i1 i2 -> Atom $ ((unsafeCast i1)::Int) `op` unsafeCast i2) iatom1 iatom2

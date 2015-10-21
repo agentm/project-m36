@@ -68,3 +68,13 @@ stringAtom t = Atom t
 intAtom :: Int -> Atom
 intAtom i = Atom i
 
+--not safe to use without upfront type-checking
+castRelation :: Atom -> Relation
+castRelation (Atom atom) = case cast atom of
+                             Just rel -> rel
+                             Nothing -> error "castRelation failure"
+
+unsafeCast :: (Atomable a) => Atom -> a
+unsafeCast (Atom atom) = case cast atom of
+                          Just x -> x
+                          Nothing -> error "unsafeCast failed"

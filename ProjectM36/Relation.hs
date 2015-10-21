@@ -14,6 +14,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Error
 import qualified Data.Text as T
 import qualified Control.Parallel.Strategies as P
+import Data.Either (isRight)
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -42,6 +43,15 @@ mkRelation attrs tupleSet = do
   case verifyTupleSet attrs tupleSet of
     Left err -> Left err
     Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
+    
+--less safe version of mkRelation skips verifyTupleSet
+--useful for infinite or thunked tuple sets
+--instead of returning a Left RelationalError, if a tuple does not match the relation's attributes, the tuple is simply removed
+--duplicate tuples are NOT filtered by this creation method
+mkRelationDeferVerify :: Attributes -> RelationTupleSet -> Either RelationalError Relation
+mkRelationDeferVerify attrs tupleSet = return $ Relation attrs (RelationTupleSet (filter tupleFilter (asList tupleSet)))
+  where
+    tupleFilter tuple = isRight (verifyTuple attrs tuple)
 
 mkRelationFromTuples :: Attributes -> [RelationTuple] -> Either RelationalError Relation
 mkRelationFromTuples attrs tupleSetList = do
@@ -257,7 +267,7 @@ matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) intAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> Atom tupleX))
       tuples = map (\c -> tuple c) [0 .. tupleCount]
-  mkRelationFromTuples attrs tuples
+  mkRelationDeferVerify attrs (RelationTupleSet tuples)
 
 
 castInt :: Atom -> Int

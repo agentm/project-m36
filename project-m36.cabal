@@ -39,6 +39,8 @@ Library
                    ,attoparsec
                    ,either
                    ,base64-bytestring
+                   ,data-interval
+                   ,extended-reals
 --required for persistent db driver
                    ,persistent 
                    ,persistent-template
@@ -81,7 +83,9 @@ Executable tutd
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseExpr,
                    TutorialD.Interpreter.RODatabaseContextOperator,
-                   TutorialD.Interpreter.TransactionGraphOperator
+                   TutorialD.Interpreter.TransactionGraphOperator,
+                   TutorialD.Interpreter.DataTypes.Interval,
+                   TutorialD.Interpreter.DataTypes.DateTime
     main-is: TutorialD/tutd.hs
     GHC-Options: -Wall
 
