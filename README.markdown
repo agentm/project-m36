@@ -46,6 +46,7 @@ Other modules include:
 
 * displaying a relation as HTML
 * displaying a relation in the terminal
+* displaying a relation using gnuplot
 * relational expression static optimizer
 * relational expression cost-based optimizer
 * relational error enumeration
