@@ -5,8 +5,8 @@ import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.Base
+import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)
 import System.Directory
-import System.Posix.Files
 import System.FilePath
 import System.IO.Temp
 import Data.List
@@ -18,11 +18,11 @@ import Control.Monad (foldM)
 import Data.Either (isRight)
 import Data.Maybe (catMaybes)
 
-
 {-
 The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of UUIDs referencing their parents (1 or more)
 Each Transaction is written to it own directory named by its UUID. Partially written transactions UUIDs are prefixed with a "." to indicate incompleteness in the graph.
 
+Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
 
 transactionLogPath :: FilePath -> FilePath
@@ -36,14 +36,14 @@ verify that the database directory is valid or bootstrap it
 -note: checking for the existence of every transaction may be prohibitively expensive
 -}
 
-setupDatabaseDir :: FilePath -> TransactionGraph -> IO (Maybe PersistenceError)
-setupDatabaseDir dbdir bootstrapGraph = do
+setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Maybe PersistenceError)
+setupDatabaseDir sync dbdir bootstrapGraph = do
   dbdirExists <- doesDirectoryExist dbdir
   m36exists <- doesFileExist (transactionLogPath dbdir)  
   if dbdirExists && m36exists then
     return Nothing
     else if not m36exists then do
-           bootstrapDatabaseDir dbdir bootstrapGraph
+           bootstrapDatabaseDir sync dbdir bootstrapGraph
            return Nothing
          else
            return $ Just (InvalidDirectoryError dbdir)
@@ -51,10 +51,10 @@ setupDatabaseDir dbdir bootstrapGraph = do
 {- 
 initialize a database directory with the graph from which to bootstrap
 -}
-bootstrapDatabaseDir :: FilePath -> TransactionGraph -> IO ()
-bootstrapDatabaseDir dbdir bootstrapGraph = do
+bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
-  transactionGraphPersist dbdir bootstrapGraph
+  transactionGraphPersist sync dbdir bootstrapGraph
   putStrLn "Bootstrapped DB."
 
 
@@ -65,26 +65,26 @@ incrementally updates an existing database directory
 -assume that all non-head transactions have already been written because this is an incremental (and concurrent!) write method
 --store the head names with a symlink to the transaction under "heads"
 -}
-transactionGraphPersist :: FilePath -> TransactionGraph -> IO ()
-transactionGraphPersist destDirectory graph = do
-  mapM_ (writeTransaction destDirectory) $ M.elems (transactionHeadsForGraph graph)
-  writeGraphUUIDFile destDirectory graph
-  transactionGraphHeadsPersist destDirectory graph
+transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+transactionGraphPersist sync destDirectory graph = do
+  mapM_ (writeTransaction sync destDirectory) $ M.elems (transactionHeadsForGraph graph)
+  writeGraphUUIDFile sync destDirectory graph
+  transactionGraphHeadsPersist sync destDirectory graph
   return ()
   
 {- 
 write graph heads to a file which can be atomically swapped
 -}
 --writing the heads in a directory is a synchronization nightmare, so just write the binary to a file and swap atomically
-transactionGraphHeadsPersist :: FilePath -> TransactionGraph -> IO ()
-transactionGraphHeadsPersist dbdir graph = do
+transactionGraphHeadsPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+transactionGraphHeadsPersist sync dbdir graph = do
   let headFileStr :: (HeadName, Transaction) -> String
       headFileStr (headName, trans) =  T.unpack headName ++ " " ++ U.toString (transactionUUID trans)
   withTempDirectory dbdir ".heads.tmp" $ \tempHeadsDir -> do
     let tempHeadsPath = tempHeadsDir </> "heads"
         headsStrLines = map headFileStr $ M.toList (transactionHeadsForGraph graph)
-    writeFile tempHeadsPath $ intercalate "\n" headsStrLines
-    rename tempHeadsPath (headsPath dbdir)
+    writeFileSync sync tempHeadsPath $ intercalate "\n" headsStrLines
+    renameSync sync tempHeadsPath (headsPath dbdir)
                                                              
 transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,U.UUID)]
 transactionGraphHeadsLoad dbdir = do
@@ -133,8 +133,8 @@ readTransactionIfNecessary dbdir transUUID graphIn = do
       Left err -> return $ Left err
       Right trans' -> return $ Right $ TransactionGraph (transactionHeadsForGraph graphIn) (S.insert trans' (transactionsForGraph graphIn))
   
-writeGraphUUIDFile :: FilePath -> TransactionGraph -> IO ()
-writeGraphUUIDFile destDirectory (TransactionGraph _ transSet) = writeFile graphFile uuidInfo 
+writeGraphUUIDFile :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+writeGraphUUIDFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo 
   where
     graphFile = destDirectory </> "m36v1"
     uuidInfo = intercalate "\n" graphLines

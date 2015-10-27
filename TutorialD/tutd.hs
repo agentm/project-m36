@@ -17,17 +17,19 @@ parseArgs :: Parser InterpreterConfig
 parseArgs = InterpreterConfig <$> parsePersistenceStrategy
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
-parsePersistenceStrategy = do
-  MinimalPersistence <$> strOption (short 'd' <> 
-                                    long "database-directory" <> 
-                                    metavar "DIRECTORY" <>
-                                    showDefaultWith show
-                                   )
-    <|> pure NoPersistence
+parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
+                           MinimalPersistence <$> dbdirOpt <|>
+                           pure NoPersistence
+  where 
+    dbdirOpt = strOption (short 'd' <> 
+                          long "database-directory" <> 
+                          metavar "DIRECTORY" <>
+                          showDefaultWith show
+                         )
+    fsyncOpt = switch (short 'f' <>
+                    long "fsync" <>
+                    help "Fsync all new transactions.")
 
-     
-       
-                           
 opts :: ParserInfo InterpreterConfig            
 opts = info parseArgs idm
                            

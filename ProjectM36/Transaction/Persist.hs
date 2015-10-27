@@ -1,6 +1,7 @@
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.UUID as U
@@ -53,8 +54,8 @@ readTransaction dbdir transUUID = do
     
     return $ Right $ Transaction transUUID transInfo newContext
         
-writeTransaction :: FilePath -> Transaction -> IO ()
-writeTransaction dbdir trans = do
+writeTransaction :: DiskSync -> FilePath -> Transaction -> IO ()
+writeTransaction sync dbdir trans = do
   let tempTransDir = tempTransactionDir dbdir (transactionUUID trans)
       finalTransDir = transactionDir dbdir (transactionUUID trans)
       context = transactionContext trans
@@ -62,22 +63,22 @@ writeTransaction dbdir trans = do
   if not transDirExists then do
     --create sub directories
     mapM_ createDirectory [tempTransDir, relvarsDir tempTransDir, incDepsDir tempTransDir, atomFuncsDir tempTransDir]
-    writeRelVars tempTransDir (relationVariables context)
-    writeIncDeps tempTransDir (inclusionDependencies context)
-    writeAtomFuncs tempTransDir (atomFunctions context)
+    writeRelVars sync tempTransDir (relationVariables context)
+    writeIncDeps sync tempTransDir (inclusionDependencies context)
+    writeAtomFuncs sync tempTransDir (atomFunctions context)
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
-    renameDirectory tempTransDir finalTransDir
+    renameSync sync tempTransDir finalTransDir
     else
       return ()
   
-writeRelVar :: FilePath -> (RelVarName, Relation) -> IO ()
-writeRelVar transDir (relvarName, rel) = do
+writeRelVar :: DiskSync -> FilePath -> (RelVarName, Relation) -> IO ()
+writeRelVar sync transDir (relvarName, rel) = do
   let relvarPath = relvarsDir transDir </> T.unpack relvarName
-  BS.writeFile relvarPath (B.encode rel)
+  writeBSFileSync sync relvarPath (B.encode rel)
   
-writeRelVars :: FilePath -> (M.Map RelVarName Relation) -> IO ()
-writeRelVars transDir relvars = mapM_ (writeRelVar transDir) $ M.toList relvars
+writeRelVars :: DiskSync -> FilePath -> (M.Map RelVarName Relation) -> IO ()
+writeRelVars sync transDir relvars = mapM_ (writeRelVar sync transDir) $ M.toList relvars
     
 readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
 readRelVars transDir = do
@@ -88,8 +89,8 @@ readRelVars transDir = do
                       return (T.pack name, rel)) relvarNames
   return $ M.fromList relvars
 
-writeAtomFuncs :: FilePath -> AtomFunctions -> IO ()
-writeAtomFuncs transDir funcs = mapM_ (writeAtomFunc transDir) $ HS.toList funcs
+writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
+writeAtomFuncs sync transDir funcs = mapM_ (writeAtomFunc sync transDir) $ HS.toList funcs
 
 --all the atom functions are in one file (???)
 readAtomFuncs :: FilePath -> IO (AtomFunctions)
@@ -99,10 +100,10 @@ readAtomFuncs transDir = do
   return $ HS.fromList funcs
   
 --to write the atom functions, we really some bytecode to write (GHCi bytecode?)
-writeAtomFunc :: FilePath -> AtomFunction -> IO ()
-writeAtomFunc transDir func = do
+writeAtomFunc :: DiskSync -> FilePath -> AtomFunction -> IO ()
+writeAtomFunc sync transDir func = do
   let atomFuncPath = atomFuncsDir transDir </> T.unpack (atomFuncName func)
-  BS.writeFile atomFuncPath BS.empty
+  writeBSFileSync sync atomFuncPath BS.empty
   
 readAtomFunc :: FilePath -> AtomFunctionName -> IO (AtomFunction)
 readAtomFunc transDir funcName = do
@@ -110,12 +111,12 @@ readAtomFunc transDir funcName = do
   _ <- BS.readFile atomFuncPath
   return undefined
   
-writeIncDep :: FilePath -> (IncDepName, InclusionDependency) -> IO ()  
-writeIncDep transDir (incDepName, incDep) = do
-  BS.writeFile (incDepsDir transDir </> T.unpack incDepName) $ B.encode incDep
+writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
+writeIncDep sync transDir (incDepName, incDep) = do
+  writeBSFileSync sync (incDepsDir transDir </> T.unpack incDepName) $ B.encode incDep
   
-writeIncDeps :: FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
-writeIncDeps transDir incdeps = mapM_ (writeIncDep transDir) $ M.toList incdeps 
+writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
+writeIncDeps sync transDir incdeps = mapM_ (writeIncDep sync transDir) $ M.toList incdeps 
   
 readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
 readIncDep transDir incdepName = do

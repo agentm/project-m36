@@ -33,6 +33,7 @@ import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
+import ProjectM36.Persist (DiskSync(..))
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
@@ -65,17 +66,26 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
     NoPersistence -> do
         tvar <- newTVarIO (freshDiscon, freshGraph)
         return $ Right $ InProcessConnection strat tvar
-    MinimalPersistence dbdir -> do
-      err <- setupDatabaseDir dbdir freshGraph 
-      case err of
-        Just err' -> return $ Left (SetupDatabaseDirectoryError err')
-        Nothing -> do 
-          graph <- transactionGraphLoad dbdir emptyTransactionGraph
-          case graph of
-            Left err' -> return $ Left (SetupDatabaseDirectoryError err')
-            Right graph' -> do
-              tvar <- newTVarIO (freshDiscon, graph')
-              return $ Right $ InProcessConnection strat tvar
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshDiscon freshGraph
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshDiscon freshGraph
+      
+connectPersistentProjectM36 :: PersistenceStrategy ->
+                               DiskSync ->
+                               FilePath -> 
+                               DisconnectedTransaction -> 
+                               TransactionGraph -> 
+                               IO (Either ConnectionError Connection)      
+connectPersistentProjectM36 strat sync dbdir freshDiscon freshGraph = do
+  err <- setupDatabaseDir sync dbdir freshGraph 
+  case err of
+    Just err' -> return $ Left (SetupDatabaseDirectoryError err')
+    Nothing -> do 
+      graph <- transactionGraphLoad dbdir emptyTransactionGraph
+      case graph of
+        Left err' -> return $ Left (SetupDatabaseDirectoryError err')
+        Right graph' -> do
+          tvar <- newTVarIO (freshDiscon, graph')
+          return $ Right $ InProcessConnection strat tvar              
               
 disconnectedTransaction :: Connection -> IO (DisconnectedTransaction)
 disconnectedTransaction (InProcessConnection _ tvar) = liftM fst (readTVarIO tvar)
@@ -127,4 +137,5 @@ rollback conn = executeGraphExpr conn Rollback
 
 processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
 processPersistence NoPersistence _ = return ()
-processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist dbdir graph
+processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph
+processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph
