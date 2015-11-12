@@ -3,11 +3,16 @@ Version: 0.1
 License: PublicDomain
 Build-Type: Simple
 Homepage: https://github.com/agentm/project-m36
+Bug-Reports: https://github.com/agentm/project-m36/issues
+Author: AgentM
+Stability: experimental
 Category: Relational Algebra
-Cabal-Version: >= 1.2
+Cabal-Version: >= 1.10
+Synopsis: Relational Algebra Engine
+Description: A relational algebra engine which can be used to persist and query Haskell data types.
 
 Library
-    Build-Depends: base>=4.8
+    Build-Depends: base>=4.8 && < 4.9
                    ,mtl
                    ,containers
                    ,unordered-containers
@@ -74,9 +79,10 @@ Library
                      Database.Persist.ProjectM36
     GHC-Options: -Wall -rtsopts
     C-sources: ProjectM36/DirectoryFsync.c
+    Default-Language: Haskell2010
 
 Executable tutd
-    Build-Depends: base
+    Build-Depends: base, project-m36
     Other-Modules: ProjectM36.Error,
                    ProjectM36.Base,
                    ProjectM36.RelationalExpression,
@@ -91,8 +97,48 @@ Executable tutd
     main-is: TutorialD/tutd.hs
     GHC-Options: -Wall
     C-sources: ProjectM36/DirectoryFsync.c
+    Default-Language: Haskell2010
+
+Executable daemon
+    Build-Depends: project-m36, 
+                   base >=4.8 && <4.9, 
+                   distributed-process-client-server, 
+                   distributed-process-extras, 
+                   distributed-process-async, 
+                   distributed-process, 
+                   network-transport-tcp, 
+                   distributed-process,
+                   binary,
+                   transformers,
+                   temporary,
+                   unix,
+                   data-interval,
+                   deepseq,
+                   uuid,
+                   stm,
+                   filepath,
+                   directory,
+                   parallel,
+                   bytestring,
+                   optparse-applicative,
+                   hashable-time,
+                   time,
+                   vector-binary-instances,
+                   text,
+                   deepseq-generics,
+                   mtl,
+                   containers,
+                   hashable,
+                   unordered-containers,
+                   vector
+    Main-Is: ProjectM36/Daemon/Main.hs
+    GHC-Options: -Wall -threaded -rtsopts
+    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    Default-Language: Haskell2010
+
 
 Executable bigrel
+    Default-Language: Haskell2010
     Build-Depends: base,deepseq,optparse-applicative
     Other-Modules: ProjectM36.Base,
                    ProjectM36.Relation
@@ -104,6 +150,7 @@ Executable bigrel
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
 Test-Suite test-tutoriald
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter.hs
     Build-Depends: base,HUnit,Cabal
@@ -111,18 +158,21 @@ Test-Suite test-tutoriald
     C-sources: ProjectM36/DirectoryFsync.c
 
 Test-Suite test-relation
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Basic.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
 Test-Suite test-static-optimizer
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
 Test-Suite test-transactiongraph-persist
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Persist.hs
     Build-Depends: base,HUnit,Cabal
@@ -130,24 +180,28 @@ Test-Suite test-transactiongraph-persist
     C-sources: ProjectM36/DirectoryFsync.c
 
 Test-Suite test-relation-import-csv
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Import/CSV.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
 Test-Suite test-tutoriald-import-tutoriald
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
 Test-Suite test-relation-export-csv
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
     Build-Depends: base,HUnit,Cabal
     GHC-Options: -Wall
 
 Test-Suite test-persistent-driver
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
     Build-Depends: base,HUnit,Cabal,template-haskell
@@ -155,6 +209,7 @@ Test-Suite test-persistent-driver
     C-sources: ProjectM36/DirectoryFsync.c
 
 benchmark bench
+    Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
     build-depends: base,criterion

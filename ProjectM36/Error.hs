@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
 import qualified Data.Set as S
@@ -7,7 +7,7 @@ import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Text as T
-
+import Data.Binary
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -38,7 +38,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
-                       deriving (Show,Eq,Generic) 
+                       deriving (Show,Eq,Generic,Binary) 
 
 instance NFData RelationalError where rnf = genericRnf
                                       
