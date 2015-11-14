@@ -22,6 +22,7 @@ import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
+import Data.UUID (UUID)
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -43,8 +44,8 @@ interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eo
                      liftM ImportOp ((importCSVP <|> tutdImportP) <* eof) <|>
                      liftM ExportOp (exportCSVP <* eof)
 
-promptText :: DisconnectedTransaction -> TransactionGraph -> StringType
-promptText (DisconnectedTransaction parentUUID _) graph = "TutorialD (" `T.append` transInfo `T.append` "): "
+promptText :: UUID -> TransactionGraph -> StringType
+promptText parentUUID graph = "TutorialD (" `T.append` transInfo `T.append` "): "
   where
     transInfo = case transactionForUUID parentUUID graph of
       Left _ -> "unknown"
@@ -62,7 +63,7 @@ evalTutorialD conn expr = case expr of
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
   (RODatabaseContextOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn
+    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
     return $ evalRODatabaseContextOp context execOp
     
   (DatabaseExprOp execOp) -> do 
@@ -78,21 +79,21 @@ evalTutorialD conn expr = case expr of
       Nothing -> return QuietSuccessResult
 
   (ROGraphOp execOp) -> do
-    discon <- disconnectedTransaction conn
+    discon <- disconnectedTransaction conn -- !
     graph <- transactionGraph conn
     case evalROGraphOp discon graph execOp of
       Left err -> barf err
       Right rel -> return $ DisplayResult $ showRelation rel
       
   (ImportOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn
+    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
     exprErr <- evalDataImportOperator execOp context
     case exprErr of
       Left err -> barf err
       Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)
       
   (ExportOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn
+    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
     exprErr <- evalDataExportOperator execOp context
     case exprErr of
       Just err -> barf err
@@ -109,9 +110,9 @@ reprLoop :: InterpreterConfig -> Connection -> IO ()
 reprLoop config conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  discon <- disconnectedTransaction conn
+  (DisconnectedTransaction parentUUID _) <- disconnectedTransaction conn
   graph <- transactionGraph conn
-  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText discon graph))
+  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText parentUUID graph))
   case maybeLine of
     Nothing -> return ()
     Just line -> do

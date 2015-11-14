@@ -46,6 +46,7 @@ Library
                    ,base64-bytestring
                    ,data-interval
                    ,extended-reals
+                   ,network-transport
 --required for persistent db driver
                    ,persistent 
                    ,persistent-template
@@ -53,6 +54,14 @@ Library
                    ,path-pieces
                    ,conduit
                    ,resourcet
+--needed for remote access                   
+                   ,distributed-process-client-server
+                   ,distributed-process-extras
+                   ,distributed-process-async
+                   ,distributed-process
+                   ,network-transport-tcp
+                   ,network-transport
+                   ,distributed-process
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -82,7 +91,43 @@ Library
     Default-Language: Haskell2010
 
 Executable tutd
-    Build-Depends: base, project-m36
+    Build-Depends: base >=4.8 && <4.9, 
+                   project-m36,
+                   containers,
+                   unordered-containers,
+                   hashable,
+                   mtl,
+                   uuid,
+                   deepseq-generics,
+                   vector,
+                   text,
+                   vector-binary-instances,
+                   time,
+                   hashable-time,
+                   bytestring,
+                   distributed-process-client-server,
+                   distributed-process-extras,
+                   distributed-process-async,
+                   distributed-process,
+                   network-transport-tcp,
+                   network-transport,
+                   distributed-process,
+                   stm,
+                   deepseq,
+                   binary,
+                   data-interval,
+                   unix,
+                   parallel,
+                   cassava,
+                   gnuplot,
+                   directory,
+                   filepath,
+                   temporary,
+                   parsec,
+                   haskeline,
+                   base64-bytestring,
+                   optparse-applicative,
+                   attoparsec
     Other-Modules: ProjectM36.Error,
                    ProjectM36.Base,
                    ProjectM36.RelationalExpression,
@@ -101,12 +146,12 @@ Executable tutd
 
 Executable daemon
     Build-Depends: project-m36, 
-                   base >=4.8 && <4.9, 
                    distributed-process-client-server, 
                    distributed-process-extras, 
                    distributed-process-async, 
                    distributed-process, 
                    network-transport-tcp, 
+                   network-transport,
                    distributed-process,
                    binary,
                    transformers,

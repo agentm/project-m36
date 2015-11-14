@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 import ProjectM36.Client
 import ProjectM36.Daemon.ParseArgs (parseConfig, persistenceStrategy)
-import ProjectM36.Daemon.EndPoints (handleExecuteRelationalExpr)
+import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleLogin)
+import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
 
 import System.Exit (exitFailure, exitSuccess)
 import Control.Concurrent (threadDelay)
@@ -17,7 +18,9 @@ import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 
 serverDefinition :: ProcessDefinition Connection
 serverDefinition = defaultProcess {
-  apiHandlers = [handleCall (\conn (expr :: RelationalExpr) -> handleExecuteRelationalExpr conn expr)],
+  apiHandlers = [handleCall (\conn Login -> handleLogin conn),
+                 handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr)
+                 ],
   unhandledMessagePolicy = Drop
   }
                  
