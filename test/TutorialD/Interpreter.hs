@@ -9,6 +9,7 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.Base
+import qualified ProjectM36.Base as Base
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.Atom
@@ -24,6 +25,7 @@ import Data.Text (Text)
 import Data.Time.Clock (UTCTime(..))
 import Data.Time.Calendar (fromGregorian)
 import Data.Interval (interval, Interval, Extended(Finite))
+import Control.Concurrent.STM
 
 main :: IO ()
 main = do
@@ -131,7 +133,7 @@ transactionGraphBasicTest = TestCase $ do
 transactionGraphAddCommitTest :: Test
 transactionGraphAddCommitTest = TestCase $ do
   dbconn <- dateExamplesConnection
-  case parseTutorialD dbconn "x:=S" of
+  case parseTutorialD "x:=S" of
     Left err -> assertFailure (show err)
     Right parsed -> do 
       result <- evalTutorialD dbconn parsed
@@ -218,17 +220,35 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP
                                               [stringAtom "London", intAtom 200, stringAtom "P4", stringAtom "S1", stringAtom "Smith", intAtom 20],
                                               [stringAtom "London", intAtom 200, stringAtom "P2", stringAtom "S4", stringAtom "Clark", intAtom 20]
                                               ]
+transactionGraph :: Connection -> IO TransactionGraph
+transactionGraph (InProcessConnection _ tvar) = atomically $ do
+  (_, graph) <- readTVar tvar
+  pure graph
+transactionGraph _ = error "remote connection used"
 
+disconnectedTransaction :: Connection -> IO DisconnectedTransaction
+disconnectedTransaction (InProcessConnection _ tvar) = atomically $ do
+  (discon, _) <- readTVar tvar
+  pure discon
+disconnectedTransaction _ = error "remote connection used"
+
+{-
+inclusionDependencies :: Connection -> M.Map IncDepName InclusionDependency
+inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) = inclusionDependencies context
+inclusionDependencies _ = error "remote connection used"                       
+-}
+                           
 dateExamplesConnection :: IO (Connection)
 dateExamplesConnection = do
   dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
+  let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> do
       hPutStrLn stderr (show err)
       exitFailure
     Right conn -> do
       mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr conn (Assign rvName (ExistingRelation rvRel))) (M.toList (relationVariables dateExamples))
-      mapM_ (\(idName,incDep) -> executeDatabaseContextExpr conn (AddInclusionDependency idName incDep)) (M.toList (inclusionDependencies dateExamples))
+      mapM_ (\(idName,incDep) -> executeDatabaseContextExpr conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
       --skipping atom functions for now- there are no atom function manipulation operators yet
       commit conn >>= maybeFail
       return conn 

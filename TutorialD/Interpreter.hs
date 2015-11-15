@@ -35,7 +35,7 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
-                       ExportOp DataExportOperator
+                       RelVarExportOp RelVarDataExportOperator
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
@@ -44,7 +44,7 @@ interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eo
                      liftM DatabaseExprOp (databaseExprOpP <* eof) <|>
                      liftM ImportRelVarOp (importCSVP <* eof) <|>
                      liftM ImportDBContextOp (tutdImportP <* eof) <|>
-                     liftM ExportOp (exportCSVP <* eof)
+                     liftM RelVarExportOp (exportCSVP <* eof)
 
 promptText :: Maybe HeadName -> StringType
 promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
@@ -99,14 +99,16 @@ evalTutorialD conn expr = case expr of
       Left err -> barf err
       Right dbexprs -> evalTutorialD conn (DatabaseExprOp dbexprs)
       
-  (ExportOp execOp) -> do
-    evalDataExportOperator execOp
-{-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
-    exprErr <- evalDataExportOperator execOp context
-    case exprErr of
-      Just err -> barf err
-      Nothing -> return QuietSuccessResult-}
-        
+  (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
+    --eval relexpr to relation and pass to export function
+    eRel <- C.executeRelationalExpr conn relExpr
+    case eRel of
+      Left err -> barf err
+      Right rel -> do
+        exportResult <- evalRelVarDataExportOperator execOp rel
+        case exportResult of
+          Just err -> barf err
+          Nothing -> pure QuietSuccessResult
   where
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
