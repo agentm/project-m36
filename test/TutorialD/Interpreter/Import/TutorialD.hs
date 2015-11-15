@@ -6,10 +6,8 @@ import qualified ProjectM36.Attribute as A
 import TutorialD.Interpreter.Import.TutorialD
 import System.Exit
 import System.IO.Temp
-import qualified ProjectM36.DatabaseContext as DC
 import qualified Data.Vector as V
 import System.IO
-
 
 main :: IO ()
 main = do 
@@ -23,5 +21,5 @@ testTutdImport = TestCase $ do
     hClose handle
     let expectedExpr = MultipleExpr [Assign "x" (ExistingRelation (Relation expectedAttrs $ RelationTupleSet [RelationTuple expectedAttrs $ V.fromList [intAtom 5, stringAtom "spam"]]))]
         expectedAttrs = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" stringAtomType]
-    imported <- importTutorialD tempPath DC.empty  
+    imported <- importTutorialD tempPath
     assertEqual "import tutd" (Right expectedExpr) imported
