@@ -11,8 +11,8 @@ import qualified Data.Text as T
 import Control.Exception
 --import a file containing TutorialD database context expressions
 
-importTutorialD :: FilePath -> DatabaseContext -> IO (Either RelationalError DatabaseExpr)
-importTutorialD pathIn _ = do
+importTutorialD :: FilePath -> IO (Either RelationalError DatabaseExpr)
+importTutorialD pathIn = do
   tutdData <- try (readFile pathIn) :: IO (Either IOError String)
   case tutdData of 
     Left err -> return $ Left (ImportError $ T.pack (show err))
@@ -23,9 +23,9 @@ importTutorialD pathIn _ = do
         err2:_ -> return $ Left (ParseError (T.pack (show err2)))
         [] -> return $ Right (MultipleExpr (rights dbexprsErr))
 
-tutdImportP :: Parser DataImportOperator
+tutdImportP :: Parser DatabaseContextDataImportOperator
 tutdImportP = do
   reserved ":importtutd" 
   path <- quotedString
   whiteSpace
-  return $ DataImportOperator path importTutorialD
+  return $ DatabaseContextDataImportOperator path importTutorialD

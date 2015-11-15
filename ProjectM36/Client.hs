@@ -7,15 +7,20 @@ module ProjectM36.Client
        DatabaseName,
        ConnectionError,
        connectProjectM36,
---       disconnectedTransaction,
---       transactionGraph,
        close,
        executeRelationalExpr,
        executeDatabaseContextExpr,
        executeGraphExpr,
        commit,
        rollback,
+       typeForRelationalExpr,
+       inclusionDependencies,
+       planForDatabaseContextExpr,
+       attributesForRelationalExpr,
        processPersistence,
+       transactionGraphAsRelation,
+       headName,
+       headTransactionUUID,
        PersistenceStrategy(..),
        RelationalExpr(..),
        DatabaseExpr(..),
@@ -25,11 +30,14 @@ module ProjectM36.Client
        Atomable,
        Atom(..),
        AtomType(..)) where
-import ProjectM36.Base
+import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
+import qualified ProjectM36.Base as B
 import ProjectM36.Error
+import ProjectM36.Relation
+import ProjectM36.StaticOptimizer
 import Control.Monad.State
 import ProjectM36.Transaction
-import ProjectM36.RelationalExpression
+import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
@@ -41,12 +49,14 @@ import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call)
 import Control.Distributed.Process (NodeId(..))
 
+import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
+import qualified Data.Map as M
 
 type Hostname = StringType
 
@@ -81,7 +91,7 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat) = do
   freshUUID <- nextRandom
-  let bootstrapContext = basicDatabaseContext
+  let bootstrapContext = RE.basicDatabaseContext
       freshDiscon = newDisconnectedTransaction freshUUID bootstrapContext
       freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
   case strat of
@@ -129,15 +139,6 @@ connectPersistentProjectM36 strat sync dbdir freshDiscon freshGraph = do
           tvar <- newTVarIO (freshDiscon, graph')
           return $ Right $ InProcessConnection strat tvar              
               
-{-
--- if these are operated remotely, they are too expensive- keep the working space (discon) on the server
-disconnectedTransaction :: Connection -> IO (DisconnectedTransaction)
-disconnectedTransaction (InProcessConnection _ tvar) = liftM fst (readTVarIO tvar)
-
-transactionGraph :: Connection -> IO (TransactionGraph)
-transactionGraph (InProcessConnection _ tvar) = liftM snd (readTVarIO tvar)
--}
-                       
 close :: Connection -> IO ()
 close (InProcessConnection _ _) = pure ()
 close (RemoteProcessConnection serverProcessId) = do
@@ -152,12 +153,12 @@ close (RemoteProcessConnection serverProcessId) = do
 executeRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr (InProcessConnection _ tvar) expr = atomically $ do
   ((DisconnectedTransaction _ context), _) <- readTVar tvar
-  return $ evalState (evalRelationalExpr expr) context
+  return $ evalState (RE.evalRelationalExpr expr) context
   
 executeDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
   ((DisconnectedTransaction parentUUID context), graph) <- readTVar tvar
-  case runState (evalContextExpr expr) context of
+  case runState (RE.evalContextExpr expr) context of
        (Just err,_) -> return $ Just err
        (Nothing, context') -> do
          let newDiscon = DisconnectedTransaction parentUUID context'
@@ -192,3 +193,55 @@ processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
 processPersistence NoPersistence _ = return ()
 processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph
 processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph
+
+typeForRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
+typeForRelationalExpr conn@(InProcessConnection _ _) relExpr = atomically $ typeForRelationalExprSTM conn relExpr
+    
+typeForRelationalExprSTM :: Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
+typeForRelationalExprSTM (InProcessConnection _ tvar) relExpr = do
+  (DisconnectedTransaction _ context, _) <- readTVar tvar
+  pure $ evalState (RE.typeForRelationalExpr relExpr) context
+
+inclusionDependencies :: Connection -> IO (M.Map IncDepName InclusionDependency)
+inclusionDependencies (InProcessConnection _ tvar) = do
+  atomically $ do
+    ((DisconnectedTransaction _ context), _) <- readTVar tvar
+    pure (B.inclusionDependencies context)
+  
+planForDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
+planForDatabaseContextExpr (InProcessConnection _ tvar) dbExpr = do
+  atomically $ do
+    ((DisconnectedTransaction _ context), _) <- readTVar tvar
+    pure $ evalState (applyStaticDatabaseOptimization dbExpr) context
+             
+transactionGraphAsRelation :: Connection -> IO (Either RelationalError Relation)
+transactionGraphAsRelation (InProcessConnection _ tvar) = do
+  atomically $ do
+    (discon, graph) <- readTVar tvar
+    pure $ graphAsRelation discon graph
+  
+attributesForRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Attributes)  
+attributesForRelationalExpr conn relExpr = atomically $ do
+  eRelType <- typeForRelationalExprSTM conn relExpr
+  pure $ case eRelType of
+    Left err -> Left err
+    Right relType -> Right $ attributes relType
+ 
+-- | Returns the UUID for the connection's disconnected transaction committed parent transaction.  
+headTransactionUUID :: Connection -> IO (UUID)
+headTransactionUUID (InProcessConnection _ tvar) = do 
+  atomically $ do
+    (DisconnectedTransaction parentUUID _, _) <- readTVar tvar
+    pure parentUUID
+    
+-- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
+headName :: Connection -> IO (Maybe HeadName)
+headName (InProcessConnection _ tvar) = do
+  atomically $ do
+    (DisconnectedTransaction parentUUID _, graph) <- readTVar tvar
+    pure $ case transactionForUUID parentUUID graph of
+      Left _ -> Nothing
+      Right parentTrans -> headNameForTransaction parentTrans graph
+
+                                                        
+  

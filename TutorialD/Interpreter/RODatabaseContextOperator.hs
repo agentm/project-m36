@@ -1,9 +1,7 @@
 {-# LANGUAGE GADTs,OverloadedStrings #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
-import ProjectM36.Relation
-import ProjectM36.RelationalExpression
-import ProjectM36.StaticOptimizer
+import qualified ProjectM36.Client as C
 import Text.Parsec
 import Text.Parsec.String
 import TutorialD.Interpreter.Base
@@ -69,42 +67,47 @@ roDatabaseContextOperatorP = typeP
              <|> showPlanP
              <|> quitP
 
-evalRODatabaseContextOp :: DatabaseContext -> RODatabaseContextOperator -> TutorialDOperatorResult
-evalRODatabaseContextOp context (ShowRelationType expr) = case runState (typeForRelationalExpr expr) context of
-  (Right rel, _) -> DisplayResult $ showRelationAttributes (attributes rel)
-  (Left err, _) -> DisplayErrorResult $ T.pack (show err)
+--logically, these read-only operations could happen purely, but not if a remote call is required
+evalRODatabaseContextOp :: C.Connection -> RODatabaseContextOperator -> IO TutorialDOperatorResult
+evalRODatabaseContextOp conn (ShowRelationType expr) = do
+  res <- C.typeForRelationalExpr conn expr
+  case res of
+    Left err -> pure $ DisplayErrorResult $ T.pack (show err)
+    Right rel -> pure $ DisplayResult $ showRelation rel
 
-evalRODatabaseContextOp context (ShowRelation expr) = do
-  case runState (evalRelationalExpr expr) context of
-    (Left err, _) -> DisplayErrorResult $ T.pack (show err)
-    (Right rel, _) -> DisplayResult $ showRelation rel
+evalRODatabaseContextOp conn (ShowRelation expr) = do
+  res <- C.executeRelationalExpr conn expr
+  case res of
+    Left err -> pure $ DisplayErrorResult $ T.pack (show err)
+    Right rel -> pure $ DisplayResult $ showRelation rel
     
-evalRODatabaseContextOp context (PlotRelation expr) = case runState (evalRelationalExpr expr) context of
-  (Left err, _) -> DisplayErrorResult $ T.pack (show err)
---(Right rel, _) -> DisplayIOResult $ showPlottedRelation rel
-  (Right rel, _) -> DisplayIOResult $ do
-    err <- plotRelation rel
-    when (isJust err) $ putStrLn (show err)
+evalRODatabaseContextOp conn (PlotRelation expr) = do
+  res <- C.executeRelationalExpr conn expr
+  pure $ case res of
+    Left err -> DisplayErrorResult $ T.pack (show err)
+    Right rel -> DisplayIOResult $ do
+      err <- plotRelation rel
+      when (isJust err) $ putStrLn (show err)
 
-evalRODatabaseContextOp context (ShowConstraint name) = 
-  case name of
-    "" -> DisplayResult $ T.pack (show deps)
-    depName -> case M.lookup depName deps of
+evalRODatabaseContextOp conn (ShowConstraint name) = do
+  incDeps <- C.inclusionDependencies conn
+  pure $ case name of
+    "" -> DisplayResult $ T.pack (show incDeps)
+    depName -> case M.lookup depName incDeps of
       Nothing -> DisplayErrorResult "No such constraint."
       Just dep -> DisplayResult $ T.pack (show dep)
-  where
-    deps = inclusionDependencies context
 
-evalRODatabaseContextOp context (ShowPlan dbExpr) = do
-  DisplayResult $ T.pack (show plan)
-  where
-    plan = evalState (applyStaticDatabaseOptimization dbExpr) context
+evalRODatabaseContextOp conn (ShowPlan dbExpr) = do
+  plan <- C.planForDatabaseContextExpr conn dbExpr
+  pure $ case plan of 
+    Left err -> DisplayErrorResult (T.pack (show err))
+    Right optDbExpr -> DisplayResult $ T.pack (show optDbExpr)
 
-evalRODatabaseContextOp _ (Quit) = QuitResult
+evalRODatabaseContextOp _ (Quit) = pure QuitResult
 
-interpretRODatabaseContextOp :: DatabaseContext -> String -> TutorialDOperatorResult
-interpretRODatabaseContextOp context tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
-  Left err -> DisplayErrorResult (T.pack (show err))
-  Right parsed -> evalRODatabaseContextOp context parsed
+interpretRODatabaseContextOp :: C.Connection -> String -> IO TutorialDOperatorResult
+interpretRODatabaseContextOp conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
+  Left err -> pure $ DisplayErrorResult (T.pack (show err))
+  Right parsed -> evalRODatabaseContextOp conn parsed
   
   

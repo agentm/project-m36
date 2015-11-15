@@ -92,7 +92,6 @@ Library
 
 Executable tutd
     Build-Depends: base >=4.8 && <4.9, 
-                   project-m36,
                    containers,
                    unordered-containers,
                    hashable,

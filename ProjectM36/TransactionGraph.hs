@@ -204,12 +204,6 @@ evalGraphOp _ (DisconnectedTransaction parentUUID _) graph Rollback = case trans
     where
       newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
 
---display transaction graph as relation
-evalROGraphOp :: DisconnectedTransaction -> TransactionGraph -> ROTransactionGraphOperator -> Either RelationalError Relation
-evalROGraphOp discon graph ShowGraph = do
-  graphRel <- graphAsRelation discon graph
-  return graphRel
-
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation
 graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _ transSet) = do
@@ -242,3 +236,11 @@ transactionParentsRelation trans graph = do
   where
     attrs = A.attributesFromList [Attribute "id" stringAtomType]
     trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (Atom (T.pack (show $ transactionUUID trans2)))
+
+{-
+--display transaction graph as relation
+evalROGraphOp :: DisconnectedTransaction -> TransactionGraph -> ROTransactionGraphOperator -> Either RelationalError Relation
+evalROGraphOp discon graph ShowGraph = do
+  graphRel <- graphAsRelation discon graph
+  return graphRel
+-}

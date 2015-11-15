@@ -6,6 +6,9 @@ import Text.Parsec.String
 import qualified Data.UUID as U
 import qualified Data.Text as T
 import ProjectM36.TransactionGraph
+import ProjectM36.Client
+import ProjectM36.Error
+import ProjectM36.Base
 
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
@@ -70,3 +73,6 @@ interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instri
       Left err -> (trans, transGraph, DisplayErrorResult $ T.pack (show err))
       Right (newDiscon, newGraph, result) -> (newDiscon, newGraph, result)
 -}
+
+evalROGraphOp :: Connection -> ROTransactionGraphOperator -> IO (Either RelationalError Relation)
+evalROGraphOp conn ShowGraph = transactionGraphAsRelation conn

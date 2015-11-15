@@ -15,14 +15,14 @@ import TutorialD.Interpreter.Export.Base
 import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
-import ProjectM36.Client
+import qualified ProjectM36.Client as C
 import Text.Parsec
 import Text.Parsec.String
 import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
-import Data.UUID (UUID)
+import Data.Maybe (fromMaybe)
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -33,7 +33,8 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseExprOp DatabaseExpr |
                        GraphOp TransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
-                       ImportOp DataImportOperator |
+                       ImportRelVarOp RelVarDataImportOperator |
+                       ImportDBContextOp DatabaseContextDataImportOperator |
                        ExportOp DataExportOperator
 
 interpreterParserP :: Parser ParsedOperation
@@ -41,63 +42,70 @@ interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eo
                      liftM GraphOp (transactionGraphOpP <* eof) <|>
                      liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
                      liftM DatabaseExprOp (databaseExprOpP <* eof) <|>
-                     liftM ImportOp ((importCSVP <|> tutdImportP) <* eof) <|>
+                     liftM ImportRelVarOp (importCSVP <* eof) <|>
+                     liftM ImportDBContextOp (tutdImportP <* eof) <|>
                      liftM ExportOp (exportCSVP <* eof)
 
-promptText :: UUID -> TransactionGraph -> StringType
-promptText parentUUID graph = "TutorialD (" `T.append` transInfo `T.append` "): "
+promptText :: Maybe HeadName -> StringType
+promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
   where
-    transInfo = case transactionForUUID parentUUID graph of
-      Left _ -> "unknown"
-      Right parentTrans -> case headNameForTransaction parentTrans graph of
-          Nothing -> T.pack (show $ transactionUUID parentTrans)
-          Just headName -> headName
+    transInfo = fromMaybe "<unknown>" mHeadName
           
-parseTutorialD :: Connection -> String -> Either ParseError ParsedOperation
-parseTutorialD (InProcessConnection _ _) inputString = parse interpreterParserP "" inputString
+parseTutorialD :: String -> Either ParseError ParsedOperation
+parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --execute the operation and display result
-evalTutorialD :: Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
+evalTutorialD :: C.Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
 evalTutorialD conn expr = case expr of
   
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
   (RODatabaseContextOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
-    return $ evalRODatabaseContextOp context execOp
+    evalRODatabaseContextOp conn execOp
     
   (DatabaseExprOp execOp) -> do 
-    maybeErr <- executeDatabaseContextExpr conn execOp 
+    maybeErr <- C.executeDatabaseContextExpr conn execOp 
     case maybeErr of
       Just err -> barf err
       Nothing -> return QuietSuccessResult
     
   (GraphOp execOp) -> do
-    maybeErr <- executeGraphExpr conn execOp
+    maybeErr <- C.executeGraphExpr conn execOp
     case maybeErr of
       Just err -> barf err
       Nothing -> return QuietSuccessResult
 
   (ROGraphOp execOp) -> do
-    discon <- disconnectedTransaction conn -- !
-    graph <- transactionGraph conn
-    case evalROGraphOp discon graph execOp of
+    opResult <- evalROGraphOp conn execOp
+    case opResult of 
       Left err -> barf err
       Right rel -> return $ DisplayResult $ showRelation rel
       
-  (ImportOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
-    exprErr <- evalDataImportOperator execOp context
-    case exprErr of
+  (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
+    -- collect attributes from relvar name
+    -- is there a race condition here? The attributes of the relvar may have since changed, no?
+    eImportAttributes <- C.attributesForRelationalExpr conn (RelationVariable relVarName)
+    case eImportAttributes of
       Left err -> barf err
-      Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)
+      Right importAttributes -> do
+        exprErr <- evalRelVarDataImportOperator execOp importAttributes
+        case exprErr of
+          Left err -> barf err
+          Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)
+  
+  (ImportDBContextOp execOp) -> do
+    mDbexprs <- evalDatabaseContextDataImportOperator execOp
+    case mDbexprs of 
+      Left err -> barf err
+      Right dbexprs -> evalTutorialD conn (DatabaseExprOp dbexprs)
       
   (ExportOp execOp) -> do
-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
+    evalDataExportOperator execOp
+{-    (DisconnectedTransaction _ context) <- disconnectedTransaction conn -- !
     exprErr <- evalDataExportOperator execOp context
     case exprErr of
       Just err -> barf err
-      Nothing -> return QuietSuccessResult
+      Nothing -> return QuietSuccessResult-}
         
   where
     barf err = return $ DisplayErrorResult (T.pack (show err))
@@ -106,17 +114,16 @@ data InterpreterConfig = InterpreterConfig {
   persistenceStrategy :: PersistenceStrategy
   }
 
-reprLoop :: InterpreterConfig -> Connection -> IO ()
+reprLoop :: InterpreterConfig -> C.Connection -> IO ()
 reprLoop config conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  (DisconnectedTransaction parentUUID _) <- disconnectedTransaction conn
-  graph <- transactionGraph conn
-  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText parentUUID graph))
+  mHeadName <- C.headName conn
+  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText mHeadName))
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-      case parseTutorialD conn line of
+      case parseTutorialD line of
         Left err -> do
           displayOpResult $ DisplayErrorResult (T.pack (show err))
         Right parsed -> do 
