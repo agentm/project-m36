@@ -144,7 +144,7 @@ Executable tutd
     Default-Language: Haskell2010
 
 Executable daemon
-    Build-Depends: project-m36, 
+    Build-Depends: base,
                    distributed-process-client-server, 
                    distributed-process-extras, 
                    distributed-process-async, 
@@ -174,10 +174,12 @@ Executable daemon
                    containers,
                    hashable,
                    unordered-containers,
-                   vector
+                   vector,
+                   http-api-data
     Main-Is: ProjectM36/Daemon/Main.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    C-sources: ProjectM36/DirectoryFsync.c
     Default-Language: Haskell2010
 
 
@@ -205,21 +207,21 @@ Test-Suite test-relation
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Basic.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
 
 Test-Suite test-static-optimizer
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
 
 Test-Suite test-transactiongraph-persist
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Persist.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
     C-sources: ProjectM36/DirectoryFsync.c
 
@@ -227,28 +229,28 @@ Test-Suite test-relation-import-csv
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Import/CSV.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
 
 Test-Suite test-tutoriald-import-tutoriald
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
 
 Test-Suite test-relation-export-csv
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
-    Build-Depends: base,HUnit,Cabal
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath
     GHC-Options: -Wall
 
 Test-Suite test-persistent-driver
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
-    Build-Depends: base,HUnit,Cabal,template-haskell
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data
     GHC-Options: -Wall
     C-sources: ProjectM36/DirectoryFsync.c
 
@@ -256,6 +258,6 @@ benchmark bench
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
-    build-depends: base,criterion
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, criterion
     GHC-Options: -Wall -rtsopts
 

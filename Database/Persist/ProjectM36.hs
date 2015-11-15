@@ -32,6 +32,7 @@ import qualified Data.Conduit.List as CL
 import Data.Typeable (typeRep, typeOf, Proxy(..))
 import Data.Time.Calendar (Day)
 import Data.ByteString (ByteString)
+import Web.HttpApiData (ToHttpApiData(..), FromHttpApiData(..), parseUrlPieceWithPrefix, readTextData)
 
 type ProjectM36Backend = C.Connection
 
@@ -255,6 +256,18 @@ keyToUUID key = case keyToValues key of
     Just uuid -> uuid
   _ -> error "unexpected persist value in key construction"
 
+instance ToHttpApiData (BackendKey C.Connection) where
+  toUrlPiece = T.pack . U.toString . unPM36Key
+    
+instance FromHttpApiData (BackendKey C.Connection) where    
+  parseUrlPiece input = do
+    s <- parseUrlPieceWithPrefix "o" input <!> return input
+    ProjectM36Key <$> readTextData s
+      where
+        infixl 3 <!>
+        Left _ <!> y = y
+        x      <!> _ = x
+    
 instance PersistStore C.Connection where
   newtype BackendKey C.Connection = ProjectM36Key { unPM36Key :: U.UUID }
           deriving (Show, Read, Eq, Ord, PersistField)
