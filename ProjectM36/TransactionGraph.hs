@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveAnyClass, DeriveGeneric #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -14,6 +14,8 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Control.Monad
 import qualified Data.Text as T
+import GHC.Generics
+import Data.Binary
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -21,6 +23,7 @@ data TransactionGraphOperator = JumpToHead HeadName  |
                                 Branch HeadName |
                                 Commit |
                                 Rollback
+                              deriving (Eq, Show, Binary, Generic)
 
 data ROTransactionGraphOperator = ShowGraph
 

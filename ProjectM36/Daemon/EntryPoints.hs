@@ -23,6 +23,9 @@ handleExecuteHeadName conn = do
   reply ret conn
   
 handleLogin :: Connection -> Process (ProcessReply Bool Connection)
-handleLogin conn = do
-  reply True conn
+handleLogin conn = reply True conn
   
+handleExecuteGraphExpr :: Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteGraphExpr conn graphExpr = do
+  ret <- liftIO $ executeGraphExpr conn graphExpr
+  reply ret conn

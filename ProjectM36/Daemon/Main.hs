@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 import ProjectM36.Client
 import ProjectM36.Daemon.ParseArgs (parseConfig, persistenceStrategy, databaseName)
-import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName)
+import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName, handleExecuteGraphExpr)
 import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
 
 import System.Exit (exitFailure, exitSuccess)
@@ -21,7 +21,8 @@ serverDefinition = defaultProcess {
   apiHandlers = [handleCall (\conn Login -> handleLogin conn),
                  handleCall (\conn ExecuteHeadName -> handleExecuteHeadName conn),
                  handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr),
-                 handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr)
+                 handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr),
+                 handleCall (\conn (ExecuteGraphExpr expr) -> handleExecuteGraphExpr conn expr)               
                  ],
   unhandledMessagePolicy = Log
   }

@@ -202,6 +202,9 @@ executeGraphExpr (InProcessConnection strat tvar) graphExpr = do
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
       return Nothing
+executeGraphExpr (RemoteProcessConnection localNode serverProcessId) graphExpr = do
+  runProcessResult localNode $ do
+    call serverProcessId (ExecuteGraphExpr graphExpr)
       
 commit :: Connection -> IO (Maybe RelationalError)
 commit conn = executeGraphExpr conn Commit
