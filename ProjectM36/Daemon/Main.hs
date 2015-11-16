@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 import ProjectM36.Client
-import ProjectM36.Daemon.ParseArgs (parseConfig, persistenceStrategy)
-import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleLogin)
+import ProjectM36.Daemon.ParseArgs (parseConfig, persistenceStrategy, databaseName)
+import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName)
 import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
 
 import System.Exit (exitFailure, exitSuccess)
@@ -19,9 +19,11 @@ import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 serverDefinition :: ProcessDefinition Connection
 serverDefinition = defaultProcess {
   apiHandlers = [handleCall (\conn Login -> handleLogin conn),
-                 handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr)
+                 handleCall (\conn ExecuteHeadName -> handleExecuteHeadName conn),
+                 handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr),
+                 handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr)
                  ],
-  unhandledMessagePolicy = Drop
+  unhandledMessagePolicy = Log
   }
                  
 initServer :: InitHandler Connection Connection                 
@@ -42,18 +44,18 @@ main = do
       hPutStrLn stderr ("Failed to create database connection: " ++ show err)
       exitFailure
     Right conn -> do
-      etransport <- createTransport "127.0.0.1" "6543" defaultTCPParameters
+      etransport <- createTransport "127.0.0.1" (show defaultServerPort) defaultTCPParameters
       case etransport of
         Left err -> error (show err)
         Right transport -> do
           localTCPNode <- newLocalNode transport remoteTable
           runProcess localTCPNode $ do
             serverPid <- launchServer conn
-            register "project-m36" serverPid
-            liftIO $ do
-              putStrLn (show serverPid)
-              _ <- forever $ threadDelay 1000000
-              putStrLn "Server Exit."
-              exitSuccess
+            let dbname = remoteDBLookupName (databaseName daemonConfig)
+            register dbname serverPid
+            liftIO $ putStrLn $ show serverPid ++ " " ++ dbname
+          _ <- forever $ threadDelay 1000000
+          putStrLn "Server Exit."
+          exitSuccess
      
         

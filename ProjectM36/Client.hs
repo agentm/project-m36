@@ -20,14 +20,18 @@ module ProjectM36.Client
        processPersistence,
        transactionGraphAsRelation,
        headName,
+       remoteDBLookupName,
+       defaultServerPort,
        headTransactionUUID,
        PersistenceStrategy(..),
        RelationalExpr(..),
        DatabaseExpr(..),
        Attribute(..),
        attributesFromList,
+       createNodeId,
        TransactionGraphOperator(..),
        Atomable,
+       NodeId(..),
        Atom(..),
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
@@ -43,7 +47,7 @@ import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call)
@@ -53,12 +57,12 @@ import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
-import Control.Distributed.Process (ProcessId)
+import Control.Distributed.Process (ProcessId, Process)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 
-type Hostname = StringType
+type Hostname = String
 
 type Port = Word16
 
@@ -67,8 +71,14 @@ type DatabaseName = String
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy |
                       RemoteProcessConnectionInfo DatabaseName NodeId
                       
+createNodeId :: Hostname -> Port -> NodeId                      
+createNodeId host port = NodeId $ encodeEndPointAddress host (show port) 0
+                      
+defaultServerPort :: Port
+defaultServerPort = 6543
+                      
 data Connection = InProcessConnection PersistenceStrategy (TVar (DisconnectedTransaction, TransactionGraph)) |
-                  RemoteProcessConnection ProcessId
+                  RemoteProcessConnection LocalNode ProcessId -- perhaps should reference the local node as well
                   
 data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                        IOExceptionError IOException |
@@ -105,11 +115,13 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
 connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
   connStatus <- newEmptyMVar
   eLocalNode <- commonLocalNode
+  let dbName = remoteDBLookupName databaseName
+  putStrLn $ show serverNodeId ++ " " ++ dbName
   case eLocalNode of
     Left err -> pure (Left err)
     Right localNode -> do
       runProcess localNode $ do
-        mServerProcessId <- whereisRemote serverNodeId (remoteDBLookupName databaseName)
+        mServerProcessId <- whereisRemote serverNodeId dbName
         case mServerProcessId of
           Nothing -> liftIO $ putMVar connStatus $ Left (NoSuchDatabaseByNameError databaseName)
           Just serverProcessId -> do
@@ -117,7 +129,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
             if not loginConfirmation then
               liftIO $ putMVar connStatus (Left LoginError)
               else do
-                liftIO $ putMVar connStatus (Right $ RemoteProcessConnection serverProcessId)
+                liftIO $ putMVar connStatus (Right $ RemoteProcessConnection localNode serverProcessId)
       status <- takeMVar connStatus
       pure status
       
@@ -141,19 +153,25 @@ connectPersistentProjectM36 strat sync dbdir freshDiscon freshGraph = do
               
 close :: Connection -> IO ()
 close (InProcessConnection _ _) = pure ()
-close (RemoteProcessConnection serverProcessId) = do
-  eLocalNode <- commonLocalNode
-  case eLocalNode of
-    Left _ -> pure () --consider returning an error or exception
-    Right localNode -> do
-      runProcess localNode $ do
-        call serverProcessId Logout
-      pure ()
+close (RemoteProcessConnection localNode serverProcessId) = do
+  runProcessResult localNode $ do
+    call serverProcessId Logout
+      
+runProcessResult :: LocalNode -> Process a -> IO a      
+runProcessResult localNode proc = do
+  ret <- newEmptyMVar
+  runProcess localNode $ do
+    val <- proc
+    liftIO $ putMVar ret val
+  takeMVar ret
 
 executeRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr (InProcessConnection _ tvar) expr = atomically $ do
   ((DisconnectedTransaction _ context), _) <- readTVar tvar
   return $ evalState (RE.evalRelationalExpr expr) context
+executeRelationalExpr (RemoteProcessConnection localNode serverProcessId) relExpr = do  
+  runProcessResult localNode $ do
+    call serverProcessId (ExecuteRelationalExpr relExpr)
   
 executeDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
@@ -164,6 +182,8 @@ executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
          let newDiscon = DisconnectedTransaction parentUUID context'
          writeTVar tvar (newDiscon, graph)
          return Nothing
+executeDatabaseContextExpr (RemoteProcessConnection localNode serverProcessId) dbExpr = do 
+  runProcessResult localNode $ call serverProcessId (ExecuteDatabaseContextExpr dbExpr)
          
 executeGraphExpr :: Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
 executeGraphExpr (InProcessConnection strat tvar) graphExpr = do
@@ -242,6 +262,10 @@ headName (InProcessConnection _ tvar) = do
     pure $ case transactionForUUID parentUUID graph of
       Left _ -> Nothing
       Right parentTrans -> headNameForTransaction parentTrans graph
-
+headName (RemoteProcessConnection localNode serverProcessId) = do
+  runProcessResult localNode $ do
+    ret <- call serverProcessId ExecuteHeadName
+    pure ret
+    
                                                         
   

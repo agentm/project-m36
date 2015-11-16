@@ -6,4 +6,7 @@ import Data.Binary
 
 data RemoteExecution = Login |
                        Logout |
-                       ExecuteRelationalExpr RelationalExpr deriving (Binary, Generic)
+                       ExecuteRelationalExpr RelationalExpr |
+                       ExecuteDatabaseContextExpr DatabaseExpr |
+                       ExecuteHeadName
+                       deriving (Binary, Generic)

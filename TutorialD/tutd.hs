@@ -6,15 +6,9 @@ import System.IO
 import Options.Applicative
 import System.Exit
 
-{-
-invocation:
-tutd 
--no arguments indicates to run without persistence
-tutd -d /database-directory
--persist to the database directory
--}
 parseArgs :: Parser InterpreterConfig
-parseArgs = InterpreterConfig <$> parsePersistenceStrategy
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <|>
+            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -29,14 +23,34 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
     fsyncOpt = switch (short 'f' <>
                     long "fsync" <>
                     help "Fsync all new transactions.")
+               
+parseDatabaseName :: Parser DatabaseName               
+parseDatabaseName = strOption (long "database" <>
+                               help "Remote database name")
+               
+parseNodeId :: Parser NodeId
+parseNodeId = createNodeId <$> 
+              strOption (long "host" <> 
+                         short 'h' <>
+                         help "Remote host name" <>
+                         value "127.0.0.1") <*> 
+              option auto (long "port" <>
+                           short 'p' <>
+                      help "Remote port" <>
+                      value defaultServerPort)
 
 opts :: ParserInfo InterpreterConfig            
 opts = info parseArgs idm
+
+connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
+connectionInfoForConfig (LocalInterpreterConfig pStrategy) = InProcessConnectionInfo pStrategy
+connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName) = RemoteProcessConnectionInfo remoteDBName remoteNodeId
                            
 main :: IO ()
 main = do
   interpreterConfig <- execParser opts
-  dbconn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy interpreterConfig))
+  let connInfo = connectionInfoForConfig interpreterConfig
+  dbconn <- connectProjectM36 connInfo
   case dbconn of 
     Left err -> do
       hPutStrLn stderr ("Failed to create database connection: " ++ show err)

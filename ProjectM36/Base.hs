@@ -246,7 +246,7 @@ data DatabaseExpr where
   AddInclusionDependency :: IncDepName -> InclusionDependency -> DatabaseExpr
   RemoveInclusionDependency :: IncDepName -> DatabaseExpr
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
-  deriving (Show,Eq)
+  deriving (Show, Eq, Binary, Generic)
 
 type DatabaseState a = State DatabaseContext a
 

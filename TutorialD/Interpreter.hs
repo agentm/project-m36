@@ -112,9 +112,8 @@ evalTutorialD conn expr = case expr of
   where
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
-data InterpreterConfig = InterpreterConfig { 
-  persistenceStrategy :: PersistenceStrategy
-  }
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy |
+                         RemoteInterpreterConfig C.NodeId C.DatabaseName
 
 reprLoop :: InterpreterConfig -> C.Connection -> IO ()
 reprLoop config conn = do
