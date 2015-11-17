@@ -16,6 +16,8 @@ import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
+import ProjectM36.Relation (attributes)
+
 import Text.Parsec
 import Text.Parsec.String
 import Control.Monad.State
@@ -84,11 +86,11 @@ evalTutorialD conn expr = case expr of
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     -- collect attributes from relvar name
     -- is there a race condition here? The attributes of the relvar may have since changed, no?
-    eImportAttributes <- C.attributesForRelationalExpr conn (RelationVariable relVarName)
-    case eImportAttributes of
+    eImportType <- C.typeForRelationalExpr conn (RelationVariable relVarName)
+    case eImportType of
       Left err -> barf err
-      Right importAttributes -> do
-        exprErr <- evalRelVarDataImportOperator execOp importAttributes
+      Right importType -> do
+        exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
         case exprErr of
           Left err -> barf err
           Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)

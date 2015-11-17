@@ -10,5 +10,10 @@ data RemoteExecution = Login |
                        ExecuteRelationalExpr RelationalExpr |
                        ExecuteDatabaseContextExpr DatabaseExpr |
                        ExecuteGraphExpr TransactionGraphOperator |
-                       ExecuteHeadName
+                       ExecuteHeadName |
+                       ExecuteTypeForRelationalExpr RelationalExpr |
+                       RetrieveInclusionDependencies |
+                       RetrievePlanForDatabaseContextExpr DatabaseExpr |
+                       RetrieveTransactionGraph |
+                       RetrieveHeadTransactionUUID
                        deriving (Binary, Generic)

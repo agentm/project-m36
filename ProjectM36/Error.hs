@@ -8,6 +8,7 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Text as T
 import Data.Binary
+import Data.Typeable
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -38,7 +39,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
-                       deriving (Show,Eq,Generic,Binary) 
+                       deriving (Show,Eq,Generic,Binary,Typeable) 
 
 instance NFData RelationalError where rnf = genericRnf
                                       

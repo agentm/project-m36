@@ -26,7 +26,7 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
                
 parseDatabaseName :: Parser DatabaseName
 parseDatabaseName = strOption (short 'n' <>
-                               long "dbname" <>
+                               long "database" <>
                                metavar "DATABASE NAME")
 
 parseConfig :: IO DaemonConfig

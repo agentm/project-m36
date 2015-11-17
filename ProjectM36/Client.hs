@@ -16,7 +16,6 @@ module ProjectM36.Client
        typeForRelationalExpr,
        inclusionDependencies,
        planForDatabaseContextExpr,
-       attributesForRelationalExpr,
        processPersistence,
        transactionGraphAsRelation,
        headName,
@@ -37,7 +36,6 @@ module ProjectM36.Client
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
-import ProjectM36.Relation
 import ProjectM36.StaticOptimizer
 import Control.Monad.State
 import ProjectM36.Transaction
@@ -50,17 +48,19 @@ import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
-import Control.Distributed.Process.ManagedProcess.Client (call)
+import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Control.Distributed.Process (NodeId(..))
 
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process)
+import Control.Distributed.Process (ProcessId, Process, getSelfPid)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
+import Control.Distributed.Process.Serializable (Serializable)
+--import Control.Distributed.Process.Debug
 
 type Hostname = String
 
@@ -165,13 +165,21 @@ runProcessResult localNode proc = do
     liftIO $ putMVar ret val
   takeMVar ret
 
+remoteCall :: (Serializable a, Serializable b) => Connection -> a -> IO b
+remoteCall (InProcessConnection _ _) _ = error "remoteCall called on local connection"
+remoteCall (RemoteProcessConnection localNode serverProcessId) arg = runProcessResult localNode $ do
+  pid <- getSelfPid
+  liftIO $ putStrLn (show serverProcessId)
+  ret <- safeCall serverProcessId arg
+  case ret of
+    Left err -> error (show err)
+    Right ret' -> pure ret'
+
 executeRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr (InProcessConnection _ tvar) expr = atomically $ do
   ((DisconnectedTransaction _ context), _) <- readTVar tvar
   return $ evalState (RE.evalRelationalExpr expr) context
-executeRelationalExpr (RemoteProcessConnection localNode serverProcessId) relExpr = do  
-  runProcessResult localNode $ do
-    call serverProcessId (ExecuteRelationalExpr relExpr)
+executeRelationalExpr conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr relExpr)
   
 executeDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
@@ -182,8 +190,7 @@ executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
          let newDiscon = DisconnectedTransaction parentUUID context'
          writeTVar tvar (newDiscon, graph)
          return Nothing
-executeDatabaseContextExpr (RemoteProcessConnection localNode serverProcessId) dbExpr = do 
-  runProcessResult localNode $ call serverProcessId (ExecuteDatabaseContextExpr dbExpr)
+executeDatabaseContextExpr conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr dbExpr)
          
 executeGraphExpr :: Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
 executeGraphExpr (InProcessConnection strat tvar) graphExpr = do
@@ -202,15 +209,15 @@ executeGraphExpr (InProcessConnection strat tvar) graphExpr = do
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
       return Nothing
-executeGraphExpr (RemoteProcessConnection localNode serverProcessId) graphExpr = do
-  runProcessResult localNode $ do
-    call serverProcessId (ExecuteGraphExpr graphExpr)
+executeGraphExpr conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr graphExpr)
       
 commit :: Connection -> IO (Maybe RelationalError)
-commit conn = executeGraphExpr conn Commit
+commit conn@(InProcessConnection _ _) = executeGraphExpr conn Commit
+commit conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr Commit)
           
 rollback :: Connection -> IO (Maybe RelationalError)
-rollback conn = executeGraphExpr conn Rollback      
+rollback conn@(InProcessConnection _ _) = executeGraphExpr conn Rollback      
+rollback conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr Rollback)
 
 processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
 processPersistence NoPersistence _ = return ()
@@ -219,43 +226,43 @@ processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist 
 
 typeForRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 typeForRelationalExpr conn@(InProcessConnection _ _) relExpr = atomically $ typeForRelationalExprSTM conn relExpr
+typeForRelationalExpr conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr relExpr)
     
 typeForRelationalExprSTM :: Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
 typeForRelationalExprSTM (InProcessConnection _ tvar) relExpr = do
   (DisconnectedTransaction _ context, _) <- readTVar tvar
   pure $ evalState (RE.typeForRelationalExpr relExpr) context
+typeForRelationalExprSTM _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
 inclusionDependencies :: Connection -> IO (M.Map IncDepName InclusionDependency)
 inclusionDependencies (InProcessConnection _ tvar) = do
   atomically $ do
     ((DisconnectedTransaction _ context), _) <- readTVar tvar
     pure (B.inclusionDependencies context)
+inclusionDependencies conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveInclusionDependencies
+
   
 planForDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
 planForDatabaseContextExpr (InProcessConnection _ tvar) dbExpr = do
   atomically $ do
     ((DisconnectedTransaction _ context), _) <- readTVar tvar
     pure $ evalState (applyStaticDatabaseOptimization dbExpr) context
+planForDatabaseContextExpr conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr dbExpr)
              
 transactionGraphAsRelation :: Connection -> IO (Either RelationalError Relation)
 transactionGraphAsRelation (InProcessConnection _ tvar) = do
   atomically $ do
     (discon, graph) <- readTVar tvar
     pure $ graphAsRelation discon graph
-  
-attributesForRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Attributes)  
-attributesForRelationalExpr conn relExpr = atomically $ do
-  eRelType <- typeForRelationalExprSTM conn relExpr
-  pure $ case eRelType of
-    Left err -> Left err
-    Right relType -> Right $ attributes relType
- 
+transactionGraphAsRelation conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveTransactionGraph  
+
 -- | Returns the UUID for the connection's disconnected transaction committed parent transaction.  
 headTransactionUUID :: Connection -> IO (UUID)
 headTransactionUUID (InProcessConnection _ tvar) = do 
   atomically $ do
     (DisconnectedTransaction parentUUID _, _) <- readTVar tvar
     pure parentUUID
+headTransactionUUID conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveHeadTransactionUUID
     
 -- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
 headName :: Connection -> IO (Maybe HeadName)
