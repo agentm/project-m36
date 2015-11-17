@@ -16,6 +16,7 @@ import System.IO (hPutStrLn, stderr)
 import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 import Control.Concurrent.MVar (putMVar, MVar)
 
+-- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
 serverDefinition :: ProcessDefinition Connection
 serverDefinition = defaultProcess {
   apiHandlers = [                 
@@ -60,8 +61,9 @@ launchServer daemonConfig mPortMVar = do
       hPutStrLn stderr ("Failed to create database connection: " ++ show err)
       pure False
     Right conn -> do
-      let port = defaultServerPort
-      etransport <- createTransport "127.0.0.1" (show port) defaultTCPParameters
+      let hostname = bindHost daemonConfig
+          port = bindPort daemonConfig
+      etransport <- createTransport hostname (show port) defaultTCPParameters
       case etransport of
         Left err -> error (show err)
         Right transport -> do
