@@ -5,15 +5,25 @@ import ProjectM36.TransactionGraph
 import GHC.Generics
 import Data.Binary
 
-data RemoteExecution = Login |
-                       Logout |
-                       ExecuteRelationalExpr RelationalExpr |
-                       ExecuteDatabaseContextExpr DatabaseExpr |
-                       ExecuteGraphExpr TransactionGraphOperator |
-                       ExecuteHeadName |
-                       ExecuteTypeForRelationalExpr RelationalExpr |
-                       RetrieveInclusionDependencies |
-                       RetrievePlanForDatabaseContextExpr DatabaseExpr |
-                       RetrieveTransactionGraph |
-                       RetrieveHeadTransactionUUID
-                       deriving (Binary, Generic)
+data Login = Login
+           deriving (Binary, Generic)
+data Logout = Logout
+            deriving (Binary, Generic)
+data ExecuteRelationalExpr = ExecuteRelationalExpr RelationalExpr 
+                           deriving (Binary, Generic)
+data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr DatabaseExpr
+                                deriving (Binary, Generic)
+data ExecuteGraphExpr = ExecuteGraphExpr TransactionGraphOperator 
+                      deriving (Binary, Generic)
+data ExecuteHeadName = ExecuteHeadName 
+                     deriving (Binary, Generic)
+data ExecuteTypeForRelationalExpr = ExecuteTypeForRelationalExpr RelationalExpr
+                                  deriving (Binary, Generic)
+data RetrieveInclusionDependencies = RetrieveInclusionDependencies
+                                   deriving (Binary, Generic)
+data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr DatabaseExpr
+                                        deriving (Binary, Generic)
+data RetrieveTransactionGraph = RetrieveTransactionGraph
+                              deriving (Binary, Generic)
+data RetrieveHeadTransactionUUID = RetrieveHeadTransactionUUID
+                                 deriving (Binary, Generic)

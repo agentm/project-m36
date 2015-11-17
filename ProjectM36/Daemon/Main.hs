@@ -2,7 +2,7 @@
 import ProjectM36.Client
 import ProjectM36.Daemon.ParseArgs (parseConfig, persistenceStrategy, databaseName)
 import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName, handleExecuteGraphExpr, handleExecuteTypeForRelationalExpr, handleRetrieveInclusionDependencies,handleRetrievePlanForDatabaseContextExpr, handleRetrieveTransactionGraph, handleRetrieveHeadTransactionUUID)
-import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
+import ProjectM36.Daemon.RemoteCallTypes
 
 import System.Exit (exitFailure, exitSuccess)
 import Control.Concurrent (threadDelay)
@@ -18,16 +18,17 @@ import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 
 serverDefinition :: ProcessDefinition Connection
 serverDefinition = defaultProcess {
-  apiHandlers = [handleCall (\conn Login -> handleLogin conn),
-                 handleCall (\conn ExecuteHeadName -> handleExecuteHeadName conn),
-                 handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr),
-                 handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr),
-                 handleCall (\conn (ExecuteGraphExpr expr) -> handleExecuteGraphExpr conn expr),
-                 handleCall (\conn (ExecuteTypeForRelationalExpr expr) -> handleExecuteTypeForRelationalExpr conn expr),
-                 handleCall (\conn RetrieveInclusionDependencies -> handleRetrieveInclusionDependencies conn),
-                 handleCall (\conn (RetrievePlanForDatabaseContextExpr dbExpr) -> handleRetrievePlanForDatabaseContextExpr conn dbExpr),
-                 handleCall (\conn RetrieveHeadTransactionUUID -> handleRetrieveHeadTransactionUUID conn),
-                 handleCall (\conn RetrieveTransactionGraph -> handleRetrieveTransactionGraph conn)
+  apiHandlers = [                 
+     handleCall (\conn ExecuteHeadName -> handleExecuteHeadName conn),
+     handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr),
+     handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr),
+     handleCall (\conn (ExecuteGraphExpr expr) -> handleExecuteGraphExpr conn expr),
+     handleCall (\conn (ExecuteTypeForRelationalExpr expr) -> handleExecuteTypeForRelationalExpr conn expr),
+     handleCall (\conn RetrieveInclusionDependencies -> handleRetrieveInclusionDependencies conn),
+     handleCall (\conn (RetrievePlanForDatabaseContextExpr dbExpr) -> handleRetrievePlanForDatabaseContextExpr conn dbExpr),
+     handleCall (\conn RetrieveHeadTransactionUUID -> handleRetrieveHeadTransactionUUID conn),
+     handleCall (\conn RetrieveTransactionGraph -> handleRetrieveTransactionGraph conn),
+     handleCall (\conn Login -> handleLogin conn)
                  ],
   unhandledMessagePolicy = Log
   }

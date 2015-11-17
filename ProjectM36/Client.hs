@@ -44,7 +44,7 @@ import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
 import ProjectM36.Persist (DiskSync(..))
-import ProjectM36.Daemon.RemoteCallTypes (RemoteExecution(..))
+import ProjectM36.Daemon.RemoteCallTypes 
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
@@ -55,7 +55,7 @@ import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process, getSelfPid)
+import Control.Distributed.Process (ProcessId, Process)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
@@ -168,8 +168,6 @@ runProcessResult localNode proc = do
 remoteCall :: (Serializable a, Serializable b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ _) _ = error "remoteCall called on local connection"
 remoteCall (RemoteProcessConnection localNode serverProcessId) arg = runProcessResult localNode $ do
-  pid <- getSelfPid
-  liftIO $ putStrLn (show serverProcessId)
   ret <- safeCall serverProcessId arg
   case ret of
     Left err -> error (show err)
