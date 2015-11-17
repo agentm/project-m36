@@ -1,4 +1,4 @@
-module ProjectM36.Daemon.EntryPoints where
+module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.Client
 import ProjectM36.Error

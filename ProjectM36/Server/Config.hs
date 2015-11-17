@@ -1,14 +1,14 @@
-module ProjectM36.Daemon.Config where
+module ProjectM36.Server.Config where
 import ProjectM36.Client
 
-data DaemonConfig = DaemonConfig { persistenceStrategy :: PersistenceStrategy, 
+data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy, 
                                    databaseName :: DatabaseName,
                                    bindHost :: Hostname,
                                    bindPort :: Port
                                    }
 
-defaultDaemonConfig :: DaemonConfig
-defaultDaemonConfig = DaemonConfig { persistenceStrategy = NoPersistence,
+defaultServerConfig :: ServerConfig
+defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
                                      databaseName = "base", 
                                      bindHost = "127.0.0.1",
                                      bindPort = 6543

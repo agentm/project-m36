@@ -1,10 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module ProjectM36.Daemon where
+module ProjectM36.Server where
 
 import ProjectM36.Client
-import ProjectM36.Daemon.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName, handleExecuteGraphExpr, handleExecuteTypeForRelationalExpr, handleRetrieveInclusionDependencies,handleRetrievePlanForDatabaseContextExpr, handleRetrieveTransactionGraph, handleRetrieveHeadTransactionUUID)
-import ProjectM36.Daemon.RemoteCallTypes
-import ProjectM36.Daemon.Config (DaemonConfig(..))
+import ProjectM36.Server.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName, handleExecuteGraphExpr, handleExecuteTypeForRelationalExpr, handleRetrieveInclusionDependencies,handleRetrievePlanForDatabaseContextExpr, handleRetrieveTransactionGraph, handleRetrieveHeadTransactionUUID)
+import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.Server.Config (ServerConfig(..))
 
 import Control.Monad.IO.Class (liftIO)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
@@ -52,8 +52,8 @@ registerDB dbname = do
   register dbname' self
   liftIO $ putStrLn $ "registered " ++ (show self) ++ " " ++ dbname'
   
--- | A synchronous function to start the project-m36 daemon given an appropriate DaemonConfig. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
-launchServer :: DaemonConfig -> Maybe (MVar Port) -> IO (Bool)
+-- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
+launchServer :: ServerConfig -> Maybe (MVar Port) -> IO (Bool)
 launchServer daemonConfig mPortMVar = do  
   econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig))
   case econn of 

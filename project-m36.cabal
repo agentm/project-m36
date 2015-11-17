@@ -144,7 +144,7 @@ Executable tutd
     C-sources: ProjectM36/DirectoryFsync.c
     Default-Language: Haskell2010
 
-Executable project-m36-daemon
+Executable project-m36-server
     Build-Depends: base,
                    distributed-process-client-server, 
                    distributed-process-extras, 
@@ -177,7 +177,7 @@ Executable project-m36-daemon
                    unordered-containers,
                    vector,
                    http-api-data
-    Main-Is: ProjectM36/Daemon/project-m36-daemon.hs
+    Main-Is: ProjectM36/Server/project-m36-server.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     C-sources: ProjectM36/DirectoryFsync.c

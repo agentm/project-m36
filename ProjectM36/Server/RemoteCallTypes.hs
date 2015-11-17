@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
-module ProjectM36.Daemon.RemoteCallTypes where
+module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
 import GHC.Generics

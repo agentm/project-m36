@@ -1,11 +1,11 @@
-module ProjectM36.Daemon.ParseArgs where
+module ProjectM36.Server.ParseArgs where
 import ProjectM36.Base
 import ProjectM36.Client
 import Options.Applicative
-import ProjectM36.Daemon.Config
+import ProjectM36.Server.Config
 
-parseArgs :: Parser DaemonConfig
-parseArgs = DaemonConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort
+parseArgs :: Parser ServerConfig
+parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -30,14 +30,14 @@ parseHostname :: Parser Hostname
 parseHostname = strOption (short 'h' <>
                            long "hostname" <>
                            metavar "HOST_NAME" <>
-                           value (bindHost defaultDaemonConfig))
+                           value (bindHost defaultServerConfig))
                 
 parsePort :: Parser Port                
 parsePort = option auto (short 'p' <>
                          long "port" <>
                          metavar "PORT_NUMBER" <>
-                         value (bindPort defaultDaemonConfig))
+                         value (bindPort defaultServerConfig))
 
-parseConfig :: IO DaemonConfig
+parseConfig :: IO ServerConfig
 parseConfig = execParser $ info parseArgs idm
   

@@ -46,7 +46,7 @@ import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
 import ProjectM36.Persist (DiskSync(..))
-import ProjectM36.Daemon.RemoteCallTypes 
+import ProjectM36.Server.RemoteCallTypes 
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
