@@ -7,7 +7,7 @@
 * **Atomicity** - state changes from committed transactions must never be partially visible; transactions are *atomically* applied to the database state
 * **Consistency** - database constraints hold at all times
 * **Isolation** - new transactions can only see state from previously committed transactions; transactions are *isolated* from each other, even if there are multiple, fresh transactions in flux
-* **Durability** - committed transactions must be accessible even after sudden power loss or corruption
+* **Durability** - committed transactions must be accessible even after sudden power loss or certain types of corruption
 
 ### Importance
 
