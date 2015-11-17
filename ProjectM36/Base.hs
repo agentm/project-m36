@@ -155,9 +155,14 @@ instance NFData RelationTupleSet where rnf = genericRnf
 
 --the same hash must be generated for equal tuples so that the hashset equality works
 instance Hashable RelationTuple where
-  hashWithSalt salt (RelationTuple attrs tupVec) = salt `hashWithSalt` 
-                                                   sortedAttrs `hashWithSalt`
-                                                   (V.toList sortedTupVec)
+  --sanity check the tuple for attribute and tuple counts
+  --this bit me when tuples were being hashed before being verified
+  hashWithSalt salt (RelationTuple attrs tupVec) = if V.length attrs /= V.length tupVec then
+                                                     error "invalid tuple: attributes and tuple count mismatch"
+                                                   else
+                                                     salt `hashWithSalt` 
+                                                     sortedAttrs `hashWithSalt`
+                                                     (V.toList sortedTupVec)
     where
       sortedAttrsIndices = sortedAttributesIndices attrs
       sortedAttrs = map snd sortedAttrsIndices

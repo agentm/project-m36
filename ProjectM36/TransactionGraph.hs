@@ -221,9 +221,10 @@ graphAsRelation (DisconnectedTransaction parentUUID _) graph@(TransactionGraph _
     parentAttributes = A.attributesFromList [Attribute "id" stringAtomType]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right _ -> Right [Atom $ T.pack $ show (transactionUUID transaction),
-                                      Atom $ parentUUID == transactionUUID transaction,
-                                      Atom $ case headNameForTransaction transaction graph of
+      Right parentTransRel -> Right [Atom $ T.pack $ show (transactionUUID transaction),
+                                     Atom parentTransRel,
+                                     Atom $ parentUUID == transactionUUID transaction,
+                                     Atom $ case headNameForTransaction transaction graph of
                                        Just headName -> headName
                                        Nothing -> ""
                                       ]
