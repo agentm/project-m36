@@ -24,12 +24,10 @@ verifyTupleSet attrs tupleSet = do
   if length (lefts tupleList) > 0 then
     Left $ head (lefts tupleList)
    else
-     return $ RelationTupleSet (rights tupleList)
+     return $ RelationTupleSet $ (HS.toList . HS.fromList) (rights tupleList)
 
 mkTupleSet :: Attributes -> [RelationTuple] -> Either RelationalError RelationTupleSet
-mkTupleSet attrs tuples = verifyTupleSet attrs tupSet
-  where
-    tupSet = RelationTupleSet $ (HS.toList . HS.fromList) tuples
+mkTupleSet attrs tuples = verifyTupleSet attrs (RelationTupleSet tuples)
 
 mkTupleSetFromList :: Attributes -> [[Atom]] -> Either RelationalError RelationTupleSet
 mkTupleSetFromList attrs atomMatrix = mkTupleSet attrs $ map (\atomList -> mkRelationTuple attrs (V.fromList atomList)) atomMatrix
