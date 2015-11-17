@@ -2,10 +2,7 @@ module ProjectM36.Daemon.ParseArgs where
 import ProjectM36.Base
 import ProjectM36.Client
 import Options.Applicative
-
-data DaemonConfig = DaemonConfig { persistenceStrategy :: PersistenceStrategy, 
-                                   databaseName :: DatabaseName
-                                   }
+import ProjectM36.Daemon.Config
 
 parseArgs :: Parser DaemonConfig
 parseArgs = DaemonConfig <$> parsePersistenceStrategy <*> parseDatabaseName
@@ -27,7 +24,7 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
 parseDatabaseName :: Parser DatabaseName
 parseDatabaseName = strOption (short 'n' <>
                                long "database" <>
-                               metavar "DATABASE NAME")
+                               metavar "DATABASE_NAME")
 
 parseConfig :: IO DaemonConfig
 parseConfig = execParser $ info parseArgs idm

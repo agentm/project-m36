@@ -22,6 +22,8 @@ module ProjectM36.Client
        remoteDBLookupName,
        defaultServerPort,
        headTransactionUUID,
+       defaultDatabaseName,
+       defaultRemoteConnectionInfo,
        PersistenceStrategy(..),
        RelationalExpr(..),
        DatabaseExpr(..),
@@ -76,6 +78,12 @@ createNodeId host port = NodeId $ encodeEndPointAddress host (show port) 0
                       
 defaultServerPort :: Port
 defaultServerPort = 6543
+
+defaultDatabaseName :: DatabaseName
+defaultDatabaseName = "base"
+
+defaultRemoteConnectionInfo :: ConnectionInfo
+defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
                       
 data Connection = InProcessConnection PersistenceStrategy (TVar (DisconnectedTransaction, TransactionGraph)) |
                   RemoteProcessConnection LocalNode ProcessId -- perhaps should reference the local node as well
