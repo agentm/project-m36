@@ -7,7 +7,7 @@ import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
-import Data.UUID (UUID)
+import Data.UUID (UUID, nextRandom)
 
 handleExecuteRelationalExpr :: Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
 handleExecuteRelationalExpr conn expr = do
@@ -24,8 +24,10 @@ handleExecuteHeadName conn = do
   ret <- liftIO $ headName conn 
   reply ret conn
   
-handleLogin :: Connection -> Process (ProcessReply Bool Connection)
-handleLogin conn = reply True conn
+handleLogin :: Connection -> Process (ProcessReply UUID Connection)
+handleLogin conn = do 
+  sessionId <- liftIO $ nextRandom
+  reply sessionId conn
   
 handleExecuteGraphExpr :: Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)
 handleExecuteGraphExpr conn graphExpr = do

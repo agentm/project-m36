@@ -56,8 +56,8 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                    let setx = Assign "x" (ExistingRelation (force rel))
                        context = execState (evalContextExpr setx) dateExamples
                        interpreted = interpretDatabaseExpr context tutd
-                       plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
-                   displayOpResult plan
+                       --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
+                   --displayOpResult plan
                    case interpreted of
                      Right context' -> TIO.putStrLn $ relationAsHTML ((relationVariables context') M.! "x")
                      Left err -> hPutStrLn stderr (show err)

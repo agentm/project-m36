@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-
-test client/daemon interaction
+test client/server interaction
 -}
 import Test.HUnit
 import ProjectM36.Client
-import ProjectM36.Daemon
-import ProjectM36.Daemon.Config
+import ProjectM36.Server
+import ProjectM36.Server.Config
 import ProjectM36.Relation
 import ProjectM36.Atom
 import ProjectM36.TupleSet
@@ -42,10 +42,10 @@ testConnection port = do
   let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port)
   connectProjectM36 connInfo
 
--- | A version of 'launchDaemon' which returns the port on which the server is listening on a secondary thread
+-- | A version of 'launchServer' which returns the port on which the server is listening on a secondary thread
 launchTestServer :: IO (Port)
 launchTestServer = do
-  let config = defaultDaemonConfig { databaseName = testDatabaseName }
+  let config = defaultServerConfig { databaseName = testDatabaseName }
   portVar <- newEmptyMVar
   _ <- forkIO $ launchServer config (Just portVar) >> pure ()
   takeMVar portVar

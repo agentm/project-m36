@@ -29,6 +29,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
+                     | SessionIdInUse U.UUID
+                     | NoSuchSession U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeNotSupported AttributeName --used by persistent driver

@@ -63,6 +63,8 @@ Library
                    ,network-transport-tcp
                    ,network-transport
                    ,distributed-process
+                   ,stm-containers
+                   ,list-t
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -195,6 +197,7 @@ Executable bigrel
     main-is: benchmark/bigrel.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    C-sources: ProjectM36/DirectoryFsync.c
 
 Test-Suite test-tutoriald
     Default-Language: Haskell2010
@@ -270,8 +273,16 @@ Test-Suite test-server
     GHC-Options: -Wall
     C-sources: ProjectM36/DirectoryFsync.c
 
-Executable SimpleClient
+Executable Example-SimpleClient
     Default-Language: Haskell2010
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall
+    C-sources: ProjectM36/DirectoryFsync.c
+
+Executable Example-PersistClient
+    Default-Language: Haskell2010
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers
+    Main-Is: examples/PersistClient.hs
+    GHC-Options: -Wall
+    C-sources: ProjectM36/DirectoryFsync.c

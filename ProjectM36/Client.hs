@@ -30,6 +30,9 @@ module ProjectM36.Client
        Attribute(..),
        attributesFromList,
        createNodeId,
+       createSessionAtCommit,
+       createSessionAtHead,
+       closeSession,
        TransactionGraphOperator(..),
        Atomable,
        NodeId(..),
@@ -40,7 +43,6 @@ import qualified ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.StaticOptimizer
 import Control.Monad.State
-import ProjectM36.Transaction
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
@@ -63,6 +65,9 @@ import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
 --import Control.Distributed.Process.Debug
+import qualified STMContainers.Map as STMMap
+import ProjectM36.Session
+import ListT
 
 type Hostname = String
 
@@ -84,9 +89,12 @@ defaultDatabaseName = "base"
 
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
+
+type Sessions = STMMap.Map SessionId Session
+
                       
-data Connection = InProcessConnection PersistenceStrategy (TVar (DisconnectedTransaction, TransactionGraph)) |
-                  RemoteProcessConnection LocalNode ProcessId -- perhaps should reference the local node as well
+data Connection = InProcessConnection PersistenceStrategy Sessions (TVar TransactionGraph) |
+                  RemoteProcessConnection LocalNode ProcessId
                   
 data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                        IOExceptionError IOException |
@@ -109,16 +117,16 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat) = do
   freshUUID <- nextRandom
-  let bootstrapContext = RE.basicDatabaseContext
-      freshDiscon = newDisconnectedTransaction freshUUID bootstrapContext
+  let bootstrapContext = RE.basicDatabaseContext 
       freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
-        tvar <- newTVarIO (freshDiscon, freshGraph)
-        return $ Right $ InProcessConnection strat tvar
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshDiscon freshGraph
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshDiscon freshGraph
+        graphTvar <- newTVarIO freshGraph
+        sessions <- STMMap.newIO
+        return $ Right $ InProcessConnection strat sessions graphTvar
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph
         
 connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
   connStatus <- newEmptyMVar
@@ -140,14 +148,13 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
                 liftIO $ putMVar connStatus (Right $ RemoteProcessConnection localNode serverProcessId)
       status <- takeMVar connStatus
       pure status
-      
+
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
                                FilePath -> 
-                               DisconnectedTransaction -> 
                                TransactionGraph -> 
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshDiscon freshGraph = do
+connectPersistentProjectM36 strat sync dbdir freshGraph = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Just err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -156,11 +163,54 @@ connectPersistentProjectM36 strat sync dbdir freshDiscon freshGraph = do
       case graph of
         Left err' -> return $ Left (SetupDatabaseDirectoryError err')
         Right graph' -> do
-          tvar <- newTVarIO (freshDiscon, graph')
-          return $ Right $ InProcessConnection strat tvar              
+          tvarGraph <- newTVarIO graph'
+          sessions <- STMMap.newIO
+          return $ Right $ InProcessConnection strat sessions tvarGraph
+
+-- | Create a new session at the transaction UUID and return the session's Id.
+createSessionAtCommit :: UUID -> Connection -> IO (Either RelationalError SessionId)
+createSessionAtCommit commitUUID conn@(InProcessConnection _ _ _) = do
+   newSessionId <- nextRandom
+   atomically $ do
+      createSessionAtCommit_ commitUUID newSessionId conn
+createSessionAtCommit uuid conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtCommit uuid)
+
+createSessionAtCommit_ :: UUID -> SessionId -> Connection -> STM (Either RelationalError SessionId)
+createSessionAtCommit_ commitUUID newSessionId (InProcessConnection _ sessions graphTvar) = do
+    graph <- readTVar graphTvar
+    case transactionForUUID commitUUID graph of
+        Left err -> pure (Left err)
+        Right _ -> do
+            let freshDiscon = DisconnectedTransaction commitUUID RE.basicDatabaseContext
+            keyDuplication <- STMMap.lookup newSessionId sessions
+            case keyDuplication of
+                Just _ -> pure $ Left (SessionIdInUse newSessionId)
+                Nothing -> do
+                   STMMap.insert (Session freshDiscon) newSessionId sessions
+                   pure $ Right newSessionId
+createSessionAtCommit_ _ _ (RemoteProcessConnection _ _) = error "createSessionAtCommit_ called on remote connection"
+  
+createSessionAtHead :: HeadName -> Connection -> IO (Either RelationalError SessionId)
+createSessionAtHead headn conn@(InProcessConnection _ _ tvar) = do
+    newSessionId <- nextRandom
+    atomically $ do
+        graph <- readTVar tvar
+        case transactionForHead headn graph of
+            Nothing -> pure $ Left (NoSuchHeadNameError headn)
+            Just trans -> createSessionAtCommit_ (transactionUUID trans) newSessionId conn
+createSessionAtHead headn conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtHead headn)            
+
+-- | Discards a session, eliminating any uncommitted changes present in the session.
+closeSession :: SessionId -> Connection -> IO ()
+closeSession sessionId (InProcessConnection _ sessions _) = do
+    atomically $ do
+       STMMap.delete sessionId sessions
+closeSession sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (CloseSession sessionId)       
               
 close :: Connection -> IO ()
-close (InProcessConnection _ _) = pure ()
+close (InProcessConnection _ sessions _) = atomically $ do
+    traverse_ (\(k,_) -> STMMap.delete k sessions) (STMMap.stream sessions)
+    pure ()
 close (RemoteProcessConnection localNode serverProcessId) = do
   runProcessResult localNode $ do
     call serverProcessId Logout
@@ -174,114 +224,145 @@ runProcessResult localNode proc = do
   takeMVar ret
 
 remoteCall :: (Serializable a, Serializable b) => Connection -> a -> IO b
-remoteCall (InProcessConnection _ _) _ = error "remoteCall called on local connection"
+remoteCall (InProcessConnection _ _ _) _ = error "remoteCall called on local connection"
 remoteCall (RemoteProcessConnection localNode serverProcessId) arg = runProcessResult localNode $ do
   ret <- safeCall serverProcessId arg
   case ret of
     Left err -> error (show err)
     Right ret' -> pure ret'
 
-executeRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-executeRelationalExpr (InProcessConnection _ tvar) expr = atomically $ do
-  ((DisconnectedTransaction _ context), _) <- readTVar tvar
-  return $ evalState (RE.evalRelationalExpr expr) context
-executeRelationalExpr conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr relExpr)
+sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
+sessionForSessionId sessionId sessions = do
+  maybeSession <- STMMap.lookup sessionId sessions
+  pure $ maybe (Left $ NoSuchSession sessionId) Right maybeSession
+
+executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
+executeRelationalExpr sessionId (InProcessConnection _ sessions _) expr = atomically $ do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left err -> pure $ Left err
+    Right (Session (DisconnectedTransaction _ context)) -> pure $ evalState (RE.evalRelationalExpr expr) context
+executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
   
-executeDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Maybe RelationalError)
-executeDatabaseContextExpr (InProcessConnection _ tvar) expr = atomically $ do
-  ((DisconnectedTransaction parentUUID context), graph) <- readTVar tvar
-  case runState (RE.evalContextExpr expr) context of
-       (Just err,_) -> return $ Just err
-       (Nothing, context') -> do
-         let newDiscon = DisconnectedTransaction parentUUID context'
-         writeTVar tvar (newDiscon, graph)
+executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Maybe RelationalError)
+executeDatabaseContextExpr sessionId (InProcessConnection _ sessions _) expr = atomically $ do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left err -> pure $ Just err
+    Right session -> case runState (RE.evalContextExpr expr) (sessionContext session) of
+      (Just err,_) -> return $ Just err
+      (Nothing, context') -> do
+         let newDiscon = DisconnectedTransaction (sessionParentUUID session) context'
+             newSession = Session newDiscon
+         STMMap.insert newSession sessionId sessions
          return Nothing
-executeDatabaseContextExpr conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr dbExpr)
+executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
          
-executeGraphExpr :: Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
-executeGraphExpr (InProcessConnection strat tvar) graphExpr = do
+executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
+executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphExpr = do
   freshUUID <- nextRandom
   manip <- atomically $ do
-    (discon, graph) <- readTVar tvar
-    case evalGraphOp freshUUID discon graph graphExpr of
-      Left err -> return $ Left err
-      Right (discon', graph') -> do
-        writeTVar tvar (discon', graph')
-        return $ Right (discon', graph')
+    graph <- readTVar graphTvar
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err
+      Right (Session discon) -> case evalGraphOp freshUUID discon graph graphExpr of
+        Left err -> pure $ Left err
+        Right (discon', graph') -> do
+          writeTVar graphTvar graph'
+          let newSession = Session discon'
+          STMMap.insert newSession sessionId sessions
+          pure $ Right graph'
   case manip of 
     Left err -> return $ Just err
-    Right (_, newGraph) -> do
+    Right newGraph -> do
       --update filesystem database, if necessary
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
       return Nothing
-executeGraphExpr conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr graphExpr)
+executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
       
-commit :: Connection -> IO (Maybe RelationalError)
-commit conn@(InProcessConnection _ _) = executeGraphExpr conn Commit
-commit conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr Commit)
+commit :: SessionId -> Connection -> IO (Maybe RelationalError)
+commit sessionId conn@(InProcessConnection _ _ _) = executeGraphExpr sessionId conn Commit
+commit sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
           
-rollback :: Connection -> IO (Maybe RelationalError)
-rollback conn@(InProcessConnection _ _) = executeGraphExpr conn Rollback      
-rollback conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr Rollback)
+rollback :: SessionId -> Connection -> IO (Maybe RelationalError)
+rollback sessionId conn@(InProcessConnection _ _ _) = executeGraphExpr sessionId conn Rollback      
+rollback sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
 processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
 processPersistence NoPersistence _ = return ()
 processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph
 processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph
 
-typeForRelationalExpr :: Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-typeForRelationalExpr conn@(InProcessConnection _ _) relExpr = atomically $ typeForRelationalExprSTM conn relExpr
-typeForRelationalExpr conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr relExpr)
+typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
+typeForRelationalExpr sessionId conn@(InProcessConnection _ _ _) relExpr = atomically $ typeForRelationalExprSTM sessionId conn relExpr
+typeForRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr sessionId relExpr)
     
-typeForRelationalExprSTM :: Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
-typeForRelationalExprSTM (InProcessConnection _ tvar) relExpr = do
-  (DisconnectedTransaction _ context, _) <- readTVar tvar
-  pure $ evalState (RE.typeForRelationalExpr relExpr) context
-typeForRelationalExprSTM _ _ = error "typeForRelationalExprSTM called on non-local connection"
+typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
+typeForRelationalExprSTM sessionId (InProcessConnection _ sessions _) relExpr = do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left err -> pure $ Left err
+    Right session -> pure $ evalState (RE.typeForRelationalExpr relExpr) (sessionContext session)
+    
+typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
-inclusionDependencies :: Connection -> IO (M.Map IncDepName InclusionDependency)
-inclusionDependencies (InProcessConnection _ tvar) = do
+inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError (M.Map IncDepName InclusionDependency))
+inclusionDependencies sessionId (InProcessConnection _ sessions _) = do
   atomically $ do
-    ((DisconnectedTransaction _ context), _) <- readTVar tvar
-    pure (B.inclusionDependencies context)
-inclusionDependencies conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveInclusionDependencies
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err
+      Right session -> pure $ Right (B.inclusionDependencies (sessionContext session))
+
+inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
   
-planForDatabaseContextExpr :: Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
-planForDatabaseContextExpr (InProcessConnection _ tvar) dbExpr = do
+planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
+planForDatabaseContextExpr sessionId (InProcessConnection _ sessions _) dbExpr = do
   atomically $ do
-    ((DisconnectedTransaction _ context), _) <- readTVar tvar
-    pure $ evalState (applyStaticDatabaseOptimization dbExpr) context
-planForDatabaseContextExpr conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr dbExpr)
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err
+      Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (sessionContext session)
+planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
-transactionGraphAsRelation :: Connection -> IO (Either RelationalError Relation)
-transactionGraphAsRelation (InProcessConnection _ tvar) = do
+transactionGraphAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+transactionGraphAsRelation sessionId (InProcessConnection _ sessions tvar) = do
   atomically $ do
-    (discon, graph) <- readTVar tvar
-    pure $ graphAsRelation discon graph
-transactionGraphAsRelation conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveTransactionGraph  
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err
+      Right (Session discon) -> do
+        graph <- readTVar tvar
+        pure $ graphAsRelation discon graph
+    
+transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 
 -- | Returns the UUID for the connection's disconnected transaction committed parent transaction.  
-headTransactionUUID :: Connection -> IO (UUID)
-headTransactionUUID (InProcessConnection _ tvar) = do 
+headTransactionUUID :: SessionId -> Connection -> IO (Maybe UUID)
+headTransactionUUID sessionId (InProcessConnection _ sessions _) = do
   atomically $ do
-    (DisconnectedTransaction parentUUID _, _) <- readTVar tvar
-    pure parentUUID
-headTransactionUUID conn@(RemoteProcessConnection _ _) = remoteCall conn RetrieveHeadTransactionUUID
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left _ -> pure Nothing
+      Right session -> pure $ Just (sessionParentUUID session)
+headTransactionUUID sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionUUID sessionId)
     
 -- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
-headName :: Connection -> IO (Maybe HeadName)
-headName (InProcessConnection _ tvar) = do
+headName :: SessionId -> Connection -> IO (Maybe HeadName)
+headName sessionId (InProcessConnection _ sessions graphTvar) = do
   atomically $ do
-    (DisconnectedTransaction parentUUID _, graph) <- readTVar tvar
-    pure $ case transactionForUUID parentUUID graph of
-      Left _ -> Nothing
-      Right parentTrans -> headNameForTransaction parentTrans graph
-headName (RemoteProcessConnection localNode serverProcessId) = do
-  runProcessResult localNode $ do
-    ret <- call serverProcessId ExecuteHeadName
-    pure ret
+    graph <- readTVar graphTvar
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left _ -> pure $ Nothing
+      Right session -> pure $ case transactionForUUID (sessionParentUUID session) graph of
+        Left _ -> Nothing
+        Right parentTrans -> headNameForTransaction parentTrans graph
+headName sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteHeadName sessionId)
+
     
                                                         
   
