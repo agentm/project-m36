@@ -13,11 +13,11 @@ import qualified ProjectM36.Base as Base
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.Atom
+import ProjectM36.Session
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import System.Exit
 import Data.Maybe (isJust)
-import System.IO
 import qualified Data.Vector as V
 import Data.Text.Encoding as TE
 import Data.Typeable (Proxy(..))
@@ -26,6 +26,7 @@ import Data.Time.Clock (UTCTime(..))
 import Data.Time.Calendar (fromGregorian)
 import Data.Interval (interval, Interval, Extended(Finite))
 import Control.Concurrent.STM
+import qualified STMContainers.Map as STMMap
 
 main :: IO ()
 main = do
@@ -125,38 +126,38 @@ assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interp
 
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
-  dbconn <- dateExamplesConnection
+  (_, dbconn) <- dateExamplesConnection
   graph <- transactionGraph dbconn
   assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
 
 --add a new transaction to the graph, validate it is in the graph
 transactionGraphAddCommitTest :: Test
 transactionGraphAddCommitTest = TestCase $ do
-  dbconn <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection
   case parseTutorialD "x:=S" of
     Left err -> assertFailure (show err)
     Right parsed -> do 
-      result <- evalTutorialD dbconn parsed
+      result <- evalTutorialD sessionId dbconn parsed
       case result of
         QuitResult -> assertFailure "quit?"
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> do
-          commit dbconn >>= maybeFail
-          (DisconnectedTransaction _ context) <- disconnectedTransaction dbconn
+          commit sessionId dbconn >>= maybeFail
+          (DisconnectedTransaction _ context) <- disconnectedTransaction sessionId dbconn
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
-  dbconn <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection
   graph <- transactionGraph dbconn
-  maybeErr <- executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S"))
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
-      rollback dbconn >>= maybeFail
-      (DisconnectedTransaction _ context') <- disconnectedTransaction dbconn
+      rollback sessionId dbconn >>= maybeFail
+      (DisconnectedTransaction _ context') <- disconnectedTransaction sessionId dbconn
       graph' <- transactionGraph dbconn
       assertEqual "validate context" Nothing (M.lookup "x" (relationVariables context'))
       assertEqual "validate graph" graph graph'
@@ -164,20 +165,20 @@ transactionRollbackTest = TestCase $ do
 --commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
-  dbconn <- dateExamplesConnection
-  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction dbconn
-  maybeErr <- executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S"))
+  (sessionId, dbconn) <- dateExamplesConnection
+  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction sessionId dbconn
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
-      commit dbconn >>= maybeFail
+      commit sessionId dbconn >>= maybeFail
       --perform the jump
-      maybeErr2 <- executeGraphExpr dbconn (JumpToTransaction firstUUID)
+      maybeErr2 <- executeGraphExpr sessionId dbconn (JumpToTransaction firstUUID)
       case maybeErr2 of
         Just err -> assertFailure (show err)
         Nothing -> do
           --check that the disconnected transaction does not include "x"
-          (DisconnectedTransaction _ context') <- disconnectedTransaction dbconn
+          (DisconnectedTransaction _ context') <- disconnectedTransaction sessionId dbconn
           assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables context'))          
 
 maybeFail :: (Show a) => Maybe a -> IO ()
@@ -187,12 +188,12 @@ maybeFail Nothing = return ()
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
-  dbconn <- dateExamplesConnection
-  mapM_ (\x -> x >>= maybeFail) [executeGraphExpr dbconn (Branch "test"),
-                  executeDatabaseContextExpr dbconn (Assign "x" (RelationVariable "S")),
-                  commit dbconn,
-                  executeGraphExpr dbconn (JumpToHead "master"),
-                  executeDatabaseContextExpr dbconn (Assign "y" (RelationVariable "S"))
+  (sessionId, dbconn) <- dateExamplesConnection
+  mapM_ (\x -> x >>= maybeFail) [executeGraphExpr sessionId dbconn (Branch "test"),
+                  executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S")),
+                  commit sessionId dbconn,
+                  executeGraphExpr sessionId dbconn (JumpToHead "master"),
+                  executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "S"))
                   ]
   graph <- transactionGraph dbconn
   assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
@@ -221,16 +222,18 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP
                                               [stringAtom "London", intAtom 200, stringAtom "P2", stringAtom "S4", stringAtom "Clark", intAtom 20]
                                               ]
 transactionGraph :: Connection -> IO TransactionGraph
-transactionGraph (InProcessConnection _ tvar) = atomically $ do
-  (_, graph) <- readTVar tvar
-  pure graph
+transactionGraph (InProcessConnection _ _ tvar) = atomically $ readTVar tvar
+ 
 transactionGraph _ = error "remote connection used"
 
-disconnectedTransaction :: Connection -> IO DisconnectedTransaction
-disconnectedTransaction (InProcessConnection _ tvar) = atomically $ do
-  (discon, _) <- readTVar tvar
-  pure discon
-disconnectedTransaction _ = error "remote connection used"
+disconnectedTransaction :: SessionId -> Connection -> IO DisconnectedTransaction
+disconnectedTransaction sessionId (InProcessConnection _ sessions _) = do
+  mSession <- atomically $ do
+    STMMap.lookup sessionId sessions
+  case mSession of
+    Nothing -> error "No such session"
+    Just (Session discon) -> pure discon
+disconnectedTransaction _ _ = error "remote connection used"
 
 {-
 inclusionDependencies :: Connection -> M.Map IncDepName InclusionDependency
@@ -238,19 +241,21 @@ inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) 
 inclusionDependencies _ = error "remote connection used"                       
 -}
                            
-dateExamplesConnection :: IO (Connection)
+dateExamplesConnection :: IO (SessionId, Connection)
 dateExamplesConnection = do
   dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
   let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
-    Left err -> do
-      hPutStrLn stderr (show err)
-      exitFailure
+    Left err -> error (show err)
     Right conn -> do
-      mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr conn (Assign rvName (ExistingRelation rvRel))) (M.toList (relationVariables dateExamples))
-      mapM_ (\(idName,incDep) -> executeDatabaseContextExpr conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
+      eSessionId <- createSessionAtHead "master" conn
+      case eSessionId of
+        Left err -> error (show err)
+        Right sessionId -> do
+          mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr sessionId conn (Assign rvName (ExistingRelation rvRel))) (M.toList (relationVariables dateExamples))
+          mapM_ (\(idName,incDep) -> executeDatabaseContextExpr sessionId conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
       --skipping atom functions for now- there are no atom function manipulation operators yet
-      commit conn >>= maybeFail
-      return conn 
+          commit sessionId conn >>= maybeFail
+          pure (sessionId, conn)
       
 
