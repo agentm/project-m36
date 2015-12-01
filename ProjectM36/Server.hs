@@ -20,15 +20,15 @@ import Control.Concurrent.MVar (putMVar, MVar)
 serverDefinition :: ProcessDefinition Connection
 serverDefinition = defaultProcess {
   apiHandlers = [                 
-     handleCall (\conn ExecuteHeadName -> handleExecuteHeadName conn),
-     handleCall (\conn (ExecuteRelationalExpr expr) -> handleExecuteRelationalExpr conn expr),
-     handleCall (\conn (ExecuteDatabaseContextExpr expr) -> handleExecuteDatabaseContextExpr conn expr),
-     handleCall (\conn (ExecuteGraphExpr expr) -> handleExecuteGraphExpr conn expr),
-     handleCall (\conn (ExecuteTypeForRelationalExpr expr) -> handleExecuteTypeForRelationalExpr conn expr),
-     handleCall (\conn RetrieveInclusionDependencies -> handleRetrieveInclusionDependencies conn),
-     handleCall (\conn (RetrievePlanForDatabaseContextExpr dbExpr) -> handleRetrievePlanForDatabaseContextExpr conn dbExpr),
-     handleCall (\conn RetrieveHeadTransactionUUID -> handleRetrieveHeadTransactionUUID conn),
-     handleCall (\conn RetrieveTransactionGraph -> handleRetrieveTransactionGraph conn),
+     handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName sessionId conn),
+     handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr sessionId conn expr),
+     handleCall (\conn (ExecuteDatabaseContextExpr sessionId expr) -> handleExecuteDatabaseContextExpr sessionId conn expr),
+     handleCall (\conn (ExecuteGraphExpr sessionId expr) -> handleExecuteGraphExpr sessionId conn expr),
+     handleCall (\conn (ExecuteTypeForRelationalExpr sessionId expr) -> handleExecuteTypeForRelationalExpr sessionId conn expr),
+     handleCall (\conn (RetrieveInclusionDependencies sessionId) -> handleRetrieveInclusionDependencies sessionId conn),
+     handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr),
+     handleCall (\conn (RetrieveHeadTransactionUUID sessionId) -> handleRetrieveHeadTransactionUUID sessionId conn),
+     handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
      handleCall (\conn Login -> handleLogin conn)
                  ],
   unhandledMessagePolicy = Log

@@ -3,9 +3,9 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
-import TutorialD.Interpreter.Base (displayOpResult)
+--import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.DatabaseExpr (interpretDatabaseExpr)
-import TutorialD.Interpreter.RODatabaseContextOperator (interpretRODatabaseContextOp)
+--import TutorialD.Interpreter.RODatabaseContextOperator (interpretRODatabaseContextOp)
 import ProjectM36.RelationalExpression
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS

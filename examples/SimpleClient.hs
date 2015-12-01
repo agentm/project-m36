@@ -14,21 +14,26 @@ main = do
   case eConn of
     Left err -> putStrLn (show err)
     Right conn -> do
-      --3. define a new relation variable with a DatabaseContext expression
-      let attrs = attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType]
-      mErr1 <- executeDatabaseContextExpr conn (Define "person" attrs)
-      putStrLn (show mErr1)
-      --4. add a tuple to the relation referenced by the relation variable
-      let (Right tupSet) = mkTupleSetFromList attrs [[stringAtom "Bob", intAtom 45]]
-      mErr2 <- executeDatabaseContextExpr conn (Insert "person" (MakeStaticRelation attrs tupSet))
-      putStrLn (show mErr2)
-      
-      --5. execute a relational algebra query
-      let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (stringAtom "Steve"))
-      eRel <- executeRelationalExpr conn (Restrict restrictionPredicate (RelationVariable "person"))
-      case eRel of
+      --3. create a session on the "master" branch
+      eSessionId <- createSessionAtHead "master" conn
+      case eSessionId of
         Left err -> putStrLn (show err)
-        Right rel -> putStrLn (show $ showRelation rel)
+        Right sessionId -> do
+          --4. define a new relation variable with a DatabaseContext expression
+          let attrs = attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType]
+          mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" attrs)
+          putStrLn (show mErr1)
+          --5. add a tuple to the relation referenced by the relation variable
+          let (Right tupSet) = mkTupleSetFromList attrs [[stringAtom "Bob", intAtom 45]]
+          mErr2 <- executeDatabaseContextExpr sessionId conn (Insert "person" (MakeStaticRelation attrs tupSet))
+          putStrLn (show mErr2)
       
-      --6. close the connection
-      close conn
+          --6. execute a relational algebra query
+          let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (stringAtom "Steve"))
+          eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person"))
+          case eRel of
+            Left err -> putStrLn (show err)
+            Right rel -> putStrLn (show $ showRelation rel)
+      
+          --7. close the connection
+          close conn

@@ -8,54 +8,51 @@ import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
 import Data.UUID (UUID)
-import Data.UUID.V4 (nextRandom)
 
-handleExecuteRelationalExpr :: Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
-handleExecuteRelationalExpr conn expr = do
-  ret <- liftIO $ executeRelationalExpr conn expr
+handleExecuteRelationalExpr :: SessionId -> Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
+handleExecuteRelationalExpr sessionId conn expr = do
+  ret <- liftIO $ executeRelationalExpr sessionId conn expr
   reply ret conn
   
-handleExecuteDatabaseContextExpr :: Connection -> DatabaseExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
-handleExecuteDatabaseContextExpr conn dbexpr = do
-  ret <- liftIO $ executeDatabaseContextExpr conn dbexpr
+handleExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteDatabaseContextExpr sessionId conn dbexpr = do
+  ret <- liftIO $ executeDatabaseContextExpr sessionId conn dbexpr
   reply ret conn
   
-handleExecuteHeadName :: Connection -> Process (ProcessReply (Maybe HeadName) Connection)
-handleExecuteHeadName conn = do
-  ret <- liftIO $ headName conn 
+handleExecuteHeadName :: SessionId -> Connection -> Process (ProcessReply (Maybe HeadName) Connection)
+handleExecuteHeadName sessionId conn = do
+  ret <- liftIO $ headName sessionId conn 
   reply ret conn
   
-handleLogin :: Connection -> Process (ProcessReply UUID Connection)
-handleLogin conn = do 
-  sessionId <- liftIO $ nextRandom
-  reply sessionId conn
+handleLogin :: Connection -> Process (ProcessReply Bool Connection)
+handleLogin conn = reply True conn
   
-handleExecuteGraphExpr :: Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)
-handleExecuteGraphExpr conn graphExpr = do
-  ret <- liftIO $ executeGraphExpr conn graphExpr
+handleExecuteGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteGraphExpr sessionId conn graphExpr = do
+  ret <- liftIO $ executeGraphExpr sessionId conn graphExpr
   reply ret conn
   
-handleExecuteTypeForRelationalExpr :: Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)  
-handleExecuteTypeForRelationalExpr conn relExpr = do
-  ret <- liftIO $ typeForRelationalExpr conn relExpr
+handleExecuteTypeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)  
+handleExecuteTypeForRelationalExpr sessionId conn relExpr = do
+  ret <- liftIO $ typeForRelationalExpr sessionId conn relExpr
   reply ret conn
   
-handleRetrieveInclusionDependencies :: Connection -> Process (ProcessReply (Map IncDepName InclusionDependency) Connection)
-handleRetrieveInclusionDependencies conn = do
-  ret <- liftIO $ inclusionDependencies conn
+handleRetrieveInclusionDependencies :: SessionId -> Connection -> Process (ProcessReply (Either RelationalError (Map IncDepName InclusionDependency)) Connection)
+handleRetrieveInclusionDependencies sessionId conn = do
+  ret <- liftIO $ inclusionDependencies sessionId conn
   reply ret conn
   
-handleRetrievePlanForDatabaseContextExpr :: Connection -> DatabaseExpr -> Process (ProcessReply (Either RelationalError DatabaseExpr) Connection)
-handleRetrievePlanForDatabaseContextExpr conn dbExpr = do
-  ret <- liftIO $ planForDatabaseContextExpr conn dbExpr
+handleRetrievePlanForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Either RelationalError DatabaseExpr) Connection)
+handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr = do
+  ret <- liftIO $ planForDatabaseContextExpr sessionId conn dbExpr
   reply ret conn
   
-handleRetrieveTransactionGraph :: Connection -> Process (ProcessReply (Either RelationalError Relation) Connection)
-handleRetrieveTransactionGraph conn = do  
-  ret <- liftIO $ transactionGraphAsRelation conn
+handleRetrieveTransactionGraph :: SessionId -> Connection -> Process (ProcessReply (Either RelationalError Relation) Connection)
+handleRetrieveTransactionGraph sessionId conn = do  
+  ret <- liftIO $ transactionGraphAsRelation sessionId conn
   reply ret conn
   
-handleRetrieveHeadTransactionUUID :: Connection -> Process (ProcessReply UUID Connection)
-handleRetrieveHeadTransactionUUID conn = do
-  ret <- liftIO $ headTransactionUUID conn  
+handleRetrieveHeadTransactionUUID :: SessionId -> Connection -> Process (ProcessReply (Maybe UUID) Connection)
+handleRetrieveHeadTransactionUUID sessionId conn = do
+  ret <- liftIO $ headTransactionUUID sessionId conn  
   reply ret conn
