@@ -98,7 +98,6 @@ defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (c
 
 type Sessions = STMMap.Map SessionId Session
 
-                      
 data Connection = InProcessConnection PersistenceStrategy Sessions (TVar TransactionGraph) |
                   RemoteProcessConnection LocalNode ProcessId
                   

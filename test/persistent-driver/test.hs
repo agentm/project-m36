@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 import Test.HUnit
 import Database.Persist.ProjectM36
 import ProjectM36.Client
@@ -40,18 +41,18 @@ main = do
 inProcSettings :: ConnectionInfo
 inProcSettings = InProcessConnectionInfo NoPersistence
 
-defPersonRel :: Connection -> IO ()
-defPersonRel conn = do
-    maybeErr <- C.executeDatabaseContextExpr conn (Define "person" (attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType, Attribute "id" stringAtomType]))
+defPersonRel :: SessionId -> Connection -> IO ()
+defPersonRel sessionId conn = do
+    maybeErr <- C.executeDatabaseContextExpr sessionId conn (Define "person" (attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType, Attribute "id" stringAtomType]))
     case maybeErr of
         Nothing -> return ()
         Just err -> assertFailure $ "defPersonRel" ++ show err
 
-mkInProcessTest :: ReaderT C.Connection IO () -> Test
+mkInProcessTest :: ReaderT ProjectM36Backend IO () -> Test
 mkInProcessTest m = TestCase $ do
         withProjectM36Conn inProcSettings $ runProjectM36Conn $ do
-            conn <- ask
-            liftIO (defPersonRel conn)
+            (sessionId, conn) <- ask
+            liftIO (defPersonRel sessionId conn)
             m
 
 entityFromMaybe :: (PersistEntity val) => Maybe (Entity val) -> IO (Entity val)
