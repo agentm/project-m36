@@ -57,28 +57,28 @@ parseTutorialD :: String -> Either ParseError ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --execute the operation and display result
-evalTutorialD :: C.Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
-evalTutorialD conn expr = case expr of
+evalTutorialD :: C.SessionId -> C.Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
+evalTutorialD sessionId conn expr = case expr of
   
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
   (RODatabaseContextOp execOp) -> do
-    evalRODatabaseContextOp conn execOp
+    evalRODatabaseContextOp sessionId conn execOp
     
   (DatabaseExprOp execOp) -> do 
-    maybeErr <- C.executeDatabaseContextExpr conn execOp 
+    maybeErr <- C.executeDatabaseContextExpr sessionId conn execOp 
     case maybeErr of
       Just err -> barf err
       Nothing -> return QuietSuccessResult
     
   (GraphOp execOp) -> do
-    maybeErr <- C.executeGraphExpr conn execOp
+    maybeErr <- C.executeGraphExpr sessionId conn execOp
     case maybeErr of
       Just err -> barf err
       Nothing -> return QuietSuccessResult
 
   (ROGraphOp execOp) -> do
-    opResult <- evalROGraphOp conn execOp
+    opResult <- evalROGraphOp sessionId conn execOp
     case opResult of 
       Left err -> barf err
       Right rel -> return $ DisplayResult $ showRelation rel
@@ -86,24 +86,24 @@ evalTutorialD conn expr = case expr of
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     -- collect attributes from relvar name
     -- is there a race condition here? The attributes of the relvar may have since changed, no?
-    eImportType <- C.typeForRelationalExpr conn (RelationVariable relVarName)
+    eImportType <- C.typeForRelationalExpr sessionId conn (RelationVariable relVarName)
     case eImportType of
       Left err -> barf err
       Right importType -> do
         exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
         case exprErr of
           Left err -> barf err
-          Right dbexpr -> evalTutorialD conn (DatabaseExprOp dbexpr)
+          Right dbexpr -> evalTutorialD sessionId conn (DatabaseExprOp dbexpr)
   
   (ImportDBContextOp execOp) -> do
     mDbexprs <- evalDatabaseContextDataImportOperator execOp
     case mDbexprs of 
       Left err -> barf err
-      Right dbexprs -> evalTutorialD conn (DatabaseExprOp dbexprs)
+      Right dbexprs -> evalTutorialD sessionId conn (DatabaseExprOp dbexprs)
       
   (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
     --eval relexpr to relation and pass to export function
-    eRel <- C.executeRelationalExpr conn relExpr
+    eRel <- C.executeRelationalExpr sessionId conn relExpr
     case eRel of
       Left err -> barf err
       Right rel -> do
@@ -114,14 +114,14 @@ evalTutorialD conn expr = case expr of
   where
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName|
+                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName
 
-reprLoop :: InterpreterConfig -> C.Connection -> IO ()
-reprLoop config conn = do
+reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
+reprLoop config sessionId conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  mHeadName <- C.headName conn
+  mHeadName <- C.headName sessionId conn
   maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText mHeadName))
   case maybeLine of
     Nothing -> return ()
@@ -130,6 +130,6 @@ reprLoop config conn = do
         Left err -> do
           displayOpResult $ DisplayErrorResult (T.pack (show err))
         Right parsed -> do 
-          evald <- evalTutorialD conn parsed
+          evald <- evalTutorialD sessionId conn parsed
           displayOpResult evald
-      reprLoop config conn
+      reprLoop config sessionId conn

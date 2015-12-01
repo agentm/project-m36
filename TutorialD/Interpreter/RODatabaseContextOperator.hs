@@ -68,46 +68,48 @@ roDatabaseContextOperatorP = typeP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
-evalRODatabaseContextOp :: C.Connection -> RODatabaseContextOperator -> IO TutorialDOperatorResult
-evalRODatabaseContextOp conn (ShowRelationType expr) = do
-  res <- C.typeForRelationalExpr conn expr
+evalRODatabaseContextOp :: C.SessionId -> C.Connection -> RODatabaseContextOperator -> IO TutorialDOperatorResult
+evalRODatabaseContextOp sessionId conn (ShowRelationType expr) = do
+  res <- C.typeForRelationalExpr sessionId conn expr
   case res of
     Left err -> pure $ DisplayErrorResult $ T.pack (show err)
     Right rel -> pure $ DisplayResult $ showRelation rel
 
-evalRODatabaseContextOp conn (ShowRelation expr) = do
-  res <- C.executeRelationalExpr conn expr
+evalRODatabaseContextOp sessionId conn (ShowRelation expr) = do
+  res <- C.executeRelationalExpr sessionId conn expr
   case res of
     Left err -> pure $ DisplayErrorResult $ T.pack (show err)
     Right rel -> pure $ DisplayResult $ showRelation rel
     
-evalRODatabaseContextOp conn (PlotRelation expr) = do
-  res <- C.executeRelationalExpr conn expr
+evalRODatabaseContextOp sessionId conn (PlotRelation expr) = do
+  res <- C.executeRelationalExpr sessionId conn expr
   pure $ case res of
     Left err -> DisplayErrorResult $ T.pack (show err)
     Right rel -> DisplayIOResult $ do
       err <- plotRelation rel
       when (isJust err) $ putStrLn (show err)
 
-evalRODatabaseContextOp conn (ShowConstraint name) = do
-  incDeps <- C.inclusionDependencies conn
-  pure $ case name of
-    "" -> DisplayResult $ T.pack (show incDeps)
-    depName -> case M.lookup depName incDeps of
-      Nothing -> DisplayErrorResult "No such constraint."
-      Just dep -> DisplayResult $ T.pack (show dep)
+evalRODatabaseContextOp sessionId conn (ShowConstraint name) = do
+  eIncDeps <- C.inclusionDependencies sessionId conn
+  pure $ case eIncDeps of
+    Left err -> DisplayErrorResult $ T.pack (show err)
+    Right incDeps -> case name of
+      "" -> DisplayResult $ T.pack (show incDeps)
+      depName -> case M.lookup depName incDeps of
+        Nothing -> DisplayErrorResult "No such constraint."
+        Just dep -> DisplayResult $ T.pack (show dep)
 
-evalRODatabaseContextOp conn (ShowPlan dbExpr) = do
-  plan <- C.planForDatabaseContextExpr conn dbExpr
+evalRODatabaseContextOp sessionId conn (ShowPlan dbExpr) = do
+  plan <- C.planForDatabaseContextExpr sessionId conn dbExpr
   pure $ case plan of 
     Left err -> DisplayErrorResult (T.pack (show err))
     Right optDbExpr -> DisplayResult $ T.pack (show optDbExpr)
 
-evalRODatabaseContextOp _ (Quit) = pure QuitResult
+evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
 
-interpretRODatabaseContextOp :: C.Connection -> String -> IO TutorialDOperatorResult
-interpretRODatabaseContextOp conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
+interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> String -> IO TutorialDOperatorResult
+interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
-  Right parsed -> evalRODatabaseContextOp conn parsed
+  Right parsed -> evalRODatabaseContextOp sessionId conn parsed
   
   

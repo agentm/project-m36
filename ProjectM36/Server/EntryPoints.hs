@@ -7,7 +7,8 @@ import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
-import Data.UUID (UUID, nextRandom)
+import Data.UUID (UUID)
+import Data.UUID.V4 (nextRandom)
 
 handleExecuteRelationalExpr :: Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
 handleExecuteRelationalExpr conn expr = do

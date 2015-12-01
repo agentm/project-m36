@@ -74,5 +74,5 @@ interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instri
       Right (newDiscon, newGraph, result) -> (newDiscon, newGraph, result)
 -}
 
-evalROGraphOp :: Connection -> ROTransactionGraphOperator -> IO (Either RelationalError Relation)
-evalROGraphOp conn ShowGraph = transactionGraphAsRelation conn
+evalROGraphOp :: SessionId -> Connection -> ROTransactionGraphOperator -> IO (Either RelationalError Relation)
+evalROGraphOp sessionId conn ShowGraph = transactionGraphAsRelation sessionId conn

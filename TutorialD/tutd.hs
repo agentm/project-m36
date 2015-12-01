@@ -7,8 +7,8 @@ import Options.Applicative
 import System.Exit
 
 parseArgs :: Parser InterpreterConfig
-parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <|>
-            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <|>
+            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -23,6 +23,12 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
     fsyncOpt = switch (short 'f' <>
                     long "fsync" <>
                     help "Fsync all new transactions.")
+               
+parseHeadName :: Parser HeadName               
+parseHeadName = option auto (long "head" <>
+                             help "Start session at head name." <>
+                             value "master"
+                            )
                
 parseDatabaseName :: Parser DatabaseName               
 parseDatabaseName = strOption (long "database" <>
@@ -43,9 +49,16 @@ opts :: ParserInfo InterpreterConfig
 opts = info parseArgs idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy) = InProcessConnectionInfo pStrategy
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName) = RemoteProcessConnectionInfo remoteDBName remoteNodeId
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _) = InProcessConnectionInfo pStrategy
+connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId
+
+headNameForConfig :: InterpreterConfig -> HeadName
+headNameForConfig (LocalInterpreterConfig _ headn) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ headn) = headn
                            
+errDie :: String -> IO ()                                                           
+errDie err = hPutStrLn stderr err >> exitFailure
+  
 main :: IO ()
 main = do
   interpreterConfig <- execParser opts
@@ -53,9 +66,13 @@ main = do
   dbconn <- connectProjectM36 connInfo
   case dbconn of 
     Left err -> do
-      hPutStrLn stderr ("Failed to create database connection: " ++ show err)
-      exitFailure
+      errDie ("Failed to create database connection: " ++ show err)
     Right conn -> do
-      _ <- reprLoop interpreterConfig conn
-      return ()
+      let connHeadName = headNameForConfig interpreterConfig
+      eSessionId <- createSessionAtHead connHeadName conn
+      case eSessionId of 
+          Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
+          Right sessionId -> do    
+            _ <- reprLoop interpreterConfig sessionId conn
+            pure ()
 

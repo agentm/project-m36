@@ -24,6 +24,7 @@ module ProjectM36.Client
        headTransactionUUID,
        defaultDatabaseName,
        defaultRemoteConnectionInfo,
+       defaultHeadName,
        PersistenceStrategy(..),
        RelationalExpr(..),
        DatabaseExpr(..),
@@ -37,6 +38,8 @@ module ProjectM36.Client
        Atomable,
        NodeId(..),
        Atom(..),
+       Session,
+       SessionId,
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -86,6 +89,9 @@ defaultServerPort = 6543
 
 defaultDatabaseName :: DatabaseName
 defaultDatabaseName = "base"
+
+defaultHeadName :: HeadName
+defaultHeadName = "master"
 
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
