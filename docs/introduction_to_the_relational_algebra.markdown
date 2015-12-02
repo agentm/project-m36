@@ -251,7 +251,55 @@ union (Parents relation)
 
 ##### Group
 
+The group operator (not to be confused with SQL's "GROUP BY") creates a sub-relation for the named attributes and collapses the unnamed attributes where the projected tuples are equal. It can be used for aggregate queries whereby the original and aggregate values can be returned. The group operator does not imply any aggregation, but can be used to create one.
+
+Examples:
+
+* Retrieve and group people who are of the same age.
+
+group ("Name") as "SameAgePeople"
+
+|(Name, Name Type)|(Age, Age Type)|
+|-----------------|---------------|
+|Steve|12|
+|Cindy|12|
+|Bob|45|
+|Tom|12|
+
+===>
+
+|(SameAgePeople, relation (Name, Name Type)) | (Age, Age Type) |
+|------------------------------------|-----------------|
+|<table><tr><th>(Name, Name Type)</th></tr><tr><td>Steve</td></tr><tr><td>Cindy</td></tr><tr><td>Tom</td></tr></table>| 12|
+|<table><tr><th>(Name, Name Type)</th></tr><tr><td>Bob</td></tr></table>|45|
+
+Note that the new type of "SameAgePeople" is relation-based type. This can be thought of as a nested relation within a relation.
+
 ##### Ungroup
+
+Ungroup unwraps a relation-valued attribute into the top-level relation.
+
+Examples:
+
+* Given the relation containing people's name mapped to their pets' names, create a relation whereby each person's name is mapped directly to each pet name.
+
+ungroup ("Pets")
+
+|(Name, Name Type)| (Pets, relation (PetName, Name Type))|
+|-----------------|--------------------------------------|
+|Cindy|<table><tr><th>(PetName, Name Type)</th></tr><tr><td>Smurfy</td></tr><tr><td>Stretchy</td></tr></table>|
+|Bob|<table><tr><th>(PetName, Name Type)</th></tr></table>|
+|Sam|<table><tr><th>(PetName, Name Type)</th></tr><tr><td>Socks</td></tr></table>|
+
+===>
+
+|(Name, Name Type)|(PetName, Name Type)|
+|-----------------|--------------------|
+|Cindy|Smurfy|
+|Cindy|Stretchy|
+|Sam|Socks|
+
+Note that Bob does not appear in the result relation because he has no pets.
 
 ### Displaying Relations
 
