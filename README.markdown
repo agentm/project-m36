@@ -31,6 +31,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ProjectM36.Client Library](docs/projectm36_client_library.markdown)
 1. [Adding New Data Types](docs/new_datatypes.markdown)
 1. [ACID Database Properties](docs/acid_assessment.markdown)
+1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
   
 ## Development
 
