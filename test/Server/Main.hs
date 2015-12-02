@@ -12,6 +12,9 @@ import ProjectM36.TupleSet
 
 import System.Exit
 import Control.Concurrent
+import Data.UUID (nil)
+import Data.Either (isRight)
+import Data.Maybe (isJust)
 
 testList :: SessionId -> Connection -> Test
 testList sessionId conn = TestList $ map (\t -> t sessionId conn) [
@@ -22,7 +25,8 @@ testList sessionId conn = TestList $ map (\t -> t sessionId conn) [
   testPlanForDatabaseContextExpr,
   testTransactionGraphAsRelation,
   testHeadTransactionUUID,
-  testHeadName
+  testHeadName,
+  testSession
   ]
            
 main :: IO ()
@@ -111,7 +115,8 @@ testTransactionGraphAsRelation sessionId conn = TestCase $ do
     
 testHeadTransactionUUID :: SessionId -> Connection -> Test    
 testHeadTransactionUUID sessionId conn = TestCase $ do
-  _ <- headTransactionUUID sessionId conn
+  uuid <- headTransactionUUID sessionId conn
+  assertBool "invalid head transaction uuid" (isJust uuid)
   pure ()
   
 testHeadName :: SessionId -> Connection -> Test
@@ -119,4 +124,17 @@ testHeadName sessionId conn = TestCase $ do
   mHeadName <- headName sessionId conn
   assertEqual "headName failure" (Just "master") mHeadName
   
-  
+testSession :: SessionId -> Connection -> Test
+testSession _ conn = TestCase $ do
+  -- create and close a new session using AtHead and AtCommit
+  eSessionId1 <- createSessionAtHead defaultHeadName conn
+  case eSessionId1 of
+    Left _ -> assertFailure "invalid session" 
+    Right sessionId1 -> do
+      mHeadUUID <- headTransactionUUID sessionId1 conn
+      case mHeadUUID of
+        Nothing -> assertFailure "invalid head UUID"
+        Just headUUID -> do
+          eSessionId2 <- createSessionAtCommit headUUID conn
+          assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
+          closeSession sessionId1 conn

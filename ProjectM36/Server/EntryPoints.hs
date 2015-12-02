@@ -66,3 +66,8 @@ handleCreateSessionAtHead :: HeadName -> Connection -> Process (ProcessReply (Ei
 handleCreateSessionAtHead headn conn = do
   ret <- liftIO $ createSessionAtHead headn conn
   reply ret conn
+  
+handleCloseSession :: SessionId -> Connection -> Process (ProcessReply () Connection)  
+handleCloseSession sessionId conn = do
+  liftIO $ closeSession sessionId conn
+  reply () conn

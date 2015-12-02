@@ -31,7 +31,8 @@ serverDefinition = defaultProcess {
      handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
      handleCall (\conn Login -> handleLogin conn),
      handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead headn conn),
-     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn)
+     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn),
+     handleCall (\conn (CloseSession sessionId) -> handleCloseSession sessionId conn)
      ],
   unhandledMessagePolicy = Log
   }
