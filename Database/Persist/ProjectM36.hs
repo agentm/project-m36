@@ -346,7 +346,7 @@ instance FromJSON C.ConnectionInfo where
            return ctype
 
 instance PersistConfig C.ConnectionInfo where
-  -- | Hold onto a connection as well a default session.
+  --- | Hold onto a connection as well a default session.
          type PersistConfigBackend C.ConnectionInfo = ReaderT ProjectM36Backend
          type PersistConfigPool C.ConnectionInfo = ProjectM36Backend
 

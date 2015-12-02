@@ -26,6 +26,7 @@ import ProjectM36.ConcreteTypeRep
 
 type StringType = Text
 
+-- | Any data type represents as an 'Atom' in the database must adhere to the 'Atomable' typeclass.
 class (Read a, 
        Hashable a, 
        Binary a, 
@@ -54,6 +55,7 @@ instance Atomable Bool
 instance Atomable Relation
 instance (Atomable a) => Atomable (Maybe a)
   
+-- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = forall a. Atomable a => Atom a
 
 instance Eq Atom where
@@ -94,6 +96,7 @@ instance NFData Atom where
 instance Hashable Atom where  
   hashWithSalt salt (Atom a) = hashWithSalt salt a
   
+-- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (Atom atom) = case cast atom of
   Just (Relation attrs _) -> RelationAtomType attrs
@@ -116,12 +119,14 @@ data AtomType = AtomType ConcreteTypeRep |
                 AnyAtomType --wildcard used in Atom Functions
               deriving (Eq,NFData,Generic,Binary,Show)
                        
+-- | Return True iff the atom type argument is relation-valued. If True, this indicates that the Atom contains a relation.
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
 
 type AttributeName = StringType
 
+-- | A relation's type is composed of attribute names and types.
 data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
 
 instance Hashable Attribute where
@@ -131,8 +136,10 @@ instance NFData Attribute where rnf = genericRnf
                                 
 instance Binary Attribute
 
+-- | 'Attributes' represent the head of a relation.
 type Attributes = V.Vector Attribute
 
+-- | Equality function for a set of attributes.
 attributesEqual :: Attributes -> Attributes -> Bool
 attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
   where
@@ -141,6 +148,7 @@ attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
 sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
+-- | The relation's tuple set is the body of the relation.
 newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
 
 instance Read Relation where
@@ -168,7 +176,7 @@ instance Hashable RelationTuple where
       sortedAttrs = map snd sortedAttrsIndices
       sortedTupVec = V.map (\(index, _) -> tupVec V.! index) $ V.fromList sortedAttrsIndices
   
---maybe the attribute->int mapping should be stored once in the relation and then passed down when needed  
+-- | A tuple is a set of attributes mapped to their 'Atom' values.
 data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Generic)
 
 instance Binary RelationTuple
@@ -202,22 +210,35 @@ instance Binary Relation
 data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic, Ord)
 data RelationSizeInfinite = RelationSizeInfinite
 
+-- | Relation variables are identified by their names.
 type RelVarName = StringType
 
+-- | A relational expression represents query (read) operations on a database.
 data RelationalExpr where
+  --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
+  --- | Reference an existing relation in Haskell-space.
   ExistingRelation :: Relation -> RelationalExpr
   --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
+  --- | Reference a relation variable by its name.
   RelationVariable :: RelVarName -> RelationalExpr
+  --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
   Project :: AttributeNames -> RelationalExpr -> RelationalExpr
+  --- | Create a union of two relational expressions. The expressions should have identical attributes.
   Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  --- | Rename an attribute (first argument) to another (second argument).
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
   Group :: AttributeNames -> AttributeName -> RelationalExpr -> RelationalExpr
+  --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
   Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
+  --- | Filter the tuples of the relational expression to only retain the tuples which evaluate against the restriction predicate to true.
   Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
+  --- | Returns the true relation iff 
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
@@ -226,21 +247,21 @@ data RelationalExpr where
 
 instance Binary RelationalExpr
 
+-- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: M.Map IncDepName InclusionDependency,
   relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions
   } deriving (Show, Generic)
              
---instance Binary DatabaseContext             
-             
 type IncDepName = StringType             
 
+-- | Inclusion dependencies represent every possible database constraints. Constraints enforce specific, arbitrarily-complex rules to which the database context must adhere.
 data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic)
 
 instance Binary InclusionDependency
 
---Database context expressions modify the database context while relational expressions do not
+-- | Database context expressions modify the database context.
 data DatabaseExpr where
   Define :: RelVarName -> Attributes -> DatabaseExpr
   Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
@@ -255,6 +276,7 @@ data DatabaseExpr where
 
 type DatabaseState a = State DatabaseContext a
 
+-- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 data RestrictionPredicateExpr where
   TruePredicate :: RestrictionPredicateExpr
   AndPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
@@ -268,11 +290,12 @@ data RestrictionPredicateExpr where
 instance Binary RestrictionPredicateExpr
 
 -- child + parent links
--- the string represents the branch name and can be used to find the named HEADs
+-- | A transaction graph's head name references the leaves of the transaction graph and can be used during session creation to indicate at which point in the graph commits should persist.
 type HeadName = StringType
 
 type TransactionHeads = M.Map HeadName Transaction
 
+-- | The transaction graph is the global database's state which references every committed transaction.
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
                         deriving (Show, Eq)
 
@@ -282,20 +305,20 @@ transactionsForGraph (TransactionGraph _ t) = t
 transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
 transactionHeadsForGraph (TransactionGraph heads _) = heads
 
+-- | Every transaction has context-specific information attached to it.
 data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n children
                        MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
                      deriving(Show, Generic)
                              
 instance Binary TransactionInfo                             
                              
+-- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
                    deriving (Show, Generic)
 
 --instance Binary Transaction
                             
---represents an "in-progress" transaction which has not yet been added to the transaction graph
---one the transaction is "complete", it is committed and no longer can be changed
--- this is similar to the index in git
+-- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
 data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parentUUID, context
                             
 transactionUUID :: Transaction -> UUID
@@ -313,7 +336,7 @@ instance Eq Transaction where
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
---used on the right side of attribute assignments
+-- | An atom expression represents an action to take when extending a relation.
 data AtomExpr = AttributeAtomExpr AttributeName |
                 NakedAtomExpr Atom |
                 FunctionAtomExpr AtomFunctionName [AtomExpr] |
@@ -322,7 +345,7 @@ data AtomExpr = AttributeAtomExpr AttributeName |
                        
 instance Binary AtomExpr                       
 
---used to extend a relation
+-- | A tuple expression declares what action to take when extending a relation.
 data TupleExpr = AttributeTupleExpr AttributeName AtomExpr
   deriving (Show, Eq, Generic)
            
@@ -333,6 +356,7 @@ type AtomFunctions = HS.HashSet AtomFunction
 
 type AtomFunctionName = StringType
 
+-- | An AtomFunction has a name, a type, and a function body to execute when called.
 data AtomFunction = AtomFunction {
   atomFuncName :: AtomFunctionName,
   atomFuncType :: [AtomType], 
@@ -350,16 +374,17 @@ instance Show AtomFunction where
    where
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
      
+-- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
 data AttributeNames = AttributeNames (S.Set AttributeName) |
                       InvertedAttributeNames (S.Set AttributeName)
                       deriving (Eq, Show, Generic)
                                 
 instance Binary AttributeNames 
 
---used for global dbms configuration- per-transaction flag is elsewhere
-data PersistenceStrategy = NoPersistence | --no filesystem persistence/memory-only database
-                           MinimalPersistence FilePath | --fsync off
-                           CrashSafePersistence FilePath --full fsync- not yet implemented
+-- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
+data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory-only database
+                           MinimalPersistence FilePath | -- ^ fsync off, not crash-safe
+                           CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
     

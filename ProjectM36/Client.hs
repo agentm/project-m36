@@ -97,10 +97,11 @@ defaultHeadName = "master"
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
 
-
+-- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 data Connection = InProcessConnection PersistenceStrategy Sessions (TVar TransactionGraph) |
                   RemoteProcessConnection LocalNode ProcessId
                   
+-- | There are several reasons why a connection can fail.
 data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                        IOExceptionError IOException |
                        NoSuchDatabaseByNameError DatabaseName |
@@ -110,6 +111,7 @@ data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
 remoteDBLookupName :: DatabaseName -> String    
 remoteDBLookupName = (++) "db-" 
 
+
 commonLocalNode :: IO (Either ConnectionError LocalNode)
 commonLocalNode = do
   eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
@@ -117,7 +119,7 @@ commonLocalNode = do
     Left err -> pure (Left $ IOExceptionError err)
     Right localTransport -> newLocalNode localTransport initRemoteTable >>= pure . Right
   
--- connect to an in-process database
+-- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat) = do
@@ -195,6 +197,7 @@ createSessionAtCommit_ commitUUID newSessionId (InProcessConnection _ sessions g
                    pure $ Right newSessionId
 createSessionAtCommit_ _ _ (RemoteProcessConnection _ _) = error "createSessionAtCommit_ called on remote connection"
   
+-- | Call 'createSessionAtHead' with a transaction graph's head's name to create a new session pinned to that head. This function returns a 'SessionId' which can be used in other function calls to reference the point in the transaction graph.
 createSessionAtHead :: HeadName -> Connection -> IO (Either RelationalError SessionId)
 createSessionAtHead headn conn@(InProcessConnection _ _ tvar) = do
     newSessionId <- nextRandom
@@ -211,7 +214,7 @@ closeSession sessionId (InProcessConnection _ sessions _) = do
     atomically $ do
        STMMap.delete sessionId sessions
 closeSession sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (CloseSession sessionId)       
-              
+-- | 'close' cleans up the database access connection. Note that sessions persist even after the connection is closed.              
 close :: Connection -> IO ()
 close (InProcessConnection _ sessions _) = atomically $ do
     traverse_ (\(k,_) -> STMMap.delete k sessions) (STMMap.stream sessions)
@@ -241,6 +244,7 @@ sessionForSessionId sessionId sessions = do
   maybeSession <- STMMap.lookup sessionId sessions
   pure $ maybe (Left $ NoSuchSession sessionId) Right maybeSession
 
+-- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr sessionId (InProcessConnection _ sessions _) expr = atomically $ do
   eSession <- sessionForSessionId sessionId sessions
@@ -249,6 +253,7 @@ executeRelationalExpr sessionId (InProcessConnection _ sessions _) expr = atomic
     Right (Session (DisconnectedTransaction _ context)) -> pure $ evalState (RE.evalRelationalExpr expr) context
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
   
+-- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr sessionId (InProcessConnection _ sessions _) expr = atomically $ do
   eSession <- sessionForSessionId sessionId sessions
@@ -263,6 +268,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ sessions _) expr = a
          return Nothing
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
          
+-- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
 executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphExpr = do
   freshUUID <- nextRandom
@@ -287,10 +293,12 @@ executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphE
       return Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
       
+-- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing.
 commit :: SessionId -> Connection -> IO (Maybe RelationalError)
 commit sessionId conn@(InProcessConnection _ _ _) = executeGraphExpr sessionId conn Commit
 commit sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
           
+-- | Discard any changes made in the current session. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Maybe RelationalError)
 rollback sessionId conn@(InProcessConnection _ _ _) = executeGraphExpr sessionId conn Rollback      
 rollback sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
@@ -300,6 +308,7 @@ processPersistence NoPersistence _ = return ()
 processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph
 processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph
 
+-- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 typeForRelationalExpr sessionId conn@(InProcessConnection _ _ _) relExpr = atomically $ typeForRelationalExprSTM sessionId conn relExpr
 typeForRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr sessionId relExpr)
@@ -313,6 +322,7 @@ typeForRelationalExprSTM sessionId (InProcessConnection _ sessions _) relExpr = 
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
+-- | Return a 'Map' of the database's constraints at the context of the session and connection.
 inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError (M.Map IncDepName InclusionDependency))
 inclusionDependencies sessionId (InProcessConnection _ sessions _) = do
   atomically $ do
@@ -323,7 +333,7 @@ inclusionDependencies sessionId (InProcessConnection _ sessions _) = do
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
-  
+-- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection _ sessions _) dbExpr = do
   atomically $ do
@@ -333,6 +343,11 @@ planForDatabaseContextExpr sessionId (InProcessConnection _ sessions _) dbExpr =
       Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (sessionContext session)
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
+-- | Return a relation which represents the current state of the global transaction graph. The attributes are 
+-- * current- boolean attribute representing whether or not the current session references this transaction
+-- * head- text attribute which is a non-empty 'HeadName' iff the transaction references a head.
+-- * id- UUID attribute of the transaction
+-- * parents- a relation-valued attribute which contains a relation of UUIDs which are parent transaction to the transaction
 transactionGraphAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 transactionGraphAsRelation sessionId (InProcessConnection _ sessions tvar) = do
   atomically $ do
