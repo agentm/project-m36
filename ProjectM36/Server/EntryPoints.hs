@@ -56,3 +56,13 @@ handleRetrieveHeadTransactionUUID :: SessionId -> Connection -> Process (Process
 handleRetrieveHeadTransactionUUID sessionId conn = do
   ret <- liftIO $ headTransactionUUID sessionId conn  
   reply ret conn
+  
+handleCreateSessionAtCommit :: UUID -> Connection -> Process (ProcessReply (Either RelationalError SessionId) Connection)  
+handleCreateSessionAtCommit commitId conn = do
+  ret <- liftIO $ createSessionAtCommit commitId conn
+  reply ret conn
+  
+handleCreateSessionAtHead :: HeadName -> Connection -> Process (ProcessReply (Either RelationalError SessionId) Connection)
+handleCreateSessionAtHead headn conn = do
+  ret <- liftIO $ createSessionAtHead headn conn
+  reply ret conn

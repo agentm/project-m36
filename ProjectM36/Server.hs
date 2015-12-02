@@ -2,7 +2,7 @@
 module ProjectM36.Server where
 
 import ProjectM36.Client
-import ProjectM36.Server.EntryPoints (handleExecuteRelationalExpr, handleExecuteDatabaseContextExpr, handleLogin, handleExecuteHeadName, handleExecuteGraphExpr, handleExecuteTypeForRelationalExpr, handleRetrieveInclusionDependencies,handleRetrievePlanForDatabaseContextExpr, handleRetrieveTransactionGraph, handleRetrieveHeadTransactionUUID)
+import ProjectM36.Server.EntryPoints 
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 
@@ -29,8 +29,10 @@ serverDefinition = defaultProcess {
      handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr),
      handleCall (\conn (RetrieveHeadTransactionUUID sessionId) -> handleRetrieveHeadTransactionUUID sessionId conn),
      handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
-     handleCall (\conn Login -> handleLogin conn)
-                 ],
+     handleCall (\conn Login -> handleLogin conn),
+     handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead headn conn),
+     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn)
+     ],
   unhandledMessagePolicy = Log
   }
                  
