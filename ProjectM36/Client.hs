@@ -70,6 +70,7 @@ import Control.Distributed.Process.Serializable (Serializable)
 --import Control.Distributed.Process.Debug
 import qualified STMContainers.Map as STMMap
 import ProjectM36.Session
+import ProjectM36.Sessions
 import ListT
 
 type Hostname = String
@@ -96,7 +97,6 @@ defaultHeadName = "master"
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
 
-type Sessions = STMMap.Map SessionId Session
 
 data Connection = InProcessConnection PersistenceStrategy Sessions (TVar TransactionGraph) |
                   RemoteProcessConnection LocalNode ProcessId

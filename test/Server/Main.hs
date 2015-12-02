@@ -12,7 +12,6 @@ import ProjectM36.TupleSet
 
 import System.Exit
 import Control.Concurrent
-import Data.UUID (nil)
 import Data.Either (isRight)
 import Data.Maybe (isJust)
 

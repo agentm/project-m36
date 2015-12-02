@@ -2,11 +2,10 @@
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
+import ProjectM36.Session
 import GHC.Generics
 import Data.Binary
 import Data.UUID
-
-type SessionId = UUID
 
 data Login = Login
            deriving (Binary, Generic)
