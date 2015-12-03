@@ -313,9 +313,10 @@ relationP = do
     case mkRelation attrs emptyTupleSet of 
       Left err -> fail (show err)
       Right rel -> return rel
-    else do
-    tuples <- braces (sepBy tupleP comma)
-    case mkRelationFromTuples (tupleAttributes (head tuples)) tuples of
+    else do -- empty attributes
+    tuples <- try (braces (sepBy tupleP comma)) <|> pure []
+    let tupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
+    case mkRelationFromTuples tupleAttrs tuples of
       Left err -> fail (show err)
       Right rel -> return rel
   

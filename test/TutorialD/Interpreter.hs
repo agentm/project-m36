@@ -44,6 +44,8 @@ main = do
                       ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [(RelationTuple simpleCAttributes) (V.fromList [stringAtom "spam", intAtom 5])]),
                       ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc"),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
+                      ("x:=relation{}", Right relationFalse),
+                      ("x:=relation{tuple{}}", Right relationTrue),
                       ("x:=true where true", Right relationTrue),
                       ("x:=true where false", Right relationFalse),
                       ("x:=true where true or false", Right relationTrue),
