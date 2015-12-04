@@ -407,9 +407,9 @@ instance PersistUnique ProjectM36Backend where
                 case singletonRel of
                     Left err -> throwRelErr err
                     Right singletonRel' -> do
-                        if cardinality singletonRel' == Countable 0 then
+                        if cardinality singletonRel' == Finite 0 then
                             return Nothing
-                            else if cardinality singletonRel' > Countable 1 then
+                            else if cardinality singletonRel' > Finite 1 then
                                 Trans.liftIO $ throwIO (PersistError "getBy returned more than one tuple")
                                 else -- exactly one tuple
                                     case singletonTuple singletonRel' of

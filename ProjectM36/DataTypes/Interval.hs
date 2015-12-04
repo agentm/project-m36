@@ -2,8 +2,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.DataTypes.Interval where
 import Data.Interval
-import ProjectM36.Base
-import Data.Binary
+import ProjectM36.Base hiding (Finite)
+import Data.Binary 
 import ProjectM36.Atom
 import Data.Typeable
 import Data.Time.Clock

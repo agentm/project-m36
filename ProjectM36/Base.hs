@@ -207,8 +207,7 @@ instance Hashable Relation where
       
 instance Binary Relation      
   
-data RelationCardinality = Uncountable | Countable Int deriving (Eq, Show, Generic, Ord)
-data RelationSizeInfinite = RelationSizeInfinite
+data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
 
 -- | Relation variables are identified by their names.
 type RelVarName = StringType

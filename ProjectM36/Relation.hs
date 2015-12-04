@@ -66,7 +66,7 @@ relationFalse = Relation A.emptyAttributes emptyTupleSet
 
 --if the relation contains one tuple, return it, otherwise Nothing
 singletonTuple :: Relation -> Maybe RelationTuple
-singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Countable 1 then
+singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
                                          Just $ head $ asList tupleSet
                                        else
                                          Nothing
@@ -113,7 +113,7 @@ degree :: Relation -> Int
 degree = arity
 
 cardinality :: Relation -> RelationCardinality --we need to detect infinite tuple sets- perhaps with a flag
-cardinality (Relation _ tupSet) = Countable (length (asList tupSet))
+cardinality (Relation _ tupSet) = Finite (length (asList tupSet))
 
 --find tuples where the atoms in the relation which are NOT in the AttributeNameSet are equal
 -- create a relation for each tuple where the attributes NOT in the AttributeNameSet are equal

@@ -1,7 +1,7 @@
 module TutorialD.Interpreter.DataTypes.Interval where
 import Text.Parsec
 import Text.Parsec.String
-import ProjectM36.Base
+import ProjectM36.Base hiding (Finite)
 import ProjectM36.DataTypes.Interval ()
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.DataTypes.DateTime
