@@ -246,11 +246,22 @@ data RelationalExpr where
 
 instance Binary RelationalExpr
 
+type NotificationName = StringType
+type Notifications = M.Map NotificationName Notification
+
+-- | When the changeExpr returns a different result in the database context, then the reportExpr is triggered and sent asynchronously to all clients.
+data Notification = Notification {
+  changeExpr :: RelationalExpr,
+  reportExpr :: RelationalExpr
+  }
+  deriving (Show, Eq)
+
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: M.Map IncDepName InclusionDependency,
   relationVariables :: M.Map RelVarName Relation,
-  atomFunctions :: AtomFunctions
+  atomFunctions :: AtomFunctions,
+  notifications :: Notifications
   } deriving (Show, Generic)
              
 type IncDepName = StringType             

@@ -69,6 +69,7 @@ import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
 --import Control.Distributed.Process.Debug
 import qualified STMContainers.Map as STMMap
+import qualified STMContainers.Set as STMSet
 import ProjectM36.Session
 import ProjectM36.Sessions
 import ListT
@@ -98,7 +99,9 @@ defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
 
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
-data Connection = InProcessConnection PersistenceStrategy Sessions (TVar TransactionGraph) |
+type ClientNodes = STMSet.Set ProcessId
+
+data Connection = InProcessConnection PersistenceStrategy ClientNodes Sessions (TVar TransactionGraph) |
                   RemoteProcessConnection LocalNode ProcessId
                   
 -- | There are several reasons why a connection can fail.
@@ -130,10 +133,12 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
         graphTvar <- newTVarIO freshGraph
+        clientNodes <- STMSet.newIO
         sessions <- STMMap.newIO
-        return $ Right $ InProcessConnection strat sessions graphTvar
+        return $ Right $ InProcessConnection strat clientNodes sessions graphTvar
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph
+
         
 connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
   connStatus <- newEmptyMVar
@@ -148,7 +153,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
         case mServerProcessId of
           Nothing -> liftIO $ putMVar connStatus $ Left (NoSuchDatabaseByNameError databaseName)
           Just serverProcessId -> do
-            loginConfirmation <- call serverProcessId Login
+            loginConfirmation <- call serverProcessId (Login loginNode)
             if not loginConfirmation then
               liftIO $ putMVar connStatus (Left LoginError)
               else do
@@ -206,7 +211,13 @@ createSessionAtHead headn conn@(InProcessConnection _ _ tvar) = do
         case transactionForHead headn graph of
             Nothing -> pure $ Left (NoSuchHeadNameError headn)
             Just trans -> createSessionAtCommit_ (transactionUUID trans) newSessionId conn
-createSessionAtHead headn conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtHead headn)            
+createSessionAtHead headn conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtHead headn)
+
+-- | Used internall for server connections to keep track of remote nodes for the purpose of sending notifications later.
+addClientNode :: Connection -> ProcessId -> IO ()
+addClientNode (RemoteProcessConnection _ _) = error "addClientNode called on remote connection"
+addClientNode (InProcessConnection _ clientNodes _ _) newProcessId = atomically (STMSet.insert newProcessId clientNodes)
+
 
 -- | Discards a session, eliminating any uncommitted changes present in the session.
 closeSession :: SessionId -> Connection -> IO ()
@@ -268,10 +279,8 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ sessions _) expr = a
          return Nothing
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
          
--- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
-executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
-executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphExpr = do
-  freshUUID <- nextRandom
+executeGraphExprSTM_ :: SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
+executeGraphExprSTM_ sessionId sessions graphExpr graphTvar = do
   manip <- atomically $ do
     graph <- readTVar graphTvar
     eSession <- sessionForSessionId sessionId sessions
@@ -284,6 +293,12 @@ executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphE
           let newSession = Session discon'
           STMMap.insert newSession sessionId sessions
           pure $ Right graph'
+                                                       
+-- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
+executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
+executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphExpr = do
+  freshUUID <- nextRandom
+  manip <- atomically $ executeGraphExprSTM_ sessionId sessions graphTvar
   case manip of 
     Left err -> return $ Just err
     Right newGraph -> do
@@ -292,10 +307,33 @@ executeGraphExpr sessionId (InProcessConnection strat sessions graphTvar) graphE
       processPersistence strat newGraph
       return Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
-      
--- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing.
+
+commitSTM_ :: SessionId -> Sessions -> STM (Maybe RelationalError)
+commitSTM_ sessionId sessions = executeGraphExprSTM_ sessionId sessions graph Commit
+
+-- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Maybe RelationalError)
-commit sessionId conn@(InProcessConnection _ _ _) = executeGraphExpr sessionId conn Commit
+commit sessionId conn@(InProcessConnection _ sessions graphTvar) = do
+  mNots <- atomically $ do
+      graph <- readTVar graphTvar
+      -- take the notifications of the current context and scan them for changes in the previous -> current contexts
+      eSession <- sessionForSessionId sessionId sessions
+      case eSession of
+          Left err -> pure (Left err)
+          Right (Session (DisconnectedTransaction parentUUID currentContext) -> do
+              --grab previous context
+              case transactionForUUID parentUUID graph of
+                  Left err -> pure $ Left err
+                  Right (Transaction _ _ previousContext) -> do
+                      let nots = notifications currentContext
+                          fireNots = notificationChanges nots previousContext currentContext 
+                      commitSTM_ sessionId sessions graph
+                      pure (Right fireNots)
+  case mNots of
+      Left err -> pure (Just err)
+      Right notsToFire -> do
+          --trigger the notifications on all clients
+      
 commit sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
           
 -- | Discard any changes made in the current session. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
@@ -370,10 +408,8 @@ headTransactionUUID sessionId (InProcessConnection _ sessions _) = do
       Right session -> pure $ Just (sessionParentUUID session)
 headTransactionUUID sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionUUID sessionId)
     
--- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
-headName :: SessionId -> Connection -> IO (Maybe HeadName)
-headName sessionId (InProcessConnection _ sessions graphTvar) = do
-  atomically $ do
+headNameSTM_ :: SessionId -> Sessions -> TransactionGraph -> STM (Maybe HeadName)  
+headNameSTM_ sessionId sessions graphTvar= do
     graph <- readTVar graphTvar
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
@@ -381,6 +417,11 @@ headName sessionId (InProcessConnection _ sessions graphTvar) = do
       Right session -> pure $ case transactionForUUID (sessionParentUUID session) graph of
         Left _ -> Nothing
         Right parentTrans -> headNameForTransaction parentTrans graph
+  
+-- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
+headName :: SessionId -> Connection -> IO (Maybe HeadName)
+headName sessionId (InProcessConnection _ sessions graphTvar) = do
+  atomically (headNameSTM_ sessionId sessions graphTvar)
 headName sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteHeadName sessionId)
 
     

@@ -24,8 +24,10 @@ handleExecuteHeadName sessionId conn = do
   ret <- liftIO $ headName sessionId conn 
   reply ret conn
   
-handleLogin :: Connection -> Process (ProcessReply Bool Connection)
-handleLogin conn = reply True conn
+handleLogin :: Connection -> ProcessId -> Process (ProcessReply Bool Connection)
+handleLogin conn@(Connection _ clientNodesTvar _ _) = do
+
+  reply True conn
   
 handleExecuteGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)
 handleExecuteGraphExpr sessionId conn graphExpr = do
