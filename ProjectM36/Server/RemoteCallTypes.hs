@@ -6,9 +6,12 @@ import ProjectM36.Session
 import GHC.Generics
 import Data.Binary
 import Data.UUID
+import Control.Distributed.Process (ProcessId)
 
-data Login = Login
+-- | The initial login message. The argument should be the process id of the initiating client. This ProcessId will receive notification callbacks.
+data Login = Login ProcessId
            deriving (Binary, Generic)
+                    
 data Logout = Logout
             deriving (Binary, Generic)
 data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr 

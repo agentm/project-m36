@@ -254,7 +254,7 @@ data Notification = Notification {
   changeExpr :: RelationalExpr,
   reportExpr :: RelationalExpr
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Binary, Generic)
 
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 

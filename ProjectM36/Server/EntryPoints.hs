@@ -25,8 +25,8 @@ handleExecuteHeadName sessionId conn = do
   reply ret conn
   
 handleLogin :: Connection -> ProcessId -> Process (ProcessReply Bool Connection)
-handleLogin conn@(Connection _ clientNodesTvar _ _) = do
-
+handleLogin conn newClientProcessId = do
+  liftIO (addClientNode newClientProcessId)
   reply True conn
   
 handleExecuteGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)

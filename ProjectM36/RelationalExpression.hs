@@ -116,19 +116,22 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
-                                         atomFunctions = HS.empty
+                                         atomFunctions = HS.empty,
+                                         notifications = M.empty
                                          }
 
 basicDatabaseContext :: DatabaseContext
 basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
                                                                          ("false", relationFalse)],
-                                         atomFunctions = basicAtomFunctions
+                                         atomFunctions = basicAtomFunctions,
+                                         notifications = M.empty
                                          }
 
 dateExamples :: DatabaseContext
 dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
+                                 notifications = M.empty,
                                  atomFunctions = basicAtomFunctions}
   where
     dateRelVars = M.fromList [("S", suppliers),
