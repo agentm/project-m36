@@ -279,8 +279,13 @@ data DatabaseExpr where
   Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
   Delete :: RelVarName -> RestrictionPredicateExpr -> DatabaseExpr 
   Update :: RelVarName  -> M.Map AttributeName Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
+  
   AddInclusionDependency :: IncDepName -> InclusionDependency -> DatabaseExpr
   RemoveInclusionDependency :: IncDepName -> DatabaseExpr
+  
+  AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
+  RemoveNotification :: NotificationName -> DatabaseExpr
+  
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show, Eq, Binary, Generic)
 

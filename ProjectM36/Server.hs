@@ -29,7 +29,7 @@ serverDefinition = defaultProcess {
      handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr),
      handleCall (\conn (RetrieveHeadTransactionUUID sessionId) -> handleRetrieveHeadTransactionUUID sessionId conn),
      handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
-     handleCall (\conn Login -> handleLogin conn),
+     handleCall (\conn (Login procId) -> handleLogin conn procId),
      handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead headn conn),
      handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn),
      handleCall (\conn (CloseSession sessionId) -> handleCloseSession sessionId conn)

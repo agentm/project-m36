@@ -55,7 +55,7 @@ import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes 
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
-import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode)
+import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Control.Distributed.Process (NodeId(..), getSelfPid)
@@ -64,7 +64,7 @@ import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
+import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match, say)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
@@ -77,6 +77,7 @@ import ProjectM36.Sessions
 import ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
+--import Debug.Trace
 
 type Hostname = String
 
@@ -142,17 +143,20 @@ commonLocalNode = do
     
 notificationListener :: Process ()    
 notificationListener = do
-  _ <- receiveWait [
-    match (\(NotificationMessage eNots) -> undefined)
-    ]
-  liftIO $ putStrLn $ "LISTENER THREAD EXIT"
+  pid <- getSelfPid
+  liftIO $ putStrLn $ "LISTENER THREAD START " ++ show pid
+  _ <- forever $ do  
+    receiveWait [
+      match (\(NotificationMessage eNots) -> say $ "NOTIFICATION: " ++ show eNots)
+      ]
+  say "LISTENER THREAD EXIT"
   pure ()
   
 startNotificationListener :: IO (ProcessId)
 startNotificationListener = do
   eLocalNode <- commonLocalNode
   case eLocalNode of 
-    Left err -> error "Failed to start local notification listener"
+    Left err -> error ("Failed to start local notification listener: " ++ show err)
     Right localNode -> forkProcess localNode notificationListener
   
 -- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
@@ -168,7 +172,7 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
         graphTvar <- newTVarIO freshGraph
         clientNodes <- STMSet.newIO
         sessions <- STMMap.newIO
-        notProcId <- startNotificationListener
+        --notificationPid <- startNotificationListener
         return $ Right $ InProcessConnection strat clientNodes sessions graphTvar
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph
@@ -176,6 +180,7 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
 connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
   connStatus <- newEmptyMVar
   eLocalNode <- commonLocalNode
+  notificationListenerPid <- startNotificationListener
   let dbName = remoteDBLookupName databaseName
   putStrLn $ show serverNodeId ++ " " ++ dbName
   case eLocalNode of
@@ -183,11 +188,10 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
     Right localNode -> do
       runProcess localNode $ do
         mServerProcessId <- whereisRemote serverNodeId dbName
-        selfPid <- getSelfPid
         case mServerProcessId of
           Nothing -> liftIO $ putMVar connStatus $ Left (NoSuchDatabaseByNameError databaseName)
           Just serverProcessId -> do
-            loginConfirmation <- call serverProcessId (Login selfPid)
+            loginConfirmation <- call serverProcessId (Login notificationListenerPid)
             if not loginConfirmation then
               liftIO $ putMVar connStatus (Left LoginError)
               else do
@@ -315,9 +319,9 @@ executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr =
          
 executeGraphExprSTM_ :: UUID -> SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
 executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar = do
-    graph <- readTVar graphTvar
-    eSession <- sessionForSessionId sessionId sessions
-    case eSession of
+  graph <- readTVar graphTvar
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
       Left err -> pure $ Left err
       Right (Session discon) -> case evalGraphOp freshUUID discon graph graphExpr of
         Left err -> pure $ Left err
@@ -327,61 +331,63 @@ executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar = do
           STMMap.insert newSession sessionId sessions
           pure $ Right graph'
   
-                                                       
+-- process notifications for commits
+executeCommitExprSTM_ :: DatabaseContext -> DatabaseContext -> ClientNodes -> STM (EvaluatedNotifications, ClientNodes)
+executeCommitExprSTM_ oldContext newContext nodes = do
+  let nots = notifications oldContext
+      fireNots = notificationChanges nots oldContext newContext 
+      evaldNots = M.map mkEvaldNot fireNots
+      mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) oldContext }
+  pure (evaldNots, nodes)
+                
+
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
-executeGraphExpr sessionId (InProcessConnection strat _ sessions graphTvar) graphExpr = do
+executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graphTvar) graphExpr = do
   freshUUID <- nextRandom
-  manip <- atomically $ executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar
+  manip <- atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    oldGraph <- readTVar graphTvar
+    case eSession of
+      Left err -> pure (Left err)
+      Right (Session (DisconnectedTransaction parentUUID currentContext)) -> do
+        eGraph <- executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar
+        case eGraph of
+          Left err -> pure (Left err)
+          Right newGraph -> do
+            if graphExpr == Commit then
+              case transactionForUUID parentUUID oldGraph of
+                Left err -> pure $ Left err
+                Right (Transaction _ _ previousContext) -> do
+                  (evaldNots, nodes) <- executeCommitExprSTM_ previousContext currentContext clientNodes
+                  nodesToNotify <- toList (STMSet.stream nodes)                  
+                  pure $ Right (evaldNots, nodesToNotify, newGraph)
+            else
+              pure $ Right (M.empty, [], newGraph)
   case manip of 
     Left err -> return $ Just err
-    Right newGraph -> do
+    Right (notsToFire, nodesToNotify, newGraph) -> do
       --update filesystem database, if necessary
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
+      sendNotifications nodesToNotify notsToFire
       return Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
+{-
 commitSTM_ :: UUID -> SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe RelationalError)
 commitSTM_ freshUUID sessionId sessions graph = do
   mErr <- executeGraphExprSTM_ freshUUID sessionId sessions Commit graph
   pure $ case mErr of
     Left err -> Just err
     Right _ -> Nothing
+-}
 
 -- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Maybe RelationalError)
-commit sessionId (InProcessConnection _ clientNodes sessions graphTvar) = do
-  freshUUID <- nextRandom
-  mNots <- atomically $ do
-      graph <- readTVar graphTvar
-      -- take the notifications of the current context and scan them for changes in the previous -> current contexts
-      eSession <- sessionForSessionId sessionId sessions
-      case eSession of
-          Left err -> pure (Left err)
-          Right (Session (DisconnectedTransaction parentUUID currentContext)) -> do
-              --grab previous context
-              case transactionForUUID parentUUID graph of
-                  Left err -> pure $ Left err
-                  Right (Transaction _ _ previousContext) -> do
-                      let nots = notifications currentContext
-                          fireNots = notificationChanges nots previousContext currentContext 
-                          evaldNots = M.map mkEvaldNot fireNots
-                          mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) currentContext }
-                      mErr <- commitSTM_ freshUUID sessionId sessions graphTvar
-                      case mErr of 
-                        Just err -> pure (Left err)
-                        Nothing -> do
-                          notifyNodes <- toList (STMSet.stream clientNodes)
-                          pure (Right (evaldNots, notifyNodes))
-  case mNots of
-      Left err -> pure (Just err)
-      Right (notsToFire, nodesToNotify) -> do
-        --trigger the notifications on all clients
-        sendNotifications nodesToNotify notsToFire
-        pure Nothing
+commit sessionId conn@(InProcessConnection _ _ _ _) = executeGraphExpr sessionId conn Commit
 commit sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
-
+  
 sendNotifications :: [ProcessId] -> EvaluatedNotifications -> IO ()
 sendNotifications pids nots = mapM_ sendNots pids
   where
@@ -389,7 +395,7 @@ sendNotifications pids nots = mapM_ sendNots pids
       eLocalNode <- commonLocalNode
       case eLocalNode of
         Left err -> error ("Failed to get local node: " ++ show err)
-        Right localNode -> runProcess localNode $ send remoteClientPid (NotificationMessage nots)
+        Right localNode -> when (not (M.null nots)) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
           
 -- | Discard any changes made in the current session. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Maybe RelationalError)

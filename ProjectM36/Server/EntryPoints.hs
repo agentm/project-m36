@@ -2,7 +2,7 @@ module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.Client
 import ProjectM36.Error
-import Control.Distributed.Process (Process)
+import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Monad.IO.Class (liftIO)
@@ -26,7 +26,7 @@ handleExecuteHeadName sessionId conn = do
   
 handleLogin :: Connection -> ProcessId -> Process (ProcessReply Bool Connection)
 handleLogin conn newClientProcessId = do
-  liftIO (addClientNode newClientProcessId)
+  liftIO (addClientNode conn newClientProcessId)
   reply True conn
   
 handleExecuteGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> Process (ProcessReply (Maybe RelationalError) Connection)

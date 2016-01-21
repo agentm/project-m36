@@ -303,6 +303,29 @@ evalContextExpr (RemoveInclusionDependency depName) = do
     else do
     put $ currContext {inclusionDependencies = newDeps }
     return Nothing
+    
+-- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
+evalContextExpr (AddNotification notName triggerExpr resultExpr) = do
+  currentContext <- get
+  let nots = notifications currentContext
+  if M.member notName nots then
+    return $ Just (NotificationNameInUseError notName)
+    else do
+      let newNotifications = M.insert notName newNotification nots
+          newNotification = Notification { changeExpr = triggerExpr,
+                                           reportExpr = resultExpr }
+      put $ currentContext { notifications = newNotifications }
+      return Nothing
+  
+evalContextExpr (RemoveNotification notName) = do
+  currentContext <- get
+  let nots = notifications currentContext
+  if M.notMember notName nots then
+    return $ Just (NotificationNameNotInUseError notName)
+    else do
+    let newNotifications = M.delete notName nots
+    put $ currentContext { notifications = newNotifications }
+    return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context
@@ -311,9 +334,6 @@ evalContextExpr (MultipleExpr exprs) = do
   case catMaybes evald of
     [] -> return $ Nothing
     err:_ -> return $ Just err
-
--- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples
---evalRelVarExpr (Update relVarName updateMap) = do
 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> Maybe RelationalError
