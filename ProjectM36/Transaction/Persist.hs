@@ -50,6 +50,7 @@ readTransaction dbdir transUUID = do
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
+                                       notifications = M.empty,
                                        atomFunctions = atomFuncs }
     
     return $ Right $ Transaction transUUID transInfo newContext
