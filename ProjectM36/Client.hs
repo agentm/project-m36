@@ -41,6 +41,7 @@ module ProjectM36.Client
        Atom(..),
        Session,
        SessionId,
+       NotificationCallback,
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -77,6 +78,7 @@ import ProjectM36.Sessions
 import ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
+import System.IO (stderr, hPutStrLn)
 --import Debug.Trace
 
 type Hostname = String
@@ -85,9 +87,16 @@ type Port = Word16
 
 type DatabaseName = String
 
+-- | The type for notifications callbacks in the client. When a registered notification fires due to a changed relational expression evaluation, the server propagates the notifications to the clients in the form of the callback.
+type NotificationCallback = NotificationName -> EvaluatedNotification -> IO ()
+
+-- | The empty notification callback ignores all callbacks.
+emptyNotificationCallback :: NotificationCallback
+emptyNotificationCallback _ _ = pure ()
+
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy |
-                      RemoteProcessConnectionInfo DatabaseName NodeId
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback |
+                      RemoteProcessConnectionInfo DatabaseName NodeId NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
@@ -115,7 +124,7 @@ defaultHeadName :: HeadName
 defaultHeadName = "master"
 
 defaultRemoteConnectionInfo :: ConnectionInfo
-defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort)
+defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback
 
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 type ClientNodes = STMSet.Set ProcessId
@@ -141,28 +150,31 @@ commonLocalNode = do
     Left err -> pure (Left $ IOExceptionError err)
     Right localTransport -> newLocalNode localTransport initRemoteTable >>= pure . Right
     
-notificationListener :: Process ()    
-notificationListener = do
+notificationListener :: NotificationCallback -> Process ()    
+notificationListener callback = do
   pid <- getSelfPid
   liftIO $ putStrLn $ "LISTENER THREAD START " ++ show pid
   _ <- forever $ do  
     receiveWait [
-      match (\(NotificationMessage eNots) -> say $ "NOTIFICATION: " ++ show eNots)
+      match (\(NotificationMessage eNots) -> do
+            --say $ "NOTIFICATION: " ++ show eNots
+            liftIO $ mapM_ (uncurry callback) (M.toList eNots)
+            )
       ]
   say "LISTENER THREAD EXIT"
   pure ()
   
-startNotificationListener :: IO (ProcessId)
-startNotificationListener = do
+startNotificationListener :: NotificationCallback -> IO (ProcessId)
+startNotificationListener callback = do
   eLocalNode <- commonLocalNode
   case eLocalNode of 
     Left err -> error ("Failed to start local notification listener: " ++ show err)
-    Right localNode -> forkProcess localNode notificationListener
+    Right localNode -> forkProcess localNode (notificationListener callback)
   
 -- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback) = do
   freshUUID <- nextRandom
   let bootstrapContext = RE.basicDatabaseContext 
       freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
@@ -172,15 +184,17 @@ connectProjectM36 (InProcessConnectionInfo strat) = do
         graphTvar <- newTVarIO freshGraph
         clientNodes <- STMSet.newIO
         sessions <- STMMap.newIO
-        --notificationPid <- startNotificationListener
-        return $ Right $ InProcessConnection strat clientNodes sessions graphTvar
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph
+        notificationPid <- startNotificationListener notificationCallback
+        let conn = InProcessConnection strat clientNodes sessions graphTvar
+        addClientNode conn notificationPid
+        pure (Right conn)
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback 
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback 
         
-connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
+connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notificationCallback) = do
   connStatus <- newEmptyMVar
   eLocalNode <- commonLocalNode
-  notificationListenerPid <- startNotificationListener
+  notificationListenerPid <- startNotificationListener notificationCallback
   let dbName = remoteDBLookupName databaseName
   putStrLn $ show serverNodeId ++ " " ++ dbName
   case eLocalNode of
@@ -202,9 +216,10 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId) = do
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
                                FilePath -> 
-                               TransactionGraph -> 
+                               TransactionGraph ->
+                               NotificationCallback ->
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshGraph = do
+connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Just err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -216,8 +231,11 @@ connectPersistentProjectM36 strat sync dbdir freshGraph = do
           tvarGraph <- newTVarIO graph'
           sessions <- STMMap.newIO
           clientNodes <- STMSet.newIO
-          return $ Right $ InProcessConnection strat clientNodes sessions tvarGraph
-
+          let conn = InProcessConnection strat clientNodes sessions tvarGraph
+          notificationPid <- startNotificationListener notificationCallback 
+          addClientNode conn notificationPid
+          pure (Right conn)
+          
 -- | Create a new session at the transaction UUID and return the session's Id.
 createSessionAtCommit :: UUID -> Connection -> IO (Either RelationalError SessionId)
 createSessionAtCommit commitUUID conn@(InProcessConnection _ _ _ _) = do
