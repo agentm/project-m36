@@ -224,12 +224,11 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP
                                               [stringAtom "London", intAtom 200, stringAtom "P2", stringAtom "S4", stringAtom "Clark", intAtom 20]
                                               ]
 transactionGraph :: Connection -> IO TransactionGraph
-transactionGraph (InProcessConnection _ _ tvar) = atomically $ readTVar tvar
- 
+transactionGraph (InProcessConnection _ _ _ tvar) = atomically $ readTVar tvar
 transactionGraph _ = error "remote connection used"
 
 disconnectedTransaction :: SessionId -> Connection -> IO DisconnectedTransaction
-disconnectedTransaction sessionId (InProcessConnection _ sessions _) = do
+disconnectedTransaction sessionId (InProcessConnection _ _ sessions _) = do
   mSession <- atomically $ do
     STMMap.lookup sessionId sessions
   case mSession of
@@ -245,7 +244,7 @@ inclusionDependencies _ = error "remote connection used"
                            
 dateExamplesConnection :: IO (SessionId, Connection)
 dateExamplesConnection = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback)
   let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> error (show err)

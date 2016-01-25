@@ -39,7 +39,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 inProcSettings :: ConnectionInfo
-inProcSettings = InProcessConnectionInfo NoPersistence
+inProcSettings = InProcessConnectionInfo NoPersistence emptyNotificationCallback
 
 defPersonRel :: SessionId -> Connection -> IO ()
 defPersonRel sessionId conn = do

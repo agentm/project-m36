@@ -43,7 +43,7 @@ testDatabaseName = "test"
 
 testConnection :: Port -> IO (Either ConnectionError (SessionId, Connection))
 testConnection port = do
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port)
+  let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port) emptyNotificationCallback
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err

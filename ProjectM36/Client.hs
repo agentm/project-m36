@@ -42,6 +42,7 @@ module ProjectM36.Client
        Session,
        SessionId,
        NotificationCallback,
+       emptyNotificationCallback,
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -78,7 +79,6 @@ import ProjectM36.Sessions
 import ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
-import System.IO (stderr, hPutStrLn)
 --import Debug.Trace
 
 type Hostname = String
