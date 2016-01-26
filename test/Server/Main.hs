@@ -15,8 +15,8 @@ import Control.Concurrent
 import Data.Either (isRight)
 import Data.Maybe (isJust)
 
-testList :: SessionId -> Connection -> Test
-testList sessionId conn = TestList $ map (\t -> t sessionId conn) [
+testList :: SessionId -> Connection -> MVar () -> Test
+testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId conn) [
   testRelationalExpr,
   testDatabaseContextExpr,
   testGraphExpr,
@@ -25,25 +25,27 @@ testList sessionId conn = TestList $ map (\t -> t sessionId conn) [
   testTransactionGraphAsRelation,
   testHeadTransactionUUID,
   testHeadName,
-  testSession
+  testSession,
+  testNotification notificationTestMVar  
   ]
            
 main :: IO ()
 main = do
   port <- launchTestServer
-  eTestConn <- testConnection port
+  notificationTestMVar <- newEmptyMVar 
+  eTestConn <- testConnection port notificationTestMVar
   case eTestConn of
     Left err -> putStrLn (show err) >> exitFailure
     Right (session, testConn) -> do
-      tcounts <- runTestTT (testList session testConn)
+      tcounts <- runTestTT (testList session testConn notificationTestMVar)
       if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testDatabaseName :: DatabaseName
 testDatabaseName = "test"
 
-testConnection :: Port -> IO (Either ConnectionError (SessionId, Connection))
-testConnection port = do
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port) emptyNotificationCallback
+testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
+testConnection port mvar = do
+  let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port) (testNotificationCallback mvar)
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err
@@ -137,3 +139,18 @@ testSession _ conn = TestCase $ do
           eSessionId2 <- createSessionAtCommit headUUID conn
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
           closeSession sessionId1 conn
+
+testNotificationCallback :: MVar () -> NotificationCallback
+testNotificationCallback mvar _ _ = putMVar mvar ()
+
+-- create a relvar x, add a notification on x, update x and wait for the notification
+testNotification :: MVar () -> SessionId -> Connection -> Test
+testNotification mvar sess conn = TestCase $ do
+  let relvarx = RelationVariable "x"
+  let check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
+  check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
+  check $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
+  check $ commit sess conn
+  check $executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
+  check $ commit sess conn
+  takeMVar mvar
