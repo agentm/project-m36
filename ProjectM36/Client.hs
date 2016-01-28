@@ -187,8 +187,8 @@ createSessionAtCommit_ commitUUID newSessionId (InProcessConnection _ sessions g
     graph <- readTVar graphTvar
     case transactionForUUID commitUUID graph of
         Left err -> pure (Left err)
-        Right _ -> do
-            let freshDiscon = DisconnectedTransaction commitUUID RE.basicDatabaseContext
+        Right transaction -> do
+            let freshDiscon = DisconnectedTransaction commitUUID (transactionContext transaction)
             keyDuplication <- STMMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUse newSessionId)
