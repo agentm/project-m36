@@ -147,10 +147,10 @@ testNotificationCallback mvar _ _ = putMVar mvar ()
 testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
   let relvarx = RelationVariable "x"
-  let check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
+      check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
   check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
   check $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
   check $ commit sess conn
-  check $executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
+  check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
   check $ commit sess conn
   takeMVar mvar

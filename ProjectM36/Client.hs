@@ -60,13 +60,13 @@ import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPo
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
-import Control.Distributed.Process (NodeId(..), getSelfPid)
+import Control.Distributed.Process (NodeId(..))
 
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match, say)
+import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
 import Control.Exception (IOException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
@@ -152,8 +152,8 @@ commonLocalNode = do
     
 notificationListener :: NotificationCallback -> Process ()    
 notificationListener callback = do
-  pid <- getSelfPid
-  liftIO $ putStrLn $ "LISTENER THREAD START " ++ show pid
+  --pid <- getSelfPid
+  --liftIO $ putStrLn $ "LISTENER THREAD START " ++ show pid
   _ <- forever $ do  
     receiveWait [
       match (\(NotificationMessage eNots) -> do
@@ -161,7 +161,7 @@ notificationListener callback = do
             liftIO $ mapM_ (uncurry callback) (M.toList eNots)
             )
       ]
-  say "LISTENER THREAD EXIT"
+  --say "LISTENER THREAD EXIT"
   pure ()
   
 startNotificationListener :: NotificationCallback -> IO (ProcessId)
