@@ -242,9 +242,9 @@ inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) 
 inclusionDependencies _ = error "remote connection used"                       
 -}
                            
-dateExamplesConnection :: IO (SessionId, Connection)
-dateExamplesConnection = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback)
+dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
+dateExamplesConnection callback = do
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback)
   let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> error (show err)
@@ -258,5 +258,10 @@ dateExamplesConnection = do
       --skipping atom functions for now- there are no atom function manipulation operators yet
           commit sessionId conn >>= maybeFail
           pure (sessionId, conn)
-      
 
+-- test notifications over the InProcessConnection
+testNotification :: Test
+testNotification = TestCase $ do
+  notifmvar <- newEmptyMVar
+  let notifCallback mvar = putMVar mvar ()
+  conn <- dateExamplesConnection
