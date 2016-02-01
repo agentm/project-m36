@@ -116,19 +116,22 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
-                                         atomFunctions = HS.empty
+                                         atomFunctions = HS.empty,
+                                         notifications = M.empty
                                          }
 
 basicDatabaseContext :: DatabaseContext
 basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
                                                                          ("false", relationFalse)],
-                                         atomFunctions = basicAtomFunctions
+                                         atomFunctions = basicAtomFunctions,
+                                         notifications = M.empty
                                          }
 
 dateExamples :: DatabaseContext
 dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
+                                 notifications = M.empty,
                                  atomFunctions = basicAtomFunctions}
   where
     dateRelVars = M.fromList [("S", suppliers),
@@ -206,7 +209,7 @@ setRelVar :: RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar relVarName rel = do
   currentContext <- get
   let newRelVars = M.insert relVarName rel $ relationVariables currentContext
-  let potentialContext = DatabaseContext (inclusionDependencies currentContext) newRelVars (atomFunctions currentContext)
+      potentialContext = currentContext { relationVariables = newRelVars }
   case checkConstraints potentialContext of
     Just err -> return $ Just err
     Nothing -> do
@@ -216,9 +219,9 @@ setRelVar relVarName rel = do
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
 deleteRelVar :: RelVarName -> DatabaseState (Maybe RelationalError)
 deleteRelVar relVarName = do
-  currstate <- get
-  let newRelVars = M.delete relVarName (relationVariables currstate)
-  put $ DatabaseContext (inclusionDependencies currstate) newRelVars (atomFunctions currstate)
+  currcontext <- get
+  let newRelVars = M.delete relVarName (relationVariables currcontext)
+  put $ currcontext { relationVariables = newRelVars }
   return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
@@ -284,7 +287,7 @@ evalContextExpr (AddInclusionDependency newDepName newDep) = do
   if M.member newDepName currDeps then
     return $ Just (InclusionDependencyNameInUseError newDepName)
     else do
-      let potentialContext = DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
+      let potentialContext = currContext { inclusionDependencies = newDeps }
       case checkConstraints potentialContext of
         Just err -> return $ Just err
         Nothing -> do
@@ -298,7 +301,30 @@ evalContextExpr (RemoveInclusionDependency depName) = do
   if M.notMember depName currDeps then
     return $ Just (InclusionDependencyNameNotInUseError depName)
     else do
-    put $ DatabaseContext newDeps (relationVariables currContext) (atomFunctions currContext)
+    put $ currContext {inclusionDependencies = newDeps }
+    return Nothing
+    
+-- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
+evalContextExpr (AddNotification notName triggerExpr resultExpr) = do
+  currentContext <- get
+  let nots = notifications currentContext
+  if M.member notName nots then
+    return $ Just (NotificationNameInUseError notName)
+    else do
+      let newNotifications = M.insert notName newNotification nots
+          newNotification = Notification { changeExpr = triggerExpr,
+                                           reportExpr = resultExpr }
+      put $ currentContext { notifications = newNotifications }
+      return Nothing
+  
+evalContextExpr (RemoveNotification notName) = do
+  currentContext <- get
+  let nots = notifications currentContext
+  if M.notMember notName nots then
+    return $ Just (NotificationNameNotInUseError notName)
+    else do
+    let newNotifications = M.delete notName nots
+    put $ currentContext { notifications = newNotifications }
     return Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
@@ -308,9 +334,6 @@ evalContextExpr (MultipleExpr exprs) = do
   case catMaybes evald of
     [] -> return $ Nothing
     err:_ -> return $ Just err
-
--- restrict relvar to get affected tuples, update tuples, delete restriction from relvar, relvar = relvar union updated tuples
---evalRelVarExpr (Update relVarName updateMap) = do
 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> Maybe RelationalError
@@ -360,11 +383,9 @@ typeForRelationalExpr expr = do
 --returns a database context with all tuples removed
 --this is useful for type checking and optimization
 contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
-contextWithEmptyTupleSets contextIn = DatabaseContext incDeps relVars funcs
+contextWithEmptyTupleSets contextIn = contextIn { relationVariables = relVars }
   where
-    incDeps = inclusionDependencies contextIn
     relVars = M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
-    funcs = atomFunctions contextIn
 
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
 predicateRestrictionFilter :: DatabaseContext -> Attributes -> RestrictionPredicateExpr -> Either RelationalError (RelationTuple -> Bool)

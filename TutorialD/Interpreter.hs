@@ -25,6 +25,7 @@ import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
+import System.IO (hPutStrLn, stderr)
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -116,6 +117,14 @@ evalTutorialD sessionId conn expr = case expr of
   
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName|
                          RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName
+
+outputNotificationCallback :: C.NotificationCallback
+outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ show (reportExpr (C.notification evaldNot)) ++ "\n" ++ prettyEvaluatedNotification evaldNot
+
+prettyEvaluatedNotification :: C.EvaluatedNotification -> String
+prettyEvaluatedNotification eNotif = case C.reportRelation eNotif of
+  Left err -> show err
+  Right reportRel -> T.unpack (showRelation reportRel)
 
 reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
 reprLoop config sessionId conn = do

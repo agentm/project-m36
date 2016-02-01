@@ -32,10 +32,11 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Adding New Data Types](docs/new_datatypes.markdown)
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
-  
+1. [Using Notifications](docs/using_notifications.markdown)
+
 ## Development
 
-Project:M36 is developed in Haskell and compiled with GHC. 
+Project:M36 is developed in Haskell and compiled with GHC.
 
 Important modules:
 

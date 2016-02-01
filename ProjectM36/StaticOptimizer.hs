@@ -121,6 +121,18 @@ applyStaticDatabaseOptimization dep@(AddInclusionDependency _ _) = return $ Righ
 
 applyStaticDatabaseOptimization (RemoveInclusionDependency name) = return $ Right (RemoveInclusionDependency name)
 
+applyStaticDatabaseOptimization (AddNotification name triggerExpr resultExpr) = do
+    eTriggerExprOpt <- applyStaticRelationalOptimization triggerExpr
+    case eTriggerExprOpt of
+         Left err -> pure $ Left err
+         Right triggerExprOpt -> do
+             eResultExprOpt <- applyStaticRelationalOptimization resultExpr
+             case eResultExprOpt of
+                  Left err -> pure $ Left err
+                  Right resultExprOpt -> pure (Right (AddNotification name triggerExprOpt resultExprOpt))
+
+applyStaticDatabaseOptimization notif@(RemoveNotification _) = pure (Right notif)
+
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 
 --applyStaticDatabaseOptimization (MultipleExpr exprs) = return $ Right $ MultipleExpr exprs

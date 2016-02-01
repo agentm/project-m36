@@ -24,6 +24,8 @@ databaseExprP = insertP
             <|> defineP
             <|> undefineP
             <|> assignP
+            <|> addNotificationP
+            <|> removeNotificationP
 
 assignP :: Parser DatabaseExpr
 assignP = do
@@ -107,6 +109,20 @@ attributeAssignmentP = do
   reservedOp ":="
   atom <- stringAtomP <|> intAtomP
   return $ (attrName, atom)
+  
+addNotificationP :: Parser DatabaseExpr
+addNotificationP = do
+  reserved "notify"
+  notName <- identifier
+  triggerExpr <- relExprP 
+  resultExpr <- relExprP
+  return $ AddNotification (T.pack notName) triggerExpr resultExpr
+  
+removeNotificationP :: Parser DatabaseExpr  
+removeNotificationP = do
+  reserved "unnotify"
+  notName <- identifier
+  return $ RemoveNotification (T.pack notName)
 
 databaseExprOpP :: Parser DatabaseExpr
 databaseExprOpP = multipleDatabaseExprP
@@ -131,3 +147,4 @@ interpretNO context tutdstring = case parseString tutdstring of
                                     Left err -> (Just err, context)
                                     Right parsed -> runState (evalContextExpr parsed) context
 -}
+

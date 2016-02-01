@@ -26,6 +26,7 @@ import Data.Time.Clock (UTCTime(..))
 import Data.Time.Calendar (fromGregorian)
 import Data.Interval (interval, Interval, Extended(Finite))
 import Control.Concurrent.STM
+import Control.Concurrent
 import qualified STMContainers.Map as STMMap
 
 main :: IO ()
@@ -33,7 +34,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -128,14 +129,14 @@ assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interp
 
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
-  (_, dbconn) <- dateExamplesConnection
+  (_, dbconn) <- dateExamplesConnection emptyNotificationCallback
   graph <- transactionGraph dbconn
   assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
 
 --add a new transaction to the graph, validate it is in the graph
 transactionGraphAddCommitTest :: Test
 transactionGraphAddCommitTest = TestCase $ do
-  (sessionId, dbconn) <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   case parseTutorialD "x:=S" of
     Left err -> assertFailure (show err)
     Right parsed -> do 
@@ -152,7 +153,7 @@ transactionGraphAddCommitTest = TestCase $ do
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
-  (sessionId, dbconn) <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   graph <- transactionGraph dbconn
   maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
   case maybeErr of
@@ -167,7 +168,7 @@ transactionRollbackTest = TestCase $ do
 --commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
-  (sessionId, dbconn) <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   (DisconnectedTransaction firstUUID _) <- disconnectedTransaction sessionId dbconn
   maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
   case maybeErr of
@@ -190,7 +191,7 @@ maybeFail Nothing = return ()
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
-  (sessionId, dbconn) <- dateExamplesConnection
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   mapM_ (\x -> x >>= maybeFail) [executeGraphExpr sessionId dbconn (Branch "test"),
                   executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S")),
                   commit sessionId dbconn,
@@ -224,12 +225,11 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP
                                               [stringAtom "London", intAtom 200, stringAtom "P2", stringAtom "S4", stringAtom "Clark", intAtom 20]
                                               ]
 transactionGraph :: Connection -> IO TransactionGraph
-transactionGraph (InProcessConnection _ _ tvar) = atomically $ readTVar tvar
- 
+transactionGraph (InProcessConnection _ _ _ tvar) = atomically $ readTVar tvar
 transactionGraph _ = error "remote connection used"
 
 disconnectedTransaction :: SessionId -> Connection -> IO DisconnectedTransaction
-disconnectedTransaction sessionId (InProcessConnection _ sessions _) = do
+disconnectedTransaction sessionId (InProcessConnection _ _ sessions _) = do
   mSession <- atomically $ do
     STMMap.lookup sessionId sessions
   case mSession of
@@ -243,9 +243,9 @@ inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) 
 inclusionDependencies _ = error "remote connection used"                       
 -}
                            
-dateExamplesConnection :: IO (SessionId, Connection)
-dateExamplesConnection = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
+dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
+dateExamplesConnection callback = do
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback)
   let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> error (show err)
@@ -259,5 +259,18 @@ dateExamplesConnection = do
       --skipping atom functions for now- there are no atom function manipulation operators yet
           commit sessionId conn >>= maybeFail
           pure (sessionId, conn)
-      
 
+-- test notifications over the InProcessConnection
+testNotification :: Test
+testNotification = TestCase $ do
+  notifmvar <- newEmptyMVar
+  let notifCallback mvar = \_ _ -> putMVar mvar ()
+      relvarx = RelationVariable "x"
+  (sess, conn) <- dateExamplesConnection (notifCallback notifmvar)
+  let check' x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))  
+  check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
+  check' $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
+  check' $ commit sess conn
+  check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
+  check' $ commit sess conn
+  takeMVar notifmvar

@@ -49,8 +49,8 @@ opts :: ParserInfo InterpreterConfig
 opts = info parseArgs idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _) = InProcessConnectionInfo pStrategy
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _) = InProcessConnectionInfo pStrategy outputNotificationCallback
+connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn) = headn
@@ -58,7 +58,7 @@ headNameForConfig (RemoteInterpreterConfig _ _ headn) = headn
                            
 errDie :: String -> IO ()                                                           
 errDie err = hPutStrLn stderr err >> exitFailure
-  
+
 main :: IO ()
 main = do
   interpreterConfig <- execParser opts
