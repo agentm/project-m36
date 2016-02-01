@@ -62,4 +62,28 @@ TutorialD (master): :commit
 TutorialD (master): Notification received "steve_change": ...
 ```
 
-The notification contains the result from the evaluated report relational expression.
+The asynchronously-received notification contains the result from the evaluated report relational expression. The expression, in this case, is the result of the report expression evaluated against the parent transactoin
+
+```
+TutorialD (master): Notification received "steve_change":
+Project (AttributeNames (fromList ["address"])) (Restrict (AttributeEqualityPredicate "name" (NakedAtomExpr Atom "Steve")) (RelationVariable "person"))
+┌────────┐
+│address │
+├────────┤
+│Main St.│
+└────────┘
+```
+
+## Notifications with ProjectM36.Client
+
+First, implement a ```NotificationCallback``` function to perform an IO action when an asynchronous notification is received from the DBMS. Note that this function will not be called on any specific thread; specifically, the callback is *not* triggered by calling into ProjectM36.Client functions.
+
+Each ProjectM36 Connection can only have one callback and it cannot be changed after Connection creation.
+
+Then, create a DatabaseExpr using the AddNotification constructor:
+
+```
+AddNotification <notification name::Text> <change expression::RelationalExpr> <report expression::RelationalExpr>
+```
+
+and execute it using ```executeDatabaseContextExpr```. In order for a notification to take effect, it must be committed as well.
