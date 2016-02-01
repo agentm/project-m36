@@ -119,7 +119,12 @@ data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName|
                          RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName
 
 outputNotificationCallback :: C.NotificationCallback
-outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received \"" ++ show notName ++ "\": " ++ show evaldNot
+outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ show (reportExpr (C.notification evaldNot)) ++ "\n" ++ prettyEvaluatedNotification evaldNot
+
+prettyEvaluatedNotification :: C.EvaluatedNotification -> String
+prettyEvaluatedNotification eNotif = case C.reportRelation eNotif of
+  Left err -> show err
+  Right reportRel -> T.unpack (showRelation reportRel)
 
 reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
 reprLoop config sessionId conn = do

@@ -43,6 +43,7 @@ module ProjectM36.Client
        SessionId,
        NotificationCallback,
        emptyNotificationCallback,
+       EvaluatedNotification(..),
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
