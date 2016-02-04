@@ -8,7 +8,7 @@ import ProjectM36.Relation.Show.Term
 main :: IO ()
 main = do
   -- 1. create a ConnectionInfo
-  let connInfo = RemoteProcessConnectionInfo "mytestdb" (createNodeId "127.0.0.1" defaultServerPort)
+  let connInfo = RemoteProcessConnectionInfo "mytestdb" (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback
   -- 2. conncted to the remote database
   eConn <- connectProjectM36 connInfo
   case eConn of
