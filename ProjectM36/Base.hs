@@ -56,22 +56,30 @@ instance Atomable Relation
 instance (Atomable a) => Atomable (Maybe a)
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
-data Atom = forall a. Atomable a => Atom a
-
+data Atom = forall a. Atomable a => Atom a |
+            ConstructedAtom DataConstructorName AtomType [Atom]
+            
 instance Eq Atom where
   (Atom a) == (Atom b) = Just a == cast b
+  (ConstructedAtom dConsNameA aTypeA atomListA) == (ConstructedAtom dConsNameB aTypeB atomListB) = aTypeA == aTypeB &&
+                                                                                                   atomListA == atomListB &&
+                                                                                                   dConsNameA == dConsNameB
+  _ == _ = False
   
 instance Show Atom where
   show (Atom atom) = "Atom " ++ show atom
+  show (ConstructedAtom dConsName _ atomList) = unpack dConsName ++ " " ++ L.concat (L.intersperse " " (map show atomList))
   
 instance Binary Atom where
   put atom@(Atom val) = put (atomTypeForAtom atom) >> put val
+  put (ConstructedAtom dConsName aType atomList) = put aType >> put dConsName >> put atomList
   get = do
     atomtype <- get
     --not-so-great for this to be hardcoded here- it would be nicer to have a dispatch table linked to the instances themselves
     --http://stackoverflow.com/questions/8101067/binary-instance-for-an-existential
     case atomtype of
       AnyAtomType -> error "unsupported serialization AnyAtomType"
+      caType@(ConstructedAtomType _) -> ConstructedAtom <$> (get :: Get DataConstructorName) <*> pure caType <*> (get :: Get [Atom]) --we really should verify the type with the atoms
       (RelationAtomType _) -> Atom <$> (get :: Get Relation)
       (AtomType cTypeRep) -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
                                Atom <$> (get :: Get Int)
@@ -92,15 +100,19 @@ instance Binary Atom where
 
 instance NFData Atom where 
   rnf !(Atom a) = rnf a
+  rnf !(ConstructedAtom dConsName aType atomList) = rnf (dConsName, atomList, aType)
   
 instance Hashable Atom where  
   hashWithSalt salt (Atom a) = hashWithSalt salt a
+  hashWithSalt salt (ConstructedAtom dConsName _ atomList) = salt `hashWithSalt` atomList
+                                                             `hashWithSalt` dConsName --AtomType is not hashable
   
 -- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (Atom atom) = case cast atom of
   Just (Relation attrs _) -> RelationAtomType attrs
   Nothing -> AtomType $ CTR (typeOf atom)
+atomTypeForAtom (ConstructedAtom _ aType _) = aType
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
@@ -113,9 +125,12 @@ instance Binary Day where
   get = do
     (y,m,d) <- get :: Get (Integer, Int, Int)
     return (fromGregorian y m d)
-                                           
+
+-- I suspect the definition of ConstructedAtomType with its name alone is insufficient to disambiguate the cases; for example, one could create a type named X, remove a type named X, and re-add it using different constructors. However, as long as requests are served from only one DatabaseContext at-a-time, the type name is unambiguous. This will become a problem for time-travel, however.
+-- | The AtomType must uniquely identify the type of a atom.
 data AtomType = AtomType ConcreteTypeRep | 
                 RelationAtomType Attributes |
+                ConstructedAtomType TypeConstructorName | 
                 AnyAtomType --wildcard used in Atom Functions
               deriving (Eq,NFData,Generic,Binary,Show)
                        
@@ -124,6 +139,7 @@ isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
 
+-- | The AttributeName is the name of an attribute in a relation.
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
@@ -256,12 +272,15 @@ data Notification = Notification {
   }
   deriving (Show, Eq, Binary, Generic)
 
+type AtomTypes = M.Map TypeConstructorName (AtomType, AtomConstructor)
+
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: M.Map IncDepName InclusionDependency,
   relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions,
-  notifications :: Notifications
+  notifications :: Notifications,
+  atomTypes :: AtomTypes
   } deriving (Show, Generic)
              
 type IncDepName = StringType             
@@ -285,9 +304,23 @@ data DatabaseExpr where
   
   AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
   RemoveNotification :: NotificationName -> DatabaseExpr
+
+  -- this may be generalized to AddAtomFunction in the future
+  AddAtomConstructor :: TypeConstructorName -> AtomConstructor -> DatabaseExpr
+  RemoveAtomConstructor :: TypeConstructorName -> DatabaseExpr
+
+  -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime
+  --AddAtomFunction :: AtomFunction -> DatabaseExpr
+  --RemoveAtomFunction :: AtomFunctionName -> DatabaseExpr
   
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show, Eq, Binary, Generic)
+
+type TypeConstructorName = StringType
+type DataConstructorName = StringType
+type AtomTypeName = StringType
+
+data AtomConstructor = AtomConstructor (M.Map DataConstructorName [AtomTypeName]) deriving (Eq, Show, Binary, Generic)
 
 type DatabaseState a = State DatabaseContext a
 

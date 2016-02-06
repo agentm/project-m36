@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
@@ -8,8 +9,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import ProjectM36.Error
 import qualified Data.Text.Encoding as TE
-
-
+import qualified Data.Text as T
 
 --spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
 relationAsCSV :: Relation -> Either RelationalError BS.ByteString
@@ -39,4 +39,5 @@ instance DefaultOrdered RecordRelationTuple where
 newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
+  toField (RecordAtom (ConstructedAtom dConsName _ atomList)) = TE.encodeUtf8 $ dConsName `T.append` T.intercalate " " (map (\(Atom x) -> toText x) atomList)
   toField (RecordAtom (Atom atomVal)) = (TE.encodeUtf8 . toText) atomVal

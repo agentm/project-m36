@@ -26,6 +26,8 @@ databaseExprP = insertP
             <|> assignP
             <|> addNotificationP
             <|> removeNotificationP
+            <|> addAtomConstructorP
+            <|> removeAtomConstructorP
 
 assignP :: Parser DatabaseExpr
 assignP = do
@@ -123,6 +125,25 @@ removeNotificationP = do
   reserved "unnotify"
   notName <- identifier
   return $ RemoveNotification (T.pack notName)
+
+-- | data Hair = Bald | Color Text
+addAtomConstructorP :: Parser DatabaseExpr
+addAtomConstructorP = do
+  reserved "data"
+  typeConstructorName <- identifier
+  reservedOp "="
+  dataConstructors <- sepBy1 dataConstructorP comma
+  let aCons = AtomConstructor (M.fromList dataConstructors)
+  pure (AddAtomConstructor (T.pack typeConstructorName) aCons)
+
+dataConstructorP :: Parser (DataConstructorName, [AtomTypeName])
+dataConstructorP = do
+  dConsName <- identifier
+  atomTypeNames <- sepBy (liftM T.pack identifier) spaces
+  pure (T.pack dConsName, atomTypeNames)
+
+removeAtomConstructorP :: Parser DatabaseExpr
+removeAtomConstructorP = RemoveAtomConstructor <$> liftM T.pack identifier 
 
 databaseExprOpP :: Parser DatabaseExpr
 databaseExprOpP = multipleDatabaseExprP

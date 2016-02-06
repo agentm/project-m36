@@ -8,11 +8,13 @@ import qualified Data.Text as T
 import Data.Time.Calendar (Day)
 import Data.Time.Clock
 import Data.ByteString (ByteString)
+import qualified Data.Map as M
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (Atom atom) = case cast atom of
   Just rel@(Relation _ _) -> Right rel
   Nothing -> Left $ AttributeIsNotRelationValuedError ""
+relationForAtom (ConstructedAtom _ _ _) = Left $ AttributeIsNotRelationValuedError ""
 
 atomTypeForProxy :: (Atomable a) => Proxy a -> AtomType
 atomTypeForProxy prox = AtomType $ CTR (typeRep prox)
@@ -70,11 +72,20 @@ intAtom i = Atom i
 
 --not safe to use without upfront type-checking
 castRelation :: Atom -> Relation
+castRelation (ConstructedAtom _ _ _) = error "castRelation attempt on ConstructedAtom"
 castRelation (Atom atom) = case cast atom of
                              Just rel -> rel
-                             Nothing -> error "castRelation failure"
+                             Nothing -> error "castRelation attempt on non-relation-typed Atom"
 
 unsafeCast :: (Atomable a) => Atom -> a
+unsafeCast (ConstructedAtom _ _ _) = error "unsafeCast attempt on ConstructedAtom"
 unsafeCast (Atom atom) = case cast atom of
                           Just x -> x
                           Nothing -> error "unsafeCast failed"
+
+emptyAtomConstructor :: AtomConstructor
+emptyAtomConstructor = AtomConstructor M.empty
+
+basicAtomTypes :: AtomTypes
+basicAtomTypes = M.fromList [("Int", (intAtomType, emptyAtomConstructor))]
+

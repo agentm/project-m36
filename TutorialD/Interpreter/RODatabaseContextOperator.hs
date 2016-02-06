@@ -21,6 +21,7 @@ data RODatabaseContextOperator where
   ShowRelationType :: RelationalExpr -> RODatabaseContextOperator
   ShowConstraint :: StringType -> RODatabaseContextOperator
   ShowPlan :: DatabaseExpr -> RODatabaseContextOperator
+  ShowTypes :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -41,6 +42,9 @@ showPlanP = do
   reservedOp ":showplan"
   expr <- databaseExprP
   return $ ShowPlan expr
+
+showTypesP :: Parser RODatabaseContextOperator
+showTypesP = reserved ":showtypes" >> pure ShowTypes
 
 quitP :: Parser RODatabaseContextOperator
 quitP = do

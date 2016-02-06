@@ -271,6 +271,7 @@ matrixRelation attributeCount tupleCount = do
 
 
 castInt :: Atom -> Int
+castInt (ConstructedAtom _ _ _) = error "castInt attempt on ConstructedAtom"
 castInt (Atom atom) = case cast atom of
   Just i -> i
   Nothing -> error "int cast failure" -- the type checker must ensure this can never occur

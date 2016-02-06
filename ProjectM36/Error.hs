@@ -33,6 +33,9 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchSession U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | AtomTypeMismatchError AtomType AtomType
+                     | AtomTypeNameInUseError AtomTypeName
+                     | AtomTypeNameNotInUseError AtomTypeName
+                     | InvalidAtomTypeName AtomTypeName
                      | AtomTypeNotSupported AttributeName --used by persistent driver
                      | AtomOperatorNotSupported T.Text --used by persistent driver
                      | EmptyTuplesError -- used by persistent driver

@@ -88,6 +88,7 @@ Library
                      ProjectM36.Relation.Parse.CSV,
                      ProjectM36.Client,
                      ProjectM36.Persist,
+                     ProjectM36.AtomType,
                      Database.Persist.ProjectM36
     GHC-Options: -Wall -rtsopts
     C-sources: ProjectM36/DirectoryFsync.c

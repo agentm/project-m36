@@ -16,6 +16,8 @@ import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
+import Data.Char (isUpper)
+import qualified Data.Text as T
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -117,7 +119,8 @@ emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
                                          atomFunctions = HS.empty,
-                                         notifications = M.empty
+                                         notifications = M.empty,
+                                         atomTypes = M.empty
                                          }
 
 basicDatabaseContext :: DatabaseContext
@@ -125,14 +128,16 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
                                                                          ("false", relationFalse)],
                                          atomFunctions = basicAtomFunctions,
-                                         notifications = M.empty
+                                         notifications = M.empty,
+                                         atomTypes = basicAtomTypes
                                          }
 
 dateExamples :: DatabaseContext
 dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
                                  notifications = M.empty,
-                                 atomFunctions = basicAtomFunctions}
+                                 atomFunctions = basicAtomFunctions,
+                                 atomTypes = basicAtomTypes }
   where
     dateRelVars = M.fromList [("S", suppliers),
                               ("P", products),
@@ -326,6 +331,32 @@ evalContextExpr (RemoveNotification notName) = do
     let newNotifications = M.delete notName nots
     put $ currentContext { notifications = newNotifications }
     return Nothing
+
+-- | Adds type and data constructors to the database context.
+-- validate that the type *and* constructor names are unique! not yet implemented!
+evalContextExpr (AddAtomConstructor tConsName atomConstructor) = do
+  currentContext <- get
+  let oldAtomTypes = atomTypes currentContext
+  if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
+    pure $ Just (InvalidAtomTypeName tConsName)
+    else if M.member tConsName oldAtomTypes then
+      pure $ Just (AtomTypeNameInUseError tConsName)
+      else do
+        let newAtomTypes = M.insert tConsName newType oldAtomTypes
+            newType = (ConstructedAtomType tConsName, atomConstructor)
+        put $ currentContext { atomTypes = newAtomTypes }
+        pure Nothing
+
+-- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
+evalContextExpr (RemoveAtomConstructor tConsName) = do
+  currentContext <- get
+  let oldAtomTypes = atomTypes currentContext
+  if M.notMember tConsName oldAtomTypes then
+    pure $ Just (AtomTypeNameNotInUseError tConsName)
+    else do
+      let newAtomTypes = M.delete tConsName oldAtomTypes
+      put $ currentContext { atomTypes = newAtomTypes }
+      pure Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context

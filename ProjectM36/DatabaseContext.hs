@@ -7,7 +7,8 @@ empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
                           relationVariables = M.empty, 
                           notifications = M.empty,
-                          atomFunctions = HS.empty }
+                          atomFunctions = HS.empty,
+                          atomTypes = M.empty }
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseExpr

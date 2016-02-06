@@ -56,7 +56,8 @@ import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
-import ProjectM36.Server.RemoteCallTypes 
+import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.AtomType (atomTypesAsRelation)
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
@@ -504,6 +505,11 @@ headName sessionId (InProcessConnection _ _ sessions graphTvar) = do
   atomically (headNameSTM_ sessionId sessions graphTvar)
 headName sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (ExecuteHeadName sessionId)
 
-    
-                                                        
-  
+atomTypesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+atomTypesAsRelation sessionId (InProcessConnection _ _ sessions) = do
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (Session discon) -> do
+        

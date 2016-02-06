@@ -95,6 +95,7 @@ showAtom :: Atom -> StringType
 showAtom (Atom atom) = case cast atom of
                           Just rel -> renderTable $ relationAsTable rel
                           Nothing -> toText atom
+showAtom (ConstructedAtom dConsName _ atoms) = dConsName `T.append` " " `T.append` T.concat (L.intersperse " " (map showAtom atoms))
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs
