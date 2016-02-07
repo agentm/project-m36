@@ -69,6 +69,7 @@ roDatabaseContextOperatorP = typeP
              <|> plotRelExprP
              <|> showConstraintsP
              <|> showPlanP
+             <|> showTypesP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -109,6 +110,12 @@ evalRODatabaseContextOp sessionId conn (ShowPlan dbExpr) = do
     Left err -> DisplayErrorResult (T.pack (show err))
     Right optDbExpr -> DisplayResult $ T.pack (show optDbExpr)
 
+evalRODatabaseContextOp sessionId conn ShowTypes = do  
+  eRel <- C.atomTypesAsRelation sessionId conn
+  case eRel of
+    Left err -> pure $ DisplayErrorResult (T.pack (show err))
+    Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+  
 evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
 
 interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> String -> IO TutorialDOperatorResult

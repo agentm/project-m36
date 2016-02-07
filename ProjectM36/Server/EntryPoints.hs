@@ -73,3 +73,8 @@ handleCloseSession :: SessionId -> Connection -> Process (ProcessReply () Connec
 handleCloseSession sessionId conn = do
   liftIO $ closeSession sessionId conn
   reply () conn
+  
+handleRetrieveAtomTypesAsRelation :: SessionId -> Connection -> Process (ProcessReply (Either RelationalError Relation) Connection)  
+handleRetrieveAtomTypesAsRelation = do
+  ret <- liftIO $ atomTypesAsRelation sessionId conn
+  reply ret conn

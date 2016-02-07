@@ -38,3 +38,5 @@ data CreateSessionAtHead = CreateSessionAtHead HeadName
                                   deriving (Binary, Generic)
 data CloseSession = CloseSession SessionId
                     deriving (Binary, Generic)
+data RetrieveAtomTypesAsRelation = RetrieveAtomTypesAsRelation SessionId
+                                   deriving (Binary, Generic)

@@ -230,6 +230,15 @@ attributeAtomExprP = do
 nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
+-- | Uses square brackets for TutorialD support.
+constructedAtomP :: Parser AtomExpr
+constructedAtomP = do
+  reserved "["
+  dConsName <- identifier
+  dConsArgs <- sepBy atomExprP spaces
+  reserved "]"
+  pure $ AtomConstructor dConsName dConsArgs
+
 atomP :: Parser Atom
 atomP = dateTimeAtomP <|> 
         intervalDateTimeAtomP <|>
@@ -241,7 +250,8 @@ atomP = dateTimeAtomP <|>
         doubleAtomP <|> 
         intAtomP <|> 
         boolAtomP <|> 
-        relationAtomP
+        relationAtomP <|>
+        constructedAtomP
 
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do

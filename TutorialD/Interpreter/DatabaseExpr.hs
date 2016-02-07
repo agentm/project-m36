@@ -143,7 +143,9 @@ dataConstructorP = do
   pure (T.pack dConsName, atomTypeNames)
 
 removeAtomConstructorP :: Parser DatabaseExpr
-removeAtomConstructorP = RemoveAtomConstructor <$> liftM T.pack identifier 
+removeAtomConstructorP = do
+  reserved "undata"
+  RemoveAtomConstructor <$> liftM T.pack identifier 
 
 databaseExprOpP :: Parser DatabaseExpr
 databaseExprOpP = multipleDatabaseExprP

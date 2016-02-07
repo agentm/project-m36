@@ -388,7 +388,8 @@ instance Ord Transaction where
 data AtomExpr = AttributeAtomExpr AttributeName |
                 NakedAtomExpr Atom |
                 FunctionAtomExpr AtomFunctionName [AtomExpr] |
-                RelationAtomExpr RelationalExpr
+                RelationAtomExpr RelationalExpr |
+                ConstructedAtomExpr DataConstructorName [AtomExpr]
               deriving (Eq,Show,Generic)
                        
 instance Binary AtomExpr                       

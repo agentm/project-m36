@@ -6,6 +6,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Atom
+import ProjectM36.AtomType
 import ProjectM36.Key
 import ProjectM36.AtomFunction
 import ProjectM36.DataTypes.Interval
@@ -499,6 +500,10 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
   return $ Atom relAtom
+evalAtomExpr _ context (ConstructedAtomExpr dConsName dConsArgs) = do
+  --type-checking presumed!
+  dataConstructorForName
+  
 
 typeFromAtomExpr :: Attributes -> DatabaseContext -> AtomExpr -> Either RelationalError AtomType
 typeFromAtomExpr attrs _ (AttributeAtomExpr attrName) = A.atomTypeForAttributeName attrName attrs
@@ -510,6 +515,8 @@ typeFromAtomExpr _ context (FunctionAtomExpr funcName _) = do
 typeFromAtomExpr _ context (RelationAtomExpr relExpr) = do
   relType <- evalState (typeForRelationalExpr relExpr) context
   return $ RelationAtomType (attributes relType)
+typeFromAtomExpr _ context (ConstructedAtomExpr dConsName dConsArgs) = do  
+  
 
 verifyAtomExprTypes :: Relation -> DatabaseContext -> AtomExpr -> AtomType -> Either RelationalError AtomType
 verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
@@ -533,6 +540,8 @@ verifyAtomExprTypes _ context (RelationAtomExpr relationExpr) expectedType = do
   case runState (typeForRelationalExpr relationExpr) context of
     (Left err, _) -> Left err
     (Right relType, _) -> atomTypeVerify expectedType (RelationAtomType (attributes relType))
+verifyAtomExprTypes _ context (ConstructedAtomExpr dConsName dConsArgs) = do    
+  
 
 
 basicAtomFunctions :: AtomFunctions

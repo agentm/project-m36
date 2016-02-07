@@ -35,6 +35,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | AtomTypeNameNotInUseError AtomTypeName
+                     | NoSuchDataConstructor DataConstructorName
                      | InvalidAtomTypeName AtomTypeName
                      | AtomTypeNotSupported AttributeName --used by persistent driver
                      | AtomOperatorNotSupported T.Text --used by persistent driver
