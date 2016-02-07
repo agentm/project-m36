@@ -230,6 +230,8 @@ type RelVarName = StringType
 
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExpr where
+  --- | Create a relation from attribute and atom expressions.
+  MakeRelationFromAtomExprs :: [AttributeExpr] -> [AtomExpr] -> RelationalExpr
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
   --- | Reference an existing relation in Haskell-space.
@@ -256,7 +258,7 @@ data RelationalExpr where
   --- | Returns the true relation iff 
   Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  Extend :: TupleExpr -> RelationalExpr -> RelationalExpr
+  Extend :: ExtendTupleExpr -> RelationalExpr -> RelationalExpr
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   deriving (Show,Eq, Generic)
 
@@ -395,10 +397,11 @@ data AtomExpr = AttributeAtomExpr AttributeName |
 instance Binary AtomExpr                       
 
 -- | A tuple expression declares what action to take when extending a relation.
-data TupleExpr = AttributeTupleExpr AttributeName AtomExpr
-  deriving (Show, Eq, Generic)
-           
-instance Binary TupleExpr           
+data ExtendTupleExpr = AttributeExtendTupleExpr AttributeName AtomExpr
+  deriving (Show, Eq, Generic, Binary)
+
+-- | Used in tuple creation when creating a relation.
+data TupleExpr = TupleExpr Attributes [AtomExpr]
            
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -436,4 +439,5 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
-    
+data AttributeExpr = AttributeAndAtomExpr AttributeName AtomExpr |
+                     AttributeAndTypeName AttributeName TypeConstructorName

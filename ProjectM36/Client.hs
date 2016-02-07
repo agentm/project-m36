@@ -256,7 +256,7 @@ createSessionAtCommit_ commitUUID newSessionId (InProcessConnection _ _ sessions
             let freshDiscon = DisconnectedTransaction commitUUID (transactionContext transaction)
             keyDuplication <- STMMap.lookup newSessionId sessions
             case keyDuplication of
-                Just _ -> pure $ Left (SessionIdInUse newSessionId)
+                Just _ -> pure $ Left (SessionIdInUseError newSessionId)
                 Nothing -> do
                    STMMap.insert (Session freshDiscon) newSessionId sessions
                    pure $ Right newSessionId
@@ -312,7 +312,7 @@ remoteCall (RemoteProcessConnection localNode serverProcessId) arg = runProcessR
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
 sessionForSessionId sessionId sessions = do
   maybeSession <- STMMap.lookup sessionId sessions
-  pure $ maybe (Left $ NoSuchSession sessionId) Right maybeSession
+  pure $ maybe (Left $ NoSuchSessionError sessionId) Right maybeSession
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)

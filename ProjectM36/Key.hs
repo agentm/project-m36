@@ -26,8 +26,8 @@ inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCo
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where 
     projectedOnKeys expr = Project attrNames expr
-    exprAsSubRelation expr = Extend (AttributeTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
-    exprCount expr = projectionForCount (Extend (AttributeTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"])) (exprAsSubRelation expr))
+    exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
+    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"])) (exprAsSubRelation expr))
     projectionForCount expr = Project (AttributeNames $ S.fromList ["b"]) expr
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 

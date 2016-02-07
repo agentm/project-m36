@@ -29,13 +29,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
-                     | SessionIdInUse U.UUID
-                     | NoSuchSession U.UUID
+                     | SessionIdInUseError U.UUID
+                     | NoSuchSessionError U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | AtomTypeMismatchError AtomType AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | AtomTypeNameNotInUseError AtomTypeName
-                     | NoSuchDataConstructor DataConstructorName
+                     | NoSuchDataConstructorError DataConstructorName
+                     | NoSuchTypeConstructorError TypeConstructorName
                      | InvalidAtomTypeName AtomTypeName
                      | AtomTypeNotSupported AttributeName --used by persistent driver
                      | AtomOperatorNotSupported T.Text --used by persistent driver

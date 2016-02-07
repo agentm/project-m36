@@ -477,7 +477,7 @@ tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName 
 
 tupleExpressionProcessor :: Relation -> TupleExpr -> DatabaseContext -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
 tupleExpressionProcessor relIn
-  (AttributeTupleExpr newAttrName atomExpr) context = do
+  (AttributeExtendTupleExpr newAttrName atomExpr) context = do
     _ <- tupleExprCheckNewAttrName newAttrName relIn
     atomExprType <- typeFromAtomExpr (attributes relIn) context atomExpr
     _ <- verifyAtomExprTypes relIn context atomExpr atomExprType
@@ -500,10 +500,10 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
   return $ Atom relAtom
-evalAtomExpr _ context (ConstructedAtomExpr dConsName dConsArgs) = do
-  --type-checking presumed!
-  dataConstructorForName
-  
+evalAtomExpr tupIn context cons@(ConstructedAtomExpr dConsName dConsArgs) = do
+  aType <- typeFromAtomExpr (tupleAttributes tupIn) context cons
+  argAtoms <- mapM (evalAtomExpr tupIn context) dConsArgs
+  pure (ConstructedAtom dConsName aType argAtoms)
 
 typeFromAtomExpr :: Attributes -> DatabaseContext -> AtomExpr -> Either RelationalError AtomType
 typeFromAtomExpr attrs _ (AttributeAtomExpr attrName) = A.atomTypeForAttributeName attrName attrs
@@ -515,9 +515,17 @@ typeFromAtomExpr _ context (FunctionAtomExpr funcName _) = do
 typeFromAtomExpr _ context (RelationAtomExpr relExpr) = do
   relType <- evalState (typeForRelationalExpr relExpr) context
   return $ RelationAtomType (attributes relType)
-typeFromAtomExpr _ context (ConstructedAtomExpr dConsName dConsArgs) = do  
-  
+-- grab the type of the data constructor, then validate that the args match the expected types  
+typeFromAtomExpr attrs context (ConstructedAtomExpr dConsName dConsArgs) = do
+  (tConsType, dConsArgTypes) <- atomAndArgsTypesForDataConstructorName dConsName (atomTypes context)
+  argsTypes <- mapM (typeFromAtomExpr attrs context) dConsArgs
+  --validate that the argument types match
+  if argsTypes /= dConsArgTypes then
+    Left $ AtomTypeMismatchError intAtomType intAtomType --fix error message
+    else
+      pure tConsType
 
+-- | Validae that the 
 verifyAtomExprTypes :: Relation -> DatabaseContext -> AtomExpr -> AtomType -> Either RelationalError AtomType
 verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
   attrType <- A.atomTypeForAttributeName attrName (attributes relIn)
@@ -540,7 +548,9 @@ verifyAtomExprTypes _ context (RelationAtomExpr relationExpr) expectedType = do
   case runState (typeForRelationalExpr relationExpr) context of
     (Left err, _) -> Left err
     (Right relType, _) -> atomTypeVerify expectedType (RelationAtomType (attributes relType))
-verifyAtomExprTypes _ context (ConstructedAtomExpr dConsName dConsArgs) = do    
+verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _) expectedType = do
+  cType <- typeFromAtomExpr (attributes rel) context cons
+  atomTypeVerify expectedType cType
   
 
 

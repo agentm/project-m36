@@ -22,6 +22,8 @@ import TutorialD.Interpreter.DataTypes.Interval
 
 import Data.Time.Calendar (Day)
 
+--nuke this
+{-
 atomTypeP :: Parser AtomType
 atomTypeP = (reserved "char" *> return stringAtomType) <|>
   (reserved "int" *> return intAtomType) <|>
@@ -31,7 +33,8 @@ atomTypeP = (reserved "char" *> return stringAtomType) <|>
   (reserved "bool" *> return boolAtomType) <|>
   (reserved "bytestring" *> return byteStringAtomType) <|>
   (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
-  
+-}
+
 --used in projection
 attributeListP :: Parser AttributeNames
 attributeListP = do
@@ -41,35 +44,49 @@ attributeListP = do
   return $ constructor (S.fromList (map T.pack attrs))
 
 makeRelationP :: Parser RelationalExpr
-makeRelationP = ExistingRelation <$> relationP
+makeRelationP = do
+  reserved "relation"
+  attrs <- (try makeAttributesP <|> return A.emptyAttributes)
+  if not (A.null attrs) then do
+    case mkRelation attrs emptyTupleSet of 
+      Left err -> fail (show err)
+      Right rel -> pure (ExistingRelation rel)
+    else do -- empty attributes
+      tupleExprs <- try (braces (sepBy tupleExprP comma)) <|> pure []
+      pure $ MakeRelationFromAtomExprs attrs 
+
+
+makeAttributeExprsP :: Parser [AttributeExpr]
+makeAttributeExprsP = do
+  attrList <- bra
 
 --used in relation creation
-makeAttributesP :: Parser Attributes
-makeAttributesP = do
-   attrList <- braces (sepBy attributeAndTypeP comma)
+makeAttributeExprsP :: Parser [AttributeExprs]
+makeAttributeExprsP = do
+   attrList <- braces (sepBy attributeAndTypeNameP comma)
    return $ A.attributesFromList attrList
 
-attributeAndTypeP :: Parser Attribute
-attributeAndTypeP = do
+
+attributeAndTypeNameP :: Parser AttributeExpr
+attributeAndTypeNameP = do
   attrName <- identifier
   --convert type name into type
-  atomType <- atomTypeP
-  return $ Attribute (T.pack attrName) atomType
+  atomType <- identifier
+  return $ AttributeAndTypeNameExpr (T.pack attrName) atomType
 
-tupleP :: Parser RelationTuple
-tupleP = do
+tupleExprP :: Parser TupleExpr
+tupleExprP = do
   reservedOp "tuple"
-  attrAssocs <- braces (sepBy tupleAtomP comma)
-  let attrs = A.attributesFromList $ map (\(attrName, atom) -> Attribute attrName (atomTypeForAtom atom)) attrAssocs
-  let atoms = V.fromList $ map snd attrAssocs
-  return $ mkRelationTuple attrs atoms
+  attrAssocs <- braces (sepBy tupleAtomExprP comma)
+  let attrs = A.attributesFromList $ map fst attrAssocs
+  pure (TupleExpr attrs (map snd attrAssocs))
 
-tupleAtomP :: Parser (AttributeName, Atom)
-tupleAtomP = do
+tupleAtomExprP :: Parser (AttributeName, AtomExpr)
+tupleAtomExprP = do
   attributeName <- identifier
-  atom <- atomP
-  return $ (T.pack attributeName, atom)      
-    
+  atomExpr <- atomExprP
+  return $ (T.pack attributeName, atomExpr)
+  
 projectP :: Parser (RelationalExpr -> RelationalExpr)
 projectP = do
   attrs <- braces attributeListP
@@ -117,7 +134,7 @@ ungroupP = do
 extendP :: Parser (RelationalExpr -> RelationalExpr)
 extendP = do
   reservedOp ":"
-  tupleExpr <- braces tupleExpressionP
+  tupleExpr <- braces extendTupleExpressionP
   return $ Extend tupleExpr
 
 {-
@@ -202,24 +219,25 @@ restrictionAtomExprP = do
   _ <- char '^' -- not ideal, but allows me to continue to use a context-free grammar
   AtomExprPredicate <$> atomExprP
 
-multiTupleExpressionP :: Parser [TupleExpr]
-multiTupleExpressionP = sepBy tupleExpressionP comma
+multiTupleExpressionP :: Parser [ExtendTupleExpr]
+multiTupleExpressionP = sepBy extendTupleExpressionP comma
 
-tupleExpressionP :: Parser TupleExpr
-tupleExpressionP = attributeTupleExpressionP
+extendTupleExpressionP :: Parser ExtendTupleExpr
+extendTupleExpressionP = attributeExtendTupleExpressionP
 
-attributeTupleExpressionP :: Parser TupleExpr
-attributeTupleExpressionP = do
+attributeExtendTupleExpressionP :: Parser ExtendTupleExpr
+attributeExtendTupleExpressionP = do
   newAttr <- identifier
   reservedOp ":="
   atom <- atomExprP
-  return $ AttributeTupleExpr (T.pack newAttr) atom
+  return $ AttributeExtendTupleExpr (T.pack newAttr) atom
 
 atomExprP :: Parser AtomExpr
 atomExprP = try functionAtomExprP <|>
   attributeAtomExprP <|>
   nakedAtomExprP <|>
-  relationalAtomExprP
+  relationalAtomExprP <|>
+  constructedAtomP
 
 attributeAtomExprP :: Parser AtomExpr
 attributeAtomExprP = do
@@ -237,7 +255,7 @@ constructedAtomP = do
   dConsName <- identifier
   dConsArgs <- sepBy atomExprP spaces
   reserved "]"
-  pure $ AtomConstructor dConsName dConsArgs
+  pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
 
 atomP :: Parser Atom
 atomP = dateTimeAtomP <|> 
@@ -250,9 +268,8 @@ atomP = dateTimeAtomP <|>
         doubleAtomP <|> 
         intAtomP <|> 
         boolAtomP <|> 
-        relationAtomP <|>
-        constructedAtomP
-
+        relationAtomP
+        
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
   funcName <- identifier
@@ -271,13 +288,15 @@ maybeTextAtomP = do
   maybeText <- try $ ((Just . T.pack <$> (reserved "Just" *> quotedString)) <|> 
                       (reserved "Nothing" *> return Nothing)) <* reserved "::maybe char"   
   return $ Atom maybeText
-  
+
+--refactor to use polymorphic runtime constructors
 maybeIntAtomP :: Parser Atom  
 maybeIntAtomP = do
   maybeInt <- try $ ((Just . fromIntegral <$> (reserved "Just" *> integer)) <|>
                      (reserved "Nothing" *> return Nothing)) <* reserved "::maybe int"
   return $ Atom (maybeInt :: Maybe Int)
-    
+
+--refactor to use constructors
 dateAtomP :: Parser Atom    
 dateAtomP = do
   dateString' <- try $ do
@@ -287,10 +306,10 @@ dateAtomP = do
   case parseTimeM False defaultTimeLocale "%Y-%m-%d" dateString' of
     Just todaytime -> return $ Atom (todaytime :: Day)
     Nothing -> fail "Failed to parse date"
-    
+
 doubleAtomP :: Parser Atom    
 doubleAtomP = Atom <$> (try float)
-  
+
 intAtomP :: Parser Atom
 intAtomP = do
   i <- integer
@@ -301,9 +320,10 @@ boolAtomP = do
   val <- char 't' <|> char 'f'
   return $ Atom (val == 't')
   
-relationAtomP :: Parser Atom
-relationAtomP = Atom <$> relationP
+relationAtomExprP :: Parser AtomExpr
+relationAtomExprP = RelationAtomExpr <$> relationExprP
 
+-- deprecated for removal- use constructors
 byteStringAtomP :: Parser Atom
 byteStringAtomP = do
   byteString' <- try $ do
@@ -314,6 +334,7 @@ byteStringAtomP = do
     Left err -> fail err
     Right bsVal -> return $ Atom bsVal
 
+{-
 --relation constructor -- no choice but to propagate relation-construction errors as parse errors. Perhaps this could be improved in the future
 relationP :: Parser Relation
 relationP = do
@@ -329,4 +350,4 @@ relationP = do
     case mkRelationFromTuples tupleAttrs tuples of
       Left err -> fail (show err)
       Right rel -> return rel
-  
+-}  

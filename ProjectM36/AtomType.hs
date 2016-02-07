@@ -22,15 +22,37 @@ typesAsRelation aTypes = mkRelationFromTuples attrs tuples
     mkDataConsRelation dConsMap = case mkRelationFromTuples subAttrs $ map (\(dConsName, dConsTypeNames) -> RelationTuple subAttrs (V.singleton $ stringAtom $ T.intercalate " " (dConsName:dConsTypeNames))) (M.toList dConsMap) of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> Atom rel
-      
+{-      
 -- | Scan all type constructors for the proper data constructor      
-dataConstructorForName :: DataConstructorName -> AtomTypes -> Either RelationalError (DataConstructorName, [AtomTypeName])
-dataConstructorForName dConsName aTypes = M.foldrWithKey typeFolder defaultErr aTypes
+dataConstructorTypeNamesForName :: DataConstructorName -> AtomTypes -> Either RelationalError [AtomTypeName]
+dataConstructorTypeNamesForName dConsName aTypes = M.foldrWithKey typeFolder defaultErr aTypes
   where
-    defaultErr = Left (NoSuchDataConstructor dConsName)
+    defaultErr = Left (NoSuchDataConstructorError dConsName)
     typeFolder _ (_, AtomConstructor dConsMap) accum = if isRight accum then
                                                                             accum
                                                                          else 
                                                                            case M.lookup dConsName dConsMap of
       Nothing -> accum
       Just aTypeNames -> Right (dConsName, aTypeNames)
+-}
+-- fix mostly-duplicated fold code
+-- | Scan the atom types and return the resultant ConstructedAtomType or error.
+atomAndArgsTypesForDataConstructorName :: DataConstructorName -> AtomTypes -> Either RelationalError (AtomType, [AtomType])
+atomAndArgsTypesForDataConstructorName dConsName aTypes = M.foldrWithKey typeFolder defaultErr aTypes
+  where
+    defaultErr = Left (NoSuchDataConstructorError dConsName)
+    typeFolder _ (aType, AtomConstructor dConsMap) accum = if isRight accum then
+                                                                            accum
+                                                                         else 
+                                                                           case M.lookup dConsName dConsMap of
+      Nothing -> accum
+      Just aArgsTypeNames -> do --convert aTypeNames into AtomTypes
+        aArgsTypes <- mapM (\tName -> atomTypeForTypeConstructor tName aTypes) aArgsTypeNames
+        Right (aType, aArgsTypes)
+
+atomTypeForTypeConstructor :: TypeConstructorName -> AtomTypes -> Either RelationalError AtomType
+atomTypeForTypeConstructor tConsName aTypes = case M.lookup tConsName aTypes of
+                                                Nothing -> Left (NoSuchTypeConstructorError tConsName)
+                                                Just (aType, _) -> Right aType
+
+
