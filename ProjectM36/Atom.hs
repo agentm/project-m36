@@ -8,7 +8,6 @@ import qualified Data.Text as T
 import Data.Time.Calendar (Day)
 import Data.Time.Clock
 import Data.ByteString (ByteString)
-import qualified Data.Map as M
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (Atom atom) = case cast atom of
@@ -16,30 +15,6 @@ relationForAtom (Atom atom) = case cast atom of
   Nothing -> Left $ AttributeIsNotRelationValuedError ""
 relationForAtom (ConstructedAtom _ _ _) = Left $ AttributeIsNotRelationValuedError ""
 
-atomTypeForProxy :: (Atomable a) => Proxy a -> AtomType
-atomTypeForProxy prox = AtomType $ CTR (typeRep prox)
-
---some convenience functions
-stringAtomType :: AtomType
-stringAtomType = atomTypeForProxy (Proxy :: Proxy StringType)
-
-intAtomType :: AtomType
-intAtomType = atomTypeForProxy (Proxy :: Proxy Int)
-
-boolAtomType :: AtomType
-boolAtomType = atomTypeForProxy (Proxy :: Proxy Bool)
-
-dateAtomType :: AtomType
-dateAtomType = atomTypeForProxy (Proxy :: Proxy Day)
-
-dateTimeAtomType :: AtomType
-dateTimeAtomType = atomTypeForProxy (Proxy :: Proxy UTCTime)
-
-byteStringAtomType :: AtomType
-byteStringAtomType = atomTypeForProxy (Proxy :: Proxy ByteString)
-
-doubleAtomType :: AtomType
-doubleAtomType = atomTypeForProxy (Proxy :: Proxy Double)
 
 --another hard-coded typerep dispatch table :/
 makeAtomFromText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
@@ -62,9 +37,8 @@ makeAtomFromText _ (AtomType cTypeRep) textIn = if
          Left $ ParseError textIn
 makeAtomFromText attrName _ _ = Left $ AtomTypeNotSupported attrName
 
---textAtom shortcut
-stringAtom :: T.Text -> Atom
-stringAtom t = Atom t
+textAtom :: T.Text -> Atom
+textAtom t = Atom t
 
 --intAtom shortcut
 intAtom :: Int -> Atom
@@ -77,15 +51,14 @@ castRelation (Atom atom) = case cast atom of
                              Just rel -> rel
                              Nothing -> error "castRelation attempt on non-relation-typed Atom"
 
-unsafeCast :: (Atomable a) => Atom -> a
-unsafeCast (ConstructedAtom _ _ _) = error "unsafeCast attempt on ConstructedAtom"
-unsafeCast (Atom atom) = case cast atom of
-                          Just x -> x
-                          Nothing -> error "unsafeCast failed"
-
-emptyAtomConstructor :: AtomConstructor
-emptyAtomConstructor = AtomConstructor M.empty
-
+{-
 basicAtomTypes :: AtomTypes
-basicAtomTypes = M.fromList [("Int", (intAtomType, emptyAtomConstructor))]
-
+basicAtomTypes = M.union primitiveAtomTypes moreTypes
+  where
+    moreTypes = M.fromList [("Day", (dateAtomType, 
+                                     AtomConstructor (M.singleton "Day" ["Int"])))
+                            ]
+-}  
+atomToText :: Atom -> T.Text
+atomToText (Atom atom) = toText atom
+atomToText (ConstructedAtom dConsName _ atoms) = dConsName `T.append` T.intercalate " " (map atomToText atoms)

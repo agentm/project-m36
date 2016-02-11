@@ -5,35 +5,14 @@ import ProjectM36.Base
 import Text.Parsec.String
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
-import qualified ProjectM36.Attribute as A
-import ProjectM36.TupleSet
-import ProjectM36.Tuple
-import ProjectM36.Relation
-import ProjectM36.Atom
-import qualified Data.Vector as V
 import qualified Data.Set as S
+import qualified Data.Map as M
 import Data.Functor.Identity (Identity)
 import Data.Time.Format
 import Control.Applicative (liftA)
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding as TE
-import TutorialD.Interpreter.DataTypes.DateTime
-import TutorialD.Interpreter.DataTypes.Interval
-
 import Data.Time.Calendar (Day)
-
---nuke this
-{-
-atomTypeP :: Parser AtomType
-atomTypeP = (reserved "char" *> return stringAtomType) <|>
-  (reserved "int" *> return intAtomType) <|>
-  (reserved "datetime" *> return dateTimeAtomType) <|>
-  (reserved "date" *> return dateAtomType) <|>
-  (reserved "double" *> return doubleAtomType) <|>
-  (reserved "bool" *> return boolAtomType) <|>
-  (reserved "bytestring" *> return byteStringAtomType) <|>
-  (RelationAtomType <$> (reserved "relation" *> makeAttributesP))
--}
 
 --used in projection
 attributeListP :: Parser AttributeNames
@@ -46,40 +25,29 @@ attributeListP = do
 makeRelationP :: Parser RelationalExpr
 makeRelationP = do
   reserved "relation"
-  attrs <- (try makeAttributesP <|> return A.emptyAttributes)
-  if not (A.null attrs) then do
-    case mkRelation attrs emptyTupleSet of 
-      Left err -> fail (show err)
-      Right rel -> pure (ExistingRelation rel)
-    else do -- empty attributes
+  attrExprs <- (try makeAttributeExprsP <|> pure [])
+  if not (null attrExprs) then do
+      pure $ MakeEmptyRelation attrExprs
+    else do -- empty attributes, assume tuple expressions
       tupleExprs <- try (braces (sepBy tupleExprP comma)) <|> pure []
-      pure $ MakeRelationFromAtomExprs attrs 
-
-
-makeAttributeExprsP :: Parser [AttributeExpr]
-makeAttributeExprsP = do
-  attrList <- bra
+      pure $ MakeRelationFromTupleExprs tupleExprs 
 
 --used in relation creation
-makeAttributeExprsP :: Parser [AttributeExprs]
-makeAttributeExprsP = do
-   attrList <- braces (sepBy attributeAndTypeNameP comma)
-   return $ A.attributesFromList attrList
-
+makeAttributeExprsP :: Parser [AttributeExpr]
+makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
 
 attributeAndTypeNameP :: Parser AttributeExpr
 attributeAndTypeNameP = do
   attrName <- identifier
   --convert type name into type
   atomType <- identifier
-  return $ AttributeAndTypeNameExpr (T.pack attrName) atomType
+  return $ AttributeAndTypeNameExpr (T.pack attrName) (T.pack atomType)
 
 tupleExprP :: Parser TupleExpr
 tupleExprP = do
   reservedOp "tuple"
   attrAssocs <- braces (sepBy tupleAtomExprP comma)
-  let attrs = A.attributesFromList $ map fst attrAssocs
-  pure (TupleExpr attrs (map snd attrAssocs))
+  pure (TupleExpr (M.fromList attrAssocs))
 
 tupleAtomExprP :: Parser (AttributeName, AtomExpr)
 tupleAtomExprP = do
@@ -136,33 +104,6 @@ extendP = do
   reservedOp ":"
   tupleExpr <- braces extendTupleExpressionP
   return $ Extend tupleExpr
-
-{-
-rewrite summarize as extend as evaluate
-it turns out that summarize must be a relational expression primitive because it requires
-
-summarize SP per (SP{SNO}) add (sum(@QTY) as SUMQ) === ((SP rename {QTY as _}) group ({_} as x)) : {QTY:=sum(@x)}{S#,QTY}
-so, in general,
-summarize rX per (relExpr) add (func(@attr) as funcd) === ((rX rename {attr as _}) group ({_} as _)) : {QTY:=sum(@_)}{relExpr, _}
--}
-{-
-summarizeP :: Parser (RelationalExpr -> RelationalExpr)
-summarizeP = do
-  reservedOp "per"
-  -- "summarize in Tutorial D requires the heading of the per relation to be a subset  of that of the relation to be summarized"
-  perExpr <- parens relExpr
-  reservedOp "add"
-  (funcAtomExpr, newAttrName) <- parens summaryP
-  --rewrite summarize as extend
-  --return $ Summarize funcAtomExpr newAttrName perExpr
-
-summaryP :: Parser (AtomExpr, AttributeName)
-summaryP = do
-  expr <- atomExprP
-  reserved "as"
-  attrName <- identifier
-  return (expr, T.pack attrName)
--}
 
 relOperators :: [[Operator String () Identity RelationalExpr]]
 relOperators = [
@@ -234,10 +175,10 @@ attributeExtendTupleExpressionP = do
 
 atomExprP :: Parser AtomExpr
 atomExprP = try functionAtomExprP <|>
-  attributeAtomExprP <|>
-  nakedAtomExprP <|>
-  relationalAtomExprP <|>
-  constructedAtomP
+            try constructedAtomExprP <|>
+            attributeAtomExprP <|>
+            nakedAtomExprP <|>
+            relationalAtomExprP
 
 attributeAtomExprP :: Parser AtomExpr
 attributeAtomExprP = do
@@ -249,26 +190,20 @@ nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 -- | Uses square brackets for TutorialD support.
-constructedAtomP :: Parser AtomExpr
-constructedAtomP = do
-  reserved "["
-  dConsName <- identifier
-  dConsArgs <- sepBy atomExprP spaces
-  reserved "]"
+constructedAtomExprP :: Parser AtomExpr
+constructedAtomExprP = do
+  dConsName <- identifier  
+  _ <- char '['
+  dConsArgs <- sepBy atomExprP comma
+  _ <- char ']'
   pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
 
+-- used only for primitive type parsing ?
 atomP :: Parser Atom
-atomP = dateTimeAtomP <|> 
-        intervalDateTimeAtomP <|>
-        dateAtomP <|> 
-        maybeTextAtomP <|> 
-        maybeIntAtomP <|>
-        byteStringAtomP <|>
-        stringAtomP <|> 
+atomP = stringAtomP <|> 
         doubleAtomP <|> 
         intAtomP <|> 
-        boolAtomP <|> 
-        relationAtomP
+        boolAtomP
         
 functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
@@ -321,7 +256,7 @@ boolAtomP = do
   return $ Atom (val == 't')
   
 relationAtomExprP :: Parser AtomExpr
-relationAtomExprP = RelationAtomExpr <$> relationExprP
+relationAtomExprP = RelationAtomExpr <$> makeRelationP
 
 -- deprecated for removal- use constructors
 byteStringAtomP :: Parser Atom
@@ -334,20 +269,3 @@ byteStringAtomP = do
     Left err -> fail err
     Right bsVal -> return $ Atom bsVal
 
-{-
---relation constructor -- no choice but to propagate relation-construction errors as parse errors. Perhaps this could be improved in the future
-relationP :: Parser Relation
-relationP = do
-  reserved "relation"
-  attrs <- (try makeAttributesP <|> return A.emptyAttributes)
-  if not (A.null attrs) then do
-    case mkRelation attrs emptyTupleSet of 
-      Left err -> fail (show err)
-      Right rel -> return rel
-    else do -- empty attributes
-    tuples <- try (braces (sepBy tupleP comma)) <|> pure []
-    let tupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
-    case mkRelationFromTuples tupleAttrs tuples of
-      Left err -> fail (show err)
-      Right rel -> return rel
--}  

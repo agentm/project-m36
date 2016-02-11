@@ -17,6 +17,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AttributeNamesMismatchError (S.Set AttributeName)
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
+                     | CouldNotInferAttributes
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
                      | RelVarAssignmentTypeMismatchError Attributes Attributes --expected, found

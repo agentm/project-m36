@@ -4,15 +4,12 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
-import ProjectM36.Atom
-import Data.Typeable (cast)
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
-import qualified Data.Text as T
 import qualified Control.Parallel.Strategies as P
 import Data.Either (isRight)
 
@@ -260,39 +257,5 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
     tupleSetJoiner tup1 acc = undefined
 -}
 
--- returns a relation with tupleCount tuples with a set of integer attributes attributesCount long
--- this is useful for performance and resource usage testing
-matrixRelation :: Int -> Int -> Either RelationalError Relation
-matrixRelation attributeCount tupleCount = do
-  let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) intAtomType) [0 .. attributeCount-1]
-      tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> Atom tupleX))
-      tuples = map (\c -> tuple c) [0 .. tupleCount]
-  mkRelationDeferVerify attrs (RelationTupleSet tuples)
 
 
-castInt :: Atom -> Int
-castInt (ConstructedAtom _ _ _) = error "castInt attempt on ConstructedAtom"
-castInt (Atom atom) = case cast atom of
-  Just i -> i
-  Nothing -> error "int cast failure" -- the type checker must ensure this can never occur
-
---used by sum atom function
-relationSum :: Relation -> Atom
-relationSum relIn = Atom $ relFold (\tupIn acc -> acc + (newVal tupIn)) 0 relIn
-  where
-    --extract Int from Atom
-    newVal :: RelationTuple -> Int
-    newVal tupIn = castInt $ (tupleAtoms tupIn) V.! 0
-
-relationCount :: Relation -> Atom
-relationCount relIn = Atom $ relFold (\_ acc -> acc + 1) (0::Int) relIn
-
-relationMax :: Relation -> Atom
-relationMax relIn = Atom $ relFold (\tupIn acc -> max acc (newVal tupIn)) minBound relIn
-  where
-    newVal tupIn = castInt $ (tupleAtoms tupIn) V.! 0
-
-relationMin :: Relation -> Atom
-relationMin relIn = Atom $ relFold (\tupIn acc -> min acc (newVal tupIn)) maxBound relIn
-  where
-    newVal tupIn = castInt $ (tupleAtoms tupIn) V.! 0

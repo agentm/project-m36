@@ -92,3 +92,13 @@ vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tu
 
 instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)
+
+-- returns a relation with tupleCount tuples with a set of integer attributes attributesCount long
+-- this is useful for performance and resource usage testing
+matrixRelation :: Int -> Int -> Either RelationalError Relation
+matrixRelation attributeCount tupleCount = do
+  let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) intAtomType) [0 .. attributeCount-1]
+      tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> Atom tupleX))
+      tuples = map (\c -> tuple c) [0 .. tupleCount]
+  mkRelationDeferVerify attrs (RelationTupleSet tuples)
+

@@ -52,6 +52,7 @@ import ProjectM36.Error
 import ProjectM36.StaticOptimizer
 import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
+import ProjectM36.DatabaseContext (basicDatabaseContext)
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute hiding (atomTypes)
@@ -179,7 +180,7 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback) = do
   freshUUID <- nextRandom
-  let bootstrapContext = RE.basicDatabaseContext 
+  let bootstrapContext = basicDatabaseContext 
       freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future

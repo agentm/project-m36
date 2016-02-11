@@ -56,7 +56,7 @@ defineP = do
     relVarName <- identifier
     reservedOp "::"
     return relVarName
-  attributeSet <- makeAttributesP
+  attributeSet <- makeAttributeExprsP
   return $ Define (T.pack relVarName) attributeSet
 
 undefineP :: Parser DatabaseExpr
@@ -132,7 +132,7 @@ addAtomConstructorP = do
   reserved "data"
   typeConstructorName <- identifier
   reservedOp "="
-  dataConstructors <- sepBy1 dataConstructorP comma
+  dataConstructors <- sepBy1 dataConstructorP pipe
   let aCons = AtomConstructor (M.fromList dataConstructors)
   pure (AddAtomConstructor (T.pack typeConstructorName) aCons)
 

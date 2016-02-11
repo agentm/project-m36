@@ -76,6 +76,8 @@ persistValueAtom val = case val of
   _ -> Nothing
 
 atomAsPersistValue :: Atom -> PersistValue
+--constructed atoms are written as text to the database
+atomAsPersistValue atom@(ConstructedAtom _ _ _) = PersistText (atomToText atom)
 atomAsPersistValue atom@(Atom atomv) = if typeRep (Proxy :: Proxy Int) == typeOf atomv then
                                          PersistInt64 (fromIntegral ((unsafeCast atom) :: Int))
                                        else if typeRep (Proxy :: Proxy T.Text) == typeOf atomv then
@@ -523,7 +525,7 @@ instance PersistQuery ProjectM36Backend where
                      allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef) ++ [unDBName (fieldDB (entityId entDef))]
                      allAttrNames = AttributeNames $ S.fromList allAttrNamesList
                      groupExpr = Group allAttrNames "persistcountrel" (Restrict restrictionPredicate (RelationVariable relVarName))
-                     tupleExpr = AttributeTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
+                     tupleExpr = AttributeExtendTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
                      countExpr = Extend tupleExpr groupExpr
                  rel <- Trans.liftIO $ C.executeRelationalExpr sessionId conn countExpr
                  case rel of

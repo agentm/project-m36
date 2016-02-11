@@ -11,7 +11,7 @@ import System.FilePath
 import System.Directory
 import qualified Data.Text as T
 import Control.Monad
-import ProjectM36.RelationalExpression (basicAtomFunctions)
+import ProjectM36.AtomFunctions.Basic (basicAtomFunctions)
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path = do
@@ -36,6 +36,9 @@ incDepsDir transdir = transdir </> "incdeps"
 atomFuncsDir :: FilePath -> FilePath
 atomFuncsDir transdir = transdir </> "atomfuncs"
 
+atomTypesPath :: FilePath -> FilePath
+atomTypesPath transdir = transdir </> "atomtypes"
+
 readTransaction :: FilePath -> U.UUID -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transUUID = do
   let transDir = transactionDir dbdir transUUID
@@ -46,10 +49,12 @@ readTransaction dbdir transUUID = do
     relvars <- readRelVars transDir
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
+    atomtypes <- readAtomTypes transDir
     --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
+                                       atomTypes = atomtypes,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs }
     
@@ -67,6 +72,7 @@ writeTransaction sync dbdir trans = do
     writeRelVars sync tempTransDir (relationVariables context)
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
+    writeAtomTypes sync tempTransDir (atomTypes context)
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
@@ -131,3 +137,11 @@ readIncDeps transDir = do
   incDepNames <- getDirectoryNames incDepsPath
   incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
   return $ M.fromList incDeps
+  
+writeAtomTypes :: DiskSync -> FilePath -> AtomTypes -> IO ()  
+writeAtomTypes sync path aTypes = writeBSFileSync sync path $ B.encode aTypes
+
+readAtomTypes :: FilePath -> IO (AtomTypes)
+readAtomTypes path = do
+  let atPath = atomTypesPath path
+  liftM B.decode (BS.readFile atPath)

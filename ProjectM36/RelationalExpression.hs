@@ -5,20 +5,19 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Atom
 import ProjectM36.AtomType
-import ProjectM36.Key
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
-import ProjectM36.DataTypes.Interval
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
 import Data.Char (isUpper)
 import qualified Data.Text as T
+import qualified Data.Vector as V
+--import Debug.Trace
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -56,7 +55,27 @@ evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
   case mkRelation attributeSet tupleSet of
     Right rel -> return $ Right rel
     Left err -> return $ Left err
-
+    
+evalRelationalExpr (MakeEmptyRelation attrExprs) = do
+  currentContext <- get
+  let eAttrs = map (evalAttrExpr (atomTypes currentContext)) attrExprs
+  case lefts eAttrs of
+    err:_ -> pure (Left err)
+    [] -> pure $ mkRelation (A.attributesFromList (rights eAttrs)) emptyTupleSet
+    
+evalRelationalExpr (MakeRelationFromTupleExprs tupleExprs) = do
+  currentContext <- get
+  if null tupleExprs then
+    pure $ Left CouldNotInferAttributes
+    else 
+      let eTuples = map (evalTupleExpr currentContext) tupleExprs in
+      case lefts eTuples of
+        err:_ -> pure (Left err)
+        [] -> case head eTuples of
+            Left err -> error $ "impossible Right err " ++ show err
+            --extract potential attributes from first tuple
+            Right firstTuple -> pure $ mkRelation (tupleAttributes firstTuple) (RelationTupleSet (rights eTuples))
+  
 evalRelationalExpr (ExistingRelation rel) = return (Right rel)
 
 evalRelationalExpr (Rename oldAttrName newAttrName relExpr) = do
@@ -112,7 +131,7 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
   case evald of
     Left err -> return $ Left err
     Right rel -> do
-      case tupleExpressionProcessor rel tupleExpression context of
+      case extendTupleExpressionProcessor rel tupleExpression context of
         Left err -> return $ Left err
         Right (newAttrs, tupProc) -> return $ relMogrify tupProc newAttrs rel
 
@@ -124,91 +143,7 @@ emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          atomTypes = M.empty
                                          }
 
-basicDatabaseContext :: DatabaseContext
-basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
-                                         relationVariables = M.fromList [("true", relationTrue),
-                                                                         ("false", relationFalse)],
-                                         atomFunctions = basicAtomFunctions,
-                                         notifications = M.empty,
-                                         atomTypes = basicAtomTypes
-                                         }
 
-dateExamples :: DatabaseContext
-dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
-                                 relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
-                                 notifications = M.empty,
-                                 atomFunctions = basicAtomFunctions,
-                                 atomTypes = basicAtomTypes }
-  where
-    dateRelVars = M.fromList [("S", suppliers),
-                              ("P", products),
-                              ("SP", supplierProducts)]
-    suppliers = suppliersRel
-    products = productsRel
-    supplierProducts = supplierProductsRel
-    dateIncDeps = M.fromList [("S_pkey", simplePKey ["S#"] "S"),
-                              ("P_pkey", simplePKey ["P#"] "P"),
-                              ("SP_pkey", simplePKey ["S#", "P#"] "SP")
-                              ]
-    simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName)
-
-suppliersRel :: Relation
-suppliersRel = case mkRelationFromList attrs atomMatrix of
-  Left _ -> undefined
-  Right rel -> rel
-  where
-    attrs = A.attributesFromList [Attribute "S#" stringAtomType,
-                                  Attribute "SNAME" stringAtomType,
-                                  Attribute "STATUS" intAtomType,
-                                  Attribute "CITY" stringAtomType]
-    atomMatrix = [
-      [stringAtom "S1", stringAtom "Smith", intAtom 20, stringAtom "London"],
-      [stringAtom "S2", stringAtom "Jones", intAtom 10, stringAtom "Paris"],
-      [stringAtom "S3", stringAtom "Blake", intAtom 30, stringAtom "Paris"],
-      [stringAtom "S4", stringAtom "Clark", intAtom 20, stringAtom "London"],
-      [stringAtom "S5", stringAtom "Adams", intAtom 30, stringAtom "Athens"]]
-
-supplierProductsRel :: Relation
-supplierProductsRel = case mkRelationFromList attrs matrix of
-  Left _ -> undefined
-  Right rel -> rel
-  where
-    attrs = A.attributesFromList [Attribute "S#" stringAtomType,
-                                  Attribute "P#" stringAtomType,
-                                  Attribute "QTY" intAtomType]
-    matrix = [
-      [stringAtom "S1", stringAtom "P1", intAtom 300],
-      [stringAtom "S1", stringAtom "P2", intAtom 200],
-      [stringAtom "S1", stringAtom "P3", intAtom 400],
-      [stringAtom "S1", stringAtom "P4", intAtom 200],
-      [stringAtom "S1", stringAtom "P5", intAtom 100],
-      [stringAtom "S1", stringAtom "P6", intAtom 100],
-      [stringAtom "S2", stringAtom "P1", intAtom 300],
-      [stringAtom "S2", stringAtom "P2", intAtom 400],
-      [stringAtom "S3", stringAtom "P2", intAtom 200],
-      [stringAtom "S4", stringAtom "P2", intAtom 200],
-      [stringAtom "S4", stringAtom "P4", intAtom 300],
-      [stringAtom "S4", stringAtom "P5", intAtom 400]
-      ]
-
-productsRel :: Relation
-productsRel = case mkRelationFromList attrs matrix of
-  Left _ -> undefined
-  Right rel -> rel
-  where
-    attrs = A.attributesFromList [Attribute "P#" stringAtomType,
-                                  Attribute "PNAME" stringAtomType,
-                                  Attribute "COLOR" stringAtomType,
-                                  Attribute "WEIGHT" intAtomType,
-                                  Attribute "CITY" stringAtomType]
-    matrix = [
-      [stringAtom "P1", stringAtom "Nut", stringAtom "Red", intAtom 12, stringAtom "London"],
-      [stringAtom "P2", stringAtom "Bolt", stringAtom "Green", intAtom 17, stringAtom "Paris"],
-      [stringAtom "P3", stringAtom "Screw", stringAtom "Blue", intAtom 17, stringAtom "Oslo"],
-      [stringAtom "P4", stringAtom "Screw", stringAtom "Red", intAtom 14, stringAtom "London"],
-      [stringAtom "P5", stringAtom "Cam", stringAtom "Blue", intAtom 12, stringAtom "Paris"],
-      [stringAtom "P6", stringAtom "Cog", stringAtom "Red", intAtom 19, stringAtom "London"]
-      ]
 
 --helper function to process relation variable creation/assignment
 setRelVar :: RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
@@ -231,13 +166,18 @@ deleteRelVar relVarName = do
   return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
-evalContextExpr (Define relVarName attrs) = do
+evalContextExpr (Define relVarName attrExprs) = do
   relvars <- liftM relationVariables get
-  case M.member relVarName relvars of
-    True -> return (Just (RelVarAlreadyDefinedError relVarName))
-    False -> setRelVar relVarName emptyRelation
-      where
-        emptyRelation = Relation attrs emptyTupleSet
+  aTypes <- liftM atomTypes get
+  let eAttrs = map (evalAttrExpr aTypes) attrExprs
+  case lefts eAttrs of
+    err:_ -> pure (Just err)
+    [] -> case M.member relVarName relvars of
+      True -> return (Just (RelVarAlreadyDefinedError relVarName))
+      False -> setRelVar relVarName emptyRelation
+        where
+          attrs = A.attributesFromList (rights eAttrs)
+          emptyRelation = Relation attrs emptyTupleSet
 
 evalContextExpr (Undefine relVarName) = do
   deleteRelVar relVarName
@@ -335,16 +275,18 @@ evalContextExpr (RemoveNotification notName) = do
 
 -- | Adds type and data constructors to the database context.
 -- validate that the type *and* constructor names are unique! not yet implemented!
-evalContextExpr (AddAtomConstructor tConsName atomConstructor) = do
+evalContextExpr (AddAtomConstructor tConsName atomC@(AtomConstructor atomConsMap)) = do
   currentContext <- get
   let oldAtomTypes = atomTypes currentContext
+  -- validate that the constructor's types exist
+  -- atomAndArgsTypesForDataConstructorName oldAtomTypes
   if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
     pure $ Just (InvalidAtomTypeName tConsName)
     else if M.member tConsName oldAtomTypes then
       pure $ Just (AtomTypeNameInUseError tConsName)
       else do
         let newAtomTypes = M.insert tConsName newType oldAtomTypes
-            newType = (ConstructedAtomType tConsName, atomConstructor)
+            newType = (ConstructedAtomType tConsName, atomC)
         put $ currentContext { atomTypes = newAtomTypes }
         pure Nothing
 
@@ -475,8 +417,8 @@ tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName 
                                          else
                                            Right rel
 
-tupleExpressionProcessor :: Relation -> TupleExpr -> DatabaseContext -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
-tupleExpressionProcessor relIn
+extendTupleExpressionProcessor :: Relation -> ExtendTupleExpr -> DatabaseContext -> Either RelationalError (Attributes, RelationTuple -> RelationTuple)
+extendTupleExpressionProcessor relIn
   (AttributeExtendTupleExpr newAttrName atomExpr) context = do
     _ <- tupleExprCheckNewAttrName newAttrName relIn
     atomExprType <- typeFromAtomExpr (attributes relIn) context atomExpr
@@ -525,7 +467,7 @@ typeFromAtomExpr attrs context (ConstructedAtomExpr dConsName dConsArgs) = do
     else
       pure tConsType
 
--- | Validae that the 
+-- | Validate that the type of the AtomExpr matches the expected type.
 verifyAtomExprTypes :: Relation -> DatabaseContext -> AtomExpr -> AtomType -> Either RelationalError AtomType
 verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
   attrType <- A.atomTypeForAttributeName attrName (attributes relIn)
@@ -553,52 +495,21 @@ verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _) expectedType = do
   atomTypeVerify expectedType cType
   
 
-
-basicAtomFunctions :: AtomFunctions
-basicAtomFunctions = HS.fromList $ [
-  --match on any relation type
-  AtomFunction { atomFuncName = "add",
-                 atomFuncType = [intAtomType, intAtomType, intAtomType],
-                 atomFunc = (\(i1:i2:_) -> Atom $ ((unsafeCast i1)::Int) + unsafeCast i2)},
-  AtomFunction { atomFuncName = "id",
-                 atomFuncType = [AnyAtomType, AnyAtomType],
-                 atomFunc = (\(x:_) -> x)},
-  AtomFunction { atomFuncName = "sum",
-                 atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\(relAtom:_) -> relationSum $ unsafeCast relAtom)},
-  AtomFunction { atomFuncName = "count",
-                 atomFuncType = foldAtomFuncType AnyAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationCount (castRelation relIn))},
-  AtomFunction { atomFuncName = "max",
-                 atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationMax (castRelation relIn))},
-  AtomFunction { atomFuncName = "min",
-                 atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationMin (castRelation relIn))},
-  AtomFunction { atomFuncName = "lt",
-                 atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = intAtomFuncLessThan False},
-  AtomFunction { atomFuncName = "lte",
-                 atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = intAtomFuncLessThan True},
-  AtomFunction { atomFuncName = "gte",
-                 atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan False},
-  AtomFunction { atomFuncName = "gt",
-                 atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan True},
-  AtomFunction { atomFuncName = "not",
-                 atomFuncType = [boolAtomType, boolAtomType],
-                 atomFunc = boolAtomNot}
-  ] ++ intervalFunctions
-
-intAtomFuncLessThan :: Bool -> [Atom] -> Atom
-intAtomFuncLessThan equality (iatom1:iatom2:_) = (\i1 i2 -> Atom $ ((unsafeCast i1)::Int) `op` unsafeCast i2) iatom1 iatom2
-  where
-    op = if equality then (<=) else (<)
-intAtomFuncLessThan _ _= Atom False
-
-boolAtomNot :: [Atom] -> Atom
-boolAtomNot (bool:_) = Atom $ not (unsafeCast bool)
-boolAtomNot _ = Atom False
-
+-- | Look up the type's name and create a new attribute.
+evalAttrExpr :: AtomTypes -> AttributeExpr -> Either RelationalError Attribute
+evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tConsName) = do
+  aType <- atomTypeForTypeConstructor tConsName aTypes
+  Right (Attribute attrName aType)
+  
+evalTupleExpr :: DatabaseContext -> TupleExpr -> Either RelationalError RelationTuple
+evalTupleExpr context (TupleExpr tupMap) = do
+  -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
+  attrAtoms <- mapM (\(attrName, aExpr) -> do
+                        newAtom <- evalAtomExpr emptyTuple context aExpr
+                        newAtomType <- typeFromAtomExpr A.emptyAttributes context aExpr
+                        pure (attrName, newAtom, newAtomType)
+                          ) (M.toList tupMap)
+  let attrs = map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms
+      atoms = V.fromList $ map (\(_, atom, _) -> atom) attrAtoms
+  pure $ mkRelationTuple (A.attributesFromList attrs) atoms
+    

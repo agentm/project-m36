@@ -23,6 +23,8 @@ import Data.Typeable
 import Text.Read (readMaybe)
 import Data.ByteString (ByteString)
 import ProjectM36.ConcreteTypeRep
+import qualified Data.Text.Encoding as TE
+import qualified Data.ByteString.Base64 as BS64
 
 type StringType = Text
 
@@ -50,7 +52,8 @@ instance Atomable Text where
   toText t = t
 instance Atomable Day
 instance Atomable UTCTime
-instance Atomable ByteString
+instance Atomable ByteString where
+  toText bs = TE.decodeUtf8With (\_ _  -> Just '?') (BS64.encode bs)
 instance Atomable Bool
 instance Atomable Relation
 instance (Atomable a) => Atomable (Maybe a)
@@ -89,8 +92,6 @@ instance Binary Atom where
                                          Atom <$> (get :: Get Double)
                                        else if unCTR cTypeRep == typeRep (Proxy :: Proxy Day) then
                                               Atom <$> (get :: Get Day)
-                                            else if unCTR cTypeRep == typeRep (Proxy :: Proxy UTCTime) then
-                                                   Atom <$> (get :: Get UTCTime)
                                                  else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then
                                                         Atom <$> (get :: Get ByteString)
                                                    else if unCTR cTypeRep == typeRep (Proxy :: Proxy Bool) then
@@ -230,8 +231,10 @@ type RelVarName = StringType
 
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExpr where
-  --- | Create a relation from attribute and atom expressions.
-  MakeRelationFromAtomExprs :: [AttributeExpr] -> [AtomExpr] -> RelationalExpr
+  --- | Create a relation from tuple expressions.
+  MakeRelationFromTupleExprs :: [TupleExpr] -> RelationalExpr
+  --- | Create an empty relation with the given attributes.
+  MakeEmptyRelation :: [AttributeExpr] -> RelationalExpr
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
   --- | Reference an existing relation in Haskell-space.
@@ -260,9 +263,7 @@ data RelationalExpr where
   NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
   Extend :: ExtendTupleExpr -> RelationalExpr -> RelationalExpr
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
-  deriving (Show,Eq, Generic)
-
-instance Binary RelationalExpr
+  deriving (Show, Eq, Generic, Binary)
 
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
@@ -294,7 +295,7 @@ instance Binary InclusionDependency
 
 -- | Database context expressions modify the database context.
 data DatabaseExpr where
-  Define :: RelVarName -> Attributes -> DatabaseExpr
+  Define :: RelVarName -> [AttributeExpr] -> DatabaseExpr
   Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
   Assign :: RelVarName -> RelationalExpr -> DatabaseExpr
   Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
@@ -386,7 +387,7 @@ instance Eq Transaction where
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
--- | An atom expression represents an action to take when extending a relation.
+-- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExpr = AttributeAtomExpr AttributeName |
                 NakedAtomExpr Atom |
                 FunctionAtomExpr AtomFunctionName [AtomExpr] |
@@ -396,12 +397,9 @@ data AtomExpr = AttributeAtomExpr AttributeName |
                        
 instance Binary AtomExpr                       
 
--- | A tuple expression declares what action to take when extending a relation.
-data ExtendTupleExpr = AttributeExtendTupleExpr AttributeName AtomExpr
-  deriving (Show, Eq, Generic, Binary)
-
 -- | Used in tuple creation when creating a relation.
-data TupleExpr = TupleExpr Attributes [AtomExpr]
+data ExtendTupleExpr = AttributeExtendTupleExpr AttributeName AtomExpr
+                     deriving (Show, Eq, Binary, Generic)
            
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -439,5 +437,8 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
-data AttributeExpr = AttributeAndAtomExpr AttributeName AtomExpr |
-                     AttributeAndTypeName AttributeName TypeConstructorName
+data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructorName
+                     deriving (Eq, Show, Generic, Binary)
+                              
+data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)
+                 deriving (Eq, Show, Generic, Binary)

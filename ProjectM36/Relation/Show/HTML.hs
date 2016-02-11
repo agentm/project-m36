@@ -3,6 +3,7 @@ module ProjectM36.Relation.Show.HTML where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
+import ProjectM36.Atom
 import qualified Data.List as L
 import ProjectM36.Attribute
 import Data.Text (append, Text, pack)
@@ -26,13 +27,10 @@ writeHTML = TIO.writeFile "/home/agentm/rel.html"
 writeRel :: Relation -> IO ()
 writeRel = writeHTML . relationAsHTML
 
-atomAsHTML :: Atom -> Text
-atomAsHTML (Atom atom) = toText atom
-
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleSortedAssocs tuple)) `append` "</tr>"
   where
-    tupleFrag tup = "<td>" `append` atomAsHTML (snd tup) `append` "</td>"
+    tupleFrag tup = "<td>" `append` atomToText (snd tup) `append` "</td>"
 
 tupleSetAsHTML :: RelationTupleSet -> Text
 tupleSetAsHTML tupSet = foldr folder "" (asList tupSet)

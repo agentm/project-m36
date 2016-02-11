@@ -15,7 +15,11 @@ import Data.Either (rights, lefts)
 applyStaticRelationalOptimization :: RelationalExpr -> DatabaseState (Either RelationalError RelationalExpr)
 applyStaticRelationalOptimization e@(MakeStaticRelation _ _) = return $ Right e
 
+applyStaticRelationalOptimization e@(MakeRelationFromTupleExprs _) = return $ Right e
+
 applyStaticRelationalOptimization e@(ExistingRelation _) = return $ Right e
+
+applyStaticRelationalOptimization e@(MakeEmptyRelation _) = return $ Right e
 
 applyStaticRelationalOptimization e@(RelationVariable _) = return $ Right e
 
@@ -132,6 +136,9 @@ applyStaticDatabaseOptimization (AddNotification name triggerExpr resultExpr) = 
                   Right resultExprOpt -> pure (Right (AddNotification name triggerExprOpt resultExprOpt))
 
 applyStaticDatabaseOptimization notif@(RemoveNotification _) = pure (Right notif)
+
+applyStaticDatabaseOptimization c@(AddAtomConstructor _ _) = pure (Right c)
+applyStaticDatabaseOptimization c@(RemoveAtomConstructor _) = pure (Right c)
 
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 

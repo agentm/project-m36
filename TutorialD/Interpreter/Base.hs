@@ -10,7 +10,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
-import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -39,6 +39,9 @@ identifier = Token.identifier lexer
 comma :: Parser String
 comma = Token.comma lexer
 
+pipe :: Parser String
+pipe = Token.symbol lexer "|"
+
 semi :: Parser String
 semi = Token.semi lexer
 
@@ -53,10 +56,9 @@ float = Token.float lexer
 
 atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of
-  aType@(AtomType _) -> lookup aType [(stringAtomType, "char"),
+  aType@(AtomType _) -> lookup aType [(textAtomType, "char"),
                                       (intAtomType, "int"),
                                       (boolAtomType, "bool"),
-                                      (dateTimeAtomType, "datetime"),
                                       (doubleAtomType, "double")]
   (RelationAtomType attrs) -> Just $ "relation" `T.append` showRelationAttributes attrs
   _ -> Nothing

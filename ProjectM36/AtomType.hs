@@ -2,6 +2,7 @@
 module ProjectM36.AtomType where
 import ProjectM36.Base
 import ProjectM36.Relation
+import ProjectM36.DataTypes.Primitive
 import qualified Data.Text as T
 import ProjectM36.Error
 import ProjectM36.Attribute
@@ -13,13 +14,13 @@ import Data.Either (isRight)
 typesAsRelation :: AtomTypes -> Either RelationalError Relation
 typesAsRelation aTypes = mkRelationFromTuples attrs tuples
   where
-    attrs = attributesFromList [Attribute "TypeConstructor" stringAtomType,
+    attrs = attributesFromList [Attribute "TypeConstructor" textAtomType,
                                 Attribute "DataConstructors" dConsType]
-    subAttrs = attributesFromList [Attribute "DataConstructor" stringAtomType]
+    subAttrs = attributesFromList [Attribute "DataConstructor" textAtomType]
     dConsType = RelationAtomType subAttrs
     tuples = map mkTypeConsDescription (M.toList aTypes)
-    mkTypeConsDescription (tConsName, (_, AtomConstructor dConsMap)) = RelationTuple attrs (V.fromList [stringAtom tConsName, mkDataConsRelation dConsMap])
-    mkDataConsRelation dConsMap = case mkRelationFromTuples subAttrs $ map (\(dConsName, dConsTypeNames) -> RelationTuple subAttrs (V.singleton $ stringAtom $ T.intercalate " " (dConsName:dConsTypeNames))) (M.toList dConsMap) of
+    mkTypeConsDescription (tConsName, (_, AtomConstructor dConsMap)) = RelationTuple attrs (V.fromList [textAtom tConsName, mkDataConsRelation dConsMap])
+    mkDataConsRelation dConsMap = case mkRelationFromTuples subAttrs $ map (\(dConsName, dConsTypeNames) -> RelationTuple subAttrs (V.singleton $ textAtom $ T.intercalate " " (dConsName:dConsTypeNames))) (M.toList dConsMap) of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> Atom rel
 {-      
