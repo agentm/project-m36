@@ -10,6 +10,7 @@ import ProjectM36.Atom
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import Data.Either (isRight)
+import Data.Maybe
 
 typesAsRelation :: AtomTypes -> Either RelationalError Relation
 typesAsRelation aTypes = mkRelationFromTuples attrs tuples
@@ -57,3 +58,13 @@ atomTypeForTypeConstructor tConsName aTypes = case M.lookup tConsName aTypes of
                                                 Just (aType, _) -> Right aType
 
 
+-- | Validate that the arguments to the data constructors in the atom constructor are valid type names.
+validateAtomConstructor :: AtomConstructor -> AtomTypes -> Maybe RelationalError
+validateAtomConstructor (AtomConstructor aConsMap) validAtomTypes = mapM validateDataConstructor (M.elems aConsMap) >>= listToMaybe
+  where
+    validateDataConstructor :: [AtomTypeName] -> Maybe RelationalError
+    validateDataConstructor dConsTypeNames = mapM validateTypeConstructor dConsTypeNames >>= listToMaybe
+    validateTypeConstructor :: AtomTypeName -> Maybe RelationalError
+    validateTypeConstructor dConsTypeName = case atomTypeForTypeConstructor dConsTypeName validAtomTypes of
+      Right _ -> Nothing
+      Left err -> Just err

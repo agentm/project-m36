@@ -275,20 +275,22 @@ evalContextExpr (RemoveNotification notName) = do
 
 -- | Adds type and data constructors to the database context.
 -- validate that the type *and* constructor names are unique! not yet implemented!
-evalContextExpr (AddAtomConstructor tConsName atomC@(AtomConstructor atomConsMap)) = do
+evalContextExpr (AddAtomConstructor tConsName atomCons) = do
   currentContext <- get
   let oldAtomTypes = atomTypes currentContext
   -- validate that the constructor's types exist
-  -- atomAndArgsTypesForDataConstructorName oldAtomTypes
-  if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
-    pure $ Just (InvalidAtomTypeName tConsName)
-    else if M.member tConsName oldAtomTypes then
-      pure $ Just (AtomTypeNameInUseError tConsName)
-      else do
-        let newAtomTypes = M.insert tConsName newType oldAtomTypes
-            newType = (ConstructedAtomType tConsName, atomC)
-        put $ currentContext { atomTypes = newAtomTypes }
-        pure Nothing
+  case validateAtomConstructor atomCons oldAtomTypes of
+    Just err -> pure $ Just err
+    Nothing -> do
+      if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
+        pure $ Just (InvalidAtomTypeName tConsName)
+        else if M.member tConsName oldAtomTypes then
+               pure $ Just (AtomTypeNameInUseError tConsName)
+             else do
+               let newAtomTypes = M.insert tConsName newType oldAtomTypes
+                   newType = (ConstructedAtomType tConsName, atomCons)
+               put $ currentContext { atomTypes = newAtomTypes }
+               pure Nothing
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalContextExpr (RemoveAtomConstructor tConsName) = do
