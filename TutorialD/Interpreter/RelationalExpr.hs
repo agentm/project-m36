@@ -4,6 +4,7 @@ import Text.Parsec.Expr
 import ProjectM36.Base
 import Text.Parsec.String
 import TutorialD.Interpreter.Base
+import TutorialD.Interpreter.Types
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -40,8 +41,16 @@ attributeAndTypeNameP :: Parser AttributeExpr
 attributeAndTypeNameP = do
   attrName <- identifier
   --convert type name into type
-  atomType <- identifier
-  return $ AttributeAndTypeNameExpr (T.pack attrName) (T.pack atomType)
+  typeCons <- typeConstructorP
+  return $ AttributeAndTypeNameExpr (T.pack attrName) typeCons
+  
+--abstract data type parser- in this context, the type constructor must not include any type arguments
+--Either Text Int
+adTypeConstructorP :: Parser TypeConstructor
+adTypeConstructorP = do
+  tConsName <- capitalizedIdentifier
+  tConsArgs <- many typeConstructorArgP
+  pure $ ADTypeConstructor (T.pack tConsName) tConsArgs
 
 tupleExprP :: Parser TupleExpr
 tupleExprP = do

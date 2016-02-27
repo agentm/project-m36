@@ -36,8 +36,8 @@ incDepsDir transdir = transdir </> "incdeps"
 atomFuncsDir :: FilePath -> FilePath
 atomFuncsDir transdir = transdir </> "atomfuncs"
 
-atomTypesPath :: FilePath -> FilePath
-atomTypesPath transdir = transdir </> "atomtypes"
+typeConsPath :: FilePath -> FilePath
+typeConsPath transdir = transdir </> "typecons"
 
 readTransaction :: FilePath -> U.UUID -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transUUID = do
@@ -49,12 +49,12 @@ readTransaction dbdir transUUID = do
     relvars <- readRelVars transDir
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
-    atomtypes <- readAtomTypes transDir
+    typeCons <- readTypeConstructors transDir
     --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
-                                       atomTypes = atomtypes,
+                                       typeConstructors = typeCons,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs }
     
@@ -72,7 +72,7 @@ writeTransaction sync dbdir trans = do
     writeRelVars sync tempTransDir (relationVariables context)
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
-    writeAtomTypes sync tempTransDir (atomTypes context)
+    writeTypeConstructors sync tempTransDir (typeConstructors context)
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
@@ -138,10 +138,10 @@ readIncDeps transDir = do
   incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
   return $ M.fromList incDeps
   
-writeAtomTypes :: DiskSync -> FilePath -> AtomTypes -> IO ()  
-writeAtomTypes sync path aTypes = writeBSFileSync sync path $ B.encode aTypes
+writeTypeConstructors :: DiskSync -> FilePath -> TypeConstructors -> IO ()  
+writeTypeConstructors sync path types = writeBSFileSync sync path $ B.encode types
 
-readAtomTypes :: FilePath -> IO (AtomTypes)
-readAtomTypes path = do
-  let atPath = atomTypesPath path
+readTypeConstructors :: FilePath -> IO (TypeConstructors)
+readTypeConstructors path = do
+  let atPath = typeConsPath path
   liftM B.decode (BS.readFile atPath)

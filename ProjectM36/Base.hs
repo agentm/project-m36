@@ -82,7 +82,7 @@ instance Binary Atom where
     --http://stackoverflow.com/questions/8101067/binary-instance-for-an-existential
     case atomtype of
       AnyAtomType -> error "unsupported serialization AnyAtomType"
-      caType@(ConstructedAtomType _) -> ConstructedAtom <$> (get :: Get DataConstructorName) <*> pure caType <*> (get :: Get [Atom]) --we really should verify the type with the atoms
+      caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> (get :: Get DataConstructorName) <*> pure caType <*> (get :: Get [Atom]) --we really should verify the type with the atoms
       (RelationAtomType _) -> Atom <$> (get :: Get Relation)
       (AtomType cTypeRep) -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
                                Atom <$> (get :: Get Int)
@@ -131,8 +131,9 @@ instance Binary Day where
 -- | The AtomType must uniquely identify the type of a atom.
 data AtomType = AtomType ConcreteTypeRep | 
                 RelationAtomType Attributes |
-                ConstructedAtomType TypeConstructorName | 
-                AnyAtomType --wildcard used in Atom Functions
+                ConstructedAtomType TypeConstructorName [AtomType] | --list of polymorphic argument types- we can't have a complete type without them 
+                AnyAtomType
+                --wildcard used in Atom Functions
               deriving (Eq,NFData,Generic,Binary,Show)
                        
 -- | Return True iff the atom type argument is relation-valued. If True, this indicates that the Atom contains a relation.
@@ -275,7 +276,28 @@ data Notification = Notification {
   }
   deriving (Show, Eq, Binary, Generic)
 
-type AtomTypes = M.Map TypeConstructorName (AtomType, AtomConstructor)
+type TypeConstructorPolymorphicName = StringType
+  
+data TypeConstructorArg = TypeConstructorPolymorphicArg TypeConstructorPolymorphicName | 
+                          TypeConstructorArg TypeConstructor
+                          deriving (Show, Generic, Binary, Eq, NFData)
+
+data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructorArg] |
+                       PrimitiveTypeConstructor TypeConstructorName AtomType
+                       deriving (Show, Generic, Binary, Eq, NFData)
+
+-- Either a b
+type TypeConstructors = [(TypeConstructor, DataConstructors)]
+
+type TypeConstructorName = StringType
+type TypeConstructorArgName = StringType
+type DataConstructorName = StringType
+type AtomTypeName = StringType
+
+--data Hair = Color (Either Int String)
+data DataConstructor = DataConstructor DataConstructorName [TypeConstructorArg] deriving (Eq, Show, Binary, Generic)
+
+type DataConstructors = [DataConstructor]
 
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
@@ -283,7 +305,7 @@ data DatabaseContext = DatabaseContext {
   relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
-  atomTypes :: AtomTypes
+  typeConstructors :: TypeConstructors
   } deriving (Show, Generic)
              
 type IncDepName = StringType             
@@ -308,9 +330,8 @@ data DatabaseExpr where
   AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
   RemoveNotification :: NotificationName -> DatabaseExpr
 
-  -- this may be generalized to AddAtomFunction in the future
-  AddAtomConstructor :: TypeConstructorName -> AtomConstructor -> DatabaseExpr
-  RemoveAtomConstructor :: TypeConstructorName -> DatabaseExpr
+  AddTypeConstructor :: TypeConstructor -> [DataConstructor] -> DatabaseExpr
+  RemoveTypeConstructor :: TypeConstructorName -> DatabaseExpr
 
   -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime
   --AddAtomFunction :: AtomFunction -> DatabaseExpr
@@ -319,11 +340,6 @@ data DatabaseExpr where
   MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
   deriving (Show, Eq, Binary, Generic)
 
-type TypeConstructorName = StringType
-type DataConstructorName = StringType
-type AtomTypeName = StringType
-
-data AtomConstructor = AtomConstructor (M.Map DataConstructorName [AtomTypeName]) deriving (Eq, Show, Binary, Generic)
 
 type DatabaseState a = State DatabaseContext a
 
@@ -437,7 +453,7 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
-data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructorName
+data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor
                      deriving (Eq, Show, Generic, Binary)
                               
 data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)

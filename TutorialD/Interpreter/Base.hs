@@ -36,6 +36,9 @@ braces = Token.braces lexer
 identifier :: Parser String
 identifier = Token.identifier lexer
 
+symbol :: String -> Parser String
+symbol = Token.symbol lexer
+
 comma :: Parser String
 comma = Token.comma lexer
 
@@ -53,6 +56,20 @@ integer = Token.integer lexer
 
 float :: Parser Double
 float = Token.float lexer
+
+capitalizedIdentifier :: Parser String
+capitalizedIdentifier = do
+  fletter <- upper
+  rest <- option "" identifier 
+  spaces
+  pure $ fletter:rest
+  
+uncapitalizedIdentifier :: Parser String  
+uncapitalizedIdentifier = do
+  fletter <- lower
+  rest <- option "" identifier
+  spaces
+  pure (fletter:rest)
 
 atomTypeToTutDType :: AtomType -> Maybe T.Text
 atomTypeToTutDType atomType = case atomType of

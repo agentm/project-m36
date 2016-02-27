@@ -12,7 +12,7 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           relationVariables = M.empty, 
                           notifications = M.empty,
                           atomFunctions = HS.empty,
-                          atomTypes = M.empty }
+                          typeConstructors = [] }
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseExpr
@@ -29,5 +29,5 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                                                          ("false", relationFalse)],
                                          atomFunctions = basicAtomFunctions,
                                          notifications = M.empty,
-                                         atomTypes = basicAtomTypes
+                                         typeConstructors = basicTypeConstructors
                                          }

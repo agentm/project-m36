@@ -33,8 +33,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | SessionIdInUseError U.UUID
                      | NoSuchSessionError U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
+                     | NoSuchTypeConstructorName TypeConstructorName
                      | AtomTypeMismatchError AtomType AtomType
+                     | TypeConstructorNameMismatch TypeConstructorName TypeConstructorName
+                     | AtomTypeTypeConstructorReconciliationError AtomType TypeConstructor
+                     | DataConstructorNameInUseError DataConstructorName
+                     | DataConstructorUsesUndeclaredTypeVariable TypeConstructorPolymorphicName
                      | AtomTypeNameInUseError AtomTypeName
+                     | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
                      | NoSuchDataConstructorError DataConstructorName
                      | NoSuchTypeConstructorError TypeConstructorName
@@ -49,6 +55,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NotificationNameNotInUseError NotificationName
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
+                     | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 
 instance NFData RelationalError where rnf = genericRnf

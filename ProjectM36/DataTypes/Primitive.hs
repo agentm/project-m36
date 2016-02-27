@@ -3,9 +3,7 @@ module ProjectM36.DataTypes.Primitive where
 import ProjectM36.Base
 import Data.Proxy
 import Data.Typeable
-import ProjectM36.AtomConstructor
 import ProjectM36.ConcreteTypeRep
-import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.ByteString as BS
 
@@ -27,8 +25,9 @@ doubleAtomType = atomTypeForProxy (Proxy :: Proxy Double)
 byteStringAtomType :: AtomType
 byteStringAtomType = atomTypeForProxy (Proxy :: Proxy BS.ByteString)
 
-primitiveAtomTypes :: AtomTypes
-primitiveAtomTypes = M.fromList $ map (\(typeName,typ) -> (typeName, (typ, emptyAtomConstructor))) prims
+primitiveTypeConstructors :: TypeConstructors
+primitiveTypeConstructors = map (\(name, aType) ->
+                                  (PrimitiveTypeConstructor name aType, [])) prims
   where
     prims = [("Int", intAtomType),
              ("Text", textAtomType),

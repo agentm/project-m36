@@ -7,7 +7,7 @@ import qualified Data.HashSet as HS
 import Data.Time.Calendar
 
 dayAtomType :: AtomType
-dayAtomType = ConstructedAtomType "Day"
+dayAtomType = ConstructedAtomType "Day" [intAtomType]
 
 dayFunctions :: AtomFunctions
 dayFunctions = HS.fromList [

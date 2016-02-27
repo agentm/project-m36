@@ -6,6 +6,7 @@ import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
+import TutorialD.Interpreter.Types
 import qualified Data.Map as M
 import Control.Monad.State
 import ProjectM36.StaticOptimizer
@@ -26,8 +27,8 @@ databaseExprP = insertP
             <|> assignP
             <|> addNotificationP
             <|> removeNotificationP
-            <|> addAtomConstructorP
-            <|> removeAtomConstructorP
+            <|> addTypeConstructorP
+            <|> removeTypeConstructorP
 
 assignP :: Parser DatabaseExpr
 assignP = do
@@ -127,25 +128,18 @@ removeNotificationP = do
   return $ RemoveNotification (T.pack notName)
 
 -- | data Hair = Bald | Color Text
-addAtomConstructorP :: Parser DatabaseExpr
-addAtomConstructorP = do
+addTypeConstructorP :: Parser DatabaseExpr
+addTypeConstructorP = do
   reserved "data"
-  typeConstructorName <- identifier
+  typeConstructor <- typeConstructorP
   reservedOp "="
   dataConstructors <- sepBy1 dataConstructorP pipe
-  let aCons = AtomConstructor (M.fromList dataConstructors)
-  pure (AddAtomConstructor (T.pack typeConstructorName) aCons)
+  pure (AddTypeConstructor typeConstructor dataConstructors)
 
-dataConstructorP :: Parser (DataConstructorName, [AtomTypeName])
-dataConstructorP = do
-  dConsName <- identifier
-  atomTypeNames <- sepBy (liftM T.pack identifier) spaces
-  pure (T.pack dConsName, atomTypeNames)
-
-removeAtomConstructorP :: Parser DatabaseExpr
-removeAtomConstructorP = do
+removeTypeConstructorP :: Parser DatabaseExpr
+removeTypeConstructorP = do
   reserved "undata"
-  RemoveAtomConstructor <$> liftM T.pack identifier 
+  RemoveTypeConstructor <$> liftM T.pack identifier 
 
 databaseExprOpP :: Parser DatabaseExpr
 databaseExprOpP = multipleDatabaseExprP
