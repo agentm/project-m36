@@ -9,11 +9,7 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Functor.Identity (Identity)
-import Data.Time.Format
 import Control.Applicative (liftA)
-import Data.ByteString.Base64 as B64
-import Data.Text.Encoding as TE
-import Data.Time.Calendar (Day)
 
 --used in projection
 attributeListP :: Parser AttributeNames
@@ -202,9 +198,9 @@ nakedAtomExprP = NakedAtomExpr <$> atomP
 constructedAtomExprP :: Parser AtomExpr
 constructedAtomExprP = do
   dConsName <- identifier  
-  _ <- char '['
-  dConsArgs <- sepBy atomExprP comma
-  _ <- char ']'
+  --_ <- char '['
+  dConsArgs <- sepBy atomExprP spaces
+  --_ <- char ']'
   pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
 
 -- used only for primitive type parsing ?
@@ -240,17 +236,6 @@ maybeIntAtomP = do
                      (reserved "Nothing" *> return Nothing)) <* reserved "::maybe int"
   return $ Atom (maybeInt :: Maybe Int)
 
---refactor to use constructors
-dateAtomP :: Parser Atom    
-dateAtomP = do
-  dateString' <- try $ do
-    dateString <- quotedString
-    reserved "::date"
-    return dateString
-  case parseTimeM False defaultTimeLocale "%Y-%m-%d" dateString' of
-    Just todaytime -> return $ Atom (todaytime :: Day)
-    Nothing -> fail "Failed to parse date"
-
 doubleAtomP :: Parser Atom    
 doubleAtomP = Atom <$> (try float)
 
@@ -266,15 +251,3 @@ boolAtomP = do
   
 relationAtomExprP :: Parser AtomExpr
 relationAtomExprP = RelationAtomExpr <$> makeRelationP
-
--- deprecated for removal- use constructors
-byteStringAtomP :: Parser Atom
-byteStringAtomP = do
-  byteString' <- try $ do
-    byteString <- quotedString
-    reserved "::bytestring"
-    return byteString
-  case B64.decode $ TE.encodeUtf8 (T.pack byteString') of
-    Left err -> fail err
-    Right bsVal -> return $ Atom bsVal
-

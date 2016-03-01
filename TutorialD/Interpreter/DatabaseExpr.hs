@@ -131,10 +131,10 @@ removeNotificationP = do
 addTypeConstructorP :: Parser DatabaseExpr
 addTypeConstructorP = do
   reserved "data"
-  typeConstructor <- typeConstructorP
+  typeConstructorDef <- typeConstructorDefP
   reservedOp "="
-  dataConstructors <- sepBy1 dataConstructorP pipe
-  pure (AddTypeConstructor typeConstructor dataConstructors)
+  dataConstructorDefs <- sepBy1 dataConstructorDefP pipe
+  pure (AddTypeConstructor typeConstructorDef dataConstructorDefs)
 
 removeTypeConstructorP :: Parser DatabaseExpr
 removeTypeConstructorP = do

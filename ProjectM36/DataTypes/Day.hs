@@ -5,9 +5,10 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunctions.Primitive
 import qualified Data.HashSet as HS
 import Data.Time.Calendar
+import qualified Data.Map as M
 
 dayAtomType :: AtomType
-dayAtomType = ConstructedAtomType "Day" [intAtomType]
+dayAtomType = ConstructedAtomType "Day" (M.singleton "a" intAtomType)
 
 dayFunctions :: AtomFunctions
 dayFunctions = HS.fromList [

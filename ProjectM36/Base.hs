@@ -131,10 +131,12 @@ instance Binary Day where
 -- | The AtomType must uniquely identify the type of a atom.
 data AtomType = AtomType ConcreteTypeRep | 
                 RelationAtomType Attributes |
-                ConstructedAtomType TypeConstructorName [AtomType] | --list of polymorphic argument types- we can't have a complete type without them 
+                ConstructedAtomType TypeConstructorName TypeVarMap |
                 AnyAtomType
                 --wildcard used in Atom Functions
               deriving (Eq,NFData,Generic,Binary,Show)
+                       
+type TypeVarMap = M.Map TypeVarName AtomType
                        
 -- | Return True iff the atom type argument is relation-valued. If True, this indicates that the Atom contains a relation.
 isRelationAtomType :: AtomType -> Bool
@@ -276,36 +278,45 @@ data Notification = Notification {
   }
   deriving (Show, Eq, Binary, Generic)
 
-type TypeConstructorPolymorphicName = StringType
+type TypeVarName = StringType
   
-data TypeConstructorArg = TypeConstructorPolymorphicArg TypeConstructorPolymorphicName | 
-                          TypeConstructorArg TypeConstructor
-                          deriving (Show, Generic, Binary, Eq, NFData)
-
+-- | "data Either a b"
+data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName] |
+                          PrimitiveTypeConstructorDef TypeConstructorName AtomType
+                        deriving (Show, Generic, Binary, Eq, NFData)
+                                 
+-- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
 data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructorArg] |
                        PrimitiveTypeConstructor TypeConstructorName AtomType
                        deriving (Show, Generic, Binary, Eq, NFData)
-
--- Either a b
-type TypeConstructors = [(TypeConstructor, DataConstructors)]
+                                
+data TypeConstructorArg = TypeConstructorArg TypeConstructor |                                
+                          TypeConstructorTypeVarArg TypeVarName
+                          deriving (Show, Generic, Binary, Eq, NFData)
+                       
+type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
 
 type TypeConstructorName = StringType
 type TypeConstructorArgName = StringType
 type DataConstructorName = StringType
 type AtomTypeName = StringType
 
---data Hair = Color (Either Int String)
-data DataConstructor = DataConstructor DataConstructorName [TypeConstructorArg] deriving (Eq, Show, Binary, Generic)
+-- | Used to define a data constructor in a type constructor context. (Left a | Right b)
+data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic)
 
-type DataConstructors = [DataConstructor]
+type DataConstructorDefs = [DataConstructorDef]
 
+data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructor | 
+                             DataConstructorDefTypeVarNameArg TypeVarName
+                           deriving (Show, Generic, Binary, Eq, NFData)
+                                    
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
   inclusionDependencies :: M.Map IncDepName InclusionDependency,
   relationVariables :: M.Map RelVarName Relation,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
-  typeConstructors :: TypeConstructors
+  typeConstructorMapping :: TypeConstructorMapping
   } deriving (Show, Generic)
              
 type IncDepName = StringType             
@@ -330,7 +341,7 @@ data DatabaseExpr where
   AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
   RemoveNotification :: NotificationName -> DatabaseExpr
 
-  AddTypeConstructor :: TypeConstructor -> [DataConstructor] -> DatabaseExpr
+  AddTypeConstructor :: TypeConstructorDef -> [DataConstructorDef] -> DatabaseExpr
   RemoveTypeConstructor :: TypeConstructorName -> DatabaseExpr
 
   -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime

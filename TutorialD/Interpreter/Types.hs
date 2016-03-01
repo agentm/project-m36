@@ -9,26 +9,40 @@ import Control.Monad (liftM)
 import qualified Data.Text as T
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
--- Either a b
-typeConstructorP :: Parser TypeConstructor
-typeConstructorP = ADTypeConstructor <$> liftM T.pack capitalizedIdentifier <*> many typeConstructorArgP
-  
-typeConstructorArgP :: Parser TypeConstructorArg
-typeConstructorArgP = TypeConstructorPolymorphicArg <$> liftM T.pack uncapitalizedIdentifier
+-- data *Either a b* = Left a | Right b
+typeConstructorDefP :: Parser TypeConstructorDef
+typeConstructorDefP = ADTypeConstructorDef <$> liftM T.pack capitalizedIdentifier <*> typeVarNamesP
 
-dataConstructorP :: Parser DataConstructor
-dataConstructorP = DataConstructor <$> liftM T.pack identifier <*> many dataConstructorArgP
-
---Either Int Text
---Either a Int
---Either (Either a b) Int
-dataConstructorArgP :: Parser TypeConstructorArg
-dataConstructorArgP = primitiveTypeConstructorArgP <|>
-                      TypeConstructorPolymorphicArg <$> liftM T.pack uncapitalizedIdentifier <|>
-                      parens (TypeConstructorArg <$> typeConstructorP)
+typeVarNamesP :: Parser [TypeVarName]
+typeVarNamesP = do
+  vars <- many uncapitalizedIdentifier 
+  pure (map T.pack vars)
   
-primitiveTypeConstructorArgP :: Parser TypeConstructorArg
-primitiveTypeConstructorArgP = choice (map (\(PrimitiveTypeConstructor name typ, _) -> do
+-- data Either a b = *Left a* | *Right b*
+dataConstructorDefP :: Parser DataConstructorDef
+dataConstructorDefP = DataConstructorDef <$> liftM T.pack identifier <*> many dataConstructorDefArgP
+
+-- data *Either a b* = Left *a* | Right *b*
+dataConstructorDefArgP :: Parser DataConstructorDefArg
+dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeConstructorP) <|>
+                         DataConstructorDefTypeVarNameArg <$> liftM T.pack uncapitalizedIdentifier
+  
+--built-in, nullary type constructors
+-- Int, Text, etc.
+primitiveTypeConstructorP :: Parser TypeConstructor
+primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
                                                tName <- liftM T.pack (symbol (T.unpack name))
-                                               pure $ TypeConstructorArg (PrimitiveTypeConstructor tName typ))
-                                       primitiveTypeConstructors)
+                                               pure $ PrimitiveTypeConstructor tName typ)
+                                       primitiveTypeConstructorMapping)
+                               
+-- *Either Int Text*, *Int*
+typeConstructorP :: Parser TypeConstructor                  
+typeConstructorP = primitiveTypeConstructorP <|>
+                   ADTypeConstructor <$> liftM T.pack identifier <*> many typeConstructorArgP
+                   
+typeConstructorArgP :: Parser TypeConstructorArg                   
+typeConstructorArgP = TypeConstructorArg <$> typeConstructorP <|>
+                      TypeConstructorTypeVarArg <$> liftM T.pack uncapitalizedIdentifier
+
+
+

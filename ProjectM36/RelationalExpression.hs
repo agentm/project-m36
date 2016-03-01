@@ -17,7 +17,7 @@ import Data.Either
 import Data.Char (isUpper)
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import qualified ProjectM36.TypeConstructor as TC
+import qualified ProjectM36.TypeConstructorDef as TCD
 --import Debug.Trace
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
@@ -59,7 +59,7 @@ evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
     
 evalRelationalExpr (MakeEmptyRelation attrExprs) = do
   currentContext <- get
-  let eAttrs = map (evalAttrExpr (typeConstructors currentContext)) attrExprs
+  let eAttrs = map (evalAttrExpr (typeConstructorMapping currentContext)) attrExprs
   case lefts eAttrs of
     err:_ -> pure (Left err)
     [] -> pure $ mkRelation (A.attributesFromList (rights eAttrs)) emptyTupleSet
@@ -141,7 +141,7 @@ emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
                                          atomFunctions = HS.empty,
                                          notifications = M.empty,
-                                         typeConstructors = []
+                                         typeConstructorMapping = []
                                          }
 
 
@@ -169,7 +169,7 @@ deleteRelVar relVarName = do
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
 evalContextExpr (Define relVarName attrExprs) = do
   relvars <- liftM relationVariables get
-  tConss <- liftM typeConstructors get
+  tConss <- liftM typeConstructorMapping get
   let eAttrs = map (evalAttrExpr tConss) attrExprs
   case lefts eAttrs of
     err:_ -> pure (Just err)
@@ -276,32 +276,32 @@ evalContextExpr (RemoveNotification notName) = do
 
 -- | Adds type and data constructors to the database context.
 -- validate that the type *and* constructor names are unique! not yet implemented!
-evalContextExpr (AddTypeConstructor tCons dConsList) = do
+evalContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   currentContext <- get
-  let oldTypes = typeConstructors currentContext
-      tConsName = TC.name tCons
+  let oldTypes = typeConstructorMapping currentContext
+      tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
-  case validateTypeConstructor tCons dConsList of
+  case validateTypeConstructorDef tConsDef dConsDefList of
     errs@(_:_) -> pure $ Just (MultipleErrors errs)
     [] -> do
       if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
         pure $ Just (InvalidAtomTypeName tConsName)
-        else if isRight (atomTypeForTypeConstructor tCons oldTypes) then
+        else if isJust (findTypeConstructor tConsName oldTypes) then
                pure $ Just (AtomTypeNameInUseError tConsName)
              else do
-               let newTypes = oldTypes ++ [(tCons, dConsList)]
-               put $ currentContext { typeConstructors = newTypes }
+               let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
+               put $ currentContext { typeConstructorMapping = newTypes }
                pure Nothing
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalContextExpr (RemoveTypeConstructor tConsName) = do
   currentContext <- get
-  let oldTypes = typeConstructors currentContext
+  let oldTypes = typeConstructorMapping currentContext
   if findTypeConstructor tConsName oldTypes == Nothing then
     pure $ Just (AtomTypeNameNotInUseError tConsName)
     else do
-      let newTypes = filter (\(tCons, _) -> TC.name tCons /= tConsName) oldTypes
-      put $ currentContext { typeConstructors = newTypes }
+      let newTypes = filter (\(tCons, _) -> TCD.name tCons /= tConsName) oldTypes
+      put $ currentContext { typeConstructorMapping = newTypes }
       pure Nothing
 
 evalContextExpr (MultipleExpr exprs) = do
@@ -460,10 +460,11 @@ typeFromAtomExpr _ context (FunctionAtomExpr funcName _) = do
 typeFromAtomExpr _ context (RelationAtomExpr relExpr) = do
   relType <- evalState (typeForRelationalExpr relExpr) context
   return $ RelationAtomType (attributes relType)
--- grab the type of the data constructor, then validate that the args match the expected types  
+
+-- grab the type of the data constructor, then validate that the args match the expected types
 typeFromAtomExpr attrs context (ConstructedAtomExpr dConsName dConsArgs) = do
   argsTypes <- mapM (typeFromAtomExpr attrs context) dConsArgs  
-  atomTypeWithDataConstructor (typeConstructors context) dConsName argsTypes
+  atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes
 
 -- | Validate that the type of the AtomExpr matches the expected type.
 verifyAtomExprTypes :: Relation -> DatabaseContext -> AtomExpr -> AtomType -> Either RelationalError AtomType
@@ -494,7 +495,7 @@ verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _) expectedType = do
   
 
 -- | Look up the type's name and create a new attribute.
-evalAttrExpr :: TypeConstructors -> AttributeExpr -> Either RelationalError Attribute
+evalAttrExpr :: TypeConstructorMapping -> AttributeExpr -> Either RelationalError Attribute
 evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons) = do
   aType <- atomTypeForTypeConstructor tCons aTypes
   Right (Attribute attrName aType)

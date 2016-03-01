@@ -514,7 +514,7 @@ atomTypesAsRelation sessionId (InProcessConnection _ _ sessions _) = do
     case eSession of
       Left err -> pure (Left err)
       Right (Session (DisconnectedTransaction _ context)) -> do
-        case typesAsRelation (typeConstructors context) of
+        case typesAsRelation (typeConstructorMapping context) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)

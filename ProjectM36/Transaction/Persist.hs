@@ -49,12 +49,12 @@ readTransaction dbdir transUUID = do
     relvars <- readRelVars transDir
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
-    typeCons <- readTypeConstructors transDir
+    typeCons <- readTypeConstructorMapping transDir
     --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
-                                       typeConstructors = typeCons,
+                                       typeConstructorMapping = typeCons,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs }
     
@@ -72,7 +72,7 @@ writeTransaction sync dbdir trans = do
     writeRelVars sync tempTransDir (relationVariables context)
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
-    writeTypeConstructors sync tempTransDir (typeConstructors context)
+    writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
@@ -138,10 +138,10 @@ readIncDeps transDir = do
   incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
   return $ M.fromList incDeps
   
-writeTypeConstructors :: DiskSync -> FilePath -> TypeConstructors -> IO ()  
-writeTypeConstructors sync path types = writeBSFileSync sync path $ B.encode types
+writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
+writeTypeConstructorMapping sync path types = writeBSFileSync sync path $ B.encode types
 
-readTypeConstructors :: FilePath -> IO (TypeConstructors)
-readTypeConstructors path = do
+readTypeConstructorMapping :: FilePath -> IO (TypeConstructorMapping)
+readTypeConstructorMapping path = do
   let atPath = typeConsPath path
   liftM B.decode (BS.readFile atPath)

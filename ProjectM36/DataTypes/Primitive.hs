@@ -25,9 +25,9 @@ doubleAtomType = atomTypeForProxy (Proxy :: Proxy Double)
 byteStringAtomType :: AtomType
 byteStringAtomType = atomTypeForProxy (Proxy :: Proxy BS.ByteString)
 
-primitiveTypeConstructors :: TypeConstructors
-primitiveTypeConstructors = map (\(name, aType) ->
-                                  (PrimitiveTypeConstructor name aType, [])) prims
+primitiveTypeConstructorMapping :: TypeConstructorMapping
+primitiveTypeConstructorMapping = map (\(name, aType) ->
+                                  (PrimitiveTypeConstructorDef name aType, [])) prims
   where
     prims = [("Int", intAtomType),
              ("Text", textAtomType),

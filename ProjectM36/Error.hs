@@ -34,11 +34,13 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchSessionError U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
+                     | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
                      | AtomTypeMismatchError AtomType AtomType
                      | TypeConstructorNameMismatch TypeConstructorName TypeConstructorName
-                     | AtomTypeTypeConstructorReconciliationError AtomType TypeConstructor
+                     | AtomTypeTypeConstructorReconciliationError AtomType TypeConstructorName
                      | DataConstructorNameInUseError DataConstructorName
-                     | DataConstructorUsesUndeclaredTypeVariable TypeConstructorPolymorphicName
+                     | DataConstructorUsesUndeclaredTypeVariable TypeVarName
+                     | TypeConstructorTypeVarsMismatch (S.Set TypeVarName) (S.Set TypeVarName)
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
