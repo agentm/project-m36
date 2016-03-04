@@ -8,7 +8,11 @@ basicTypeConstructorMapping :: TypeConstructorMapping
 basicTypeConstructorMapping = primitiveTypeConstructorMapping ++ moreTypes
   where
     moreTypes = [(ADTypeConstructorDef "Day" ["a"],
-                  [DataConstructorDef "Day" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" intAtomType)]])]
+                  [DataConstructorDef "Day" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" intAtomType)]]),
+                 (ADTypeConstructorDef "Maybe" ["a"],
+                  [DataConstructorDef "Nothing" [],
+                   DataConstructorDef "Just" [DataConstructorDefTypeVarNameArg "a"]])
+                 ]
 
 
                 

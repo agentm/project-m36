@@ -200,3 +200,4 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
       Left _ -> undefined
       Right atom -> atom
+

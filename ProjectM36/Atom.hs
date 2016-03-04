@@ -63,3 +63,5 @@ atomToText :: Atom -> T.Text
 atomToText (Atom atom) = toText atom
 atomToText (ConstructedAtom dConsName _ atoms) = dConsName `T.append` T.intercalate " " (map atomToText atoms)
 
+
+

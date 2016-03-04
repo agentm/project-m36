@@ -133,7 +133,7 @@ data AtomType = AtomType ConcreteTypeRep |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 AnyAtomType
-                --wildcard used in Atom Functions
+                --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq,NFData,Generic,Binary,Show)
                        
 type TypeVarMap = M.Map TypeVarName AtomType

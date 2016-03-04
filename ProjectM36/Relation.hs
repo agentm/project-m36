@@ -4,14 +4,20 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
+import ProjectM36.Atom
 import ProjectM36.Base
 import ProjectM36.Tuple
+import ProjectM36.DataTypes.Primitive
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import qualified Control.Parallel.Strategies as P
+import qualified ProjectM36.TypeConstructorDef as TCD
+import qualified ProjectM36.DataConstructorDef as DCD
+import qualified Data.Text as T
 import Data.Either (isRight)
+import Debug.Trace
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -71,7 +77,7 @@ singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   if not (A.attributesEqual attrs1 attrs2)
-     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
+     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference (traceShowId attrs1) (traceShowId attrs2)))
   else
     Right $ Relation attrs1 newtuples
   where
@@ -256,6 +262,21 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
 
     tupleSetJoiner tup1 acc = undefined
 -}
+
+typesAsRelation :: TypeConstructorMapping -> Either RelationalError Relation
+typesAsRelation types = mkRelationFromTuples attrs tuples
+  where
+    attrs = A.attributesFromList [Attribute "TypeConstructor" textAtomType,
+                                Attribute "DataConstructors" dConsType]
+    subAttrs = A.attributesFromList [Attribute "DataConstructor" textAtomType]
+    dConsType = RelationAtomType subAttrs
+    tuples = map mkTypeConsDescription types
+    
+    mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [textAtom (TCD.name tCons), mkDataConsRelation dConsList])
+    
+    mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ textAtom $ T.intercalate " " ((DCD.name dCons):(map (T.pack . show) (DCD.fields dCons))))) dConsList of
+      Left err -> error ("mkRelationFromTuples pooped " ++ show err)
+      Right rel -> Atom rel
 
 
 

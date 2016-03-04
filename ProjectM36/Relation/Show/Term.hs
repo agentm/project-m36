@@ -4,10 +4,13 @@ module ProjectM36.Relation.Show.Term where
 import ProjectM36.Base
 import ProjectM36.Tuple
 import ProjectM36.Relation
-import qualified Data.Set as S
+import ProjectM36.Attribute
+import ProjectM36.ConcreteTypeRep
 import qualified Data.List as L
 import qualified Data.Text as T
-import Data.Typeable (cast)
+import qualified Data.Vector as V
+import qualified Data.Map as M
+import Data.Typeable (cast, tyConName, splitTyConApp)
 
 boxV :: StringType
 boxV = "│"
@@ -78,18 +81,28 @@ cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . brea
                         L.maximumBy compare (lengths row)
     lengths row = map T.length (breakLines row)
     allRows = [header] ++ body
+    
+attributeAsCell :: Attribute -> Cell    
+attributeAsCell attr = attributeName attr `T.append` "::" `T.append` prettyAtomType (atomType attr)
+
+prettyAtomType :: AtomType -> T.Text
+prettyAtomType (AtomType primitiveType) = T.pack (tyConName (fst (splitTyConApp (unCTR primitiveType))))
+prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map attributeAsCell (V.toList attrs)) `T.append` "}"
+prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` " " `T.append` T.pack (show (M.toList typeVarMap)) -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
+prettyAtomType AnyAtomType = "?AnyAtomType?"
 
 relationAsTable :: Relation -> Table
 relationAsTable rel@(Relation _ tupleSet) = (header, body)
   where
-    oAttrs = orderedAttributeNames rel
-    header = oAttrs
+    oAttrs = orderedAttributes rel
+    oAttrNames = orderedAttributeNames rel
+    header = map attributeAsCell oAttrs
     body :: [[Cell]]
     body = L.foldl' tupleFolder [] (asList tupleSet)
     tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom atom
-                                            ) oAttrs]
+                                            ) oAttrNames]
 
 showAtom :: Atom -> StringType
 showAtom (Atom atom) = case cast atom of
@@ -135,8 +148,11 @@ renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
     rowHeightMatrix = zip cellMatrix (tail rowLocations)
     renderBottomBar = renderHBar boxBL boxBB boxBR columnLocations
 
+orderedAttributes :: Relation -> [Attribute]
+orderedAttributes rel = L.sortBy (\a b -> attributeName a `compare` attributeName b) (V.toList (attributes rel))
+
 orderedAttributeNames :: Relation -> [AttributeName]
-orderedAttributeNames = S.toAscList . attributeNames
+orderedAttributeNames rel = map attributeName (orderedAttributes rel)
 
 repeatString :: Int -> StringType -> StringType
 repeatString c s = T.concat (take c (repeat s))

@@ -1,6 +1,5 @@
 module ProjectM36.TypeConstructorDef where
 import ProjectM36.Base
-import qualified Data.Set as S
 
 name :: TypeConstructorDef -> TypeConstructorName
 name (ADTypeConstructorDef nam _) = nam

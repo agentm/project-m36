@@ -59,7 +59,7 @@ import ProjectM36.Attribute hiding (atomTypes)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
-import ProjectM36.AtomType (typesAsRelation)
+import ProjectM36.Relation (typesAsRelation)
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
