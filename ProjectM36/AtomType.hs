@@ -1,11 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.AtomType where
 import ProjectM36.Base
-import ProjectM36.DataTypes.Primitive
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.TypeConstructor as TC
 import qualified ProjectM36.DataConstructorDef as DCD
-import qualified Data.Text as T
 import ProjectM36.Error
 import ProjectM36.Attribute
 import qualified Data.Vector as V
@@ -79,11 +77,18 @@ atomTypeForDataConstructor tConss dConsName atomArgTypes = do
 resolveDataConstructorTypeVars :: DataConstructorDef -> [AtomType] -> TypeConstructorMapping -> Either RelationalError TypeVarMap
 resolveDataConstructorTypeVars dCons aTypeArgs tConss = do
   maps <- mapM (\(dCons',aTypeArg) -> resolveDataConstructorArgTypeVars dCons' aTypeArg tConss) (zip (DCD.fields dCons) aTypeArgs)
-  --if any two maps have the same key and different values- bail!
-  let typeVarMapFolder 
-  foldr typeVarMapFolder (Right M.empty) maps
+  --if any two maps have the same key and different values, this indicates a type arg mismatch
+  let typeVarMapFolder valMap acc = case acc of
+        Left err -> Left err
+        Right accMap -> if accMap `M.isSubmapOf` valMap then
+                          Right (M.union accMap valMap)
+                        else
+                          Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
+  case foldr typeVarMapFolder (Right M.empty) maps of
+    Left err -> Left err
+    Right typeVarMaps -> pure typeVarMaps
   --if the data constructor cannot complete a type constructor variables (ex. "Nothing" could be Maybe Int or Maybe Text, etc.), then fill that space with AnyAtomType which is resolved when the relation is constructed- the relation must contain all resolved atom types.
-  pure (M.unions maps)
+
 
 -- | Attempt to match the data constructor argument to a type constructor type variable.
 resolveDataConstructorArgTypeVars :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
@@ -92,13 +97,13 @@ resolveDataConstructorArgTypeVars (DataConstructorDefTypeConstructorArg tCons) a
 resolveDataConstructorArgTypeVars (DataConstructorDefTypeVarNameArg pVarName) aType _ = Right (M.singleton pVarName aType)
 
 resolveTypeConstructorTypeVars :: TypeConstructor -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveTypeConstructorTypeVars (PrimitiveTypeConstructor _ pType) aType tConss = 
+resolveTypeConstructorTypeVars (PrimitiveTypeConstructor _ pType) aType _ = 
   if aType /= pType then
     Left (AtomTypeMismatchError pType aType)
   else
     Right M.empty
 
-resolveTypeConstructorTypeVars (ADTypeConstructor tConsName tConsArgs) (ConstructedAtomType tConsName' pVarMap') tConss = 
+resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomType tConsName' pVarMap') tConss = 
   if tConsName /= tConsName' then
     Left (TypeConstructorNameMismatch tConsName tConsName')
   else
@@ -156,7 +161,7 @@ findTypeConstructor name tConsList = foldr tConsFolder Nothing tConsList
                                      accum
                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
-resolveAtomType orig@(ConstructedAtomType dConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do
+resolveAtomType orig@(ConstructedAtomType _ resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do
   _ <- resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
   pure orig
 resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
@@ -167,14 +172,14 @@ resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresol
 -- this could be optimized to reduce new tuple creation- if anyatomtype does not appear, just return the original typevarmap
 resolveAtomTypesInTypeVarMap :: TypeVarMap -> TypeVarMap -> Either RelationalError TypeVarMap
 resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
-  let lookup key tMap = case M.lookup key tMap of
+  let lookup' key tMap = case M.lookup key tMap of
         Nothing -> Left (TypeConstructorTypeVarMissing key)
         Just val -> Right val
   let resolveTypePair unresKey AnyAtomType = do
-        resType <- lookup unresKey resolvedTypeMap 
+        resType <- lookup' unresKey resolvedTypeMap 
         pure (unresKey, resType)
       resolveTypePair unresKey subType@(ConstructedAtomType _ _) = do --recurse
-        resType <- lookup unresKey resolvedTypeMap
+        resType <- lookup' unresKey resolvedTypeMap
         resAType <- resolveAtomType resType subType
         pure (unresKey, resAType)
       resolveTypePair unresKey unresV = pure (unresKey, unresV)

@@ -15,11 +15,9 @@ import Data.Either (rights, lefts)
 applyStaticRelationalOptimization :: RelationalExpr -> DatabaseState (Either RelationalError RelationalExpr)
 applyStaticRelationalOptimization e@(MakeStaticRelation _ _) = return $ Right e
 
-applyStaticRelationalOptimization e@(MakeRelationFromTupleExprs _) = return $ Right e
+applyStaticRelationalOptimization e@(MakeRelationFromExprs _ _) = return $ Right e
 
 applyStaticRelationalOptimization e@(ExistingRelation _) = return $ Right e
-
-applyStaticRelationalOptimization e@(MakeEmptyRelation _) = return $ Right e
 
 applyStaticRelationalOptimization e@(RelationVariable _) = return $ Right e
 

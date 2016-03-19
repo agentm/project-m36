@@ -57,25 +57,18 @@ evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
     Right rel -> return $ Right rel
     Left err -> return $ Left err
     
-evalRelationalExpr (MakeEmptyRelation attrExprs) = do
+evalRelationalExpr (MakeRelationFromExprs attrExprs tupleExprs) = do
   currentContext <- get
-  let eAttrs = map (evalAttrExpr (typeConstructorMapping currentContext)) attrExprs
+  tConss <- liftM typeConstructorMapping get
+  let eAttrs = map (evalAttrExpr tConss) attrExprs
   case lefts eAttrs of
-    err:_ -> pure (Left err)
-    [] -> pure $ mkRelation (A.attributesFromList (rights eAttrs)) emptyTupleSet
-    
-evalRelationalExpr (MakeRelationFromTupleExprs tupleExprs) = do
-  currentContext <- get
-  if null tupleExprs then
-    pure $ Left CouldNotInferAttributes
-    else 
-      let eTuples = map (evalTupleExpr currentContext) tupleExprs in
+    [] -> do
+      let attrs = A.attributesFromList (rights eAttrs)
+          eTuples = map (evalTupleExpr currentContext attrs) tupleExprs
       case lefts eTuples of
-        err:_ -> pure (Left err)
-        [] -> case head eTuples of
-            Left err -> error $ "impossible Right err " ++ show err
-            --extract potential attributes from first tuple
-            Right firstTuple -> pure $ mkRelation (tupleAttributes firstTuple) (RelationTupleSet (rights eTuples))
+        [] -> pure $ mkRelation attrs (RelationTupleSet (rights eTuples))
+        errs -> pure $ Left (MultipleErrors errs)
+    errs -> pure $ Left (MultipleErrors errs)
   
 evalRelationalExpr (ExistingRelation rel) = return (Right rel)
 
@@ -500,15 +493,15 @@ evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons) = do
   aType <- atomTypeForTypeConstructor tCons aTypes
   Right (Attribute attrName aType)
   
-evalTupleExpr :: DatabaseContext -> TupleExpr -> Either RelationalError RelationTuple
-evalTupleExpr context (TupleExpr tupMap) = do
+evalTupleExpr :: DatabaseContext -> Attributes -> TupleExpr -> Either RelationalError RelationTuple
+evalTupleExpr context attrs (TupleExpr tupMap) = do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
   attrAtoms <- mapM (\(attrName, aExpr) -> do
                         newAtom <- evalAtomExpr emptyTuple context aExpr
                         newAtomType <- typeFromAtomExpr A.emptyAttributes context aExpr
                         pure (attrName, newAtom, newAtomType)
                           ) (M.toList tupMap)
-  let attrs = map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms
+  let tupAttrs = A.attributesFromList $ map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms
       atoms = V.fromList $ map (\(_, atom, _) -> atom) attrAtoms
-  pure $ mkRelationTuple (A.attributesFromList attrs) atoms
-    
+      tup = mkRelationTuple tupAttrs atoms
+  resolveTypesInTuple attrs tup

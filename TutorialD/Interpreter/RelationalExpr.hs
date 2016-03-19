@@ -22,12 +22,9 @@ attributeListP = do
 makeRelationP :: Parser RelationalExpr
 makeRelationP = do
   reserved "relation"
-  attrExprs <- (try makeAttributeExprsP <|> pure [])
-  if not (null attrExprs) then do
-      pure $ MakeEmptyRelation attrExprs
-    else do -- empty attributes, assume tuple expressions
-      tupleExprs <- try (braces (sepBy tupleExprP comma)) <|> pure []
-      pure $ MakeRelationFromTupleExprs tupleExprs 
+  attrExprs <- makeAttributeExprsP
+  tupleExprs <- braces (sepBy tupleExprP comma)
+  pure $ MakeRelationFromExprs attrExprs tupleExprs 
 
 --used in relation creation
 makeAttributeExprsP :: Parser [AttributeExpr]
