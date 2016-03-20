@@ -40,7 +40,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> do
-          case interpretDatabaseExpr (transactionContext headTrans) "x:=S" of
+          case interpretDatabaseExpr (transactionContext headTrans) "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
               freshUUID' <- nextRandom

@@ -22,8 +22,6 @@ import System.Exit
 import Data.Maybe (isJust)
 import qualified Data.Vector as V
 import Data.Text.Encoding as TE
-import Data.Typeable (Proxy(..))
-import Data.Text (Text)
 import Control.Concurrent.STM
 import Control.Concurrent
 import qualified STMContainers.Map as STMMap
@@ -69,46 +67,48 @@ main = do
     simpleBAttributes = A.attributesFromList [Attribute "d" intAtomType]
     simpleCAttributes = A.attributesFromList [Attribute "a" textAtomType, Attribute "b" intAtomType]
     simpleDAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" intAtomType]
-    simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Text))]
-    simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" $ atomTypeForProxy (Proxy :: Proxy (Maybe Int))]    
+    maybeTextAtomType = ConstructedAtomType "Maybe" (M.singleton "a" textAtomType)
+    maybeIntAtomType = ConstructedAtomType "Maybe" (M.singleton "a" intAtomType)
+    simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" maybeTextAtomType]
+    simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" maybeIntAtomType]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" intAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" intAtomType])]
     extendTestAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
     byteStringAttributes = A.attributesFromList [Attribute "y" byteStringAtomType]    
     groupCountAttrs = A.attributesFromList [Attribute "z" intAtomType]
-    minMaxAttrs = A.attributesFromList [Attribute "S#" textAtomType, Attribute "z" intAtomType]
-    dateExampleRelTests = [("x:=S where true", Right suppliersRel),
-                           ("x:=S where CITY = \"London\"", restrict (\tuple -> atomForAttributeName "CITY" tuple == (Right $ textAtom "London")) suppliersRel),
-                           ("x:=S where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
-                           ("x:=P where COLOR=\"Blue\" and CITY=\"Paris\"", mkRelationFromList (attributes productsRel) [[textAtom "P5", textAtom "Cam", textAtom "Blue", intAtom 12, textAtom "Paris"]]),
-                           ("a:=S; update a (STATUS:=50); x:=a{STATUS}", mkRelation (A.attributesFromList [Attribute "STATUS" intAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "STATUS" intAtomType]) (V.fromList [intAtom 50])])),
+    minMaxAttrs = A.attributesFromList [Attribute "s#" textAtomType, Attribute "z" intAtomType]
+    dateExampleRelTests = [("x:=s where true", Right suppliersRel),
+                           ("x:=s where city = \"London\"", restrict (\tuple -> atomForAttributeName "city" tuple == (Right $ textAtom "London")) suppliersRel),
+                           ("x:=s where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
+                           ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (attributes productsRel) [[textAtom "P5", textAtom "Cam", textAtom "Blue", intAtom 12, textAtom "Paris"]]),
+                           ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" intAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" intAtomType]) (V.fromList [intAtom 50])])),
                            --atom function tests
-                           ("x:=((S : {STATUS2 := add(10,@STATUS)}) where STATUS2=add(10,@STATUS)){CITY,S#,SNAME,STATUS}", Right suppliersRel),
-                           ("x:=S; update x where SNAME=\"Blake\" (CITY:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "SNAME" tuple == (Right $ textAtom "Blake") then updateTuple (M.singleton "CITY" (textAtom "Boston")) tuple else tuple) suppliersRel),
-                           ("x:=relation{tuple{a 5}} : {b:=S}", mkRelation extendTestAttributes (RelationTupleSet [mkRelationTuple extendTestAttributes (V.fromList [intAtom 5, Atom suppliersRel])])),
+                           ("x:=((s : {status2 := add(10,@status)}) where status2=add(10,@status)){city,s#,sname,status}", Right suppliersRel),
+                           ("x:=s; update x where sname=\"Blake\" (city:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "sname" tuple == (Right $ textAtom "Blake") then updateTuple (M.singleton "city" (textAtom "Boston")) tuple else tuple) suppliersRel),
+                           ("x:=relation{tuple{a 5}} : {b:=s}", mkRelation extendTestAttributes (RelationTupleSet [mkRelationTuple extendTestAttributes (V.fromList [intAtom 5, Atom suppliersRel])])),
                            --relatom function tests
-                           ("x:=((S group ({CITY} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ intAtom 1)])),
-                           ("x:=(SP group ({S#} as y)) ungroup y", Right supplierProductsRel),
-                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=max(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
-                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=min(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
-                           ("x:=((SP{S#,QTY}) group ({QTY} as x):{z:=sum(@x)}){S#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
+                           ("x:=((s group ({city} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ intAtom 1)])),
+                           ("x:=(sp group ({s#} as y)) ungroup y", Right supplierProductsRel),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=max(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [textAtom s,intAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
                            --boolean function restriction
-                           ("x:=S where ^lt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"]]),
-                           ("x:=S where ^gt(@STATUS,20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S3", textAtom "Blake", intAtom 30, textAtom "Paris"],
+                           ("x:=s where ^lt(@status,20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"]]),
+                           ("x:=s where ^gt(@status,20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S3", textAtom "Blake", intAtom 30, textAtom "Paris"],
                                                                                                        [textAtom "S5", textAtom "Adams", intAtom 30, textAtom "Athens"]]),
-                           ("x:=S where ^sum(@STATUS)", Left $ AtomTypeMismatchError intAtomType boolAtomType),
-                           ("x:=S where ^not(gte(@STATUS,20))", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"]]),
+                           ("x:=s where ^sum(@status)", Left $ AtomTypeMismatchError intAtomType boolAtomType),
+                           ("x:=s where ^not(gte(@status,20))", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
-                           ("x:=S{all but S#} = S{CITY,SNAME,STATUS}", Right $ relationTrue),
+                           ("x:=s{all but s#} = s{city,sname,status}", Right $ relationTrue),
                            --test key syntax
-                           ("x:=S; key testconstraint {S#,CITY} x; insert x relation{tuple{CITY \"London\", S# \"S1\", SNAME \"gonk\", STATUS 50}}", Left (InclusionDependencyCheckError "testconstraint")),
-                           ("y:=S; key testconstraint {S#} y; insert y relation{tuple{CITY \"London\", S# \"S6\", SNAME \"gonk\", STATUS 50}}; x:=y{S#} = S{S#} union relation{tuple{S# \"S6\"}}", Right $ relationTrue),
+                           ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint")),
+                           ("y:=s; key testconstraint {s#} y; insert y relation{tuple{city \"London\", s# \"S6\", sname \"gonk\", status 50}}; x:=y{s#} = s{s#} union relation{tuple{s# \"S6\"}}", Right $ relationTrue),
                            --test binary bytestring data type
-                           ("x:=relation{tuple{y \"dGVzdGRhdGE=\"::bytestring}}", mkRelationFromList byteStringAttributes [[Atom (TE.encodeUtf8 "testdata")]]),
+                           ("x:=relation{tuple{y makeByteString(\"dGVzdGRhdGE=\")}}", mkRelationFromList byteStringAttributes [[Atom (TE.encodeUtf8 "testdata")]]),
                            --test Maybe Text
-                           ("x:=relation{tuple{a Just \"spam\"}}", mkRelationFromList simpleMaybeTextAttributes [[ConstructedAtom "Just" (ConstructedAtomType "Maybe" (M.singleton "a" textAtomType)) [textAtom "spam"]]]),
+                           ("x:=relation{tuple{a Just \"spam\"}}", mkRelationFromList simpleMaybeTextAttributes [[ConstructedAtom "Just" maybeTextAtomType [textAtom "spam"]]]),
                            --test Maybe Int
-                           ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[Atom (Just 3 :: Maybe Int)]])
+                           ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntAtomType [intAtom 3]]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
@@ -130,7 +130,7 @@ transactionGraphBasicTest = TestCase $ do
 transactionGraphAddCommitTest :: Test
 transactionGraphAddCommitTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  case parseTutorialD "x:=S" of
+  case parseTutorialD "x:=s" of
     Left err -> assertFailure (show err)
     Right parsed -> do 
       result <- evalTutorialD sessionId dbconn parsed
@@ -148,7 +148,7 @@ transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   graph <- transactionGraph dbconn
-  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s"))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
@@ -163,7 +163,7 @@ transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   (DisconnectedTransaction firstUUID _) <- disconnectedTransaction sessionId dbconn
-  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S"))
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s"))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
@@ -186,24 +186,24 @@ transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   mapM_ (\x -> x >>= maybeFail) [executeGraphExpr sessionId dbconn (Branch "test"),
-                  executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "S")),
+                  executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s")),
                   commit sessionId dbconn,
                   executeGraphExpr sessionId dbconn (JumpToHead "master"),
-                  executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "S"))
+                  executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "s"))
                   ]
   graph <- transactionGraph dbconn
   assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
   assertBool "test branch exists" $ isJust (transactionForHead "test" graph)
 
 simpleJoinTest :: Test
-simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=S join SP"
+simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=s join sp"
     where
-        attrs = A.attributesFromList [Attribute "CITY" textAtomType,
-                                      Attribute "QTY" intAtomType,
-                                      Attribute "P#" textAtomType,
-                                      Attribute "S#" textAtomType,
-                                      Attribute "SNAME" textAtomType,
-                                      Attribute "STATUS" intAtomType]
+        attrs = A.attributesFromList [Attribute "city" textAtomType,
+                                      Attribute "qty" intAtomType,
+                                      Attribute "p#" textAtomType,
+                                      Attribute "s#" textAtomType,
+                                      Attribute "sname" textAtomType,
+                                      Attribute "status" intAtomType]
         joinedRel = mkRelationFromList attrs [[textAtom "London", intAtom 100, textAtom "P6", textAtom "S1", textAtom "Smith", intAtom 20],
                                               [textAtom "London", intAtom 400, textAtom "P3", textAtom "S1", textAtom "Smith", intAtom 20],
                                               [textAtom "London", intAtom 400, textAtom "P5", textAtom "S4", textAtom "Clark", intAtom 20],
@@ -260,7 +260,7 @@ testNotification = TestCase $ do
   let notifCallback mvar = \_ _ -> putMVar mvar ()
       relvarx = RelationVariable "x"
   (sess, conn) <- dateExamplesConnection (notifCallback notifmvar)
-  let check' x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))  
+  let check' x = x >>= maybe (pure ()) (\err -> assertFailure (show err))  
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
   check' $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
   check' $ commit sess conn

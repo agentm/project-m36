@@ -57,7 +57,6 @@ bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   transactionGraphPersist sync dbdir bootstrapGraph
   putStrLn "Bootstrapped DB."
 
-
 {- 
 incrementally updates an existing database directory
 --algorithm: 

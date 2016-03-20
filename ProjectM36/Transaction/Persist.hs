@@ -139,7 +139,8 @@ readIncDeps transDir = do
   return $ M.fromList incDeps
   
 writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
-writeTypeConstructorMapping sync path types = writeBSFileSync sync path $ B.encode types
+writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
+  writeBSFileSync sync atPath $ B.encode types
 
 readTypeConstructorMapping :: FilePath -> IO (TypeConstructorMapping)
 readTypeConstructorMapping path = do

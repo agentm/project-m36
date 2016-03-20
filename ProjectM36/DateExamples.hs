@@ -18,16 +18,16 @@ dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                                  notifications = M.empty,
                                  atomFunctions = basicAtomFunctions,
                                  typeConstructorMapping = basicTypeConstructorMapping }
-  where
-    dateRelVars = M.fromList [("S", suppliers),
-                              ("P", products),
-                              ("SP", supplierProducts)]
+  where -- these must be lower case now that data constructors are in play
+    dateRelVars = M.fromList [("s", suppliers),
+                              ("p", products),
+                              ("sp", supplierProducts)]
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel
-    dateIncDeps = M.fromList [("S_pkey", simplePKey ["S#"] "S"),
-                              ("P_pkey", simplePKey ["P#"] "P"),
-                              ("SP_pkey", simplePKey ["S#", "P#"] "SP")
+    dateIncDeps = M.fromList [("s_pkey", simplePKey ["s#"] "s"),
+                              ("p_pkey", simplePKey ["p#"] "p"),
+                              ("sp_pkey", simplePKey ["s#", "p#"] "sp")
                               ]
     simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName)
 
@@ -36,10 +36,10 @@ suppliersRel = case mkRelationFromList attrs atomMatrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "S#" textAtomType,
-                                  Attribute "SNAME" textAtomType,
-                                  Attribute "STATUS" intAtomType,
-                                  Attribute "CITY" textAtomType]
+    attrs = A.attributesFromList [Attribute "s#" textAtomType,
+                                  Attribute "sname" textAtomType,
+                                  Attribute "status" intAtomType,
+                                  Attribute "city" textAtomType]
     atomMatrix = [
       [textAtom "S1", textAtom "Smith", intAtom 20, textAtom "London"],
       [textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"],
@@ -52,9 +52,9 @@ supplierProductsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "S#" textAtomType,
-                                  Attribute "P#" textAtomType,
-                                  Attribute "QTY" intAtomType]
+    attrs = A.attributesFromList [Attribute "s#" textAtomType,
+                                  Attribute "p#" textAtomType,
+                                  Attribute "qty" intAtomType]
     matrix = [
       [textAtom "S1", textAtom "P1", intAtom 300],
       [textAtom "S1", textAtom "P2", intAtom 200],
@@ -75,11 +75,11 @@ productsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "P#" textAtomType,
-                                  Attribute "PNAME" textAtomType,
-                                  Attribute "COLOR" textAtomType,
-                                  Attribute "WEIGHT" intAtomType,
-                                  Attribute "CITY" textAtomType]
+    attrs = A.attributesFromList [Attribute "p#" textAtomType,
+                                  Attribute "pname" textAtomType,
+                                  Attribute "color" textAtomType,
+                                  Attribute "weight" intAtomType,
+                                  Attribute "city" textAtomType]
     matrix = [
       [textAtom "P1", textAtom "Nut", textAtom "Red", intAtom 12, textAtom "London"],
       [textAtom "P2", textAtom "Bolt", textAtom "Green", intAtom 17, textAtom "Paris"],

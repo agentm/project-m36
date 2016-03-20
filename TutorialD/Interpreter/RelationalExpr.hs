@@ -191,13 +191,10 @@ attributeAtomExprP = do
 nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
--- | Uses square brackets for TutorialD support.
 constructedAtomExprP :: Parser AtomExpr
 constructedAtomExprP = do
-  dConsName <- identifier  
-  --_ <- char '['
+  dConsName <- capitalizedIdentifier  
   dConsArgs <- sepBy atomExprP spaces
-  --_ <- char ']'
   pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
 
 -- used only for primitive type parsing ?
