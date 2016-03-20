@@ -6,9 +6,12 @@ import Data.Typeable
 import Data.Typeable.Internal
 import Control.DeepSeq (NFData)
 
-newtype ConcreteTypeRep = CTR { unCTR :: TypeRep } deriving (Eq, Typeable, Show, NFData)
+newtype ConcreteTypeRep = CTR { unCTR :: TypeRep } deriving (Eq, Typeable, NFData)
 
-newtype SerialRep = SR (TyConRep, [SerialRep]) deriving(Binary)
+newtype SerialRep = SR (TyConRep, [SerialRep]) deriving (Binary)
+
+instance Show ConcreteTypeRep where
+  show (CTR tRep) = show tRep
 
 type TyConRep = (String, String, String)
 toTyConRep :: TyCon -> TyConRep
