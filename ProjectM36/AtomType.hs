@@ -12,7 +12,7 @@ import qualified Data.List as L
 import Data.Maybe (isJust)
 import Control.Monad.Writer
 import qualified Data.Map as M
-import Debug.Trace
+--import Debug.Trace
 
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName tConsList = foldr tConsFolder Nothing tConsList
@@ -70,7 +70,6 @@ atomTypeForDataConstructor tConss dConsName atomArgTypes = do
     Just (tCons, dCons) -> do
       --validate that the type constructor arguments are fulfilled in the data constructor
       typeVars <- resolveDataConstructorTypeVars dCons atomArgTypes tConss
-      traceShowM typeVars
       pure (ConstructedAtomType (TCD.name tCons) typeVars)
       
 -- | Walks the data and type constructors to extract the type variable map.
@@ -161,9 +160,9 @@ findTypeConstructor name tConsList = foldr tConsFolder Nothing tConsList
                                      accum
                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
-resolveAtomType orig@(ConstructedAtomType _ resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do
-  _ <- resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
-  pure orig
+resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do  
+  tVarMap <- resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
+  pure (ConstructedAtomType tConsName tVarMap)
 resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
                                                     Right typeFromRelation
                                                   else
@@ -172,19 +171,29 @@ resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresol
 -- this could be optimized to reduce new tuple creation- if anyatomtype does not appear, just return the original typevarmap
 resolveAtomTypesInTypeVarMap :: TypeVarMap -> TypeVarMap -> Either RelationalError TypeVarMap
 resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
-  let lookup' key tMap = case M.lookup key tMap of
+  {-
+  let resKeySet = traceShowId $ M.keysSet resolvedTypeMap
+      unresKeySet = traceShowId $ M.keysSet unresolvedTypeMap
+  when (resKeySet /= unresKeySet) (Left $ TypeConstructorTypeVarsMismatch resKeySet unresKeySet)
+  
+
+  let lookupOrDef key tMap = case M.lookup key tMap of
         Nothing -> Left (TypeConstructorTypeVarMissing key)
         Just val -> Right val
-  let resolveTypePair unresKey AnyAtomType = do
-        resType <- lookup' unresKey resolvedTypeMap 
-        pure (unresKey, resType)
-      resolveTypePair unresKey subType@(ConstructedAtomType _ _) = do --recurse
-        resType <- lookup' unresKey resolvedTypeMap
-        resAType <- resolveAtomType resType subType
-        pure (unresKey, resAType)
-      resolveTypePair unresKey unresV = pure (unresKey, unresV)
-  mapM_ (uncurry resolveTypePair) (M.toList unresolvedTypeMap)
-  pure resolvedTypeMap
+  -}
+  let resolveTypePair resKey resType = do
+        -- if the key is missing in the unresolved type map, then fill it in with the value from the resolved map
+        case M.lookup resKey unresolvedTypeMap of
+          Just unresType -> case unresType of 
+            --do we need to recurse for RelationAtomType?
+            subType@(ConstructedAtomType _ _) -> do
+              resSubType <- resolveAtomType resType subType
+              pure (resKey, resSubType)
+            otherType -> pure (resKey, otherType)
+          Nothing -> do
+            pure (resKey, resType) --swipe the missing type var from the expected map
+  tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)
+  pure (M.fromList tVarList)
   
 -- | See notes at `resolveTypesInTuple`. The typeFromRelation must not include any wildcards.
 resolveTypeInAtom :: AtomType -> Atom -> Either RelationalError Atom
@@ -197,6 +206,23 @@ resolveTypeInAtom _ atom = Right atom
 -- Example: "Nothing" does not specify the the argument in "Maybe a", so allow delayed resolution in the tuple before it is added to the relation. Note that this resolution could cause a type error. Hardly a Hindley-Milner system.
 resolveTypesInTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
 resolveTypesInTuple resolvedAttrs (RelationTuple _ tupAtoms) = do
-  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom) (zip (V.toList tupAtoms) (map atomType (V.toList resolvedAttrs)))
+  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom) (zip (V.toList tupAtoms) $ (map atomType (V.toList resolvedAttrs)))
   Right (RelationTuple resolvedAttrs (V.fromList newAtoms))
                            
+-- | Validate that the type is provided with complete type variables for type constructors.
+validateAtomType :: AtomType -> TypeConstructorMapping -> Maybe RelationalError
+validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss = do
+  (tConsDef, _) <- findTypeConstructor tConsName tConss
+  case tConsDef of
+    ADTypeConstructorDef _ tVarNames -> let expectedTyVarNames = S.fromList tVarNames
+                                            actualTyVarNames = M.keysSet tVarMap
+                                            diff = S.difference expectedTyVarNames actualTyVarNames in
+                                        if not (S.null diff) then
+                                          Just $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
+                                        else
+                                          Nothing
+    _ -> Just (TypeConstructorAtomTypeMismatch tConsName typ)
+validateAtomType _ _ = Nothing
+
+validateTuple :: RelationTuple -> TypeConstructorMapping -> Maybe RelationalError
+validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms >>= pure Nothing

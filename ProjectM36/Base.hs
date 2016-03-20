@@ -235,7 +235,7 @@ type RelVarName = StringType
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExpr where
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs :: [AttributeExpr] -> [TupleExpr] -> RelationalExpr
+  MakeRelationFromExprs :: Maybe [AttributeExpr] -> [TupleExpr] -> RelationalExpr
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
   --- | Reference an existing relation in Haskell-space.

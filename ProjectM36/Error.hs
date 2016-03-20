@@ -41,8 +41,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | DataConstructorNameInUseError DataConstructorName
                      | DataConstructorUsesUndeclaredTypeVariable TypeVarName
                      | TypeConstructorTypeVarsMismatch (S.Set TypeVarName) (S.Set TypeVarName)
-                     | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
                      | TypeConstructorTypeVarMissing TypeVarName
+                     | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
