@@ -2,6 +2,7 @@
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.RelationalExpression
+import ProjectM36.DateExamples
 import ProjectM36.TupleSet
 import ProjectM36.StaticOptimizer
 import System.Exit

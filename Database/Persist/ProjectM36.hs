@@ -11,6 +11,8 @@ import Data.UUID.V4 (nextRandom)
 import qualified Data.Vector as V
 import ProjectM36.Error
 import ProjectM36.Relation
+import ProjectM36.AtomFunctions.Primitive
+import ProjectM36.DataTypes.Primitive
 import qualified Control.Monad.IO.Class as Trans
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader (ask, ReaderT)
@@ -53,7 +55,7 @@ recordAttributes entInfo record = do
   let convertAttr = uncurry fieldDefAsAttribute
       idDBName = unDBName $ fieldDB $ entityId (entityDef $ Just record)
   attrList <- mapM convertAttr entInfo
-  return $ V.fromList ([Attribute idDBName stringAtomType] ++ attrList)
+  return $ V.fromList ([Attribute idDBName textAtomType] ++ attrList)
 
 fieldDefAsAttribute :: EmbedFieldDef -> PersistValue -> Either RelationalError Attribute
 fieldDefAsAttribute fieldDef pVal = case persistValueAtomType pVal of

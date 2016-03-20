@@ -88,7 +88,10 @@ attributeAsCell attr = attributeName attr `T.append` "::" `T.append` prettyAtomT
 prettyAtomType :: AtomType -> T.Text
 prettyAtomType (AtomType primitiveType) = T.pack (tyConName (fst (splitTyConApp (unCTR primitiveType))))
 prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map attributeAsCell (V.toList attrs)) `T.append` "}"
-prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` " " `T.append` T.pack (show (M.toList typeVarMap)) -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
+prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` T.concat (map showTypeVars (M.toList typeVarMap))
+  where
+    showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
+-- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
 prettyAtomType AnyAtomType = "?AnyAtomType?"
 
 relationAsTable :: Relation -> Table

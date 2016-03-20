@@ -1,14 +1,23 @@
+{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.DateExamples where
 import ProjectM36.Base
+import ProjectM36.Atom
+import qualified ProjectM36.Attribute as A
+import ProjectM36.Key
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
+import ProjectM36.DatabaseContext
+import ProjectM36.DataTypes.Primitive
+import ProjectM36.Relation
+import qualified Data.Map as M
+import qualified Data.Set as S
 
 dateExamples :: DatabaseContext
 dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
                                  notifications = M.empty,
                                  atomFunctions = basicAtomFunctions,
-                                 atomTypes = basicAtomTypes }
+                                 typeConstructorMapping = basicTypeConstructorMapping }
   where
     dateRelVars = M.fromList [("S", suppliers),
                               ("P", products),

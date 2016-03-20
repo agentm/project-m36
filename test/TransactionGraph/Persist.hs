@@ -4,8 +4,8 @@ import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.TransactionGraph
-import ProjectM36.RelationalExpression
 import ProjectM36.Transaction
+import ProjectM36.DateExamples
 import System.IO.Temp
 import System.Exit
 import Data.Either

@@ -11,7 +11,7 @@
 import Test.HUnit
 import Database.Persist.ProjectM36
 import ProjectM36.Client
-import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
 import qualified ProjectM36.Client as C
 import System.Exit
 import Database.Persist
@@ -43,7 +43,13 @@ inProcSettings = InProcessConnectionInfo NoPersistence emptyNotificationCallback
 
 defPersonRel :: SessionId -> Connection -> IO ()
 defPersonRel sessionId conn = do
-    maybeErr <- C.executeDatabaseContextExpr sessionId conn (Define "person" (attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType, Attribute "id" stringAtomType]))
+    let textTypCons = PrimitiveTypeConstructor "Text" textAtomType
+        intTypCons = PrimitiveTypeConstructor "Int" intAtomType
+
+    maybeErr <- C.executeDatabaseContextExpr sessionId conn (Define "person" [
+                                                                AttributeAndTypeNameExpr "name" textTypCons,
+                                                                AttributeAndTypeNameExpr "age" intTypCons,
+                                                                AttributeAndTypeNameExpr "id" textTypCons])
     case maybeErr of
         Nothing -> return ()
         Just err -> assertFailure $ "defPersonRel" ++ show err

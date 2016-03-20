@@ -7,7 +7,7 @@ import ProjectM36.Client
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
-import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.TupleSet
 
 import System.Exit
@@ -70,9 +70,10 @@ testRelationalExpr sessionId conn = TestCase $ do
   
 testDatabaseContextExpr :: SessionId -> Connection -> Test
 testDatabaseContextExpr sessionId conn = TestCase $ do 
-  let attrs = attributesFromList [Attribute "x" intAtomType]
+  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" textAtomType)]
+      attrs = attributesFromList [Attribute "x" textAtomType]
       testrv = "testrv"
-  dbResult <- executeDatabaseContextExpr sessionId conn (Define testrv attrs)
+  dbResult <- executeDatabaseContextExpr sessionId conn (Define testrv attrExprs)
   case dbResult of
     Just err -> assertFailure (show err)
     Nothing -> do
@@ -98,9 +99,9 @@ testTypeForRelationalExpr sessionId conn = TestCase $ do
     
 testPlanForDatabaseContextExpr :: SessionId -> Connection -> Test    
 testPlanForDatabaseContextExpr sessionId conn = TestCase $ do
-  let attrs = attributesFromList [Attribute "x" intAtomType]
+  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" intAtomType)]
       testrv = "testrv"
-      dbExpr = Define testrv attrs
+      dbExpr = Define testrv attrExprs
   planResult <- planForDatabaseContextExpr sessionId conn dbExpr
   case planResult of
     Left err -> assertFailure (show err)
