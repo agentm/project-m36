@@ -31,7 +31,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -267,3 +267,23 @@ testNotification = TestCase $ do
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
   check' $ commit sess conn
   takeMVar notifmvar
+  
+executeTutorialD :: SessionId -> Connection -> String -> IO ()
+executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
+    Left err -> assertFailure (show tutd ++ ": " ++ show err)
+    Right parsed -> do 
+      result <- evalTutorialD sessionId conn parsed
+      case result of
+        QuitResult -> assertFailure "quit?"
+        DisplayResult _ -> assertFailure "display?"
+        DisplayIOResult _ -> assertFailure "displayIO?"
+        DisplayErrorResult err -> assertFailure (show err)        
+        QuietSuccessResult -> pure ()
+  
+testTypeConstructors :: Test
+testTypeConstructors = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "data Hair = Color Text | Bald | UserRefusesToSpecify"
+  executeTutorialD sessionId dbconn "x:=relation{a Hair}{tuple{a Color \"Blonde\"},tuple{a Bald},tuple{a UserRefusesToSpecify}}"
+  executeTutorialD sessionId dbconn "data Tree a = Node a (Tree a) (Tree a) | EmptyNode"
+  executeTutorialD sessionId dbconn "y:=relation{a Tree Int}{tuple{a Node 3 (Node 4 EmptyNode EmptyNode) EmptyNode},tuple{a Node 4 EmptyNode EmptyNode}}"
