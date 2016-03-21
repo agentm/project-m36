@@ -104,14 +104,20 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
     body = L.foldl' tupleFolder [] (asList tupleSet)
     tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
-                                            Right atom -> showAtom atom
+                                            Right atom -> showAtom 0 atom
                                             ) oAttrNames]
 
-showAtom :: Atom -> StringType
-showAtom (Atom atom) = case cast atom of
-                          Just rel -> renderTable $ relationAsTable rel
-                          Nothing -> toText atom
-showAtom (ConstructedAtom dConsName _ atoms) = dConsName `T.append` " " `T.append` T.concat (L.intersperse " " (map showAtom atoms))
+showParens :: Bool -> StringType -> StringType
+showParens predicate f = if predicate then
+                      "(" `T.append` f `T.append` ")"
+                    else
+                      f
+
+showAtom :: Int -> Atom -> StringType
+showAtom _ (Atom atom) = case cast atom of
+  Just rel -> renderTable $ relationAsTable rel
+  Nothing -> toText atom
+showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && length atoms >= 1) $ T.concat (L.intersperse " " (dConsName : (map (showAtom 1) atoms)))
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs

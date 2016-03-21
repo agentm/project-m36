@@ -70,8 +70,10 @@ instance Eq Atom where
   _ == _ = False
   
 instance Show Atom where
-  show (Atom atom) = "Atom " ++ show atom
-  show (ConstructedAtom dConsName _ atomList) = unpack dConsName ++ " " ++ L.concat (L.intersperse " " (map show atomList))
+  showsPrec _ (Atom atom) = showString "Atom " . shows atom
+  showsPrec v (ConstructedAtom dConsName _ atomList) = showParen (v >= 4) showIt 
+    where showIt = showString (unpack dConsName) . showString " " . compose (map (showsPrec 4) atomList)
+          compose = foldr (.) id
   
 instance Binary Atom where
   put atom@(Atom val) = put (atomTypeForAtom atom) >> put val
