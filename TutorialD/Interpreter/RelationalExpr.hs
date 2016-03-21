@@ -176,8 +176,12 @@ attributeExtendTupleExpressionP = do
   return $ AttributeExtendTupleExpr (T.pack newAttr) atom
 
 atomExprP :: Parser AtomExpr
-atomExprP = try functionAtomExprP <|>
-            try constructedAtomExprP <|>
+atomExprP = consumeAtomExprP True
+
+consumeAtomExprP :: Bool -> Parser AtomExpr
+consumeAtomExprP consume = try functionAtomExprP <|>
+            try (parens (constructedAtomExprP True)) <|>
+            constructedAtomExprP consume <|>
             attributeAtomExprP <|>
             nakedAtomExprP <|>
             relationalAtomExprP
@@ -191,12 +195,12 @@ attributeAtomExprP = do
 nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
-constructedAtomExprP :: Parser AtomExpr
-constructedAtomExprP = do
-  dConsName <- capitalizedIdentifier  
-  dConsArgs <- sepBy atomExprP spaces
+constructedAtomExprP :: Bool -> Parser AtomExpr
+constructedAtomExprP consume = do
+  dConsName <- capitalizedIdentifier
+  dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaces else pure []
   pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
-
+  
 -- used only for primitive type parsing ?
 atomP :: Parser Atom
 atomP = stringAtomP <|> 

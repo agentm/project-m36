@@ -20,25 +20,26 @@ typeVarNamesP = do
   
 -- data Either a b = *Left a* | *Right b*
 dataConstructorDefP :: Parser DataConstructorDef
-dataConstructorDefP = DataConstructorDef <$> liftM T.pack identifier <*> many dataConstructorDefArgP
+dataConstructorDefP = DataConstructorDef <$> liftM T.pack capitalizedIdentifier <*> many dataConstructorDefArgP
 
 -- data *Either a b* = Left *a* | Right *b*
 dataConstructorDefArgP :: Parser DataConstructorDefArg
 dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeConstructorP) <|>
+                         DataConstructorDefTypeConstructorArg <$> typeConstructorP <|>
                          DataConstructorDefTypeVarNameArg <$> liftM T.pack uncapitalizedIdentifier
   
 --built-in, nullary type constructors
 -- Int, Text, etc.
 primitiveTypeConstructorP :: Parser TypeConstructor
 primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
-                                               tName <- liftM T.pack (symbol (T.unpack name))
+                                               tName <- try $ liftM T.pack (symbol (T.unpack name))
                                                pure $ PrimitiveTypeConstructor tName typ)
                                        primitiveTypeConstructorMapping)
                                
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
 typeConstructorP = primitiveTypeConstructorP <|>
-                   ADTypeConstructor <$> liftM T.pack identifier <*> many typeConstructorArgP
+                   ADTypeConstructor <$> liftM T.pack capitalizedIdentifier <*> many typeConstructorArgP
                    
 typeConstructorArgP :: Parser TypeConstructorArg                   
 typeConstructorArgP = TypeConstructorArg <$> typeConstructorP <|>
