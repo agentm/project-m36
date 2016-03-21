@@ -23,7 +23,7 @@ makeRelationP :: Parser RelationalExpr
 makeRelationP = do
   reserved "relation"
   attrExprs <- try (liftA Just makeAttributeExprsP) <|> pure Nothing
-  tupleExprs <- braces (sepBy tupleExprP comma)
+  tupleExprs <- try (braces (sepBy tupleExprP comma)) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs 
 
 --used in relation creation

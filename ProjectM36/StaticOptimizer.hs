@@ -91,9 +91,10 @@ applyStaticRelationalOptimization e@(NotEquals _ _) = return $ Right e
 applyStaticRelationalOptimization e@(Extend _ _) = return $ Right e  
 
 applyStaticDatabaseOptimization :: DatabaseExpr -> DatabaseState (Either RelationalError DatabaseExpr)
-applyStaticDatabaseOptimization (Define name attrs) = return $ Right (Define name attrs)
+applyStaticDatabaseOptimization x@NoOperation = pure $ Right x
+applyStaticDatabaseOptimization x@(Define _ _) = pure $ Right x
 
-applyStaticDatabaseOptimization (Undefine name) = return $ Right (Undefine name)
+applyStaticDatabaseOptimization x@(Undefine _) = pure $ Right x
 
 applyStaticDatabaseOptimization (Assign name expr) = do
   optimizedExpr <- applyStaticRelationalOptimization expr

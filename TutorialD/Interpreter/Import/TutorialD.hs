@@ -17,7 +17,7 @@ importTutorialD pathIn = do
   case tutdData of 
     Left err -> return $ Left (ImportError $ T.pack (show err))
     Right tutdData' -> do 
-      let dbexprsErr = map (parse databaseExprP "") (lines tutdData')
+      let dbexprsErr = map (parse databaseExprP "import") (lines tutdData')
           errs = lefts dbexprsErr
       case errs of
         err2:_ -> return $ Left (ParseError (T.pack (show err2)))

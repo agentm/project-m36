@@ -328,6 +328,7 @@ instance Binary InclusionDependency
 
 -- | Database context expressions modify the database context.
 data DatabaseExpr where
+  NoOperation :: DatabaseExpr
   Define :: RelVarName -> [AttributeExpr] -> DatabaseExpr
   Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
   Assign :: RelVarName -> RelationalExpr -> DatabaseExpr

@@ -29,6 +29,10 @@ databaseExprP = insertP
             <|> removeNotificationP
             <|> addTypeConstructorP
             <|> removeTypeConstructorP
+            <|> nothingP
+            
+nothingP :: Parser DatabaseExpr            
+nothingP = (whiteSpace <* eof) >> pure NoOperation
 
 assignP :: Parser DatabaseExpr
 assignP = do

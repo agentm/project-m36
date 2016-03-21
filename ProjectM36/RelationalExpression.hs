@@ -167,6 +167,8 @@ deleteRelVar relVarName = do
   return Nothing
 
 evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
+evalContextExpr NoOperation = pure Nothing
+  
 evalContextExpr (Define relVarName attrExprs) = do
   relvars <- liftM relationVariables get
   tConss <- liftM typeConstructorMapping get
