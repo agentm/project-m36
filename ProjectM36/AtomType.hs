@@ -12,7 +12,6 @@ import qualified Data.List as L
 import Data.Maybe (isJust)
 import Control.Monad.Writer
 import qualified Data.Map as M
---import Debug.Trace
 
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName tConsList = foldr tConsFolder Nothing tConsList
@@ -108,12 +107,11 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
   else
     case findTypeConstructor tConsName tConss of
       Nothing -> Left (NoSuchTypeConstructorName tConsName)
-      Just (tConsDef, _) -> let expectedPVars = S.fromList (TCD.typeVars tConsDef)
-                                actualPVars = M.keysSet pVarMap' in
-                            if expectedPVars /= actualPVars then
-                              Left (TypeConstructorTypeVarsMismatch expectedPVars actualPVars)
-                            else
-                              Right (pVarMap')
+      Just (tConsDef, _) -> let expectedPVarNames = S.fromList (TCD.typeVars tConsDef) in
+        if M.keysSet pVarMap' `S.isSubsetOf` expectedPVarNames then
+          Right pVarMap' -- I wish we could actually resolve this- we are creating temporary AtomTypes which are actually invalid until they are resolved with a second pass of type resolution- not great
+        else
+          Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
 resolveTypeConstructorTypeVars _ _ _ = error "Unhandled type vars"                              
     
 -- check that type vars on the right also appear on the left
