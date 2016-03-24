@@ -16,23 +16,26 @@ import ProjectM36.Key
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseExprP :: Parser DatabaseExpr
-databaseExprP = insertP
-            <|> deleteConstraintP
-            <|> deleteP
-            <|> updateP
-            <|> addConstraintP
-            <|> keyP
-            <|> defineP
-            <|> undefineP
-            <|> assignP
-            <|> addNotificationP
-            <|> removeNotificationP
-            <|> addTypeConstructorP
-            <|> removeTypeConstructorP
-            <|> nothingP
+databaseExprP = choice $ map (\p -> p <* optional commentP) [insertP,
+                                              deleteConstraintP,
+                                              deleteP,
+                                              updateP,
+                                              addConstraintP,
+                                              keyP,
+                                              defineP,
+                                              undefineP,
+                                              assignP,
+                                              addNotificationP,
+                                              removeNotificationP,
+                                              addTypeConstructorP,
+                                              removeTypeConstructorP,
+                                              nothingP]
+            
+commentP :: Parser DatabaseExpr            
+commentP = reserved "--" >> manyTill anyChar eof >> pure NoOperation
             
 nothingP :: Parser DatabaseExpr            
-nothingP = (whiteSpace <* eof) >> pure NoOperation
+nothingP = whiteSpace >> pure NoOperation
 
 assignP :: Parser DatabaseExpr
 assignP = do
@@ -85,14 +88,23 @@ updateP = do
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignmentP comma)
   return $ Update (T.pack relVarName) (M.mapKeys T.pack $ attributeAssignments) predicate
 
+data IncDepOp = SubsetOp | EqualityOp
+
 addConstraintP :: Parser DatabaseExpr
 addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
   subset <- relExprP
-  reservedOp "in"
+  op <- (reservedOp "in" *> pure SubsetOp) <|> (reservedOp "equals" *> pure EqualityOp)
   superset <- relExprP
-  return $ AddInclusionDependency (T.pack constraintName) (InclusionDependency subset superset)
+  let subsetA = incDepSet constraintName subset superset
+      subsetB = incDepSet (constraintName ++ "_eqInvert") superset subset --inverted args for equality constraint
+      incDepSet nam a b = AddInclusionDependency (T.pack nam) (InclusionDependency a b)
+  case op of
+    SubsetOp -> pure subsetA
+    EqualityOp -> pure (MultipleExpr [subsetA, subsetB])
+  
+  
   
 deleteConstraintP :: Parser DatabaseExpr  
 deleteConstraintP = do
