@@ -509,13 +509,14 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
   attrAtoms <- mapM (\(attrName, aExpr) -> do
                         newAtom <- evalAtomExpr emptyTuple context aExpr
                         newAtomType <- typeFromAtomExpr A.emptyAttributes context aExpr
-                        pure (attrName, newAtom, newAtomType)
+                        pure $ (attrName, newAtom, newAtomType)
                           ) (M.toList tupMap)
   let tupAttrs = A.attributesFromList $ map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms
       atoms = V.fromList $ map (\(_, atom, _) -> atom) attrAtoms
       tup = mkRelationTuple tupAttrs atoms
       tConss = typeConstructorMapping context
-  tup' <- resolveTypesInTuple (fromMaybe tupAttrs attrs) tup
+      finalAttrs = fromMaybe tupAttrs attrs
+  tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
   case validateTuple tup' tConss of
     Just err -> Left err
     _ -> pure tup'
