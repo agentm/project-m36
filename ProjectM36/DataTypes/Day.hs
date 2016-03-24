@@ -8,7 +8,7 @@ import Data.Time.Calendar
 import qualified Data.Map as M
 
 dayAtomType :: AtomType
-dayAtomType = ConstructedAtomType "Day" (M.singleton "a" intAtomType)
+dayAtomType = ConstructedAtomType "Day" M.empty
 
 dayFunctions :: AtomFunctions
 dayFunctions = HS.fromList [

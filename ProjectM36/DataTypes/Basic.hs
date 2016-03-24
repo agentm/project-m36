@@ -7,7 +7,7 @@ import ProjectM36.Base
 basicTypeConstructorMapping :: TypeConstructorMapping
 basicTypeConstructorMapping = primitiveTypeConstructorMapping ++ moreTypes
   where
-    moreTypes = [(ADTypeConstructorDef "Day" ["a"],
+    moreTypes = [(ADTypeConstructorDef "Day" [],
                   [DataConstructorDef "Day" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" intAtomType)]]),
                  (ADTypeConstructorDef "Maybe" ["a"],
                   [DataConstructorDef "Nothing" [],
