@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
+import Data.Typeable (cast)
 import ProjectM36.Attribute
 import Data.Csv
 import ProjectM36.Tuple
@@ -40,4 +41,7 @@ newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
   toField (RecordAtom (ConstructedAtom dConsName _ atomList)) = TE.encodeUtf8 $ dConsName `T.append` T.intercalate " " (map (\(Atom x) -> toText x) atomList)
-  toField (RecordAtom (Atom atomVal)) = (TE.encodeUtf8 . toText) atomVal
+  toField (RecordAtom (Atom atomVal)) = case cast atomVal of 
+    Just texto -> TE.encodeUtf8 texto  --squelch extraneous quotes for text type- the CSV library will add them if necessary
+    Nothing -> (TE.encodeUtf8 . toText) atomVal
+               

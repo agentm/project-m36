@@ -39,7 +39,7 @@ class (Read a,
   fromText :: (Atomable a) => Text -> Either String a
   fromText t = case readMaybe (unpack t) of
     Just v -> Right v
-    Nothing -> Left "parse error"
+    Nothing -> Left ("Parse error: " ++ (unpack t))
   
   toText :: a -> Text
   toText a = pack $ show a
@@ -47,9 +47,6 @@ class (Read a,
 instance Atomable Int 
 instance Atomable Double
 instance Atomable Text where
-  --no need to require quoted strings
-  fromText t = Right t
-  toText t = t
 instance Atomable Day
 instance Atomable UTCTime
 instance Atomable ByteString where

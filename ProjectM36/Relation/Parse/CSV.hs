@@ -7,6 +7,7 @@ import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Base
 import ProjectM36.Relation
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import Data.Text.Encoding (decodeUtf8)
 import qualified ProjectM36.Attribute as A
@@ -25,6 +26,13 @@ data CsvImportError = CsvParseError String |
 csvDecodeOptions :: DecodeOptions
 csvDecodeOptions = DecodeOptions {decDelimiter = fromIntegral (ord ',')}
 
+--special case from Text- outer quotes are *not* required in CSV, so we have to add them to make it parseable
+makeAtomFromCSVText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
+makeAtomFromCSVText attrName aType textIn = makeAtomFromText attrName aType $ if aType == textAtomType then
+                                                                                ("\"" `T.append` textIn `T.append` "\"")
+                                                                              else
+                                                                                textIn
+
 csvAsRelation :: BS.ByteString -> Attributes -> Either CsvImportError Relation
 csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inString of
   Fail _ _ err -> Left (CsvParseError err)
@@ -36,7 +44,7 @@ csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inStr
         attrNameSet = S.fromList (V.toList attrNames)
         headerSet = S.fromList (V.toList strHeader)
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
-        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
+        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromCSVText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
     case attrNameSet == headerSet of
       False -> Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
       True -> do
