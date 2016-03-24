@@ -12,6 +12,7 @@ import qualified Data.List as L
 import Data.Maybe (isJust)
 import Control.Monad.Writer
 import qualified Data.Map as M
+--import Debug.Trace
 
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName tConsList = foldr tConsFolder Nothing tConsList

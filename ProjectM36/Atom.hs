@@ -15,7 +15,6 @@ relationForAtom (Atom atom) = case cast atom of
   Nothing -> Left $ AttributeIsNotRelationValuedError ""
 relationForAtom (ConstructedAtom _ _ _) = Left $ AttributeIsNotRelationValuedError ""
 
-
 --another hard-coded typerep dispatch table :/
 makeAtomFromText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
 makeAtomFromText _ (AtomType cTypeRep) textIn = if 

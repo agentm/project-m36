@@ -17,7 +17,7 @@ import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
 import qualified Data.Text as T
 import Data.Either (isRight)
-import Debug.Trace
+--import Debug.Trace
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -77,7 +77,7 @@ singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   if not (A.attributesEqual attrs1 attrs2)
-     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference (traceShowId attrs1) (traceShowId attrs2)))
+     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
   else
     Right $ Relation attrs1 newtuples
   where

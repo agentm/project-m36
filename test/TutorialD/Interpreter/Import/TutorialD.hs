@@ -2,8 +2,6 @@
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Atom
-import ProjectM36.DataTypes.Primitive
-import qualified ProjectM36.Attribute as A
 import TutorialD.Interpreter.Import.TutorialD
 import System.Exit
 import System.IO.Temp

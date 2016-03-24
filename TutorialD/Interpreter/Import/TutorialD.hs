@@ -10,6 +10,7 @@ import Data.Either
 import qualified Data.Text as T
 import Control.Exception
 --import a file containing TutorialD database context expressions
+--import Debug.Trace
 
 importTutorialD :: FilePath -> IO (Either RelationalError DatabaseExpr)
 importTutorialD pathIn = do
