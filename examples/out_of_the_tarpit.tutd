@@ -1,0 +1,67 @@
+-- data type definitions
+
+data Address = Address Text
+data Agent = Agent Text
+data Name = Name Text
+data Price = Price Double
+data RoomType = Kitchen | Bathroom | LivingRoom
+data PriceBand = Low | Medium | High | Premium
+data AreaCode = City | Suburban | Rural
+data SpeedBand = VeryFast | Fast | Medium | Slow
+
+-- relation variable definitions
+
+property := relation { address Address, price Price, photo Text, agent Agent, dateRegistered Day }
+
+offer := relation { address Address, offerPrice Price, offerDate Day, bidderName Name, bidderAddress Address, decisionDay Day, accepted Bool }
+
+decision := relation { address Address, offerDate Day, bidderName Name, bidderAddress Address, decisionDay Day, accepted Bool }
+
+room := relation { address Address, roomName Text, width Double, breadth Double, type RoomType }
+
+floor := relation { address Address, roomName Text, floor Int }
+
+commission := relation { priceBand PriceBand, areaCode AreaCode, saleSpeed SpeedBand, commission Double }
+
+-- uniqueness constraints
+
+key propertyKey {address} property
+
+key offerKey { address, offerDate, bidderName, bidderAddress } offer
+
+key decisionKey { address, offerDate, bidderName, bidderAddress } decision
+
+key roomKey { address, roomName } room
+
+key floorKey { address, roomName } floor
+
+key commissionKey { priceBand, areaCode, saleSpeed } commission
+
+-- foreign key constraints
+foreign key offerPropertyFKey offer{ address } in property{ address }
+
+foreign key decisionOfferFKey offer{ address, offerDate, bidderName, bidderAddress } in decision{ address, offerDate, bidderName, bidderAddress }
+
+foreign key roomPropertyFKey room{ address } in property { address }
+
+foreign key floorPropertyFKey floor{ address } in property { address }
+
+-- The constraint which requires each property to have at least one room cannot be currently represented because it would conflict with the property/room foreign key (chicken and egg problem). Date makes it clear that constraints must hold at all times, not only when the transaction is committed. This is at odds with the OotT paper. Date's solution is the comma operator which is not yet implemented.
+--constraint propertiesMustHaveARoom property 
+
+constraint ownerIsNotBidder
+
+constraint noOffersAfterSale
+
+constraint noMoreThan50PremiumProperties
+
+constraint noBidderCanMakeMoreThan10BidsOnAProperty
+-- sample data
+
+insert offer relation{tuple{address Address "Main St.", offerPrice Price 1400.0, bidderName "Jim", bidderAddress Address "345 Bidder St.", decisionDay fromGregorian(2015,4,4), accepted False}}
+
+insert property relation{tuple{address Address "Main St.", price Price 1000.0, photo "photo1.jpg", agent Agent "Bob", dateRegistered fromGregorian(2014, 1, 1)}}
+
+insert floor relation{tuple{address Address "Main St.", roomName "Bedroom", floor 3}}
+
+
