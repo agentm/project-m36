@@ -15,5 +15,9 @@ dayFunctions = HS.fromList [
   AtomFunction { atomFuncName = "fromGregorian",
                  atomFuncType = [intAtomType, intAtomType, intAtomType, dayAtomType],
                  atomFunc = \(year:month:day:_) -> ConstructedAtom "Day" dayAtomType [Atom (fromGregorian (fromIntegral (unsafeCast year::Int)) (unsafeCast month) (unsafeCast day))]
-                   }
+                   },
+  AtomFunction { atomFuncName = "dayEarlierThan",
+                 atomFuncType = [dayAtomType, dayAtomType, boolAtomType],
+                 atomFunc = \((ConstructedAtom _ _ (dayA:_)):(ConstructedAtom _ _ (dayB:_)):_) -> Atom (unsafeCast dayA < (unsafeCast dayB :: Day))          
+               }
   ]
