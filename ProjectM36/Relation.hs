@@ -217,7 +217,20 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
   newTupSetList <- foldM tupleSetJoiner [] (asList tupSet1)
   newTupSet <- mkTupleSet newAttrs newTupSetList
   return $ Relation newAttrs newTupSet
-
+  
+-- | Difference takes two relations of the same type and returns a new relation which contains only tuples which appear in the first relation but not the second.
+difference :: Relation -> Relation -> Either RelationalError Relation  
+difference relA relB = 
+  if not (A.attributesEqual (attributes relA) (attributes relB))
+  then 
+    Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrsA attrsB))
+  else 
+    restrict rfilter relA
+  where
+    attrsA = attributes relA
+    attrsB = attributes relB
+    rfilter tupInA = relFold (\tupInB acc -> if acc == False then False else if tupInB == tupInA then False else True) True relB
+      
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
 relMap mapper (Relation attrs tupleSet) = do

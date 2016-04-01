@@ -58,6 +58,21 @@ applyStaticRelationalOptimization (Join exprA exprB) = do
                          else
                            return $ Right (Join optExprA2 optExprB2)
                            
+applyStaticRelationalOptimization (Difference exprA exprB) = do
+  optExprA <- applyStaticRelationalOptimization exprA
+  optExprB <- applyStaticRelationalOptimization exprB
+  case optExprA of
+    Left err -> return $ Left err
+    Right optExprA2 -> case optExprB of
+      Left err -> return $ Left err
+      Right optExprB2 -> if optExprA == optExprB then do --A difference A == A where false
+                           eEmptyRel <- typeForRelationalExpr optExprA2
+                           case eEmptyRel of
+                             Left err -> pure (Left err)
+                             Right emptyRel -> pure (Right (ExistingRelation emptyRel))
+                         else
+                           return $ Right (Difference optExprA2 optExprB2)
+                           
 applyStaticRelationalOptimization e@(Rename _ _ _) = return $ Right e
 
 applyStaticRelationalOptimization (Group oldAttrNames newAttrName expr) = do 

@@ -116,6 +116,7 @@ relOperators = [
   [Postfix ungroupP],
   [Infix (reservedOp "join" >> return Join) AssocLeft],
   [Infix (reservedOp "union" >> return Union) AssocLeft],
+  [Infix (reservedOp "minus" >> return Difference) AssocLeft],
   [Infix (reservedOp "=" >> return Equals) AssocNone],
   [Postfix extendP]
   ]

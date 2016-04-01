@@ -35,6 +35,8 @@ main = do
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
+                      ("x:=true minus false", Right relationTrue),
+                      ("x:=false minus true", Right relationFalse),                      
                       ("x:=true; x:=false", Right relationFalse),
                       ("x:=relation{a Int}{}", mkRelation simpleAAttributes emptyTupleSet),
                       ("x:=relation{c Int}{} rename {c as d}", mkRelation simpleBAttributes emptyTupleSet),
@@ -82,6 +84,7 @@ main = do
                            ("x:=s where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
                            ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (attributes productsRel) [[textAtom "P5", textAtom "Cam", textAtom "Blue", intAtom 12, textAtom "Paris"]]),
                            ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" intAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" intAtomType]) (V.fromList [intAtom 50])])),
+                           ("x:=s minus (s where status=20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"], [textAtom "S3", textAtom "Blake", intAtom 30, textAtom "Paris"], [textAtom "S5", textAtom "Adams", intAtom 30, textAtom "Athens"]]),
                            --atom function tests
                            ("x:=((s : {status2 := add(10,@status)}) where status2=add(10,@status)){city,s#,sname,status}", Right suppliersRel),
                            ("x:=s; update x where sname=\"Blake\" (city:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "sname" tuple == (Right $ textAtom "Blake") then updateTuple (M.singleton "city" (textAtom "Boston")) tuple else tuple) suppliersRel),
@@ -287,3 +290,4 @@ testTypeConstructors = TestCase $ do
   executeTutorialD sessionId dbconn "x:=relation{a Hair}{tuple{a Color \"Blonde\"},tuple{a Bald},tuple{a UserRefusesToSpecify}}"
   executeTutorialD sessionId dbconn "data Tree a = Node a (Tree a) (Tree a) | EmptyNode"
   executeTutorialD sessionId dbconn "y:=relation{a Tree Int}{tuple{a Node 3 (Node 4 EmptyNode EmptyNode) EmptyNode},tuple{a Node 4 EmptyNode EmptyNode}}"
+  

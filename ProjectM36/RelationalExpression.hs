@@ -51,7 +51,16 @@ evalRelationalExpr (Join exprA exprB) = do
     Right relA2 -> case relB of
       Left err -> return $ Left err
       Right relB2 -> return $ join relA2 relB2
-
+      
+evalRelationalExpr (Difference exprA exprB) = do
+  relA <- evalRelationalExpr exprA
+  relB <- evalRelationalExpr exprB
+  case relA of
+    Left err -> return $ Left err
+    Right relA2 -> case relB of
+      Left err -> return $ Left err
+      Right relB2 -> return $ difference relA2 relB2
+      
 evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
   case mkRelation attributeSet tupleSet of
     Right rel -> return $ Right rel

@@ -252,6 +252,8 @@ data RelationalExpr where
   Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
   --- | Rename an attribute (first argument) to another (second argument).
   Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
+  Difference :: RelationalExpr -> RelationalExpr -> RelationalExpr
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
   Group :: AttributeNames -> AttributeName -> RelationalExpr -> RelationalExpr
   --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
