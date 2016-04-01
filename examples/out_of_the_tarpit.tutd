@@ -13,9 +13,9 @@ data SpeedBand = VeryFast | Fast | Medium | Slow
 
 property := relation { address Address, price Price, photo Text, agent Agent, dateRegistered Day }
 
-offer := relation { address Address, offerPrice Price, offerDate Day, bidderName Name, bidderAddress Address, decisionDay Day, accepted Bool }
+offer := relation { address Address, offerPrice Price, offerDate Day, bidderName Name, bidderAddress Address, decisionDate Day, accepted Bool }
 
-decision := relation { address Address, offerDate Day, bidderName Name, bidderAddress Address, decisionDay Day, accepted Bool }
+decision := relation { address Address, offerDate Day, bidderName Name, bidderAddress Address, decisionDate Day, accepted Bool }
 
 room := relation { address Address, roomName Text, width Double, breadth Double, type RoomType }
 
@@ -40,7 +40,7 @@ key commissionKey { priceBand, areaCode, saleSpeed } commission
 -- foreign key constraints
 foreign key offerPropertyFKey offer{ address } in property{ address }
 
-foreign key decisionOfferFKey offer{ address, offerDate, bidderName, bidderAddress } in decision{ address, offerDate, bidderName, bidderAddress }
+foreign key decisionOfferFKey decision{ address, offerDate, bidderName, bidderAddress } in offer{ address, offerDate, bidderName, bidderAddress }
 
 foreign key roomPropertyFKey room{ address } in property { address }
 
@@ -49,19 +49,32 @@ foreign key floorPropertyFKey floor{ address } in property { address }
 -- The constraint which requires each property to have at least one room cannot be currently represented because it would conflict with the property/room foreign key (chicken and egg problem). Date makes it clear that constraints must hold at all times, not only when the transaction is committed. This is at odds with the OotT paper. Date's solution is the comma operator which is not yet implemented.
 --constraint propertiesMustHaveARoom property 
 
-constraint ownerIsNotBidder
+constraint ownerIsNotBidder (offer where address = @bidderAddress){} equals false
 
-constraint noOffersAfterSale
+constraint noOffersAfterSale (offer join decision where ^dayEarlierThan(@offerDate,@decisionDate)){} equals false
 
-constraint noMoreThan50PremiumProperties
+--ensure that there no more than 50 premium properties are available for sale
+--1. identify offerPrices > 2000 (arbitrarily-chosen high price band which is not specified in the paper)
+--2. remove the properties which have been sold
+--3. group and count sub-relation and restrict by greater than 50
+constraint noMoreThan50PremiumProperties ((((property where ^gt(offerPrice,2000.0)) minus ((property join decision){address,agent,dateRegistered,photo,price})) group ({} as x) : {z:=gt(count(@x),50)}) {z}){} equals false
 
-constraint noBidderCanMakeMoreThan10BidsOnAProperty
+constraint noBidderCanMakeMoreThan10BidsOnAProperty (((offer group ({all but bidderAddress} as bidder)) : {bidCount:=gt(count(@bidder),10)}) where ^gt(bidCount,10)) {} equals false
+
 -- sample data
-
-insert offer relation{tuple{address Address "Main St.", offerPrice Price 1400.0, bidderName "Jim", bidderAddress Address "345 Bidder St.", decisionDay fromGregorian(2015,4,4), accepted False}}
 
 insert property relation{tuple{address Address "Main St.", price Price 1000.0, photo "photo1.jpg", agent Agent "Bob", dateRegistered fromGregorian(2014, 1, 1)}}
 
+insert property relation{tuple{address Address "Elm St.", price Price 1200.0, photo "photo2.jpg", agent Agent "Bob", dateRegistered fromGregorian(2014, 1, 3)}}
+
+insert property relation{tuple{address Address "Maple St.", price Price 800.0, photo "photo3.jpg", agent Agent "Sam", dateRegistered fromGregorian(2014, 2, 5)}}
+
+insert offer relation{tuple{address Address "Main St.", offerPrice Price 1400.0, offerDate fromGregorian(2015,3,4), bidderName Name "Jim", bidderAddress Address "345 Bidder St.", decisionDate fromGregorian(2015,4,4), accepted f}}
+
 insert floor relation{tuple{address Address "Main St.", roomName "Bedroom", floor 3}}
+
+insert floor relation{tuple{address Address "Elm St.", roomName "Bedroom", floor 2}}
+
+insert floor relation{tuple{address Address "Maple St.", roomName "Bathroom", floor 2}}
 
 
