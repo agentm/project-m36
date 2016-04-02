@@ -10,8 +10,8 @@ import qualified Data.Map as M
 dayAtomType :: AtomType
 dayAtomType = ConstructedAtomType "Day" M.empty
 
-dayFunctions :: AtomFunctions
-dayFunctions = HS.fromList [
+dayAtomFunctions :: AtomFunctions
+dayAtomFunctions = HS.fromList [
   AtomFunction { atomFuncName = "fromGregorian",
                  atomFuncType = [intAtomType, intAtomType, intAtomType, dayAtomType],
                  atomFunc = \(year:month:day:_) -> ConstructedAtom "Day" dayAtomType [Atom (fromGregorian (fromIntegral (unsafeCast year::Int)) (unsafeCast month) (unsafeCast day))]
@@ -21,3 +21,7 @@ dayFunctions = HS.fromList [
                  atomFunc = \((ConstructedAtom _ _ (dayA:_)):(ConstructedAtom _ _ (dayB:_)):_) -> Atom (unsafeCast dayA < (unsafeCast dayB :: Day))          
                }
   ]
+
+dayTypeConstructorMapping :: TypeConstructorMapping
+dayTypeConstructorMapping = [(ADTypeConstructorDef "Day" [],
+                  [DataConstructorDef "Day" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" intAtomType)]])]

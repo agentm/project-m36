@@ -5,11 +5,12 @@ import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.TypeConstructor as TC
 import qualified ProjectM36.DataConstructorDef as DCD
 import ProjectM36.Error
-import ProjectM36.Attribute
+import qualified ProjectM36.Attribute as A
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.List as L
 import Data.Maybe (isJust)
+import Data.Either (rights)
 import Control.Monad.Writer
 import qualified Data.Map as M
 --import Debug.Trace
@@ -205,7 +206,7 @@ resolveTypeInAtom _ atom = Right atom
 -- Example: "Nothing" does not specify the the argument in "Maybe a", so allow delayed resolution in the tuple before it is added to the relation. Note that this resolution could cause a type error. Hardly a Hindley-Milner system.
 resolveTypesInTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
 resolveTypesInTuple resolvedAttrs (RelationTuple _ tupAtoms) = do
-  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom) (zip (V.toList tupAtoms) $ (map atomType (V.toList resolvedAttrs)))
+  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom) (zip (V.toList tupAtoms) $ (map A.atomType (V.toList resolvedAttrs)))
   Right (RelationTuple resolvedAttrs (V.fromList newAtoms))
                            
 -- | Validate that the type is provided with complete type variables for type constructors.
@@ -226,3 +227,31 @@ validateAtomType _ _ = Right ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
 validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms
+
+-- | Determine if two types are equal or compatible (including special handling for AnyAtomType).
+atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
+atomTypeVerify AnyAtomType x = Right x
+atomTypeVerify x AnyAtomType = Right x
+atomTypeVerify x@(ConstructedAtomType tConsNameA tVarMapA) (ConstructedAtomType tConsNameB tVarMapB) = 
+  if tConsNameA /= tConsNameB then
+    Left (TypeConstructorNameMismatch tConsNameA tConsNameB)
+  else if not (typeVarMapsVerify tVarMapA tVarMapB) then
+         Left (TypeConstructorTypeVarsTypesMismatch tConsNameA tVarMapA tVarMapB)
+       else
+         Right x
+atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
+  _ <- mapM (\(attr1,attr2) -> let name1 = A.attributeName attr1
+                                   name2 = A.attributeName attr2 in
+                               if notElem "_" [name1, name2] && name1 /= name2 then 
+                                 Left $ AtomTypeMismatchError x y
+                               else
+                                 atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip attrs1 attrs2)
+  return x
+atomTypeVerify x y = if x == y then
+                       Right x
+                     else
+                       Left $ AtomTypeMismatchError x y
+
+-- | Determine if two typeVar
+typeVarMapsVerify :: TypeVarMap -> TypeVarMap -> Bool
+typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) (map (\((_,v1),(_,v2)) -> atomTypeVerify v1 v2) (zip (M.toAscList a) (M.toAscList b))) == M.size a

@@ -8,6 +8,7 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.DatabaseContext
+import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
@@ -25,6 +26,7 @@ import Data.Text.Encoding as TE
 import Control.Concurrent.STM
 import Control.Concurrent
 import qualified STMContainers.Map as STMMap
+import qualified Data.Set as S
 
 main :: IO ()
 main = do
@@ -73,6 +75,7 @@ main = do
     maybeIntAtomType = ConstructedAtomType "Maybe" (M.singleton "a" intAtomType)
     simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" maybeTextAtomType]
     simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" maybeIntAtomType]
+    simpleEitherIntTextAttributes = A.attributesFromList [Attribute "a" (eitherAtomType intAtomType textAtomType)]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" intAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" intAtomType])]
     extendTestAttributes = A.attributesFromList [Attribute "a" intAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
@@ -111,7 +114,10 @@ main = do
                            --test Maybe Text
                            ("x:=relation{tuple{a Just \"spam\"}}", mkRelationFromList simpleMaybeTextAttributes [[ConstructedAtom "Just" maybeTextAtomType [textAtom "spam"]]]),
                            --test Maybe Int
-                           ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntAtomType [intAtom 3]]])
+                           ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntAtomType [intAtom 3]]]),
+                           --test Either Int Text
+                           ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
+                           ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType intAtomType textAtomType) [intAtom 3]]])           
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
