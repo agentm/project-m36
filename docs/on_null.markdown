@@ -10,9 +10,9 @@ SQL intentionally differentiates NULL from all other values. NULL is not an inte
 
 ```
 postgres=# select NULL = NULL;
- ?column? 
+ ?column?
 ----------
- 
+
 (1 row)
 ```
 
@@ -68,7 +68,7 @@ postgres=# select * from x where a=a;
 Example 3: Return all rows where b is from a list of NULL.
 ```
 postgres=# select * from x where b = any(NULL);
- a | b 
+ a | b
 ---+---
 (0 rows)
 ```
@@ -101,7 +101,7 @@ postgres=# select * from x where exists (SELECT * FROM x as y where (a,b) = (y.a
 (3 rows)
 ````
 
-All of the above query examples conform to the SQL standard with regards to NULL handling. 
+All of the above query examples conform to the SQL standard with regards to NULL handling.
 
 
 ## Inconsistencies Leading to Errors
@@ -110,8 +110,8 @@ If the difference between NULL handling in ```ANY``` versus ```EXISTS``` didn't 
 
 Example 7: Aggregate a sum over a in x where one a value is NULL.
 ```
-postgres=# select sum(a) from x; 
- sum 
+postgres=# select sum(a) from x;
+ sum
 -----
    3
 (1 row)
@@ -119,20 +119,20 @@ postgres=# select sum(a) from x;
 Example 8: Aggregate a sum over two NULLs.
 ```
 postgres=# select sum(a) from (values (NULL::int),(NULL)) as y(a); --sum of only NULLs is NULL
- sum 
+ sum
 -----
-    
+
 (1 row)
 ```
 Example 9: Count the number of a values in x. Count the number of rows in x.
 ```
 postgres=# select count(a) from x;
- count 
+ count
 -------
      2
 (1 row)
 postgres=# select count(*) from x;
- count 
+ count
 -------
      3
 (1 row)
@@ -142,17 +142,17 @@ Example 10: Aggregate the sum of an empty table.
 postgres=# create table z(a int);
 CREATE TABLE
 postgres=# select sum(a) from z; -- sum of empty table is NULL
- sum 
+ sum
 -----
-    
+
 (1 row)
 ```
 Example 11: NULL multipled by zero plus three.
 ```
 postgres=# select 0*NULL + 3;
- ?column? 
+ ?column?
 ----------
-         
+
 (1 row)
 ```
 
@@ -161,9 +161,9 @@ This logic follows into arrays:
 Example 12: Is NULL equal to any element in the array?
 ```
 postgres=# select NULL = ANY(array[1,2,3,NULL]);
- ?column? 
+ ?column?
 ----------
- 
+
 (1 row)
 ```
 
@@ -172,13 +172,13 @@ and row-valued expressions:
 Example 13: Is the (NULL,1) tuple equal to NULL? Is it not equal to NULL?
 ```
 postgres=# select (NULL,1) is null;
- ?column? 
+ ?column?
 ----------
  f
 (1 row)
 
 postgres=# select (NULL,1) is not null;
- ?column? 
+ ?column?
 ----------
  f
 (1 row)
@@ -193,12 +193,12 @@ SQL does not enforce the relational model constraint that rows (tuples) be uniqu
 Example 14: Create multiple NULLs in a result set.
 ```
 postgres=# select * from (values (34),(50),(NULL),(NULL)) as employee_age(val);
- val 
+ val
 -----
   34
   50
-    
-    
+
+
 (4 rows)
 ```
 
@@ -222,14 +222,14 @@ postgres=# insert into z(a,b) values (2,'two'),(NULL,NULL) returning a,b;
  a |  b  
 ---+-----
  2 | two
-   | 
+   |
 (2 rows)
 postgres=# select x.a as xa,x.b as xb,z.a as za,z.b as zb from x left join z on x.a is not distinct from z.a;
  xa |  xb   | za | zb  
 ----+-------+----+-----
-  1 | one   |    | 
+  1 | one   |    |
   2 | two   |  2 | two
-    | three |    | 
+    | three |    |
 (3 rows)
 
 ```
@@ -306,7 +306,7 @@ and some examples values:
 * ```PreciseAge 25```
 * ```NotApplicable```
 * ```ApproximateAge 30 40``` approximately between 30-40 years old
- 
+
 Already, we can see that this single data type can pack far more useful information than any combination of an integer and NULL.
 
 ### Algebraic Data Types In SQL
@@ -317,8 +317,8 @@ An algebraic data type may be emulated in SQL, albeit in a convoluted fashion an
 postgres=# create type age_type as enum ('precise_age', 'forgot_to_ask', 'refused_to_disclose', 'not_applicable', 'approximate_age');
 CREATE TYPE
 
-postgres=# create table hospital_patient(name text not null, 
-                                         age age_type not null, 
+postgres=# create table hospital_patient(name text not null,
+                                         age age_type not null,
                                          precise_age int,
                                          approximate_age int[2]);
 postgres=# insert into hospital_patient(name,age,precise_age,approximate_age) values ('Bob','approximate_age',NULL,array[30,40]);  
@@ -341,6 +341,38 @@ from hospital_patient;
 But all we have really done is add even more NULLs. Retrieving a sensible value is convoluted and not strongly-typed. In addition, the table constraints (not shown) necessary to ensure that, for example, precise_age is NULL if age is "forgot_to_ask" make this scheme even more complicated to implement.
 
 ### Algebraic Data Types In Project:M36
+
+## Runtime Types
+
+Project:M36 supports management of new algebraic data types at runtime. These types are associated with transactions and can changed over time whereas primitive Atoms cannot be changed.
+d
+```
+TutorialD (master): data Age = PreciseAge Int | ForgotToAsk | RefusedToDisclose | NotApplicable | ApproximateAge Int Int
+TutorialD (master): :showexpr relation{tuple{name "Steve", age ApproximateAge 20 30}, tuple{name "Bob", age RefusedToDisclose}, tuple {name "Initech Corp.", age NotApplicable}}
+┌────────────────────┬───────────────┐
+│age::Age            │name::Text     │
+├────────────────────┼───────────────┤
+│ApproximateAge 20 30│"Steve"        │
+│NotApplicable       │"Initech Corp."│
+│RefusedToDisclose   │"Bob"          │
+└────────────────────┴───────────────┘
+```
+
+Note that the two values which would normally be rendered as NULL in SQL are indeed proper values and can be distinguished. Three-valued logic makes no appearance. The type constructors can also have arguments:
+
+```
+TutorialD (master): data Tree a = Node a (Tree a) (Tree a) | EmptyNode
+TutorialD (master): :showexpr relation{tuple{family "Stevenson", familytree Node "Jim" (Node "Cindy" EmptyNode EmptyNode) (Node "Mike" EmptyNode EmptyNode)}}
+┌────────────┬───────────────────────────────────────────────────────────────────────────────┐
+│family::Text│familytree::Tree (a::Text)                                                     │
+├────────────┼───────────────────────────────────────────────────────────────────────────────┤
+│"Stevenson" │Node "Jim" (Node "Cindy" EmptyNode EmptyNode) (Node "Mike" EmptyNode EmptyNode)│
+└────────────┴───────────────────────────────────────────────────────────────────────────────┘
+```
+
+Algebraic data types in SQL are effectively impossible.
+
+## Haskell Types
 
 Any Haskell data type can be turned into a value (called an "atom") in Project:M36. The following example illustrates:
 
@@ -365,7 +397,7 @@ data AgeType = PreciseAge Int |
                NotApplicable |
                ApproximateAge Int Int
              deriving (Eq,Show,Read,Hashable,Binary,Typeable,NFData,Generic)
-                      
+
 instance Atomable AgeType
 
 failFastMaybe :: (Show a) => Maybe a -> IO ()
@@ -378,15 +410,15 @@ failFastEither (Right val) = return val
 
 ageAtomType :: AtomType
 ageAtomType = atomTypeForProxy (Proxy :: Proxy AgeType)
-               
+
 runExample :: IO ()
 runExample = do
   let bob_relation_attrs = attributesFromList [Attribute "name" stringAtomType,
                                                Attribute "age" ageAtomType]
       relvar_name = "hospital_patient"
-      age_value_in = ApproximateAge 30 40 
-      bob_relation_err = mkRelationFromList 
-                     bob_relation_attrs 
+      age_value_in = ApproximateAge 30 40
+      bob_relation_err = mkRelationFromList
+                     bob_relation_attrs
                      [[Atom ("Bob"::Text), Atom age_value_in]]
 
   connerr <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
@@ -427,7 +459,3 @@ Regardless, modeling the fact that some information may be missing is valuable, 
 Date, C.J. Darwen, Hugh. [Database Explorations: Essays on the Third Manifesto and Related Topics](http://bookstore.trafford.com/Products/SKU-000177853/Database-Explorations.aspx) chapters 23-29
 
 Date, C.J. [Database in Depth](http://bookstore.trafford.com/Products/SKU-000177853/Database-Explorations.aspx) pages 53-55
-
-
-
-

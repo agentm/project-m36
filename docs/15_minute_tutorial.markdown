@@ -282,6 +282,8 @@ Now we have jumped back to the master branch and we can confirm that the "employ
 
 Of course, Project:M36 supports [aggregate operators](docs/tutd_tutorial.markdown#aggregate-queries), [value functions](docs/tutd_tutorial.markdown#extend), [database constraints](docs/tutd_tutorial.markdown#constraints) including candidate and foreign keys, and other operators not mentioned in this brief tutorial.
 
+While this tutorial only covered an in-memory database, Project:M36 also supports ACID-compliant filesystem persistence as well as [server-based operation](docs/server_mode.markdown).
+
 ## Conclusion
 
 The TutorialD dialect used by Project:M36 is ideal for learning about the relational algebra because it is quick to write and grammatically unambiguous.
