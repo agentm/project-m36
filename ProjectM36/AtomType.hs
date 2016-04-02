@@ -209,19 +209,20 @@ resolveTypesInTuple resolvedAttrs (RelationTuple _ tupAtoms) = do
   Right (RelationTuple resolvedAttrs (V.fromList newAtoms))
                            
 -- | Validate that the type is provided with complete type variables for type constructors.
-validateAtomType :: AtomType -> TypeConstructorMapping -> Maybe RelationalError
+validateAtomType :: AtomType -> TypeConstructorMapping -> Either RelationalError ()
 validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss = do
-  (tConsDef, _) <- findTypeConstructor tConsName tConss
-  case tConsDef of
-    ADTypeConstructorDef _ tVarNames -> let expectedTyVarNames = S.fromList tVarNames
-                                            actualTyVarNames = M.keysSet tVarMap
-                                            diff = S.difference expectedTyVarNames actualTyVarNames in
-                                        if not (S.null diff) then
-                                          Just $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
-                                        else
-                                          Nothing
-    _ -> Just (TypeConstructorAtomTypeMismatch tConsName typ)
-validateAtomType _ _ = Nothing
+  case findTypeConstructor tConsName tConss of 
+    Nothing -> Left (TypeConstructorAtomTypeMismatch tConsName typ)
+    Just (tConsDef, _) -> case tConsDef of
+      ADTypeConstructorDef _ tVarNames -> let expectedTyVarNames = S.fromList tVarNames
+                                              actualTyVarNames = M.keysSet tVarMap
+                                              diff = S.difference expectedTyVarNames actualTyVarNames in
+                                          if not (S.null diff) then
+                                            Left $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
+                                          else
+                                            Right ()
+      _ -> Right ()                                            
+validateAtomType _ _ = Right ()
 
-validateTuple :: RelationTuple -> TypeConstructorMapping -> Maybe RelationalError
-validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms >>= pure Nothing
+validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
+validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms

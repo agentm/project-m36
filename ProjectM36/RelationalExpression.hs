@@ -83,8 +83,8 @@ evalRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
               tupList = rights eTuples
               firstTupleAttrs = if length tupList == 0 then A.emptyAttributes else tupleAttributes (head tupList)
           pure $ mkRelation attrs (RelationTupleSet tupList)
-        errs -> pure $ Left (MultipleErrors errs)
-    errs -> pure $ Left (MultipleErrors errs)
+        errs -> pure $ Left (someErrors errs)
+    errs -> pure $ Left (someErrors errs)
   
 evalRelationalExpr (ExistingRelation rel) = return (Right rel)
 
@@ -293,7 +293,7 @@ evalContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
       tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
   case validateTypeConstructorDef tConsDef dConsDefList of
-    errs@(_:_) -> pure $ Just (MultipleErrors errs)
+    errs@(_:_) -> pure $ Just (someErrors errs)
     [] -> do
       if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
         pure $ Just (InvalidAtomTypeName tConsName)
@@ -526,6 +526,5 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
       tConss = typeConstructorMapping context
       finalAttrs = fromMaybe tupAttrs attrs
   tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
-  case validateTuple tup' tConss of
-    Just err -> Left err
-    _ -> pure tup'
+  _ <- validateTuple tup' tConss
+  pure tup'
