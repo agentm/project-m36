@@ -280,12 +280,12 @@ Now we have jumped back to the master branch and we can confirm that the "employ
 
 #### Other operations
 
-Of course, Project:M36 supports [aggregate operators](docs/tutd_tutorial.markdown#aggregate-queries), [value functions](docs/tutd_tutorial.markdown#extend), [database constraints](docs/tutd_tutorial.markdown#constraints) including candidate and foreign keys, and other operators not mentioned in this brief tutorial.
+Of course, Project:M36 supports [aggregate operators](/docs/tutd_tutorial.markdown#aggregate-queries), [value functions](/docs/tutd_tutorial.markdown#extend), [database constraints](/docs/tutd_tutorial.markdown#constraints) including candidate and foreign keys, and other operators not mentioned in this brief tutorial.
 
-While this tutorial only covered an in-memory database, Project:M36 also supports ACID-compliant filesystem persistence as well as [server-based operation](docs/server_mode.markdown).
+While this tutorial only covered an in-memory database, Project:M36 also supports ACID-compliant filesystem persistence as well as [server-based operation](/docs/server_mode.markdown).
 
 ## Conclusion
 
 The TutorialD dialect used by Project:M36 is ideal for learning about the relational algebra because it is quick to write and grammatically unambiguous.
 
-The TutorialD language is not, however, suitable for production use because such use would be susceptible to the same string injection attacks which plague SQL. For integration with middleware, please try the [persistent library driver](docs/persistent_library_driver.markdown) or [the native Haskell interface](docs/projectm36_client_library.markdown).
+The TutorialD language is not, however, suitable for production use because such use would be susceptible to the same string injection attacks which plague SQL. For integration with middleware, please try the [persistent library driver](/docs/persistent_library_driver.markdown) or [the native Haskell interface](/docs/projectm36_client_library.markdown).
