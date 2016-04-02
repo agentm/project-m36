@@ -53,14 +53,23 @@ Project:M36 implements multiple interfaces:
 * a native Haskell API
 * a database driver for the [persistent framework](http://www.yesodweb.com/book/persistent)
 
-To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the example from the paper.
+### Real Estate Database Example
 
-feeders
-observers
+To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language.
+
+### Feeders and Observers
+
+The "Out of the Tarpit" paper distinguishes between pushing data to the database and pulling data out of the database ([p.46](http://shaffner.us/cs/papers/tarpit.pdf)): "feeders" continually update the state of the database to best reflect reality and "observers" request notifications on relational state changes and take action on them.
+
+SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issues to the database via some middleware.
+
+However, most database do not support and adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register relational expressions by name and return relational expression. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
+
+Some SQL databases include a similar feature; in PostgreSQL, this is activated by [LISTEN](http://www.postgresql.org/docs/9.0/static/sql-listen.html)/[NOTIFY](http://www.postgresql.org/docs/9.0/static/sql-notify.html). However, PostgreSQL offers no provision for triggering notifications based on the state of the database- this crucial feature is left to the database developer. Furthermore, the return payload can only be a string, not the result of a relational expression evaluation.
 
 ## Good Riddance to Old Baggage
 
-Project:M36 is a clean-room implementation of a relational algebra engine; it does not implement SQL or any other legacy standard. While this means that Project:M36 is incompatible with other RDBMS, it means that Project:M36 can avoid the substantial mistakes of previous implementations, such as:
+Project:M36 is a clean-room implementation of a relational algebra engine; it does not implement SQL or any other legacy standard. While this means that Project:M36 is incompatible with other RDBMS, it means that Project:M36 can avoid the substantial pitfalls of previous implementations, such as:
 
 * [three-valued logic (NULL)](docs/on_null.markdown)
 * non-relational database constructs such as row and column ordering or OUTER JOINs
@@ -68,3 +77,19 @@ Project:M36 is a clean-room implementation of a relational algebra engine; it do
 * direct table-to-file mapping which create perverse model-data dependencies
 * key-value storage: a key-value mapping is valued merely for its performance characteristics, not because it models reality well
 * restrictive, legacy type systems which impede modeling
+* unnecessarily complex SQL grammar
+
+## Future Directions
+
+Project:M36 is just getting started as an ambitious open-source project- please join us! Immediate future features include:
+
+* transaction graph branch merging (never bother with "master-to-master" conflicts again)
+* making maximum use of parallelization
+* static and statistics-based optimizations
+* multiple, simultaneous storage representations for relations
+* more network access methods, including a WebSocket driver
+* support for relations with infinitely many tuples
+
+## Try It!
+
+To learn more about Project:M36, try the [15 minute tutorial](docs/15_minute_tutorial.markdown).

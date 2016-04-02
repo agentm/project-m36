@@ -25,6 +25,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Installation and Introduction to Project:M36](docs/introduction_to_projectm36.markdown)
 1. [Introduction to the Relational Algebra](docs/introduction_to_the_relational_algebra.markdown)
 1. [TutorialD Tutorial](docs/tutd_tutorial.markdown)
+1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Transaction Graph Operators](docs/transaction_graph_operators.markdown)
 1. [On NULL (in SQL)](docs/on_null.markdown)
 1. [Persistent Library Driver](docs/persistent_library_driver.markdown)
@@ -33,6 +34,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
 1. [Using Notifications](docs/using_notifications.markdown)
+1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
 
 ## Development
 
@@ -44,14 +46,4 @@ Important modules:
 2. Relational Expressions - represents a composable abstract syntax tree for the relational algebra
 3. Tutorial D Interpreter - one available frontend to evaluate relational expressions
 4. ProjectM36.Client- user-facing native Haskell library
-
-Other modules include:
-
-* displaying a relation as HTML
-* displaying a relation in the terminal
-* displaying a relation using gnuplot
-* relational expression static optimizer
-* relational expression cost-based optimizer
-* relational error enumeration
-* import of CSV as a relation and export of a relation to CSV
-* import of TutorialD from files
+5. Database.Persist.ProjectM36 - persistent library database driver
