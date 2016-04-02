@@ -34,7 +34,7 @@ Unfortunately, due to the quirks of legacy implementations, much of what develop
 
 ## Chris Date's Contribution
 
-Chris Date is a prolific author, researcher, and lecturer on relation algebra and database design in general. Project:M36 would not exist without his writings on the mathematical underpinnings of the relational algebra. Project:M36 does not however implement all Date's recommendations. In particular, Project:M36 implements:
+Chris Date is a prolific author, researcher, and lecturer on the relational algebra and database design in general. Project:M36 would not exist without his writings on the mathematical underpinnings of the relational algebra. Project:M36 does not however implement all Date's recommendations. In particular, Project:M36 implements:
 
 * **algebraic data types** inspired by Haskell's types in lieu of Date's convoluted data types based on object-oriented type systems
 * **transactions in a graph** in lieu of Date's temporal constructs
@@ -55,7 +55,7 @@ Project:M36 implements multiple interfaces:
 
 ### Real Estate Database Example
 
-To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language.
+To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](/examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language.
 
 ### Feeders and Observers
 
@@ -63,15 +63,15 @@ The "Out of the Tarpit" paper distinguishes between pushing data to the database
 
 SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issues to the database via some middleware.
 
-However, most database do not support and adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register relational expressions by name and return relational expression. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
+However, most database do not support an adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register trigger relational expressions and return relational expressions. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
 
 Some SQL databases include a similar feature; in PostgreSQL, this is activated by [LISTEN](http://www.postgresql.org/docs/9.0/static/sql-listen.html)/[NOTIFY](http://www.postgresql.org/docs/9.0/static/sql-notify.html). However, PostgreSQL offers no provision for triggering notifications based on the state of the database- this crucial feature is left to the database developer. Furthermore, the return payload can only be a string, not the result of a relational expression evaluation.
 
 ## Good Riddance to Old Baggage
 
-Project:M36 is a clean-room implementation of a relational algebra engine; it does not implement SQL or any other legacy standard. While this means that Project:M36 is incompatible with other RDBMS, it means that Project:M36 can avoid the substantial pitfalls of previous implementations, such as:
+Project:M36 is a clean-room implementation of a relational algebra engine; it does not implement SQL or any other legacy standard. While this means that Project:M36 is incompatible with other RDBMSs, it means that Project:M36 can avoid the substantial pitfalls of previous implementations, such as:
 
-* [three-valued logic (NULL)](docs/on_null.markdown)
+* [three-valued logic (NULL)](/docs/on_null.markdown)
 * non-relational database constructs such as row and column ordering or OUTER JOINs
 * linear transaction flow and conflict resolution
 * direct table-to-file mapping which create perverse model-data dependencies
@@ -83,8 +83,9 @@ Project:M36 is a clean-room implementation of a relational algebra engine; it do
 
 Project:M36 is just getting started as an ambitious open-source project- please join us! Immediate future features include:
 
-* transaction graph branch merging (never bother with "master-to-master" conflicts again)
+* transaction graph branch merging
 * making maximum use of parallelization
+* decentralized databases (like git source control)
 * static and statistics-based optimizations
 * multiple, simultaneous storage representations for relations
 * more network access methods, including a WebSocket driver
@@ -92,4 +93,4 @@ Project:M36 is just getting started as an ambitious open-source project- please 
 
 ## Try It!
 
-To learn more about Project:M36, try the [15 minute tutorial](docs/15_minute_tutorial.markdown).
+To learn more about Project:M36, try the [15 minute tutorial](/docs/15_minute_tutorial.markdown).
