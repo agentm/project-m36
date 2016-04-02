@@ -32,11 +32,11 @@ With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a 
 Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
 
 ```
-TutorialD (master): :showexpr S:{more:=add(10,@SNAME)}
+TutorialD (master): :showexpr S:{more:=add(10,@sname)}
 ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
 ```
 
-The integer "10" cannot be added to the string SNAME value.
+The integer "10" cannot be added to the string sname value.
 
 ### Using Relation Variables
 
@@ -75,18 +75,18 @@ Each section assumes a fresh instance of the Date examples. The relation variabl
 
 |Relation Variable Name|Description|
 |----------------------|-----------|
-|S|suppliers|
-|P|parts|
-|SP|contains mapping of which suppliers supply which parts|
+|s|suppliers|
+|p|parts|
+|sp|contains mapping of which suppliers supply which parts|
 
 ### Relational Expressions
 
-A relational expression combines relational operators to create a new relation. ```tutd``` can display the result of executing a relational expression with ":showexpr". 
+A relational expression combines relational operators to create a new relation. ```tutd``` can display the result of executing a relational expression with ":showexpr".
 
 ```
-TutorialD (master): :showexpr P
+TutorialD (master): :showexpr p
 ┌──────┬─────┬──┬─────┬──────┐
-│CITY  │COLOR│P#│PNAME│WEIGHT│
+│city  │color│p#│pname│weight│
 ├──────┼─────┼──┼─────┼──────┤
 │London│Red  │P6│Cog  │19    │
 │Paris │Blue │P5│Cam  │12    │
@@ -99,16 +99,16 @@ TutorialD (master): :showexpr P
 
 ### Using Relational Operators
 
-Relational operators generate new relations from existing relations. The operators form the closed algebra against relations. 
+Relational operators generate new relations from existing relations. The operators form the closed algebra against relations.
 
 #### Rename
 
 The unary rename operator outputs a new relation with chosen attributes renamed. In SQL, the equivalent is to use "AS" in the column name list of SELECTS.
 
 ```
-TutorialD (master): :showexpr S rename {CITY as TOWN}
+TutorialD (master): :showexpr s rename {city as town}
 ┌──┬─────┬──────┬──────┐
-│S#│SNAME│STATUS│TOWN  │
+│s#│sname│status│town  │
 ├──┼─────┼──────┼──────┤
 │S3│Blake│30    │Paris │
 │S4│Clark│20    │London│
@@ -125,9 +125,9 @@ Projection is applied by adding curly braces and attribute names following a rel
 For example:
 
 ```
-TutorialD (master): :showexpr P{COLOR,CITY}
+TutorialD (master): :showexpr p{color,city}
 ┌──────┬─────┐
-│CITY  │COLOR│
+│city  │color│
 ├──────┼─────┤
 │London│Red  │
 │Paris │Blue │
@@ -141,9 +141,9 @@ TutorialD (master): :showexpr P{COLOR,CITY}
 Restriction is applied using a "where" clause, much like in SQL.
 
 ```
-TutorialD (master): :showexpr P where COLOR="Blue" and CITY="Paris"
+TutorialD (master): :showexpr p where color="Blue" and city="Paris"
 ┌─────┬─────┬──┬─────┬──────┐
-│CITY │COLOR│P#│PNAME│WEIGHT│
+│city │color│p#│pname│weight│
 ├─────┼─────┼──┼─────┼──────┤
 │Paris│Blue │P5│Cam  │12    │
 └─────┴─────┴──┴─────┴──────┘
@@ -152,9 +152,9 @@ TutorialD (master): :showexpr P where COLOR="Blue" and CITY="Paris"
 The restriction predicate can be built from "and", "not", and "or". Boolean atom functions can also appear in a restriction as long as they are preceded by "^". For example:
 
 ```
-TutorialD (master): :showexpr S where ^lt(@STATUS,20)
+TutorialD (master): :showexpr s where ^lt(@status,20)
 ┌─────┬──┬─────┬──────┐
-│CITY │S#│SNAME│STATUS│
+│city │s#│sname│status│
 ├─────┼──┼─────┼──────┤
 │Paris│S2│Jones│10    │
 └─────┴──┴─────┴──────┘
@@ -165,9 +165,9 @@ TutorialD (master): :showexpr S where ^lt(@STATUS,20)
 Joins are binary operators and are applied with the "join" keyword. The equivalent in SQL would be a "NATURAL JOIN". To join attributes which are not identically-named, use the rename operator
 
 ```
-TutorialD (master): :showexpr S join SP
+TutorialD (master): :showexpr s join sp
 ┌──────┬──┬───┬──┬─────┬──────┐
-│CITY  │P#│QTY│S#│SNAME│STATUS│
+│city  │p#│QTY│s#│sname│status│
 ├──────┼──┼───┼──┼─────┼──────┤
 │London│P6│100│S1│Smith│20    │
 │London│P3│400│S1│Smith│20    │
@@ -190,7 +190,7 @@ The binary union operator merges tuples from both relations if-and-only-if the a
 ```
 TutorialD (master): :showexpr S union S
 ┌──────┬──┬─────┬──────┐
-│CITY  │S#│SNAME│STATUS│
+│city  │s#│sname│status│
 ├──────┼──┼─────┼──────┤
 │Paris │S3│Blake│30    │
 │London│S4│Clark│20    │
@@ -207,9 +207,9 @@ The union of any relation with itself is itself.
 The extend unary operator adds an attribute to a relation's header and body and is represented by a colon ":". The equivalent in SQL is a subselect in a SELECT column list. Typically, extend is used to add information derived from relation.
 
 ```
-TutorialD (master): :showexpr S:{STATUS2:=add(10,@STATUS)}
+TutorialD (master): :showexpr s:{status2:=add(10,@status)}
 ┌──────┬──┬─────┬──────┬───────┐
-│CITY  │S#│SNAME│STATUS│STATUS2│
+│city  │s#│sname│status│status2│
 ├──────┼──┼─────┼──────┼───────┤
 │Paris │S2│Jones│10    │20     │
 │Athens│S5│Adams│30    │40     │
@@ -239,23 +239,23 @@ The unary group operator groups the argument attributes into subrelations for ea
 Grouping is useful for aggregate operations (see below) or for summarizing data against a set of attributes; for example, "display all employees grouped by boss name".
 
 ```
-TutorialD (master): :showexpr S group ({SNAME,STATUS,S#} as subrel)
+TutorialD (master): :showexpr s group ({sname,status,s#} as subrel)
 ┌──────┬─────────────────┐
-│CITY  │subrel           │
+│city  │subrel           │
 ├──────┼─────────────────┤
 │Athens│┌──┬─────┬──────┐│
-│      ││S#│SNAME│STATUS││
+│      ││s#│sname│status││
 │      │├──┼─────┼──────┤│
 │      ││S5│Adams│30    ││
 │      │└──┴─────┴──────┘│
 │London│┌──┬─────┬──────┐│
-│      ││S#│SNAME│STATUS││
+│      ││s#│sname│status││
 │      │├──┼─────┼──────┤│
 │      ││S1│Smith│20    ││
 │      ││S4│Clark│20    ││
 │      │└──┴─────┴──────┘│
 │Paris │┌──┬─────┬──────┐│
-│      ││S#│SNAME│STATUS││
+│      ││s#│sname│status││
 │      │├──┼─────┼──────┤│
 │      ││S3│Blake│30    ││
 │      ││S2│Jones│10    ││
@@ -268,9 +268,9 @@ TutorialD (master): :showexpr S group ({SNAME,STATUS,S#} as subrel)
 The unary ungroup operator "unwraps" subrelations in a relation-valued attribute. There is no equivalent in SQL.
 
 ```
-TutorialD (master): :showexpr (S group ({SNAME,STATUS,S#} as subrel)) ungroup subrel
+TutorialD (master): :showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel
 ┌──────┬──┬─────┬──────┐
-│CITY  │S#│SNAME│STATUS│
+│city  │s#│sname│status│
 ├──────┼──┼─────┼──────┤
 │Paris │S3│Blake│30    │
 │London│S4│Clark│20    │
@@ -288,11 +288,11 @@ While relational operators compose to relational expressions representing querie
 
 #### Define and Assign
 
-The relation assignment mentioned above certainly changes the state of the database.
+The relation variable assignment mentioned above certainly changes the state of the database.
 
 ```
-TutorialD (master): newrel:=relation{tuple{age 3}}
-TutorialD (master): :showexpr newrel
+TutorialD (master): newrelvar:=relation{tuple{age 3}}
+TutorialD (master): :showexpr newrelvar
 ┌───┐
 │age│
 ├───┤
@@ -307,9 +307,9 @@ All further operators are convenience operators and could be implemented with si
 To signal that a relation variable should be forgotten, undefine it.
 
 ```
-TutorialD (master): undefine S
-TutorialD (master): :showexpr S
-ERR: RelVarNotDefinedError "S"
+TutorialD (master): undefine s
+TutorialD (master): :showexpr s
+ERR: RelVarNotDefinedError "s"
 ```
 
 #### Insert
@@ -317,10 +317,10 @@ ERR: RelVarNotDefinedError "S"
 The insert operators accepts a relation variable and a relation of the same type (a relation having an identical header), and replaces the relation referenced by the relation variable with the union of the previous relation value and the argument's relation value.
 
 ```
-TutorialD (master): insert S relation{tuple{CITY "Boston",S# "S10",SNAME "Gonzalez",STATUS 10}}
-TutorialD (master): :showexpr S
+TutorialD (master): insert s relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
+TutorialD (master): :showexpr s
 ┌──────┬───┬────────┬──────┐
-│CITY  │S# │SNAME   │STATUS│
+│city  │s# │sname   │status│
 ├──────┼───┼────────┼──────┤
 │Paris │S3 │Blake   │30    │
 │London│S4 │Clark   │20    │
@@ -334,17 +334,17 @@ TutorialD (master): :showexpr S
 This insertion operation is equivalent to:
 
 ```
-S:=S union relation{tuple{CITY "Boston",S# "S10",SNAME "Gonzalez",STATUS 10}}
+s:=s union relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
 ```
 #### Update
 
 The update operator accepts a relation argument and a predicate, optionally filters and creates new tuples based on the original relation.
 
 ```
-TutorialD (master): update S where STATUS=20 (SNAME:="Mr. Twenty")
-TutorialD (master): :showexpr S
+TutorialD (master): update s where status=20 (sname:="Mr. Twenty")
+TutorialD (master): :showexpr s
 ┌──────┬──┬──────────┬──────┐
-│CITY  │S#│SNAME     │STATUS│
+│city  │s#│sname     │status│
 ├──────┼──┼──────────┼──────┤
 │Paris │S3│Blake     │30    │
 │London│S1│Mr. Twenty│20    │
@@ -357,10 +357,10 @@ TutorialD (master): :showexpr S
 This is logically equivalent to:
 
 ```
-TutorialD (master): S:=(((S where STATUS=20){CITY,S#,STATUS}):{SNAME:="Mr. Twenty"}) union (S where not STATUS=20)
-TutorialD (master): :showexpr S
+TutorialD (master): s:=(((s where status=20){city,s#,status}):{sname:="Mr. Twenty"}) union (s where not status=20)
+TutorialD (master): :showexpr s
 ┌──────┬──┬──────────┬──────┐
-│CITY  │S#│SNAME     │STATUS│
+│city  │s#│sname     │status│
 ├──────┼──┼──────────┼──────┤
 │Paris │S3│Blake     │30    │
 │London│S1│Mr. Twenty│20    │
@@ -370,17 +370,17 @@ TutorialD (master): :showexpr S
 └──────┴──┴──────────┴──────┘
 ```
 
-This query means: "Drop the SNAME attribute from S filtered where STATUS equals 20, extend the resultant relation by SNAME with value 'Mr. Twenty', then union the resultant relation with S filtered by STATUS not equaling 20, and assign that to S."
+This query means: "Drop the sname attribute from S filtered where status equals 20, extend the resultant relation by sname with value 'Mr. Twenty', then union the resultant relation with S filtered by status not equaling 20, and assign that to S."
 
 #### Delete
 
 The delete operator accepts a relation argument and a filtering predicate, creates a new relation with only the tuples which do not match the predicate, and stores the result in the relation variable argument.
 
 ```
-TutorialD (master): delete SP where S#="S4"
-TutorialD (master): :showexpr SP
+TutorialD (master): delete sp where s#="S4"
+TutorialD (master): :showexpr sp
 ┌──┬───┬──┐
-│P#│QTY│S#│
+│p#│QTY│s#│
 ├──┼───┼──┤
 │P3│400│S1│
 │P4│200│S1│
@@ -397,7 +397,7 @@ TutorialD (master): :showexpr SP
 This is logically equivalent to:
 
 ```
-TutorialD (master): SP:=SP where not S#="S4"
+TutorialD (master): sp:=sp where not s#="S4"
 ```
 
 Note the inverted predicate.
@@ -413,56 +413,56 @@ Chris Date identified that all constraints can be represented as inclusion depen
 Uniqueness constraints ensure that a set of attributes' values are unique throughout a relational expression. For example, it is useful to ensure that all products' identifiers are unique. The equivalent in SQL is the UNIQUE expression found in table creation.
 
 ```
-TutorialD (master): key S_key_constraint {S#} S
+TutorialD (master): key s_key_constraint {s#} s
 ```
 
-This expression creates a constraint named "S_key_constraint" and ensure that the values of the "S#" attribute are unique in the "S" relational expression.
+This expression creates a constraint named "S_key_constraint" and ensure that the values of the "s#" attribute are unique in the "S" relational expression.
 
 #### Foreign Key Constraints
 
 Foreign keys are constraints which require that certain values appearing in one relation variable must appear in another. The equivalent in SQL is the FOREIGN KEY() construction in table creation.
 
 ```
-TutorialD (master): foreign key S#_in_SP SP{S#} in S{S#}
+TutorialD (master): foreign key s#_in_sp sp{s#} in s{s#}
 ```
 
-This expression ensure that any SP{S#} must also appear as a value in S{S#}.
+This expression ensure that any sp{s#} must also appear as a value in s{s#}.
 
 #### Other Constraints
 
 All other constraints can be represented by a set of inclusion dependencies.
 
 ```
-TutorialD (master): constraint S_status_less_than_50 (S where ^lt(50,@STATUS)){} in false
+TutorialD (master): constraint s_status_less_than_50 (s where ^lt(50,@status)){} in false
 ```
 
-This expression ensures that the relation variable's relation can never include a tuple with STATUS greater than 50.
+This expression ensures that the relation variable's relation can never include a tuple with status greater than 50.
 
 ## Aggregate Queries
 
-Aggregate queries in TutorialD are able to provide much more information than SQL queries due to the support for relation-valued attributes. For example, a single query can return aggregate results alongside its constituent tuples. 
+Aggregate queries in TutorialD are able to provide much more information than SQL queries due to the support for relation-valued attributes. For example, a single query can return aggregate results alongside its constituent tuples.
 
-SQL supports aggregate queries using aggregate functions (SUM(), COUNT(), AVERAGE(), etc.) and GROUP BY while the aggregate functions in the relational algebra simply accept relation values as arguments. 
+SQL supports aggregate queries using aggregate functions (SUM(), COUNT(), AVERAGE(), etc.) and GROUP BY while the aggregate functions in the relational algebra simply accept relation values as arguments.
 
 ```
-TutorialD (master): :showexpr S group ({S#,SNAME,STATUS} as subrel):{citycount:=count(@subrel)}
+TutorialD (master): :showexpr s group ({s#,sname,status} as subrel):{citycount:=count(@subrel)}
 ┌──────┬─────────┬─────────────────┐
-│CITY  │citycount│subrel           │
+│city  │citycount│subrel           │
 ├──────┼─────────┼─────────────────┤
 │Paris │2        │┌──┬─────┬──────┐│
-│      │         ││S#│SNAME│STATUS││
+│      │         ││s#│sname│status││
 │      │         │├──┼─────┼──────┤│
 │      │         ││S3│Blake│30    ││
 │      │         ││S2│Jones│10    ││
 │      │         │└──┴─────┴──────┘│
 │London│2        │┌──┬─────┬──────┐│
-│      │         ││S#│SNAME│STATUS││
+│      │         ││s#│sname│status││
 │      │         │├──┼─────┼──────┤│
 │      │         ││S1│Smith│20    ││
 │      │         ││S4│Clark│20    ││
 │      │         │└──┴─────┴──────┘│
 │Athens│1        │┌──┬─────┬──────┐│
-│      │         ││S#│SNAME│STATUS││
+│      │         ││s#│sname│status││
 │      │         │├──┼─────┼──────┤│
 │      │         ││S5│Adams│30    ││
 │      │         │└──┴─────┴──────┘│
