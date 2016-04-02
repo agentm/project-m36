@@ -50,7 +50,7 @@ Use ```:showexpr``` (note the preceding colon again) followed by a TutorialD rel
 
 A relational expression operates on the current database state (also known as "database context") and returns a relation containing the result. Note that relational expressions do not modify the state of the database.
 
-You will need to [learn TutorialD](docs/tutd_tutorial.markdown) to create relational expressions here, but here are a few quick, simple examples:
+You will need to [learn TutorialD](/docs/tutd_tutorial.markdown) to create relational expressions here, but here are a few quick, simple examples:
 
 #### Joins
 
