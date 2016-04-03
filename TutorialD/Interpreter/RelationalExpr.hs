@@ -8,8 +8,10 @@ import TutorialD.Interpreter.Types
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
+import Data.List (sort)
 import Data.Functor.Identity (Identity)
 import Control.Applicative (liftA)
+import ProjectM36.MiscUtils
 
 --used in projection
 attributeListP :: Parser AttributeNames
@@ -23,7 +25,7 @@ makeRelationP :: Parser RelationalExpr
 makeRelationP = do
   reserved "relation"
   attrExprs <- try (liftA Just makeAttributeExprsP) <|> pure Nothing
-  tupleExprs <- try (braces (sepBy tupleExprP comma)) <|> pure []
+  tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs 
 
 --used in relation creation
@@ -49,7 +51,12 @@ tupleExprP :: Parser TupleExpr
 tupleExprP = do
   reservedOp "tuple"
   attrAssocs <- braces (sepBy tupleAtomExprP comma)
-  pure (TupleExpr (M.fromList attrAssocs))
+  --detect duplicate attribute names
+  let dupAttrNames = dupes (sort (map fst attrAssocs))
+  if length dupAttrNames /= 0 then                    
+    fail ("Attribute names duplicated: " ++ show dupAttrNames)
+    else
+    pure (TupleExpr (M.fromList attrAssocs))
 
 tupleAtomExprP :: Parser (AttributeName, AtomExpr)
 tupleAtomExprP = do
