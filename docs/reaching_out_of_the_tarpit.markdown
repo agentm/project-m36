@@ -101,18 +101,31 @@ Project:M36 is a clean-room implementation of a relational algebra engine; it do
 * restrictive, legacy type systems which impede modeling
 * unnecessarily complex SQL grammar
 
-## Summary of Benefits of This architecture
+## Summary of Benefits of This Architecture
 
-The "Out of the Tarpit" summarizes the benefits of functional relational programming, but here is a summary of the summary:
+The "Out of the Tarpit" paper summarizes the benefits of functional relational programming, but here is a summary of the summary:
 
 ### Benefits For State
 
 * useless accidental state is avoided
-* constraints prevent entering any "bad" or unexpected state
+* constraints prevent entering any "bad" or unexpected states
 * referential transparency (functional purity)
-* declarative programming opens greater doors for optimizations
 
-### Benefits For control
+### Benefits For Control
+
+* declarative programming opens greater doors for optimizations such as automatic parallelization
+
+### Benefits for Code Volume
+
+* declarative programming can only specify modeling of business rules (not accidental or tangential complexity) and is thus naturally terse
+* declarative programming eliminates code for state and control, reducing complexity
+
+### Benefits for Data Abstraction
+
+* the relational algebra reduces reliance on specific "code paths" for data access since data "groupings" are often arbitrary
+ * for example: the same relation variable can be restricted/projected/joined in order to present the most relevant information for a given user interface
+
+Project:M36 does, however, implement product types, which the paper discourages. The reasons for this are out-of-scope for this essay.
 
 ## Future Directions
 
