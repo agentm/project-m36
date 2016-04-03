@@ -6,12 +6,10 @@ import ProjectM36.AtomType
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import ProjectM36.Attribute
-import ProjectM36.ConcreteTypeRep
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import qualified Data.Map as M
-import Data.Typeable (cast, tyConName, splitTyConApp)
+import Data.Typeable
 
 boxV :: StringType
 boxV = "│"
@@ -88,7 +86,7 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
   where
     oAttrs = orderedAttributes rel
     oAttrNames = orderedAttributeNames rel
-    header = map attributeAsCell oAttrs
+    header = map prettyAttribute oAttrs
     body :: [[Cell]]
     body = L.foldl' tupleFolder [] (asList tupleSet)
     tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
