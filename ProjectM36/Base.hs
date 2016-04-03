@@ -464,7 +464,8 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
-data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor
+data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor |
+                     NakedAttributeExpr Attribute
                      deriving (Eq, Show, Generic, Binary)
                               
 data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)

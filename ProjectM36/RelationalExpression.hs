@@ -511,6 +511,8 @@ evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons) = do
   aType <- atomTypeForTypeConstructor tCons aTypes
   Right (Attribute attrName aType)
   
+evalAttrExpr _ (NakedAttributeExpr attr) = Right attr
+  
 evalTupleExpr :: DatabaseContext -> Maybe Attributes -> TupleExpr -> Either RelationalError RelationTuple
 evalTupleExpr context attrs (TupleExpr tupMap) = do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
