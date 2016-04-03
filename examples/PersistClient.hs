@@ -3,7 +3,7 @@
 {- A simple example of using the persistent-ProjectM36 driver. -}
 import Database.Persist.ProjectM36 hiding (executeDatabaseContextExpr)
 import ProjectM36.Client
-import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
 import System.Exit
 import System.IO
 import Database.Persist
@@ -27,10 +27,11 @@ errDie out = hPutStrLn stderr out >> exitFailure
 
 defPersonRel :: SessionId -> Connection -> IO ()
 defPersonRel sessionId conn = do
-    maybeErr <- executeDatabaseContextExpr sessionId conn (Define "person" (attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType, Attribute "id" stringAtomType]))
-    case maybeErr of
-        Nothing -> return ()
-        Just err -> errDie (show err)
+  let attrList = [Attribute "name" textAtomType, Attribute "age" intAtomType, Attribute "id" textAtomType]
+  maybeErr <- executeDatabaseContextExpr sessionId conn (Define "person" (map NakedAttributeExpr attrList))
+  case maybeErr of
+    Nothing -> return ()
+    Just err -> errDie (show err)
 
 main :: IO ()
 main = do

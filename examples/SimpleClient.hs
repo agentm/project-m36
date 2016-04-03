@@ -21,11 +21,10 @@ main = do
         Left err -> putStrLn (show err)
         Right sessionId -> do
           --4. define a new relation variable with a DatabaseContext expression
-          let attrExprs = [AttributeAndTypeNameExpr "name" (PrimitiveTypeConstructor "Text" textAtomType),
-                           AttributeAndTypeNameExpr "age" (PrimitiveTypeConstructor "Int" intAtomType)]
-              attrs = attributesFromList [Attribute "name" textAtomType,
-                                            Attribute "age" intAtomType]
-          mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" attrExprs)
+          let attrList = [Attribute "name" textAtomType,
+                          Attribute "age" intAtomType]
+              attrs = attributesFromList attrList
+          mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" (map NakedAttributeExpr attrList))
           putStrLn (show mErr1)
           --5. add a tuple to the relation referenced by the relation variable
           let (Right tupSet) = mkTupleSetFromList attrs [[textAtom "Bob", intAtom 45]]
