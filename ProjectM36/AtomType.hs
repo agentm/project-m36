@@ -4,6 +4,7 @@ import ProjectM36.Base
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.TypeConstructor as TC
 import qualified ProjectM36.DataConstructorDef as DCD
+import ProjectM36.MiscUtils
 import ProjectM36.Error
 import qualified ProjectM36.Attribute as A
 import qualified Data.Vector as V
@@ -128,12 +129,6 @@ validateTypeConstructorDef tConsDef dConsList = execWriter $ do
   mapM_ tell [map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff)]
   pure ()
     
---returns duplicates of a pre-sorted list
-dupes :: Eq a => [a] -> [a]    
-dupes [] = []
-dupes (_:[]) = []
-dupes (x:y:[]) = if x == y then [x] else []
-dupes (x:y:xs) = dupes(x:[y]) ++ dupes(xs)
 
 -- | Create an atom type iff all type variables are provided.
 -- Either Int Text -> ConstructedAtomType "Either" {Int , Text}
