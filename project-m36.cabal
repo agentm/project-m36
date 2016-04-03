@@ -183,7 +183,8 @@ Executable project-m36-server
                    vector,
                    http-api-data,
                    stm-containers,
-                   list-t
+                   list-t,
+                   base64-bytestring
     Main-Is: ProjectM36/Server/project-m36-server.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
