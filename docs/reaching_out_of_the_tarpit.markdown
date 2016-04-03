@@ -19,14 +19,14 @@ The central software component of functional-relational programming is a relatio
 "Out of the Tarpit" recommends the relational model not only in its customary backend role, but throughout the application because the relational model is:
 
 * **declarative**: thus removing accidental complexity (such as accidental ordering)
-* **restricted**: the paper makes it clear that if a programming language allows a programmer to do something less-than-savory, then that misfeature will be used
+* **restricted**: removing mistaken features; if a programming language allows a programmer to do something less-than-savory, then that misfeature will be used
 
 and provides ([p.37](http://shaffner.us/cs/papers/tarpit.pdf)):
 
 * **structure**: a closed world system whereby all data is represented by relations
 * **manipulation**: a means to simulate mutation of the application state over time
 * **data integrity**: constraints which prevent illogical data constructions
-* **data independence**: the logical and physical representations of state are clearly separated
+* **data independence**: logical and physical representations of state which are clearly separated
 
 The relational model is a mathematical model for storing and manipulating "essential state" ([p.25](http://shaffner.us/cs/papers/tarpit.pdf)). As a mathematical model, it not beholden to any specific implementation or quirks.
 
@@ -55,7 +55,29 @@ Project:M36 implements multiple interfaces:
 
 ### Real Estate Database Example
 
-To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](/examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language.
+To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](/examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language. It can be loaded into an interactive ```tutd``` session like so:
+
+```
+TutorialD (master): :importtutd "examples/out_of_the_tarpit.tutd"
+TutorialD (master): :showexpr property
+┌───────────────────┬────────────┬───────────────────┬────────────┬────────────┐
+│address::Address   │agent::Agent│dateRegistered::Day│photo::Text │price::Price│
+├───────────────────┼────────────┼───────────────────┼────────────┼────────────┤
+│Address "Main St." │Agent "Bob" │Day 2014-01-01     │"photo1.jpg"│Price 1000.0│
+│Address "Elm St."  │Agent "Bob" │Day 2014-01-03     │"photo2.jpg"│Price 1200.0│
+│Address "Maple St."│Agent "Sam" │Day 2014-02-05     │"photo3.jpg"│Price 800.0 │
+└───────────────────┴────────────┴───────────────────┴────────────┴────────────┘
+```
+
+Project:M36 meets or exceeds the enumerated "Infrastructure" ([p.47](http://shaffner.us/cs/papers/tarpit.pdf)) requirements (except one):
+
+* **Infrastructure for Essential State**: relation variable manipulation, storage, and data types
+* **Infrastructure for Essential Logic**: relational expression evaluation, functions to operate on values, a language (TutorialD or Haskell), type inference, and constraints
+* **Infrastructure for Accidental State and Control**: data independence (how relations are defined need not reflect how they are stored or manipulated)
+* **Infrastructure for Feeders and Observers**: insert/update/delete and change notifications (including historical state retrieval)
+
+
+Derived relations, as described in the paper, are not supported in Project:M36 because it is not clear that they are mathematically coherent. Regardless, it is clear that, while handy, derived relations (also known in SQL as "views") are not a requirement of the relational algebra.
 
 ### Feeders and Observers
 
@@ -74,10 +96,23 @@ Project:M36 is a clean-room implementation of a relational algebra engine; it do
 * [three-valued logic (NULL)](/docs/on_null.markdown)
 * non-relational database constructs such as row and column ordering or OUTER JOINs
 * linear transaction flow and conflict resolution
-* direct table-to-file mapping which create perverse model-data dependencies
+* direct table-to-file mappings which create perverse model-data dependencies
 * key-value storage: a key-value mapping is valued merely for its performance characteristics, not because it models reality well
 * restrictive, legacy type systems which impede modeling
 * unnecessarily complex SQL grammar
+
+## Summary of Benefits of This architecture
+
+The "Out of the Tarpit" summarizes the benefits of functional relational programming, but here is a summary of the summary:
+
+### Benefits For State
+
+* useless accidental state is avoided
+* constraints prevent entering any "bad" or unexpected state
+* referential transparency (functional purity)
+* declarative programming opens greater doors for optimizations
+
+### Benefits For control
 
 ## Future Directions
 

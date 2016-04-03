@@ -5,7 +5,7 @@ Thank you for evaluating Project:M36, a new relational algebra engine written in
 ## Prerequisites
 
 * any Linux
-* GHC (Haskell compiler)
+* GHC 7.10 or later version (Haskell compiler)
 * cabal (package downloader) installed
 
 ## Download and Install
