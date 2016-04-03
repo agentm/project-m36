@@ -4,6 +4,7 @@ test client/server interaction
 -}
 import Test.HUnit
 import ProjectM36.Client
+import qualified ProjectM36.Client as C
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
@@ -26,6 +27,7 @@ testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId
   testHeadTransactionUUID,
   testHeadName,
   testSession,
+  testRelationVariableSummary,
   testNotification notificationTestMVar  
   ]
            
@@ -125,6 +127,13 @@ testHeadName :: SessionId -> Connection -> Test
 testHeadName sessionId conn = TestCase $ do
   mHeadName <- headName sessionId conn
   assertEqual "headName failure" (Just "master") mHeadName
+  
+testRelationVariableSummary :: SessionId -> Connection -> Test  
+testRelationVariableSummary sessionId conn = TestCase $ do
+  eRel <- C.relationVariablesAsRelation sessionId conn
+  case eRel of 
+    Left err -> assertFailure ("relvar summary failed " ++ show err)
+    Right rel -> assertBool "invalid tuple count in relvar summary" (cardinality rel == Finite 2)
   
 testSession :: SessionId -> Connection -> Test
 testSession _ conn = TestCase $ do

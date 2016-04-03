@@ -22,6 +22,7 @@ data RODatabaseContextOperator where
   ShowConstraint :: StringType -> RODatabaseContextOperator
   ShowPlan :: DatabaseExpr -> RODatabaseContextOperator
   ShowTypes :: RODatabaseContextOperator
+  ShowRelationVariables :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -46,6 +47,9 @@ showPlanP = do
 showTypesP :: Parser RODatabaseContextOperator
 showTypesP = reserved ":showtypes" >> pure ShowTypes
 
+showRelationVariables :: Parser RODatabaseContextOperator
+showRelationVariables = reserved ":showrelvars" >> pure ShowRelationVariables
+
 quitP :: Parser RODatabaseContextOperator
 quitP = do
   reservedOp ":quit"
@@ -66,6 +70,7 @@ plotRelExprP = do
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
 roDatabaseContextOperatorP = typeP
              <|> showRelP
+             <|> showRelationVariables
              <|> plotRelExprP
              <|> showConstraintsP
              <|> showPlanP
@@ -115,6 +120,13 @@ evalRODatabaseContextOp sessionId conn ShowTypes = do
   case eRel of
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+    
+evalRODatabaseContextOp sessionId conn ShowRelationVariables = do
+  eRel <- C.relationVariablesAsRelation sessionId conn
+  case eRel of
+    Left err -> pure $ DisplayErrorResult (T.pack (show err))
+    Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+
   
 evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
 

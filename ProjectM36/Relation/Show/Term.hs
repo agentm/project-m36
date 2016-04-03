@@ -2,6 +2,7 @@
 --writes Relation to a String suitable for terminal output
 module ProjectM36.Relation.Show.Term where
 import ProjectM36.Base
+import ProjectM36.AtomType
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import ProjectM36.Attribute
@@ -82,18 +83,6 @@ cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . brea
     lengths row = map T.length (breakLines row)
     allRows = [header] ++ body
     
-attributeAsCell :: Attribute -> Cell    
-attributeAsCell attr = attributeName attr `T.append` "::" `T.append` prettyAtomType (atomType attr)
-
-prettyAtomType :: AtomType -> T.Text
-prettyAtomType (AtomType primitiveType) = T.pack (tyConName (fst (splitTyConApp (unCTR primitiveType))))
-prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map attributeAsCell (V.toList attrs)) `T.append` "}"
-prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` T.concat (map showTypeVars (M.toList typeVarMap))
-  where
-    showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
--- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
-prettyAtomType AnyAtomType = "?AnyAtomType?"
-
 relationAsTable :: Relation -> Table
 relationAsTable rel@(Relation _ tupleSet) = (header, body)
   where

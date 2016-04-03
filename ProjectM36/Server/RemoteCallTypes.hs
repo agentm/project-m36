@@ -40,3 +40,5 @@ data CloseSession = CloseSession SessionId
                     deriving (Binary, Generic)
 data RetrieveAtomTypesAsRelation = RetrieveAtomTypesAsRelation SessionId
                                    deriving (Binary, Generic)
+data RetrieveRelationVariableSummary = RetrieveRelationVariableSummary SessionId
+                                     deriving (Binary, Generic)

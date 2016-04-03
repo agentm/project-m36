@@ -4,7 +4,9 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
+import qualified Data.Map as M
 import ProjectM36.Atom
+import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
 import ProjectM36.DataTypes.Primitive
@@ -276,6 +278,7 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
     tupleSetJoiner tup1 acc = undefined
 -}
 
+-- | Return a Relation describing the types in the mapping.
 typesAsRelation :: TypeConstructorMapping -> Either RelationalError Relation
 typesAsRelation types = mkRelationFromTuples attrs tuples
   where
@@ -291,5 +294,18 @@ typesAsRelation types = mkRelationFromTuples attrs tuples
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> Atom rel
 
-
+-- | Return a Relation describing the relation variables.
+relationVariablesAsRelation :: M.Map RelVarName Relation -> Either RelationalError Relation
+relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
+  where
+    subrelAttrs = A.attributesFromList [Attribute "attribute" textAtomType, Attribute "type" textAtomType]
+    attrs = A.attributesFromList [Attribute "name" textAtomType,
+                                  Attribute "attributes" (RelationAtomType subrelAttrs)]
+    tups = map relVarToAtomList (M.toList relVarMap)
+    relVarToAtomList (rvName, rel) = [textAtom rvName, attributesToRel (attributes rel)]
+    attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
+      Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
+      Right rel -> Atom rel
+    attrAtoms a = [textAtom (A.attributeName a), textAtom (prettyAtomType (A.atomType a))]
+      
 

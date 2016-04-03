@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.AtomType where
 import ProjectM36.Base
+import ProjectM36.ConcreteTypeRep
+import Data.Typeable
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.TypeConstructor as TC
 import qualified ProjectM36.DataConstructorDef as DCD
@@ -14,6 +16,7 @@ import Data.Maybe (isJust)
 import Data.Either (rights)
 import Control.Monad.Writer
 import qualified Data.Map as M
+import qualified Data.Text as T
 --import Debug.Trace
 
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
@@ -250,3 +253,15 @@ atomTypeVerify x y = if x == y then
 -- | Determine if two typeVar
 typeVarMapsVerify :: TypeVarMap -> TypeVarMap -> Bool
 typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) (map (\((_,v1),(_,v2)) -> atomTypeVerify v1 v2) (zip (M.toAscList a) (M.toAscList b))) == M.size a
+
+prettyAtomType :: AtomType -> T.Text
+prettyAtomType (AtomType primitiveType) = T.pack (tyConName (fst (splitTyConApp (unCTR primitiveType))))
+prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList attrs)) `T.append` "}"
+prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` T.concat (map showTypeVars (M.toList typeVarMap))
+  where
+    showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
+-- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
+prettyAtomType AnyAtomType = "?AnyAtomType?"
+
+prettyAttribute :: Attribute -> T.Text
+prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)

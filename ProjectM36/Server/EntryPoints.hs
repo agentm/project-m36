@@ -78,3 +78,9 @@ handleRetrieveAtomTypesAsRelation :: SessionId -> Connection -> Process (Process
 handleRetrieveAtomTypesAsRelation sessionId conn = do
   ret <- liftIO $ atomTypesAsRelation sessionId conn
   reply ret conn
+  
+-- | Returns a relation which lists the names of relvars in the current session as well as  its types.  
+handleRetrieveRelationVariableSummary :: SessionId -> Connection -> Process (ProcessReply (Either RelationalError Relation) Connection)  
+handleRetrieveRelationVariableSummary sessionId conn = do
+  ret <- liftIO $ relationVariablesAsRelation sessionId conn
+  reply ret conn  

@@ -97,6 +97,46 @@ TutorialD (master): :showexpr p
 └──────┴─────┴──┴─────┴──────┘
 ```
 
+To show all relation variables in the current session, use ```:showrelvars```:
+
+```
+TutorialD (master): :showrelvars
+┌─────────────────────────────────────────────────┬──────────┐
+│attributes::relation {attribute::Text,type::Text}│name::Text│
+├─────────────────────────────────────────────────┼──────────┤
+│┌───────────────┬──────────┐                     │"sp"      │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"p#"           │"Text"    │                     │          │
+││"qty"          │"Int"     │                     │          │
+││"s#"           │"Text"    │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"true"    │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"p"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"weight"       │"Int"     │                     │          │
+││"p#"           │"Text"    │                     │          │
+││"color"        │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+││"pname"        │"Text"    │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"s"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"status"       │"Int"     │                     │          │
+││"s#"           │"Text"    │                     │          │
+││"sname"        │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"false"   │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+└─────────────────────────────────────────────────┴──────────┘
+```
+
 ### Using Relational Operators
 
 Relational operators generate new relations from existing relations. The operators form the closed algebra against relations.

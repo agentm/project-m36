@@ -18,6 +18,7 @@ module ProjectM36.Client
        planForDatabaseContextExpr,
        processPersistence,
        transactionGraphAsRelation,
+       relationVariablesAsRelation,
        headName,
        remoteDBLookupName,
        defaultServerPort,
@@ -35,6 +36,7 @@ module ProjectM36.Client
        createSessionAtHead,
        closeSession,
        addClientNode,
+       RelationCardinality(..),
        TransactionGraphOperator(..),
        Atomable,
        NodeId(..),
@@ -62,6 +64,7 @@ import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Relation (typesAsRelation)
+import qualified ProjectM36.Relation as R
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
@@ -482,6 +485,16 @@ transactionGraphAsRelation sessionId (InProcessConnection _ _ sessions tvar) = d
         pure $ graphAsRelation discon graph
     
 transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
+
+relationVariablesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _) = do
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (Session (DisconnectedTransaction _ context)) -> pure $ R.relationVariablesAsRelation (relationVariables context)
+      
+relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
 -- | Returns the UUID for the connection's disconnected transaction committed parent transaction.  
 headTransactionUUID :: SessionId -> Connection -> IO (Maybe UUID)
