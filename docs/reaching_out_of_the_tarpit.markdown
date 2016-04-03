@@ -43,7 +43,7 @@ Chris Date is a prolific author, researcher, and lecturer on the relational alge
 
 ## Project:M36 In Practice
 
-Values which Project:M36 can store are typed by the powerful functional programming language Haskell. Any Haskell data value can become a database value by implementing a simple typeclass. Thus, it provides a native and seamless interface between Haskell and the relational algebra engine.
+Values which Project:M36 can store are typed by the powerful functional programming language Haskell. Any Haskell data value can become a database value by implementing a simple typeclass. Thus, Project:M36 provides a native and seamless interface between Haskell and the relational algebra engine.
 
 Project:M36 does not, however, implement a completely new programming language for functional-relational programming, as suggested in the paper. The benefits of a fully-restricted programming language are described in the paper and this feature may be implemented in the future.
 
@@ -85,7 +85,7 @@ The "Out of the Tarpit" paper distinguishes between pushing data to the database
 
 SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issues to the database via some middleware.
 
-However, most database do not support an adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register trigger relational expressions and return relational expressions. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
+However, most database do not support an adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register trigger relational expressions and return relational expressions. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of the return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
 
 Some SQL databases include a similar feature; in PostgreSQL, this is activated by [LISTEN](http://www.postgresql.org/docs/9.0/static/sql-listen.html)/[NOTIFY](http://www.postgresql.org/docs/9.0/static/sql-notify.html). However, PostgreSQL offers no provision for triggering notifications based on the state of the database- this crucial feature is left to the database developer. Furthermore, the return payload can only be a string, not the result of a relational expression evaluation.
 
