@@ -2,6 +2,7 @@
 import ProjectM36.Client
 import ProjectM36.TupleSet
 import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 
@@ -20,16 +21,19 @@ main = do
         Left err -> putStrLn (show err)
         Right sessionId -> do
           --4. define a new relation variable with a DatabaseContext expression
-          let attrs = attributesFromList [Attribute "name" stringAtomType, Attribute "age" intAtomType]
-          mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" attrs)
+          let attrExprs = [AttributeAndTypeNameExpr "name" (PrimitiveTypeConstructor "Text" textAtomType),
+                           AttributeAndTypeNameExpr "age" (PrimitiveTypeConstructor "Int" intAtomType)]
+              attrs = attributesFromList [Attribute "name" textAtomType,
+                                            Attribute "age" intAtomType]
+          mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" attrExprs)
           putStrLn (show mErr1)
           --5. add a tuple to the relation referenced by the relation variable
-          let (Right tupSet) = mkTupleSetFromList attrs [[stringAtom "Bob", intAtom 45]]
+          let (Right tupSet) = mkTupleSetFromList attrs [[textAtom "Bob", intAtom 45]]
           mErr2 <- executeDatabaseContextExpr sessionId conn (Insert "person" (MakeStaticRelation attrs tupSet))
           putStrLn (show mErr2)
       
           --6. execute a relational algebra query
-          let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (stringAtom "Steve"))
+          let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (textAtom "Steve"))
           eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person"))
           case eRel of
             Left err -> putStrLn (show err)
