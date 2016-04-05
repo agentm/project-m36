@@ -2,7 +2,7 @@
 
 ## Introduction
 
-[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) whose purpose is to implement the foundation for functional relational programming as described in the excellent ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf) paper. This document describes how Project:M36 meets the design goals laid out in the paper. It is recommended to read the paper before reading this document.
+[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper. It is recommended to read the paper before reading this document.
 
 ## Why is "Out of the Tarpit" Important?
 
@@ -12,7 +12,7 @@ The "Out of the Tarpit" paper, written in 2006, consolidates decades of software
 
 After analyzing sources of software complexity (primarily unnecessarily mutable state and unintended order-of-execution), the not-so-radical proposal of the "Out of the Tarpit" paper is "functional-relational programming", not to be confused with "[functional reactive programming](https://wiki.haskell.org/Functional_Reactive_Programming)". According to the paper, the ideal language would minimize mutable state (such as in functional programming) and eliminate unintended order-of-execution by providing declarative instead of imperative constructs.
 
-The central software component of functional-relational programming is a relational algebra engine/database management system (RDBMS). Project:M36 purports to meet the software requirements of such a functional-relational system, perhaps being the first RDBMS to actually target the paper's proposed design.
+The central software component of functional-relational programming is a relational algebra engine/database management system (RDBMS). Project:M36 meets the software requirements of such a functional-relational system, perhaps being the first RDBMS to actually target the paper's proposed design.
 
 ## The Importance of the Relational Model
 
@@ -30,7 +30,7 @@ and provides ([p.37](http://shaffner.us/cs/papers/tarpit.pdf)):
 
 The relational model is a mathematical model for storing and manipulating "essential state" ([p.25](http://shaffner.us/cs/papers/tarpit.pdf)). As a mathematical model, it not beholden to any specific implementation or quirks.
 
-Unfortunately, due to the quirks of legacy implementations, much of what developers learn about the relational model is wrong. Project:M36 aims to rectify this situation by providing a mathematically coherent implementation of the relational model. Contrast the mathematical approach to existing databases which sacrifice or elide a mathematical model in lieu of "performance". Refer to [Knuth on premature optimization](https://en.wikiquote.org/wiki/Donald_Knuth) for additional details.
+Unfortunately, due to the quirks of legacy implementations, much of what developers learn about the relational model is [wrong](/docs/on_null.markdown). Project:M36 aims to rectify this situation by providing a mathematically coherent implementation of the relational model. Contrast the mathematical approach to existing databases which sacrifice or elide a mathematical model in lieu of "performance". Refer to [Knuth on premature optimization](https://en.wikiquote.org/wiki/Donald_Knuth) for additional details.
 
 ## Chris Date's Contribution
 
@@ -69,6 +69,8 @@ TutorialD (master): :showexpr property
 └───────────────────┴────────────┴───────────────────┴────────────┴────────────┘
 ```
 
+### Infrastructure Requirements
+
 Project:M36 meets or exceeds the enumerated "Infrastructure" ([p.47](http://shaffner.us/cs/papers/tarpit.pdf)) requirements (except one):
 
 * **Infrastructure for Essential State**: relation variable manipulation, storage, and data types
@@ -83,9 +85,9 @@ Derived relations, as described in the paper, are not supported in Project:M36 b
 
 The "Out of the Tarpit" paper distinguishes between pushing data to the database and pulling data out of the database ([p.46](http://shaffner.us/cs/papers/tarpit.pdf)): "feeders" continually update the state of the database to best reflect reality and "observers" request notifications on relational state changes and take action on them.
 
-SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issues to the database via some middleware.
+SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issued to the database via some middleware.
 
-However, most database do not support an adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register trigger relational expressions and return relational expressions. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of the return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
+However, most databases do not support an adequate notion of observers. The purpose of an observer is to notify interested parties about relevant changes to the state of the database so that clients relying on the database are viewing the most "up-to-date" information from the database. Project:M36 implements this requirement by allowing clients to register trigger relational expressions and relational expressions to return alongside the notification. When the result of the relational expression changes in a tracked state (branch) of the database, an asynchronous notification including the name and the result of the return relational expression is sent to the client. The client can then use this information to update its own user interface or take further automated actions.
 
 Some SQL databases include a similar feature; in PostgreSQL, this is activated by [LISTEN](http://www.postgresql.org/docs/9.0/static/sql-listen.html)/[NOTIFY](http://www.postgresql.org/docs/9.0/static/sql-notify.html). However, PostgreSQL offers no provision for triggering notifications based on the state of the database- this crucial feature is left to the database developer. Furthermore, the return payload can only be a string, not the result of a relational expression evaluation.
 
