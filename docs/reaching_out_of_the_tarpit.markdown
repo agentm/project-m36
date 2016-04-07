@@ -2,7 +2,7 @@
 
 ## Introduction
 
-[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper. It is recommended to read the paper before reading this document.
+[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) written in the Haskell programming language whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper. It is recommended to read the paper before reading this document.
 
 ## Why is "Out of the Tarpit" Important?
 
