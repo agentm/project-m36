@@ -12,7 +12,7 @@ Note that the above invocation will serve and in-memory, transient "mydbname" da
 
 ## Connecting an Interactive Client
 
-To start an interactive session with the server, run ```cabal run tutd -- --database mydbname --hostname 127.0.0.1```. This will open a TutorialD shell to the remote database and should operate exactly like a local session. Note that the import and export functions import and export from/to the client host's filesystem. There is currently no function to import or export from/to the server host's filesystem. 
+To start an interactive session with the server, run ```cabal run tutd -- --database mydbname --host 127.0.0.1```. This will open a TutorialD shell to the remote database and should operate exactly like a local session. Note that the import and export functions import and export from/to the client host's filesystem. There is currently no function to import or export from/to the server host's filesystem. 
 
 ## Connecting a Haskell Client
 
