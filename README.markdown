@@ -38,12 +38,16 @@ Project:M36 supports multiple frontends which target different audiences.
 
 ## Development
 
-Project:M36 is developed in Haskell and compiled with GHC.
+Project:M36 is developed in Haskell and compiled with GHC 7.8 or later.
 
-Important modules:
+## Related Projects
 
-1. Relation - represents a relation in the relational algebra and implements the relational operators
-2. Relational Expressions - represents a composable abstract syntax tree for the relational algebra
-3. Tutorial D Interpreter - one available frontend to evaluate relational expressions
-4. ProjectM36.Client- user-facing native Haskell library
-5. Database.Persist.ProjectM36 - persistent library database driver
+* [The Third Manifesto](http://thethirdmanifesto.com/): the philosophical basis for relational algebra engines
+* [Rel](http://reldb.org/): a TutorialD implementation against a BerkeleyDB backend
+* [Andl](http://andl.org/): a new database language with SQLite and PostgreSQL backends
+
+## Suggested Reading
+
+* [Out of the Tarpit](http://shaffner.us/cs/papers/tarpit.pdf): a proposed software architecture which minimizes state and complexity. Project:M36 implements the requirements of this paper.
+* [Database Design & Relational Theory: Normal Forms and All That Jazz](http://shop.oreilly.com/product/0636920025276.do): mathematical foundations for the principles of the relational algebra
+* [Database Explorations: Essays on the Third Manifesto and Related Topics](http://bookstore.trafford.com/Products/SKU-000177853/Database-Explorations.aspx): additional essays and debates on practical approaches to relational algebra engine design
