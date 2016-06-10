@@ -26,6 +26,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | InclusionDependencyNameNotInUseError IncDepName
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
+                     | NoCommonTransactionAncestorError U.UUID U.UUID
                      | NoSuchTransactionError U.UUID
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
@@ -60,6 +61,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NotificationNameNotInUseError NotificationName
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
+                     | MergeTransactionError MergeError
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 
@@ -76,3 +78,10 @@ someErrors errList  = if length errList == 1 then
                         head errList
                       else
                         MultipleErrors errList
+                        
+data MergeError = SelectedHeadMismatchMergeError |
+                  StrategyViolatesConstraintMergeError |
+                  DisconnectedTransactionNotAMergeHeadError U.UUID
+                  deriving (Show, Eq, Generic, Binary, Typeable)
+                           
+instance NFData MergeError where rnf = genericRnf                           

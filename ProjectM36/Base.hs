@@ -470,3 +470,12 @@ data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor |
                               
 data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)
                  deriving (Eq, Show, Generic, Binary)
+
+data MergeStrategy = 
+  -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)
+  UnionMergeStrategy |
+  -- | Similar to a union merge, but, on conflict, prefer the unmerged section (relvar, function, etc.) from the branch named as the argument.
+  UnionPreferMergeStrategy HeadName |
+  -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the last transaction in the selected branch.
+  SelectedBranchMergeStrategy HeadName
+                     deriving (Eq, Show, Binary, Generic)
