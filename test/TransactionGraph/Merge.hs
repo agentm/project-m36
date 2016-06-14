@@ -5,6 +5,7 @@ import ProjectM36.Base
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Show
 import ProjectM36.DateExamples
+import ProjectM36.Error
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
 import Data.Word
@@ -20,8 +21,8 @@ main = do
 testList :: Test
 testList = TestList [
                      testSubGraphToFirstAncestorBasic,
-                     testSubGraphToFirstAncestorSnipBranch
-                     --testSelectedBranchMerge
+                     testSubGraphToFirstAncestorSnipBranch,
+                     testSelectedBranchMerge
                     ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -80,6 +81,7 @@ testSubGraphToFirstAncestorBasic = TestCase $ do
   subgraph <- assertEither $ subGraphToFirstCommonAncestor graph (transactionHeadsForGraph graph) emptyTransactionGraph transA transB
   assertEqual "no graph changes" subgraph graph
   
+-- | Test that a branch anchored at the root transaction is removed when using the first ancestor function.
 testSubGraphToFirstAncestorSnipBranch :: Test  
 testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   baseGraph <- basicTransactionGraph  
@@ -87,21 +89,19 @@ testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   transB <- assertMaybe (transactionForHead "branchB" baseGraph) "failed to get branchB"
   rootTrans <- assertEither (transactionForUUID (fakeUUID 1) baseGraph)
   (_, graph) <- addTransaction "branchC" (fakeUUID 12) (transactionContext transA) rootTrans baseGraph
-  subgraph <- assertEither $ subGraphToFirstCommonAncestor graph (transactionHeadsForGraph graph) emptyTransactionGraph transA transB
+  subgraph <- assertEither $ subGraphToFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) emptyTransactionGraph transA transB
   assertGraph subgraph
-  -- putStrLn $ showGraphStructure graph
-  putStrLn $ showGraphStructure subgraph
-  putStrLn $ showGraphStructure baseGraph
-  assertEqual "failed to snip branch" (transactionHeadsForGraph subgraph) (transactionHeadsForGraph baseGraph)
-  pure ()
+  assertEqual "failed to snip branch" baseGraph subgraph
   
 testSelectedBranchMerge :: Test
 testSelectedBranchMerge = TestCase $ do
   graph <- basicTransactionGraph
   assertGraph graph
- -- putStrLn (showGraphStructure graph)
   
   let eGraph' = mergeTransactions (fakeUUID 3) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph
-  (_, graph') <- assertEither eGraph'
+  (DisconnectedTransaction _ mergedContext, graph') <- assertEither eGraph'
   assertGraph graph'
-  pure ()
+  --validate that the branchB was removed
+  rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph'
+  assertEqual "head still available" (transactionForHead "branchB" graph') Nothing
+  --assertEqual "bad merge" mergedContext (transactionContext rootTrans)

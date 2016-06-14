@@ -316,17 +316,16 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
   disconParent <- transactionForUUID parentUUID graph
   let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
   subGraph <- subGraphToFirstCommonAncestor graph subHeads emptyTransactionGraph transA transB
-  --traceShowM ("hello\n" ++ showGraphStructureX subGraph)
   case createMergeTransaction newUUID mergeStrategy subGraph (transA, transB) of
     Left err -> Left (MergeTransactionError err)
     Right mergedTrans -> case headNameForTransaction disconParent graph of
       Nothing -> Left (TransactionIsNotAHeadError parentUUID)
       Just headName -> do 
-        let newDiscon = newDisconnectedTransaction mergedTransUUID (transactionContext mergedTrans)
-            mergedTransUUID = transactionUUID mergedTrans
-        (_, newGraph) <- addDisconnectedTransaction mergedTransUUID headName newDiscon graph
+        -- why create a merge transaction and then only use the context?
+        (newTrans, newGraph) <- addTransactionToGraph headName disconParent newUUID (transactionContext mergedTrans) graph
         let newGraph' = TransactionGraph newHeads (transactionsForGraph newGraph)
             newHeads = M.delete headNameToDelete (transactionHeadsForGraph newGraph) 
+            newDiscon = newDisconnectedTransaction newUUID (transactionContext newTrans)
         pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
