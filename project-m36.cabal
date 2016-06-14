@@ -392,6 +392,14 @@ Test-Suite test-persistent-driver
     GHC-Options: -Wall
     C-sources: ProjectM36/DirectoryFsync.c
 
+Test-Suite test-transactiongraph-merge
+    Default-Language: Haskell2010
+    type: exitcode-stdio-1.0
+    main-is: test/TransactionGraph/Merge.hs
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data, stm-containers, list-t
+    GHC-Options: -Wall
+    C-sources: ProjectM36/DirectoryFsync.c
+
 benchmark bench
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0

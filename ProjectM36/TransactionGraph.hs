@@ -16,6 +16,7 @@ import Control.Monad
 import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
+import Debug.Trace
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -210,34 +211,7 @@ evalGraphOp _ (DisconnectedTransaction parentUUID _) graph Rollback = case trans
       newDiscon = newDisconnectedTransaction parentUUID (transactionContext parentTransaction)
       
 -- a successful merge should remove a head
-evalGraphOp newUUID (DisconnectedTransaction parentUUID _) graph (MergeTransactions mergeStrategy headNameA headNameB) = do
-  let transactionForHeadErr name = case transactionForHead name graph of
-        Nothing -> Left (NoSuchHeadNameError name)
-        Just t -> Right t
-  transA <- transactionForHeadErr headNameA 
-  transB <- transactionForHeadErr headNameB 
-  let transAid = transactionUUID transA
-      transBid = transactionUUID transB
-  headNameToDelete <- if parentUUID == transAid then
-                        pure headNameB
-                      else if parentUUID == transBid then
-                             pure headNameA
-                           else
-                             Left (MergeTransactionError (DisconnectedTransactionNotAMergeHeadError parentUUID))
-
-  disconParent <- transactionForUUID parentUUID graph
-  subGraph <- subGraphToFirstCommonAncestor graph emptyTransactionGraph transA transB
-  case mergeTransactions newUUID mergeStrategy subGraph (transA, transB) of
-    Left err -> Left (MergeTransactionError err)
-    Right mergedTrans -> case headNameForTransaction disconParent graph of
-      Nothing -> Left (TransactionIsNotAHeadError parentUUID)
-      Just headName -> do 
-        let newDiscon = newDisconnectedTransaction mergedTransUUID (transactionContext mergedTrans)
-            mergedTransUUID = transactionUUID mergedTrans
-        (_, newGraph) <- addDisconnectedTransaction mergedTransUUID headName newDiscon graph
-        let newGraph' = TransactionGraph newHeads (transactionsForGraph newGraph)
-            newHeads = M.delete headNameToDelete (transactionHeadsForGraph newGraph) 
-        pure (newDiscon, newGraph')
+evalGraphOp newUUID (DisconnectedTransaction parentUUID _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph
 
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation
@@ -281,43 +255,91 @@ evalROGraphOp discon graph ShowGraph = do
   return graphRel
 -}
 
---execute the merge strategy against the transactions, returning a new transaction to be added to the graph
--- a successful merge should also remove a head
-mergeTransactions :: U.UUID -> MergeStrategy -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
-mergeTransactions newUUID (SelectedBranchMergeStrategy selectedBranch) graph t2@(trans1, trans2) = do
+-- | Execute the merge strategy against the transactions, returning a new transaction which can be then added to the transaction graph
+createMergeTransaction :: U.UUID -> MergeStrategy -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
+createMergeTransaction newUUID (SelectedBranchMergeStrategy selectedBranch) graph t2@(trans1, trans2) = do
   selectedTrans <- validateHeadName selectedBranch graph t2
   pure $ Transaction newUUID (MergeTransactionInfo (transactionUUID trans1) (transactionUUID trans2) S.empty) (transactionContext selectedTrans)
                        
-mergeTransactions newUUID UnionMergeStrategy graph t2 = undefined
-
+--createMergeTransaction newUUID UnionMergeStrategy graph t2 = undefined
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
 validateHeadName :: HeadName -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
-validateHeadName headName graph (t1, t2) = case transactionForHead headName graph of
-  Nothing -> Left SelectedHeadMismatchMergeError
-  Just trans -> if trans /= t1 && trans /= t2 then 
-                  Left SelectedHeadMismatchMergeError 
+validateHeadName headName graph (t1, t2) = do
+  case transactionForHead headName graph of
+    Nothing -> Left SelectedHeadMismatchMergeError
+    Just trans -> if trans /= t1 && trans /= t2 then 
+                    Left SelectedHeadMismatchMergeError 
                   else
-                  Right trans
+                    Right trans
   
--- | Return the common ancestor of two transactions. When looking for the first common ancestor, we don't need to search both parents of a merge transaction because the merge must have diverged from a common ancestor anyway, so we arbitrarily just search one of the parents of a merge transaction. Technically, due to merge transactions, this may not actually return the first common ancestor, but it should be pretty close. The incoming subgraph's heads remain unchanged in the return value.
-subGraphToFirstCommonAncestor :: TransactionGraph -> TransactionGraph -> Transaction -> Transaction -> Either RelationalError TransactionGraph
-subGraphToFirstCommonAncestor origGraph subGraph trans1 trans2 = do
+-- | Return the common ancestor of two transactions. When looking for the first common ancestor, we don't need to search both parents of a merge transaction because the merge must have diverged from a common ancestor anyway, so we arbitrarily just search one of the parents of a merge transaction. Technically, due to merge transactions, this may not actually return the first common ancestor, but it should be pretty close.
+subGraphToFirstCommonAncestor :: TransactionGraph -> TransactionHeads -> TransactionGraph -> Transaction -> Transaction -> Either RelationalError TransactionGraph
+subGraphToFirstCommonAncestor origGraph resultHeads subGraph trans1 trans2 = do
   let t1id = transactionUUID trans1
       t2id = transactionUUID trans2
+      validChildIds = traceShowId $ S.map transactionUUID (transactionsForGraph subGraph)
+      filterTransSet transSet = S.map (\t -> filterChildTransactions t validChildIds) transSet
   if t1id == t2id then
-    Right subGraph
-    else if U.null t1id || U.null t2id then --no common ancestor
-           Left (NoCommonTransactionAncestorError t1id t2id)
-         else do
-           parentTrans1 <- oneParent trans1
-           parentTrans2 <- oneParent trans2
-           --add transactions to graph
-           let subGraph' = TransactionGraph headNames newTrans
-               headNames = transactionHeadsForGraph subGraph
-               newTrans = S.union (transactionsForGraph subGraph) (S.fromList [parentTrans1, parentTrans2])
-           subGraphToFirstCommonAncestor origGraph subGraph' parentTrans1 parentTrans2
+    --also filter child transactions
+    Right (TransactionGraph resultHeads (S.union (transactionsForGraph subGraph) (filterTransSet (S.singleton trans1))))
+  else if U.null t1id || U.null t2id then --no common ancestor
+    Left (NoCommonTransactionAncestorError t1id t2id)
+    else do
+      parentTrans1 <- oneParent trans1
+      parentTrans2 <- oneParent trans2
+      --add transactions to graph
+      let subGraph' = TransactionGraph resultHeads newTrans
+          newTrans = S.union (transactionsForGraph subGraph) (filterTransSet (S.fromList [trans1, trans2]))
+      subGraphToFirstCommonAncestor origGraph resultHeads subGraph' parentTrans1 parentTrans2
   where
     oneParent (Transaction _ (TransactionInfo parentId _) _) = transactionForUUID parentId origGraph
     oneParent (Transaction _ (MergeTransactionInfo parentId _ _) _) = transactionForUUID parentId origGraph
 
+
+mergeTransactions :: U.UUID -> U.UUID -> MergeStrategy -> (HeadName, HeadName) -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
+mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph = do
+  let transactionForHeadErr name = case transactionForHead name graph of
+        Nothing -> Left (NoSuchHeadNameError name)
+        Just t -> Right t
+  transA <- transactionForHeadErr headNameA 
+  transB <- transactionForHeadErr headNameB 
+  let transAid = transactionUUID transA
+      transBid = transactionUUID transB
+  headNameToDelete <- if parentUUID == transAid then
+                        pure headNameB
+                      else if parentUUID == transBid then
+                             pure headNameA
+                           else
+                             Left (MergeTransactionError (DisconnectedTransactionNotAMergeHeadError parentUUID))
+
+  disconParent <- transactionForUUID parentUUID graph
+  let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
+  subGraph <- subGraphToFirstCommonAncestor graph subHeads emptyTransactionGraph transA transB
+  --traceShowM ("hello\n" ++ showGraphStructureX subGraph)
+  case createMergeTransaction newUUID mergeStrategy subGraph (transA, transB) of
+    Left err -> Left (MergeTransactionError err)
+    Right mergedTrans -> case headNameForTransaction disconParent graph of
+      Nothing -> Left (TransactionIsNotAHeadError parentUUID)
+      Just headName -> do 
+        let newDiscon = newDisconnectedTransaction mergedTransUUID (transactionContext mergedTrans)
+            mergedTransUUID = transactionUUID mergedTrans
+        (_, newGraph) <- addDisconnectedTransaction mergedTransUUID headName newDiscon graph
+        let newGraph' = TransactionGraph newHeads (transactionsForGraph newGraph)
+            newHeads = M.delete headNameToDelete (transactionHeadsForGraph newGraph) 
+        pure (newDiscon, newGraph')
+  
+--TEMPORARY COPY/PASTE  
+showTransactionStructureX :: Transaction -> TransactionGraph -> String
+showTransactionStructureX trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
+  where
+    headInfo = maybe "" show (headNameForTransaction trans graph)
+    parentTransactionsInfo = if isRootTransaction trans graph then "root" else case parentTransactions trans graph of
+      Left err -> show err
+      Right parentTransSet -> concat $ S.toList $ S.map (show . transactionUUID) parentTransSet
+  
+showGraphStructureX :: TransactionGraph -> String
+showGraphStructureX graph@(TransactionGraph heads transSet) = headsInfo ++ S.foldr folder "" transSet
+  where
+    folder trans acc = acc ++ showTransactionStructureX trans graph ++ "\n"
+    headsInfo = show $ M.map transactionUUID heads
