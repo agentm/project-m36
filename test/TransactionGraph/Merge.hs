@@ -9,8 +9,11 @@ import ProjectM36.Error
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
 import Data.Word
+import ProjectM36.RelationalExpression
 import qualified Data.UUID as U
 import qualified ProjectM36.DatabaseContext as DBC
+import Control.Monad.State hiding (join)
+import ProjectM36.Relation (relationTrue)
 import Debug.Trace
 
 main :: IO ()           
@@ -98,10 +101,19 @@ testSelectedBranchMerge = TestCase $ do
   graph <- basicTransactionGraph
   assertGraph graph
   
-  let eGraph' = mergeTransactions (fakeUUID 3) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph
-  (DisconnectedTransaction _ mergedContext, graph') <- assertEither eGraph'
-  assertGraph graph'
+  -- add another relvar to branchB
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
+  updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
+    (Just err, _) -> assertFailure (show err) >> undefined
+    (Nothing, context) -> pure context
+  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext branchBTrans graph
+  --create the merge transaction in the graph
+  let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
+  putStrLn "SPAMMO"
+      
+  (DisconnectedTransaction _ mergedContext, graph'') <- assertEither eGraph'
+  assertGraph graph''
   --validate that the branchB was removed
-  rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph'
-  assertEqual "head still available" (transactionForHead "branchB" graph') Nothing
+  rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''
+  assertEqual "head still available" (transactionForHead "branchB" graph'') Nothing
   --assertEqual "bad merge" mergedContext (transactionContext rootTrans)
