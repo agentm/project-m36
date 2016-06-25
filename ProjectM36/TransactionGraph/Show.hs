@@ -2,16 +2,18 @@
 module ProjectM36.TransactionGraph.Show where
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
+import ProjectM36.Transaction
 import qualified Data.Set as S
 
 
 showTransactionStructure :: Transaction -> TransactionGraph -> String
-showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " " ++ parentTransactionsInfo
+showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionUUID trans) ++ " p" ++ parentTransactionsInfo ++ " c" ++ childTransactionsInfo
   where
     headInfo = maybe "" show (headNameForTransaction trans graph)
     parentTransactionsInfo = if isRootTransaction trans graph then "root" else case parentTransactions trans graph of
       Left err -> show err
       Right parentTransSet -> concat $ S.toList $ S.map (show . transactionUUID) parentTransSet
+    childTransactionsInfo = show (S.toList (transactionChildren trans))
   
 showGraphStructure :: TransactionGraph -> String
 showGraphStructure graph@(TransactionGraph _ transSet) = S.foldr folder "" transSet

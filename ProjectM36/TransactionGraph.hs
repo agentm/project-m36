@@ -17,6 +17,7 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
 import Debug.Trace
+import Data.Either (lefts, rights)
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -52,7 +53,9 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
     matchingTrans = M.filter (transaction ==) heads
 
 transactionForUUID :: U.UUID -> TransactionGraph -> Either RelationalError Transaction
-transactionForUUID uuid graph = if S.null matchingTrans then
+transactionForUUID uuid graph = if uuid == U.nil then
+                                  Left RootTransactionTraversalError
+                                else if S.null matchingTrans then
                                   Left $ NoSuchTransactionError uuid
                                 else
                                   Right $ head (S.toList matchingTrans)
@@ -83,23 +86,24 @@ childTransactions (Transaction _ (MergeTransactionInfo _ _ children) _) = transa
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-addBranch :: U.UUID -> HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addBranch newUUID newBranchName branchPoint graph = addTransactionToGraph newBranchName branchPoint newUUID (transactionContext branchPoint) graph
+addBranch :: U.UUID -> HeadName -> U.UUID -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addBranch newUUID newBranchName branchPointId graph = do
+  parentTrans <- transactionForUUID branchPointId graph
+  addTransactionToGraph newBranchName branchPointId newUUID (transactionContext parentTrans) graph
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: U.UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph = do
-  parentTrans <- transactionForUUID parentUUID graph
-  addTransactionToGraph headName parentTrans newUUID context graph
+addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph =  addTransactionToGraph headName parentUUID newUUID context graph
 
 -- create a new transaction on "newHeadName" with the branchPointTrans
-addTransactionToGraph :: HeadName -> Transaction -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addTransactionToGraph newHeadName branchPointTrans newUUID newContext (TransactionGraph heads transSet) = do
-  let freshTransaction = Transaction newUUID (TransactionInfo (transactionUUID branchPointTrans) S.empty) newContext
+addTransactionToGraph :: HeadName -> U.UUID -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addTransactionToGraph newHeadName branchPointTransId newUUID newContext graph@(TransactionGraph heads transSet) = do
+  parentTransaction <- transactionForUUID branchPointTransId graph
+  let freshTransaction = Transaction newUUID (TransactionInfo branchPointTransId S.empty) newContext
   -- there are two parents for MergeTransactions! not implemented
   --update parentTransaction to add child
-  let parentTransaction = branchPointTrans
-  let updatedTransSet = (S.insert freshTransaction <$> S.insert parentTransaction <$> S.delete parentTransaction) transSet
+  let updatedParentTransaction = transactionSetChildren parentTransaction (S.insert (transactionUUID freshTransaction) (transactionChildren parentTransaction))
+      updatedTransSet = (S.insert freshTransaction <$> S.insert updatedParentTransaction) transSet
   let updatedGraph = TransactionGraph (M.insert newHeadName freshTransaction heads) updatedTransSet
   return (freshTransaction, updatedGraph)
 
@@ -182,12 +186,10 @@ evalGraphOp newUUID discon@(DisconnectedTransaction parentUUID disconContext) gr
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-evalGraphOp newUUID (DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case transactionForUUID parentUUID graph of
+evalGraphOp newUUID (DisconnectedTransaction parentUUID disconContext) graph (Branch newBranchName) = case addBranch newUUID newBranchName parentUUID graph of
   Left err -> Left err
-  Right parentTrans -> case addBranch newUUID newBranchName parentTrans graph of
-    Left err -> Left err
-    Right (_, newGraph) -> Right (newDiscon, newGraph)
-     where
+  Right (_, newGraph) -> Right (newDiscon, newGraph)
+    where
       newDiscon = DisconnectedTransaction newUUID disconContext
 
 -- add the disconnected transaction to the graph
@@ -273,29 +275,55 @@ validateHeadName headName graph (t1, t2) = do
                   else
                     Right trans
   
--- | Return the common ancestor of two transactions. When looking for the first common ancestor, we don't need to search both parents of a merge transaction because the merge must have diverged from a common ancestor anyway, so we arbitrarily just search one of the parents of a merge transaction. Technically, due to merge transactions, this may not actually return the first common ancestor, but it should be pretty close.
-subGraphToFirstCommonAncestor :: TransactionGraph -> TransactionHeads -> TransactionGraph -> Transaction -> Transaction -> Either RelationalError TransactionGraph
-subGraphToFirstCommonAncestor origGraph resultHeads subGraph trans1 trans2 = do
-  let t1id = transactionUUID trans1
-      t2id = transactionUUID trans2
-      validChildIds = traceShowId $ S.map transactionUUID (transactionsForGraph subGraph)
-      filterTransSet transSet = S.map (\t -> filterChildTransactions t validChildIds) transSet
-  if t1id == t2id then
-    --also filter child transactions
-    Right (TransactionGraph resultHeads (S.union (transactionsForGraph subGraph) (filterTransSet (S.singleton trans1))))
-  else if U.null t1id || U.null t2id then --no common ancestor
-    Left (NoCommonTransactionAncestorError t1id t2id)
+-- Algorithm: start at one transaction and work backwards up the parents. If there is a node we have not yet visited as a child, then walk that up to its head. If that branch contains the goal transaction, then we have completed a valid subgraph traversal.
+subGraphOfFirstCommonAncestor :: TransactionGraph -> TransactionHeads -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError TransactionGraph
+subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans traverseSet = do
+  let currentid = transactionUUID currentTrans
+      goalid = transactionUUID goalTrans
+  if currentTrans == goalTrans then
+    Right (TransactionGraph resultHeads traverseSet) -- add filter
+    --catch root transaction to improve error?
     else do
-      parentTrans1 <- oneParent trans1
-      parentTrans2 <- oneParent trans2
-      --add transactions to graph
-      let subGraph' = TransactionGraph resultHeads newTrans
-          newTrans = S.union (transactionsForGraph subGraph) (filterTransSet (S.fromList [trans1, trans2]))
-      subGraphToFirstCommonAncestor origGraph resultHeads subGraph' parentTrans1 parentTrans2
+    currentTransChildren <- liftM S.fromList $ mapM (flip transactionForUUID origGraph) (S.toList (transactionChildren currentTrans))            
+    let searchChildren = S.difference (S.insert currentTrans traverseSet) currentTransChildren
+        searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans traverseSet)
+        childSearches = map searchChild (S.toList searchChildren)
+        errors = lefts childSearches
+        pathsFound = rights childSearches
+    if null childSearches || all (== (Left (FailedToFindTransactionError goalid))) childSearches then --no path found, so search the parent
+      case oneParent currentTrans of
+        Left RootTransactionTraversalError -> Left (NoCommonTransactionAncestorError currentid goalid)
+        Left err -> Left err
+        Right currentTransParent -> do      
+          subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans traverseSet)
+      else if length errors > 0 then -- traversal error
+             Left (head errors)
+           else -- we found a path
+             Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
   where
     oneParent (Transaction _ (TransactionInfo parentId _) _) = transactionForUUID parentId origGraph
     oneParent (Transaction _ (MergeTransactionInfo parentId _ _) _) = transactionForUUID parentId origGraph
 
+-- | Search from a past graph point to all following heads for a specific transaction. If found, return the transaction path, otherwise a RelationalError.
+pathToTransaction :: TransactionGraph -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError (S.Set Transaction)
+pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
+  let targetId = transactionUUID targetTransaction
+  if targetTransaction == currentTransaction then
+    Right accumTransSet
+    else do
+    currentTransChildren <- mapM (flip transactionForUUID graph) (S.toList (transactionChildren currentTransaction))        
+    if length currentTransChildren == 0 then
+      Left (FailedToFindTransactionError targetId)
+      else do
+      let searches = map (\t -> pathToTransaction graph targetTransaction t (S.insert t accumTransSet)) currentTransChildren
+      let realErrors = filter (/= FailedToFindTransactionError targetId) (lefts searches)
+          paths = rights searches
+      if length realErrors > 0 then -- found some real errors
+        Left (head realErrors)
+      else if length paths == 0 then -- failed to find transaction in all children
+             Left (FailedToFindTransactionError targetId)
+           else --we have some paths!
+             Right (S.unions paths)
 
 mergeTransactions :: U.UUID -> U.UUID -> MergeStrategy -> (HeadName, HeadName) -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
 mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph = do
@@ -315,14 +343,15 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
 
   disconParent <- transactionForUUID parentUUID graph
   let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
-  subGraph <- subGraphToFirstCommonAncestor graph subHeads emptyTransactionGraph transA transB
+  subGraph <- subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
+  
   case createMergeTransaction newUUID mergeStrategy subGraph (transA, transB) of
     Left err -> Left (MergeTransactionError err)
     Right mergedTrans -> case headNameForTransaction disconParent graph of
       Nothing -> Left (TransactionIsNotAHeadError parentUUID)
       Just headName -> do 
         -- why create a merge transaction and then only use the context?
-        (newTrans, newGraph) <- addTransactionToGraph headName disconParent newUUID (transactionContext mergedTrans) graph
+        (newTrans, newGraph) <- addTransactionToGraph headName parentUUID newUUID (transactionContext mergedTrans) graph
         let newGraph' = TransactionGraph newHeads (transactionsForGraph newGraph)
             newHeads = M.delete headNameToDelete (transactionHeadsForGraph newGraph) 
             newDiscon = newDisconnectedTransaction newUUID (transactionContext newTrans)

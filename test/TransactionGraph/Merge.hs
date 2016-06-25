@@ -11,6 +11,7 @@ import System.Exit
 import Data.Word
 import ProjectM36.RelationalExpression
 import qualified Data.UUID as U
+import qualified Data.Set as S
 import qualified ProjectM36.DatabaseContext as DBC
 import Control.Monad.State hiding (join)
 import ProjectM36.Relation (relationTrue)
@@ -23,9 +24,9 @@ main = do
 
 testList :: Test
 testList = TestList [
-                     testSubGraphToFirstAncestorBasic,
-                     testSubGraphToFirstAncestorSnipBranch,
-                     testSelectedBranchMerge
+                     testSubGraphToFirstAncestorBasic
+                     --testSubGraphToFirstAncestorSnipBranch,
+                     --testSelectedBranchMerge
                     ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -44,12 +45,12 @@ basicTransactionGraph = do
       uuidB = fakeUUID 11
       uuidRoot = fakeUUID 1
       rootContext = transactionContext rootTrans
-  (_, bsGraph') <- addTransaction "branchA" uuidA rootContext rootTrans bsGraph
-  (_, bsGraph'') <- addTransaction "branchB" uuidB rootContext rootTrans bsGraph'
+  (_, bsGraph') <- addTransaction "branchA" uuidA rootContext uuidRoot bsGraph
+  (_, bsGraph'') <- addTransaction "branchB" uuidB rootContext uuidRoot bsGraph'
   pure bsGraph''
   
-addTransaction :: HeadName -> U.UUID -> DatabaseContext -> Transaction -> TransactionGraph -> IO (Transaction, TransactionGraph)
-addTransaction headName newTransUUID context parentTrans graph = case addTransactionToGraph headName parentTrans newTransUUID context graph of
+addTransaction :: HeadName -> U.UUID -> DatabaseContext -> U.UUID -> TransactionGraph -> IO (Transaction, TransactionGraph)
+addTransaction headName newTransUUID context parentTransId graph = case addTransactionToGraph headName parentTransId newTransUUID context graph of
   Left err -> assertFailure (show err) >> error ""
   Right (t,g) -> pure (t,g)
               
@@ -77,11 +78,12 @@ assertMaybe x msg = case x of
 -- | Test that a subgraph of the basic graph is equal to the original graph (nothing to filter).
 testSubGraphToFirstAncestorBasic :: Test  
 testSubGraphToFirstAncestorBasic = TestCase $ do
-  graph <- basicTransactionGraph  
+  graph <- basicTransactionGraph 
+  putStrLn $ showGraphStructure graph
   assertGraph graph
   transA <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB"
-  subgraph <- assertEither $ subGraphToFirstCommonAncestor graph (transactionHeadsForGraph graph) emptyTransactionGraph transA transB
+  subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph graph) transA transB S.empty
   assertEqual "no graph changes" subgraph graph
   
 -- | Test that a branch anchored at the root transaction is removed when using the first ancestor function.
@@ -91,10 +93,25 @@ testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   transA <- assertMaybe (transactionForHead "branchA" baseGraph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" baseGraph) "failed to get branchB"
   rootTrans <- assertEither (transactionForUUID (fakeUUID 1) baseGraph)
-  (_, graph) <- addTransaction "branchC" (fakeUUID 12) (transactionContext transA) rootTrans baseGraph
-  subgraph <- assertEither $ subGraphToFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) emptyTransactionGraph transA transB
+  (_, graph) <- addTransaction "branchC" (fakeUUID 12) (transactionContext transA) (fakeUUID 1) baseGraph
+  subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) transA transB S.empty
   assertGraph subgraph
   assertEqual "failed to snip branch" baseGraph subgraph
+  
+-- | Test that the subgraph function recurses properly through multiple parent transactions.  
+testSubGraphToFirstAncestorMoreTransactions :: Test
+testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
+  graph <- basicTransactionGraph
+  assertGraph graph
+  
+  -- add another relvar to branchB
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
+  updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
+    (Just err, _) -> assertFailure (show err) >> undefined
+    (Nothing, context) -> pure context
+  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
+  pure ()
+
   
 testSelectedBranchMerge :: Test
 testSelectedBranchMerge = TestCase $ do
@@ -106,12 +123,20 @@ testSelectedBranchMerge = TestCase $ do
   updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
-  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext branchBTrans graph
+  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
+  --putStrLn $ "struct " ++ showGraphStructure graph'
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
-  putStrLn "SPAMMO"
       
+  case eGraph' of
+    Left err -> assertFailure ("poop" ++ show err)
+    Right (_, pgraph) -> putStrLn (showGraphStructure pgraph)
+  
+  putStrLn "SPAMMO"
+        
   (DisconnectedTransaction _ mergedContext, graph'') <- assertEither eGraph'
+
+  putStrLn "SPAMMO2"
   assertGraph graph''
   --validate that the branchB was removed
   rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''

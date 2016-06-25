@@ -28,11 +28,13 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | PredicateExpressionError T.Text
                      | NoCommonTransactionAncestorError U.UUID U.UUID
                      | NoSuchTransactionError U.UUID
+                     | RootTransactionTraversalError 
                      | NoSuchHeadNameError HeadName
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
                      | SessionIdInUseError U.UUID
                      | NoSuchSessionError U.UUID
+                     | FailedToFindTransactionError U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
