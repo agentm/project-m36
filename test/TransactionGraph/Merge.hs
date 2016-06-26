@@ -130,7 +130,8 @@ testSelectedBranchMerge = TestCase $ do
   (DisconnectedTransaction _ mergedContext, graph'') <- assertEither eGraph'
 
   assertGraph graph''
-  --validate that the branchB was removed
+  --validate that the branchB remains
   rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''
-  assertEqual "head still available" (transactionForHead "branchB" graph'') Nothing
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph'') "failed to find branchB head"
+  assertEqual "head of merged transaction was removed" (transactionUUID branchBTrans) (fakeUUID 3)
   --assertEqual "bad merge" mergedContext (transactionContext rootTrans)

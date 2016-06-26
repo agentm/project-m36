@@ -16,8 +16,8 @@ import Control.Monad
 import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
-import Debug.Trace
 import Data.Either (lefts, rights)
+--import Debug.Trace
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -263,7 +263,9 @@ createMergeTransaction newUUID (SelectedBranchMergeStrategy selectedBranch) grap
   selectedTrans <- validateHeadName selectedBranch graph t2
   pure $ Transaction newUUID (MergeTransactionInfo (transactionUUID trans1) (transactionUUID trans2) S.empty) (transactionContext selectedTrans)
                        
---createMergeTransaction newUUID UnionMergeStrategy graph t2 = undefined
+createMergeTransaction newUUID UnionMergeStrategy graph t2 = undefined
+
+createMergeTransaction newUUID (UnionPreferMergeStrategy preferHead) graph t2 = undefined
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
 validateHeadName :: HeadName -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
@@ -334,12 +336,6 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
   transB <- transactionForHeadErr headNameB 
   let transAid = transactionUUID transA
       transBid = transactionUUID transB
-  headNameToDelete <- if parentUUID == transAid then
-                        pure headNameB
-                      else if parentUUID == transBid then
-                             pure headNameA
-                           else
-                             Left (MergeTransactionError (DisconnectedTransactionNotAMergeHeadError parentUUID))
 
   disconParent <- transactionForUUID parentUUID graph
   let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
@@ -352,8 +348,7 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
       Just headName -> do 
         -- why create a merge transaction and then only use the context?
         (newTrans, newGraph) <- addTransactionToGraph headName parentUUID newUUID (transactionContext mergedTrans) graph
-        let newGraph' = TransactionGraph newHeads (transactionsForGraph newGraph)
-            newHeads = M.delete headNameToDelete (transactionHeadsForGraph newGraph) 
+        let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
             newDiscon = newDisconnectedTransaction newUUID (transactionContext newTrans)
         pure (newDiscon, newGraph')
   
