@@ -315,7 +315,7 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
     if length currentTransChildren == 0 then
       Left (FailedToFindTransactionError targetId)
       else do
-      let searches = map (\t -> pathToTransaction graph targetTransaction t (S.insert t accumTransSet)) currentTransChildren
+      let searches = map (\t -> pathToTransaction graph t targetTransaction (S.insert t accumTransSet)) currentTransChildren
       let realErrors = filter (/= FailedToFindTransactionError targetId) (lefts searches)
           paths = rights searches
       if length realErrors > 0 then -- found some real errors

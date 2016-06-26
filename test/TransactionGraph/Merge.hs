@@ -24,9 +24,9 @@ main = do
 
 testList :: Test
 testList = TestList [
-                     testSubGraphToFirstAncestorBasic
-                     --testSubGraphToFirstAncestorSnipBranch,
-                     --testSelectedBranchMerge
+                     testSubGraphToFirstAncestorBasic,
+                     testSubGraphToFirstAncestorSnipBranch,
+                     testSelectedBranchMerge
                     ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -79,7 +79,6 @@ assertMaybe x msg = case x of
 testSubGraphToFirstAncestorBasic :: Test  
 testSubGraphToFirstAncestorBasic = TestCase $ do
   graph <- basicTransactionGraph 
-  putStrLn $ showGraphStructure graph
   assertGraph graph
   transA <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB"
@@ -128,15 +127,8 @@ testSelectedBranchMerge = TestCase $ do
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
       
-  case eGraph' of
-    Left err -> assertFailure ("poop" ++ show err)
-    Right (_, pgraph) -> putStrLn (showGraphStructure pgraph)
-  
-  putStrLn "SPAMMO"
-        
   (DisconnectedTransaction _ mergedContext, graph'') <- assertEither eGraph'
 
-  putStrLn "SPAMMO2"
   assertGraph graph''
   --validate that the branchB was removed
   rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''
