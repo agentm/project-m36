@@ -134,8 +134,12 @@ testSelectedBranchMerge = TestCase $ do
   rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph'') "failed to find branchB head"
   assertEqual "head of merged transaction was removed" (transactionUUID branchBTrans) (fakeUUID 3)
-  --assertEqual "bad merge" mergedContext (transactionContext rootTrans)
 
+  --validate that the branchB relvar does *not* appear in the merge because branchA was selected
+  mergeTrans <- assertMaybe (transactionForUUID (fakeUUID 4) graph'')
+  assertTrue "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (transactionContext mergeTrans)))
+
+-- try various individual components conflicts
 testUnionPreferMergeStrategy :: Test
 testUnionPreferMergeStrategy = TestCase $ undefined
 
