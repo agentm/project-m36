@@ -135,3 +135,9 @@ testSelectedBranchMerge = TestCase $ do
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph'') "failed to find branchB head"
   assertEqual "head of merged transaction was removed" (transactionUUID branchBTrans) (fakeUUID 3)
   --assertEqual "bad merge" mergedContext (transactionContext rootTrans)
+
+testUnionPreferMergeStrategy :: Test
+testUnionPreferMergeStrategy = TestCase $ undefined
+
+testUnionMergeStrategy :: Test
+testUnionMergeStrategy = TestCase $ undefined

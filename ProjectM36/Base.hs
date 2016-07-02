@@ -309,10 +309,13 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                              DataConstructorDefTypeVarNameArg TypeVarName
                            deriving (Show, Generic, Binary, Eq, NFData)
                                     
+type InclusionDependencies = M.Map IncDepName InclusionDependency
+type RelationVariables = M.Map RelVarName Relation
+                                    
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
-  inclusionDependencies :: M.Map IncDepName InclusionDependency,
-  relationVariables :: M.Map RelVarName Relation,
+  inclusionDependencies :: InclusionDependencies,
+  relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping
@@ -389,7 +392,7 @@ data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n child
                      deriving(Show, Generic)
                              
 instance Binary TransactionInfo                             
-                             
+
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
                    deriving (Show, Generic)

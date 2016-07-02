@@ -22,9 +22,14 @@ transactionSetChildren t@(Transaction _ (TransactionInfo pUUID _) _) childIds = 
 transactionSetChildren t@(Transaction _ (MergeTransactionInfo pUUID1 pUUID2 _) _) childIds =  Transaction (transactionUUID t) (MergeTransactionInfo pUUID1 pUUID2 childIds) (transactionContext t)
 
 -- | Return the same transaction but referencing only the specific child transactions. This is useful when traversing a graph and returning a subgraph. This doesn't filter parent transactions because it assumes a head-to-root traversal.
-filterChildrenFromTransactionInfo :: TransactionInfo -> S.Set U.UUID -> TransactionInfo
-filterChildrenFromTransactionInfo (TransactionInfo parentId childIds) filterIds = TransactionInfo parentId (S.intersection childIds filterIds)
-filterChildrenFromTransactionInfo (MergeTransactionInfo parentIdA parentIdB childIds) filterIds = MergeTransactionInfo parentIdA parentIdB (S.intersection childIds filterIds)
+filterTransactionInfoTransactions :: S.Set U.UUID -> TransactionInfo -> TransactionInfo
+filterTransactionInfoTransactions filterIds (TransactionInfo parentId childIds) = TransactionInfo (filterParent parentId filterIds) (S.intersection childIds filterIds)
+filterTransactionInfoTransactions filterIds (MergeTransactionInfo parentIdA parentIdB childIds) = MergeTransactionInfo (filterParent parentIdA filterIds) (filterParent parentIdB filterIds) (S.intersection childIds filterIds)
 
-filterChildTransactions :: Transaction -> S.Set U.UUID -> Transaction
-filterChildTransactions (Transaction selfId tInfo context) filterIds = Transaction selfId (filterChildrenFromTransactionInfo tInfo filterIds) context
+filterParent :: U.UUID -> S.Set U.UUID -> U.UUID
+filterParent parentId validIds = if S.member parentId validIds then parentId else U.nil
+
+-- | Remove any child or parent transaction references not in the valud UUID set.
+filterTransaction :: S.Set U.UUID -> Transaction -> Transaction
+filterTransaction filterIds (Transaction selfId tInfo context) = Transaction selfId (filterTransactionInfoTransactions filterIds tInfo) context
+

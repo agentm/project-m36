@@ -83,7 +83,10 @@ someErrors errList  = if length errList == 1 then
                         
 data MergeError = SelectedHeadMismatchMergeError |
                   StrategyViolatesConstraintMergeError |
-                  DisconnectedTransactionNotAMergeHeadError U.UUID
+                  DisconnectedTransactionNotAMergeHeadError U.UUID |
+                  StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
+                  StrategyViolatesRelationVariableMergeError |
+                  StrategyViolatesTypeConstructorMergeError
                   deriving (Show, Eq, Generic, Binary, Typeable)
                            
 instance NFData MergeError where rnf = genericRnf                           

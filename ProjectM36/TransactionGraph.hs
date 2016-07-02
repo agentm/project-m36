@@ -16,6 +16,7 @@ import Control.Monad
 import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
+import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights)
 --import Debug.Trace
 
@@ -263,8 +264,18 @@ createMergeTransaction newUUID (SelectedBranchMergeStrategy selectedBranch) grap
   selectedTrans <- validateHeadName selectedBranch graph t2
   pure $ Transaction newUUID (MergeTransactionInfo (transactionUUID trans1) (transactionUUID trans2) S.empty) (transactionContext selectedTrans)
                        
-createMergeTransaction newUUID UnionMergeStrategy graph t2 = undefined
+-- merge functions, relvars, individually
+createMergeTransaction newUUID UnionMergeStrategy _ (t1,t2) = do
+  let contextA = transactionContext t1
+      contextB = transactionContext t2
+  incDeps <- unionMergeMaps PreferNeither (inclusionDependencies contextA) (inclusionDependencies contextB)
+  relVars <- unionMergeRelVars PreferNeither (relationVariables contextA) (relationVariables contextB)
+  atomFuncs <- unionMergeAtomFunctions PreferNeither (atomFunctions contextA) (atomFunctions contextB)
+  notifs <- unionMergeMaps PreferNeither (notifications contextA) (notifications contextB)
+  types <- unionMergeTypeConstructorMapping PreferNeither (typeConstructorMapping contextA) (typeConstructorMapping contextB)
+  pure (Transaction newUUID (MergeTransactionInfo (transactionUUID t1) (transactionUUID t2) S.empty) (DatabaseContext incDeps relVars atomFuncs notifs types))
 
+-- merge function, relvars, but, on error, just take the component from the preferred branch
 createMergeTransaction newUUID (UnionPreferMergeStrategy preferHead) graph t2 = undefined
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
@@ -334,14 +345,13 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
         Just t -> Right t
   transA <- transactionForHeadErr headNameA 
   transB <- transactionForHeadErr headNameB 
-  let transAid = transactionUUID transA
-      transBid = transactionUUID transB
 
   disconParent <- transactionForUUID parentUUID graph
   let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
   subGraph <- subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
+  subGraph' <- filterSubGraph subGraph subHeads
   
-  case createMergeTransaction newUUID mergeStrategy subGraph (transA, transB) of
+  case createMergeTransaction newUUID mergeStrategy subGraph' (transA, transB) of
     Left err -> Left (MergeTransactionError err)
     Right mergedTrans -> case headNameForTransaction disconParent graph of
       Nothing -> Left (TransactionIsNotAHeadError parentUUID)
@@ -366,3 +376,11 @@ showGraphStructureX graph@(TransactionGraph heads transSet) = headsInfo ++ S.fol
   where
     folder trans acc = acc ++ showTransactionStructureX trans graph ++ "\n"
     headsInfo = show $ M.map transactionUUID heads
+    
+-- | After splicing out a subgraph, run it through this function to remove references to transactions which are not in the subgraph.
+filterSubGraph :: TransactionGraph -> TransactionHeads -> Either RelationalError TransactionGraph
+filterSubGraph graph heads = Right $ TransactionGraph newHeads newTransSet
+  where
+    validIds = S.map transactionUUID (transactionsForGraph graph)
+    newTransSet = S.map (filterTransaction validIds) (transactionsForGraph graph)
+    newHeads = M.map (filterTransaction validIds) heads
