@@ -123,7 +123,7 @@ testSelectedBranchMerge = TestCase $ do
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
   (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
-  --putStrLn $ "struct " ++ showGraphStructure graph'
+
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
       
@@ -139,9 +139,24 @@ testSelectedBranchMerge = TestCase $ do
   mergeTrans <- assertMaybe (transactionForUUID (fakeUUID 4) graph'')
   assertTrue "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (transactionContext mergeTrans)))
 
--- try various individual components conflicts
+-- try various individual component conflicts and check for resolution
 testUnionPreferMergeStrategy :: Test
 testUnionPreferMergeStrategy = TestCase $ undefined
-
+  
+-- try various individual component conflicts and check for merge failure
 testUnionMergeStrategy :: Test
-testUnionMergeStrategy = TestCase $ undefined
+testUnionMergeStrategy = TestCase $ do
+  graph <- basicTransactionGraph
+  assertGraph graph
+  
+
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
+  branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"
+  -- add another relvar to branchB - branchBOnlyRelvar should appear in the merge  
+  -- add inclusion dependency in branchA
+
+  let updatedBranchBContext = branchBTrans {relationVariables = M.insert "branchBOnlyRelVar" (relationVariables branchBTrans) }
+  let updatedBranchAContext = branchATrans {inclusionDependencies = M.insert "branchAOnlyIncDep" (inclusionDependencies branchATrans) }
+  
+  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
+  
