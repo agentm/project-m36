@@ -35,7 +35,6 @@ Library
                    ,filepath
                    ,directory
                    ,vector-binary-instances
-                   ,unix
                    ,temporary
                    ,stm
                    ,time
@@ -109,7 +108,12 @@ Library
                      ProjectM36.TypeConstructorDef,
                      Database.Persist.ProjectM36
     GHC-Options: -Wall -rtsopts
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
     Default-Language: Haskell2010
 
 Executable tutd
@@ -137,7 +141,6 @@ Executable tutd
                    deepseq,
                    binary,
                    data-interval,
-                   unix,
                    parallel,
                    cassava,
                    gnuplot,
@@ -207,8 +210,14 @@ Executable tutd
                    TutorialD.Interpreter.Types
     main-is: TutorialD/tutd.hs
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
     Default-Language: Haskell2010
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
 
 Executable project-m36-server
     Build-Depends: base,
@@ -222,7 +231,6 @@ Executable project-m36-server
                    binary,
                    transformers,
                    temporary,
-                   unix,
                    data-interval,
                    deepseq,
                    uuid,
@@ -249,7 +257,6 @@ Executable project-m36-server
     Main-Is: ProjectM36/Server/project-m36-server.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
     Default-Language: Haskell2010
     Other-Modules: ProjectM36.Atom,
                    ProjectM36.AtomFunction,
@@ -290,10 +297,17 @@ Executable project-m36-server
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
                    ProjectM36.TypeConstructorDef
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+		   
 
 Executable bigrel
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t
     Other-Modules: ProjectM36.Base,
                    ProjectM36.Relation
                    ProjectM36.Tuple,
@@ -330,88 +344,119 @@ Executable bigrel
     main-is: benchmark/bigrel.hs
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+
 
 Test-Suite test-tutoriald
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
 
 Test-Suite test-relation
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Basic.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
 
 Test-Suite test-static-optimizer
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
 
 Test-Suite test-transactiongraph-persist
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Persist.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
 
 Test-Suite test-relation-import-csv
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Import/CSV.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
 
 Test-Suite test-tutoriald-import-tutoriald
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
 
 Test-Suite test-relation-export-csv
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
     GHC-Options: -Wall
 
 Test-Suite test-persistent-driver
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data, stm-containers, list-t
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
+    
 
 benchmark bench
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, criterion, stm-containers
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, criterion, stm-containers
     GHC-Options: -Wall -rtsopts
 
 Test-Suite test-server
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/Server/Main.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
+    
 
 Executable Example-SimpleClient
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
     Other-Modules: ProjectM36.Atom,
                    ProjectM36.AtomFunction,
                    ProjectM36.AtomFunctions.Basic,
@@ -448,13 +493,20 @@ Executable Example-SimpleClient
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
                    ProjectM36.TypeConstructorDef
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
+		   
 
 Executable Example-PersistClient
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template
     Main-Is: examples/PersistClient.hs
     GHC-Options: -Wall
-    C-sources: ProjectM36/DirectoryFsync.c
     Other-Modules: Database.Persist.ProjectM36,
                    ProjectM36.Atom,
                    ProjectM36.AtomFunction,
@@ -491,3 +543,11 @@ Executable Example-PersistClient
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
                    ProjectM36.TypeConstructorDef
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
+		   
