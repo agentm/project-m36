@@ -13,6 +13,7 @@ import System.Win32.File (flushFileBuffers)
 #else
 import System.Posix.Unistd (fileSynchroniseDataOnly)
 import System.Posix.IO (handleToFd)
+import Foreign.C
 #endif
 
 import System.IO (withFile, IOMode(WriteMode), hPutStr, Handle)
@@ -21,7 +22,7 @@ import qualified Data.ByteString.Lazy as BS
 #if defined(mingw32_HOST_OS)
 import ProjectM36.Win32Handle
 #else
-foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO (CInt)
+foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO CInt
 #endif
 
 data DiskSync = NoDiskSync | FsyncDiskSync
