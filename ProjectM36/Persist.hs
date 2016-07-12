@@ -7,7 +7,7 @@ module ProjectM36.Persist (writeFileSync,
 -- on Windows, use FlushFileBuffers and MoveFileEx
 
 #if defined(mingw32_HOST_OS)
-import System.Win32.File (flushFileBuffers)
+import qualified System.Win32 as Win32
 #else
 import qualified System.Posix as Posix
 import System.Posix.Unistd (fileSynchroniseDataOnly)
@@ -41,7 +41,7 @@ renameSync sync srcPath dstPath = do
 -- System.Directory's renameFile/renameDirectory almost do exactly what we want except that it needlessly differentiates between directories and files
 atomicRename :: FilePath -> FilePath -> IO ()
 atomicRename srcPath dstPath = do
-#if defined(ming32_HOST_OS)
+#if defined(mingw32_HOST_OS)
   Win32.moveFileEx srcPath dstPath Win32.mOVEFILE_REPLACE_EXISTING
 #else
   Posix.rename srcPath dstPath
@@ -50,7 +50,7 @@ atomicRename srcPath dstPath = do
 syncHandle :: DiskSync -> Handle -> IO ()
 syncHandle FsyncDiskSync handle = do
 #if defined(mingw32_HOST_OS)
-  withHandleToHANDLE handle (\h -> flushFileBuffers h)
+  withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
 #else
   handleToFd handle >>= fileSynchroniseDataOnly
 #endif
