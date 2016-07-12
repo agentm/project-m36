@@ -47,7 +47,7 @@ Library
                    ,extended-reals
                    ,network-transport
 --required for persistent db driver
-                   ,persistent 
+                   ,persistent >= 2.2 && < 2.3
                    ,persistent-template
                    ,aeson
                    ,path-pieces
@@ -419,7 +419,7 @@ Test-Suite test-persistent-driver
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent >= 2.2 && < 2.3, either, path-pieces, http-api-data, stm-containers, list-t
     GHC-Options: -Wall
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
