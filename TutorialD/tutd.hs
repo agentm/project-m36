@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, CPP #-}
 import TutorialD.Interpreter
 import ProjectM36.Base
 import ProjectM36.Client
@@ -59,6 +59,16 @@ headNameForConfig (RemoteInterpreterConfig _ _ headn) = headn
 errDie :: String -> IO ()                                                           
 errDie err = hPutStrLn stderr err >> exitFailure
 
+#ifndef PROJECTM36_VERSION
+#error PROJECTM36_VERSION is not defined
+#endif
+printWelcome :: IO ()
+printWelcome = do
+  putStrLn $ "Project:M36 TutorialD Interpreter " ++ PROJECTM36_VERSION
+  putStrLn "Type \":help\" for more information."
+  putStrLn "A full tutorial is available at:"
+  putStrLn "https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown"
+
 main :: IO ()
 main = do
   interpreterConfig <- execParser opts
@@ -72,7 +82,8 @@ main = do
       eSessionId <- createSessionAtHead connHeadName conn
       case eSessionId of 
           Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
-          Right sessionId -> do    
+          Right sessionId -> do
+            printWelcome
             _ <- reprLoop interpreterConfig sessionId conn
             pure ()
 
