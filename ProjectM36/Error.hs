@@ -30,11 +30,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchTransactionError U.UUID
                      | RootTransactionTraversalError 
                      | NoSuchHeadNameError HeadName
+                     | NewTransactionMayNotHaveChildrenError U.UUID
+                     | NewTransactionMissingParentError U.UUID
                      | TransactionIsNotAHeadError U.UUID
                      | TransactionGraphCycleError U.UUID
                      | SessionIdInUseError U.UUID
                      | NoSuchSessionError U.UUID
                      | FailedToFindTransactionError U.UUID
+                     | TransactionIdInUseError U.UUID
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType

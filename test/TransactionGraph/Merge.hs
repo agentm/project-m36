@@ -4,6 +4,7 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Show
+import ProjectM36.TransactionGraph.Show.Dot
 import ProjectM36.DateExamples
 import ProjectM36.Error
 import qualified Data.ByteString.Lazy as BS
@@ -12,6 +13,7 @@ import Data.Word
 import ProjectM36.RelationalExpression
 import qualified Data.UUID as U
 import qualified Data.Set as S
+import qualified Data.Map as M
 import qualified ProjectM36.DatabaseContext as DBC
 import Control.Monad.State hiding (join)
 import ProjectM36.Relation (relationTrue)
@@ -24,9 +26,10 @@ main = do
 
 testList :: Test
 testList = TestList [
-                     testSubGraphToFirstAncestorBasic,
-                     testSubGraphToFirstAncestorSnipBranch,
-                     testSelectedBranchMerge
+                     --testSubGraphToFirstAncestorBasic,
+                     --testSubGraphToFirstAncestorSnipBranch,
+                     --testSelectedBranchMerge,
+                     testUnionMergeStrategy
                     ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -45,12 +48,12 @@ basicTransactionGraph = do
       uuidB = fakeUUID 11
       uuidRoot = fakeUUID 1
       rootContext = transactionContext rootTrans
-  (_, bsGraph') <- addTransaction "branchA" uuidA rootContext uuidRoot bsGraph
-  (_, bsGraph'') <- addTransaction "branchB" uuidB rootContext uuidRoot bsGraph'
+  (_, bsGraph') <- addTransaction "branchA" (Transaction uuidA (TransactionInfo uuidRoot S.empty) rootContext) bsGraph
+  (_, bsGraph'') <- addTransaction "branchB" (Transaction uuidB (TransactionInfo uuidRoot S.empty) rootContext) bsGraph'
   pure bsGraph''
   
-addTransaction :: HeadName -> U.UUID -> DatabaseContext -> U.UUID -> TransactionGraph -> IO (Transaction, TransactionGraph)
-addTransaction headName newTransUUID context parentTransId graph = case addTransactionToGraph headName parentTransId newTransUUID context graph of
+addTransaction :: HeadName -> Transaction -> TransactionGraph -> IO (Transaction, TransactionGraph)
+addTransaction headName transaction graph = case addTransactionToGraph headName transaction graph of
   Left err -> assertFailure (show err) >> error ""
   Right (t,g) -> pure (t,g)
               
@@ -92,7 +95,7 @@ testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   transA <- assertMaybe (transactionForHead "branchA" baseGraph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" baseGraph) "failed to get branchB"
   rootTrans <- assertEither (transactionForUUID (fakeUUID 1) baseGraph)
-  (_, graph) <- addTransaction "branchC" (fakeUUID 12) (transactionContext transA) (fakeUUID 1) baseGraph
+  (_, graph) <- addTransaction "branchC" (Transaction (fakeUUID 12) (TransactionInfo (fakeUUID 1) S.empty) (transactionContext transA)) baseGraph
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) transA transB S.empty
   assertGraph subgraph
   assertEqual "failed to snip branch" baseGraph subgraph
@@ -108,7 +111,8 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
-  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
+  --FINISH ME
   pure ()
 
   
@@ -122,8 +126,7 @@ testSelectedBranchMerge = TestCase $ do
   updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
-  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
-
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
       
@@ -136,8 +139,8 @@ testSelectedBranchMerge = TestCase $ do
   assertEqual "head of merged transaction was removed" (transactionUUID branchBTrans) (fakeUUID 3)
 
   --validate that the branchB relvar does *not* appear in the merge because branchA was selected
-  mergeTrans <- assertMaybe (transactionForUUID (fakeUUID 4) graph'')
-  assertTrue "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (transactionContext mergeTrans)))
+  mergeTrans <- assertEither (transactionForUUID (fakeUUID 4) graph'')
+  assertBool "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (transactionContext mergeTrans)))
 
 -- try various individual component conflicts and check for resolution
 testUnionPreferMergeStrategy :: Test
@@ -149,14 +152,30 @@ testUnionMergeStrategy = TestCase $ do
   graph <- basicTransactionGraph
   assertGraph graph
   
-
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
   branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"
   -- add another relvar to branchB - branchBOnlyRelvar should appear in the merge  
   -- add inclusion dependency in branchA
 
-  let updatedBranchBContext = branchBTrans {relationVariables = M.insert "branchBOnlyRelVar" (relationVariables branchBTrans) }
-  let updatedBranchAContext = branchATrans {inclusionDependencies = M.insert "branchAOnlyIncDep" (inclusionDependencies branchATrans) }
+  let updatedBranchBContext = (transactionContext branchBTrans) {relationVariables = M.insert branchBOnlyRelVarName branchBOnlyRelVar (relationVariables (transactionContext branchBTrans)) }
+      updatedBranchAContext = (transactionContext branchATrans) {inclusionDependencies = M.insert "branchAOnlyIncDep" branchAOnlyIncDep (inclusionDependencies (transactionContext branchATrans)) }
+      branchBOnlyRelVar = relationTrue
+      branchBOnlyRelVarName = "branchBOnlyRelVar"
+      branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
+      assertMergeError mergeResult = case mergeResult of
+        Left err -> assertEqual "incorrect merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError) 
+        Right (_, g) -> do
+          putStrLn (graphAsDot g) 
+          assertFailure "expected merge failure"
+      
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
+  ((DisconnectedTransaction _ mergeContext1), mergedGraph1) <- assertEither $ mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph'
+  assertEqual "branchBOnlyRelVar should appear in the merge" (M.lookup branchBOnlyRelVarName (relationVariables mergeContext1)) (Just relationTrue)
+  --putStrLn (graphAsDot graph')
   
-  (_, graph') <- addTransaction "branchB" (fakeUUID 3) updatedBranchBContext (transactionUUID branchBTrans) graph
+  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) updatedBranchAContext) graph'
+  let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph''
+  --putStrLn (showGraphStructure graph'')
+  pure ()
+  
   

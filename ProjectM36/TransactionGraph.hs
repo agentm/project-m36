@@ -7,6 +7,7 @@ import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.TransactionGraph.Show.Dot
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
@@ -17,8 +18,8 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
 import ProjectM36.TransactionGraph.Merge
-import Data.Either (lefts, rights)
---import Debug.Trace
+import Data.Either (lefts, rights, isRight)
+import Debug.Trace
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -90,12 +91,34 @@ childTransactions (Transaction _ (MergeTransactionInfo _ _ children) _) = transa
 addBranch :: U.UUID -> HeadName -> U.UUID -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addBranch newUUID newBranchName branchPointId graph = do
   parentTrans <- transactionForUUID branchPointId graph
-  addTransactionToGraph newBranchName branchPointId newUUID (transactionContext parentTrans) graph
+  let newTrans = Transaction newUUID (TransactionInfo branchPointId S.empty) (transactionContext parentTrans)
+  addTransactionToGraph newBranchName newTrans graph
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: U.UUID -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph =  addTransactionToGraph headName parentUUID newUUID context graph
+addDisconnectedTransaction newUUID headName (DisconnectedTransaction parentUUID context) graph =  addTransactionToGraph headName (Transaction newUUID (TransactionInfo parentUUID S.empty) context) graph
 
+addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addTransactionToGraph headName newTrans graph = do
+  let parentIds = transactionParentIds newTrans
+      childIds = transactionChildIds newTrans
+      newId = transactionUUID newTrans
+      validateIds ids = mapM (\i -> transactionForUUID i graph) (S.toList ids)
+      addChildTransaction trans = transactionSetChildren trans (S.insert newId (transactionChildIds trans))
+  --validate that the parent transactions are in the graph
+  _ <- validateIds parentIds
+  when (S.size parentIds < 1) (Left $ NewTransactionMissingParentError newId)
+  --validate that the transaction has no children
+  when (not (S.null childIds)) (Left $ NewTransactionMayNotHaveChildrenError newId)
+  --validate that the trasaction's id is unique
+  when (isRight (transactionForUUID newId graph)) (Left (TransactionIdInUseError newId))
+  --update the parent transactions to point to the new transaction
+  parents <- mapM (\tid -> transactionForUUID tid graph) (S.toList parentIds)
+  let updatedParents = S.map addChildTransaction (S.fromList parents)
+      updatedTransSet = S.union updatedParents (transactionsForGraph graph)
+      updatedHeads = M.insert headName newTrans (transactionHeadsForGraph graph)
+  pure (newTrans, (TransactionGraph updatedHeads updatedTransSet))
+{-  
 -- create a new transaction on "newHeadName" with the branchPointTrans
 addTransactionToGraph :: HeadName -> U.UUID -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addTransactionToGraph newHeadName branchPointTransId newUUID newContext graph@(TransactionGraph heads transSet) = do
@@ -107,7 +130,7 @@ addTransactionToGraph newHeadName branchPointTransId newUUID newContext graph@(T
       updatedTransSet = (S.insert freshTransaction <$> S.insert updatedParentTransaction) transSet
   let updatedGraph = TransactionGraph (M.insert newHeadName freshTransaction heads) updatedTransSet
   return (freshTransaction, updatedGraph)
-
+-}
 validateGraph :: TransactionGraph -> Maybe [RelationalError]
 validateGraph graph@(TransactionGraph _ transSet) = do
   --check that all UUIDs are unique in the graph
@@ -297,7 +320,7 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
     Right (TransactionGraph resultHeads traverseSet) -- add filter
     --catch root transaction to improve error?
     else do
-    currentTransChildren <- liftM S.fromList $ mapM (flip transactionForUUID origGraph) (S.toList (transactionChildren currentTrans))            
+    currentTransChildren <- liftM S.fromList $ mapM (flip transactionForUUID origGraph) (S.toList (transactionChildIds currentTrans))            
     let searchChildren = S.difference (S.insert currentTrans traverseSet) currentTransChildren
         searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans traverseSet)
         childSearches = map searchChild (S.toList searchChildren)
@@ -324,7 +347,7 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
   if targetTransaction == currentTransaction then
     Right accumTransSet
     else do
-    currentTransChildren <- mapM (flip transactionForUUID graph) (S.toList (transactionChildren currentTransaction))        
+    currentTransChildren <- mapM (flip transactionForUUID graph) (S.toList (transactionChildIds currentTransaction))        
     if length currentTransChildren == 0 then
       Left (FailedToFindTransactionError targetId)
       else do
@@ -356,10 +379,10 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
     Right mergedTrans -> case headNameForTransaction disconParent graph of
       Nothing -> Left (TransactionIsNotAHeadError parentUUID)
       Just headName -> do 
-        -- why create a merge transaction and then only use the context?
-        (newTrans, newGraph) <- addTransactionToGraph headName parentUUID newUUID (transactionContext mergedTrans) graph
+        (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
         let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
             newDiscon = newDisconnectedTransaction newUUID (transactionContext newTrans)
+        traceM (graphAsDot newGraph)
         pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
@@ -384,3 +407,4 @@ filterSubGraph graph heads = Right $ TransactionGraph newHeads newTransSet
     validIds = S.map transactionUUID (transactionsForGraph graph)
     newTransSet = S.map (filterTransaction validIds) (transactionsForGraph graph)
     newHeads = M.map (filterTransaction validIds) heads
+    

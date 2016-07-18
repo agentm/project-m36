@@ -8,13 +8,13 @@ import qualified Data.Set as S
 newDisconnectedTransaction :: U.UUID -> DatabaseContext -> DisconnectedTransaction
 newDisconnectedTransaction parentUUID context = DisconnectedTransaction parentUUID context
 
-transactionParentUUIDs :: Transaction -> S.Set U.UUID
-transactionParentUUIDs (Transaction _ (TransactionInfo pUUID _) _) = S.singleton pUUID
-transactionParentUUIDs (Transaction _ (MergeTransactionInfo pUUID1 pUUID2 _) _) = S.fromList [pUUID1, pUUID2]
+transactionParentIds :: Transaction -> S.Set U.UUID
+transactionParentIds (Transaction _ (TransactionInfo pUUID _) _) = S.singleton pUUID
+transactionParentIds (Transaction _ (MergeTransactionInfo pUUID1 pUUID2 _) _) = S.fromList [pUUID1, pUUID2]
 
-transactionChildren :: Transaction -> S.Set U.UUID
-transactionChildren (Transaction _ (TransactionInfo _ children) _) = children
-transactionChildren (Transaction _ (MergeTransactionInfo _ _ children) _) = children
+transactionChildIds :: Transaction -> S.Set U.UUID
+transactionChildIds (Transaction _ (TransactionInfo _ children) _) = children
+transactionChildIds (Transaction _ (MergeTransactionInfo _ _ children) _) = children
 
 -- | Create a new transaction which is identical to the original except that a new set of children UUIDs is added.
 transactionSetChildren :: Transaction -> S.Set U.UUID -> Transaction
