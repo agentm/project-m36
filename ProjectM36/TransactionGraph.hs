@@ -115,22 +115,10 @@ addTransactionToGraph headName newTrans graph = do
   --update the parent transactions to point to the new transaction
   parents <- mapM (\tid -> transactionForUUID tid graph) (S.toList parentIds)
   let updatedParents = S.map addChildTransaction (S.fromList parents)
-      updatedTransSet = S.union updatedParents (transactionsForGraph graph)
+      updatedTransSet = S.insert newTrans (S.union updatedParents (transactionsForGraph graph))
       updatedHeads = M.insert headName newTrans (transactionHeadsForGraph graph)
   pure (newTrans, (TransactionGraph updatedHeads updatedTransSet))
-{-  
--- create a new transaction on "newHeadName" with the branchPointTrans
-addTransactionToGraph :: HeadName -> U.UUID -> U.UUID -> DatabaseContext -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addTransactionToGraph newHeadName branchPointTransId newUUID newContext graph@(TransactionGraph heads transSet) = do
-  parentTransaction <- transactionForUUID branchPointTransId graph
-  let freshTransaction = Transaction newUUID (TransactionInfo branchPointTransId S.empty) newContext
-  -- there are two parents for MergeTransactions! not implemented
-  --update parentTransaction to add child
-  let updatedParentTransaction = transactionSetChildren parentTransaction (S.insert (transactionUUID freshTransaction) (transactionChildren parentTransaction))
-      updatedTransSet = (S.insert freshTransaction <$> S.insert updatedParentTransaction) transSet
-  let updatedGraph = TransactionGraph (M.insert newHeadName freshTransaction heads) updatedTransSet
-  return (freshTransaction, updatedGraph)
--}
+
 validateGraph :: TransactionGraph -> Maybe [RelationalError]
 validateGraph graph@(TransactionGraph _ transSet) = do
   --check that all UUIDs are unique in the graph
