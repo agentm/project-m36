@@ -113,9 +113,16 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
   (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
-  --FINISH ME
-  pure ()
-
+  -- add another transaction to branchA
+  branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"  
+  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) (transactionContext branchATrans)) graph'
+                                              
+  --retrieve subgraph                                            
+  let subGraphHeads = M.filter (\t -> elem (transactionUUID t) [fakeUUID 3, fakeUUID 4]) (transactionHeadsForGraph graph'')
+  subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph'' subGraphHeads branchATrans branchBTrans S.empty
+  --verify that the subgraph includes both the heads and the common ancestor
+  let expectedTransSet = S.fromList (map fakeUUID [1,3,4])
+  assertBool "validate transactions in subgraph" (S.isProperSubsetOf expectedTransSet (S.map transactionUUID (transactionsForGraph subgraph)))
   
 testSelectedBranchMerge :: Test
 testSelectedBranchMerge = TestCase $ do
