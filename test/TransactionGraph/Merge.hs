@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import ProjectM36.Base
+import ProjectM36.Transaction
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Show
 import ProjectM36.TransactionGraph.Show.Dot
@@ -158,8 +159,9 @@ testUnionMergeStrategy = TestCase $ do
   -- add inclusion dependency in branchA
 
   let updatedBranchBContext = (transactionContext branchBTrans) {relationVariables = M.insert branchBOnlyRelVarName branchBOnlyRelVar (relationVariables (transactionContext branchBTrans)) }
-      updatedBranchAContext = (transactionContext branchATrans) {inclusionDependencies = M.insert "branchAOnlyIncDep" branchAOnlyIncDep (inclusionDependencies (transactionContext branchATrans)) }
+      updatedBranchAContext = (transactionContext branchATrans) {inclusionDependencies = M.insert branchAOnlyIncDepName branchAOnlyIncDep (inclusionDependencies (transactionContext branchATrans)) }
       branchBOnlyRelVar = relationTrue
+      branchAOnlyIncDepName = "branchAOnlyIncDep"
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
       
@@ -168,9 +170,16 @@ testUnionMergeStrategy = TestCase $ do
   assertEqual "branchBOnlyRelVar should appear in the merge" (M.lookup branchBOnlyRelVarName (relationVariables mergeContext1)) (Just relationTrue)
   
   (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) updatedBranchAContext) graph'
-  let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph''
+  let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
   case eMergeGraph of
     Left err -> assertFailure ("expected merge success: " ++ show err)
-    Right (mergeDiscon, mergeGraph) -> pure ()
+    Right (mergeDiscon, mergeGraph) -> do
+      -- check that the new merge transaction has the correct parents
+      mergeTrans <- assertEither $ transactionForUUID (fakeUUID 5) mergeGraph
+      let mergeContext = transactionContext mergeTrans
+      assertEqual "merge transaction parents" (transactionParentIds mergeTrans) (S.fromList [fakeUUID 3, fakeUUID 4])
+      -- check that the new merge tranasction has elements from both A and B branches
+      assertEqual "merge transaction relvars" (Just relationTrue) (M.lookup branchBOnlyRelVarName (relationVariables mergeContext))
+      assertEqual "merge transaction incdeps" (Just branchAOnlyIncDep) (M.lookup branchAOnlyIncDepName (inclusionDependencies mergeContext)) 
   
   
