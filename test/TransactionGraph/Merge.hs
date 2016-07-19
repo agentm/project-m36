@@ -26,11 +26,11 @@ main = do
 
 testList :: Test
 testList = TestList [
-                     --testSubGraphToFirstAncestorBasic,
-                     --testSubGraphToFirstAncestorSnipBranch,
-                     --testSelectedBranchMerge,
-                     testUnionMergeStrategy
-                    ]
+  testSubGraphToFirstAncestorBasic,
+  testSubGraphToFirstAncestorSnipBranch,
+  testSelectedBranchMerge,
+  testUnionMergeStrategy
+  ]
 
 -- | Create a transaction graph with two branches and no changes between them.
 {-
@@ -162,20 +162,15 @@ testUnionMergeStrategy = TestCase $ do
       branchBOnlyRelVar = relationTrue
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
-      assertMergeError mergeResult = case mergeResult of
-        Left err -> assertEqual "incorrect merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError) 
-        Right (_, g) -> do
-          putStrLn (graphAsDot g) 
-          assertFailure "expected merge failure"
       
   (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
   ((DisconnectedTransaction _ mergeContext1), mergedGraph1) <- assertEither $ mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph'
   assertEqual "branchBOnlyRelVar should appear in the merge" (M.lookup branchBOnlyRelVarName (relationVariables mergeContext1)) (Just relationTrue)
-  --putStrLn (graphAsDot graph')
   
   (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) updatedBranchAContext) graph'
   let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph''
-  --putStrLn (showGraphStructure graph'')
-  pure ()
+  case eMergeGraph of
+    Left err -> assertFailure ("expected merge success: " ++ show err)
+    Right (mergeDiscon, mergeGraph) -> pure ()
   
   

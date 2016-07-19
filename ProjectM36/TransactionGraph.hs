@@ -314,16 +314,18 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
         childSearches = map searchChild (S.toList searchChildren)
         errors = lefts childSearches
         pathsFound = rights childSearches
-    if null childSearches || all (== (Left (FailedToFindTransactionError goalid))) childSearches then --no path found, so search the parent
+        realErrors = filter (/= (FailedToFindTransactionError goalid)) errors
+    -- report any non-search-related errors        
+    when (not (null realErrors)) (Left (head realErrors))
+    -- if no paths found, search the parent
+    if null pathsFound then
       case oneParent currentTrans of
         Left RootTransactionTraversalError -> Left (NoCommonTransactionAncestorError currentid goalid)
         Left err -> Left err
         Right currentTransParent -> do      
           subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans traverseSet)
-      else if length errors > 0 then -- traversal error
-             Left (head errors)
-           else -- we found a path
-             Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
+      else -- we found a path
+      Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
   where
     oneParent (Transaction _ (TransactionInfo parentId _) _) = transactionForUUID parentId origGraph
     oneParent (Transaction _ (MergeTransactionInfo parentId _ _) _) = transactionForUUID parentId origGraph
@@ -332,7 +334,7 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
 pathToTransaction :: TransactionGraph -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError (S.Set Transaction)
 pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
   let targetId = transactionUUID targetTransaction
-  if targetTransaction == currentTransaction then
+  if transactionUUID targetTransaction == transactionUUID currentTransaction then do
     Right accumTransSet
     else do
     currentTransChildren <- mapM (flip transactionForUUID graph) (S.toList (transactionChildIds currentTransaction))        
@@ -356,12 +358,10 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
         Just t -> Right t
   transA <- transactionForHeadErr headNameA 
   transB <- transactionForHeadErr headNameB 
-
   disconParent <- transactionForUUID parentUUID graph
   let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
   subGraph <- subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
   subGraph' <- filterSubGraph subGraph subHeads
-  
   case createMergeTransaction newUUID mergeStrategy subGraph' (transA, transB) of
     Left err -> Left (MergeTransactionError err)
     Right mergedTrans -> case headNameForTransaction disconParent graph of
@@ -370,7 +370,6 @@ mergeTransactions newUUID parentUUID mergeStrategy (headNameA, headNameB) graph 
         (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
         let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
             newDiscon = newDisconnectedTransaction newUUID (transactionContext newTrans)
-        traceM (graphAsDot newGraph)
         pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
