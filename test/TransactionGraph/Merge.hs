@@ -156,7 +156,26 @@ testSelectedBranchMerge = TestCase $ do
 
 -- try various individual component conflicts and check for resolution
 testUnionPreferMergeStrategy :: Test
-testUnionPreferMergeStrategy = TestCase $ pure ()
+testUnionPreferMergeStrategy = TestCase $ do
+  -- create a graph with a relvar conflict
+  graph <- basicTransactionGraph
+  branchATrans <- assertMaybe (transactionForHead "branchA" graph) "branchATrans"
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "branchBTrans"
+  branchBRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) []  
+  let branchAContext = (transactionContext branchATrans) {relationVariables = M.insert conflictRelVarName branchARelVar (relationVariables (transactionContext branchATrans))}
+      branchARelVar = relationTrue
+      branchBContext = (transactionContext branchBTrans) {relationVariables = M.insert conflictRelVarName branchBRelVar (relationVariables (transactionContext branchBTrans))}
+      conflictRelVarName = "conflictRelVar"
+
+  (_, graph') <- addTransaction "branchA" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchATrans) S.empty) branchAContext) graph
+  (_, graph'') <- addTransaction "branchB" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchBTrans) S.empty) branchBContext) graph'
+  -- validate that the conflict is hidden because we preferred a branch
+  let merged = mergeTransactions (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB") graph''
+  case merged of
+    Left err -> assertFailure ("expected merge success: " ++ show err)
+    Right (DisconnectedTransaction _ mergeContext, _) -> do
+      assertEqual "branchB relvar preferred in conflict" (Just branchBRelVar) (M.lookup conflictRelVarName (relationVariables mergeContext)) 
+  
   
 -- try various individual component conflicts and check for merge failure
 testUnionMergeStrategy :: Test
