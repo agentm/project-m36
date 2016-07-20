@@ -440,7 +440,7 @@ extendTupleExpressionProcessor relIn
     let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType]
         newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
     return $ (newAndOldAttrs, \tup -> case evalAtomExpr tup context atomExpr of
-                 Left _ -> undefined -- ?!
+                 Left _ -> error "logic failure in extendTupleExpressionProcessor"
                  Right atom -> tupleAtomExtend newAttrName atom tup)
 
 evalAtomExpr :: RelationTuple -> DatabaseContext -> AtomExpr -> Either RelationalError Atom
@@ -527,6 +527,8 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
       tup = mkRelationTuple tupAttrs atoms
       tConss = typeConstructorMapping context
       finalAttrs = fromMaybe tupAttrs attrs
+  --verify that the attributes match
+  when (not $ A.attributesEqual finalAttrs tupAttrs) (Left (TupleAttributeTypeMismatchError tupAttrs))
   tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
   _ <- validateTuple tup' tConss
   pure tup'
