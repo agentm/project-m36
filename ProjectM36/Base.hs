@@ -481,4 +481,4 @@ data MergeStrategy =
   UnionPreferMergeStrategy HeadName |
   -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the last transaction in the selected branch.
   SelectedBranchMergeStrategy HeadName
-                     deriving (Eq, Show, Binary, Generic)
+                     deriving (Eq, Show, Binary, Generic, NFData)

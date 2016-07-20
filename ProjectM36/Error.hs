@@ -29,6 +29,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoCommonTransactionAncestorError U.UUID U.UUID
                      | NoSuchTransactionError U.UUID
                      | RootTransactionTraversalError 
+                     | HeadNameSwitchingHeadProhibitedError HeadName
                      | NoSuchHeadNameError HeadName
                      | NewTransactionMayNotHaveChildrenError U.UUID
                      | NewTransactionMissingParentError U.UUID
@@ -85,7 +86,9 @@ someErrors errList  = if length errList == 1 then
                         MultipleErrors errList
                         
 data MergeError = SelectedHeadMismatchMergeError |
+                  PreferredHeadMissingMergeError HeadName |
                   StrategyViolatesConstraintMergeError |
+                  InvalidMergeStrategyError MergeStrategy | -- this is an internal coding error
                   DisconnectedTransactionNotAMergeHeadError U.UUID |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
                   StrategyViolatesRelationVariableMergeError |

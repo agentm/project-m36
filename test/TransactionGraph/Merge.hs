@@ -2,6 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.Attribute
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.Transaction
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Show
@@ -30,7 +33,8 @@ testList = TestList [
   testSubGraphToFirstAncestorBasic,
   testSubGraphToFirstAncestorSnipBranch,
   testSelectedBranchMerge,
-  testUnionMergeStrategy
+  testUnionMergeStrategy,
+  testUnionPreferMergeStrategy
   ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -152,7 +156,7 @@ testSelectedBranchMerge = TestCase $ do
 
 -- try various individual component conflicts and check for resolution
 testUnionPreferMergeStrategy :: Test
-testUnionPreferMergeStrategy = TestCase $ undefined
+testUnionPreferMergeStrategy = TestCase $ pure ()
   
 -- try various individual component conflicts and check for merge failure
 testUnionMergeStrategy :: Test
@@ -171,11 +175,9 @@ testUnionMergeStrategy = TestCase $ do
       branchAOnlyIncDepName = "branchAOnlyIncDep"
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
-      
   (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
-  ((DisconnectedTransaction _ mergeContext1), mergedGraph1) <- assertEither $ mergeTransactions (fakeUUID 5) (fakeUUID 1) UnionMergeStrategy ("branchA", "branchB") graph'
+  ((DisconnectedTransaction _ mergeContext1), mergedGraph1) <- assertEither $ mergeTransactions (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB") graph'
   assertEqual "branchBOnlyRelVar should appear in the merge" (M.lookup branchBOnlyRelVarName (relationVariables mergeContext1)) (Just relationTrue)
-  
   (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) updatedBranchAContext) graph'
   let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
   case eMergeGraph of
@@ -188,5 +190,12 @@ testUnionMergeStrategy = TestCase $ do
       -- check that the new merge tranasction has elements from both A and B branches
       assertEqual "merge transaction relvars" (Just relationTrue) (M.lookup branchBOnlyRelVarName (relationVariables mergeContext))
       assertEqual "merge transaction incdeps" (Just branchAOnlyIncDep) (M.lookup branchAOnlyIncDepName (inclusionDependencies mergeContext)) 
-  
-  
+      -- test an expected conflict- add branchBOnlyRelVar with same name but different attributes
+      conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) []
+      let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName conflictRelVar (relationVariables updatedBranchAContext) }
+      conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
+      (_, graph''') <- addTransaction "branchA" (Transaction (fakeUUID 6) (TransactionInfo (transactionUUID conflictBranchATrans) S.empty) conflictContextA) graph''
+      let failingMerge = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph'''
+      case failingMerge of
+        Right _ -> assertFailure "expected merge failure"
+        Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError)

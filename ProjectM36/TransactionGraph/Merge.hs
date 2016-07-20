@@ -8,7 +8,6 @@ import qualified ProjectM36.TypeConstructorDef as TCD
 import ProjectM36.Relation
 import Control.Monad (foldM)
 import qualified Data.HashSet as HS
-import Debug.Trace
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 

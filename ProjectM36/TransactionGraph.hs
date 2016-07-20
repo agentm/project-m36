@@ -108,6 +108,10 @@ addTransactionToGraph headName newTrans graph = do
   --validate that the parent transactions are in the graph
   _ <- validateIds parentIds
   when (S.size parentIds < 1) (Left $ NewTransactionMissingParentError newId)
+  --if the headName already exists, ensure that it refers to a parent
+  case transactionForHead headName graph of
+    Nothing -> pure () -- any headName is OK 
+    Just trans -> when (S.notMember (transactionUUID trans) parentIds) (Left (HeadNameSwitchingHeadProhibitedError headName))
   --validate that the transaction has no children
   when (not (S.null childIds)) (Left $ NewTransactionMayNotHaveChildrenError newId)
   --validate that the trasaction's id is unique
@@ -276,18 +280,10 @@ createMergeTransaction newUUID (SelectedBranchMergeStrategy selectedBranch) grap
   pure $ Transaction newUUID (MergeTransactionInfo (transactionUUID trans1) (transactionUUID trans2) S.empty) (transactionContext selectedTrans)
                        
 -- merge functions, relvars, individually
-createMergeTransaction newUUID UnionMergeStrategy _ (t1,t2) = do
-  let contextA = transactionContext t1
-      contextB = transactionContext t2
-  incDeps <- unionMergeMaps PreferNeither (inclusionDependencies contextA) (inclusionDependencies contextB)
-  relVars <- unionMergeRelVars PreferNeither (relationVariables contextA) (relationVariables contextB)
-  atomFuncs <- unionMergeAtomFunctions PreferNeither (atomFunctions contextA) (atomFunctions contextB)
-  notifs <- unionMergeMaps PreferNeither (notifications contextA) (notifications contextB)
-  types <- unionMergeTypeConstructorMapping PreferNeither (typeConstructorMapping contextA) (typeConstructorMapping contextB)
-  pure (Transaction newUUID (MergeTransactionInfo (transactionUUID t1) (transactionUUID t2) S.empty) (DatabaseContext incDeps relVars atomFuncs notifs types))
+createMergeTransaction newUUID strat@UnionMergeStrategy graph t2 = createUnionMergeTransaction newUUID strat graph t2
 
 -- merge function, relvars, but, on error, just take the component from the preferred branch
-createMergeTransaction newUUID (UnionPreferMergeStrategy preferHead) graph t2 = undefined
+createMergeTransaction newUUID strat@(UnionPreferMergeStrategy _) graph t2 = createUnionMergeTransaction newUUID strat graph t2
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
 validateHeadName :: HeadName -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
@@ -395,3 +391,23 @@ filterSubGraph graph heads = Right $ TransactionGraph newHeads newTransSet
     newTransSet = S.map (filterTransaction validIds) (transactionsForGraph graph)
     newHeads = M.map (filterTransaction validIds) heads
     
+--helper function for commonalities in union merge
+createUnionMergeTransaction :: U.UUID -> MergeStrategy -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
+createUnionMergeTransaction newUUID strategy graph (t1,t2) = do
+  let contextA = transactionContext t1
+      contextB = transactionContext t2
+  
+  preference <- case strategy of 
+    UnionMergeStrategy -> pure PreferNeither
+    UnionPreferMergeStrategy preferBranch -> do
+      case transactionForHead preferBranch graph of
+        Nothing -> Left (PreferredHeadMissingMergeError preferBranch)
+        Just preferredTrans -> pure $ if t1 == preferredTrans then PreferFirst else PreferSecond
+    badStrat -> Left (InvalidMergeStrategyError badStrat)
+          
+  incDeps <- unionMergeMaps preference (inclusionDependencies contextA) (inclusionDependencies contextB)
+  relVars <- unionMergeRelVars preference (relationVariables contextA) (relationVariables contextB)
+  atomFuncs <- unionMergeAtomFunctions preference (atomFunctions contextA) (atomFunctions contextB)
+  notifs <- unionMergeMaps preference (notifications contextA) (notifications contextB)
+  types <- unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
+  pure (Transaction newUUID (MergeTransactionInfo (transactionUUID t1) (transactionUUID t2) S.empty) (DatabaseContext incDeps relVars atomFuncs notifs types))
