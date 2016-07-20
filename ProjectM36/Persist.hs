@@ -1,18 +1,28 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface, CPP #-}
 --this module is related to persisting Project:M36 structures to disk and not related to the persistent library
 module ProjectM36.Persist (writeFileSync, 
                            writeBSFileSync,
                            renameSync, 
                            DiskSync(..)) where
---import ProjectM36.DirectoryFsync (directoryFsync)
-import System.Posix.Files (rename)
+-- on Windows, use FlushFileBuffers and MoveFileEx
+
+#if defined(mingw32_HOST_OS)
+import qualified System.Win32 as Win32
+#else
+import qualified System.Posix as Posix
 import System.Posix.Unistd (fileSynchroniseDataOnly)
 import System.Posix.IO (handleToFd)
+import Foreign.C
+#endif
+
 import System.IO (withFile, IOMode(WriteMode), hPutStr, Handle)
 import qualified Data.ByteString.Lazy as BS
-import Foreign.C
 
-foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO (CInt)
+#if defined(mingw32_HOST_OS)
+import ProjectM36.Win32Handle
+#else
+foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO CInt
+#endif
 
 data DiskSync = NoDiskSync | FsyncDiskSync
 
@@ -25,11 +35,25 @@ writeFileSync sync path strOut = withFile path WriteMode handler
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()
 renameSync sync srcPath dstPath = do
-  rename srcPath dstPath
+  atomicRename srcPath dstPath
   syncDirectory sync dstPath
-  
-syncHandle :: DiskSync -> Handle -> IO ()    
-syncHandle FsyncDiskSync handle = handleToFd handle >>= fileSynchroniseDataOnly
+
+-- System.Directory's renameFile/renameDirectory almost do exactly what we want except that it needlessly differentiates between directories and files
+atomicRename :: FilePath -> FilePath -> IO ()
+atomicRename srcPath dstPath = do
+#if defined(mingw32_HOST_OS)
+  Win32.moveFileEx srcPath dstPath Win32.mOVEFILE_REPLACE_EXISTING
+#else
+  Posix.rename srcPath dstPath
+#endif
+
+syncHandle :: DiskSync -> Handle -> IO ()
+syncHandle FsyncDiskSync handle = do
+#if defined(mingw32_HOST_OS)
+  withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
+#else
+  handleToFd handle >>= fileSynchroniseDataOnly
+#endif
 syncHandle NoDiskSync _ = pure ()
 
 syncDirectory :: DiskSync -> FilePath -> IO ()
@@ -43,5 +67,9 @@ writeBSFileSync sync path bstring = do
     syncHandle sync handle
   
 directoryFsync :: FilePath -> IO ()
+#if defined(mingw32_HOST_OS)
+directoryFsync _ = pure () -- on Windows directory metadata cannot be synchronized- perhaps there is a workaround? resync a file in the directory? 
+#else
 directoryFsync path = throwErrnoIfMinus1Retry_ "directoryFsync" (withCString path $ \cpath -> cHSDirectoryFsync cpath)
-  
+#endif
+

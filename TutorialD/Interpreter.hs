@@ -4,6 +4,7 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseExpr
 import TutorialD.Interpreter.TransactionGraphOperator
+import TutorialD.Interpreter.InformationOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
@@ -34,6 +35,7 @@ graph ops are read-write operations which change the transaction graph
 -}
 data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseExprOp DatabaseExpr |
+                       InfoOp InformationOperator |
                        GraphOp TransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
@@ -42,6 +44,7 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
+                     liftM InfoOp (infoOpP <* eof) <|>
                      liftM GraphOp (transactionGraphOpP <* eof) <|>
                      liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
                      liftM DatabaseExprOp (databaseExprOpP <* eof) <|>
@@ -101,6 +104,11 @@ evalTutorialD sessionId conn expr = case expr of
     case mDbexprs of 
       Left err -> barf err
       Right dbexprs -> evalTutorialD sessionId conn (DatabaseExprOp dbexprs)
+      
+  (InfoOp execOp) -> do
+    case evalInformationOperator execOp of
+      Left err -> barf err
+      Right info -> pure (DisplayResult info)
       
   (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
     --eval relexpr to relation and pass to export function
