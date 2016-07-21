@@ -138,7 +138,7 @@ writeGraphUUIDFile sync destDirectory (TransactionGraph _ transSet) = writeFileS
     graphFile = destDirectory </> "m36v1"
     uuidInfo = intercalate "\n" graphLines
     graphLines = S.toList $ S.map graphLine transSet 
-    graphLine trans = U.toString (transactionUUID trans) ++ " " ++ intercalate " " (S.toList (S.map U.toString $ transactionParentUUIDs trans))
+    graphLine trans = U.toString (transactionUUID trans) ++ " " ++ intercalate " " (S.toList (S.map U.toString $ transactionParentIds trans))
     
 readGraphUUIDFile :: FilePath -> IO (Either PersistenceError [(U.UUID, [U.UUID])])
 readGraphUUIDFile dbdir = do

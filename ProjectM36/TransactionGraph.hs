@@ -7,7 +7,6 @@ import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
 import ProjectM36.DataTypes.Primitive
-import ProjectM36.TransactionGraph.Show.Dot
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
@@ -19,7 +18,7 @@ import GHC.Generics
 import Data.Binary
 import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
-import Debug.Trace
+--import Debug.Trace
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |

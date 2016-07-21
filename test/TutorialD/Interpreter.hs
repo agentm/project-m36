@@ -33,7 +33,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -297,3 +297,23 @@ testTypeConstructors = TestCase $ do
   executeTutorialD sessionId dbconn "data Tree a = Node a (Tree a) (Tree a) | EmptyNode"
   executeTutorialD sessionId dbconn "y:=relation{a Tree Int}{tuple{a Node 3 (Node 4 EmptyNode EmptyNode) EmptyNode},tuple{a Node 4 EmptyNode EmptyNode}}"
   
+testMergeTransactions :: Test
+testMergeTransactions = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  mapM_ (executeTutorialD sessionId dbconn) [
+   ":branch branchA",
+   "conflictrv := relation{conflict Int}{tuple{conflict 1}}",
+   ":commit",
+   ":jumphead master",
+   ":branch branchB",
+   "conflictrv := relation{conflict Int}{tuple{conflict 2}}",
+   ":commit",
+   ":mergetrans union branchA branchB"
+   ]
+  case mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) [[intAtom 1],[intAtom 2]] of
+    Left err -> assertFailure (show err)
+    Right conflictCheck -> do
+      eRv <- executeRelationalExpr sessionId dbconn (RelationVariable "conflictrv")
+      case eRv of
+        Left err -> assertFailure (show err)
+        Right conflictrv -> assertEqual "conflict union merge relvar" conflictCheck conflictrv

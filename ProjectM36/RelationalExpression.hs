@@ -18,7 +18,7 @@ import Data.Char (isUpper)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified ProjectM36.TypeConstructorDef as TCD
---import Debug.Trace
+import Debug.Trace
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -528,7 +528,7 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
       tConss = typeConstructorMapping context
       finalAttrs = fromMaybe tupAttrs attrs
   --verify that the attributes match
-  when (not $ A.attributesEqual finalAttrs tupAttrs) (Left (TupleAttributeTypeMismatchError tupAttrs))
+  when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) (traceShow (finalAttrs,tupAttrs) $ Left (TupleAttributeTypeMismatchError tupAttrs))
   tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
   _ <- validateTuple tup' tConss
   pure tup'

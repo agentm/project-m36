@@ -176,7 +176,6 @@ testUnionPreferMergeStrategy = TestCase $ do
     Right (DisconnectedTransaction _ mergeContext, _) -> do
       assertEqual "branchB relvar preferred in conflict" (Just branchBRelVar) (M.lookup conflictRelVarName (relationVariables mergeContext)) 
   
-  
 -- try various individual component conflicts and check for merge failure
 testUnionMergeStrategy :: Test
 testUnionMergeStrategy = TestCase $ do
