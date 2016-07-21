@@ -34,6 +34,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
 1. [Using Notifications](docs/using_notifications.markdown)
+1. [Merge Transactions](docs/merge_transactions.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
 
 ## Development
