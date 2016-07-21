@@ -11,7 +11,7 @@ import System.Exit
 import Data.Either
 import Data.UUID.V4 (nextRandom)
 import System.FilePath
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 
 main :: IO ()           
 main = do 
@@ -25,8 +25,8 @@ testList = TestList [testBootstrapDB, testDBSimplePersistence]
 testBootstrapDB :: Test
 testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
-  freshUUID <- nextRandom
-  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph freshUUID dateExamples)
+  freshId <- nextRandom
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph freshId dateExamples)
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
@@ -34,18 +34,18 @@ testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> d
 testDBSimplePersistence :: Test
 testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
-  freshUUID <- nextRandom
-  let graph = bootstrapTransactionGraph freshUUID dateExamples
+  freshId <- nextRandom
+  let graph = bootstrapTransactionGraph freshId dateExamples
   bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> do
-          case interpretDatabaseExpr (transactionContext headTrans) "x:=s" of
+          case interpretDatabaseContextExpr (transactionContext headTrans) "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
-              freshUUID' <- nextRandom
-              let newdiscon = newDisconnectedTransaction (transactionUUID headTrans) context'
-                  addTrans = addDisconnectedTransaction freshUUID' "master" newdiscon graph
+              freshId' <- nextRandom
+              let newdiscon = newDisconnectedTransaction (transactionId headTrans) context'
+                  addTrans = addDisconnectedTransaction freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of
                 Left err -> assertFailure (show err)

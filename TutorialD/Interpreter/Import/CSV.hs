@@ -9,7 +9,7 @@ import Text.Parsec.String
 import TutorialD.Interpreter.Base
 import Control.Exception
 
-importCSVRelation :: RelVarName -> Attributes -> FilePath -> IO (Either RelationalError DatabaseExpr)
+importCSVRelation :: RelVarName -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr)
 importCSVRelation relVarName attrs pathIn = do
   --TODO: handle filesystem errors
   csvData <- try (BS.readFile pathIn) :: IO (Either IOError BS.ByteString)

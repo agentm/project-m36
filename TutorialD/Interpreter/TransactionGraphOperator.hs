@@ -42,6 +42,25 @@ showGraphP :: Parser ROTransactionGraphOperator
 showGraphP = do
   reservedOp ":showgraph"
   return $ ShowGraph
+  
+mergeTransactionStrategyP :: Parser MergeStrategy
+mergeTransactionStrategyP = (reserved "union" *> pure UnionMergeStrategy) <|>
+                            (do
+                                reserved "selectedbranch"
+                                branch <- identifier
+                                pure (SelectedBranchMergeStrategy (T.pack branch))) <|>
+                            (do
+                                reserved "unionpreferbranch"
+                                branch <- identifier
+                                pure (UnionPreferMergeStrategy (T.pack branch)))
+  
+mergeTransactionsP :: Parser TransactionGraphOperator
+mergeTransactionsP = do
+  reservedOp ":mergetrans"
+  strategy <- mergeTransactionStrategyP
+  headA <- identifier
+  headB <- identifier
+  pure (MergeTransactions strategy (T.pack headA) (T.pack headB))
 
 transactionGraphOpP :: Parser TransactionGraphOperator
 transactionGraphOpP = do
@@ -50,6 +69,7 @@ transactionGraphOpP = do
   <|> branchTransactionP
   <|> commitTransactionP
   <|> rollbackTransactionP
+  <|> mergeTransactionsP
 
 roTransactionGraphOpP :: Parser ROTransactionGraphOperator
 roTransactionGraphOpP = showGraphP

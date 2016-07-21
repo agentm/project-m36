@@ -5,12 +5,17 @@ import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.RelationalExpression
 import ProjectM36.Tuple
 import ProjectM36.Atom
+import qualified ProjectM36.DatabaseContext as DBC
+import Control.Monad.State
 import qualified ProjectM36.Attribute as A
+import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import System.Exit
+
 
 testList :: Test
 testList = TestList [testRelation "relationTrue" relationTrue, testRelation "relationFalse" relationFalse,
@@ -18,7 +23,8 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRename1, testRename2,
                      testRelation "suppliers" suppliersRel,
                      testRelation "products" productsRel,
-                     testRelation "supplierProducts" supplierProductsRel]
+                     testRelation "supplierProducts" supplierProductsRel,
+                     testMkRelationFromExprsBadAttrs]
 
 main :: IO ()           
 main = do 
@@ -65,7 +71,7 @@ simpleRel = case mkRelation attrs tupleSet of
   where
     attrs = A.attributesFromList [Attribute "a" textAtomType, Attribute "b" textAtomType]
     tupleSet = RelationTupleSet [mkRelationTuple attrs (V.fromList [textAtom "spam", textAtom "spam2"])]
-
+    
 --rename tests
 testRename1 :: Test
 testRename1 = TestCase $ assertEqual "attribute invalid" (rename "a" "b" relationTrue) (Left $ AttributeNamesMismatchError (S.singleton "a"))
@@ -82,3 +88,9 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTy
     testTupSet = RelationTupleSet [mkRelationTuple testAttrs $ V.fromList [textAtom "v"],
                                    mkRelationTuple testAttrs $ V.fromList [intAtom 2]]
 
+testMkRelationFromExprsBadAttrs :: Test
+testMkRelationFromExprsBadAttrs = TestCase $ do
+  let context = DBC.empty
+  case evalState (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" intAtomType)]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (intAtom 1)))])) context of
+    Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" intAtomType])) err
+    Right _ -> assertFailure "expected tuple type mismatch"

@@ -2,11 +2,11 @@
 
 ## Introduction
 
-[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper. It is recommended to read the paper before reading this document.
+[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) written in the Haskell programming language whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper.
 
 ## Why is "Out of the Tarpit" Important?
 
-The "Out of the Tarpit" paper, written in 2006, consolidates decades of software development research and experience to explain why software written today is chock-full of software bugs. The paper categorizes sources of complexity and then proceeds to propose a software architecture which promises to reduce unnecessary software complexity so that the resultant software is maximally focused on actual business rules.
+The "Out of the Tarpit" paper, written in 2006, consolidates decades of software development research and experience to explain why software written today is chock-full of software bugs. The paper categorizes sources of complexity and then proceeds to propose a software architecture which promises to reduce unnecessary software complexity so that the resultant software is maximally focused on actual business rules. It is recommended to read [the paper](http://shaffner.us/cs/papers/tarpit.pdf) before reading the remainder of this document.
 
 ## Laying the Foundations for Reduced Complexity
 
@@ -49,7 +49,7 @@ Project:M36 does not, however, implement a completely new programming language f
 
 Project:M36 implements multiple interfaces:
 
-* an interactive console implementing [TutorialD](https://en.wikipedia.org/wiki/D_%28data_language_specification%29)
+* an interactive console implementing [TutorialD](https://en.wikipedia.org/wiki/D_%28data_language_specification%29), a small language for learning about the relational algebra
 * a native Haskell API
 * a database driver for the [persistent framework](http://www.yesodweb.com/book/persistent)
 

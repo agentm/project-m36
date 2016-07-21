@@ -2,7 +2,6 @@
 module ProjectM36.Error where
 import ProjectM36.Base
 import qualified Data.Set as S
-import qualified Data.UUID as U
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
@@ -26,12 +25,19 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | InclusionDependencyNameNotInUseError IncDepName
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
-                     | NoSuchTransactionError U.UUID
+                     | NoCommonTransactionAncestorError TransactionId TransactionId
+                     | NoSuchTransactionError TransactionId
+                     | RootTransactionTraversalError 
+                     | HeadNameSwitchingHeadProhibitedError HeadName
                      | NoSuchHeadNameError HeadName
-                     | TransactionIsNotAHeadError U.UUID
-                     | TransactionGraphCycleError U.UUID
-                     | SessionIdInUseError U.UUID
-                     | NoSuchSessionError U.UUID
+                     | NewTransactionMayNotHaveChildrenError TransactionId
+                     | NewTransactionMissingParentError TransactionId
+                     | TransactionIsNotAHeadError TransactionId
+                     | TransactionGraphCycleError TransactionId
+                     | SessionIdInUseError TransactionId
+                     | NoSuchSessionError TransactionId
+                     | FailedToFindTransactionError TransactionId
+                     | TransactionIdInUseError TransactionId
                      | NoSuchTupleExprFunctionError AtomFunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
@@ -60,13 +66,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NotificationNameNotInUseError NotificationName
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
+                     | MergeTransactionError MergeError
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 
 instance NFData RelationalError where rnf = genericRnf
                                       
 data PersistenceError = InvalidDirectoryError FilePath | 
-                        MissingTransactionError U.UUID
+                        MissingTransactionError TransactionId
                       deriving (Show, Eq)
 
 --collapse list of errors into normal error- if there is just one, just return one
@@ -76,3 +83,15 @@ someErrors errList  = if length errList == 1 then
                         head errList
                       else
                         MultipleErrors errList
+                        
+data MergeError = SelectedHeadMismatchMergeError |
+                  PreferredHeadMissingMergeError HeadName |
+                  StrategyViolatesConstraintMergeError |
+                  InvalidMergeStrategyError MergeStrategy | -- this is an internal coding error
+                  DisconnectedTransactionNotAMergeHeadError TransactionId |
+                  StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
+                  StrategyViolatesRelationVariableMergeError |
+                  StrategyViolatesTypeConstructorMergeError
+                  deriving (Show, Eq, Generic, Binary, Typeable)
+                           
+instance NFData MergeError where rnf = genericRnf                           

@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,DeriveAnyClass #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
@@ -232,38 +232,38 @@ data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, O
 type RelVarName = StringType
 
 -- | A relational expression represents query (read) operations on a database.
-data RelationalExpr where
+data RelationalExpr =
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs :: Maybe [AttributeExpr] -> [TupleExpr] -> RelationalExpr
+  MakeRelationFromExprs (Maybe [AttributeExpr]) [TupleExpr] |
   --- | Create and reference a relation from attributes and a tuple set.
-  MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
+  MakeStaticRelation Attributes RelationTupleSet |
   --- | Reference an existing relation in Haskell-space.
-  ExistingRelation :: Relation -> RelationalExpr
+  ExistingRelation Relation |
   --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   --- | Reference a relation variable by its name.
-  RelationVariable :: RelVarName -> RelationalExpr
+  RelationVariable RelVarName |
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
-  Project :: AttributeNames -> RelationalExpr -> RelationalExpr
+  Project AttributeNames RelationalExpr |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
-  Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Union RelationalExpr RelationalExpr |
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
-  Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Join RelationalExpr RelationalExpr |
   --- | Rename an attribute (first argument) to another (second argument).
-  Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  Rename AttributeName AttributeName RelationalExpr |
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
-  Difference :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Difference RelationalExpr RelationalExpr |
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
-  Group :: AttributeNames -> AttributeName -> RelationalExpr -> RelationalExpr
+  Group AttributeNames AttributeName RelationalExpr |
   --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
-  Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
+  Ungroup AttributeName RelationalExpr |
   --- | Filter the tuples of the relational expression to only retain the tuples which evaluate against the restriction predicate to true.
-  Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
+  Restrict RestrictionPredicateExpr RelationalExpr |
   --- | Returns the true relation iff 
-  Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  Extend :: ExtendTupleExpr -> RelationalExpr -> RelationalExpr
+  Equals RelationalExpr RelationalExpr |
+  NotEquals RelationalExpr RelationalExpr |
+  Extend ExtendTupleExpr RelationalExpr 
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   deriving (Show, Eq, Generic, Binary)
 
@@ -309,10 +309,13 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                              DataConstructorDefTypeVarNameArg TypeVarName
                            deriving (Show, Generic, Binary, Eq, NFData)
                                     
+type InclusionDependencies = M.Map IncDepName InclusionDependency
+type RelationVariables = M.Map RelVarName Relation
+                                    
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 data DatabaseContext = DatabaseContext { 
-  inclusionDependencies :: M.Map IncDepName InclusionDependency,
-  relationVariables :: M.Map RelVarName Relation,
+  inclusionDependencies :: InclusionDependencies,
+  relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping
@@ -326,43 +329,43 @@ data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr der
 instance Binary InclusionDependency
 
 -- | Database context expressions modify the database context.
-data DatabaseExpr where
-  NoOperation :: DatabaseExpr
-  Define :: RelVarName -> [AttributeExpr] -> DatabaseExpr
-  Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
-  Assign :: RelVarName -> RelationalExpr -> DatabaseExpr
-  Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
-  Delete :: RelVarName -> RestrictionPredicateExpr -> DatabaseExpr 
-  Update :: RelVarName  -> M.Map AttributeName Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
+data DatabaseContextExpr = 
+  NoOperation |
+  Define RelVarName [AttributeExpr] |
+  Undefine RelVarName | --forget existence of relvar X
+  Assign RelVarName RelationalExpr |
+  Insert RelVarName RelationalExpr |
+  Delete RelVarName RestrictionPredicateExpr |
+  Update RelVarName (M.Map AttributeName Atom) RestrictionPredicateExpr |
   
-  AddInclusionDependency :: IncDepName -> InclusionDependency -> DatabaseExpr
-  RemoveInclusionDependency :: IncDepName -> DatabaseExpr
+  AddInclusionDependency IncDepName InclusionDependency |
+  RemoveInclusionDependency IncDepName |
   
-  AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
-  RemoveNotification :: NotificationName -> DatabaseExpr
+  AddNotification NotificationName RelationalExpr RelationalExpr |
+  RemoveNotification NotificationName |
 
-  AddTypeConstructor :: TypeConstructorDef -> [DataConstructorDef] -> DatabaseExpr
-  RemoveTypeConstructor :: TypeConstructorName -> DatabaseExpr
+  AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
+  RemoveTypeConstructor TypeConstructorName |
 
   -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime
-  --AddAtomFunction :: AtomFunction -> DatabaseExpr
-  --RemoveAtomFunction :: AtomFunctionName -> DatabaseExpr
+  --AddAtomFunction AtomFunction
+  --RemoveAtomFunction AtomFunctionName
   
-  MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
+  MultipleExpr [DatabaseContextExpr]
   deriving (Show, Eq, Binary, Generic)
 
 
 type DatabaseState a = State DatabaseContext a
 
 -- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
-data RestrictionPredicateExpr where
-  TruePredicate :: RestrictionPredicateExpr
-  AndPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
-  OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
-  NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
-  RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
-  AtomExprPredicate :: AtomExpr -> RestrictionPredicateExpr --atom must evaluate to boolean
-  AttributeEqualityPredicate :: AttributeName -> AtomExpr -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
+data RestrictionPredicateExpr =
+  TruePredicate |
+  AndPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
+  OrPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
+  NotPredicate RestrictionPredicateExpr |
+  RelationalExprPredicate RelationalExpr | --type must be same as true and false relations (no attributes)
+  AtomExprPredicate AtomExpr | --atom must evaluate to boolean
+  AttributeEqualityPredicate AttributeName AtomExpr -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq, Generic)
 
 instance Binary RestrictionPredicateExpr
@@ -384,23 +387,25 @@ transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
 transactionHeadsForGraph (TransactionGraph heads _) = heads
 
 -- | Every transaction has context-specific information attached to it.
-data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n children
-                       MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
+data TransactionInfo = TransactionInfo TransactionId (S.Set TransactionId) | -- 1 parent + n children
+                       MergeTransactionInfo TransactionId TransactionId (S.Set TransactionId) -- 2 parents, n children
                      deriving(Show, Generic)
                              
 instance Binary TransactionInfo                             
-                             
+
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
-data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
+type TransactionId = UUID
+
+data Transaction = Transaction TransactionId TransactionInfo DatabaseContext -- self uuid
                    deriving (Show, Generic)
 
 --instance Binary Transaction
                             
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parentUUID, context
+data DisconnectedTransaction = DisconnectedTransaction TransactionId DatabaseContext --parentID, context
                             
-transactionUUID :: Transaction -> UUID
-transactionUUID (Transaction uuid _ _) = uuid
+transactionId :: Transaction -> TransactionId
+transactionId (Transaction tid _ _) = tid
 
 transactionContext :: Transaction -> DatabaseContext
 transactionContext (Transaction _ _ context) = context
@@ -470,3 +475,12 @@ data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor |
                               
 data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)
                  deriving (Eq, Show, Generic, Binary)
+
+data MergeStrategy = 
+  -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)
+  UnionMergeStrategy |
+  -- | Similar to a union merge, but, on conflict, prefer the unmerged section (relvar, function, etc.) from the branch named as the argument.
+  UnionPreferMergeStrategy HeadName |
+  -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the last transaction in the selected branch.
+  SelectedBranchMergeStrategy HeadName
+                     deriving (Eq, Show, Binary, Generic, NFData)

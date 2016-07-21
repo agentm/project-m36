@@ -33,12 +33,16 @@ int cDirectoryFsync(char *path)
     }
   
   /* execute the fsync */
+    
+#if defined(__APPLE__) && defined(__MACH__) && defined(F_FULLFSYNC)
+  ret = fcntl(fd, F_FULLFSYNC);
+#else
   ret = fsync(fd);
+#endif
   if(ret < 0)
     {
       return errno;
     }
-
   return 0;
 }
 #endif

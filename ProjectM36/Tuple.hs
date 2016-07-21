@@ -56,7 +56,7 @@ vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNa
   where
     unknownAttrNames = V.filter ((flip V.notElem) (attributeNames attrs)) attrNameVec
     mapper attrName = case V.elemIndex attrName (V.map attributeName attrs) of
-      Nothing -> undefined
+      Nothing -> error "logic failure in vectorIndicesForAttributeNames"
       Just index -> index
 
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
@@ -198,6 +198,6 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
                              RelationTuple attrs (V.map mapper attrs)
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
-      Left _ -> undefined
+      Left _ -> error "logic failure in reorderTuple"
       Right atom -> atom
 

@@ -24,7 +24,7 @@ testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId
   testTypeForRelationalExpr,
   testPlanForDatabaseContextExpr,
   testTransactionGraphAsRelation,
-  testHeadTransactionUUID,
+  testHeadTransactionId,
   testHeadName,
   testSession,
   testRelationVariableSummary,
@@ -117,9 +117,9 @@ testTransactionGraphAsRelation sessionId conn = TestCase $ do
     Left err -> assertFailure (show err)
     Right _ -> pure ()
     
-testHeadTransactionUUID :: SessionId -> Connection -> Test    
-testHeadTransactionUUID sessionId conn = TestCase $ do
-  uuid <- headTransactionUUID sessionId conn
+testHeadTransactionId :: SessionId -> Connection -> Test    
+testHeadTransactionId sessionId conn = TestCase $ do
+  uuid <- headTransactionId sessionId conn
   assertBool "invalid head transaction uuid" (isJust uuid)
   pure ()
   
@@ -142,11 +142,11 @@ testSession _ conn = TestCase $ do
   case eSessionId1 of
     Left _ -> assertFailure "invalid session" 
     Right sessionId1 -> do
-      mHeadUUID <- headTransactionUUID sessionId1 conn
-      case mHeadUUID of
-        Nothing -> assertFailure "invalid head UUID"
-        Just headUUID -> do
-          eSessionId2 <- createSessionAtCommit headUUID conn
+      mHeadId <- headTransactionId sessionId1 conn
+      case mHeadId of
+        Nothing -> assertFailure "invalid head id"
+        Just headId -> do
+          eSessionId2 <- createSessionAtCommit headId conn
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
           closeSession sessionId1 conn
 

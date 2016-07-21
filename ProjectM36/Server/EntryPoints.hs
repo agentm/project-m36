@@ -7,14 +7,13 @@ import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
-import Data.UUID (UUID)
 
 handleExecuteRelationalExpr :: SessionId -> Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
 handleExecuteRelationalExpr sessionId conn expr = do
   ret <- liftIO $ executeRelationalExpr sessionId conn expr
   reply ret conn
   
-handleExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
 handleExecuteDatabaseContextExpr sessionId conn dbexpr = do
   ret <- liftIO $ executeDatabaseContextExpr sessionId conn dbexpr
   reply ret conn
@@ -44,7 +43,7 @@ handleRetrieveInclusionDependencies sessionId conn = do
   ret <- liftIO $ inclusionDependencies sessionId conn
   reply ret conn
   
-handleRetrievePlanForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Either RelationalError DatabaseExpr) Connection)
+handleRetrievePlanForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> Process (ProcessReply (Either RelationalError DatabaseContextExpr) Connection)
 handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr = do
   ret <- liftIO $ planForDatabaseContextExpr sessionId conn dbExpr
   reply ret conn
@@ -54,12 +53,12 @@ handleRetrieveTransactionGraph sessionId conn = do
   ret <- liftIO $ transactionGraphAsRelation sessionId conn
   reply ret conn
   
-handleRetrieveHeadTransactionUUID :: SessionId -> Connection -> Process (ProcessReply (Maybe UUID) Connection)
-handleRetrieveHeadTransactionUUID sessionId conn = do
-  ret <- liftIO $ headTransactionUUID sessionId conn  
+handleRetrieveHeadTransactionId :: SessionId -> Connection -> Process (ProcessReply (Maybe TransactionId) Connection)
+handleRetrieveHeadTransactionId sessionId conn = do
+  ret <- liftIO $ headTransactionId sessionId conn  
   reply ret conn
   
-handleCreateSessionAtCommit :: UUID -> Connection -> Process (ProcessReply (Either RelationalError SessionId) Connection)  
+handleCreateSessionAtCommit :: TransactionId -> Connection -> Process (ProcessReply (Either RelationalError SessionId) Connection)  
 handleCreateSessionAtCommit commitId conn = do
   ret <- liftIO $ createSessionAtCommit commitId conn
   reply ret conn

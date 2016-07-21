@@ -13,23 +13,34 @@ The relational algebra is the mathematical model underpinning Project:M36. When 
 * more opportunities for interesting optimizations
 * elimination of odd and easy-to-forget corner cases (such as found when dealing with SQL's NULL)
 
-## Software Dependencies & Installation
+## Binary Releases
+
+### Windows
+Project:M36 now provides binary installations for Windows. Check the (releases page)[https://github.com/agentm/project-m36/releases] for downloads.
+
+### MacOS X
+
+Binary releases are not yet available for MacOS X, but compiling from source is easy.
+
+### Linux
+
+The currently-preferred method of installation is from source. A future enhancement would be installation from deb or rpm.
+
+## Source Installation
 
 Requirements:
 
 * [GHC 7.10 or greater](https://www.haskell.org/downloads)
-* cabal-install 1.20 or greater (normally part of the Haskell installation
-* POSIX filesystem
+* [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
+* Linux, MacOS X, or Windows OS
 
 Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```cabal sandbox init``` (optional but recommended)
-* ```cabal install```
+* ```stack build```
 
-At this point, the TutorialD interactive interpreter can be run using ```cabal run tutd```.
-
+At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
 ## Accessing Project:M36 Databases
 
@@ -47,7 +58,7 @@ In addition to being a relational algebra engine, Project:M36 supports features 
 
 ### Transaction Graph
 
-Most DBMSs provide a way to allow the user to specify atomic database state changes. These changes are often wrapped up as "transactions" which, when applied to the database state, offer the illusion of sequential and grouped, atomic changes applied to the databases. Often the only state which can be queried is the snapshot at the time the transaction is opened. 
+Most DBMSs provide a way to allow the user to specify atomic database state changes. These changes are often wrapped up as "transactions" which, when applied to the database state, offer the illusion of sequential and grouped, atomic changes applied to the databases. Often the only state which can be queried is the snapshot at the time the transaction is opened.
 
 Project:M36 extends this transaction model with the "transaction graph". This feture can be adequately described as version control for transactions. In the legacy DBMS model, the transactions are added to a linear transaction stream where each client is contending over the "head" of the stream- the latest transactions. In the transaction graph model, clients can add named branches and add transactions to the branches, then merge changes back, if necessary.
 
@@ -94,8 +105,3 @@ Though the CSV ("comma-separated values") format cannot represent all possible r
 ### Relations as Plots
 
 N-attributed relations can be visualized as plots where each tuple represents a point in the plot. Project:M36 can generate gnuplot graphs from 2- and 3-attributed relations.
-
-
-
-
-

@@ -27,7 +27,7 @@ serverDefinition = defaultProcess {
      handleCall (\conn (ExecuteTypeForRelationalExpr sessionId expr) -> handleExecuteTypeForRelationalExpr sessionId conn expr),
      handleCall (\conn (RetrieveInclusionDependencies sessionId) -> handleRetrieveInclusionDependencies sessionId conn),
      handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr),
-     handleCall (\conn (RetrieveHeadTransactionUUID sessionId) -> handleRetrieveHeadTransactionUUID sessionId conn),
+     handleCall (\conn (RetrieveHeadTransactionId sessionId) -> handleRetrieveHeadTransactionId sessionId conn),
      handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
      handleCall (\conn (Login procId) -> handleLogin conn procId),
      handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead headn conn),
