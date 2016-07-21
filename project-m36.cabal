@@ -107,6 +107,7 @@ Library
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
+                     ProjectM36.TransactionGraph.Merge,
                      Database.Persist.ProjectM36
     GHC-Options: -Wall -rtsopts
     if os(windows)
@@ -202,6 +203,8 @@ Executable tutd
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
                    ProjectM36.TypeConstructorDef,
+                   ProjectM36.TransactionGraph.Merge,
+                   TutorialD.Interpreter.InformationOperator,
                    TutorialD.Interpreter.Export.Base,
                    TutorialD.Interpreter.Export.CSV,
                    TutorialD.Interpreter.Import.Base,
@@ -296,6 +299,7 @@ Executable project-m36-server
                    ProjectM36.Transaction.Persist,
                    ProjectM36.TransactionGraph,
                    ProjectM36.TransactionGraph.Persist,
+                   ProjectM36.TransactionGraph.Merge,
                    ProjectM36.Tuple,
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
@@ -361,6 +365,7 @@ Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.Client, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Notifications, ProjectM36.Persist, ProjectM36.Relation, ProjectM36.Relation.Parse.CSV, ProjectM36.Relation.Show.CSV, ProjectM36.Relation.Show.Gnuplot, ProjectM36.Relation.Show.Term, ProjectM36.RelationalExpression, ProjectM36.Server.RemoteCallTypes, ProjectM36.Session, ProjectM36.Sessions, ProjectM36.StaticOptimizer, ProjectM36.Transaction, ProjectM36.Transaction.Persist, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Persist, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     if os(windows)
@@ -376,6 +381,7 @@ Test-Suite test-relation
     type: exitcode-stdio-1.0
     main-is: test/Relation/Basic.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef 
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
@@ -384,6 +390,7 @@ Test-Suite test-static-optimizer
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.StaticOptimizer, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
@@ -392,6 +399,7 @@ Test-Suite test-transactiongraph-persist
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Persist.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Persist, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.StaticOptimizer, ProjectM36.Transaction, ProjectM36.Transaction.Persist, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Persist, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef, TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     if os(windows)
@@ -407,6 +415,7 @@ Test-Suite test-relation-import-csv
     type: exitcode-stdio-1.0
     main-is: test/Relation/Import/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Primitive, ProjectM36.Error, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.Relation.Parse.CSV, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
@@ -415,6 +424,7 @@ Test-Suite test-tutoriald-import-tutoriald
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Primitive, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.StaticOptimizer, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef, TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
@@ -423,7 +433,8 @@ Test-Suite test-relation-export-csv
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
-    GHC-Options: -Wall
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Primitive, ProjectM36.Error, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.Relation.Parse.CSV, ProjectM36.Relation.Show.CSV, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
+    GHC-Options: -Wall 
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-persistent-driver
@@ -432,6 +443,7 @@ Test-Suite test-persistent-driver
     main-is: test/persistent-driver/test.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent >= 2.2 && < 2.3, either, path-pieces, http-api-data, stm-containers, list-t
     GHC-Options: -Wall
+    Other-Modules: Database.Persist.ProjectM36, ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.Client, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.Error, ProjectM36.MiscUtils, ProjectM36.Notifications, ProjectM36.Persist, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.Server.RemoteCallTypes, ProjectM36.Session, ProjectM36.Sessions, ProjectM36.StaticOptimizer, ProjectM36.Transaction, ProjectM36.Transaction.Persist, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Persist, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
@@ -466,6 +478,7 @@ Test-Suite test-server
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
+    Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.Client, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.Error, ProjectM36.MiscUtils, ProjectM36.Notifications, ProjectM36.Persist, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.Server, ProjectM36.Server.Config, ProjectM36.Server.EntryPoints, ProjectM36.Server.RemoteCallTypes, ProjectM36.Session, ProjectM36.Sessions, ProjectM36.StaticOptimizer, ProjectM36.Transaction, ProjectM36.Transaction.Persist, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Persist, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
       Other-Modules: ProjectM36.Win32Handle
@@ -513,6 +526,7 @@ Executable Example-SimpleClient
                    ProjectM36.Transaction.Persist,
                    ProjectM36.TransactionGraph,
                    ProjectM36.TransactionGraph.Persist,
+                   ProjectM36.TransactionGraph.Merge,
                    ProjectM36.Tuple,
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
@@ -564,6 +578,7 @@ Executable Example-PersistClient
                    ProjectM36.Transaction.Persist,
                    ProjectM36.TransactionGraph,
                    ProjectM36.TransactionGraph.Persist,
+                   ProjectM36.TransactionGraph.Merge,
                    ProjectM36.Tuple,
                    ProjectM36.TupleSet,
                    ProjectM36.TypeConstructor,
