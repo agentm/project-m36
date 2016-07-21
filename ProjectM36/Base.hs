@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,GADTs,DeriveGeneric,DeriveAnyClass #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
@@ -232,38 +232,38 @@ data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, O
 type RelVarName = StringType
 
 -- | A relational expression represents query (read) operations on a database.
-data RelationalExpr where
+data RelationalExpr =
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs :: Maybe [AttributeExpr] -> [TupleExpr] -> RelationalExpr
+  MakeRelationFromExprs (Maybe [AttributeExpr]) [TupleExpr] |
   --- | Create and reference a relation from attributes and a tuple set.
-  MakeStaticRelation :: Attributes -> RelationTupleSet -> RelationalExpr
+  MakeStaticRelation Attributes RelationTupleSet |
   --- | Reference an existing relation in Haskell-space.
-  ExistingRelation :: Relation -> RelationalExpr
+  ExistingRelation Relation |
   --MakeFunctionalRelation (creates a relation from a tuple-generating function, potentially infinite)
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   --- | Reference a relation variable by its name.
-  RelationVariable :: RelVarName -> RelationalExpr
+  RelationVariable RelVarName |
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
-  Project :: AttributeNames -> RelationalExpr -> RelationalExpr
+  Project AttributeNames RelationalExpr |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
-  Union :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Union RelationalExpr RelationalExpr |
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
-  Join :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Join RelationalExpr RelationalExpr |
   --- | Rename an attribute (first argument) to another (second argument).
-  Rename :: AttributeName -> AttributeName -> RelationalExpr -> RelationalExpr
+  Rename AttributeName AttributeName RelationalExpr |
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
-  Difference :: RelationalExpr -> RelationalExpr -> RelationalExpr
+  Difference RelationalExpr RelationalExpr |
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
-  Group :: AttributeNames -> AttributeName -> RelationalExpr -> RelationalExpr
+  Group AttributeNames AttributeName RelationalExpr |
   --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
-  Ungroup :: AttributeName -> RelationalExpr -> RelationalExpr
+  Ungroup AttributeName RelationalExpr |
   --- | Filter the tuples of the relational expression to only retain the tuples which evaluate against the restriction predicate to true.
-  Restrict :: RestrictionPredicateExpr -> RelationalExpr -> RelationalExpr  
+  Restrict RestrictionPredicateExpr RelationalExpr |
   --- | Returns the true relation iff 
-  Equals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  NotEquals :: RelationalExpr -> RelationalExpr -> RelationalExpr
-  Extend :: ExtendTupleExpr -> RelationalExpr -> RelationalExpr
+  Equals RelationalExpr RelationalExpr |
+  NotEquals RelationalExpr RelationalExpr |
+  Extend ExtendTupleExpr RelationalExpr 
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   deriving (Show, Eq, Generic, Binary)
 
@@ -358,14 +358,14 @@ data DatabaseContextExpr =
 type DatabaseState a = State DatabaseContext a
 
 -- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
-data RestrictionPredicateExpr where
-  TruePredicate :: RestrictionPredicateExpr
-  AndPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
-  OrPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr -> RestrictionPredicateExpr
-  NotPredicate :: RestrictionPredicateExpr -> RestrictionPredicateExpr
-  RelationalExprPredicate :: RelationalExpr -> RestrictionPredicateExpr --type must be same as true and false relations (no attributes)
-  AtomExprPredicate :: AtomExpr -> RestrictionPredicateExpr --atom must evaluate to boolean
-  AttributeEqualityPredicate :: AttributeName -> AtomExpr -> RestrictionPredicateExpr -- relationalexpr must result in relation with single tuple
+data RestrictionPredicateExpr =
+  TruePredicate |
+  AndPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
+  OrPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
+  NotPredicate RestrictionPredicateExpr |
+  RelationalExprPredicate RelationalExpr | --type must be same as true and false relations (no attributes)
+  AtomExprPredicate AtomExpr | --atom must evaluate to boolean
+  AttributeEqualityPredicate AttributeName AtomExpr -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq, Generic)
 
 instance Binary RestrictionPredicateExpr
