@@ -4,7 +4,6 @@ import ProjectM36.Error
 import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.UUID as U
 import qualified Data.Binary as B
 import qualified Data.ByteString.Lazy as BS
 import System.FilePath
@@ -18,11 +17,11 @@ getDirectoryNames path = do
   subpaths <- getDirectoryContents path
   return $ filter (\n -> n `notElem` ["..", "."]) subpaths
 
-tempTransactionDir :: FilePath -> U.UUID -> FilePath
-tempTransactionDir dbdir transUUID = dbdir </> "." ++ U.toString transUUID
+tempTransactionDir :: FilePath -> TransactionId -> FilePath
+tempTransactionDir dbdir transId = dbdir </> "." ++ show transId
 
-transactionDir :: FilePath -> U.UUID -> FilePath
-transactionDir dbdir transUUID = dbdir </> U.toString transUUID
+transactionDir :: FilePath -> TransactionId -> FilePath
+transactionDir dbdir transId = dbdir </> show transId
 
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
@@ -39,12 +38,12 @@ atomFuncsDir transdir = transdir </> "atomfuncs"
 typeConsPath :: FilePath -> FilePath
 typeConsPath transdir = transdir </> "typecons"
 
-readTransaction :: FilePath -> U.UUID -> IO (Either PersistenceError Transaction)
-readTransaction dbdir transUUID = do
-  let transDir = transactionDir dbdir transUUID
+readTransaction :: FilePath -> TransactionId -> IO (Either PersistenceError Transaction)
+readTransaction dbdir transId = do
+  let transDir = transactionDir dbdir transId
   transDirExists <- doesDirectoryExist transDir
   if not transDirExists then    
-    return $ Left $ MissingTransactionError transUUID
+    return $ Left $ MissingTransactionError transId
     else do
     relvars <- readRelVars transDir
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
@@ -58,12 +57,12 @@ readTransaction dbdir transUUID = do
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs }
     
-    return $ Right $ Transaction transUUID transInfo newContext
+    return $ Right $ Transaction transId transInfo newContext
         
 writeTransaction :: DiskSync -> FilePath -> Transaction -> IO ()
 writeTransaction sync dbdir trans = do
-  let tempTransDir = tempTransactionDir dbdir (transactionUUID trans)
-      finalTransDir = transactionDir dbdir (transactionUUID trans)
+  let tempTransDir = tempTransactionDir dbdir (transactionId trans)
+      finalTransDir = transactionDir dbdir (transactionId trans)
       context = transactionContext trans
   transDirExists <- doesDirectoryExist finalTransDir      
   if not transDirExists then do

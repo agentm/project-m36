@@ -11,6 +11,6 @@ data Session = Session DisconnectedTransaction
 sessionContext :: Session -> DatabaseContext
 sessionContext (Session (DisconnectedTransaction _ context)) = context
 
-sessionParentUUID :: Session -> UUID
-sessionParentUUID (Session (DisconnectedTransaction parentUUID _)) = parentUUID
+sessionParentId :: Session -> TransactionId
+sessionParentId (Session (DisconnectedTransaction parentUUID _)) = parentUUID
 

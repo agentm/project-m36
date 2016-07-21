@@ -19,8 +19,8 @@ import Data.Either (isRight)
 import Data.Maybe (catMaybes)
 
 {-
-The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of UUIDs referencing their parents (1 or more)
-Each Transaction is written to it own directory named by its UUID. Partially written transactions UUIDs are prefixed with a "." to indicate incompleteness in the graph.
+The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
+Each Transaction is written to it own directory named by its transaction id. Partially written transactions ids are prefixed with a "." to indicate incompleteness in the graph.
 
 Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
@@ -67,7 +67,7 @@ incrementally updates an existing database directory
 transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
 transactionGraphPersist sync destDirectory graph = do
   mapM_ (writeTransaction sync destDirectory) $ M.elems (transactionHeadsForGraph graph)
-  writeGraphUUIDFile sync destDirectory graph
+  writeGraphTransactionIdFile sync destDirectory graph
   transactionGraphHeadsPersist sync destDirectory graph
   return ()
   
@@ -78,14 +78,14 @@ write graph heads to a file which can be atomically swapped
 transactionGraphHeadsPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
 transactionGraphHeadsPersist sync dbdir graph = do
   let headFileStr :: (HeadName, Transaction) -> String
-      headFileStr (headName, trans) =  T.unpack headName ++ " " ++ U.toString (transactionUUID trans)
+      headFileStr (headName, trans) =  T.unpack headName ++ " " ++ U.toString (transactionId trans)
   withTempDirectory dbdir ".heads.tmp" $ \tempHeadsDir -> do
     let tempHeadsPath = tempHeadsDir </> "heads"
         headsStrLines = map headFileStr $ M.toList (transactionHeadsForGraph graph)
     writeFileSync sync tempHeadsPath $ intercalate "\n" headsStrLines
     renameSync sync tempHeadsPath (headsPath dbdir)
                                                              
-transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,U.UUID)]
+transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,TransactionId)]
 transactionGraphHeadsLoad dbdir = do
   headsData <- readFile (headsPath dbdir)
   let headsAssocs = map (\l -> let headName:uuidStr:[] = words l in
@@ -102,50 +102,50 @@ transactionGraphLoad :: FilePath -> TransactionGraph -> IO (Either PersistenceEr
 transactionGraphLoad dbdir graphIn = do
   --optimization: perform tail-bisection search to find last-recorded transaction in the existing stream- replay the rest
   --read in all missing transactions from transaction directories and add to graph
-  uuidInfo <- readGraphUUIDFile dbdir
+  uuidInfo <- readGraphTransactionIdFile dbdir
   freshHeadsAssoc <- transactionGraphHeadsLoad dbdir
   case uuidInfo of
     Left err -> return $ Left err
     Right info -> do  
-      let folder = \eitherGraph transUUID -> case eitherGraph of
+      let folder = \eitherGraph transId -> case eitherGraph of
             Left err -> return $ Left err
-            Right graph -> readTransactionIfNecessary dbdir transUUID graph
+            Right graph -> readTransactionIfNecessary dbdir transId graph
       loadedGraph <- foldM folder (Right graphIn) (map fst info)
       case loadedGraph of 
         Left err -> return $ Left err
         Right freshGraph -> do
-          let maybeTransHeads = [(headName, transactionForUUID uuid freshGraph) | (headName, uuid) <- freshHeadsAssoc]
+          let maybeTransHeads = [(headName, transactionForId uuid freshGraph) | (headName, uuid) <- freshHeadsAssoc]
               freshHeads = M.fromList [(headName,trans) | (headName, Right trans) <- maybeTransHeads]
           return $ Right $ TransactionGraph freshHeads (transactionsForGraph freshGraph)
   
 {-  
-if the transaction with the UUID argument is not yet part of the graph, then read the transaction and add it - this does not update the heads
+if the transaction with the TransactionId argument is not yet part of the graph, then read the transaction and add it - this does not update the heads
 -}
-readTransactionIfNecessary :: FilePath -> U.UUID -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)  
-readTransactionIfNecessary dbdir transUUID graphIn = do
-  if isRight $ transactionForUUID transUUID graphIn then
+readTransactionIfNecessary :: FilePath -> TransactionId -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)  
+readTransactionIfNecessary dbdir transId graphIn = do
+  if isRight $ transactionForId transId graphIn then
     --the transaction is already known and loaded- done
     return $ Right graphIn
     else do
-    trans <- readTransaction dbdir transUUID
+    trans <- readTransaction dbdir transId
     case trans of
       Left err -> return $ Left err
       Right trans' -> return $ Right $ TransactionGraph (transactionHeadsForGraph graphIn) (S.insert trans' (transactionsForGraph graphIn))
   
-writeGraphUUIDFile :: DiskSync -> FilePath -> TransactionGraph -> IO ()
-writeGraphUUIDFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo 
+writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo 
   where
     graphFile = destDirectory </> "m36v1"
     uuidInfo = intercalate "\n" graphLines
     graphLines = S.toList $ S.map graphLine transSet 
-    graphLine trans = U.toString (transactionUUID trans) ++ " " ++ intercalate " " (S.toList (S.map U.toString $ transactionParentIds trans))
+    graphLine trans = U.toString (transactionId trans) ++ " " ++ intercalate " " (S.toList (S.map U.toString $ transactionParentIds trans))
     
-readGraphUUIDFile :: FilePath -> IO (Either PersistenceError [(U.UUID, [U.UUID])])
-readGraphUUIDFile dbdir = do
+readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, [TransactionId])])
+readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let uuids = catMaybes (map U.fromString (words line)) in
-        (head uuids, tail uuids)
+  let grapher line = let tids = catMaybes (map U.fromString (words line)) in
+        (head tids, tail tids)
   --warning: uses lazy IO
-  graphUUIDData <- readFile (transactionLogPath dbdir)
-  return $ Right (map grapher $ lines graphUUIDData)
+  graphTransactionIdData <- readFile (transactionLogPath dbdir)
+  return $ Right (map grapher $ lines graphTransactionIdData)
 

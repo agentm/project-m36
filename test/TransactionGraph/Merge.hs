@@ -62,7 +62,7 @@ addTransaction headName transaction graph = case addTransactionToGraph headName 
   Left err -> assertFailure (show err) >> error ""
   Right (t,g) -> pure (t,g)
               
-fakeUUID :: Word8 -> U.UUID
+fakeUUID :: Word8 -> TransactionId
 fakeUUID x = case U.fromByteString (BS.concat (replicate 4 w32)) of
   Nothing -> error "impossible uuid"
   Just u -> u
@@ -99,7 +99,7 @@ testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   baseGraph <- basicTransactionGraph  
   transA <- assertMaybe (transactionForHead "branchA" baseGraph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" baseGraph) "failed to get branchB"
-  rootTrans <- assertEither (transactionForUUID (fakeUUID 1) baseGraph)
+  rootTrans <- assertEither (transactionForId (fakeUUID 1) baseGraph)
   (_, graph) <- addTransaction "branchC" (Transaction (fakeUUID 12) (TransactionInfo (fakeUUID 1) S.empty) (transactionContext transA)) baseGraph
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) transA transB S.empty
   assertGraph subgraph
@@ -116,17 +116,17 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
-  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) updatedBranchBContext) graph
   -- add another transaction to branchA
   branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"  
-  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) (transactionContext branchATrans)) graph'
+  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionId branchATrans) S.empty) (transactionContext branchATrans)) graph'
                                               
   --retrieve subgraph                                            
-  let subGraphHeads = M.filter (\t -> elem (transactionUUID t) [fakeUUID 3, fakeUUID 4]) (transactionHeadsForGraph graph'')
+  let subGraphHeads = M.filter (\t -> elem (transactionId t) [fakeUUID 3, fakeUUID 4]) (transactionHeadsForGraph graph'')
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph'' subGraphHeads branchATrans branchBTrans S.empty
   --verify that the subgraph includes both the heads and the common ancestor
   let expectedTransSet = S.fromList (map fakeUUID [1,3,4])
-  assertBool "validate transactions in subgraph" (S.isProperSubsetOf expectedTransSet (S.map transactionUUID (transactionsForGraph subgraph)))
+  assertBool "validate transactions in subgraph" (S.isProperSubsetOf expectedTransSet (S.map transactionId (transactionsForGraph subgraph)))
   
 testSelectedBranchMerge :: Test
 testSelectedBranchMerge = TestCase $ do
@@ -138,7 +138,7 @@ testSelectedBranchMerge = TestCase $ do
   updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (transactionContext branchBTrans) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
-  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) updatedBranchBContext) graph
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
       
@@ -146,12 +146,12 @@ testSelectedBranchMerge = TestCase $ do
 
   assertGraph graph''
   --validate that the branchB remains
-  rootTrans <- assertEither $ transactionForUUID (fakeUUID 1) graph''
+  rootTrans <- assertEither $ transactionForId (fakeUUID 1) graph''
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph'') "failed to find branchB head"
-  assertEqual "head of merged transaction was removed" (transactionUUID branchBTrans) (fakeUUID 3)
+  assertEqual "head of merged transaction was removed" (transactionId branchBTrans) (fakeUUID 3)
 
   --validate that the branchB relvar does *not* appear in the merge because branchA was selected
-  mergeTrans <- assertEither (transactionForUUID (fakeUUID 4) graph'')
+  mergeTrans <- assertEither (transactionForId (fakeUUID 4) graph'')
   assertBool "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (transactionContext mergeTrans)))
 
 -- try various individual component conflicts and check for resolution
@@ -167,8 +167,8 @@ testUnionPreferMergeStrategy = TestCase $ do
       branchBContext = (transactionContext branchBTrans) {relationVariables = M.insert conflictRelVarName branchBRelVar (relationVariables (transactionContext branchBTrans))}
       conflictRelVarName = "conflictRelVar"
 
-  (_, graph') <- addTransaction "branchA" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchATrans) S.empty) branchAContext) graph
-  (_, graph'') <- addTransaction "branchB" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchBTrans) S.empty) branchBContext) graph'
+  (_, graph') <- addTransaction "branchA" (Transaction (fakeUUID 3) (TransactionInfo (transactionId branchATrans) S.empty) branchAContext) graph
+  (_, graph'') <- addTransaction "branchB" (Transaction (fakeUUID 4) (TransactionInfo (transactionId branchBTrans) S.empty) branchBContext) graph'
   -- validate that the conflict is hidden because we preferred a branch
   let merged = mergeTransactions (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB") graph''
   case merged of
@@ -193,16 +193,16 @@ testUnionMergeStrategy = TestCase $ do
       branchAOnlyIncDepName = "branchAOnlyIncDep"
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
-  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionUUID branchBTrans) S.empty) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (Transaction (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) updatedBranchBContext) graph
   ((DisconnectedTransaction _ mergeContext1), mergedGraph1) <- assertEither $ mergeTransactions (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB") graph'
   assertEqual "branchBOnlyRelVar should appear in the merge" (M.lookup branchBOnlyRelVarName (relationVariables mergeContext1)) (Just relationTrue)
-  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionUUID branchATrans) S.empty) updatedBranchAContext) graph'
+  (_, graph'') <- addTransaction "branchA" (Transaction (fakeUUID 4) (TransactionInfo (transactionId branchATrans) S.empty) updatedBranchAContext) graph'
   let eMergeGraph = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
   case eMergeGraph of
     Left err -> assertFailure ("expected merge success: " ++ show err)
     Right (mergeDiscon, mergeGraph) -> do
       -- check that the new merge transaction has the correct parents
-      mergeTrans <- assertEither $ transactionForUUID (fakeUUID 5) mergeGraph
+      mergeTrans <- assertEither $ transactionForId (fakeUUID 5) mergeGraph
       let mergeContext = transactionContext mergeTrans
       assertEqual "merge transaction parents" (transactionParentIds mergeTrans) (S.fromList [fakeUUID 3, fakeUUID 4])
       -- check that the new merge tranasction has elements from both A and B branches
@@ -212,7 +212,7 @@ testUnionMergeStrategy = TestCase $ do
       conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) []
       let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName conflictRelVar (relationVariables updatedBranchAContext) }
       conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
-      (_, graph''') <- addTransaction "branchA" (Transaction (fakeUUID 6) (TransactionInfo (transactionUUID conflictBranchATrans) S.empty) conflictContextA) graph''
+      (_, graph''') <- addTransaction "branchA" (Transaction (fakeUUID 6) (TransactionInfo (transactionId conflictBranchATrans) S.empty) conflictContextA) graph''
       let failingMerge = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph'''
       case failingMerge of
         Right _ -> assertFailure "expected merge failure"

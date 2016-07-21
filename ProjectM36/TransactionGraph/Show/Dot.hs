@@ -13,10 +13,10 @@ graphAsDot (TransactionGraph heads transSet) = "digraph {" ++ dot ++ headInfo ++
     arrows trans idSet = S.foldr (\c acc' -> acc' ++ oneArrow trans c) "" idSet
     childArrows trans = arrows trans (transactionChildIds trans)
     parentArrows trans = arrows trans (transactionParentIds trans)
-    transLabel t = tidLabel (transactionUUID t)
+    transLabel t = tidLabel (transactionId t)
     tidLabel l = "\"" ++ show l ++ "\""
     oneArrow trans tid = transLabel trans ++ " -> " ++ tidLabel tid ++ ";"
-    headInfo = M.foldrWithKey (\headName t acc -> transLabel t ++ " [label=\"" ++ (show . transactionUUID) t ++ ":" ++ T.unpack headName ++ "\"];" ++ acc) "" heads
+    headInfo = M.foldrWithKey (\headName t acc -> transLabel t ++ " [label=\"" ++ (show . transactionId) t ++ ":" ++ T.unpack headName ++ "\"];" ++ acc) "" heads
 
 
 

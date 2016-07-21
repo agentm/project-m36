@@ -5,7 +5,6 @@ import ProjectM36.TransactionGraph
 import ProjectM36.Session
 import GHC.Generics
 import Data.Binary
-import Data.UUID
 import Control.Distributed.Process (ProcessId)
 
 -- | The initial login message. The argument should be the process id of the initiating client. This ProcessId will receive notification callbacks.
@@ -30,9 +29,9 @@ data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr Ses
                                         deriving (Binary, Generic)
 data RetrieveTransactionGraph = RetrieveTransactionGraph SessionId
                               deriving (Binary, Generic)
-data RetrieveHeadTransactionUUID = RetrieveHeadTransactionUUID SessionId
+data RetrieveHeadTransactionId = RetrieveHeadTransactionId SessionId
                                  deriving (Binary, Generic)
-data CreateSessionAtCommit = CreateSessionAtCommit UUID
+data CreateSessionAtCommit = CreateSessionAtCommit TransactionId
                                     deriving (Binary, Generic)
 data CreateSessionAtHead = CreateSessionAtHead HeadName
                                   deriving (Binary, Generic)

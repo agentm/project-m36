@@ -22,7 +22,7 @@ module ProjectM36.Client
        headName,
        remoteDBLookupName,
        defaultServerPort,
-       headTransactionUUID,
+       headTransactionId,
        defaultDatabaseName,
        defaultRemoteConnectionInfo,
        defaultHeadName,
@@ -71,7 +71,6 @@ import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Control.Distributed.Process (NodeId(..))
 
-import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
@@ -184,9 +183,9 @@ startNotificationListener callback = do
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback) = do
-  freshUUID <- nextRandom
+  freshId <- nextRandom
   let bootstrapContext = basicDatabaseContext 
-      freshGraph = bootstrapTransactionGraph freshUUID bootstrapContext
+      freshGraph = bootstrapTransactionGraph freshId bootstrapContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
@@ -245,21 +244,21 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback = d
           addClientNode conn notificationPid
           pure (Right conn)
           
--- | Create a new session at the transaction UUID and return the session's Id.
-createSessionAtCommit :: UUID -> Connection -> IO (Either RelationalError SessionId)
-createSessionAtCommit commitUUID conn@(InProcessConnection _ _ _ _) = do
+-- | Create a new session at the transaction id and return the session's Id.
+createSessionAtCommit :: TransactionId -> Connection -> IO (Either RelationalError SessionId)
+createSessionAtCommit commitId conn@(InProcessConnection _ _ _ _) = do
    newSessionId <- nextRandom
    atomically $ do
-      createSessionAtCommit_ commitUUID newSessionId conn
+      createSessionAtCommit_ commitId newSessionId conn
 createSessionAtCommit uuid conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtCommit uuid)
 
-createSessionAtCommit_ :: UUID -> SessionId -> Connection -> STM (Either RelationalError SessionId)
-createSessionAtCommit_ commitUUID newSessionId (InProcessConnection _ _ sessions graphTvar) = do
+createSessionAtCommit_ :: TransactionId -> SessionId -> Connection -> STM (Either RelationalError SessionId)
+createSessionAtCommit_ commitId newSessionId (InProcessConnection _ _ sessions graphTvar) = do
     graph <- readTVar graphTvar
-    case transactionForUUID commitUUID graph of
+    case transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitUUID (transactionContext transaction)
+            let freshDiscon = DisconnectedTransaction commitId (transactionContext transaction)
             keyDuplication <- STMMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
@@ -276,7 +275,7 @@ createSessionAtHead headn conn@(InProcessConnection _ _ _ graphTvar) = do
         graph <- readTVar graphTvar
         case transactionForHead headn graph of
             Nothing -> pure $ Left (NoSuchHeadNameError headn)
-            Just trans -> createSessionAtCommit_ (transactionUUID trans) newSessionId conn
+            Just trans -> createSessionAtCommit_ (transactionId trans) newSessionId conn
 createSessionAtHead headn conn@(RemoteProcessConnection _ _) = remoteCall conn (CreateSessionAtHead headn)
 
 -- | Used internally for server connections to keep track of remote nodes for the purpose of sending notifications later.
@@ -338,19 +337,19 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _) expr =
     Right session -> case runState (RE.evalContextExpr expr) (sessionContext session) of
       (Just err,_) -> return $ Just err
       (Nothing, context') -> do
-         let newDiscon = DisconnectedTransaction (sessionParentUUID session) context'
+         let newDiscon = DisconnectedTransaction (sessionParentId session) context'
              newSession = Session newDiscon
          STMMap.insert newSession sessionId sessions
          return Nothing
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
          
-executeGraphExprSTM_ :: UUID -> SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
-executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar = do
+executeGraphExprSTM_ :: TransactionId -> SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
+executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar = do
   graph <- readTVar graphTvar
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
       Left err -> pure $ Left err
-      Right (Session discon) -> case evalGraphOp freshUUID discon graph graphExpr of
+      Right (Session discon) -> case evalGraphOp freshId discon graph graphExpr of
         Left err -> pure $ Left err
         Right (discon', graph') -> do
           writeTVar graphTvar graph'
@@ -371,19 +370,19 @@ executeCommitExprSTM_ oldContext newContext nodes = do
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
 executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graphTvar) graphExpr = do
-  freshUUID <- nextRandom
+  freshId <- nextRandom
   manip <- atomically $ do
     eSession <- sessionForSessionId sessionId sessions
     oldGraph <- readTVar graphTvar
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction parentUUID currentContext)) -> do
-        eGraph <- executeGraphExprSTM_ freshUUID sessionId sessions graphExpr graphTvar
+      Right (Session (DisconnectedTransaction parentId currentContext)) -> do
+        eGraph <- executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar
         case eGraph of
           Left err -> pure (Left err)
           Right newGraph -> do
             if graphExpr == Commit then
-              case transactionForUUID parentUUID oldGraph of
+              case transactionForId parentId oldGraph of
                 Left err -> pure $ Left err
                 Right (Transaction _ _ previousContext) -> do
                   (evaldNots, nodes) <- executeCommitExprSTM_ previousContext currentContext clientNodes
@@ -472,8 +471,8 @@ planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr =
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
 -- * current- boolean attribute representing whether or not the current session references this transaction
 -- * head- text attribute which is a non-empty 'HeadName' iff the transaction references a head.
--- * id- UUID attribute of the transaction
--- * parents- a relation-valued attribute which contains a relation of UUIDs which are parent transaction to the transaction
+-- * id- id attribute of the transaction
+-- * parents- a relation-valued attribute which contains a relation of transaction ids which are parent transaction to the transaction
 transactionGraphAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 transactionGraphAsRelation sessionId (InProcessConnection _ _ sessions tvar) = do
   atomically $ do
@@ -496,15 +495,15 @@ relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _) = do
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
--- | Returns the UUID for the connection's disconnected transaction committed parent transaction.  
-headTransactionUUID :: SessionId -> Connection -> IO (Maybe UUID)
-headTransactionUUID sessionId (InProcessConnection _ _ sessions _) = do
+-- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
+headTransactionId :: SessionId -> Connection -> IO (Maybe TransactionId)
+headTransactionId sessionId (InProcessConnection _ _ sessions _) = do
   atomically $ do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure Nothing
-      Right session -> pure $ Just (sessionParentUUID session)
-headTransactionUUID sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionUUID sessionId)
+      Right session -> pure $ Just (sessionParentId session)
+headTransactionId sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionId sessionId)
     
 headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe HeadName)  
 headNameSTM_ sessionId sessions graphTvar = do
@@ -512,7 +511,7 @@ headNameSTM_ sessionId sessions graphTvar = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure $ Nothing
-      Right session -> pure $ case transactionForUUID (sessionParentUUID session) graph of
+      Right session -> pure $ case transactionForId (sessionParentId session) graph of
         Left _ -> Nothing
         Right parentTrans -> headNameForTransaction parentTrans graph
   

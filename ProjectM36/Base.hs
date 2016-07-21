@@ -387,23 +387,25 @@ transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
 transactionHeadsForGraph (TransactionGraph heads _) = heads
 
 -- | Every transaction has context-specific information attached to it.
-data TransactionInfo = TransactionInfo UUID (S.Set UUID) | -- 1 parent + n children
-                       MergeTransactionInfo UUID UUID (S.Set UUID) -- 2 parents, n children
+data TransactionInfo = TransactionInfo TransactionId (S.Set TransactionId) | -- 1 parent + n children
+                       MergeTransactionInfo TransactionId TransactionId (S.Set TransactionId) -- 2 parents, n children
                      deriving(Show, Generic)
                              
 instance Binary TransactionInfo                             
 
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
-data Transaction = Transaction UUID TransactionInfo DatabaseContext -- self uuid
+type TransactionId = UUID
+
+data Transaction = Transaction TransactionId TransactionInfo DatabaseContext -- self uuid
                    deriving (Show, Generic)
 
 --instance Binary Transaction
                             
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction UUID DatabaseContext --parentUUID, context
+data DisconnectedTransaction = DisconnectedTransaction TransactionId DatabaseContext --parentID, context
                             
-transactionUUID :: Transaction -> UUID
-transactionUUID (Transaction uuid _ _) = uuid
+transactionId :: Transaction -> TransactionId
+transactionId (Transaction tid _ _) = tid
 
 transactionContext :: Transaction -> DatabaseContext
 transactionContext (Transaction _ _ context) = context
