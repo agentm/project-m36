@@ -2,7 +2,7 @@
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import TutorialD.Interpreter.InformationOperator
 
@@ -34,7 +34,7 @@ database ops are read-write operations which change the database context (such a
 graph ops are read-write operations which change the transaction graph
 -}
 data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
-                       DatabaseExprOp DatabaseExpr |
+                       DatabaseContextExprOp DatabaseContextExpr |
                        InfoOp InformationOperator |
                        GraphOp TransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
@@ -47,7 +47,7 @@ interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eo
                      liftM InfoOp (infoOpP <* eof) <|>
                      liftM GraphOp (transactionGraphOpP <* eof) <|>
                      liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
-                     liftM DatabaseExprOp (databaseExprOpP <* eof) <|>
+                     liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
                      liftM ImportRelVarOp (importCSVP <* eof) <|>
                      liftM ImportDBContextOp (tutdImportP <* eof) <|>
                      liftM RelVarExportOp (exportCSVP <* eof)
@@ -69,7 +69,7 @@ evalTutorialD sessionId conn expr = case expr of
   (RODatabaseContextOp execOp) -> do
     evalRODatabaseContextOp sessionId conn execOp
     
-  (DatabaseExprOp execOp) -> do 
+  (DatabaseContextExprOp execOp) -> do 
     maybeErr <- C.executeDatabaseContextExpr sessionId conn execOp 
     case maybeErr of
       Just err -> barf err
@@ -97,13 +97,13 @@ evalTutorialD sessionId conn expr = case expr of
         exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
         case exprErr of
           Left err -> barf err
-          Right dbexpr -> evalTutorialD sessionId conn (DatabaseExprOp dbexpr)
+          Right dbexpr -> evalTutorialD sessionId conn (DatabaseContextExprOp dbexpr)
   
   (ImportDBContextOp execOp) -> do
     mDbexprs <- evalDatabaseContextDataImportOperator execOp
     case mDbexprs of 
       Left err -> barf err
-      Right dbexprs -> evalTutorialD sessionId conn (DatabaseExprOp dbexprs)
+      Right dbexprs -> evalTutorialD sessionId conn (DatabaseContextExprOp dbexprs)
       
   (InfoOp execOp) -> do
     case evalInformationOperator execOp of

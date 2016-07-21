@@ -175,7 +175,7 @@ deleteRelVar relVarName = do
   put $ currcontext { relationVariables = newRelVars }
   return Nothing
 
-evalContextExpr :: DatabaseExpr -> DatabaseState (Maybe RelationalError)
+evalContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
 evalContextExpr NoOperation = pure Nothing
   
 evalContextExpr (Define relVarName attrExprs) = do

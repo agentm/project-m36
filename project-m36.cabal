@@ -161,7 +161,7 @@ Executable tutd
                    ProjectM36.Transaction,
                    TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
-                   TutorialD.Interpreter.DatabaseExpr,
+                   TutorialD.Interpreter.DatabaseContextExpr,
                    TutorialD.Interpreter.RODatabaseContextOperator,
                    TutorialD.Interpreter.TransactionGraphOperator,
                    TutorialD.Interpreter.DataTypes.Interval,
@@ -341,7 +341,7 @@ Executable bigrel
                    ProjectM36.TypeConstructor,
                    ProjectM36.TypeConstructorDef,
                    TutorialD.Interpreter.Base,
-                   TutorialD.Interpreter.DatabaseExpr,
+                   TutorialD.Interpreter.DatabaseContextExpr,
                    TutorialD.Interpreter.RelationalExpr,
                    TutorialD.Interpreter.Types
     main-is: benchmark/bigrel.hs

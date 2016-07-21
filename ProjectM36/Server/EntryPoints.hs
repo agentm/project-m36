@@ -14,7 +14,7 @@ handleExecuteRelationalExpr sessionId conn expr = do
   ret <- liftIO $ executeRelationalExpr sessionId conn expr
   reply ret conn
   
-handleExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
 handleExecuteDatabaseContextExpr sessionId conn dbexpr = do
   ret <- liftIO $ executeDatabaseContextExpr sessionId conn dbexpr
   reply ret conn
@@ -44,7 +44,7 @@ handleRetrieveInclusionDependencies sessionId conn = do
   ret <- liftIO $ inclusionDependencies sessionId conn
   reply ret conn
   
-handleRetrievePlanForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> Process (ProcessReply (Either RelationalError DatabaseExpr) Connection)
+handleRetrievePlanForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> Process (ProcessReply (Either RelationalError DatabaseContextExpr) Connection)
 handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr = do
   ret <- liftIO $ planForDatabaseContextExpr sessionId conn dbExpr
   reply ret conn

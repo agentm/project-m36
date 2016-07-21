@@ -329,29 +329,29 @@ data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr der
 instance Binary InclusionDependency
 
 -- | Database context expressions modify the database context.
-data DatabaseExpr where
-  NoOperation :: DatabaseExpr
-  Define :: RelVarName -> [AttributeExpr] -> DatabaseExpr
-  Undefine :: RelVarName -> DatabaseExpr --forget existence of relvar X
-  Assign :: RelVarName -> RelationalExpr -> DatabaseExpr
-  Insert :: RelVarName -> RelationalExpr -> DatabaseExpr
-  Delete :: RelVarName -> RestrictionPredicateExpr -> DatabaseExpr 
-  Update :: RelVarName  -> M.Map AttributeName Atom -> RestrictionPredicateExpr -> DatabaseExpr -- needs restriction support
+data DatabaseContextExpr = 
+  NoOperation |
+  Define RelVarName [AttributeExpr] |
+  Undefine RelVarName | --forget existence of relvar X
+  Assign RelVarName RelationalExpr |
+  Insert RelVarName RelationalExpr |
+  Delete RelVarName RestrictionPredicateExpr |
+  Update RelVarName (M.Map AttributeName Atom) RestrictionPredicateExpr |
   
-  AddInclusionDependency :: IncDepName -> InclusionDependency -> DatabaseExpr
-  RemoveInclusionDependency :: IncDepName -> DatabaseExpr
+  AddInclusionDependency IncDepName InclusionDependency |
+  RemoveInclusionDependency IncDepName |
   
-  AddNotification :: NotificationName -> RelationalExpr -> RelationalExpr -> DatabaseExpr
-  RemoveNotification :: NotificationName -> DatabaseExpr
+  AddNotification NotificationName RelationalExpr RelationalExpr |
+  RemoveNotification NotificationName |
 
-  AddTypeConstructor :: TypeConstructorDef -> [DataConstructorDef] -> DatabaseExpr
-  RemoveTypeConstructor :: TypeConstructorName -> DatabaseExpr
+  AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
+  RemoveTypeConstructor TypeConstructorName |
 
   -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime
-  --AddAtomFunction :: AtomFunction -> DatabaseExpr
-  --RemoveAtomFunction :: AtomFunctionName -> DatabaseExpr
+  --AddAtomFunction AtomFunction
+  --RemoveAtomFunction AtomFunctionName
   
-  MultipleExpr :: [DatabaseExpr] -> DatabaseExpr
+  MultipleExpr [DatabaseContextExpr]
   deriving (Show, Eq, Binary, Generic)
 
 

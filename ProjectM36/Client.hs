@@ -28,7 +28,7 @@ module ProjectM36.Client
        defaultHeadName,
        PersistenceStrategy(..),
        RelationalExpr(..),
-       DatabaseExpr(..),
+       DatabaseContextExpr(..),
        Attribute(..),
        attributesFromList,
        createNodeId,
@@ -330,7 +330,7 @@ executeRelationalExpr sessionId (InProcessConnection _ _ sessions _) expr = atom
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
   
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
-executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Maybe RelationalError)
+executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _) expr = atomically $ do
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
@@ -460,7 +460,7 @@ inclusionDependencies sessionId (InProcessConnection _ _ sessions _) = do
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
-planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseExpr -> IO (Either RelationalError DatabaseExpr)  
+planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _) dbExpr = do
   atomically $ do
     eSession <- sessionForSessionId sessionId sessions

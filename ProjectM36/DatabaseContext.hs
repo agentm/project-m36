@@ -15,11 +15,11 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           typeConstructorMapping = [] }
         
 -- | convert an existing database context into its constituent expression.   
-databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseExpr
+databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr
 databaseContextAsDatabaseContextExpr context = MultipleExpr $ incDepsExprs ++ relVarsExprs ++ funcsExprs
   where
     relVarsExprs = map (\(name, rel) -> Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
-    incDepsExprs :: [DatabaseExpr]
+    incDepsExprs :: [DatabaseContextExpr]
     incDepsExprs = map (\(name, dep) -> AddInclusionDependency name dep) (M.toList (inclusionDependencies context))
     funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet
 

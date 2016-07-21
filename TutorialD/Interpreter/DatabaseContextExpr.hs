@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module TutorialD.Interpreter.DatabaseExpr where
+module TutorialD.Interpreter.DatabaseContextExpr where
 import Text.Parsec
 import Text.Parsec.String
 import ProjectM36.Base
@@ -15,7 +15,7 @@ import ProjectM36.RelationalExpression
 import ProjectM36.Key
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
-databaseExprP :: Parser DatabaseExpr
+databaseExprP :: Parser DatabaseContextExpr
 databaseExprP = choice $ map (\p -> p <* optional commentP) [insertP,
                                               deleteConstraintP,
                                               deleteP,
@@ -31,13 +31,13 @@ databaseExprP = choice $ map (\p -> p <* optional commentP) [insertP,
                                               removeTypeConstructorP,
                                               nothingP]
             
-commentP :: Parser DatabaseExpr            
+commentP :: Parser DatabaseContextExpr            
 commentP = reserved "--" >> manyTill anyChar eof >> pure NoOperation
             
-nothingP :: Parser DatabaseExpr            
+nothingP :: Parser DatabaseContextExpr            
 nothingP = whiteSpace >> pure NoOperation
 
-assignP :: Parser DatabaseExpr
+assignP :: Parser DatabaseContextExpr
 assignP = do
   relVarName <- try $ do
     relVarName <- identifier
@@ -46,19 +46,19 @@ assignP = do
   expr <- relExprP
   return $ Assign (T.pack relVarName) expr
 
-multipleDatabaseExprP :: Parser DatabaseExpr
-multipleDatabaseExprP = do
+multipleDatabaseContextExprP :: Parser DatabaseContextExpr
+multipleDatabaseContextExprP = do
   exprs <- sepBy1 databaseExprP semi
   return $ MultipleExpr exprs
 
-insertP :: Parser DatabaseExpr
+insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"
   relvar <- identifier
   expr <- relExprP
   return $ Insert (T.pack relvar) expr
 
-defineP :: Parser DatabaseExpr
+defineP :: Parser DatabaseContextExpr
 defineP = do
   relVarName <- try $ do
     relVarName <- identifier
@@ -67,20 +67,20 @@ defineP = do
   attributeSet <- makeAttributeExprsP
   return $ Define (T.pack relVarName) attributeSet
 
-undefineP :: Parser DatabaseExpr
+undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
   relVarName <- identifier
   return $ Undefine (T.pack relVarName)
 
-deleteP :: Parser DatabaseExpr
+deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
   relVarName <- identifier
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
   return $ Delete (T.pack relVarName) predicate
 
-updateP :: Parser DatabaseExpr
+updateP :: Parser DatabaseContextExpr
 updateP = do
   reservedOp "update"
   relVarName <- identifier
@@ -90,7 +90,7 @@ updateP = do
 
 data IncDepOp = SubsetOp | EqualityOp
 
-addConstraintP :: Parser DatabaseExpr
+addConstraintP :: Parser DatabaseContextExpr
 addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
@@ -106,14 +106,14 @@ addConstraintP = do
   
   
   
-deleteConstraintP :: Parser DatabaseExpr  
+deleteConstraintP :: Parser DatabaseContextExpr  
 deleteConstraintP = do
   reserved "deleteconstraint"
   constraintName <- identifier
   return $ RemoveInclusionDependency (T.pack constraintName)
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
-keyP :: Parser DatabaseExpr  
+keyP :: Parser DatabaseContextExpr  
 keyP = do
   reserved "key"
   keyName <- identifier
@@ -129,7 +129,7 @@ attributeAssignmentP = do
   atom <- stringAtomP <|> intAtomP
   return $ (attrName, atom)
   
-addNotificationP :: Parser DatabaseExpr
+addNotificationP :: Parser DatabaseContextExpr
 addNotificationP = do
   reserved "notify"
   notName <- identifier
@@ -137,14 +137,14 @@ addNotificationP = do
   resultExpr <- relExprP
   return $ AddNotification (T.pack notName) triggerExpr resultExpr
   
-removeNotificationP :: Parser DatabaseExpr  
+removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do
   reserved "unnotify"
   notName <- identifier
   return $ RemoveNotification (T.pack notName)
 
 -- | data Hair = Bald | Color Text
-addTypeConstructorP :: Parser DatabaseExpr
+addTypeConstructorP :: Parser DatabaseContextExpr
 addTypeConstructorP = do
   reserved "data"
   typeConstructorDef <- typeConstructorDefP
@@ -152,26 +152,26 @@ addTypeConstructorP = do
   dataConstructorDefs <- sepBy1 dataConstructorDefP pipe
   pure (AddTypeConstructor typeConstructorDef dataConstructorDefs)
 
-removeTypeConstructorP :: Parser DatabaseExpr
+removeTypeConstructorP :: Parser DatabaseContextExpr
 removeTypeConstructorP = do
   reserved "undata"
   RemoveTypeConstructor <$> liftM T.pack identifier 
 
-databaseExprOpP :: Parser DatabaseExpr
-databaseExprOpP = multipleDatabaseExprP
+databaseExprOpP :: Parser DatabaseContextExpr
+databaseExprOpP = multipleDatabaseContextExprP
 
-evalDatabaseExpr :: Bool -> DatabaseContext -> DatabaseExpr -> Either RelationalError DatabaseContext
-evalDatabaseExpr useOptimizer context expr = do
+evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContext
+evalDatabaseContextExpr useOptimizer context expr = do
     optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) context
     case runState (evalContextExpr (if useOptimizer then optimizedExpr else expr)) context of
         (Nothing, context') -> Right context'
         (Just err, _) -> Left err
 
 
-interpretDatabaseExpr :: DatabaseContext -> String -> Either RelationalError DatabaseContext
-interpretDatabaseExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
+interpretDatabaseContextExpr :: DatabaseContext -> String -> Either RelationalError DatabaseContext
+interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
                                     Left err -> Left $ ParseError (T.pack (show err))
-                                    Right parsed -> evalDatabaseExpr True context parsed
+                                    Right parsed -> evalDatabaseContextExpr True context parsed
 
 {-
 --no optimization

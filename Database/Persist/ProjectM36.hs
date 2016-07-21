@@ -217,7 +217,7 @@ updateByKey key updates = do
   (sessionId, conn) <- ask
   maybeErr <- Trans.liftIO $ C.executeDatabaseContextExpr sessionId conn query
   case maybeErr of
-    Just err -> throwIOPersistError ("executeDatabaseExpr error" ++ show err)
+    Just err -> throwIOPersistError ("executeDatabaseContextExpr error" ++ show err)
     Nothing -> return ()
 
 --set the truth unconditionally
@@ -316,7 +316,7 @@ instance ToJSON (BackendKey ProjectM36Backend) where
   toJSON (ProjectM36Key uuid) = toJSON $ U.toString uuid
 
 --wrapped version which throws exceptions
-executeDatabaseContextExpr :: C.SessionId -> C.Connection -> DatabaseExpr -> IO ()
+executeDatabaseContextExpr :: C.SessionId -> C.Connection -> DatabaseContextExpr -> IO ()
 executeDatabaseContextExpr sessionId conn expr = do
   res <- C.executeDatabaseContextExpr sessionId conn expr
   case res of

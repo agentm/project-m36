@@ -11,7 +11,7 @@ import System.Exit
 import Data.Either
 import Data.UUID.V4 (nextRandom)
 import System.FilePath
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 
 main :: IO ()           
 main = do 
@@ -40,7 +40,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> do
-          case interpretDatabaseExpr (transactionContext headTrans) "x:=s" of
+          case interpretDatabaseContextExpr (transactionContext headTrans) "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
               freshUUID' <- nextRandom

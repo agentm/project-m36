@@ -6,7 +6,7 @@ import Text.Parsec
 import Text.Parsec.String
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 import Control.Monad.State
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Term
@@ -20,7 +20,7 @@ data RODatabaseContextOperator where
   PlotRelation :: RelationalExpr -> RODatabaseContextOperator
   ShowRelationType :: RelationalExpr -> RODatabaseContextOperator
   ShowConstraint :: StringType -> RODatabaseContextOperator
-  ShowPlan :: DatabaseExpr -> RODatabaseContextOperator
+  ShowPlan :: DatabaseContextExpr -> RODatabaseContextOperator
   ShowTypes :: RODatabaseContextOperator
   ShowRelationVariables :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator

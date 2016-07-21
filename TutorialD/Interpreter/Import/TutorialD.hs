@@ -2,7 +2,7 @@ module TutorialD.Interpreter.Import.TutorialD where
 import ProjectM36.Base
 import TutorialD.Interpreter.Import.Base
 import TutorialD.Interpreter.Base
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 import Text.Parsec.String
 import Text.Parsec hiding (try)
 import ProjectM36.Error
@@ -11,7 +11,7 @@ import qualified Data.Text as T
 import Control.Exception
 --import a file containing TutorialD database context expressions
 
-importTutorialD :: FilePath -> IO (Either RelationalError DatabaseExpr)
+importTutorialD :: FilePath -> IO (Either RelationalError DatabaseContextExpr)
 importTutorialD pathIn = do
   tutdData <- try (readFile pathIn) :: IO (Either IOError String)
   case tutdData of 

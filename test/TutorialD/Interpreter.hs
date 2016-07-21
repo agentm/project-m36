@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-import TutorialD.Interpreter.DatabaseExpr
+import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import Test.HUnit
@@ -123,7 +123,7 @@ main = do
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
 assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted
   where
-    interpreted = case interpretDatabaseExpr databaseContext tutd of
+    interpreted = case interpretDatabaseContextExpr databaseContext tutd of
       Left err -> Left err
       Right context -> case M.lookup "x" (relationVariables context) of
         Nothing -> Left $ RelVarNotDefinedError "x"

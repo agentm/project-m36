@@ -8,7 +8,7 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
-import TutorialD.Interpreter.DatabaseExpr (interpretDatabaseExpr)
+import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
@@ -58,7 +58,7 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                  else do
                    let setx = Assign "x" (ExistingRelation (force rel))
                        context = execState (evalContextExpr setx) dateExamples
-                       interpreted = interpretDatabaseExpr context tutd
+                       interpreted = interpretDatabaseContextExpr context tutd
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
                    case interpreted of

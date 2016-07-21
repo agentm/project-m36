@@ -16,7 +16,7 @@ data Logout = Logout
             deriving (Binary, Generic)
 data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr 
                            deriving (Binary, Generic)
-data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseExpr
+data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseContextExpr
                                 deriving (Binary, Generic)
 data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphOperator 
                       deriving (Binary, Generic)
@@ -26,7 +26,7 @@ data ExecuteTypeForRelationalExpr = ExecuteTypeForRelationalExpr SessionId Relat
                                   deriving (Binary, Generic)
 data RetrieveInclusionDependencies = RetrieveInclusionDependencies SessionId
                                    deriving (Binary, Generic)
-data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr SessionId DatabaseExpr
+data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr SessionId DatabaseContextExpr
                                         deriving (Binary, Generic)
 data RetrieveTransactionGraph = RetrieveTransactionGraph SessionId
                               deriving (Binary, Generic)
