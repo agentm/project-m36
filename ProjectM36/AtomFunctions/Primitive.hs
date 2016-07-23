@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.AtomFunctions.Primitive where
 import ProjectM36.Atom
 import ProjectM36.Base

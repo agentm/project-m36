@@ -1,5 +1,5 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
-{-# LANGUAGE OverloadedStrings, DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass #-}
 import ProjectM36.Client
 import qualified Data.Text as T
 import ProjectM36.Atom

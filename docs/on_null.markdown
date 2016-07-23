@@ -377,7 +377,7 @@ Algebraic data types in SQL are effectively impossible.
 Any Haskell data type can be turned into a value (called an "atom") in Project:M36. The following example illustrates:
 
 ```haskell
-{-# LANGUAGE OverloadedStrings,DeriveAnyClass,DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass,DeriveGeneric #-}
 module Hospital where
 
 import ProjectM36.Client

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.DateExamples where
 import ProjectM36.Base
 import ProjectM36.Atom

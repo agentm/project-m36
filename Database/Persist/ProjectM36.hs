@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, GeneralizedNewtypeDeriving, OverloadedStrings, FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, GeneralizedNewtypeDeriving, FlexibleInstances, FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Database.Persist.ProjectM36 where
 import Database.Persist hiding (Assign, Update)

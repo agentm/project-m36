@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 --writes Relation to a String suitable for terminal output
 module ProjectM36.Relation.Show.Term where
 import ProjectM36.Base

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
 import Text.Parsec
 import Text.Parsec.String

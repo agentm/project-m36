@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
 module ProjectM36.Client
        (ConnectionInfo(..),
        Connection(..),

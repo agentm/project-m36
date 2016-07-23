@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 -- wraps up primitives plus other basic data types
 module ProjectM36.DataTypes.Basic where
 import ProjectM36.DataTypes.Primitive
@@ -13,9 +12,3 @@ basicTypeConstructorMapping = (primitiveTypeConstructorMapping ++
                                eitherTypeConstructorMapping ++ 
                                dayTypeConstructorMapping)
 
-                 
-                
-
-
-                
-                

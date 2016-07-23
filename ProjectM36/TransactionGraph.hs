@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error

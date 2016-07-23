@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base

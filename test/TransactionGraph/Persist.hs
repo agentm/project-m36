@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings,LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))

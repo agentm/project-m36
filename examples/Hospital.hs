@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings,DeriveAnyClass,DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass,DeriveGeneric #-}
 module Hospital where
 
 import ProjectM36.Client

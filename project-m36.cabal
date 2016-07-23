@@ -117,6 +117,7 @@ Library
       C-sources: ProjectM36/DirectoryFsync.c
       Build-Depends: unix
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
 
 Executable tutd
     Build-Depends: base >=4.8 && <4.9, 
@@ -216,6 +217,7 @@ Executable tutd
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     GHC-Options: -Wall 
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
       Other-Modules: ProjectM36.Win32Handle
@@ -264,6 +266,7 @@ Executable project-m36-server
     GHC-Options: -Wall -threaded -rtsopts
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     Other-Modules: ProjectM36.Atom,
                    ProjectM36.AtomFunction,
                    ProjectM36.AtomFunctions.Basic,
@@ -314,6 +317,7 @@ Executable project-m36-server
 
 Executable bigrel
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t
     Other-Modules: ProjectM36.Base,
                    ProjectM36.Relation
@@ -362,6 +366,7 @@ Executable bigrel
 
 Test-Suite test-tutoriald
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t
@@ -378,6 +383,7 @@ Test-Suite test-tutoriald
 
 Test-Suite test-relation
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/Relation/Basic.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -387,6 +393,7 @@ Test-Suite test-relation
 
 Test-Suite test-static-optimizer
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -396,6 +403,7 @@ Test-Suite test-static-optimizer
 
 Test-Suite test-transactiongraph-persist
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Persist.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -412,6 +420,7 @@ Test-Suite test-transactiongraph-persist
 
 Test-Suite test-relation-import-csv
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/Relation/Import/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -421,6 +430,7 @@ Test-Suite test-relation-import-csv
 
 Test-Suite test-tutoriald-import-tutoriald
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/TutorialD/Interpreter/Import/TutorialD.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -430,6 +440,7 @@ Test-Suite test-tutoriald-import-tutoriald
 
 Test-Suite test-relation-export-csv
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, stm-containers
@@ -439,6 +450,7 @@ Test-Suite test-relation-export-csv
 
 Test-Suite test-persistent-driver
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent >= 2.2 && < 2.3, either, path-pieces, http-api-data, stm-containers, list-t
@@ -456,6 +468,7 @@ Test-Suite test-persistent-driver
 
 Test-Suite test-transactiongraph-merge
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Merge.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent, either, path-pieces, http-api-data, stm-containers, list-t
@@ -466,6 +479,7 @@ Test-Suite test-transactiongraph-merge
 
 benchmark bench
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, criterion, stm-containers
@@ -474,6 +488,7 @@ benchmark bench
 
 Test-Suite test-server
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/Server/Main.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
@@ -491,6 +506,7 @@ Test-Suite test-server
 
 Executable Example-SimpleClient
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall
@@ -543,6 +559,7 @@ Executable Example-SimpleClient
 
 Executable Example-PersistClient
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template
     Main-Is: examples/PersistClient.hs
     GHC-Options: -Wall
@@ -593,6 +610,7 @@ Executable Example-PersistClient
     
 Test-Suite test-scripts
     Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/scripts.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t

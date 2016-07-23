@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator

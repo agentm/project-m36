@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.DataTypes.Primitive where
 import ProjectM36.Base
 import Data.Proxy

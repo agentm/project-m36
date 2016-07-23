@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import qualified Data.Map as M

@@ -1,5 +1,4 @@
 -- tests for transaction merging
-{-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Relation
