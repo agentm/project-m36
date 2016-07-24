@@ -88,7 +88,7 @@ instance FromJSON Atom where
     case atype of
       AnyAtomType -> fail "cannot pass AnyAtomType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
-      RelationAtomType _ -> undefined
+      RelationAtomType _ -> error "not implemented"
       AtomType cTypeRep -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
                              intAtom <$> o .: "val"
                              else if unCTR cTypeRep == typeRep (Proxy :: Proxy Text) then

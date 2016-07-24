@@ -4,7 +4,10 @@
 import Control.Monad (forever)
 import qualified Data.Text as T
 import qualified Network.WebSockets as WS
-import ProjectM36.Server.RemoteCallTypes.Json
+import ProjectM36.Server.RemoteCallTypes.Json ()
+import ProjectM36.Base
+import qualified Data.Set as S
+import Data.Aeson
 
 main :: IO ()
 main = do
@@ -17,8 +20,7 @@ application pending = do
   forever $ do
     msg <- (WS.receiveData conn) :: IO T.Text
     case msg of
-      "hello" -> WS.sendTextData conn ("nice" :: T.Text)
-      "bye" -> WS.sendClose conn ("bye" :: T.Text)
+      "db" -> WS.sendTextData conn (encode (Project (AttributeNames (S.fromList ["spam1", "spam2"])) (RelationVariable "elgringo")))
       str -> WS.sendTextData conn str
     return ()
        

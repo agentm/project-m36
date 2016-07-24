@@ -1,0 +1,37 @@
+<html>
+<head>
+<script>
+    var socket = new WebSocket("ws://localhost:8888");
+    socket.onopen = function(event) {
+       //socket.send("smoked");
+       console.log("connected");
+       setStatus("connected");
+    }
+    socket.onerror = function(event) {
+      console.log("error: " + event);
+    }
+    socket.onmessage = function (event) {
+     console.log("message received: " + event.data);
+    }
+    socket.onclose = function(event) {
+     console.log("conn closed: " + event);
+     setStatus("disconnected");
+    }
+
+function setStatus(text)
+{
+    newtext = document.createTextNode(text);
+    statusnode = document.getElementById("status");
+    while( statusnode.firstChild ) {
+      statusnode.removeChild( statusnode.firstChild );
+    }
+    statusnode.appendChild(newtext);
+}
+    
+</script>
+</head>
+<body>
+<p>Status:<span id="status">Fresh</span></p>
+
+</body>
+</html>
