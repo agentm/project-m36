@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, TypeFamilies, GADTs, EmptyDataDecls, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, RankNTypes, MultiParamTypeClasses, GeneralizedNewtypeDeriving, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, TypeFamilies, GADTs, EmptyDataDecls, TypeSynonymInstances, FlexibleInstances, FlexibleContexts, RankNTypes, MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {- A simple example of using the persistent-ProjectM36 driver. -}
 import Database.Persist.ProjectM36 hiding (executeDatabaseContextExpr)

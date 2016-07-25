@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances,OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DateExamples
