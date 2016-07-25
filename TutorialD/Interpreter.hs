@@ -85,7 +85,7 @@ evalTutorialD sessionId conn expr = case expr of
     opResult <- evalROGraphOp sessionId conn execOp
     case opResult of 
       Left err -> barf err
-      Right rel -> return $ DisplayResult $ showRelation rel
+      Right rel -> pure (DisplayRelationResult rel)
       
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     -- collect attributes from relvar name

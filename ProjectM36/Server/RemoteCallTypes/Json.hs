@@ -5,6 +5,8 @@ module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Base
 import ProjectM36.ConcreteTypeRep
+import ProjectM36.Error
+
 import Data.Aeson
 import Data.UUID.Aeson ()
 import Data.Proxy
@@ -105,3 +107,14 @@ instance FromJSON Atom where
                                                         error "unsupported typerep serialization"
 
 
+instance ToJSON Notification
+instance FromJSON Notification
+
+instance ToJSON RelationalError
+instance FromJSON RelationalError
+
+instance ToJSON MergeError
+instance FromJSON MergeError
+
+instance ToJSON MergeStrategy
+instance FromJSON MergeStrategy

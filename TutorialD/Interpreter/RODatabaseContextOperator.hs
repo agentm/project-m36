@@ -9,7 +9,6 @@ import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
 import Control.Monad.State
 import qualified Data.Text as T
-import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation.Show.Gnuplot
 import qualified Data.Map as M
 import Data.Maybe
@@ -83,13 +82,13 @@ evalRODatabaseContextOp sessionId conn (ShowRelationType expr) = do
   res <- C.typeForRelationalExpr sessionId conn expr
   case res of
     Left err -> pure $ DisplayErrorResult $ T.pack (show err)
-    Right rel -> pure $ DisplayResult $ showRelation rel
+    Right rel -> pure $ DisplayRelationResult rel
 
 evalRODatabaseContextOp sessionId conn (ShowRelation expr) = do
   res <- C.executeRelationalExpr sessionId conn expr
   case res of
     Left err -> pure $ DisplayErrorResult $ T.pack (show err)
-    Right rel -> pure $ DisplayResult $ showRelation rel
+    Right rel -> pure $ DisplayRelationResult rel
     
 evalRODatabaseContextOp sessionId conn (PlotRelation expr) = do
   res <- C.executeRelationalExpr sessionId conn expr
@@ -126,7 +125,6 @@ evalRODatabaseContextOp sessionId conn ShowRelationVariables = do
   case eRel of
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
-
   
 evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
 

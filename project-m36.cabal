@@ -611,6 +611,8 @@ Executable project-m36-websocket-server
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, unix, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, websockets, aeson, uuid-aeson
     Main-Is: ProjectM36/Server/WebSocket.hs
     GHC-Options: -Wall
+    CPP-Options: -DPROJECTM36_VERSION="v0.1"
+    Default-Extensions: OverloadedStrings
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
       Other-Modules: ProjectM36.Win32Handle

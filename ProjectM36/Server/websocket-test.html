@@ -20,18 +20,24 @@
 
 function setStatus(text)
 {
-    newtext = document.createTextNode(text);
-    statusnode = document.getElementById("status");
+    var newtext = document.createTextNode(text);
+    var statusnode = document.getElementById("status");
     while( statusnode.firstChild ) {
       statusnode.removeChild( statusnode.firstChild );
     }
     statusnode.appendChild(newtext);
+}
+
+function execTutorialD()
+{
+    var tutd = document.getElementById("tutd").value
+    socket.send("executetutd:" + tutd)
 }
     
 </script>
 </head>
 <body>
 <p>Status:<span id="status">Fresh</span></p>
-
+<p><input type="text" id="tutd"/><input type="submit" onclick="execTutorialD();"/>
 </body>
 </html>
