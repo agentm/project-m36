@@ -41,6 +41,7 @@ function handleResponse(message)
 {
     var relation = message["displayrelation"];
     var acknowledged = message["acknowledged"];
+    var error = message["displayerror"];
     if(relation)
     {
       showRelation(relation);
@@ -53,6 +54,10 @@ function handleResponse(message)
     if(acknowledged)
     {
       message="acknowledged";
+    }
+    if(error)
+    {
+      message=error;
     }
     document.getElementById("resultstatus").innerHTML = message;
 }
