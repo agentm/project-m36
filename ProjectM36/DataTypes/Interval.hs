@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving, OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.DataTypes.Interval where
 import Data.Interval

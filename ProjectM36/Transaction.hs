@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Transaction where
 import ProjectM36.Base
 import qualified Data.Set as S

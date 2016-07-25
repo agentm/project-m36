@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple

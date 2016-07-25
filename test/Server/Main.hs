@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-
 test client/server interaction
 -}

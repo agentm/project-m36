@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Sessions where
 import Control.Concurrent.STM
 import qualified STMContainers.Map as STMMap

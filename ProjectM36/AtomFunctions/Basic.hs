@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 --atom functions on primitive atom values plus the basic atom functions
 module ProjectM36.AtomFunctions.Basic where
 import ProjectM36.Base
@@ -13,4 +12,4 @@ basicAtomFunctions = HS.unions [primitiveAtomFunctions,
                                 dayAtomFunctions,
                                 eitherAtomFunctions,
                                 maybeAtomFunctions]
-       
+

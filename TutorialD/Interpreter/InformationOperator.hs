@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.InformationOperator where
 import Data.Text
 import Text.Parsec

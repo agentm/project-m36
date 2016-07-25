@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Key where
 import ProjectM36.Base
 import ProjectM36.Relation

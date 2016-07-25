@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,ExistentialQuantification,OverloadedStrings #-}
+{-# LANGUAGE GADTs,ExistentialQuantification #-}
 module ProjectM36.Relation where
 import qualified Data.Set as S
 import qualified Data.HashSet as HS

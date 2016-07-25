@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.Relation.Parse.CSV where
 --parse Relations from CSV
 import Data.Csv.Parser

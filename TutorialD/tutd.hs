@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE CPP #-}
 import TutorialD.Interpreter
 import ProjectM36.Base
 import ProjectM36.Client

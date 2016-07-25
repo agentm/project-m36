@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 import Test.HUnit
 import ProjectM36.Base
 import System.Exit

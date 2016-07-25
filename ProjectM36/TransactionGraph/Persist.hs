@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module ProjectM36.TransactionGraph.Persist where
 import ProjectM36.Error
 import ProjectM36.TransactionGraph

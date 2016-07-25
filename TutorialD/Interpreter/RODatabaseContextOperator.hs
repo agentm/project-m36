@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,OverloadedStrings #-}
+{-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
 import qualified ProjectM36.Client as C

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
