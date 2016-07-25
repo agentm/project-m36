@@ -12,6 +12,8 @@
     }
     socket.onmessage = function (event) {
      console.log("message received: " + event.data);
+     var msg = JSON.parse(event.data);
+     handleResponse(msg);
     }
     socket.onclose = function(event) {
      console.log("conn closed: " + event);
@@ -30,14 +32,99 @@ function setStatus(text)
 
 function execTutorialD()
 {
-    var tutd = document.getElementById("tutd").value
-    socket.send("executetutd:" + tutd)
+    var tutd = document.getElementById("tutd").value;
+    socket.send("executetutd:" + tutd);
+    return false;
+}
+
+function handleResponse(message)
+{
+    var relation = message["displayrelation"];
+    var acknowledged = message["acknowledged"];
+    if(relation)
+    {
+      showRelation(relation);
+    }
+    else
+    {
+    }
+
+    var message = "";
+    if(acknowledged)
+    {
+      message="acknowledged";
+    }
+    document.getElementById("resultstatus").innerHTML = message;
+}
+
+function showRelation(relation)
+{
+  var relid = document.getElementById("relationresult");
+  var relidheaders = relid.getElementsByTagName("thead")[0];
+  var relidbody = relid.getElementsByTagName("tbody")[0];
+  var headers = showRelationHeader(relation[0]);
+  var body = showRelationBody(relation[1]);
+  
+  relid.replaceChild(headers, relidheaders);
+  relid.replaceChild(body, relidbody);
+}
+
+function showRelationHeader(header)
+{
+    var thead = document.createElement("thead");
+    var headerrow = document.createElement("tr");
+    for(var hindex=0; hindex < header.length; hindex++)
+    {
+      var th = document.createElement("th");
+      var attrname = header[hindex][0];
+      var attrtype = header[hindex][1]["contents"]["serialrep"][0][2];
+      th.textContent = attrname + "::" + attrtype;
+      headerrow.appendChild(th);
+    }
+    thead.appendChild(headerrow);
+    return thead;
+}
+
+function showRelationBody(body)
+{
+    var bodyrows = body["asList"]
+    var tbody = document.createElement("tbody");
+    for(var rindex=0; rindex < bodyrows.length; rindex++)
+    {
+      var tablerow = document.createElement("tr");
+      var bodyrow = bodyrows[rindex];
+      for(var atomindex=0; atomindex < bodyrow[1].length; atomindex++)
+      {
+        var td = document.createElement("td");
+        var val = bodyrow[1][atomindex]["val"];
+        td.textContent = val
+        tablerow.appendChild(td);
+      }
+      tbody.appendChild(tablerow);
+    }
+    return tbody;
 }
     
 </script>
+<style>
+#relationresult, th, td
+{
+  border: 1px solid black;
+}
+</style>
 </head>
 <body>
 <p>Status:<span id="status">Fresh</span></p>
-<p><input type="text" id="tutd"/><input type="submit" onclick="execTutorialD();"/>
+<form onsubmit="return execTutorialD();">
+  <input type="text" id="tutd"/>
+  <input type="submit"/>
+</form>
+<p>Message:<span id="resultstatus"></span></p>
+<table id="relationresult">
+  <thead>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
 </body>
 </html>
