@@ -75,9 +75,16 @@ instance ToJSON ConcreteTypeRep where
     ]
                    
 instance ToJSON Atom where                   
-  toJSON atom@(Atom val) = object [
-    "type" .= toJSON (atomTypeForAtom atom),
-    "val" .= toText val]
+  toJSON atom@(Atom val) = let atype = atomTypeForAtom atom 
+                               val = case atype of
+                                 intAtomType -> unsafeCast atom
+                                 _ -> "smiley" :: Text
+                           in
+                            object [
+                              "type" .= atype
+                              "val" .= val]
+
+
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
     "dataconstructorname" .= dConsName,
     "atomtype" .= toJSON atomtype,
