@@ -1,5 +1,4 @@
 --create a bunch of orphan instances for use with the websocket server
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.Server.RemoteCallTypes
@@ -14,6 +13,9 @@ import Data.Typeable
 import Data.Text
 import Data.Time.Calendar
 import ProjectM36.Atom
+import ProjectM36.DataTypes.Primitive
+import ProjectM36.AtomFunctions.Primitive
+import ProjectM36.DataTypes.Day
 import Data.ByteString
 
 instance ToJSON RelationalExpr
@@ -75,19 +77,41 @@ instance ToJSON ConcreteTypeRep where
     ]
                    
 instance ToJSON Atom where                   
-  toJSON atom@(Atom val) = let atype = atomTypeForAtom atom 
-                               val = case atype of
-                                 intAtomType -> unsafeCast atom
-                                 _ -> "smiley" :: Text
+  toJSON atom@(Atom _) = let atype = atomTypeForAtom atom
                            in
-                            object [
-                              "type" .= atype
-                              "val" .= val]
-
+                           if atype == intAtomType then
+                             object [
+                              "type" .= atype,
+                              "val" .= ((unsafeCast atom) :: Int)]
+                           else if atype == textAtomType then
+                             object [
+                               "type" .= atype,
+                               "val" .= ((unsafeCast atom) :: Text)]
+                           else if atype == doubleAtomType then
+                             object [
+                               "type" .= atype,
+                               "val" .= ((unsafeCast atom) :: Double)]
+                           else if atype == dayAtomType then
+                             object [
+                               "type" .= atype,
+                               "val" .= ((unsafeCast atom) :: Day)]
+                           else if atype == byteStringAtomType then
+                             object [
+                               "type" .= atype,
+                               "val" .= toText ((unsafeCast atom) :: ByteString)]
+                           else if atype == boolAtomType then
+                             object [
+                               "type" .= atype,
+                               "val" .= ((unsafeCast atom) :: Bool)]
+                           else if isRelationAtomType atype then
+                              object [
+                                "type" .= atype,
+                                "val" .= castRelation atom ]
+                           else error "invalid primitive in ToJSON implementation"
 
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
     "dataconstructorname" .= dConsName,
-    "atomtype" .= toJSON atomtype,
+    "type" .= toJSON atomtype,
     "atomlist" .= toJSON atomlist
     ]
     
@@ -103,13 +127,16 @@ instance FromJSON Atom where
                              else if unCTR cTypeRep == typeRep (Proxy :: Proxy Text) then
                                     textAtom <$> o .: "val"
                                   else if unCTR cTypeRep == typeRep (Proxy :: Proxy Double) then
-                                         textAtom <$> o .: "val"
+                                         doubleAtom <$> o .: "val"
                                        else if unCTR cTypeRep == typeRep (Proxy :: Proxy Day) then
-                                              undefined
-                                                 else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then
-                                                       undefined
+                                              dayAtom <$> o .: "val"
+                                                 else if unCTR cTypeRep == typeRep (Proxy :: Proxy ByteString) then do
+                                                       txt <- (o .: "val")
+                                                       case (fromText txt) :: Either String ByteString of
+                                                         Left err -> fail $ "bytestring parse failure: " ++ show err
+                                                         Right bs -> pure $ byteStringAtom bs
                                                    else if unCTR cTypeRep == typeRep (Proxy :: Proxy Bool) then
-                                                          undefined
+                                                          boolAtom <$> o .: "val"
                                                       else
                                                         error "unsupported typerep serialization"
 

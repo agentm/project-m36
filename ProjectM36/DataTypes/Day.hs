@@ -7,6 +7,10 @@ import qualified Data.HashSet as HS
 import Data.Time.Calendar
 import qualified Data.Map as M
 
+
+dayAtom :: Day -> Atom
+dayAtom d = Atom d
+
 dayAtomType :: AtomType
 dayAtomType = ConstructedAtomType "Day" M.empty
 
