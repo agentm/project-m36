@@ -1,27 +1,104 @@
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <title>Project:M36 WebSocket Client</title>
 <script type="text/javascript" src="project-m36.js"></script>
+<script>
+
+function setStatus(text)
+{
+    var newtext = document.createTextNode(text);
+    var statusnode = document.getElementById("status");
+    while( statusnode.firstChild ) {
+	statusnode.removeChild( statusnode.firstChild );
+    }
+    statusnode.appendChild(newtext);
+}
+
+function appendResult(title, result)
+{
+//prepend the page with an additional relation result
+var sheet = document.getElementById("sheet");
+var template = document.getElementById("sectiontemplate").cloneNode(true);
+template.removeAttribute("id");
+var tutd = document.createElement("span");
+tutd.textContent = title
+template.getElementsByClassName("title")[0].appendChild(tutd);
+template.getElementsByClassName("result")[0].appendChild(result);
+var interactor = document.getElementById("interactor");
+sheet.insertBefore(template, interactor);
+window.scrollTo(0,document.body.scrollHeight);
+}
+
+function updateStatus(status)
+{
+var tutd = document.getElementById("tutd").value;
+if(status.relation)
+{
+  var relastable = conn.generateRelation(status.relation);
+  appendResult(tutd, relastable);
+}
+if(status.acknowledgement)
+{
+var ok = document.createElement("span");
+ok.textContent="OK";
+  appendResult(tutd, ok);
+}
+if(status.error)
+{
+var error = document.createElement("span");
+error.textContent=status.error;
+appendResult(tutd, error);
+}
+}
+
+var conn = new ProjectM36Connection("127.0.0.1", "8888",
+  function(e) {setStatus("connected")},
+  function(e) {console.log("connection error"+e)},
+  updateStatus,
+  function(e) { setStatus("disconnected")});
+
+function execTutorialD()
+{
+var tutd = document.getElementById("tutd").value;
+conn.executeTutorialD(tutd);
+return false;
+}
+
+function hideParent(element)
+{
+var deleteNode = element.parentNode;
+  element.parentNode.parentNode.removeChild(deleteNode)
+}
+</script>
 <style>
 #relationresult, th, td
 {
   border: 1px solid black;
 }
+
+#sectiontemplate
+{
+  display: none;
+}
 </style>
 </head>
 <body>
 <h1>Project:M36 WebSocket Client</h1>
-<p>Status:<span id="status">Fresh</span></p>
-<form onsubmit="return execTutorialD();">
-  <input type="text" id="tutd"/>
-  <input type="submit"/>
-</form>
-<p>Message:<span id="resultstatus"></span></p>
-<table id="relationresult">
-  <thead>
-  </thead>
-  <tbody>
-  </tbody>
-</table>
+<div id="sheet">
+  <div id="interactor">
+    <p>Status:<span id="status">Fresh</span></p>
+    <form onsubmit="return execTutorialD();">
+    <input type="text" id="tutd"/>
+    <input type="submit"/>
+    </form>
+  </div>
+  <div id="sectiontemplate">
+    <span onclick="return hideParent(this);">X</span>
+    <span class="title"></span>
+  <div class="result">
+  </div>
+  <hr/>
+  </div>
 </body>
 </html>

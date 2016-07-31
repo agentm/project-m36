@@ -1,77 +1,60 @@
-//refactor this into a client library
-var socket = new WebSocket("ws://localhost:8888");
-socket.onopen = function(event) {
-    console.log("connected");
-    setStatus("connected");
-}
-socket.onerror = function(event) {
-    console.log("error: " + event);
-}
-socket.onmessage = function (event) {
-    console.log("message received: " + event.data);
-    var msg = JSON.parse(event.data);
-    handleResponse(msg);
-}
-socket.onclose = function(event) {
-    console.log("conn closed: " + event);
-    setStatus("disconnected");
+var ProjectM36Connection = function (host, port, openCallback, errorCallback, statusCallback, closeCallback) {
+    this.host = host
+    this.port = port
+    var socket = new WebSocket("ws://" + host + ":" + port);
+    socket.onopen = function(event) { openCallback(event); };
+    socket.onerror = function(event) { errorCallback(event); };
+    var self = this;
+    socket.onmessage = function(event) {
+	var msg = JSON.parse(event.data);
+	self.handleResponse(msg);
+    };
+    socket.onclose = function(event) {
+	closeCallback(event);
+    };
+    this.statuscallback = statusCallback;
+    this.socket = socket;
 }
 
-function setStatus(text)
+var ProjectM36Status = function (relationResult, acknowledgementResult, errorResult)
 {
-    var newtext = document.createTextNode(text);
-    var statusnode = document.getElementById("status");
-    while( statusnode.firstChild ) {
-	statusnode.removeChild( statusnode.firstChild );
-    }
-    statusnode.appendChild(newtext);
+    this.relation = relationResult;
+    this.acknowledgement = acknowledgementResult;
+    this.error = errorResult;
 }
 
-function execTutorialD()
-{
-    var tutd = document.getElementById("tutd").value;
-    socket.send("executetutd:" + tutd);
-    return false;
-}
-
-function handleResponse(message)
+ProjectM36Connection.prototype.handleResponse = function(message)
 {
     var relation = message["displayrelation"];
     var acknowledged = message["acknowledged"];
     var error = message["displayerror"];
     if(relation)
     {
-	var reltable = generateRelation(relation);
-	var existingtable = document.getElementById("relationresult");
-	while(existingtable.firstChild)
-	{
-	    existingtable.removeChild(existingtable.firstChild);
-	}
-	reltable.id = "relationresult";
-	existingtable.parentNode.replaceChild(reltable, existingtable);
-    }
-    else
-    {
+        this.statuscallback(new ProjectM36Status(relation, null, null));
     }
     
-    var message = "";
     if(acknowledged)
     {
-	message="acknowledged";
+	this.statuscallback(new ProjectM36Status(null, true, null));
     }
+    
     if(error)
     {
-	message=error;
+	this.statuscallback(new ProjectM36Status(null, null, error));
     }
-    document.getElementById("resultstatus").innerHTML = message;
 }
 
-function generateRelation(relation)
+ProjectM36Connection.prototype.executeTutorialD = function(tutd)
+{
+    this.socket.send("executetutd:" + tutd);
+}
+
+ProjectM36Connection.prototype.generateRelation = function(relation)
 {
     var table = document.createElement("table");
     
-    var headers = generateRelationHeader(relation[0]);
-    var body = generateRelationBody(relation[1]);
+    var headers = this.generateRelationHeader(relation[0]);
+    var body = this.generateRelationBody(relation[1]);
     
     table.appendChild(headers);
     table.appendChild(body);
@@ -79,14 +62,14 @@ function generateRelation(relation)
     return table;
 }
 
-function generateRelationHeader(header)
+ProjectM36Connection.prototype.generateRelationHeader = function(header)
 {
     var thead = document.createElement("thead");
     var headerrow = document.createElement("tr");
     for(var hindex=0; hindex < header.length; hindex++)
     {
 	var th = document.createElement("th");
-	var attrtype = generateAtomType(header[hindex]);
+	var attrtype = this.generateAtomType(header[hindex]);
 	th.appendChild(attrtype);
 	headerrow.appendChild(th);
     }
@@ -94,7 +77,7 @@ function generateRelationHeader(header)
     return thead;
 }
 
-function generateAtomType(attr)
+ProjectM36Connection.prototype.generateAtomType = function(attr)
 {
     var atomType = attr[1]["tag"];
     var attrName = attr[0];
@@ -116,7 +99,7 @@ function generateAtomType(attr)
 	for(var attrindex = 0; attrindex < relattrs.length; attrindex++)
 	{
 	    var th = document.createElement("th");
-	    var relattrNode = generateAtomType(relattrs[attrindex]);
+	    var relattrNode = this.generateAtomType(relattrs[attrindex]);
 	    th.appendChild(relattrNode);
 	    tr.appendChild(th);
 	}
@@ -128,7 +111,7 @@ function generateAtomType(attr)
     return element
 }
 
-function generateRelationBody(body)
+ProjectM36Connection.prototype.generateRelationBody = function (body)
 {
     var bodyrows = body["asList"]
     var tbody = document.createElement("tbody");
@@ -139,7 +122,7 @@ function generateRelationBody(body)
 	for(var atomindex=0; atomindex < bodyrow[1].length; atomindex++)
 	{
             var td = document.createElement("td");
-            var atomNode = generateAtom(bodyrow[1][atomindex]);
+            var atomNode = this.generateAtom(bodyrow[1][atomindex]);
             td.appendChild(atomNode);
             tablerow.appendChild(td);
 	}
@@ -148,14 +131,14 @@ function generateRelationBody(body)
     return tbody;
 }
 
-function generateAtom(atom)
+ProjectM36Connection.prototype.generateAtom = function(atom)
 {
     var element = document.createElement("span");
     var atomType = atom["type"]["tag"];
     
     if(atomType == "RelationAtomType")
     {
-	var rel = generateRelation(atom["val"]);
+	var rel = this.generateRelation(atom["val"]);
         element.appendChild(rel);
     } 
     else
