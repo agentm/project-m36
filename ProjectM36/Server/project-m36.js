@@ -73,6 +73,11 @@ ProjectM36Connection.prototype.generateRelationHeader = function(header)
 	th.appendChild(attrtype);
 	headerrow.appendChild(th);
     }
+    //special case- if there are no attributes (the "true" and "false" relations, then leave a class marker so that the table can be styled to appear regardless
+    if(header.length == 0)
+    {
+	headerrow.setAttribute("class", "emptyrow");
+    }
     thead.appendChild(headerrow);
     return thead;
 }
@@ -92,7 +97,7 @@ ProjectM36Connection.prototype.generateAtomType = function(attr)
 	var table = document.createElement("table");
 	element.appendChild(table);			       
 	var thead = document.createElement("thead");
-	element.appendChild(thead);
+	table.appendChild(thead);
 	var tr = document.createElement("tr");
 	thead.appendChild(tr);
 	var relattrs = attr[1]["contents"];
@@ -126,6 +131,11 @@ ProjectM36Connection.prototype.generateRelationBody = function (body)
             td.appendChild(atomNode);
             tablerow.appendChild(td);
 	}
+	//special case- mark row with class attribute if it contains no columns
+	if(bodyrow[1].length == 0)
+	{
+	    tablerow.setAttribute("class", "emptyrow");	    
+	}
 	tbody.appendChild(tablerow);
     }
     return tbody;
@@ -148,3 +158,23 @@ ProjectM36Connection.prototype.generateAtom = function(atom)
     return element;
 }
 
+//special case to make sure that a table appears for "true" and "false"
+function mungeEmptyRows()
+{
+    var empties = document.getElementsByClassName("emptyrow");
+    for(var index=0; index < empties.length; index++)
+    {
+	var empty = empties[index];
+	if(empty.childNodes.length == 0)
+	{
+	    var elementType = "td";
+	    if(empty.parentNode.nodeName == "THEAD")
+	    {
+		elementType = "th";
+	    }
+	    var dudHeader = document.createElement(elementType);
+	    dudHeader.innerHTML = "&nbsp;";
+	    empty.appendChild(dudHeader);
+	}
+    }
+}

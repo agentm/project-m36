@@ -25,6 +25,14 @@ var tutd = document.createElement("span");
 tutd.textContent = title
 template.getElementsByClassName("title")[0].appendChild(tutd);
 template.getElementsByClassName("result")[0].appendChild(result);
+if(result.nodeName == "TABLE") // show some relation statistics
+{
+  var tupleCount = result.querySelectorAll(".result > table > tbody > tr").length
+  var attrCount = result.querySelectorAll(".result > table > thead > tr > th").length
+  var attrText = attrCount + " attribute" + (attrCount == 1 ? "" : "s")
+  var tupleText = tupleCount + " tuple" + (tupleCount == 1 ? "" : "s")
+  template.getElementsByClassName("relinfo")[0].textContent = attrText + ", " + tupleText;
+}
 var interactor = document.getElementById("interactor");
 sheet.insertBefore(template, interactor);
 window.scrollTo(0,document.body.scrollHeight);
@@ -37,6 +45,7 @@ if(status.relation)
 {
   var relastable = conn.generateRelation(status.relation);
   appendResult(tutd, relastable);
+  mungeEmptyRows();
 }
 if(status.acknowledgement)
 {
@@ -72,15 +81,54 @@ var deleteNode = element.parentNode;
 }
 </script>
 <style>
-#relationresult, th, td
-{
-  border: 1px solid black;
-}
-
 #sectiontemplate
 {
   display: none;
 }
+
+.deletesection
+{
+  float:right;
+  border: 1px solid;
+  padding: 3px;
+  border-radius: 3px;
+  background: #ff8b8b;
+}
+
+hr
+{
+border: 0; 
+height: 1px; 
+background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0)); 
+}
+
+.title
+{
+padding: 3pt;
+border: 1px solid;
+border-radius: 3px;
+background-image: linear-gradient(to top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0)); 
+margin: 3px;
+}
+
+.result table
+{
+  border-collapse: collapse;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.result td, .result th
+{
+  border: 1px solid black;  
+  padding: 2px;
+}
+
+.result th
+{
+  background-image: linear-gradient(to top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
+}
+
 </style>
 </head>
 <body>
@@ -94,11 +142,13 @@ var deleteNode = element.parentNode;
     </form>
   </div>
   <div id="sectiontemplate">
-    <span onclick="return hideParent(this);">X</span>
     <span class="title"></span>
-  <div class="result">
-  </div>
-  <hr/>
+    <span class="deletesection" onclick="return hideParent(this);">X</span>
+    <div style="clear: both;"></div>
+    <div class="result">
+    </div>
+    <span class="relinfo"></span>
+    <hr/>
   </div>
 </body>
 </html>

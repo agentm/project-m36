@@ -51,7 +51,7 @@ websocketProxyServer dbname port host pending = do
           Right parsed -> do
             result <- evalTutorialD sessionId dbconn parsed
             handleOpResult conn dbconn result
-      _ -> WS.sendTextData conn ("message not expected" :: T.Text)
+      _ -> WS.sendTextData conn ("messagenotexpected" :: T.Text)
     return ()
     
 notificationCallback :: WS.Connection -> NotificationCallback    
