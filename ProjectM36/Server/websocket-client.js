@@ -66,17 +66,22 @@ function connectOrDisconnect(form)
 					       connectionOpened,
 					       function(e) {console.log("connection error"+e)},
 					       updateStatus,
-					       function(e) {});
+					       connectionClosed);
 	toggleConnectionFields(form, false, "Connecting...");
     }
     return false;
+}
+
+function connectionClosed(event)
+{
+    toggleConnectionFields(document.getElementById("connection"), true, "Connect");
 }
 
 function toggleConnectionFields(form, enabled, status)
 {
     form.elements["connect"].value = status;
     var readonlyElements = [form.elements["host"], form.elements["port"], form.elements["dbname"]];
-    for(var ein=0; ein < readonlyElements - 1; ein++)
+    for(var ein=0; ein < readonlyElements.length; ein++)
     {
 	var e = readonlyElements[ein];
 	if(enabled)
@@ -98,7 +103,16 @@ function connectionOpened(event)
 function execTutorialD()
 {
     var tutd = document.getElementById("tutd").value;
-    conn.executeTutorialD(tutd);
+    if(!window.conn || window.conn.readyState() != 1)
+    {
+	var err = document.createElement("span");
+	err.textContent = "Cannot execute command until a database connection is established.";
+	appendResult(tutd, err);
+    }
+    else
+    {
+	conn.executeTutorialD(tutd);
+    }
     return false;
 }
 

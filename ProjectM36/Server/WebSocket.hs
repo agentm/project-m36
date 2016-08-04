@@ -35,7 +35,7 @@ main = do
   --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
   putStrLn "listening on 8888"
   WS.runServer "0.0.0.0" 8888 (websocketProxyServer serverPort serverHost)
-    
+     
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
   conn <- WS.acceptRequest pending
@@ -46,21 +46,28 @@ websocketProxyServer port host pending = do
   if not (connectdbmsg `T.isPrefixOf` dbmsg) then unexpectedMsg >> WS.sendClose conn ("" :: T.Text)
     else do
       let dbname = T.unpack $ T.drop (T.length connectdbmsg) dbmsg
-      (sessionId, dbconn) <- createConnection conn dbname port host
-      --phase 2- accept tutoriald commands
-      _ <- forever $ do
-          msg <- (WS.receiveData conn) :: IO T.Text
-          let tutdprefix = "executetutd:"
-          case msg of
-            _ | tutdprefix `T.isPrefixOf` msg -> do
-              let tutdString = T.drop (T.length tutdprefix) msg
-              case parseTutorialD (T.unpack tutdString) of
-                Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
-                Right parsed -> do
-                  result <- evalTutorialD sessionId dbconn parsed
-                  handleOpResult conn dbconn result
-            _ -> unexpectedMsg
-      pure ()
+      eDbconn <- createConnection conn dbname port host
+      case eDbconn of
+        Left err -> sendError conn err
+        Right dbconn -> do
+          eSessionId <- createSessionAtHead "master" dbconn
+          case eSessionId of
+            Left err -> sendError conn err
+            Right sessionId -> do
+              --phase 2- accept tutoriald commands
+              _ <- forever $ do
+                msg <- (WS.receiveData conn) :: IO T.Text
+                let tutdprefix = "executetutd:"
+                case msg of
+                  _ | tutdprefix `T.isPrefixOf` msg -> do
+                    let tutdString = T.drop (T.length tutdprefix) msg
+                    case parseTutorialD (T.unpack tutdString) of
+                      Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
+                      Right parsed -> do
+                        result <- evalTutorialD sessionId dbconn parsed
+                        handleOpResult conn dbconn result
+                  _ -> unexpectedMsg
+              pure ()
     
 notificationCallback :: WS.Connection -> NotificationCallback    
 notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,
@@ -68,17 +75,12 @@ notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (o
                                         ]))
     
 --this creates a new database for each connection- perhaps not what we want (?)
-createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (SessionId, Connection)
-createConnection wsconn dbname port host = do
-  eConn <- connectProjectM36 (RemoteProcessConnectionInfo dbname (createNodeId host port) (notificationCallback wsconn))
-  case eConn of
-    Left err -> error $ "failed to connect to database" ++ show err
-    Right conn -> do
-      eSessionId <- createSessionAtHead "master" conn
-      case eSessionId of
-        Left err -> error $ "failed to create connection on master branch" ++ show err
-        Right sessionId -> pure (sessionId, conn)
-       
+createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (Either ConnectionError Connection)
+createConnection wsconn dbname port host = connectProjectM36 (RemoteProcessConnectionInfo dbname (createNodeId host port) (notificationCallback wsconn))
+
+sendError :: (ToJSON a) => WS.Connection -> a -> IO ()
+sendError conn err = WS.sendTextData conn (encode (object ["displayerror" .= err]))
+
 handleOpResult :: WS.Connection -> Connection -> TutorialDOperatorResult -> IO ()
 handleOpResult conn db QuitResult = WS.sendClose conn ("close" :: T.Text) >> close db
 handleOpResult conn  _ (DisplayResult out) = WS.sendTextData conn (encode (object ["display" .= out]))

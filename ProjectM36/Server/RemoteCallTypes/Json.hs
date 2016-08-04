@@ -5,6 +5,7 @@ import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Base
 import ProjectM36.ConcreteTypeRep
 import ProjectM36.Error
+import Control.Exception (IOException)
 
 import Data.Aeson
 import Data.UUID.Aeson ()
@@ -152,3 +153,6 @@ instance FromJSON MergeError
 
 instance ToJSON MergeStrategy
 instance FromJSON MergeStrategy
+
+instance ToJSON PersistenceError
+

@@ -58,6 +58,10 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     
     if(error)
     {
+	if(error.tag)
+	{
+	    error=error.tag; // for error objects
+	}
 	this.statuscallback(new ProjectM36Status(null, null, error));
     }
 }

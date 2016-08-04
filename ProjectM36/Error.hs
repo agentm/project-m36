@@ -74,7 +74,7 @@ instance NFData RelationalError where rnf = genericRnf
                                       
 data PersistenceError = InvalidDirectoryError FilePath | 
                         MissingTransactionError TransactionId
-                      deriving (Show, Eq)
+                      deriving (Show, Eq, Generic)
 
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      
