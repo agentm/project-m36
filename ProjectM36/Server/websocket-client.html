@@ -1,85 +1,12 @@
 <html>
+<!-- add server-side security (no file access but allowing date examples loading)
+add connection parameters with reasonable defaults
+-->
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <title>Project:M36 WebSocket Client</title>
 <script type="text/javascript" src="project-m36.js"></script>
-<script>
-
-function setStatus(text)
-{
-    var newtext = document.createTextNode(text);
-    var statusnode = document.getElementById("status");
-    while( statusnode.firstChild ) {
-	statusnode.removeChild( statusnode.firstChild );
-    }
-    statusnode.appendChild(newtext);
-}
-
-function appendResult(title, result)
-{
-//prepend the page with an additional relation result
-var sheet = document.getElementById("sheet");
-var template = document.getElementById("sectiontemplate").cloneNode(true);
-template.removeAttribute("id");
-var tutd = document.createElement("span");
-tutd.textContent = title
-template.getElementsByClassName("title")[0].appendChild(tutd);
-template.getElementsByClassName("result")[0].appendChild(result);
-if(result.nodeName == "TABLE") // show some relation statistics
-{
-  var tupleCount = result.querySelectorAll(".result > table > tbody > tr").length
-  var attrCount = result.querySelectorAll(".result > table > thead > tr > th").length
-  var attrText = attrCount + " attribute" + (attrCount == 1 ? "" : "s")
-  var tupleText = tupleCount + " tuple" + (tupleCount == 1 ? "" : "s")
-  template.getElementsByClassName("relinfo")[0].textContent = attrText + ", " + tupleText;
-}
-var interactor = document.getElementById("interactor");
-sheet.insertBefore(template, interactor);
-window.scrollTo(0,document.body.scrollHeight);
-}
-
-function updateStatus(status)
-{
-var tutd = document.getElementById("tutd").value;
-if(status.relation)
-{
-  var relastable = conn.generateRelation(status.relation);
-  appendResult(tutd, relastable);
-  mungeEmptyRows();
-}
-if(status.acknowledgement)
-{
-var ok = document.createElement("span");
-ok.textContent="OK";
-  appendResult(tutd, ok);
-}
-if(status.error)
-{
-var error = document.createElement("span");
-error.textContent=status.error;
-appendResult(tutd, error);
-}
-}
-
-var conn = new ProjectM36Connection("127.0.0.1", "8888",
-  function(e) {setStatus("connected")},
-  function(e) {console.log("connection error"+e)},
-  updateStatus,
-  function(e) { setStatus("disconnected")});
-
-function execTutorialD()
-{
-var tutd = document.getElementById("tutd").value;
-conn.executeTutorialD(tutd);
-return false;
-}
-
-function hideParent(element)
-{
-var deleteNode = element.parentNode;
-  element.parentNode.parentNode.removeChild(deleteNode)
-}
-</script>
+<script type="text/javascript" src="websocket-client.js"></script>
 <style>
 #sectiontemplate
 {
@@ -129,6 +56,11 @@ margin: 3px;
   background-image: linear-gradient(to top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
 }
 
+#connection input
+{
+  width: 100px;
+}
+
 </style>
 </head>
 <body>
@@ -136,7 +68,9 @@ margin: 3px;
 <p>Try the <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a>.</p>
 <div id="sheet">
   <div id="interactor">
-    <p>Status:<span id="status">Fresh</span></p>
+    <form onsubmit="return connectOrDisconnect(this);" id="connection">
+      <label>Connection:</label><input type="text" name="host" value="localhost" placeholder="Host"/>:<input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/<input type="text" placeholder="Database Name" name="dbname" value="test"/><input type="submit" name="connect" value="Connect"/>
+    </form>
     <form onsubmit="return execTutorialD();">
     <input type="text" id="tutd"/>
     <input type="submit"/>

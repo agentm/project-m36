@@ -29,30 +29,38 @@ main = do
   portMVar <- newEmptyMVar
   serverConfig <- parseConfig
   let serverHost = bindHost serverConfig
-      databasename = databaseName serverConfig
   _ <- forkFinally (launchServer serverConfig (Just portMVar)) failureHandler
   --wait for server to be listening
   serverPort <- takeMVar portMVar
   --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
-  WS.runServer "0.0.0.0" 8888 (websocketProxyServer databasename serverPort serverHost)
+  putStrLn "listening on 8888"
+  WS.runServer "0.0.0.0" 8888 (websocketProxyServer serverPort serverHost)
     
-websocketProxyServer :: DatabaseName -> Port -> Hostname -> WS.ServerApp
-websocketProxyServer dbname port host pending = do    
+websocketProxyServer :: Port -> Hostname -> WS.ServerApp
+websocketProxyServer port host pending = do    
   conn <- WS.acceptRequest pending
-  (sessionId, dbconn) <- createConnection conn dbname port host
-  forever $ do
-    msg <- (WS.receiveData conn) :: IO T.Text
-    let tutdprefix = "executetutd:"
-    case msg of
-      _ | tutdprefix `T.isPrefixOf` msg -> do
-        let tutdString = T.drop (T.length tutdprefix) msg
-        case parseTutorialD (T.unpack tutdString) of
-          Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
-          Right parsed -> do
-            result <- evalTutorialD sessionId dbconn parsed
-            handleOpResult conn dbconn result
-      _ -> WS.sendTextData conn ("messagenotexpected" :: T.Text)
-    return ()
+  let unexpectedMsg = WS.sendTextData conn ("messagenotexpected" :: T.Text)
+  --phase 1- accept database name for connection
+  dbmsg <- (WS.receiveData conn) :: IO T.Text
+  let connectdbmsg = "connectdb:"
+  if not (connectdbmsg `T.isPrefixOf` dbmsg) then unexpectedMsg >> WS.sendClose conn ("" :: T.Text)
+    else do
+      let dbname = T.unpack $ T.drop (T.length connectdbmsg) dbmsg
+      (sessionId, dbconn) <- createConnection conn dbname port host
+      --phase 2- accept tutoriald commands
+      _ <- forever $ do
+          msg <- (WS.receiveData conn) :: IO T.Text
+          let tutdprefix = "executetutd:"
+          case msg of
+            _ | tutdprefix `T.isPrefixOf` msg -> do
+              let tutdString = T.drop (T.length tutdprefix) msg
+              case parseTutorialD (T.unpack tutdString) of
+                Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
+                Right parsed -> do
+                  result <- evalTutorialD sessionId dbconn parsed
+                  handleOpResult conn dbconn result
+            _ -> unexpectedMsg
+      pure ()
     
 notificationCallback :: WS.Connection -> NotificationCallback    
 notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,

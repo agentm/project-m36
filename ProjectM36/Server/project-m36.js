@@ -1,9 +1,17 @@
-var ProjectM36Connection = function (host, port, openCallback, errorCallback, statusCallback, closeCallback) {
+var ProjectM36Connection = function (host, port, dbname, openCallback, errorCallback, statusCallback, closeCallback) {
     this.host = host
     this.port = port
-    var socket = new WebSocket("ws://" + host + ":" + port);
-    socket.onopen = function(event) { openCallback(event); };
-    socket.onerror = function(event) { errorCallback(event); };
+    this.dbname = dbname
+    var connectURL = "ws://" + host + ":" + port + "/";
+    var socket = new WebSocket("ws://localhost:8888/");
+    var self = this;
+    socket.onopen = function(event) {
+	self.socket.send("connectdb:" + self.dbname);
+	openCallback(event);
+    };
+    socket.onerror = function(event) { 
+	errorCallback(event); 
+    };
     var self = this;
     socket.onmessage = function(event) {
 	var msg = JSON.parse(event.data);
@@ -21,6 +29,16 @@ var ProjectM36Status = function (relationResult, acknowledgementResult, errorRes
     this.relation = relationResult;
     this.acknowledgement = acknowledgementResult;
     this.error = errorResult;
+}
+
+ProjectM36Connection.prototype.close = function()
+{
+    this.socket.close();
+}
+
+ProjectM36Connection.prototype.readyState = function()
+{
+    return this.socket.readyState;
 }
 
 ProjectM36Connection.prototype.handleResponse = function(message)
