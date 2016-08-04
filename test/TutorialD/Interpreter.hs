@@ -142,11 +142,12 @@ transactionGraphAddCommitTest = TestCase $ do
   case parseTutorialD "x:=s" of
     Left err -> assertFailure (show err)
     Right parsed -> do 
-      result <- evalTutorialD sessionId dbconn parsed
+      result <- evalTutorialD sessionId dbconn UnsafeEvaluation parsed
       case result of
         QuitResult -> assertFailure "quit?"
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
+        DisplayRelationresult -> assertFailure "displayrelation?"
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> do
           commit sessionId dbconn >>= maybeFail
@@ -281,11 +282,12 @@ executeTutorialD :: SessionId -> Connection -> String -> IO ()
 executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
     Left err -> assertFailure (show tutd ++ ": " ++ show err)
     Right parsed -> do 
-      result <- evalTutorialD sessionId conn parsed
+      result <- evalTutorialD sessionId conn UnsafeEvaluation parsed
       case result of
         QuitResult -> assertFailure "quit?"
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
+        DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> pure ()
   

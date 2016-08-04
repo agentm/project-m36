@@ -64,7 +64,7 @@ websocketProxyServer port host pending = do
                     case parseTutorialD (T.unpack tutdString) of
                       Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
                       Right parsed -> do
-                        result <- evalTutorialD sessionId dbconn parsed
+                        result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
                         handleOpResult conn dbconn result
                   _ -> unexpectedMsg
               pure ()
