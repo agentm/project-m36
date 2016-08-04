@@ -8,6 +8,7 @@ import TutorialD.Interpreter.InformationOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
+import TutorialD.Interpreter.Import.BasicExamples
 import TutorialD.Interpreter.Import.Base
 
 import TutorialD.Interpreter.Export.CSV
@@ -40,6 +41,7 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
+                       ImportBasicExampleOp ImportBasicExampleOperator |
                        RelVarExportOp RelVarDataExportOperator
 
 interpreterParserP :: Parser ParsedOperation
@@ -54,7 +56,8 @@ safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <
                          liftM InfoOp (infoOpP <* eof) <|>
                          liftM GraphOp (transactionGraphOpP <* eof) <|>
                          liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
-                         liftM DatabaseContextExprOp (databaseExprOpP <* eof)
+                         liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
+                         liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof)
 
 
 promptText :: Maybe HeadName -> StringType
@@ -143,6 +146,9 @@ evalTutorialD sessionId conn safe expr = case expr of
             case exportResult of
               Just err -> barf err
               Nothing -> pure QuietSuccessResult
+  (ImportBasicExampleOp execOp) -> do
+    let dbcontextexpr = evalImportBasicExampleOperator execOp
+    evalTutorialD sessionId conn safe (DatabaseContextExprOp dbcontextexpr)
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
