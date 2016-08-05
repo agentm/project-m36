@@ -5,7 +5,6 @@ import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Base
 import ProjectM36.ConcreteTypeRep
 import ProjectM36.Error
-import Control.Exception (IOException)
 
 import Data.Aeson
 import Data.UUID.Aeson ()
@@ -122,7 +121,9 @@ instance FromJSON Atom where
     case atype of
       AnyAtomType -> fail "cannot pass AnyAtomType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
-      RelationAtomType _ -> error "not implemented"
+      RelationAtomType _ -> do
+        rel <- o .: "val"
+        pure $ Atom (rel :: Relation)
       AtomType cTypeRep -> if unCTR cTypeRep == typeRep (Proxy :: Proxy Int) then
                              intAtom <$> o .: "val"
                              else if unCTR cTypeRep == typeRep (Proxy :: Proxy Text) then

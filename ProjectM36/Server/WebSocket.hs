@@ -1,4 +1,4 @@
---module ProjectM36.Server.WebSocket where
+module ProjectM36.Server.WebSocket where
 -- while the tutd client performs TutorialD parsing on the client, the websocket server will pass tutd to be parsed and executed on the server- otherwise I have to pull in ghcjs as a dependency to allow client-side parsing- that's not appealing because then the frontend is not language-agnostic, but this could change in the future, perhaps by sending different messages over the websocket
 -- ideally, the wire protocol should not be exposed to a straight string-based API ala SQL, so we could make perhaps a javascript DSL which compiles to the necessary JSON- anaylyze tradeoffs
 
@@ -13,29 +13,12 @@ import Data.Aeson
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import ProjectM36.Client
-import ProjectM36.Server
-import ProjectM36.Server.ParseArgs
-import ProjectM36.Server.Config
-import Control.Concurrent
 import Control.Exception
 
 -- | Called when the project-m36-server exits.
 failureHandler :: Either SomeException Bool -> IO ()
 failureHandler = error "project-m36-server exited unexpectedly"
 
-main :: IO ()
-main = do
-  -- launch normal project-m36-server
-  portMVar <- newEmptyMVar
-  serverConfig <- parseConfig
-  let serverHost = bindHost serverConfig
-  _ <- forkFinally (launchServer serverConfig (Just portMVar)) failureHandler
-  --wait for server to be listening
-  serverPort <- takeMVar portMVar
-  --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
-  putStrLn "listening on 8888"
-  WS.runServer "0.0.0.0" 8888 (websocketProxyServer serverPort serverHost)
-     
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
   conn <- WS.acceptRequest pending
