@@ -147,7 +147,7 @@ transactionGraphAddCommitTest = TestCase $ do
         QuitResult -> assertFailure "quit?"
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
-        DisplayRelationresult -> assertFailure "displayrelation?"
+        DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> do
           commit sessionId dbconn >>= maybeFail
