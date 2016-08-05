@@ -68,7 +68,7 @@ products{}
 The examples in this tutorial can be executed after loading Chris Date's sample relations using:
 
 ```
-:importtutd "scripts/DateExamples.tutd"
+:importexample date
 ```
 
 Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
