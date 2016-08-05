@@ -121,3 +121,29 @@ function hideParent(element)
     var deleteNode = element.parentNode;
     element.parentNode.parentNode.removeChild(deleteNode)
 }
+
+function toggleSamples(element,show)
+{
+    var samples = document.getElementById("samples");
+    if(show)
+    {
+	samples.style.display = "block";
+    }
+    else
+    {
+	samples.style.display = "none";
+    }
+}
+
+function installSampleHandlers()
+{
+    var samples = document.querySelectorAll("#samples li");
+    for(var idx = 0; idx < samples.length; idx++)
+    {
+	var tutd = document.getElementById("tutd");
+	var el = samples[idx];
+	el.onclick = function(el) { 
+	    tutd.value = el.target.textContent; 
+	}
+    }
+}

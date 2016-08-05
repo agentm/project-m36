@@ -1,5 +1,6 @@
 <html>
 <head>
+<!-- add examples drop down menu -->
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 <title>Project:M36 WebSocket Client</title>
 <script type="text/javascript" src="project-m36.js"></script>
@@ -58,16 +59,47 @@ margin: 3px;
   width: 100px;
 }
 
+#samples
+{
+  display:none;
+}
+
+#samplesouter
+{
+  border: 1px solid;
+  display: inline-block;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+#samples li:hover
+{
+  background-color: #d1d1e0;
+}
+
 </style>
 </head>
-<body>
+<body onload="installSampleHandlers();">
 <h1>Project:M36 WebSocket Client</h1>
-<p>Try the <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a>.</p>
 <div id="sheet">
   <div id="interactor">
     <form onsubmit="return connectOrDisconnect(this);" id="connection">
       <label>Connection:</label><input type="text" name="host" value="localhost" placeholder="Host"/>:<input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/<input type="text" placeholder="Database Name" name="dbname" value="test"/><input type="submit" name="connect" value="Connect"/>
     </form>
+    <div onmouseover="toggleSamples(this, true);" onmouseleave="toggleSamples(this, false);" id="samplesouter">
+      <span>Sample TutorialD: <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a>.</span>
+</span>
+      <ul id="samples">
+	<li>:showexpr true</li>
+	<li>:showexpr false</li>
+	<li>:importexample date</li>
+	<li>:showexpr s join sp</li>
+	<li>update s where city=&quot;Paris&quot; (status:=10)</li>
+	<li>:showexpr s</li>
+	<li>:commit</li>
+	<li>:showgraph</li>
+      </ul>
+    </div>
     <form onsubmit="return execTutorialD();">
     <input type="text" id="tutd"/>
     <input type="submit"/>
