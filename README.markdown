@@ -36,6 +36,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Using Notifications](docs/using_notifications.markdown)
 1. [Merge Transactions](docs/merge_transactions.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
+1. [WebSocket Server](docs/websocket_server.markdown)
 
 ## Development
 

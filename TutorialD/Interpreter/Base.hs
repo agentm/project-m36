@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module TutorialD.Interpreter.Base where
 import Text.Parsec
 import Text.Parsec.String
@@ -10,6 +11,8 @@ import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.Relation.Show.Term
+import GHC.Generics
 
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
@@ -90,8 +93,10 @@ showRelationAttributes attrs = "{" `T.append` T.concat (L.intersperse ", " $ map
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
                                DisplayIOResult (IO ()) |
+                               DisplayRelationResult Relation |
                                DisplayErrorResult StringType |
                                QuietSuccessResult
+                               deriving (Generic)
                                
 type TransactionGraphWasUpdated = Bool
 
@@ -101,6 +106,7 @@ displayOpResult (DisplayResult out) = TIO.putStrLn out
 displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
 displayOpResult QuietSuccessResult = return ()
+displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
 
 quotedChar :: Parser Char
 quotedChar = noneOf "\""

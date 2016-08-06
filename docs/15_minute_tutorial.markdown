@@ -26,10 +26,18 @@ Note that TutorialD is strongly-typed- no type coercions take place automaticall
 ### Load the Canonical Chris Date Example
 
 ```
-TutorialD (master): :importtutd "scripts/DateExamples.tutd"
+TutorialD (master): :importexample date
+```
+
+or
+
+```
+TutorialD (master): :importtud "scripts/DateExamples.tutd"
 ```
 
 ```:importtutd``` (do not skip typing the preceding colon), loads a file which contains a script written in the TutorialD dialect used by Project:M36 and executes it to change the state of the database. In this case, the relations "s" (supplier), "p" (product), and "sp" (suppliers-products) are now loaded.
+
+```:importexample date``` loads the date example directly without any file I/O, so it is safe to use with the websocket server.
 
 ### Execute Relational Expressions
 

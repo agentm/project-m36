@@ -8,6 +8,7 @@ import TutorialD.Interpreter.InformationOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
+import TutorialD.Interpreter.Import.BasicExamples
 import TutorialD.Interpreter.Import.Base
 
 import TutorialD.Interpreter.Export.CSV
@@ -40,17 +41,24 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
+                       ImportBasicExampleOp ImportBasicExampleOperator |
                        RelVarExportOp RelVarDataExportOperator
 
 interpreterParserP :: Parser ParsedOperation
-interpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
-                     liftM InfoOp (infoOpP <* eof) <|>
-                     liftM GraphOp (transactionGraphOpP <* eof) <|>
-                     liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
-                     liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
+interpreterParserP = safeInterpreterParserP <|>
                      liftM ImportRelVarOp (importCSVP <* eof) <|>
                      liftM ImportDBContextOp (tutdImportP <* eof) <|>
                      liftM RelVarExportOp (exportCSVP <* eof)
+                     
+-- the safe interpreter never reads or writes the file system
+safeInterpreterParserP :: Parser ParsedOperation
+safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
+                         liftM InfoOp (infoOpP <* eof) <|>
+                         liftM GraphOp (transactionGraphOpP <* eof) <|>
+                         liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
+                         liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
+                         liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof)
+
 
 promptText :: Maybe HeadName -> StringType
 promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
@@ -60,9 +68,15 @@ promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
 parseTutorialD :: String -> Either ParseError ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
+--only parse tutoriald which doesn't result in file I/O
+safeParseTutorialD :: String -> Either ParseError ParsedOperation
+safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
+
+data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
+
 --execute the operation and display result
-evalTutorialD :: C.SessionId -> C.Connection -> ParsedOperation -> IO (TutorialDOperatorResult)
-evalTutorialD sessionId conn expr = case expr of
+evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO (TutorialDOperatorResult)
+evalTutorialD sessionId conn safe expr = case expr of
   
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
@@ -85,42 +99,59 @@ evalTutorialD sessionId conn expr = case expr of
     opResult <- evalROGraphOp sessionId conn execOp
     case opResult of 
       Left err -> barf err
-      Right rel -> return $ DisplayResult $ showRelation rel
+      Right rel -> pure (DisplayRelationResult rel)
       
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
-    -- collect attributes from relvar name
-    -- is there a race condition here? The attributes of the relvar may have since changed, no?
-    eImportType <- C.typeForRelationalExpr sessionId conn (RelationVariable relVarName)
-    case eImportType of
-      Left err -> barf err
-      Right importType -> do
-        exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
-        case exprErr of
-          Left err -> barf err
-          Right dbexpr -> evalTutorialD sessionId conn (DatabaseContextExprOp dbexpr)
+    if needsSafe then
+      unsafeError
+      else do
+      -- collect attributes from relvar name
+      -- is there a race condition here? The attributes of the relvar may have since changed, no?
+      eImportType <- C.typeForRelationalExpr sessionId conn (RelationVariable relVarName)
+      case eImportType of
+        Left err -> barf err
+        Right importType -> do
+          exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
+          case exprErr of
+            Left err -> barf err
+            Right dbexpr -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexpr)
   
   (ImportDBContextOp execOp) -> do
-    mDbexprs <- evalDatabaseContextDataImportOperator execOp
-    case mDbexprs of 
-      Left err -> barf err
-      Right dbexprs -> evalTutorialD sessionId conn (DatabaseContextExprOp dbexprs)
+    if needsSafe then
+      unsafeError
+      else do
+      mDbexprs <- evalDatabaseContextDataImportOperator execOp
+      case mDbexprs of 
+        Left err -> barf err
+        Right dbexprs -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexprs)
       
   (InfoOp execOp) -> do
-    case evalInformationOperator execOp of
-      Left err -> barf err
-      Right info -> pure (DisplayResult info)
+    if needsSafe then
+      unsafeError
+      else
+      case evalInformationOperator execOp of
+        Left err -> barf err
+        Right info -> pure (DisplayResult info)
       
   (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
     --eval relexpr to relation and pass to export function
-    eRel <- C.executeRelationalExpr sessionId conn relExpr
-    case eRel of
-      Left err -> barf err
-      Right rel -> do
-        exportResult <- evalRelVarDataExportOperator execOp rel
-        case exportResult of
-          Just err -> barf err
-          Nothing -> pure QuietSuccessResult
+    if needsSafe then
+      unsafeError
+      else do
+        eRel <- C.executeRelationalExpr sessionId conn relExpr
+        case eRel of
+          Left err -> barf err
+          Right rel -> do
+            exportResult <- evalRelVarDataExportOperator execOp rel
+            case exportResult of
+              Just err -> barf err
+              Nothing -> pure QuietSuccessResult
+  (ImportBasicExampleOp execOp) -> do
+    let dbcontextexpr = evalImportBasicExampleOperator execOp
+    evalTutorialD sessionId conn safe (DatabaseContextExprOp dbcontextexpr)
   where
+    needsSafe = safe == SafeEvaluation
+    unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName|
@@ -147,6 +178,6 @@ reprLoop config sessionId conn = do
         Left err -> do
           displayOpResult $ DisplayErrorResult (T.pack (show err))
         Right parsed -> do 
-          evald <- evalTutorialD sessionId conn parsed
+          evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
           displayOpResult evald
       reprLoop config sessionId conn

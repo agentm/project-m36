@@ -42,6 +42,15 @@ textAtom t = Atom t
 intAtom :: Int -> Atom
 intAtom i = Atom i
 
+doubleAtom :: Double -> Atom
+doubleAtom d = Atom d
+
+byteStringAtom :: ByteString -> Atom
+byteStringAtom b = Atom b
+
+boolAtom :: Bool -> Atom
+boolAtom b = Atom b
+
 --not safe to use without upfront type-checking
 castRelation :: Atom -> Relation
 castRelation (ConstructedAtom _ _ _) = error "castRelation attempt on ConstructedAtom"

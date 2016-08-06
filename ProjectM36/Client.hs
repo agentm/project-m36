@@ -145,7 +145,7 @@ data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                        IOExceptionError IOException |
                        NoSuchDatabaseByNameError DatabaseName |
                        LoginError 
-                       deriving (Show, Eq)
+                       deriving (Show, Eq, Generic)
                   
 remoteDBLookupName :: DatabaseName -> String    
 remoteDBLookupName = (++) "db-" 
