@@ -14,6 +14,7 @@ extra-deps:
 - extended-reals-0.2.1.0
 - gnuplot-0.5.4.1
 - text-1.2.2.1
+- uuid-aeson-0.1.0.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}
