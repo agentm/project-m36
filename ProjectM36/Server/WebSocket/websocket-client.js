@@ -4,9 +4,9 @@ function appendResult(title, result)
     var sheet = document.getElementById("sheet");
     var template = document.getElementById("sectiontemplate").cloneNode(true);
     template.removeAttribute("id");
-    var tutd = document.createElement("span");
-    tutd.textContent = title
-    template.getElementsByClassName("title")[0].appendChild(tutd);
+    var titleSpan = document.createElement("span");
+    titleSpan.textContent = title;
+    template.getElementsByClassName("title")[0].appendChild(titleSpan);
     template.getElementsByClassName("result")[0].appendChild(result);
     if(result.nodeName == "TABLE") // show some relation statistics
     {
@@ -64,12 +64,20 @@ function connectOrDisconnect(form)
 	//connect
 	window.conn = new ProjectM36Connection(host, port, dbname,
 					       connectionOpened,
-					       function(e) {console.log("connection error"+e)},
+					       connectionError,
 					       updateStatus,
 					       connectionClosed);
 	toggleConnectionFields(form, false, "Connecting...");
     }
     return false;
+}
+
+function connectionError(event)
+{
+    var err = document.createElement("span");
+    err.textContent = "Failed to connect to websocket server. Please check the connection parameters and try again.";
+    appendResult("Connect", err);
+    connectionClosed(event)
 }
 
 function connectionClosed(event)
