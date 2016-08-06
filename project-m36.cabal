@@ -455,8 +455,6 @@ Test-Suite test-persistent-driver
       C-sources: ProjectM36/DirectoryFsync.c
       Build-Depends: unix
     
-    
-
 Test-Suite test-transactiongraph-merge
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
@@ -465,7 +463,13 @@ Test-Suite test-transactiongraph-merge
     Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Relation, ProjectM36.RelationalExpression, ProjectM36.Transaction, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Merge, ProjectM36.TransactionGraph.Show, ProjectM36.TransactionGraph.Show.Dot, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
-    C-sources: ProjectM36/DirectoryFsync.c
+    if os(windows)
+      Build-Depends: Win32 >= 2.3 && < 2.4
+      Other-Modules: ProjectM36.Win32Handle
+    else
+      C-sources: ProjectM36/DirectoryFsync.c
+      Build-Depends: unix
+    
 
 benchmark bench
     Default-Language: Haskell2010
