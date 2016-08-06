@@ -9,7 +9,7 @@ The Project:M36 WebSocket server makes it easy to connect non-Haskell programs t
 The websocket server is started with the same arguments as the normal [Project:M36 server](docs/server_mode.markdown):
 
 ```
-cabal run project-m36-server -- --database mydbname --hostname 127.0.0.1
+cabal run project-m36-websocket-server -- --database mydbname --hostname 127.0.0.1
 ```
 
 except that the websocket server is now listening for websocket connections on port 8888.
