@@ -234,14 +234,14 @@ difference relA relB =
     rfilter tupInA = relFold (\tupInB acc -> if acc == False then False else if tupInB == tupInA then False else True) True relB
       
 --a map should NOT change the structure of a relation, so attributes should be constant
-relMap :: (RelationTuple -> RelationTuple) -> Relation -> Either RelationalError Relation
+relMap :: (RelationTuple -> Either RelationalError RelationTuple) -> Relation -> Either RelationalError Relation
 relMap mapper (Relation attrs tupleSet) = do
   case forM (asList tupleSet) typeMapCheck of
     Right remappedTupleSet -> mkRelation attrs (RelationTupleSet remappedTupleSet)
     Left err -> Left err
   where
     typeMapCheck tupleIn = do
-      let remappedTuple = mapper tupleIn
+      remappedTuple <- mapper tupleIn
       if tupleAttributes remappedTuple == tupleAttributes tupleIn
         then Right remappedTuple
         else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)

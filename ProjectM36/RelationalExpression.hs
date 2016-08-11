@@ -219,12 +219,12 @@ evalContextExpr (Delete relVarName predicate) = do
     Right rel -> setRelVar relVarName rel
 
 --union of restricted+updated portion and the unrestricted+unupdated portion
-evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = do
-  currstate <- get
-  let relVarTable = relationVariables currstate
+evalContextExpr (Update relVarName atomExprMap restrictionPredicateExpr) = do
+  context <- get
+  let relVarTable = relationVariables context
   case M.lookup relVarName relVarTable of
     Nothing -> return $ Just (RelVarNotDefinedError relVarName)
-    Just rel -> case predicateRestrictionFilter currstate (attributes rel) restrictionPredicateExpr of
+    Just rel -> case predicateRestrictionFilter context (attributes rel) restrictionPredicateExpr of
       Left err -> return $ Just err
       Right predicateFunc -> do
         case makeUpdatedRel rel of
@@ -234,7 +234,7 @@ evalContextExpr (Update relVarName attrAssignments restrictionPredicateExpr) = d
           makeUpdatedRel relin = do
             restrictedPortion <- restrict predicateFunc relin
             unrestrictedPortion <- restrict (not . predicateFunc) relin
-            updatedPortion <- relMap (updateTuple attrAssignments) restrictedPortion
+            updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
             union updatedPortion unrestrictedPortion
 
 evalContextExpr (AddInclusionDependency newDepName newDep) = do
@@ -321,6 +321,15 @@ evalContextExpr (MultipleExpr exprs) = do
   case catMaybes evald of
     [] -> return $ Nothing
     err:_ -> return $ Just err
+    
+updateTupleWithAtomExprs :: (M.Map AttributeName AtomExpr) -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
+updateTupleWithAtomExprs exprMap context tupIn = do
+  --resolve all atom exprs
+  let (errors, atoms) = M.mapEither (evalAtomExpr tupIn context) exprMap
+  if length errors > 0 then
+    Left (MultipleErrors (M.elems errors))
+    else
+    Right (updateTupleWithAtoms atoms tupIn)
 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> Maybe RelationalError

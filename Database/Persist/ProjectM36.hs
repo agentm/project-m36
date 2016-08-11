@@ -197,14 +197,14 @@ deleteByKey key = do
 updatesToUpdateMap :: (Trans.MonadIO m,
                        PersistEntityBackend val ~ ProjectM36Backend,
                        PersistEntity val) =>
-                      [DP.Update val] -> ReaderT ProjectM36Backend m (M.Map AttributeName Atom)
+                      [DP.Update val] -> ReaderT ProjectM36Backend m (M.Map AttributeName AtomExpr)
 updatesToUpdateMap updates = do
   let convertMap upd = case updateUpdate upd of
         DP.Assign -> let attrName = unDBName $ fieldDB $ updateFieldDef upd
                          newAttrValue = persistValueAtom (updatePersistValue upd) in
                      case newAttrValue of
                        Nothing -> Trans.liftIO $ throwIO $ PersistError "atom conversion failed"
-                       Just newAttrValue' -> return (attrName, newAttrValue')
+                       Just newAttrValue' -> return (attrName, NakedAtomExpr newAttrValue')
         _ -> Trans.liftIO $ throwIO $ PersistError "update type not supported"
   updateAtomList <- mapM convertMap updates
   return $ M.fromList updateAtomList
@@ -465,14 +465,14 @@ filterAsRestrictionPredicate filterIn = case filterIn of
                                           op -> Left $ AtomOperatorNotSupported $ T.pack (show op)
                                       Right _ -> Left $ AtomTypeNotSupported attrName
 
-updateToUpdateTuple :: (PersistEntity val, PersistEntityBackend val ~ ProjectM36Backend) => DPT.Update val -> Either RelationalError (AttributeName, Atom)
+updateToUpdateTuple :: (PersistEntity val, PersistEntityBackend val ~ ProjectM36Backend) => DPT.Update val -> Either RelationalError (AttributeName, AtomExpr)
 updateToUpdateTuple (BackendUpdate _) = error "BackendUpdate not supported"
 updateToUpdateTuple (DPT.Update field value op) = let attrName = unDBName $ fieldDB (persistFieldDef field)
                                                       atom = persistValueAtom $ toPersistValue value
                                                   in case op of
                                                        DPT.Assign -> case atom of
                                                          Nothing -> Left $ AtomTypeNotSupported attrName
-                                                         Just atom' -> Right $ (attrName, atom')
+                                                         Just atom' -> Right $ (attrName, NakedAtomExpr atom')
                                                        op' -> Left $ AtomOperatorNotSupported $ T.pack (show op')
 
 selectionFromRestriction :: (PersistEntity val, PersistEntityBackend val ~ backend, Trans.MonadIO m, backend ~ ProjectM36Backend) => [Filter val] -> ReaderT backend m (Either RelationalError RelationalExpr)

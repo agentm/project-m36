@@ -121,12 +121,12 @@ keyP = do
   let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
   return $ AddInclusionDependency (T.pack keyName) newIncDep
   
-attributeAssignmentP :: Parser (String, Atom)
+attributeAssignmentP :: Parser (String, AtomExpr)
 attributeAssignmentP = do
   attrName <- identifier
   reservedOp ":="
-  atom <- stringAtomP <|> intAtomP
-  return $ (attrName, atom)
+  atomExpr <- atomExprP
+  return $ (attrName, atomExpr)
   
 addNotificationP :: Parser DatabaseContextExpr
 addNotificationP = do

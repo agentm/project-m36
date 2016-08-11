@@ -336,7 +336,7 @@ data DatabaseContextExpr =
   Assign RelVarName RelationalExpr |
   Insert RelVarName RelationalExpr |
   Delete RelVarName RestrictionPredicateExpr |
-  Update RelVarName (M.Map AttributeName Atom) RestrictionPredicateExpr |
+  Update RelVarName (M.Map AttributeName AtomExpr) RestrictionPredicateExpr |
   
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |

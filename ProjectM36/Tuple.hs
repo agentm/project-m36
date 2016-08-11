@@ -165,8 +165,9 @@ tupleIntersection tuple1 tuple2 = RelationTuple newAttrs newTupVec
     newAttrs = indexFilter attrs1
     newTupVec = indexFilter (tupleAtoms tuple1)
 
-updateTuple :: (M.Map AttributeName Atom) -> RelationTuple -> RelationTuple
-updateTuple updateMap (RelationTuple attrs tupVec) = RelationTuple attrs newVec
+  -- | An optimized form of tuple update which updates vectors efficiently.
+updateTupleWithAtoms :: (M.Map AttributeName Atom) -> RelationTuple -> RelationTuple
+updateTupleWithAtoms updateMap (RelationTuple attrs tupVec) = RelationTuple attrs newVec
   where
     updateKeysSet = M.keysSet updateMap
     updateKeysIVec = V.filter (\(_,attr) -> S.member (attributeName attr) updateKeysSet) (V.indexed attrs)

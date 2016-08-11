@@ -7,6 +7,7 @@ import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.DatabaseContext
+import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DateExamples
@@ -81,6 +82,12 @@ main = do
     byteStringAttributes = A.attributesFromList [Attribute "y" byteStringAtomType]    
     groupCountAttrs = A.attributesFromList [Attribute "z" intAtomType]
     minMaxAttrs = A.attributesFromList [Attribute "s#" textAtomType, Attribute "z" intAtomType]
+    updateParisPlus10 = relMap (\tuple -> do
+                                   statusAtom <- atomForAttributeName "status" tuple
+                                   cityAtom <- atomForAttributeName "city" tuple
+                                   if cityAtom == textAtom "Paris" then
+                                     Right $ updateTupleWithAtoms (M.singleton "status" (intAtom ((castInt statusAtom) + 10))) tuple
+                                     else Right tuple) suppliersRel
     dateExampleRelTests = [("x:=s where true", Right suppliersRel),
                            ("x:=s where city = \"London\"", restrict (\tuple -> atomForAttributeName "city" tuple == (Right $ textAtom "London")) suppliersRel),
                            ("x:=s where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
@@ -89,8 +96,9 @@ main = do
                            ("x:=s minus (s where status=20)", mkRelationFromList (attributes suppliersRel) [[textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"], [textAtom "S3", textAtom "Blake", intAtom 30, textAtom "Paris"], [textAtom "S5", textAtom "Adams", intAtom 30, textAtom "Athens"]]),
                            --atom function tests
                            ("x:=((s : {status2 := add(10,@status)}) where status2=add(10,@status)){city,s#,sname,status}", Right suppliersRel),
-                           ("x:=s; update x where sname=\"Blake\" (city:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "sname" tuple == (Right $ textAtom "Blake") then updateTuple (M.singleton "city" (textAtom "Boston")) tuple else tuple) suppliersRel),
                            ("x:=relation{tuple{a 5}} : {b:=s}", mkRelation extendTestAttributes (RelationTupleSet [mkRelationTuple extendTestAttributes (V.fromList [intAtom 5, Atom suppliersRel])])),
+                           ("x:=s; update x where sname=\"Blake\" (city:=\"Boston\")", relMap (\tuple -> if atomForAttributeName "sname" tuple == (Right $ textAtom "Blake") then Right $ updateTupleWithAtoms (M.singleton "city" (textAtom "Boston")) tuple else Right tuple) suppliersRel),
+                           ("x:=s; update x where city=\"Paris\" (status:=add(@status,10))", updateParisPlus10),
                            --relatom function tests
                            ("x:=((s group ({city} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ intAtom 1)])),
                            ("x:=(sp group ({s#} as y)) ungroup y", Right supplierProductsRel),
@@ -116,7 +124,7 @@ main = do
                            ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntAtomType [intAtom 3]]]),
                            --test Either Int Text
                            ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
-                           ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType intAtomType textAtomType) [intAtom 3]]])           
+                           ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType intAtomType textAtomType) [intAtom 3]]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
