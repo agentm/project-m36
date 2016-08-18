@@ -6,7 +6,6 @@ import ProjectM36.Transaction
 import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
-import ProjectM36.DataTypes.Primitive
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
@@ -237,18 +236,18 @@ graphAsRelation (DisconnectedTransaction parentId _) graph@(TransactionGraph _ t
   tupleMatrix <- mapM tupleGenerator (S.toList transSet)
   mkRelationFromList attrs tupleMatrix
   where
-    attrs = A.attributesFromList [Attribute "id" textAtomType,
+    attrs = A.attributesFromList [Attribute "id" TextAtomType,
                                   Attribute "parents" (RelationAtomType parentAttributes),
-                                  Attribute "current" boolAtomType,
-                                  Attribute "head" textAtomType
+                                  Attribute "current" BoolAtomType,
+                                  Attribute "head" TextAtomType
                                  ]
-    parentAttributes = A.attributesFromList [Attribute "id" textAtomType]
+    parentAttributes = A.attributesFromList [Attribute "id" TextAtomType]
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
-      Right parentTransRel -> Right [Atom $ T.pack $ show (transactionId transaction),
-                                     Atom parentTransRel,
-                                     Atom $ parentId == transactionId transaction,
-                                     Atom $ case headNameForTransaction transaction graph of
+      Right parentTransRel -> Right [TextAtom $ T.pack $ show (transactionId transaction),
+                                     RelationAtom parentTransRel,
+                                     BoolAtom $ parentId == transactionId transaction,
+                                     TextAtom $ case headNameForTransaction transaction graph of
                                        Just headName -> headName
                                        Nothing -> ""
                                       ]
@@ -262,8 +261,8 @@ transactionParentsRelation trans graph = do
       let tuples = map trans2tuple (S.toList parentTransSet)
       mkRelationFromTuples attrs tuples
   where
-    attrs = A.attributesFromList [Attribute "id" textAtomType]
-    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (Atom (T.pack (show $ transactionId trans2)))
+    attrs = A.attributesFromList [Attribute "id" TextAtomType]
+    trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (TextAtom (T.pack (show $ transactionId trans2)))
 
 {-
 --display transaction graph as relation

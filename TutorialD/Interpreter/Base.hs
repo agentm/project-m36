@@ -5,12 +5,12 @@ import Text.Parsec.String
 import qualified Text.Parsec.Token as Token
 import Text.Parsec.Language
 import ProjectM36.Base
+import ProjectM36.AtomType
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
 
@@ -76,21 +76,10 @@ uncapitalizedIdentifier = do
   spaces
   pure (fletter:rest)
 
-atomTypeToTutDType :: AtomType -> Maybe T.Text
-atomTypeToTutDType atomType = case atomType of
-  aType@(AtomType _) -> lookup aType [(textAtomType, "char"),
-                                      (intAtomType, "int"),
-                                      (boolAtomType, "bool"),
-                                      (doubleAtomType, "double")]
-  (RelationAtomType attrs) -> Just $ "relation" `T.append` showRelationAttributes attrs
-  _ -> Nothing
-    
 showRelationAttributes :: Attributes -> T.Text
 showRelationAttributes attrs = "{" `T.append` T.concat (L.intersperse ", " $ map showAttribute attrsL) `T.append` "}"
   where
-    showAttribute (Attribute name atomType) = name `T.append` " " `T.append` case atomTypeToTutDType atomType of
-      Just t -> t
-      Nothing -> "unknown"
+    showAttribute (Attribute name atomType) = name `T.append` " " `T.append` prettyAtomType atomType
     attrsL = V.toList attrs
 
 data TutorialDOperatorResult = QuitResult |

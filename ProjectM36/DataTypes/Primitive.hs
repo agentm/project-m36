@@ -1,38 +1,15 @@
 module ProjectM36.DataTypes.Primitive where
 import ProjectM36.Base
-import Data.Proxy
-import Data.Typeable
-import ProjectM36.ConcreteTypeRep
-import qualified Data.Text as T
-import qualified Data.ByteString as BS
-
-atomTypeForProxy :: (Atomable a) => Proxy a -> AtomType
-atomTypeForProxy prox = AtomType $ CTR (typeRep prox)
-
-textAtomType :: AtomType
-textAtomType = atomTypeForProxy (Proxy :: Proxy T.Text)
-
-intAtomType :: AtomType
-intAtomType = atomTypeForProxy (Proxy :: Proxy Int)
-
-boolAtomType :: AtomType
-boolAtomType = atomTypeForProxy (Proxy :: Proxy Bool)
-
-doubleAtomType :: AtomType
-doubleAtomType = atomTypeForProxy (Proxy :: Proxy Double)
-
-byteStringAtomType :: AtomType
-byteStringAtomType = atomTypeForProxy (Proxy :: Proxy BS.ByteString)
 
 primitiveTypeConstructorMapping :: TypeConstructorMapping
 primitiveTypeConstructorMapping = map (\(name, aType) ->
                                   (PrimitiveTypeConstructorDef name aType, [])) prims
   where
-    prims = [("Int", intAtomType),
-             ("Text", textAtomType),
-             ("Double", doubleAtomType),
-             ("Bool", boolAtomType),
-             ("ByteString", byteStringAtomType)
+    prims = [("Int", IntAtomType),
+             ("Text", TextAtomType),
+             ("Double", DoubleAtomType),
+             ("Bool", BoolAtomType),
+             ("ByteString", ByteStringAtomType)
             ]
 
 -- | Return the type of an 'Atom'.
@@ -44,5 +21,5 @@ atomTypeForAtom (DayAtom _) = DayAtomType
 atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
 atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
 atomTypeForAtom (BoolAtom _) = BoolAtomType
-atomTypeForAtom (RelationAtom rel) = RelationAtomType (attributes rel)
+atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
 atomTypeForAtom (ConstructedAtom _ aType _) = aType

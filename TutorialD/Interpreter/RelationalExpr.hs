@@ -226,34 +226,20 @@ relationalAtomExprP :: Parser AtomExpr
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
 stringAtomP :: Parser Atom
-stringAtomP = liftA (Atom . T.pack) quotedString
-
---until polymorphic type constructors and algebraic data types are properly supported, such constructs must be unfortunately hard-coded
-maybeTextAtomP :: Parser Atom
-maybeTextAtomP = do
-  maybeText <- try $ ((Just . T.pack <$> (reserved "Just" *> quotedString)) <|> 
-                      (reserved "Nothing" *> return Nothing)) <* reserved "::maybe char"   
-  return $ Atom maybeText
-
---refactor to use polymorphic runtime constructors
-maybeIntAtomP :: Parser Atom  
-maybeIntAtomP = do
-  maybeInt <- try $ ((Just . fromIntegral <$> (reserved "Just" *> integer)) <|>
-                     (reserved "Nothing" *> return Nothing)) <* reserved "::maybe int"
-  return $ Atom (maybeInt :: Maybe Int)
+stringAtomP = liftA (TextAtom . T.pack) quotedString
 
 doubleAtomP :: Parser Atom    
-doubleAtomP = Atom <$> (try float)
+doubleAtomP = DoubleAtom <$> (try float)
 
 intAtomP :: Parser Atom
 intAtomP = do
   i <- integer
-  return $ Atom ((fromIntegral i) :: Int)
+  return $ IntAtom (fromIntegral i)
 
 boolAtomP :: Parser Atom
 boolAtomP = do
   val <- char 't' <|> char 'f'
-  return $ Atom (val == 't')
+  return $ BoolAtom (val == 't')
   
 relationAtomExprP :: Parser AtomExpr
 relationAtomExprP = RelationAtomExpr <$> makeRelationP

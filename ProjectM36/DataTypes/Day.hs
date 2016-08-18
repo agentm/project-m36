@@ -1,30 +1,20 @@
 module ProjectM36.DataTypes.Day where
 import ProjectM36.Base
 import ProjectM36.AtomFunctionBody
-import ProjectM36.DataTypes.Primitive
-import ProjectM36.AtomFunctions.Primitive
 import qualified Data.HashSet as HS
 import Data.Time.Calendar
-import qualified Data.Map as M
-
-dayAtom :: Day -> Atom
-dayAtom d = Atom d
-
-dayAtomType :: AtomType
-dayAtomType = ConstructedAtomType "Day" M.empty
 
 dayAtomFunctions :: AtomFunctions
 dayAtomFunctions = HS.fromList [
   AtomFunction { atomFuncName = "fromGregorian",
-                 atomFuncType = [intAtomType, intAtomType, intAtomType, dayAtomType],
-                 atomFuncBody = compiledAtomFunctionBody $ \(year:month:day:_) -> ConstructedAtom "Day" dayAtomType [Atom (fromGregorian (fromIntegral (unsafeCast year::Int)) (unsafeCast month) (unsafeCast day))]
-                   },
+                 atomFuncType = [IntAtomType, IntAtomType, IntAtomType, DayAtomType],
+                 atomFuncBody = compiledAtomFunctionBody $ \((IntAtom year):(IntAtom month):(IntAtom day):_) -> DayAtom (fromGregorian (fromIntegral year) month day)
+                 },
   AtomFunction { atomFuncName = "dayEarlierThan",
-                 atomFuncType = [dayAtomType, dayAtomType, boolAtomType],
-                 atomFuncBody = compiledAtomFunctionBody $ \((ConstructedAtom _ _ (dayA:_)):(ConstructedAtom _ _ (dayB:_)):_) -> Atom (unsafeCast dayA < (unsafeCast dayB :: Day))          
+                 atomFuncType = [DayAtomType, DayAtomType, BoolAtomType],
+                 atomFuncBody = compiledAtomFunctionBody $ \((ConstructedAtom _ _ (IntAtom dayA:_)):(ConstructedAtom _ _ (IntAtom dayB:_)):_) -> BoolAtom (dayA < dayB)
                }
   ]
 
 dayTypeConstructorMapping :: TypeConstructorMapping
-dayTypeConstructorMapping = [(ADTypeConstructorDef "Day" [],
-                  [DataConstructorDef "Day" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" intAtomType)]])]
+dayTypeConstructorMapping = [] -- use fromGregorian

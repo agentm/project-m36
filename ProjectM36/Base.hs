@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M
@@ -12,7 +12,7 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
-import Data.Text (Text,pack,unpack)
+import Data.Text (Text,unpack)
 import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
@@ -20,41 +20,10 @@ import Data.Time.Clock.POSIX
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
-import Text.Read (readMaybe)
 import Data.ByteString (ByteString)
-import ProjectM36.ConcreteTypeRep
-import qualified Data.Text.Encoding as TE
-import qualified Data.ByteString.Base64 as BS64
 import Data.Maybe (isJust)
 
 type StringType = Text
-
--- | Any data type represents as an 'Atom' in the database must adhere to the 'Atomable' typeclass.
-class (Read a, 
-       Hashable a, 
-       Binary a, 
-       Eq a, 
-       Show a, 
-       Typeable a, 
-       NFData a) => Atomable a where
-  fromText :: (Atomable a) => Text -> Either String a
-  fromText t = case readMaybe (unpack t) of
-    Just v -> Right v
-    Nothing -> Left ("Parse error: " ++ (unpack t))
-  
-  toText :: a -> Text
-  toText a = pack $ show a
-  
-instance Atomable Int 
-instance Atomable Double
-instance Atomable Text where
-instance Atomable Day
-instance Atomable UTCTime
-instance Atomable ByteString where
-  toText bs = TE.decodeUtf8With (\_ _  -> Just '?') (BS64.encode bs)
-instance Atomable Bool
-instance Atomable Relation
-instance (Atomable a) => Atomable (Maybe a)
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntAtom Int |
@@ -66,7 +35,19 @@ data Atom = IntAtom Int |
             BoolAtom Bool |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
-            deriving (Eq, Show, Hashable, Binary, Typeable, NFData)
+            deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+                     
+instance Hashable Atom where                     
+  hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
+                                                          `hashWithSalt` dConsName --AtomType is not hashable
+  hashWithSalt salt (IntAtom i) = salt `hashWithSalt` i
+  hashWithSalt salt (DoubleAtom d) = salt `hashWithSalt` d
+  hashWithSalt salt (TextAtom t) = salt `hashWithSalt` t
+  hashWithSalt salt (DayAtom d) = salt `hashWithSalt` d
+  hashWithSalt salt (DateTimeAtom dt) = salt `hashWithSalt` dt
+  hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
+  hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
+  hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
@@ -82,7 +63,7 @@ instance Binary Day where
 
 -- I suspect the definition of ConstructedAtomType with its name alone is insufficient to disambiguate the cases; for example, one could create a type named X, remove a type named X, and re-add it using different constructors. However, as long as requests are served from only one DatabaseContext at-a-time, the type name is unambiguous. This will become a problem for time-travel, however.
 -- | The AtomType must uniquely identify the type of a atom.
-data AtomType = IntAtomType |
+data AtomType = IntAtomType |                
                 DoubleAtomType |
                 TextAtomType |
                 DayAtomType |
@@ -93,14 +74,30 @@ data AtomType = IntAtomType |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 AnyAtomType
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
-              deriving (Eq,NFData,Generic,Binary, Show, Hashable)
+              deriving (Eq, NFData, Generic, Binary, Show)
                        
 type TypeVarMap = M.Map TypeVarName AtomType
+
+instance Hashable TypeVarMap where 
+  hashWithSalt salt tvmap = hashWithSalt salt (M.keys tvmap)
                        
 -- | Return True iff the atom type argument is relation-valued. If True, this indicates that the Atom contains a relation.
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
+
+{-
+atomTypeForAtom :: Atom -> AtomType
+atomTypeForAtom (IntAtom _) = IntAtomType
+atomTypeForAtom (DoubleAtom _) = DoubleAtomType
+atomTypeForAtom (TextAtom _) = TextAtomType
+atomTypeForAtom (DayAtom _) = DayAtomType
+atomTypeForAtom (DateTimeAtom _)  = DateTimeAtomType
+atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
+atomTypeForAtom (BoolAtom _) = BoolAtomType
+atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
+atomTypeForAtom (ConstructedAtom _ aType _) = aType
+-}
 
 -- | The AttributeName is the name of an attribute in a relation.
 type AttributeName = StringType

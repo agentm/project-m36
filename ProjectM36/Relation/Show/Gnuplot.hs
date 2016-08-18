@@ -2,7 +2,6 @@ module ProjectM36.Relation.Show.Gnuplot where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunctions.Primitive
 import qualified ProjectM36.Attribute as A
 import qualified Data.Vector as V
@@ -70,7 +69,7 @@ sample3DRelation = case mkRelationFromList (A.attributesFromList [Attribute "x" 
 -}
 
 plotRelation :: Relation -> IO (Maybe PlotError)
-plotRelation rel = let attrTypes = V.replicate (arity rel) intAtomType in
+plotRelation rel = let attrTypes = V.replicate (arity rel) IntAtomType in
   if attrTypes /= A.atomTypes (attributes rel) then
     return $ Just InvalidAttributeTypeError
   else do

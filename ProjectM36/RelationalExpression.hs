@@ -471,12 +471,12 @@ predicateRestrictionFilter context attrs (AttributeEqualityPredicate attrName at
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance
 predicateRestrictionFilter context attrs (AtomExprPredicate atomExpr) = do
   aType <- typeFromAtomExpr attrs context atomExpr
-  if aType /= boolAtomType then
-    Left $ AtomTypeMismatchError aType boolAtomType
+  if aType /= BoolAtomType then
+    Left $ AtomTypeMismatchError aType BoolAtomType
     else
     Right (\tupleIn -> case evalAtomExpr tupleIn context atomExpr of
                 Left _ -> False
-                Right boolAtomValue -> boolAtomValue == Atom True)
+                Right boolAtomValue -> boolAtomValue == BoolAtom True)
 
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
 tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName rel then
@@ -508,7 +508,7 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
   return $ (evalAtomFunction func) evaldArgs
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
-  return $ Atom relAtom
+  return $ RelationAtom relAtom
 evalAtomExpr tupIn context cons@(ConstructedAtomExpr dConsName dConsArgs) = do
   aType <- typeFromAtomExpr (tupleAttributes tupIn) context cons
   argAtoms <- mapM (evalAtomExpr tupIn context) dConsArgs

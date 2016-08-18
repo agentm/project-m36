@@ -39,7 +39,6 @@ module ProjectM36.Client
        addClientNode,
        RelationCardinality(..),
        TransactionGraphOperator(..),
-       Atomable,
        NodeId(..),
        Atom(..),
        Session,

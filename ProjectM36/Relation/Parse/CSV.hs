@@ -6,7 +6,6 @@ import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Base
 import ProjectM36.Relation
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import Data.Text.Encoding (decodeUtf8)
 import qualified ProjectM36.Attribute as A
@@ -27,7 +26,7 @@ csvDecodeOptions = DecodeOptions {decDelimiter = fromIntegral (ord ',')}
 
 --special case from Text- outer quotes are *not* required in CSV, so we have to add them to make it parseable
 makeAtomFromCSVText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
-makeAtomFromCSVText attrName aType textIn = makeAtomFromText attrName aType $ if aType == textAtomType then
+makeAtomFromCSVText attrName aType textIn = makeAtomFromText attrName aType $ if aType == TextAtomType then
                                                                                 ("\"" `T.append` textIn `T.append` "\"")
                                                                               else
                                                                                 textIn

@@ -1,6 +1,7 @@
 --writes Relation to a String suitable for terminal output
 module ProjectM36.Relation.Show.Term where
 import ProjectM36.Base
+import ProjectM36.Atom
 import ProjectM36.AtomType
 import ProjectM36.Tuple
 import ProjectM36.Relation
@@ -8,7 +9,6 @@ import ProjectM36.Attribute
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Data.Typeable
 
 boxV :: StringType
 boxV = "│"
@@ -100,10 +100,9 @@ showParens predicate f = if predicate then
                       f
 
 showAtom :: Int -> Atom -> StringType
-showAtom _ (Atom atom) = case cast atom of
-  Just rel -> renderTable $ relationAsTable rel
-  Nothing -> toText atom
+showAtom _ (RelationAtom rel) = renderTable $ relationAsTable rel
 showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && length atoms >= 1) $ T.concat (L.intersperse " " (dConsName : (map (showAtom 1) atoms)))
+showAtom _ atom = atomToText atom
 
 renderTable :: Table -> StringType
 renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd table) cellLocs

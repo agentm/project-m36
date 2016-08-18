@@ -1,6 +1,5 @@
 module ProjectM36.DataTypes.Maybe where
 import ProjectM36.Base
-import ProjectM36.DataTypes.Primitive
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 
@@ -17,7 +16,7 @@ maybeAtomFunctions :: AtomFunctions
 maybeAtomFunctions = HS.fromList [
   AtomFunction {
      atomFuncName ="isJust",
-     atomFuncType = [maybeAtomType AnyAtomType, boolAtomType],
-     atomFuncBody = AtomFunctionBody Nothing $ \((ConstructedAtom dConsName _ _):_) -> Atom (dConsName == "Nothing")
+     atomFuncType = [maybeAtomType AnyAtomType, BoolAtomType],
+     atomFuncBody = AtomFunctionBody Nothing $ \((ConstructedAtom dConsName _ _):_) -> BoolAtom (dConsName == "Nothing")
      }       
   ]

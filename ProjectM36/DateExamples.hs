@@ -1,12 +1,10 @@
 module ProjectM36.DateExamples where
 import ProjectM36.Base
-import ProjectM36.Atom
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Key
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
 import ProjectM36.DatabaseContext
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.Relation
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -35,38 +33,38 @@ suppliersRel = case mkRelationFromList attrs atomMatrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "s#" textAtomType,
-                                  Attribute "sname" textAtomType,
-                                  Attribute "status" intAtomType,
-                                  Attribute "city" textAtomType]
+    attrs = A.attributesFromList [Attribute "s#" TextAtomType,
+                                  Attribute "sname" TextAtomType,
+                                  Attribute "status" IntAtomType,
+                                  Attribute "city" TextAtomType]
     atomMatrix = [
-      [textAtom "S1", textAtom "Smith", intAtom 20, textAtom "London"],
-      [textAtom "S2", textAtom "Jones", intAtom 10, textAtom "Paris"],
-      [textAtom "S3", textAtom "Blake", intAtom 30, textAtom "Paris"],
-      [textAtom "S4", textAtom "Clark", intAtom 20, textAtom "London"],
-      [textAtom "S5", textAtom "Adams", intAtom 30, textAtom "Athens"]]
+      [TextAtom "S1", TextAtom "Smith", IntAtom 20, TextAtom "London"],
+      [TextAtom "S2", TextAtom "Jones", IntAtom 10, TextAtom "Paris"],
+      [TextAtom "S3", TextAtom "Blake", IntAtom 30, TextAtom "Paris"],
+      [TextAtom "S4", TextAtom "Clark", IntAtom 20, TextAtom "London"],
+      [TextAtom "S5", TextAtom "Adams", IntAtom 30, TextAtom "Athens"]]
 
 supplierProductsRel :: Relation
 supplierProductsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "s#" textAtomType,
-                                  Attribute "p#" textAtomType,
-                                  Attribute "qty" intAtomType]
+    attrs = A.attributesFromList [Attribute "s#" TextAtomType,
+                                  Attribute "p#" TextAtomType,
+                                  Attribute "qty" IntAtomType]
     matrix = [
-      [textAtom "S1", textAtom "P1", intAtom 300],
-      [textAtom "S1", textAtom "P2", intAtom 200],
-      [textAtom "S1", textAtom "P3", intAtom 400],
-      [textAtom "S1", textAtom "P4", intAtom 200],
-      [textAtom "S1", textAtom "P5", intAtom 100],
-      [textAtom "S1", textAtom "P6", intAtom 100],
-      [textAtom "S2", textAtom "P1", intAtom 300],
-      [textAtom "S2", textAtom "P2", intAtom 400],
-      [textAtom "S3", textAtom "P2", intAtom 200],
-      [textAtom "S4", textAtom "P2", intAtom 200],
-      [textAtom "S4", textAtom "P4", intAtom 300],
-      [textAtom "S4", textAtom "P5", intAtom 400]
+      [TextAtom "S1", TextAtom "P1", IntAtom 300],
+      [TextAtom "S1", TextAtom "P2", IntAtom 200],
+      [TextAtom "S1", TextAtom "P3", IntAtom 400],
+      [TextAtom "S1", TextAtom "P4", IntAtom 200],
+      [TextAtom "S1", TextAtom "P5", IntAtom 100],
+      [TextAtom "S1", TextAtom "P6", IntAtom 100],
+      [TextAtom "S2", TextAtom "P1", IntAtom 300],
+      [TextAtom "S2", TextAtom "P2", IntAtom 400],
+      [TextAtom "S3", TextAtom "P2", IntAtom 200],
+      [TextAtom "S4", TextAtom "P2", IntAtom 200],
+      [TextAtom "S4", TextAtom "P4", IntAtom 300],
+      [TextAtom "S4", TextAtom "P5", IntAtom 400]
       ]
 
 productsRel :: Relation
@@ -74,16 +72,16 @@ productsRel = case mkRelationFromList attrs matrix of
   Left _ -> undefined
   Right rel -> rel
   where
-    attrs = A.attributesFromList [Attribute "p#" textAtomType,
-                                  Attribute "pname" textAtomType,
-                                  Attribute "color" textAtomType,
-                                  Attribute "weight" intAtomType,
-                                  Attribute "city" textAtomType]
+    attrs = A.attributesFromList [Attribute "p#" TextAtomType,
+                                  Attribute "pname" TextAtomType,
+                                  Attribute "color" TextAtomType,
+                                  Attribute "weight" IntAtomType,
+                                  Attribute "city" TextAtomType]
     matrix = [
-      [textAtom "P1", textAtom "Nut", textAtom "Red", intAtom 12, textAtom "London"],
-      [textAtom "P2", textAtom "Bolt", textAtom "Green", intAtom 17, textAtom "Paris"],
-      [textAtom "P3", textAtom "Screw", textAtom "Blue", intAtom 17, textAtom "Oslo"],
-      [textAtom "P4", textAtom "Screw", textAtom "Red", intAtom 14, textAtom "London"],
-      [textAtom "P5", textAtom "Cam", textAtom "Blue", intAtom 12, textAtom "Paris"],
-      [textAtom "P6", textAtom "Cog", textAtom "Red", intAtom 19, textAtom "London"]
+      [TextAtom "P1", TextAtom "Nut", TextAtom "Red", IntAtom 12, TextAtom "London"],
+      [TextAtom "P2", TextAtom "Bolt", TextAtom "Green", IntAtom 17, TextAtom "Paris"],
+      [TextAtom "P3", TextAtom "Screw", TextAtom "Blue", IntAtom 17, TextAtom "Oslo"],
+      [TextAtom "P4", TextAtom "Screw", TextAtom "Red", IntAtom 14, TextAtom "London"],
+      [TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntAtom 12, TextAtom "Paris"],
+      [TextAtom "P6", TextAtom "Cog", TextAtom "Red", IntAtom 19, TextAtom "London"]
       ]

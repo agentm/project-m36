@@ -5,11 +5,9 @@ import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
 import qualified Data.Map as M
-import ProjectM36.Atom
 import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
-import ProjectM36.DataTypes.Primitive
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
@@ -150,7 +148,7 @@ group groupAttrNames newAttrName rel = do
   groupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
-        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (Atom rel2))
+        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
       mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
       newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
@@ -282,30 +280,30 @@ imageRelationJoin rel1@(Relation attrNameSet1 tupSet1) rel2@(Relation attrNameSe
 typesAsRelation :: TypeConstructorMapping -> Either RelationalError Relation
 typesAsRelation types = mkRelationFromTuples attrs tuples
   where
-    attrs = A.attributesFromList [Attribute "TypeConstructor" textAtomType,
+    attrs = A.attributesFromList [Attribute "TypeConstructor" TextAtomType,
                                 Attribute "DataConstructors" dConsType]
-    subAttrs = A.attributesFromList [Attribute "DataConstructor" textAtomType]
+    subAttrs = A.attributesFromList [Attribute "DataConstructor" TextAtomType]
     dConsType = RelationAtomType subAttrs
     tuples = map mkTypeConsDescription types
     
-    mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [textAtom (TCD.name tCons), mkDataConsRelation dConsList])
+    mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
     
-    mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ textAtom $ T.intercalate " " ((DCD.name dCons):(map (T.pack . show) (DCD.fields dCons))))) dConsList of
+    mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " ((DCD.name dCons):(map (T.pack . show) (DCD.fields dCons))))) dConsList of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
-      Right rel -> Atom rel
+      Right rel -> RelationAtom rel
 
 -- | Return a Relation describing the relation variables.
 relationVariablesAsRelation :: M.Map RelVarName Relation -> Either RelationalError Relation
 relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
   where
-    subrelAttrs = A.attributesFromList [Attribute "attribute" textAtomType, Attribute "type" textAtomType]
-    attrs = A.attributesFromList [Attribute "name" textAtomType,
+    subrelAttrs = A.attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
+    attrs = A.attributesFromList [Attribute "name" TextAtomType,
                                   Attribute "attributes" (RelationAtomType subrelAttrs)]
     tups = map relVarToAtomList (M.toList relVarMap)
-    relVarToAtomList (rvName, rel) = [textAtom rvName, attributesToRel (attributes rel)]
+    relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributes rel)]
     attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
       Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
-      Right rel -> Atom rel
-    attrAtoms a = [textAtom (A.attributeName a), textAtom (prettyAtomType (A.atomType a))]
+      Right rel -> RelationAtom rel
+    attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       
 

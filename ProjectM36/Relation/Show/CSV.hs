@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
-import Data.Typeable (cast)
 import ProjectM36.Attribute
 import Data.Csv
 import ProjectM36.Tuple
@@ -10,6 +9,7 @@ import qualified Data.Vector as V
 import ProjectM36.Error
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
+import ProjectM36.Atom
 
 --spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
 relationAsCSV :: Relation -> Either RelationalError BS.ByteString
@@ -39,8 +39,8 @@ instance DefaultOrdered RecordRelationTuple where
 newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
-  toField (RecordAtom (ConstructedAtom dConsName _ atomList)) = TE.encodeUtf8 $ dConsName `T.append` T.intercalate " " (map (\(Atom x) -> toText x) atomList)
-  toField (RecordAtom (Atom atomVal)) = case cast atomVal of 
-    Just texto -> TE.encodeUtf8 texto  --squelch extraneous quotes for text type- the CSV library will add them if necessary
-    Nothing -> (TE.encodeUtf8 . toText) atomVal
+  toField (RecordAtom (ConstructedAtom dConsName _ atomList)) = TE.encodeUtf8 $ dConsName `T.append` T.intercalate " " (map atomToText atomList)
+  toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --squelch extraneous quotes for text type- the CSV library will add them if necessary
+  toField (RecordAtom atomVal) = (TE.encodeUtf8 . atomToText) atomVal
+
                
