@@ -22,23 +22,44 @@ type ScriptSession = HscEnv
 -- | Configure a GHC environment/session which we will use for all script compilation.
 initScriptSession :: IO ScriptSession
 initScriptSession = runGhc (Just libdir) $ do
-  liftIO $ putStrLn "Setting up HscEnv"
   dflags <- getSessionDynFlags
   let dflags' = dflags { hscTarget = HscInterpreted , 
                          ghcLink = LinkInMemory, 
                          safeHaskell = Sf_Safe,
                          safeInfer = True,
-                         safeInferred = True
+                         safeInferred = True,
+                         --trustFlags = [TrustPackage "base"] -- new in 8
+                         packageFlags = (packageFlags dflags) ++ [TrustPackage "base"]
                          }
                 `xopt_set` Opt_ExtendedDefaultRules
-                --`xopt_unset` Opt_ImplicitPrelude
+                `xopt_set` Opt_ImplicitPrelude
                 `gopt_set` Opt_DistrustAllPackages 
+                `xopt_set` Opt_ScopedTypeVariables
                 `gopt_set` Opt_PackageTrust
-                `gopt_set` Opt_ImplicitImportQualified
+                --`gopt_set` Opt_ImplicitImportQualified
   _ <- setSessionDynFlags dflags'
-  setContext [ IIDecl $ simpleImportDecl (mkModuleName "Prelude") ]
-  env <- getSession
-  return env
+  let safeImportDecl mn = ImportDecl {
+        ideclSourceSrc = Nothing,
+        ideclName      = noLoc mn,
+        ideclPkgQual   = Nothing,
+        ideclSource    = False,
+        ideclSafe      = True,
+        ideclImplicit  = False,
+        ideclQualified = False,
+        ideclAs        = Nothing,
+        ideclHiding    = Nothing
+        }
+
+  baseTarget <- guessTarget "ProjectM36.ScriptBase" Nothing
+  addTarget baseTarget
+  flag <- load LoadAllTargets
+  case flag of
+    Failed -> error "failed to load"
+    Succeeded -> do
+      setContext [ IIDecl $ safeImportDecl (mkModuleName "Prelude"),
+                   IIDecl $ safeImportDecl (mkModuleName "ProjectM36.ScriptBase")]
+      env <- getSession
+      pure env
   
 addImport :: String -> Ghc ()
 addImport moduleNam = do
