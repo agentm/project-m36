@@ -17,42 +17,44 @@ primitiveAtomFunctions = HS.fromList [
   --match on any relation type
   AtomFunction { atomFuncName = "add",
                  atomFuncType = [intAtomType, intAtomType, intAtomType],
-                 atomFunc = (\(i1:i2:_) -> Atom $ ((unsafeCast i1)::Int) + unsafeCast i2)},
+                 atomFuncBody = body (\(i1:i2:_) -> Atom $ ((unsafeCast i1)::Int) + unsafeCast i2)},
   AtomFunction { atomFuncName = "id",
                  atomFuncType = [AnyAtomType, AnyAtomType],
-                 atomFunc = (\(x:_) -> x)},
+                 atomFuncBody = body (\(x:_) -> x)},
   AtomFunction { atomFuncName = "sum",
                  atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\(relAtom:_) -> relationSum $ unsafeCast relAtom)},
+                 atomFuncBody = body (\(relAtom:_) -> relationSum $ unsafeCast relAtom)},
   AtomFunction { atomFuncName = "count",
                  atomFuncType = foldAtomFuncType AnyAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationCount (castRelation relIn))},
+                 atomFuncBody = body (\((relIn):_) -> relationCount (castRelation relIn))},
   AtomFunction { atomFuncName = "max",
                  atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationMax (castRelation relIn))},
+                 atomFuncBody = body (\((relIn):_) -> relationMax (castRelation relIn))},
   AtomFunction { atomFuncName = "min",
                  atomFuncType = foldAtomFuncType intAtomType intAtomType,
-                 atomFunc = (\((relIn):_) -> relationMin (castRelation relIn))},
+                 atomFuncBody = body (\((relIn):_) -> relationMin (castRelation relIn))},
   AtomFunction { atomFuncName = "lt",
                  atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = intAtomFuncLessThan False},
+                 atomFuncBody = body $ intAtomFuncLessThan False},
   AtomFunction { atomFuncName = "lte",
                  atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = intAtomFuncLessThan True},
+                 atomFuncBody = body $ intAtomFuncLessThan True},
   AtomFunction { atomFuncName = "gte",
                  atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan False},
+                 atomFuncBody = body $ boolAtomNot . (:[]) . intAtomFuncLessThan False},
   AtomFunction { atomFuncName = "gt",
                  atomFuncType = [intAtomType, intAtomType, boolAtomType],
-                 atomFunc = boolAtomNot . (:[]) . intAtomFuncLessThan True},
+                 atomFuncBody = body $ boolAtomNot . (:[]) . intAtomFuncLessThan True},
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [boolAtomType, boolAtomType],
-                 atomFunc = boolAtomNot},
+                 atomFuncBody = body boolAtomNot},
   AtomFunction { atomFuncName = "makeByteString",
                  atomFuncType = [textAtomType, byteStringAtomType],
                  --I need a proper error-handling scheme for AtomFunctions!
-                 atomFunc = \(textIn:_) -> Atom $ (B64.decodeLenient . TE.encodeUtf8) ((unsafeCast textIn)::T.Text) }
+                 atomFuncBody = body $ \(textIn:_) -> Atom $ (B64.decodeLenient . TE.encodeUtf8) ((unsafeCast textIn)::T.Text) }
   ]
+  where
+    body = AtomFunctionBody Nothing
                          
 unsafeCast :: (Atomable a) => Atom -> a
 unsafeCast (ConstructedAtom _ _ _) = error "unsafeCast attempt on ConstructedAtom"

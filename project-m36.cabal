@@ -13,6 +13,8 @@ Description: A relational algebra engine which can be used to persist and query 
 
 Library
     Build-Depends: base>=4.8 && < 4.9
+                   ,ghc >= 7.8 && <= 8.0.1
+                   ,ghc-paths
                    ,mtl
                    ,containers
                    ,unordered-containers
@@ -121,9 +123,12 @@ Library
 
 Executable tutd
     Build-Depends: base >=4.8 && <4.9, 
+                   ghc >= 7.8 && <= 8.0.1,
+                   ghc-paths,
                    containers,
                    unordered-containers,
                    hashable,
+                   transformers,
                    mtl,
                    uuid,
                    deepseq-generics,
@@ -217,6 +222,7 @@ Executable tutd
                    TutorialD.Interpreter.Types
     main-is: TutorialD/tutd.hs
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
+    CC-Options: -fPIC
     GHC-Options: -Wall 
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -630,7 +636,14 @@ Test-Suite test-scripts
     else
       C-sources: ProjectM36/DirectoryFsync.c
       Build-Depends: unix
-		   
+
+Executable dud
+    Default-Language: Haskell2010
+    Build-Depends: ghc >= 7.8 && <= 8.0.1, base, ghc-paths, mtl, haskeline
+    Main-Is: test.hs
+    GHC-Options: -Wall
+    CPP-Options: -DGHCI
+
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, websockets, aeson, uuid-aeson, optparse-applicative

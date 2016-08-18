@@ -17,6 +17,8 @@ data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr
                            deriving (Binary, Generic)
 data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseContextExpr
                                 deriving (Binary, Generic)
+data ExecuteDatabaseContextIOExpr = ExecuteDatabaseContextIOExpr SessionId DatabaseContextIOExpr
+                                deriving (Binary, Generic)                                         
 data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphOperator 
                       deriving (Binary, Generic)
 data ExecuteHeadName = ExecuteHeadName SessionId

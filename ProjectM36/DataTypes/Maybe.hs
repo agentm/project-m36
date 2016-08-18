@@ -18,6 +18,6 @@ maybeAtomFunctions = HS.fromList [
   AtomFunction {
      atomFuncName ="isJust",
      atomFuncType = [maybeAtomType AnyAtomType, boolAtomType],
-     atomFunc = \((ConstructedAtom dConsName _ _):_) -> Atom (dConsName == "Nothing")
+     atomFuncBody = AtomFunctionBody Nothing $ \((ConstructedAtom dConsName _ _):_) -> Atom (dConsName == "Nothing")
      }       
   ]

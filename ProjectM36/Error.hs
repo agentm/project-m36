@@ -53,6 +53,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
+                     | AtomFunctionNameInUseError AtomFunctionName
+                     | AtomFunctionNameNotInUseError AtomFunctionName
                      | NoSuchDataConstructorError DataConstructorName
                      | NoSuchTypeConstructorError TypeConstructorName
                      | InvalidAtomTypeName AtomTypeName
@@ -67,6 +69,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
                      | MergeTransactionError MergeError
+                     | AtomFunctionBodyScriptError AtomFunctionBodyCompilationError
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 
@@ -95,3 +98,9 @@ data MergeError = SelectedHeadMismatchMergeError |
                   deriving (Show, Eq, Generic, Binary, Typeable)
                            
 instance NFData MergeError where rnf = genericRnf                           
+                                 
+data AtomFunctionBodyCompilationError = TypeCheckCompilationError String String | --expected, got
+                                        SyntaxErrorCompilationError String |
+                                        OtherScriptCompilationError String
+                                      deriving (Show,Eq, Generic, Binary, Typeable, NFData)
+                                 

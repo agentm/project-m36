@@ -18,6 +18,11 @@ handleExecuteDatabaseContextExpr sessionId conn dbexpr = do
   ret <- liftIO $ executeDatabaseContextExpr sessionId conn dbexpr
   reply ret conn
   
+handleExecuteDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
+handleExecuteDatabaseContextIOExpr sessionId conn dbexpr = do
+  ret <- executeDatabaseContextIOExpr sessionId conn dbexpr
+  reply ret conn
+  
 handleExecuteHeadName :: SessionId -> Connection -> Process (ProcessReply (Maybe HeadName) Connection)
 handleExecuteHeadName sessionId conn = do
   ret <- liftIO $ headName sessionId conn 

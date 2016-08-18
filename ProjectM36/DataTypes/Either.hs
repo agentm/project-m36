@@ -1,6 +1,7 @@
 module ProjectM36.DataTypes.Either where
 import ProjectM36.Base
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.AtomFunction
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
        
@@ -14,8 +15,5 @@ eitherTypeConstructorMapping = [(ADTypeConstructorDef "Either" ["a", "b"],
        
 eitherAtomFunctions :: AtomFunctions                               
 eitherAtomFunctions = HS.fromList [
-  AtomFunction { atomFuncName = "isLeft",
-                 atomFuncType = [eitherAtomType AnyAtomType AnyAtomType, boolAtomType],
-                 atomFunc = \((ConstructedAtom dConsName _ _):_) -> Atom (dConsName == "Left")
-               }
+  compiledAtomFunction "isLeft" [eitherAtomType AnyAtomType AnyAtomType, boolAtomType] $ \((ConstructedAtom dConsName _ _):_) -> Atom (dConsName == "Left")
   ]

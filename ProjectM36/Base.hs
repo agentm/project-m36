@@ -25,6 +25,7 @@ import Data.ByteString (ByteString)
 import ProjectM36.ConcreteTypeRep
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Base64 as BS64
+import Data.Maybe (isJust)
 
 type StringType = Text
 
@@ -347,13 +348,15 @@ data DatabaseContextExpr =
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
   RemoveTypeConstructor TypeConstructorName |
 
-  -- to implement this, I likely need to implement a DSL for constructing arbitrary functions to operate on atoms at runtime
-  --AddAtomFunction AtomFunction
-  --RemoveAtomFunction AtomFunctionName
+  --adding an AtomFunction is not a pure operation (required loading GHC modules)
+  RemoveAtomFunction AtomFunctionName |
   
   MultipleExpr [DatabaseContextExpr]
   deriving (Show, Eq, Binary, Generic)
 
+-- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
+data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript
+                           deriving (Show, Eq, Generic, Binary)
 
 type DatabaseState a = State DatabaseContext a
 
@@ -438,22 +441,45 @@ type AtomFunctions = HS.HashSet AtomFunction
 
 type AtomFunctionName = StringType
 
+type AtomFunctionBodyScript = StringType
+
+type AtomFunctionBodyType = [Atom] -> Atom
+
+data AtomFunctionBody = AtomFunctionBody (Maybe AtomFunctionBodyScript) AtomFunctionBodyType
+                        
+instance Show AtomFunctionBody where
+  show (AtomFunctionBody mScript _) = case mScript of
+    Just script -> show (unpack script)
+    Nothing -> "<compiled>"
+
 -- | An AtomFunction has a name, a type, and a function body to execute when called.
 data AtomFunction = AtomFunction {
   atomFuncName :: AtomFunctionName,
   atomFuncType :: [AtomType], 
-  atomFunc :: [Atom] -> Atom
+  atomFuncBody :: AtomFunctionBody
   }
            
 instance Hashable AtomFunction where
   hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
                            
 instance Eq AtomFunction where                           
-  f1 == f2 = (atomFuncName f1) == (atomFuncName f2)
+  f1 == f2 = let (AtomFunctionBody mScript1 _) = atomFuncBody f1 
+                 (AtomFunctionBody mScript2 _) = atomFuncBody f2 in
+             if atomFuncName f1 == atomFuncName f2 then
+               if isJust mScript1 then
+                 if mScript1 == mScript2 then
+                   True
+                 else 
+                   False
+               else
+                 True
+             else
+               False
   
 instance Show AtomFunction where  
-  show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes
+  show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes ++ "; " ++ body
    where
+     body = show (atomFuncBody aFunc)
      showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
      
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").

@@ -5,6 +5,7 @@ import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import TutorialD.Interpreter.InformationOperator
+import TutorialD.Interpreter.DatabaseContextIOOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
@@ -36,6 +37,7 @@ graph ops are read-write operations which change the transaction graph
 -}
 data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseContextExprOp DatabaseContextExpr |
+                       DatabaseContextIOExprOp DatabaseContextIOExpr |
                        InfoOp InformationOperator |
                        GraphOp TransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
@@ -48,7 +50,8 @@ interpreterParserP :: Parser ParsedOperation
 interpreterParserP = safeInterpreterParserP <|>
                      liftM ImportRelVarOp (importCSVP <* eof) <|>
                      liftM ImportDBContextOp (tutdImportP <* eof) <|>
-                     liftM RelVarExportOp (exportCSVP <* eof)
+                     liftM RelVarExportOp (exportCSVP <* eof) <|>
+                     liftM DatabaseContextIOExprOp (parseCreateAtomFunctionExpr <* eof)
                      
 -- the safe interpreter never reads or writes the file system
 safeInterpreterParserP :: Parser ParsedOperation
@@ -88,6 +91,15 @@ evalTutorialD sessionId conn safe expr = case expr of
     case maybeErr of
       Just err -> barf err
       Nothing -> return QuietSuccessResult
+      
+  (DatabaseContextIOExprOp execOp) -> do
+    if needsSafe then
+      unsafeError
+      else do
+      mErr <- C.executeDatabaseContextIOExpr sessionId conn execOp
+      case mErr of
+        Just err -> barf err
+        Nothing -> pure QuietSuccessResult
     
   (GraphOp execOp) -> do
     maybeErr <- C.executeGraphExpr sessionId conn execOp

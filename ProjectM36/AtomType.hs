@@ -264,3 +264,4 @@ prettyAtomType AnyAtomType = "?AnyAtomType?"
 
 prettyAttribute :: Attribute -> T.Text
 prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)
+

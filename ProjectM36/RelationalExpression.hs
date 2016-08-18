@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
@@ -5,19 +6,24 @@ import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AtomType
+import ProjectM36.AtomFunctionBody
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Control.Monad.State hiding (join)
+import Control.Exception
 import Data.Maybe
 import Data.Either
 import Data.Char (isUpper)
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified ProjectM36.TypeConstructorDef as TCD
-import Debug.Trace
+
+import GHC
+import GHC.Paths
+--import Debug.Trace
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
@@ -321,6 +327,45 @@ evalContextExpr (MultipleExpr exprs) = do
   case catMaybes evald of
     [] -> return $ Nothing
     err:_ -> return $ Just err
+             
+evalContextExpr (RemoveAtomFunction funcName) = do
+  currentContext <- get
+  let atomFuncs = atomFunctions currentContext
+      dudFunc = emptyAtomFunction funcName -- just for lookup in the hashset
+  if HS.member dudFunc atomFuncs then do
+    let updatedFuncs = HS.delete dudFunc atomFuncs
+    put (currentContext {atomFunctions = updatedFuncs })
+    pure Nothing
+    else
+      pure (Just (AtomFunctionNameNotInUseError funcName))
+      
+evalDatabaseContextIOExpr :: HscEnv -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
+evalDatabaseContextIOExpr hscEnv currentContext (AddAtomFunction funcName funcType script) = do
+  res <- try $ runGhc (Just libdir) $ do
+    setSession hscEnv
+    let atomFuncs = atomFunctions currentContext
+    --compile the function
+    eCompiledFunc  <- compileAtomFunctionScript script
+    pure $ case eCompiledFunc of
+      Left err -> Left (AtomFunctionBodyScriptError err)
+      Right compiledFunc -> do
+        funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) funcType
+        let updatedFuncs = HS.insert newAtomFunc atomFuncs
+            newContext = currentContext { atomFunctions = updatedFuncs }
+            newAtomFunc = AtomFunction { atomFuncName = funcName,
+                                         atomFuncType = funcAtomType,
+                                         atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
+      
+        -- check if the name is already in use
+        if HS.member newAtomFunc atomFuncs then
+          Left (AtomFunctionNameInUseError funcName)
+          else do
+          Right newContext
+  case res of
+    Left (exc :: SomeException) -> pure $ Left (AtomFunctionBodyScriptError (OtherScriptCompilationError (show exc)))
+    Right eContext -> case eContext of
+      Left err -> pure (Left err)
+      Right context' -> pure (Right context')
     
 updateTupleWithAtomExprs :: (M.Map AttributeName AtomExpr) -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do
@@ -460,7 +505,7 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
   argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) context) arguments
   _ <- mapM (uncurry atomTypeVerify) $ init (zip (atomFuncType func) argTypes)
   evaldArgs <- mapM (evalAtomExpr tupIn context) arguments
-  return $ (atomFunc func) evaldArgs
+  return $ (evalAtomFunction func) evaldArgs
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
   return $ Atom relAtom
@@ -536,7 +581,7 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
       tConss = typeConstructorMapping context
       finalAttrs = fromMaybe tupAttrs attrs
   --verify that the attributes match
-  when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) (traceShow (finalAttrs,tupAttrs) $ Left (TupleAttributeTypeMismatchError tupAttrs))
+  when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) $ Left (TupleAttributeTypeMismatchError tupAttrs)
   tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
   _ <- validateTuple tup' tConss
   pure tup'

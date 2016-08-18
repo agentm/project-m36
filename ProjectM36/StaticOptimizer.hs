@@ -153,6 +153,7 @@ applyStaticDatabaseOptimization notif@(RemoveNotification _) = pure (Right notif
 
 applyStaticDatabaseOptimization c@(AddTypeConstructor _ _) = pure (Right c)
 applyStaticDatabaseOptimization c@(RemoveTypeConstructor _) = pure (Right c)
+applyStaticDatabaseOptimization c@(RemoveAtomFunction _) = pure (Right c)
 
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 

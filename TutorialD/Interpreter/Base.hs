@@ -47,6 +47,9 @@ comma = Token.comma lexer
 pipe :: Parser String
 pipe = Token.symbol lexer "|"
 
+arrow :: Parser String
+arrow = Token.symbol lexer "->"
+
 semi :: Parser String
 semi = Token.semi lexer
 
