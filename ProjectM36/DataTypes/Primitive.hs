@@ -34,3 +34,15 @@ primitiveTypeConstructorMapping = map (\(name, aType) ->
              ("Bool", boolAtomType),
              ("ByteString", byteStringAtomType)
             ]
+
+-- | Return the type of an 'Atom'.
+atomTypeForAtom :: Atom -> AtomType
+atomTypeForAtom (IntAtom _) = IntAtomType
+atomTypeForAtom (DoubleAtom _) = DoubleAtomType
+atomTypeForAtom (TextAtom _) = TextAtomType
+atomTypeForAtom (DayAtom _) = DayAtomType
+atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
+atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
+atomTypeForAtom (BoolAtom _) = BoolAtomType
+atomTypeForAtom (RelationAtom rel) = RelationAtomType (attributes rel)
+atomTypeForAtom (ConstructedAtom _ aType _) = aType
