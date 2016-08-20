@@ -103,8 +103,6 @@ addConstraintP = do
     SubsetOp -> pure subsetA
     EqualityOp -> pure (MultipleExpr [subsetA, subsetB])
   
-  
-  
 deleteConstraintP :: Parser DatabaseContextExpr  
 deleteConstraintP = do
   reserved "deleteconstraint"
@@ -155,6 +153,11 @@ removeTypeConstructorP :: Parser DatabaseContextExpr
 removeTypeConstructorP = do
   reserved "undata"
   RemoveTypeConstructor <$> liftM T.pack identifier 
+  
+removeAtomFunctionP :: Parser DatabaseContextExpr  
+removeAtomFunctionP = do
+  reserved "removeatomfunction"
+  RemoveAtomFunction <$> liftM T.pack quotedString
 
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP

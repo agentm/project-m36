@@ -31,9 +31,6 @@ import Control.Monad.Trans.Either
 import qualified Database.Persist.Types as DPT
 import qualified Data.Set as S
 import qualified Data.Conduit.List as CL
-import Data.Typeable (typeRep, typeOf, Proxy(..))
-import Data.Time.Calendar (Day)
-import Data.ByteString (ByteString)
 import Web.HttpApiData (ToHttpApiData(..), FromHttpApiData(..), parseUrlPieceWithPrefix, readTextData)
 
 type ProjectM36Backend = (C.SessionId, C.Connection)
@@ -55,7 +52,7 @@ recordAttributes entInfo record = do
   let convertAttr = uncurry fieldDefAsAttribute
       idDBName = unDBName $ fieldDB $ entityId (entityDef $ Just record)
   attrList <- mapM convertAttr entInfo
-  return $ V.fromList ([Attribute idDBName textAtomType] ++ attrList)
+  return $ V.fromList ([Attribute idDBName TextAtomType] ++ attrList)
 
 fieldDefAsAttribute :: EmbedFieldDef -> PersistValue -> Either RelationalError Attribute
 fieldDefAsAttribute fieldDef pVal = case persistValueAtomType pVal of
@@ -71,27 +68,23 @@ persistValueAtomType val = do
 
 persistValueAtom :: PersistValue -> Maybe Atom
 persistValueAtom val = case val of
-  PersistText v -> return $ Atom v
-  PersistInt64 v -> return $ Atom ((fromIntegral v)::Int)
-  PersistBool v -> return $ Atom v
-  PersistDay v -> return $ Atom v
+  PersistText v -> return $ TextAtom v
+  PersistInt64 v -> return $ IntAtom ((fromIntegral v)::Int)
+  PersistBool v -> return $ BoolAtom v
+  PersistDay v -> return $ DayAtom v
   _ -> Nothing
 
 atomAsPersistValue :: Atom -> PersistValue
 --constructed atoms are written as text to the database
 atomAsPersistValue atom@(ConstructedAtom _ _ _) = PersistText (atomToText atom)
-atomAsPersistValue atom@(Atom atomv) = if typeRep (Proxy :: Proxy Int) == typeOf atomv then
-                                         PersistInt64 (fromIntegral ((unsafeCast atom) :: Int))
-                                       else if typeRep (Proxy :: Proxy T.Text) == typeOf atomv then
-                                              PersistText (unsafeCast atom)
-                                            else if typeRep (Proxy :: Proxy Bool) == typeOf atomv then
-                                                   PersistBool (unsafeCast atom)
-                                                 else if typeRep (Proxy :: Proxy Day) == typeOf atomv then
-                                                        PersistDay (unsafeCast atom)
-                                                      else if typeRep (Proxy :: Proxy ByteString) == typeOf atomv then
-                                                             PersistByteString (unsafeCast atom)
-                                                           else
-                                                             error "missing conversion"
+atomAsPersistValue (IntAtom i) = PersistInt64 (fromIntegral i)
+atomAsPersistValue (DoubleAtom i) = PersistDouble i
+atomAsPersistValue (TextAtom i) = PersistText i
+atomAsPersistValue (DayAtom i) = PersistDay i
+atomAsPersistValue (DateTimeAtom i) = PersistUTCTime i
+atomAsPersistValue (ByteStringAtom i) = PersistByteString i
+atomAsPersistValue (BoolAtom i) = PersistBool i
+atomAsPersistValue _ = error "Persist: missing conversion"
 
 recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend)
            => Maybe U.UUID -> Attributes -> record -> Either RelationalError (V.Vector Atom)
@@ -103,7 +96,7 @@ recordAsAtoms freshUUID _ record = do
   atoms <- mapM valAtom pValues
   return $ V.fromList $ case freshUUID of
     Nothing -> atoms
-    Just uuid -> [Atom $ T.pack (U.toString uuid)] ++ atoms
+    Just uuid -> [TextAtom $ T.pack (U.toString uuid)] ++ atoms
 
 --used by insert operations
 recordsAsRelation :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend) =>
@@ -182,7 +175,7 @@ commonKeyQueryProperties key = do
       relVarName = unDBName $ entityDB entityInfo
       matchUUIDText = T.pack $ U.toString matchUUID
       entityInfo = entityDefFromKey key
-      restrictionPredicate = AttributeEqualityPredicate keyAttributeName (NakedAtomExpr (Atom matchUUIDText))
+      restrictionPredicate = AttributeEqualityPredicate keyAttributeName (NakedAtomExpr (TextAtom matchUUIDText))
   return (relVarName, restrictionPredicate)
 
 deleteByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ ProjectM36Backend, PersistEntity val) => Key val -> ReaderT ProjectM36Backend m (Bool)

@@ -20,7 +20,7 @@ handleExecuteDatabaseContextExpr sessionId conn dbexpr = do
   
 handleExecuteDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> Process (ProcessReply (Maybe RelationalError) Connection)
 handleExecuteDatabaseContextIOExpr sessionId conn dbexpr = do
-  ret <- executeDatabaseContextIOExpr sessionId conn dbexpr
+  ret <- liftIO $ executeDatabaseContextIOExpr sessionId conn dbexpr
   reply ret conn
   
 handleExecuteHeadName :: SessionId -> Connection -> Process (ProcessReply (Maybe HeadName) Connection)

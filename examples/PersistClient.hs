@@ -27,7 +27,7 @@ errDie out = hPutStrLn stderr out >> exitFailure
 
 defPersonRel :: SessionId -> Connection -> IO ()
 defPersonRel sessionId conn = do
-  let attrList = [Attribute "name" textAtomType, Attribute "age" intAtomType, Attribute "id" textAtomType]
+  let attrList = [Attribute "name" TextAtomType, Attribute "age" IntAtomType, Attribute "id" TextAtomType]
   maybeErr <- executeDatabaseContextExpr sessionId conn (Define "person" (map NakedAttributeExpr attrList))
   case maybeErr of
     Nothing -> return ()

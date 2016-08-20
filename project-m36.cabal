@@ -81,6 +81,8 @@ Library
                      ProjectM36.AtomFunction,
                      ProjectM36.Key,
                      ProjectM36.DatabaseContext,
+                     ProjectM36.DateExamples,
+                     ProjectM36.AtomFunctionBody,		  
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
@@ -109,15 +111,16 @@ Library
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
-                     ProjectM36.TransactionGraph.Merge,
-                     Database.Persist.ProjectM36
+                     ProjectM36.TransactionGraph.Merge
     GHC-Options: -Wall -rtsopts
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4
       Other-Modules: ProjectM36.Win32Handle
     else
-      C-sources: ProjectM36/DirectoryFsync.c
+      C-sources: cbits/DirectoryFsync.c
       Build-Depends: unix
+    CC-Options: -fPIC
+    Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 
@@ -125,6 +128,7 @@ Executable tutd
     Build-Depends: base >=4.8 && <4.9, 
                    ghc >= 7.8 && <= 8.0.1,
                    ghc-paths,
+                   project-m36,
                    containers,
                    unordered-containers,
                    hashable,
@@ -162,55 +166,13 @@ Executable tutd
                    attoparsec,
                    stm-containers,
                    list-t
-    Other-Modules: ProjectM36.Error,
-                   ProjectM36.Base,
-                   ProjectM36.RelationalExpression,
-                   ProjectM36.Transaction,
-                   TutorialD.Interpreter,
+    Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,
                    TutorialD.Interpreter.RODatabaseContextOperator,
                    TutorialD.Interpreter.TransactionGraphOperator,
                    TutorialD.Interpreter.DataTypes.Interval,
                    TutorialD.Interpreter.DataTypes.DateTime,
-                   ProjectM36.Atom,
-                   ProjectM36.AtomFunction,
-                   ProjectM36.AtomFunctions.Basic,
-                   ProjectM36.AtomFunctions.Primitive,
-                   ProjectM36.AtomType,
-                   ProjectM36.Attribute,
-                   ProjectM36.AttributeNames,
-                   ProjectM36.Client,
-                   ProjectM36.ConcreteTypeRep,
-                   ProjectM36.DataConstructorDef,
-                   ProjectM36.DataTypes.Basic,
-                   ProjectM36.DataTypes.Day,
-                   ProjectM36.DataTypes.Either,
-                   ProjectM36.DataTypes.Maybe,
-                   ProjectM36.DataTypes.Primitive,
-                   ProjectM36.DatabaseContext,
-                   ProjectM36.Key,
-                   ProjectM36.MiscUtils,
-                   ProjectM36.Notifications,
-                   ProjectM36.Persist,
-                   ProjectM36.Relation,
-                   ProjectM36.Relation.Parse.CSV,
-                   ProjectM36.Relation.Show.CSV,
-                   ProjectM36.Relation.Show.Gnuplot,
-                   ProjectM36.Relation.Show.Term,
-                   ProjectM36.Server.RemoteCallTypes,
-                   ProjectM36.Session,
-                   ProjectM36.Sessions,
-                   ProjectM36.StaticOptimizer,
-                   ProjectM36.Transaction.Persist,
-                   ProjectM36.TransactionGraph,
-                   ProjectM36.TransactionGraph.Persist,
-                   ProjectM36.Tuple,
-                   ProjectM36.TupleSet,
-                   ProjectM36.TypeConstructor,
-                   ProjectM36.TypeConstructorDef,
-                   ProjectM36.TransactionGraph.Merge,
-                   ProjectM36.DateExamples,
                    TutorialD.Interpreter.Import.BasicExamples,
                    TutorialD.Interpreter.InformationOperator,
                    TutorialD.Interpreter.Export.Base,
@@ -224,18 +186,21 @@ Executable tutd
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     CC-Options: -fPIC
     GHC-Options: -Wall 
+    Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    if os(windows)
-      Build-Depends: Win32 >= 2.3 && < 2.4
-      Other-Modules: ProjectM36.Win32Handle
-    else
-      C-sources: ProjectM36/DirectoryFsync.c
-      Build-Depends: unix
+--    if os(windows)
+--      Build-Depends: Win32 >= 2.3 && < 2.4
+--      Other-Modules: ProjectM36.Win32Handle
+--    else
+--      C-sources: ProjectM36/DirectoryFsync.c
+--      Build-Depends: unix
     
 
 Executable project-m36-server
     Build-Depends: base,
+                   ghc >= 7.8 && <= 8.0.1,
+                   ghc-paths,
                    distributed-process-client-server, 
                    distributed-process-extras, 
                    distributed-process-async, 
@@ -326,7 +291,7 @@ Executable project-m36-server
 Executable bigrel
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers
     Other-Modules: ProjectM36.Base,
                    ProjectM36.Relation
                    ProjectM36.Tuple,
@@ -515,12 +480,10 @@ Test-Suite test-server
       C-sources: ProjectM36/DirectoryFsync.c
       Build-Depends: unix
     
-    
-
 Executable Example-SimpleClient
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, ghc, ghc-paths
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
@@ -573,7 +536,7 @@ Executable Example-SimpleClient
 Executable Example-PersistClient
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, ghc, ghc-paths
     Main-Is: examples/PersistClient.hs
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
@@ -637,16 +600,9 @@ Test-Suite test-scripts
       C-sources: ProjectM36/DirectoryFsync.c
       Build-Depends: unix
 
-Executable dud
-    Default-Language: Haskell2010
-    Build-Depends: ghc >= 7.8 && <= 8.0.1, base, ghc-paths, mtl, haskeline
-    Main-Is: test.hs
-    GHC-Options: -Wall
-    CPP-Options: -DGHCI
-
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, websockets, aeson, uuid-aeson, optparse-applicative
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, persistent, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, websockets, aeson, uuid-aeson, optparse-applicative, ghc, ghc-paths
     Other-Modules: ProjectM36.Atom, ProjectM36.AtomFunction, ProjectM36.AtomFunctions.Basic, ProjectM36.AtomFunctions.Primitive, ProjectM36.AtomType, ProjectM36.Attribute, ProjectM36.AttributeNames, ProjectM36.Base, ProjectM36.Client, ProjectM36.Client.Json, ProjectM36.ConcreteTypeRep, ProjectM36.DataConstructorDef, ProjectM36.DataTypes.Basic, ProjectM36.DataTypes.Day, ProjectM36.DataTypes.Either, ProjectM36.DataTypes.Maybe, ProjectM36.DataTypes.Primitive, ProjectM36.DatabaseContext, ProjectM36.DateExamples, ProjectM36.Error, ProjectM36.Key, ProjectM36.MiscUtils, ProjectM36.Notifications, ProjectM36.Persist, ProjectM36.Relation, ProjectM36.Relation.Parse.CSV, ProjectM36.Relation.Show.CSV, ProjectM36.Relation.Show.Gnuplot, ProjectM36.Relation.Show.Term, ProjectM36.RelationalExpression, ProjectM36.Server, ProjectM36.Server.Config, ProjectM36.Server.EntryPoints, ProjectM36.Server.ParseArgs, ProjectM36.Server.RemoteCallTypes, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, ProjectM36.Session, ProjectM36.Sessions, ProjectM36.StaticOptimizer, ProjectM36.Transaction, ProjectM36.Transaction.Persist, ProjectM36.TransactionGraph, ProjectM36.TransactionGraph.Merge, ProjectM36.TransactionGraph.Persist, ProjectM36.Tuple, ProjectM36.TupleSet, ProjectM36.TypeConstructor, ProjectM36.TypeConstructorDef, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types
     Main-Is: ProjectM36/Server/WebSocket/Main.hs
     GHC-Options: -Wall   

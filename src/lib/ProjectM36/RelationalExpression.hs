@@ -339,13 +339,13 @@ evalContextExpr (RemoveAtomFunction funcName) = do
     else
       pure (Just (AtomFunctionNameNotInUseError funcName))
       
-evalDatabaseContextIOExpr :: HscEnv -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
-evalDatabaseContextIOExpr hscEnv currentContext (AddAtomFunction funcName funcType script) = do
+evalDatabaseContextIOExpr :: ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
+evalDatabaseContextIOExpr scriptSession currentContext (AddAtomFunction funcName funcType script) = do
   res <- try $ runGhc (Just libdir) $ do
-    setSession hscEnv
+    setSession (hscEnv scriptSession)
     let atomFuncs = atomFunctions currentContext
     --compile the function
-    eCompiledFunc  <- compileAtomFunctionScript script
+    eCompiledFunc  <- compileAtomFunctionScript scriptSession script
     pure $ case eCompiledFunc of
       Left err -> Left (AtomFunctionBodyScriptError err)
       Right compiledFunc -> do
