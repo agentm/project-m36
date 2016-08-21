@@ -18,13 +18,13 @@ main = do
 testCSVSuccess :: Test
 testCSVSuccess = TestCase $ do
   let sampleCSV = (encodeUtf8 . T.pack) "S#,CITY,STATUS,SNAME\n\"S8\",\"Boston\",150,\"Mike\"\nS9,Londonderry,170,Perry"
-      expectedAttrs = A.attributesFromList [Attribute "S#" textAtomType, 
-                                            Attribute "SNAME" textAtomType, 
-                                            Attribute "STATUS" intAtomType, 
-                                            Attribute "CITY" textAtomType]
+      expectedAttrs = A.attributesFromList [Attribute "S#" TextAtomType, 
+                                            Attribute "SNAME" TextAtomType, 
+                                            Attribute "STATUS" IntAtomType, 
+                                            Attribute "CITY" TextAtomType]
       expectedRel = mkRelationFromList expectedAttrs [
-        [textAtom "S9", textAtom "Perry", intAtom 170, textAtom "Londonderry"],
-        [textAtom "S8", textAtom "Mike", intAtom 150, textAtom "Boston"]]
+        [TextAtom "S9", TextAtom "Perry", IntAtom 170, TextAtom "Londonderry"],
+        [TextAtom "S8", TextAtom "Mike", IntAtom 150, TextAtom "Boston"]]
   case csvAsRelation sampleCSV expectedAttrs of
     Left err -> assertFailure $ show err
     Right csvRel -> assertEqual "csv->relation" expectedRel (Right csvRel)

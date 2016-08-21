@@ -42,8 +42,8 @@ inProcSettings = InProcessConnectionInfo NoPersistence emptyNotificationCallback
 
 defPersonRel :: SessionId -> Connection -> IO ()
 defPersonRel sessionId conn = do
-    let textTypCons = PrimitiveTypeConstructor "Text" textAtomType
-        intTypCons = PrimitiveTypeConstructor "Int" intAtomType
+    let textTypCons = PrimitiveTypeConstructor "Text" TextAtomType
+        intTypCons = PrimitiveTypeConstructor "Int" IntAtomType
 
     maybeErr <- C.executeDatabaseContextExpr sessionId conn (Define "person" [
                                                                 AttributeAndTypeNameExpr "name" textTypCons,

@@ -5,8 +5,6 @@ import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Parse.CSV
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Relation
-import ProjectM36.Atom
-import ProjectM36.DataTypes.Primitive
 
 main :: IO ()           
 main = do 
@@ -16,13 +14,13 @@ main = do
 --round-trip a basic relation through CSV
 testCSVExport :: Test
 testCSVExport = TestCase $ do
-  let attrs = A.attributesFromList [Attribute "S#" textAtomType, 
-                                    Attribute "SNAME" textAtomType, 
-                                    Attribute "STATUS" intAtomType, 
-                                    Attribute "CITY" textAtomType]
+  let attrs = A.attributesFromList [Attribute "S#" TextAtomType, 
+                                    Attribute "SNAME" TextAtomType, 
+                                    Attribute "STATUS" IntAtomType, 
+                                    Attribute "CITY" TextAtomType]
       relOrErr = mkRelationFromList attrs [
-        [textAtom "S9", textAtom "Perry", intAtom 170, textAtom "Londonderry"],
-        [textAtom "S8", textAtom "Mike", intAtom 150, textAtom "Boston"]]
+        [TextAtom "S9", TextAtom "Perry", IntAtom 170, TextAtom "Londonderry"],
+        [TextAtom "S8", TextAtom "Mike", IntAtom 150, TextAtom "Boston"]]
   case relOrErr of 
     Left err -> assertFailure $ "export relation creation failure: " ++ (show err)
     Right rel -> do

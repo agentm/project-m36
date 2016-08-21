@@ -159,7 +159,7 @@ testUnionPreferMergeStrategy = TestCase $ do
   graph <- basicTransactionGraph
   branchATrans <- assertMaybe (transactionForHead "branchA" graph) "branchATrans"
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "branchBTrans"
-  branchBRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) []  
+  branchBRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) []  
   let branchAContext = (transactionContext branchATrans) {relationVariables = M.insert conflictRelVarName branchARelVar (relationVariables (transactionContext branchATrans))}
       branchARelVar = relationTrue
       branchBContext = (transactionContext branchBTrans) {relationVariables = M.insert conflictRelVarName branchBRelVar (relationVariables (transactionContext branchBTrans))}
@@ -207,7 +207,7 @@ testUnionMergeStrategy = TestCase $ do
       assertEqual "merge transaction relvars" (Just relationTrue) (M.lookup branchBOnlyRelVarName (relationVariables mergeContext))
       assertEqual "merge transaction incdeps" (Just branchAOnlyIncDep) (M.lookup branchAOnlyIncDepName (inclusionDependencies mergeContext)) 
       -- test an expected conflict- add branchBOnlyRelVar with same name but different attributes
-      conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" intAtomType]) []
+      conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) []
       let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName conflictRelVar (relationVariables updatedBranchAContext) }
       conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
       (_, graph''') <- addTransaction "branchA" (Transaction (fakeUUID 6) (TransactionInfo (transactionId conflictBranchATrans) S.empty) conflictContextA) graph''

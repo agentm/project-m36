@@ -17,6 +17,6 @@ testTutdImport = TestCase $ do
   withSystemTempFile "m.tutd" $ \tempPath handle -> do
     hPutStrLn handle "x:=relation{tuple{a 5,b \"spam\"}}"
     hClose handle
-    let expectedExpr = MultipleExpr [Assign "x" (MakeRelationFromExprs Nothing [TupleExpr (M.fromList [("a",NakedAtomExpr $ intAtom 5),("b",NakedAtomExpr $ textAtom "spam")])])]
+    let expectedExpr = MultipleExpr [Assign "x" (MakeRelationFromExprs Nothing [TupleExpr (M.fromList [("a",NakedAtomExpr $ IntAtom 5),("b",NakedAtomExpr $ TextAtom "spam")])])]
     imported <- importTutorialD tempPath
     assertEqual "import tutd" (Right expectedExpr) imported
