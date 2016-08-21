@@ -504,8 +504,13 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
   func <- atomFunctionForName funcName functions
   argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) context) arguments
   _ <- mapM (uncurry atomTypeVerify) $ init (zip (atomFuncType func) argTypes)
-  evaldArgs <- mapM (evalAtomExpr tupIn context) arguments
-  return $ (evalAtomFunction func) evaldArgs
+  let expectedArgCount = length (atomFuncType func) - 1
+      actualArgCount = length argTypes
+  if expectedArgCount /= actualArgCount then
+    Left (AtomFunctionArgumentCountMismatch expectedArgCount actualArgCount)
+    else do
+    evaldArgs <- mapM (evalAtomExpr tupIn context) arguments
+    pure $ (evalAtomFunction func) evaldArgs
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
   return $ RelationAtom relAtom
