@@ -3,7 +3,6 @@
 {- A simple example of using the persistent-ProjectM36 driver. -}
 import Database.Persist.ProjectM36 hiding (executeDatabaseContextExpr)
 import ProjectM36.Client
-import ProjectM36.DataTypes.Primitive
 import System.Exit
 import System.IO
 import Database.Persist

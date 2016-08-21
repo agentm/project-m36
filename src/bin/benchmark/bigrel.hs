@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DateExamples
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
