@@ -1,4 +1,5 @@
 import TutorialD.Interpreter.DatabaseContextExpr
+import TutorialD.Interpreter.TestBase
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import Test.HUnit
@@ -11,7 +12,6 @@ import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.DataTypes.Either
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
-import qualified ProjectM36.Base as Base
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.Session
@@ -191,11 +191,6 @@ transactionJumpTest = TestCase $ do
           --check that the disconnected transaction does not include "x"
           (DisconnectedTransaction _ context') <- disconnectedTransaction sessionId dbconn
           assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables context'))          
-
-maybeFail :: (Show a) => Maybe a -> IO ()
-maybeFail (Just err) = assertFailure (show err)
-maybeFail Nothing = return ()
-
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
@@ -251,23 +246,6 @@ inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) 
 inclusionDependencies _ = error "remote connection used"                       
 -}
                            
-dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
-dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback)
-  let incDeps = Base.inclusionDependencies dateExamples
-  case dbconn of 
-    Left err -> error (show err)
-    Right conn -> do
-      eSessionId <- createSessionAtHead "master" conn
-      case eSessionId of
-        Left err -> error (show err)
-        Right sessionId -> do
-          mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr sessionId conn (Assign rvName (ExistingRelation rvRel))) (M.toList (relationVariables dateExamples))
-          mapM_ (\(idName,incDep) -> executeDatabaseContextExpr sessionId conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
-      --skipping atom functions for now- there are no atom function manipulation operators yet
-          commit sessionId conn >>= maybeFail
-          pure (sessionId, conn)
-
 -- test notifications over the InProcessConnection
 testNotification :: Test
 testNotification = TestCase $ do
@@ -282,20 +260,7 @@ testNotification = TestCase $ do
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
   check' $ commit sess conn
   takeMVar notifmvar
-  
-executeTutorialD :: SessionId -> Connection -> String -> IO ()
-executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
-    Left err -> assertFailure (show tutd ++ ": " ++ show err)
-    Right parsed -> do 
-      result <- evalTutorialD sessionId conn UnsafeEvaluation parsed
-      case result of
-        QuitResult -> assertFailure "quit?"
-        DisplayResult _ -> assertFailure "display?"
-        DisplayIOResult _ -> assertFailure "displayIO?"
-        DisplayRelationResult _ -> assertFailure "displayrelation?"
-        DisplayErrorResult err -> assertFailure (show err)        
-        QuietSuccessResult -> pure ()
-  
+    
 testTypeConstructors :: Test
 testTypeConstructors = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback

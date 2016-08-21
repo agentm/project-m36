@@ -1,6 +1,5 @@
 import Test.HUnit
 import ProjectM36.Base
-import ProjectM36.Atom
 import TutorialD.Interpreter.Import.TutorialD
 import System.Exit
 import System.IO.Temp

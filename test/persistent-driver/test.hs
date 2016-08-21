@@ -10,7 +10,6 @@
 import Test.HUnit
 import Database.Persist.ProjectM36
 import ProjectM36.Client
-import ProjectM36.DataTypes.Primitive
 import qualified ProjectM36.Client as C
 import System.Exit
 import Database.Persist

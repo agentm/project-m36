@@ -3,7 +3,6 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Attribute
 import ProjectM36.Relation
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.Transaction
 import ProjectM36.TransactionGraph
 import ProjectM36.Error
