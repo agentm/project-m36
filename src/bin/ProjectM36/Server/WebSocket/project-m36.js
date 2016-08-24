@@ -110,11 +110,7 @@ ProjectM36Connection.prototype.generateAtomType = function(attr)
     var attrName = attr[0];
     var element = document.createElement("span");
     element.textContent = attrName + "::";
-    if(atomType == "AtomType")
-    {
-	element.textContent += attr[1]["contents"]["serialrep"][0][2];
-    }
-    else if (atomType == "RelationAtomType")
+    if (atomType == "RelationAtomType")
     {
 	var table = document.createElement("table");
 	element.appendChild(table);			       
@@ -133,7 +129,8 @@ ProjectM36Connection.prototype.generateAtomType = function(attr)
     }
     else
     {
-	element.textContent = "unknown";
+	var readableType = atomType.slice(0,-8);
+	element.textContent += readableType;
     }
     return element
 }
