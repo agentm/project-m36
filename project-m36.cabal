@@ -341,6 +341,7 @@ Test-Suite test-persistent-driver
     Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0
     main-is: test/persistent-driver/test.hs
+    Other-Modules: Database.Persist.ProjectM36
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, template-haskell, transformers, aeson, persistent-template, conduit, persistent >= 2.2 && < 2.3, either, path-pieces, http-api-data, stm-containers, list-t, project-m36 == 0.1
     Hs-Source-Dirs: ., src/persistent
     GHC-Options: -Wall
@@ -402,6 +403,7 @@ Executable project-m36-websocket-server
     Default-Language: Haskell2010
     Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, persistent-template, websockets, aeson, uuid-aeson, optparse-applicative, project-m36 == 0.1, containers, bytestring, text, vector, uuid, parsec, haskeline, mtl, directory, base64-bytestring
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
+    Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types
     GHC-Options: -Wall   
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     Hs-Source-Dirs: ./src/bin
@@ -412,7 +414,7 @@ Test-Suite test-websocket-server
     type: exitcode-stdio-1.0
     main-is: test/Server/WebSocket.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, parsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, uuid-aeson, project-m36 == 0.1
-    Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator
+    Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, .
