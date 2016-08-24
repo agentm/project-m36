@@ -357,7 +357,7 @@ evalDatabaseContextIOExpr scriptSession currentContext (AddAtomFunction funcName
                                          atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
       
         -- check if the name is already in use
-        if HS.member newAtomFunc atomFuncs then
+        if HS.member funcName (HS.map atomFuncName atomFuncs) then
           Left (AtomFunctionNameInUseError funcName)
           else do
           Right newContext
