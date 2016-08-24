@@ -272,7 +272,7 @@ Test-Suite test-tutoriald
     Hs-Source-Dirs: ./src/bin, ., test
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
-Test-Suite test-atomfunctionbody
+Test-Suite test-tutoriald-atomfunctionscript
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     type: exitcode-stdio-1.0

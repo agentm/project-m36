@@ -14,6 +14,14 @@ import System.IO
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
 
+displayOpResult :: TutorialDOperatorResult -> IO ()
+displayOpResult QuitResult = return ()
+displayOpResult (DisplayResult out) = TIO.putStrLn out
+displayOpResult (DisplayIOResult ioout) = ioout
+displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
+displayOpResult QuietSuccessResult = return ()
+displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
+
 lexer :: Token.TokenParser ()
 lexer = Token.makeTokenParser tutD
         where tutD = emptyDef {
@@ -46,6 +54,12 @@ comma = Token.comma lexer
 
 pipe :: Parser String
 pipe = Token.symbol lexer "|"
+
+quote :: Parser String
+quote = Token.symbol lexer "\""
+
+tripleQuote :: Parser String
+tripleQuote = Token.symbol lexer "\"\"\""
 
 arrow :: Parser String
 arrow = Token.symbol lexer "->"
@@ -92,18 +106,42 @@ data TutorialDOperatorResult = QuitResult |
                                
 type TransactionGraphWasUpdated = Bool
 
-displayOpResult :: TutorialDOperatorResult -> IO ()
-displayOpResult QuitResult = return ()
-displayOpResult (DisplayResult out) = TIO.putStrLn out
-displayOpResult (DisplayIOResult ioout) = ioout
-displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " `T.append` err)
-displayOpResult QuietSuccessResult = return ()
-displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
-
+{-
 quotedChar :: Parser Char
 quotedChar = noneOf "\""
            <|> try (string "\"\"" >> return '"')
 
 quotedString :: Parser String
 quotedString = string "\"" *> many quotedChar <* string "\"" <* whiteSpace
+-}
+escapedString :: Parser String
+escapedString = do
+  _ <- char '\\'
+  let lookupAssoc = [('n',"\n"), ('\"',"\""), ('\\', "\\")]
+  c <- oneOf "\\\"n" -- all the characters which can be escaped
+  case lookup c lookupAssoc of
+    Just v -> pure v
+    Nothing -> fail "failed to handle escaped character"
+                   
+--http://stackoverflow.com/questions/24106314/parser-for-quoted-string-using-parsec
+nonEscapedChar :: Parser Char
+nonEscapedChar = noneOf "\\\""
 
+character :: Parser String
+character = fmap return nonEscapedChar <|> escapedString
+
+--allow for python-style triple quoting because guessing the correct amount of escapes in different contexts is annoying
+tripleQuotedString :: Parser String
+tripleQuotedString = do
+  _ <- tripleQuote
+  manyTill anyChar (try (tripleQuote >> notFollowedBy quote))
+  
+normalQuotedString :: Parser String
+normalQuotedString = do
+  _ <- quote
+  strings <- many character
+  _ <- quote
+  pure (concat strings)
+
+quotedString :: Parser String
+quotedString = try tripleQuotedString <|> normalQuotedString

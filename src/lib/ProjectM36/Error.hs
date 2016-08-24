@@ -69,6 +69,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NotificationNameNotInUseError NotificationName
                      | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
                      | ExportError T.Text
+                     | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | AtomFunctionBodyScriptError AtomFunctionBodyCompilationError
                      | MultipleErrors [RelationalError]

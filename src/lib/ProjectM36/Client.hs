@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables #-}
 module ProjectM36.Client
        (ConnectionInfo(..),
        Connection(..),
@@ -76,7 +76,7 @@ import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
-import Control.Exception (IOException)
+import Control.Exception (IOException, SomeException(..), handle)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
@@ -88,6 +88,7 @@ import ProjectM36.Sessions
 import ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
+import Control.DeepSeq (force)
 --import Debug.Trace
 
 type Hostname = String
@@ -206,7 +207,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
   eLocalNode <- commonLocalNode
   notificationListenerPid <- startNotificationListener notificationCallback
   let dbName = remoteDBLookupName databaseName
-  putStrLn $ show serverNodeId ++ " " ++ dbName
+  --putStrLn $ show serverNodeId ++ " " ++ dbName
   case eLocalNode of
     Left err -> pure (Left err)
     Right localNode -> do
@@ -301,6 +302,19 @@ close (RemoteProcessConnection localNode serverProcessId) = do
   runProcessResult localNode $ do
     call serverProcessId Logout
       
+--within the database server, we must catch and handle all exception lest they take down the database process- this handling might be different for other use-cases
+--exceptions should generally *NOT* be thrown from any Project:M36 code paths, but third-party code such as AtomFunction scripts could conceivably throw undefined, etc.
+
+excMaybe :: IO (Maybe RelationalError) -> IO (Maybe RelationalError)
+excMaybe m = handle handler m
+  where
+    handler (exc :: SomeException) = pure (Just (UnhandledExceptionError (show exc)))
+    
+excEither :: IO (Either RelationalError a) -> IO (Either RelationalError a)
+excEither m = handle handler m
+  where
+    handler (exc :: SomeException) = pure (Left (UnhandledExceptionError (show exc)))
+      
 runProcessResult :: LocalNode -> Process a -> IO a      
 runProcessResult localNode proc = do
   ret <- newEmptyMVar
@@ -324,32 +338,36 @@ sessionForSessionId sessionId sessions = do
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = atomically $ do
+executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excEither $ atomically $ do
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right (Session (DisconnectedTransaction _ context)) -> pure $ evalState (RE.evalRelationalExpr expr) context
+    Right (Session (DisconnectedTransaction _ context)) -> case evalState (RE.evalRelationalExpr expr) context of
+      Left err -> pure (Left err)
+      Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
   
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
-executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr = atomically $ do
+executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excMaybe $ atomically $ do
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
     Left err -> pure $ Just err
-    Right session -> case runState (RE.evalContextExpr expr) (sessionContext session) of
-      (Just err,_) -> return $ Just err
-      (Nothing, context') -> do
-         let newDiscon = DisconnectedTransaction (sessionParentId session) context'
-             newSession = Session newDiscon
-         STMMap.insert newSession sessionId sessions
-         return Nothing
+    Right session -> do
+      case runState (RE.evalContextExpr expr) (sessionContext session) of
+        (Just err,_) -> return $ Just err
+        (Nothing, context') -> do
+          let newDiscon = DisconnectedTransaction (sessionParentId session) context'
+              newSession = Session newDiscon
+          STMMap.insert newSession sessionId sessions
+          pure Nothing
+      
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
 --this is almost completely identical to executeDatabaseContextExpr above
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Maybe RelationalError)
-executeDatabaseContextIOExpr sessionId (InProcessConnection _ _ sessions _ scriptSession) expr = do
+executeDatabaseContextIOExpr sessionId (InProcessConnection _ _ sessions _ scriptSession) expr = excMaybe $ do
   eSession <- atomically $ sessionForSessionId sessionId sessions --potentially race condition due to interleaved IO?
   case eSession of
     Left err -> pure $ Just err
@@ -390,7 +408,7 @@ executeCommitExprSTM_ oldContext newContext nodes = do
 
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
-executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graphTvar _) graphExpr = do
+executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graphTvar _) graphExpr = excMaybe $ do
   freshId <- nextRandom
   manip <- atomically $ do
     eSession <- sessionForSessionId sessionId sessions
