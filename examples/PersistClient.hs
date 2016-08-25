@@ -35,7 +35,7 @@ defPersonRel sessionId conn = do
 main :: IO ()
 main = do
   --1. create the database connection
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
   withProjectM36Conn connInfo $ runProjectM36Conn $ do
     --2. use the underlying client connection and session to define a relation variable
     (sessionId, conn) <- ask
