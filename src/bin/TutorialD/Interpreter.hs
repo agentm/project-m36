@@ -166,7 +166,8 @@ evalTutorialD sessionId conn safe expr = case expr of
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName|
+type GhcPkgPath = String  
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName [GhcPkgPath] |
                          RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName
 
 outputNotificationCallback :: C.NotificationCallback

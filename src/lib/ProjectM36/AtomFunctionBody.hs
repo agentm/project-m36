@@ -15,6 +15,7 @@ import DynFlags
 import Outputable hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
+import System.FilePath.Glob
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
@@ -22,25 +23,31 @@ data ScriptSession = ScriptSession {
   }
 
 -- | Configure a GHC environment/session which we will use for all script compilation.
-initScriptSession :: IO ScriptSession
-initScriptSession = runGhc (Just libdir) $ do
-  dflags <- getSessionDynFlags
-  let dflags' = dflags { hscTarget = HscInterpreted , 
-                         ghcLink = LinkInMemory, 
-                         safeHaskell = Sf_Trustworthy,
-                         safeInfer = True,
-                         safeInferred = True,
-                         --trustFlags = [TrustPackage "base"] -- new in 8
-                         packageFlags = (packageFlags dflags) ++ packages,
-                         extraPkgConfs = const [GlobalPkgConf, PkgConfFile "/home/agentm/Dev/project-m36/.cabal-sandbox/x86_64-linux-ghc-7.10.3-packages.conf.d/"] --different in 8
+initScriptSession :: [String] -> IO ScriptSession
+initScriptSession ghcPkgPaths = do
+    --for the sake of convenience, for developers' builds, include the local cabal sandbox pacakge database
+  sandboxPkgPaths <- liftIO (glob ".cabal-sandbox/*packages.conf.d")
+  runGhc (Just libdir) $ do
+    dflags <- getSessionDynFlags
+    let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
+      
+    let dflags' = dflags { hscTarget = HscInterpreted , 
+                           ghcLink = LinkInMemory, 
+                           safeHaskell = Sf_Trustworthy,
+                           safeInfer = True,
+                           safeInferred = True,
+                           --trustFlags = [TrustPackage "base"] -- new in 8
+                           packageFlags = (packageFlags dflags) ++ packages,
+                           extraPkgConfs = const ([GlobalPkgConf, UserPkgConf] ++ localPkgPaths)
                          }
                 `xopt_set` Opt_ExtendedDefaultRules
                 `xopt_set` Opt_ImplicitPrelude
+                `xopt_set` Opt_OverloadedStrings
                 `gopt_set` Opt_DistrustAllPackages 
                 `xopt_set` Opt_ScopedTypeVariables
                 `gopt_set` Opt_PackageTrust
                 --`gopt_set` Opt_ImplicitImportQualified
-      packages = map TrustPackage ["base", 
+        packages = map TrustPackage ["base", 
                                    "containers",
                                    "unordered-containers",
                                    "hashable",
@@ -52,24 +59,25 @@ initScriptSession = runGhc (Just libdir) $ do
                                    "time",
                                    "project-m36",
                                    "bytestring"] -- package flags changed in 8.0
-  _ <- setSessionDynFlags dflags'
-  let safeImportDecl mn = ImportDecl {
-        ideclSourceSrc = Nothing,
-        ideclName      = noLoc mn,
-        ideclPkgQual   = Nothing,
-        ideclSource    = False,
-        ideclSafe      = True,
-        ideclImplicit  = False,
-        ideclQualified = False,
-        ideclAs        = Nothing,
-        ideclHiding    = Nothing
-        }
-  setContext (map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn))
-              ["Prelude",
-               "ProjectM36.Base"])
-  env <- getSession
-  fType <- mkAtomFunctionBodyType
-  pure (ScriptSession env fType)
+    _ <- setSessionDynFlags dflags'
+    let safeImportDecl mn = ImportDecl {
+          ideclSourceSrc = Nothing,
+          ideclName      = noLoc mn,
+          ideclPkgQual   = Nothing,
+          ideclSource    = False,
+          ideclSafe      = True,
+          ideclImplicit  = False,
+          ideclQualified = False,
+          ideclAs        = Nothing,
+          ideclHiding    = Nothing
+          }
+    setContext (map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn))
+                ["Prelude",
+                 "Data.Map",
+                 "ProjectM36.Base"])
+    env <- getSession
+    fType <- mkAtomFunctionBodyType
+    pure (ScriptSession env fType)
       
 mkAtomFunctionBodyType :: Ghc Type      
 mkAtomFunctionBodyType = do

@@ -7,7 +7,7 @@ import Options.Applicative
 import System.Exit
 
 parseArgs :: Parser InterpreterConfig
-parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <|>
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseGhcPkgPaths <|>
             RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
@@ -44,18 +44,28 @@ parseNodeId = createNodeId <$>
                            short 'p' <>
                       help "Remote port" <>
                       value defaultServerPort)
+              
+parseGhcPkgPaths :: Parser [GhcPkgPath]              
+parseGhcPkgPaths = many (strOption (long "ghc-pkg-dir" <>
+                                    metavar "GHC_PACKAGE_DIRECTORY"))
 
 opts :: ParserInfo InterpreterConfig            
 opts = info parseArgs idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _) = InProcessConnectionInfo pStrategy outputNotificationCallback
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ ghcPkgPaths) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
 connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
-headNameForConfig (LocalInterpreterConfig _ headn) = headn
+headNameForConfig (LocalInterpreterConfig _ headn _) = headn
 headNameForConfig (RemoteInterpreterConfig _ _ headn) = headn
-                           
+
+{-
+ghcPkgPathsForConfig :: InterpreterConfig -> [GhcPkgPath]
+ghcPkgPathsForConfig (LocalInterpreterConfig _ _ paths) = paths
+ghcPkgPathsForConfig _ = error "Clients cannot configure remote ghc package paths."
+-}
+                         
 errDie :: String -> IO ()                                                           
 errDie err = hPutStrLn stderr err >> exitFailure
 

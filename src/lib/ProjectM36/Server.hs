@@ -65,7 +65,7 @@ loggingNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification 
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar Port) -> IO (Bool)
 launchServer daemonConfig mPortMVar = do  
-  econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback)
+  econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
   case econn of 
     Left err -> do      
       hPutStrLn stderr ("Failed to create database connection: " ++ show err)

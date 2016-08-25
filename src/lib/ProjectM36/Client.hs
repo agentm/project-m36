@@ -76,7 +76,7 @@ import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
-import Control.Exception (IOException, SomeException(..), handle)
+import Control.Exception (IOException, SomeException(..), handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
@@ -104,8 +104,10 @@ type NotificationCallback = NotificationName -> EvaluatedNotification -> IO ()
 emptyNotificationCallback :: NotificationCallback
 emptyNotificationCallback _ _ = pure ()
 
+type GhcPkgPath = String
+
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback |
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath]|
                       RemoteProcessConnectionInfo DatabaseName NodeId NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
@@ -134,7 +136,7 @@ defaultHeadName :: HeadName
 defaultHeadName = "master"
 
 defaultRemoteConnectionInfo :: ConnectionInfo
-defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback
+defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback 
 
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 type ClientNodes = STMSet.Set ProcessId
@@ -151,7 +153,6 @@ data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                   
 remoteDBLookupName :: DatabaseName -> String    
 remoteDBLookupName = (++) "db-" 
-
 
 commonLocalNode :: IO (Either ConnectionError LocalNode)
 commonLocalNode = do
@@ -184,7 +185,7 @@ startNotificationListener callback = do
 -- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
   freshId <- nextRandom
   let bootstrapContext = basicDatabaseContext 
       freshGraph = bootstrapTransactionGraph freshId bootstrapContext
@@ -195,12 +196,12 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback) = do
         clientNodes <- STMSet.newIO
         sessions <- STMMap.newIO
         notificationPid <- startNotificationListener notificationCallback
-        interpreterSession <- initScriptSession
+        interpreterSession <- initScriptSession ghcPkgPaths
         let conn = InProcessConnection strat clientNodes sessions graphTvar interpreterSession
         addClientNode conn notificationPid
         pure (Right conn)
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback 
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback 
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
         
 connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notificationCallback) = do
   connStatus <- newEmptyMVar
@@ -229,8 +230,9 @@ connectPersistentProjectM36 :: PersistenceStrategy ->
                                FilePath -> 
                                TransactionGraph ->
                                NotificationCallback ->
+                               [GhcPkgPath] -> 
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback = do
+connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Just err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -242,7 +244,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback = d
           tvarGraph <- newTVarIO graph'
           sessions <- STMMap.newIO
           clientNodes <- STMSet.newIO
-          scriptSession <- initScriptSession
+          scriptSession <- initScriptSession ghcPkgPaths
           let conn = InProcessConnection strat clientNodes sessions tvarGraph scriptSession
           notificationPid <- startNotificationListener notificationCallback 
           addClientNode conn notificationPid
@@ -308,12 +310,14 @@ close (RemoteProcessConnection localNode serverProcessId) = do
 excMaybe :: IO (Maybe RelationalError) -> IO (Maybe RelationalError)
 excMaybe m = handle handler m
   where
-    handler (exc :: SomeException) = pure (Just (UnhandledExceptionError (show exc)))
-    
+    handler exc | Just (_ :: AsyncException) <- fromException exc = throwIO exc
+                | otherwise = pure (Just (UnhandledExceptionError (show exc)))
+                    
 excEither :: IO (Either RelationalError a) -> IO (Either RelationalError a)
 excEither m = handle handler m
   where
-    handler (exc :: SomeException) = pure (Left (UnhandledExceptionError (show exc)))
+    handler exc | Just (_ :: AsyncException) <- fromException exc = throwIO exc
+                | otherwise = pure (Left (UnhandledExceptionError (show exc)))
       
 runProcessResult :: LocalNode -> Process a -> IO a      
 runProcessResult localNode proc = do

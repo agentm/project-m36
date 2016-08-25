@@ -9,7 +9,7 @@ import qualified Data.Map as M
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback)
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [])
   let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> error (show err)

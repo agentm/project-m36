@@ -5,7 +5,7 @@ import Options.Applicative
 import ProjectM36.Server.Config
 
 parseArgs :: Parser ServerConfig
-parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort
+parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> parseGhcPkgPaths
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -37,7 +37,12 @@ parsePort = option auto (short 'p' <>
                          long "port" <>
                          metavar "PORT_NUMBER" <>
                          value (bindPort defaultServerConfig))
+            
+parseGhcPkgPaths :: Parser [String]
+parseGhcPkgPaths = option auto (long "ghc-pkg-dir" <>
+                                metavar "GHC_PACKAGE_DIRECTORY")
 
 parseConfig :: IO ServerConfig
 parseConfig = execParser $ info parseArgs idm
   
+              

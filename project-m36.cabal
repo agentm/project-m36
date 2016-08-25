@@ -68,6 +68,7 @@ Library
                    ,stm-containers
                    ,list-t
                    ,optparse-applicative
+                   ,Glob
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
