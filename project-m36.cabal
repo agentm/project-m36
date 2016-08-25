@@ -183,6 +183,7 @@ Executable tutd
                    TutorialD.Interpreter.InformationOperator,
                    TutorialD.Interpreter.Export.Base,
                    TutorialD.Interpreter.Export.CSV,
+                   TutorialD.Interpreter.DatabaseContextIOOperator,
                    TutorialD.Interpreter.Import.Base,
                    TutorialD.Interpreter.Import.CSV,
                    TutorialD.Interpreter.Import.TutorialD,
