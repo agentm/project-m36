@@ -11,7 +11,9 @@ import qualified Data.Map as M
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList [testBasicAtomFunction,
-                                  testErrorAtomFunction])
+                                  testErrorAtomFunction,
+                                  testNoArgumentAtomFunction
+                                  ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 --add an atom function and run it
@@ -42,7 +44,7 @@ testErrorAtomFunction = TestCase $ do
 testNoArgumentAtomFunction :: Test
 testNoArgumentAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Int \"\"\"\\(x :: [Atom]) -> IntAtom 5\"\"\""
+  executeTutorialD sess conn "addatomfunction \"mkTest\" Int \"\"\"\\(x :: [Atom]) -> IntAtom 5\"\"\""
   let attrs = [Attribute "x" IntAtomType]
       funcAtomExpr = FunctionAtomExpr  "mkTest" []
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
