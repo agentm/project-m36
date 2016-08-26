@@ -18,7 +18,6 @@ Library
                    ,mtl
                    ,containers
                    ,unordered-containers
-                   ,parsec
                    ,hashable
                    ,haskeline
                    ,directory
@@ -166,6 +165,7 @@ Executable tutd
                    filepath,
                    temporary,
                    parsec,
+                   megaparsec,
                    haskeline,
                    base64-bytestring,
                    optparse-applicative,

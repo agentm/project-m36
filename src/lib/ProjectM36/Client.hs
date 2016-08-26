@@ -76,7 +76,7 @@ import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
-import Control.Exception (IOException, SomeException(..), handle, AsyncException, throwIO, fromException, Exception)
+import Control.Exception (IOException, handle, AsyncException, throwIO, fromException)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
