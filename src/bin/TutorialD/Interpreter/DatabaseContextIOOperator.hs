@@ -4,42 +4,16 @@ import ProjectM36.Base
 
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
-import Text.Parsec
-import Text.Parsec.String
-import Data.Text
-import Control.Monad
+import Text.Megaparsec
+import Text.Megaparsec.Text
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
 addAtomFunctionExprP = do
   reserved "addatomfunction"
-  funcName <- liftM pack quotedString
+  funcName <- quotedString
   funcType <- atomTypeSignatureP
-  funcScript <- liftM pack quotedString
+  funcScript <- quotedString
   pure $ AddAtomFunction funcName funcType funcScript
   
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
-
-{-
-evalDatabaseContextIOOp :: HscEnv -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContextIOExpr)
-evalDatabaseContextIOOp env context addfunc@(AddAtomFunction _ _ _) = do
-  evalDatabaseContextIOExpr context 
-  result <- runGhc (Just libdir) $ do
-    setSession env
-    ret <- typeCheckAtomFunctionScript script
-    case ret of
-      Just err -> pure (Left err)
-      Nothing -> do
-        eBody <- compileAtomFunctionScript script
-        case eBody of 
-          Left err -> pure (Left err)
-          Right func -> let atomFunc = AtomFunction {
-                              atomFuncName = funcName, 
-                              atomFuncType = funcType,
-                              atomFuncBody = AtomFunctionBody (Just script) func } in
-                        --actually add the func
-                        pure $ Right context
-  case result of 
-    Left err -> Left (AtomFunctionBodyScriptError err)
-    Right context -> pure (Right context)
--}

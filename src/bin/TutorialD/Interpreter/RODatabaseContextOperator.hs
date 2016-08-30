@@ -2,8 +2,8 @@
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
 import qualified ProjectM36.Client as C
-import Text.Parsec
-import Text.Parsec.String
+import Text.Megaparsec
+import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
@@ -58,7 +58,7 @@ showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
   reservedOp ":constraints"
   constraintName <- option "" identifier
-  return $ ShowConstraint (T.pack constraintName)
+  return $ ShowConstraint constraintName
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
@@ -128,7 +128,7 @@ evalRODatabaseContextOp sessionId conn ShowRelationVariables = do
   
 evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
 
-interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> String -> IO TutorialDOperatorResult
+interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
 interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed

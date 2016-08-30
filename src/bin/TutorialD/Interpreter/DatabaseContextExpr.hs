@@ -1,6 +1,6 @@
 module TutorialD.Interpreter.DatabaseContextExpr where
-import Text.Parsec
-import Text.Parsec.String
+import Text.Megaparsec
+import Text.Megaparsec.Text
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
@@ -9,9 +9,11 @@ import TutorialD.Interpreter.Types
 import qualified Data.Map as M
 import Control.Monad.State
 import ProjectM36.StaticOptimizer
+import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Key
+import Data.Monoid
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseExprP :: Parser DatabaseContextExpr
@@ -34,7 +36,7 @@ commentP :: Parser DatabaseContextExpr
 commentP = reserved "--" >> manyTill anyChar eof >> pure NoOperation
             
 nothingP :: Parser DatabaseContextExpr            
-nothingP = whiteSpace >> pure NoOperation
+nothingP = spaceConsumer >> pure NoOperation
 
 assignP :: Parser DatabaseContextExpr
 assignP = do
@@ -43,19 +45,19 @@ assignP = do
     reservedOp ":="
     return relVarName
   expr <- relExprP
-  return $ Assign (T.pack relVarName) expr
+  pure $ Assign relVarName expr
 
 multipleDatabaseContextExprP :: Parser DatabaseContextExpr
 multipleDatabaseContextExprP = do
   exprs <- sepBy1 databaseExprP semi
-  return $ MultipleExpr exprs
+  pure $ MultipleExpr exprs
 
 insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"
   relvar <- identifier
   expr <- relExprP
-  return $ Insert (T.pack relvar) expr
+  pure $ Insert relvar expr
 
 defineP :: Parser DatabaseContextExpr
 defineP = do
@@ -64,28 +66,28 @@ defineP = do
     reservedOp "::"
     return relVarName
   attributeSet <- makeAttributeExprsP
-  return $ Define (T.pack relVarName) attributeSet
+  pure $ Define relVarName attributeSet
 
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
   relVarName <- identifier
-  return $ Undefine (T.pack relVarName)
+  return $ Undefine relVarName
 
 deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
   relVarName <- identifier
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
-  return $ Delete (T.pack relVarName) predicate
+  return $ Delete relVarName predicate
 
 updateP :: Parser DatabaseContextExpr
 updateP = do
   reservedOp "update"
   relVarName <- identifier
-  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaces)
+  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaceConsumer)
   attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignmentP comma)
-  return $ Update (T.pack relVarName) (M.mapKeys T.pack $ attributeAssignments) predicate
+  return $ Update relVarName attributeAssignments predicate
 
 data IncDepOp = SubsetOp | EqualityOp
 
@@ -97,8 +99,8 @@ addConstraintP = do
   op <- (reservedOp "in" *> pure SubsetOp) <|> (reservedOp "equals" *> pure EqualityOp)
   superset <- relExprP
   let subsetA = incDepSet constraintName subset superset
-      subsetB = incDepSet (constraintName ++ "_eqInvert") superset subset --inverted args for equality constraint
-      incDepSet nam a b = AddInclusionDependency (T.pack nam) (InclusionDependency a b)
+      subsetB = incDepSet (constraintName <> "_eqInvert") superset subset --inverted args for equality constraint
+      incDepSet nam a b = AddInclusionDependency nam (InclusionDependency a b)
   case op of
     SubsetOp -> pure subsetA
     EqualityOp -> pure (MultipleExpr [subsetA, subsetB])
@@ -107,7 +109,7 @@ deleteConstraintP :: Parser DatabaseContextExpr
 deleteConstraintP = do
   reserved "deleteconstraint"
   constraintName <- identifier
-  return $ RemoveInclusionDependency (T.pack constraintName)
+  pure $ RemoveInclusionDependency constraintName
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
 keyP :: Parser DatabaseContextExpr  
@@ -117,14 +119,14 @@ keyP = do
   uniquenessAttrNames <- braces attributeListP
   uniquenessExpr <- relExprP
   let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
-  return $ AddInclusionDependency (T.pack keyName) newIncDep
+  pure $ AddInclusionDependency keyName newIncDep
   
-attributeAssignmentP :: Parser (String, AtomExpr)
+attributeAssignmentP :: Parser (AttributeName, AtomExpr)
 attributeAssignmentP = do
   attrName <- identifier
   reservedOp ":="
   atomExpr <- atomExprP
-  return $ (attrName, atomExpr)
+  pure $ (attrName, atomExpr)
   
 addNotificationP :: Parser DatabaseContextExpr
 addNotificationP = do
@@ -132,13 +134,13 @@ addNotificationP = do
   notName <- identifier
   triggerExpr <- relExprP 
   resultExpr <- relExprP
-  return $ AddNotification (T.pack notName) triggerExpr resultExpr
+  pure $ AddNotification notName triggerExpr resultExpr
   
 removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do
   reserved "unnotify"
   notName <- identifier
-  return $ RemoveNotification (T.pack notName)
+  pure $ RemoveNotification notName
 
 -- | data Hair = Bald | Color Text
 addTypeConstructorP :: Parser DatabaseContextExpr
@@ -152,12 +154,12 @@ addTypeConstructorP = do
 removeTypeConstructorP :: Parser DatabaseContextExpr
 removeTypeConstructorP = do
   reserved "undata"
-  RemoveTypeConstructor <$> liftM T.pack identifier 
+  RemoveTypeConstructor <$> identifier 
   
 removeAtomFunctionP :: Parser DatabaseContextExpr  
 removeAtomFunctionP = do
   reserved "removeatomfunction"
-  RemoveAtomFunction <$> liftM T.pack quotedString
+  RemoveAtomFunction <$> quotedString
 
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP
@@ -170,9 +172,9 @@ evalDatabaseContextExpr useOptimizer context expr = do
         (Just err, _) -> Left err
 
 
-interpretDatabaseContextExpr :: DatabaseContext -> String -> Either RelationalError DatabaseContext
+interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
-                                    Left err -> Left $ ParseError (T.pack (show err))
+                                    Left err -> Left $ PM36E.ParseError (T.pack (show err))
                                     Right parsed -> evalDatabaseContextExpr True context parsed
 
 {-

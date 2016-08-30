@@ -5,7 +5,7 @@ import ProjectM36.Error
 import ProjectM36.Relation.Parse.CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as T
-import Text.Parsec.String
+import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import Control.Exception
 
@@ -23,7 +23,7 @@ importCSVP :: Parser RelVarDataImportOperator
 importCSVP = do
   reserved ":importcsv"
   path <- quotedString
-  whiteSpace
+  spaceConsumer
   relVarName <- identifier
-  return $ RelVarDataImportOperator (T.pack relVarName) path importCSVRelation
+  return $ RelVarDataImportOperator relVarName (T.unpack path) importCSVRelation
   

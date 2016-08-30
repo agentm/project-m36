@@ -21,8 +21,8 @@ import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
-import Text.Parsec
-import Text.Parsec.String
+import Text.Megaparsec
+import Text.Megaparsec.Text
 import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
@@ -68,11 +68,11 @@ promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
   where
     transInfo = fromMaybe "<unknown>" mHeadName
           
-parseTutorialD :: String -> Either ParseError ParsedOperation
+parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: String -> Either ParseError ParsedOperation
+safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
@@ -187,9 +187,10 @@ reprLoop config sessionId conn = do
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-      case parseTutorialD line of
+      case parseTutorialD (T.pack line) of
         Left err -> do
-          displayOpResult $ DisplayErrorResult (T.pack (show err))
+          let strErr = parseErrorPretty err
+          displayOpResult $ DisplayErrorResult (T.pack strErr)
         Right parsed -> do 
           evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
           displayOpResult evald

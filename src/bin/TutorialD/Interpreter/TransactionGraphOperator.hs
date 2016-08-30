@@ -1,10 +1,9 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
-import Text.Parsec
-import Text.Parsec.String
+import Text.Megaparsec.Text
+import Text.Megaparsec
 import qualified Data.UUID as U
-import qualified Data.Text as T
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.Error
@@ -14,7 +13,7 @@ jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
   headid <- identifier
-  return $ JumpToHead (T.pack headid)
+  return $ JumpToHead headid
 
 jumpToTransactionP :: Parser TransactionGraphOperator
 jumpToTransactionP = do
@@ -26,7 +25,7 @@ branchTransactionP :: Parser TransactionGraphOperator
 branchTransactionP = do
   reservedOp ":branch"
   branchName <- identifier
-  return $ Branch (T.pack branchName)
+  return $ Branch branchName
 
 commitTransactionP :: Parser TransactionGraphOperator
 commitTransactionP = do
@@ -48,11 +47,11 @@ mergeTransactionStrategyP = (reserved "union" *> pure UnionMergeStrategy) <|>
                             (do
                                 reserved "selectedbranch"
                                 branch <- identifier
-                                pure (SelectedBranchMergeStrategy (T.pack branch))) <|>
+                                pure (SelectedBranchMergeStrategy branch)) <|>
                             (do
                                 reserved "unionpreferbranch"
                                 branch <- identifier
-                                pure (UnionPreferMergeStrategy (T.pack branch)))
+                                pure (UnionPreferMergeStrategy branch))
   
 mergeTransactionsP :: Parser TransactionGraphOperator
 mergeTransactionsP = do
@@ -60,7 +59,7 @@ mergeTransactionsP = do
   strategy <- mergeTransactionStrategyP
   headA <- identifier
   headB <- identifier
-  pure (MergeTransactions strategy (T.pack headA) (T.pack headB))
+  pure (MergeTransactions strategy headA headB)
 
 transactionGraphOpP :: Parser TransactionGraphOperator
 transactionGraphOpP = do
@@ -76,7 +75,7 @@ roTransactionGraphOpP = showGraphP
 
 uuidP :: Parser U.UUID
 uuidP = do
-  uuidStr <- many (alphaNum <|> char '-')
+  uuidStr <- many (alphaNumChar <|> char '-')
   case U.fromString uuidStr of
     Nothing -> fail "Invalid uuid string"
     Just uuid -> return uuid

@@ -5,7 +5,7 @@ import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Base
 import ProjectM36.Base
 import ProjectM36.Error
-import Text.Parsec.String
+import Text.Megaparsec.Text
 import qualified Data.ByteString.Lazy as BS
 import Control.Exception (try)
 import qualified Data.Text as T
@@ -15,7 +15,7 @@ exportCSVP = do
   reserved ":exportcsv"
   exportExpr <- relExprP
   path <- quotedString
-  return $ RelVarDataExportOperator exportExpr path exportRelationCSV 
+  return $ RelVarDataExportOperator exportExpr (T.unpack path) exportRelationCSV 
                                
 exportRelationCSV :: RelVarDataExportOperator -> Relation -> IO (Maybe RelationalError)
 exportRelationCSV (RelVarDataExportOperator _  pathOut _) rel = do

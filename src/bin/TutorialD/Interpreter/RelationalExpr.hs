@@ -1,25 +1,24 @@
 module TutorialD.Interpreter.RelationalExpr where
-import Text.Parsec
-import Text.Parsec.Expr
+import Text.Megaparsec
+import Text.Megaparsec.Expr
 import ProjectM36.Base
-import Text.Parsec.String
+import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (sort)
-import Data.Functor.Identity (Identity)
 import Control.Applicative (liftA)
 import ProjectM36.MiscUtils
 
 --used in projection
 attributeListP :: Parser AttributeNames
 attributeListP = do
-  but <- try (string "all but " <* whiteSpace) <|> string ""
+  but <- try (string "all but " <* spaceConsumer) <|> string ""
   let constructor = if but == "" then AttributeNames else InvertedAttributeNames
   attrs <- sepBy identifier comma
-  return $ constructor (S.fromList (map T.pack attrs))
+  pure $ constructor (S.fromList attrs)
 
 makeRelationP :: Parser RelationalExpr
 makeRelationP = do
@@ -37,7 +36,7 @@ attributeAndTypeNameP = do
   attrName <- identifier
   --convert type name into type
   typeCons <- typeConstructorP
-  return $ AttributeAndTypeNameExpr (T.pack attrName) typeCons
+  return $ AttributeAndTypeNameExpr attrName typeCons
   
 --abstract data type parser- in this context, the type constructor must not include any type arguments
 --Either Text Int
@@ -45,7 +44,7 @@ adTypeConstructorP :: Parser TypeConstructor
 adTypeConstructorP = do
   tConsName <- capitalizedIdentifier
   tConsArgs <- many typeConstructorArgP
-  pure $ ADTypeConstructor (T.pack tConsName) tConsArgs
+  pure $ ADTypeConstructor tConsName tConsArgs
 
 tupleExprP :: Parser TupleExpr
 tupleExprP = do
@@ -62,25 +61,25 @@ tupleAtomExprP :: Parser (AttributeName, AtomExpr)
 tupleAtomExprP = do
   attributeName <- identifier
   atomExpr <- atomExprP
-  return $ (T.pack attributeName, atomExpr)
+  pure $ (attributeName, atomExpr)
   
 projectP :: Parser (RelationalExpr -> RelationalExpr)
 projectP = do
   attrs <- braces attributeListP
-  return $ Project attrs
+  pure $ Project attrs
 
-renameClauseP :: Parser (String, String)
+renameClauseP :: Parser (T.Text, T.Text)
 renameClauseP = do
   oldAttr <- identifier
   reservedOp "as"
   newAttr <- identifier
-  return $ (oldAttr, newAttr)
+  pure $ (oldAttr, newAttr)
 
 renameP :: Parser (RelationalExpr -> RelationalExpr)
 renameP = do
   reservedOp "rename"
   (oldAttr, newAttr) <- braces renameClauseP
-  return $ Rename (T.pack oldAttr) (T.pack newAttr)
+  return $ Rename oldAttr newAttr
 
 whereClauseP :: Parser (RelationalExpr -> RelationalExpr)
 whereClauseP = do
@@ -88,7 +87,7 @@ whereClauseP = do
   boolExpr <- restrictionPredicateP
   return $ Restrict boolExpr
 
-groupClauseP :: Parser (AttributeNames, String)
+groupClauseP :: Parser (AttributeNames, T.Text)
 groupClauseP = do
   attrs <- braces attributeListP
   reservedOp "as"
@@ -99,14 +98,14 @@ groupP :: Parser (RelationalExpr -> RelationalExpr)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClauseP
-  return $ Group groupAttrList (T.pack groupAttrName)
+  pure $ Group groupAttrList groupAttrName
 
 --in "Time and Relational Theory" (2014), Date's Tutorial D grammar for ungroup takes one attribute, while in previous books, it take multiple arguments. Let us assume that nested ungroups are the same as multiple attributes.
 ungroupP :: Parser (RelationalExpr -> RelationalExpr)
 ungroupP = do
   reservedOp "ungroup"
   rvaAttrName <- identifier
-  return $ Ungroup (T.pack rvaAttrName)
+  pure $ Ungroup rvaAttrName
 
 extendP :: Parser (RelationalExpr -> RelationalExpr)
 extendP = do
@@ -114,25 +113,25 @@ extendP = do
   tupleExpr <- braces extendTupleExpressionP
   return $ Extend tupleExpr
 
-relOperators :: [[Operator String () Identity RelationalExpr]]
+relOperators :: [[Operator Parser RelationalExpr]]
 relOperators = [
   [Postfix projectP],
   [Postfix renameP],
   [Postfix whereClauseP],
   [Postfix groupP],
   [Postfix ungroupP],
-  [Infix (reservedOp "join" >> return Join) AssocLeft],
-  [Infix (reservedOp "union" >> return Union) AssocLeft],
-  [Infix (reservedOp "minus" >> return Difference) AssocLeft],
-  [Infix (reservedOp "=" >> return Equals) AssocNone],
+  [InfixL (reservedOp "join" >> return Join)],
+  [InfixL (reservedOp "union" >> return Union)],
+  [InfixL (reservedOp "minus" >> return Difference)],
+  [InfixN (reservedOp "=" >> return Equals)],
   [Postfix extendP]
   ]
 
 relExprP :: Parser RelationalExpr
-relExprP = buildExpressionParser relOperators relTerm
+relExprP = makeExprParser relTerm relOperators
 
 relVarP :: Parser RelationalExpr
-relVarP = liftA (RelationVariable . T.pack) identifier
+relVarP = liftA RelationVariable identifier
 
 relTerm :: Parser RelationalExpr
 relTerm = parens relExprP
@@ -140,12 +139,12 @@ relTerm = parens relExprP
           <|> relVarP
 
 restrictionPredicateP :: Parser RestrictionPredicateExpr
-restrictionPredicateP = buildExpressionParser predicateOperators predicateTerm
+restrictionPredicateP = makeExprParser predicateTerm predicateOperators
   where
     predicateOperators = [
       [Prefix (reservedOp "not" >> return NotPredicate)],
-      [Infix (reservedOp "and" >> return AndPredicate) AssocLeft],
-      [Infix (reservedOp "or" >> return OrPredicate) AssocLeft]
+      [InfixL (reservedOp "and" >> return AndPredicate)],
+      [InfixL (reservedOp "or" >> return OrPredicate)]
       ]
     predicateTerm = parens restrictionPredicateP
                     <|> try restrictionAtomExprP
@@ -163,7 +162,7 @@ restrictionAttributeEqualityP = do
   attributeName <- identifier
   reservedOp "="
   atomexpr <- atomExprP
-  return $ AttributeEqualityPredicate (T.pack attributeName) atomexpr
+  return $ AttributeEqualityPredicate attributeName atomexpr
 
 restrictionAtomExprP :: Parser RestrictionPredicateExpr --atoms which are of type "boolean"
 restrictionAtomExprP = do
@@ -181,7 +180,7 @@ attributeExtendTupleExpressionP = do
   newAttr <- identifier
   reservedOp ":="
   atom <- atomExprP
-  return $ AttributeExtendTupleExpr (T.pack newAttr) atom
+  return $ AttributeExtendTupleExpr newAttr atom
 
 atomExprP :: Parser AtomExpr
 atomExprP = consumeAtomExprP True
@@ -198,7 +197,7 @@ attributeAtomExprP :: Parser AtomExpr
 attributeAtomExprP = do
   _ <- string "@"
   attrName <- identifier
-  return $ AttributeAtomExpr (T.pack attrName)
+  return $ AttributeAtomExpr attrName
 
 nakedAtomExprP :: Parser AtomExpr
 nakedAtomExprP = NakedAtomExpr <$> atomP
@@ -206,8 +205,8 @@ nakedAtomExprP = NakedAtomExpr <$> atomP
 constructedAtomExprP :: Bool -> Parser AtomExpr
 constructedAtomExprP consume = do
   dConsName <- capitalizedIdentifier
-  dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaces else pure []
-  pure $ ConstructedAtomExpr (T.pack dConsName) dConsArgs
+  dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaceConsumer else pure []
+  pure $ ConstructedAtomExpr dConsName dConsArgs
   
 -- used only for primitive type parsing ?
 atomP :: Parser Atom
@@ -220,13 +219,13 @@ functionAtomExprP :: Parser AtomExpr
 functionAtomExprP = do
   funcName <- identifier
   argList <- parens (sepBy atomExprP comma)
-  return $ FunctionAtomExpr (T.pack funcName) argList
+  return $ FunctionAtomExpr funcName argList
 
 relationalAtomExprP :: Parser AtomExpr
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
 stringAtomP :: Parser Atom
-stringAtomP = liftA (TextAtom . T.pack) quotedString
+stringAtomP = liftA TextAtom quotedString
 
 doubleAtomP :: Parser Atom    
 doubleAtomP = DoubleAtom <$> (try float)
