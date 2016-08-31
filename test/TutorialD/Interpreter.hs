@@ -295,7 +295,7 @@ testComments :: Test
 testComments = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
   mapM_ (executeTutorialD sessionId dbconn) [
-    ":branch testbranch --test comment",
+    ":branch testbranch --test comment\n",
     ":jumphead {- test comment -} master"]
   
     
