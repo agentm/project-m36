@@ -17,23 +17,20 @@ import Data.Monoid
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseContextExprP :: Parser DatabaseContextExpr
-databaseContextExprP = choice $ map (\p -> p <* optional commentP) [insertP,
-                                              deleteConstraintP,
-                                              deleteP,
-                                              updateP,
-                                              addConstraintP,
-                                              keyP,
-                                              defineP,
-                                              undefineP,
-                                              assignP,
-                                              addNotificationP,
-                                              removeNotificationP,
-                                              addTypeConstructorP,
-                                              removeTypeConstructorP,
-                                              nothingP]
-            
-commentP :: Parser DatabaseContextExpr            
-commentP = reserved "--" >> manyTill anyChar eof >> pure NoOperation
+databaseContextExprP = choice [insertP,
+                               deleteConstraintP,
+                               deleteP,
+                               updateP,
+                               addConstraintP,
+                               keyP,
+                               defineP,
+                               undefineP,
+                               assignP,
+                               addNotificationP,
+                               removeNotificationP,
+                               addTypeConstructorP,
+                               removeTypeConstructorP,
+                               nothingP]
             
 nothingP :: Parser DatabaseContextExpr            
 nothingP = spaceConsumer >> pure NoOperation
