@@ -7,7 +7,6 @@ import Text.Megaparsec.Text
 import Text.Megaparsec hiding (try)
 import ProjectM36.Error
 import qualified ProjectM36.Error as PM36E
-import Data.Either
 import qualified Data.Text as T
 import Control.Exception
 import qualified Data.Text.IO as TIO
@@ -19,11 +18,9 @@ importTutorialD pathIn = do
   case tutdData of 
     Left err -> return $ Left (ImportError $ T.pack (show err))
     Right tutdData' -> do 
-      let dbexprsErr = map (parse databaseExprP "import") (T.lines tutdData')
-          errs = lefts dbexprsErr
-      case errs of
-        err2:_ -> return $ Left (PM36E.ParseError (T.pack (show err2)))
-        [] -> return $ Right (MultipleExpr (rights dbexprsErr))
+      case parse multipleDatabaseContextExprP "import" tutdData' of
+        Left err -> pure (Left (PM36E.ParseError (T.pack (parseErrorPretty err))))
+        Right expr -> pure (Right expr)
 
 tutdImportP :: Parser DatabaseContextDataImportOperator
 tutdImportP = do

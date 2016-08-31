@@ -44,7 +44,7 @@ websocketProxyServer port host pending = do
                 case msg of
                   _ | tutdprefix `T.isPrefixOf` msg -> do
                     let tutdString = T.drop (T.length tutdprefix) msg
-                    case parseTutorialD (T.unpack tutdString) of
+                    case parseTutorialD tutdString of
                       Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
                       Right parsed -> do
                         result <- evalTutorialD sessionId dbconn SafeEvaluation parsed

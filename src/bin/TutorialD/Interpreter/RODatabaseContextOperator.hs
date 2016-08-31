@@ -40,7 +40,7 @@ showRelP = do
 showPlanP :: Parser RODatabaseContextOperator
 showPlanP = do
   reservedOp ":showplan"
-  expr <- databaseExprP
+  expr <- databaseContextExprP
   return $ ShowPlan expr
 
 showTypesP :: Parser RODatabaseContextOperator

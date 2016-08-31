@@ -21,13 +21,14 @@ import qualified Data.Text.IO as TIO
 import System.IO
 import Control.Monad.State
 import Control.DeepSeq
+import Data.Text hiding (map)
 
 dumpcsv :: Relation -> IO ()
 dumpcsv rel = case relationAsCSV rel of
   Left err -> hPutStrLn stderr (show err)
   Right bsData -> BS.putStrLn bsData
 
-data BigrelArgs = BigrelArgs Int Int String
+data BigrelArgs = BigrelArgs Int Int Text
 
 parseAttributeCount :: Parser Int
 parseAttributeCount = option auto (short 'a' <> long "attribute-count")
@@ -39,7 +40,7 @@ parseTutD :: Parser String
 parseTutD = strOption (short 'd' <> long "tutoriald")
 
 parseArgs :: Parser BigrelArgs
-parseArgs =  BigrelArgs <$> parseAttributeCount <*> parseTupleCount <*> parseTutD
+parseArgs =  BigrelArgs <$> parseAttributeCount <*> parseTupleCount <*> (pack <$> parseTutD)
 
 main :: IO ()
 main = do

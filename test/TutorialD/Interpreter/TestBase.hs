@@ -6,6 +6,7 @@ import qualified ProjectM36.Base as Base
 import ProjectM36.DateExamples
 import Test.HUnit
 import qualified Data.Map as M
+import Data.Text
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
@@ -24,7 +25,7 @@ dateExamplesConnection callback = do
           commit sessionId conn >>= maybeFail
           pure (sessionId, conn)
 
-executeTutorialD :: SessionId -> Connection -> String -> IO ()
+executeTutorialD :: SessionId -> Connection -> Text -> IO ()
 executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
     Left err -> assertFailure (show tutd ++ ": " ++ show err)
     Right parsed -> do 

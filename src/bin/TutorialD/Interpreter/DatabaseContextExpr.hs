@@ -16,8 +16,8 @@ import ProjectM36.Key
 import Data.Monoid
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
-databaseExprP :: Parser DatabaseContextExpr
-databaseExprP = choice $ map (\p -> p <* optional commentP) [insertP,
+databaseContextExprP :: Parser DatabaseContextExpr
+databaseContextExprP = choice $ map (\p -> p <* optional commentP) [insertP,
                                               deleteConstraintP,
                                               deleteP,
                                               updateP,
@@ -46,10 +46,13 @@ assignP = do
     return relVarName
   expr <- relExprP
   pure $ Assign relVarName expr
+  
+multilineSep :: Parser T.Text  
+multilineSep = newline >> pure "\n"
 
 multipleDatabaseContextExprP :: Parser DatabaseContextExpr
 multipleDatabaseContextExprP = do
-  exprs <- sepBy1 databaseExprP semi
+  exprs <- sepBy1 databaseContextExprP semi
   pure $ MultipleExpr exprs
 
 insertP :: Parser DatabaseContextExpr

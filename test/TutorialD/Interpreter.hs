@@ -25,13 +25,14 @@ import Control.Concurrent.STM
 import Control.Concurrent
 import qualified STMContainers.Map as STMMap
 import qualified Data.Set as S
+import Data.Text hiding (map)
 
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -125,8 +126,8 @@ main = do
                            ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntAtomType TextAtomType) [IntAtom 3]]])
                           ]
 
-assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> String -> Assertion
-assertTutdEqual databaseContext expected tutd = assertEqual tutd expected interpreted
+assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
+assertTutdEqual databaseContext expected tutd = assertEqual (unpack tutd) expected interpreted
   where
     interpreted = case interpretDatabaseContextExpr databaseContext tutd of
       Left err -> Left err
@@ -289,3 +290,12 @@ testMergeTransactions = TestCase $ do
       case eRv of
         Left err -> assertFailure (show err)
         Right conflictrv -> assertEqual "conflict union merge relvar" conflictCheck conflictrv
+
+testComments :: Test
+testComments = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  mapM_ (executeTutorialD sessionId dbconn) [
+    ":branch testbranch --test comment",
+    ":jumphead {- test comment -} master"]
+  
+    

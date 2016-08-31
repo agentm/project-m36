@@ -20,7 +20,8 @@ displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
 displayOpResult (DisplayIOResult ioout) = ioout
-displayOpResult (DisplayErrorResult err) = TIO.hPutStrLn stderr ("ERR: " <> err)
+displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && T.last err /= '\n' then TIO.hPutStrLn else TIO.hPutStr in 
+  outputf stderr ("ERR: " <> err)
 displayOpResult QuietSuccessResult = return ()
 displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
 
@@ -28,7 +29,7 @@ spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
   
 opChar :: Parser Char
-opChar = oneOf (":!#$%&*+./<=>?\\^|-~"::String)-- remove "@" so it can be used as attribute marker without spaces
+opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
 
 reserved :: String -> Parser ()
 reserved word = try (string word *> notFollowedBy opChar *> spaceConsumer)
@@ -111,22 +112,6 @@ data TutorialDOperatorResult = QuitResult |
                                
 type TransactionGraphWasUpdated = Bool
 
-escapedChar :: Parser Char
-escapedChar = do
-  _ <- char '\\'
-  let lookupAssoc = [('n','\n'), ('\"','\"'), ('\\', '\\')]
-  c <- oneOf ("\\\"n"::String) -- all the characters which can be escaped
-  case lookup c lookupAssoc of
-    Just v -> pure v
-    Nothing -> fail "failed to handle escaped character"
-                   
---http://stackoverflow.com/questions/24106314/parser-for-quoted-string-using-parsec
-nonEscapedChar :: Parser Char
-nonEscapedChar = noneOf ("\\\""::String)
-
-quotedChar :: Parser Char
-quotedChar = escapedChar <|> nonEscapedChar
-
 --allow for python-style triple quoting because guessing the correct amount of escapes in different contexts is annoying
 tripleQuotedString :: Parser Text
 tripleQuotedString = do
@@ -134,7 +119,7 @@ tripleQuotedString = do
   pack <$> manyTill anyChar (try (tripleQuote >> notFollowedBy quote))
   
 normalQuotedString :: Parser Text
-normalQuotedString = quote *> (T.pack <$> manyTill quotedChar quote)
+normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 
 quotedString :: Parser Text
 quotedString = try tripleQuotedString <|> normalQuotedString
