@@ -19,6 +19,14 @@ import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
 --import Debug.Trace
 
+-- | Record a lookup for a specific transaction in the graph.
+data TransactionIdLookup = TransactionIdLookup TransactionId |
+                           TransactionIdHeadNameLookup HeadName 
+                           
+-- topic~3^2
+data TransactionIdHeadBacktrack = TransactionIdHeadParentBackTrack Int | -- git ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
+                                  TransactionIdHeadBranchBackTrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
+
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
@@ -410,3 +418,10 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
   notifs <- unionMergeMaps preference (notifications contextA) (notifications contextB)
   types <- unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   pure (Transaction newId (MergeTransactionInfo (transactionId t1) (transactionId t2) S.empty) (DatabaseContext incDeps relVars atomFuncs notifs types))
+
+-- | 
+evalTransactionIdLookup :: TransactionGraph -> TransactionIdLookup -> Either RelationalError TransactionId
+evalTransactionIdLookup = undefined
+
+lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
+lookupTransaction = undefined

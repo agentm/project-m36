@@ -73,6 +73,8 @@ Library
                      ProjectM36.TransactionGraph,
                      ProjectM36.TransactionGraph.Show,
                      ProjectM36.TransactionGraph.Persist,
+                     ProjectM36.TransactionGraph.Merge,
+                     ProjectM36.TransGraphRelationalExpression,
                      ProjectM36.Base,
                      ProjectM36.Attribute,
                      ProjectM36.AttributeNames,
@@ -115,8 +117,7 @@ Library
                      ProjectM36.Sessions,
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
-                     ProjectM36.TypeConstructorDef,
-                     ProjectM36.TransactionGraph.Merge
+                     ProjectM36.TypeConstructorDef
     GHC-Options: -Wall -rtsopts
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4

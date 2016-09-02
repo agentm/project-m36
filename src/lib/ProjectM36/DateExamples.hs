@@ -26,7 +26,7 @@ dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
                               ("p_pkey", simplePKey ["p#"] "p"),
                               ("sp_pkey", simplePKey ["s#", "p#"] "sp")
                               ]
-    simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName)
+    simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName ())
 
 suppliersRel :: Relation
 suppliersRel = case mkRelationFromList attrs atomMatrix of

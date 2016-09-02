@@ -19,7 +19,7 @@ applyStaticRelationalOptimization e@(MakeRelationFromExprs _ _) = return $ Right
 
 applyStaticRelationalOptimization e@(ExistingRelation _) = return $ Right e
 
-applyStaticRelationalOptimization e@(RelationVariable _) = return $ Right e
+applyStaticRelationalOptimization e@(RelationVariable _ _) = return $ Right e
 
 --remove project of attributes which removes no attributes
 applyStaticRelationalOptimization (Project attrNameSet expr) = do

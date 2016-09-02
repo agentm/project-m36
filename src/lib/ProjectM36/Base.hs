@@ -188,10 +188,12 @@ data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, O
 -- | Relation variables are identified by their names.
 type RelVarName = StringType
 
+type RelationalExpr = RelationalExprBase ()
+
 -- | A relational expression represents query (read) operations on a database.
-data RelationalExpr =
+data RelationalExprBase a =
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs (Maybe [AttributeExpr]) [TupleExpr] |
+  MakeRelationFromExprs (Maybe [AttributeExpr]) [TupleExprBase a] |
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation Attributes RelationTupleSet |
   --- | Reference an existing relation in Haskell-space.
@@ -200,29 +202,31 @@ data RelationalExpr =
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   --- | Reference a relation variable by its name.
-  RelationVariable RelVarName |
+  RelationVariable RelVarName a |
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
-  Project AttributeNames RelationalExpr |
+  Project AttributeNames (RelationalExprBase a) |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
-  Union RelationalExpr RelationalExpr |
+  Union (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
-  Join RelationalExpr RelationalExpr |
+  Join (RelationalExprBase a) (RelationalExprBase a)  |
   --- | Rename an attribute (first argument) to another (second argument).
-  Rename AttributeName AttributeName RelationalExpr |
+  Rename AttributeName AttributeName (RelationalExprBase a) |
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
-  Difference RelationalExpr RelationalExpr |
+  Difference (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
-  Group AttributeNames AttributeName RelationalExpr |
+  Group AttributeNames AttributeName (RelationalExprBase a) |
   --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
-  Ungroup AttributeName RelationalExpr |
+  Ungroup AttributeName (RelationalExprBase a) |
   --- | Filter the tuples of the relational expression to only retain the tuples which evaluate against the restriction predicate to true.
-  Restrict RestrictionPredicateExpr RelationalExpr |
+  Restrict (RestrictionPredicateExprBase a) (RelationalExprBase a) |
   --- | Returns the true relation iff 
-  Equals RelationalExpr RelationalExpr |
-  NotEquals RelationalExpr RelationalExpr |
-  Extend ExtendTupleExpr RelationalExpr 
+  Equals (RelationalExprBase a) (RelationalExprBase a) |
+  NotEquals (RelationalExprBase a) (RelationalExprBase a) |
+  Extend (ExtendTupleExprBase a) (RelationalExprBase a)
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
-  deriving (Show, Eq, Generic, Binary)
+  deriving (Show, Eq, Generic)
+           
+instance Binary RelationalExpr            
 
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
@@ -317,14 +321,17 @@ data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] 
 type DatabaseState a = State DatabaseContext a
 
 -- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
-data RestrictionPredicateExpr =
+
+type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
+
+data RestrictionPredicateExprBase a =
   TruePredicate |
   AndPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
   OrPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
   NotPredicate RestrictionPredicateExpr |
-  RelationalExprPredicate RelationalExpr | --type must be same as true and false relations (no attributes)
-  AtomExprPredicate AtomExpr | --atom must evaluate to boolean
-  AttributeEqualityPredicate AttributeName AtomExpr -- relationalexpr must result in relation with single tuple
+  RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
+  AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
+  AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq, Generic)
 
 instance Binary RestrictionPredicateExpr
@@ -379,18 +386,24 @@ instance Ord Transaction where
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
-data AtomExpr = AttributeAtomExpr AttributeName |
+type AtomExpr = AtomExprBase ()
+
+data AtomExprBase a = AttributeAtomExpr AttributeName |
                 NakedAtomExpr Atom |
-                FunctionAtomExpr AtomFunctionName [AtomExpr] |
-                RelationAtomExpr RelationalExpr |
-                ConstructedAtomExpr DataConstructorName [AtomExpr]
+                FunctionAtomExpr AtomFunctionName [AtomExprBase a] a|
+                RelationAtomExpr (RelationalExprBase a) |
+                ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
               deriving (Eq,Show,Generic)
                        
 instance Binary AtomExpr                       
 
 -- | Used in tuple creation when creating a relation.
-data ExtendTupleExpr = AttributeExtendTupleExpr AttributeName AtomExpr
-                     deriving (Show, Eq, Binary, Generic)
+data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
+                     deriving (Show, Eq, Generic)
+                              
+type ExtendTupleExpr = ExtendTupleExprBase ()                              
+
+instance Binary ExtendTupleExpr
            
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -455,8 +468,12 @@ data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor |
                      NakedAttributeExpr Attribute
                      deriving (Eq, Show, Generic, Binary)
                               
-data TupleExpr = TupleExpr (M.Map AttributeName AtomExpr)
-                 deriving (Eq, Show, Generic, Binary)
+data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
+                 deriving (Eq, Show, Generic)
+                          
+instance Binary TupleExpr
+                          
+type TupleExpr = TupleExprBase ()                           
 
 data MergeStrategy = 
   -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)

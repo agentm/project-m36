@@ -27,7 +27,7 @@ import GHC.Paths
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> DatabaseState (Either RelationalError Relation)
-evalRelationalExpr (RelationVariable name) = do
+evalRelationalExpr (RelationVariable name _) = do
   relvarTable <- liftM relationVariables get
   return $ case M.lookup name relvarTable of
     Just res -> Right res
@@ -215,11 +215,11 @@ evalContextExpr (Assign relVarName expr) = do
                           else
                             return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
 
-evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName))
+evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName ()))
 
 --assign empty rel until restriction is implemented
 evalContextExpr (Delete relVarName predicate) = do
-  updatedRel <- evalRelationalExpr (Restrict (NotPredicate predicate) (RelationVariable relVarName))
+  updatedRel <- evalRelationalExpr (Restrict (NotPredicate predicate) (RelationVariable relVarName ()))
   case updatedRel of
     Left err -> return $ Just err
     Right rel -> setRelVar relVarName rel
@@ -499,7 +499,7 @@ extendTupleExpressionProcessor relIn
 evalAtomExpr :: RelationTuple -> DatabaseContext -> AtomExpr -> Either RelationalError Atom
 evalAtomExpr tupIn _ (AttributeAtomExpr attrName) = atomForAttributeName attrName tupIn
 evalAtomExpr _ _ (NakedAtomExpr atom) = Right atom
-evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
+evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments ()) = do
   let functions = atomFunctions context
   func <- atomFunctionForName funcName functions
   argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn) context) arguments
@@ -517,7 +517,7 @@ evalAtomExpr tupIn context (FunctionAtomExpr funcName arguments) = do
 evalAtomExpr _ context (RelationAtomExpr relExpr) = do
   relAtom <- evalState (evalRelationalExpr relExpr) context
   return $ RelationAtom relAtom
-evalAtomExpr tupIn context cons@(ConstructedAtomExpr dConsName dConsArgs) = do
+evalAtomExpr tupIn context cons@(ConstructedAtomExpr dConsName dConsArgs ()) = do
   aType <- typeFromAtomExpr (tupleAttributes tupIn) context cons
   argAtoms <- mapM (evalAtomExpr tupIn context) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
@@ -525,7 +525,7 @@ evalAtomExpr tupIn context cons@(ConstructedAtomExpr dConsName dConsArgs) = do
 typeFromAtomExpr :: Attributes -> DatabaseContext -> AtomExpr -> Either RelationalError AtomType
 typeFromAtomExpr attrs _ (AttributeAtomExpr attrName) = A.atomTypeForAttributeName attrName attrs
 typeFromAtomExpr _ _ (NakedAtomExpr atom) = Right (atomTypeForAtom atom)
-typeFromAtomExpr _ context (FunctionAtomExpr funcName _) = do
+typeFromAtomExpr _ context (FunctionAtomExpr funcName _ _) = do
   let funcs = atomFunctions context
   func <- atomFunctionForName funcName funcs
   return $ last (atomFuncType func)
@@ -534,7 +534,7 @@ typeFromAtomExpr _ context (RelationAtomExpr relExpr) = do
   return $ RelationAtomType (attributes relType)
 
 -- grab the type of the data constructor, then validate that the args match the expected types
-typeFromAtomExpr attrs context (ConstructedAtomExpr dConsName dConsArgs) = do
+typeFromAtomExpr attrs context (ConstructedAtomExpr dConsName dConsArgs _) = do
   argsTypes <- mapM (typeFromAtomExpr attrs context) dConsArgs  
   atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes
 
@@ -544,7 +544,7 @@ verifyAtomExprTypes relIn _ (AttributeAtomExpr attrName) expectedType = do
   attrType <- A.atomTypeForAttributeName attrName (attributes relIn)
   atomTypeVerify expectedType attrType
 verifyAtomExprTypes _ _ (NakedAtomExpr atom) expectedType = atomTypeVerify expectedType (atomTypeForAtom atom)
-verifyAtomExprTypes relIn context (FunctionAtomExpr funcName funcArgExprs) expectedType = do
+verifyAtomExprTypes relIn context (FunctionAtomExpr funcName funcArgExprs _) expectedType = do
   let functions = atomFunctions context
   func <- atomFunctionForName funcName functions
   let expectedArgTypes = atomFuncType func
@@ -561,7 +561,7 @@ verifyAtomExprTypes _ context (RelationAtomExpr relationExpr) expectedType = do
   case runState (typeForRelationalExpr relationExpr) context of
     (Left err, _) -> Left err
     (Right relType, _) -> atomTypeVerify expectedType (RelationAtomType (attributes relType))
-verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _) expectedType = do
+verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _ _) expectedType = do
   cType <- typeFromAtomExpr (attributes rel) context cons
   atomTypeVerify expectedType cType
   
