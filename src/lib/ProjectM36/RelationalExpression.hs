@@ -568,7 +568,7 @@ verifyAtomExprTypes rel context cons@(ConstructedAtomExpr _ _ _) expectedType = 
 
 -- | Look up the type's name and create a new attribute.
 evalAttrExpr :: TypeConstructorMapping -> AttributeExpr -> Either RelationalError Attribute
-evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons) = do
+evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons ()) = do
   aType <- atomTypeForTypeConstructor tCons aTypes
   Right (Attribute attrName aType)
   

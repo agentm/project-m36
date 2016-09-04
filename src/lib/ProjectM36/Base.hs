@@ -193,7 +193,7 @@ type RelationalExpr = RelationalExprBase ()
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExprBase a =
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs (Maybe [AttributeExpr]) [TupleExprBase a] |
+  MakeRelationFromExprs (Maybe [AttributeExprBase a]) [TupleExprBase a] |
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation Attributes RelationTupleSet |
   --- | Reference an existing relation in Haskell-space.
@@ -248,8 +248,8 @@ data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName]
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
 data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructorArg] |
                        PrimitiveTypeConstructor TypeConstructorName AtomType
-                       deriving (Show, Generic, Binary, Eq, NFData)
-                                
+                     deriving (Show, Generic, Binary, Eq, NFData)
+                                    
 data TypeConstructorArg = TypeConstructorArg TypeConstructor |                                
                           TypeConstructorTypeVarArg TypeVarName
                           deriving (Show, Generic, Binary, Eq, NFData)
@@ -326,9 +326,9 @@ type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
 data RestrictionPredicateExprBase a =
   TruePredicate |
-  AndPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
-  OrPredicate RestrictionPredicateExpr RestrictionPredicateExpr |
-  NotPredicate RestrictionPredicateExpr |
+  AndPredicate (RestrictionPredicateExprBase a) (RestrictionPredicateExprBase a) |
+  OrPredicate (RestrictionPredicateExprBase a) (RestrictionPredicateExprBase a) |
+  NotPredicate (RestrictionPredicateExprBase a)  |
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
@@ -389,11 +389,11 @@ instance Ord Transaction where
 type AtomExpr = AtomExprBase ()
 
 data AtomExprBase a = AttributeAtomExpr AttributeName |
-                NakedAtomExpr Atom |
-                FunctionAtomExpr AtomFunctionName [AtomExprBase a] a|
-                RelationAtomExpr (RelationalExprBase a) |
-                ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-              deriving (Eq,Show,Generic)
+                      NakedAtomExpr Atom |
+                      FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
+                      RelationAtomExpr (RelationalExprBase a) |
+                      ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
+                    deriving (Eq,Show,Generic)
                        
 instance Binary AtomExpr                       
 
@@ -464,9 +464,11 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
                                     
-data AttributeExpr = AttributeAndTypeNameExpr AttributeName TypeConstructor |
-                     NakedAttributeExpr Attribute
-                     deriving (Eq, Show, Generic, Binary)
+type AttributeExpr = AttributeExprBase ()
+
+data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
+                           NakedAttributeExpr Attribute
+                         deriving (Eq, Show, Generic, Binary)
                               
 data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Generic)
