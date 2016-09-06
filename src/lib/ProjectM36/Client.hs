@@ -12,6 +12,7 @@ module ProjectM36.Client
        executeDatabaseContextExpr,
        executeDatabaseContextIOExpr,       
        executeGraphExpr,
+       executeTransGraphRelationalExpr,
        commit,
        rollback,
        typeForRelationalExpr,
@@ -40,6 +41,7 @@ module ProjectM36.Client
        addClientNode,
        RelationCardinality(..),
        TransactionGraphOperator(..),
+       TransGraphRelationalExpr(..),
        NodeId(..),
        Atom(..),
        Session,
@@ -61,6 +63,7 @@ import ProjectM36.DatabaseContext (basicDatabaseContext)
 import ProjectM36.TransactionGraph
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute hiding (atomTypes)
+import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
@@ -351,7 +354,7 @@ executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = ex
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
-  
+
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excMaybe $ atomically $ do
@@ -452,6 +455,17 @@ commitSTM_ freshUUID sessionId sessions graph = do
     Left err -> Just err
     Right _ -> Nothing
 -}
+
+-- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
+executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
+executeTransGraphRelationalExpr sessionId conn@(InProcessConnection _ _ sessions graphTvar _) tgraphExpr = excEither . atomically $ do
+  graph <- readTVar graphTvar
+  case evalTransGraphRelationalExpr tgraphExpr graph of
+    Left err -> pure (Left err)
+    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) RE.emptyDatabaseContext of
+      Left err -> pure (Left err)
+      Right rel -> pure (force (Right rel))
+executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _ _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
 -- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Maybe RelationalError)

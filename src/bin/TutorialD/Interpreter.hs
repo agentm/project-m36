@@ -6,6 +6,7 @@ import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter.TransactionGraphOperator
 import TutorialD.Interpreter.InformationOperator
 import TutorialD.Interpreter.DatabaseContextIOOperator
+import TutorialD.Interpreter.TransGraphRelationalOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
@@ -44,7 +45,8 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ImportRelVarOp RelVarDataImportOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
                        ImportBasicExampleOp ImportBasicExampleOperator |
-                       RelVarExportOp RelVarDataExportOperator
+                       RelVarExportOp RelVarDataExportOperator |
+                       TransGraphRelationalOp TransGraphRelationalOperator
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = safeInterpreterParserP <|>
@@ -60,7 +62,8 @@ safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <
                          liftM GraphOp (transactionGraphOpP <* eof) <|>
                          liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
                          liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
-                         liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof)
+                         liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
+                         liftM TransGraphRelationalOp (transGraphRelationalOpP <* eof)
 
 
 promptText :: Maybe HeadName -> StringType
@@ -119,7 +122,7 @@ evalTutorialD sessionId conn safe expr = case expr of
       else do
       -- collect attributes from relvar name
       -- is there a race condition here? The attributes of the relvar may have since changed, no?
-      eImportType <- C.typeForRelationalExpr sessionId conn (RelationVariable relVarName)
+      eImportType <- C.typeForRelationalExpr sessionId conn (RelationVariable relVarName ())
       case eImportType of
         Left err -> barf err
         Right importType -> do
@@ -161,6 +164,8 @@ evalTutorialD sessionId conn safe expr = case expr of
   (ImportBasicExampleOp execOp) -> do
     let dbcontextexpr = evalImportBasicExampleOperator execOp
     evalTutorialD sessionId conn safe (DatabaseContextExprOp dbcontextexpr)
+  (TransGraphRelationalOp execOp) -> do
+    evalTransGraphRelationalOp sessionId conn execOp
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."

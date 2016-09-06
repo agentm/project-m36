@@ -2,6 +2,7 @@
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
+import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
 import GHC.Generics
 import Data.Binary
@@ -21,6 +22,8 @@ data ExecuteDatabaseContextIOExpr = ExecuteDatabaseContextIOExpr SessionId Datab
                                 deriving (Binary, Generic)                                         
 data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphOperator 
                       deriving (Binary, Generic)
+data ExecuteTransGraphRelationalExpr = ExecuteTransGraphRelationalExpr SessionId TransGraphRelationalExpr                               
+                                     deriving (Binary, Generic)
 data ExecuteHeadName = ExecuteHeadName SessionId
                      deriving (Binary, Generic)
 data ExecuteTypeForRelationalExpr = ExecuteTypeForRelationalExpr SessionId RelationalExpr

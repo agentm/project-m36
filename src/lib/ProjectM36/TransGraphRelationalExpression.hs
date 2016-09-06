@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 --really, a better name for this module could be "TransTransactionGraphRelationalExpr", but that name is too long
 module ProjectM36.TransGraphRelationalExpression where
 import ProjectM36.Base
@@ -8,17 +10,28 @@ import Control.Monad.State
 import ProjectM36.Tuple
 import ProjectM36.AtomType
 import qualified Data.Map as M
+import Data.Binary
 
 -- | The TransGraphRelationalExpression is equivalent to a relational expression except that relation variables can reference points in the transaction graph (at previous points in time).
 type TransGraphRelationalExpr = RelationalExprBase TransactionIdLookup
 
+instance Binary TransGraphRelationalExpr
+
 type TransGraphExtendTupleExpr = ExtendTupleExprBase TransactionIdLookup
+
+instance Binary TransGraphExtendTupleExpr
 
 type TransGraphTupleExpr = TupleExprBase TransactionIdLookup
 
+instance Binary TransGraphTupleExpr
+
 type TransGraphRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionIdLookup
 
+instance Binary TransGraphRestrictionPredicateExpr
+
 type TransGraphAtomExpr = AtomExprBase TransactionIdLookup
+
+instance Binary TransGraphAtomExpr 
 
 type TransGraphAttributeExpr = AttributeExprBase TransactionIdLookup
 

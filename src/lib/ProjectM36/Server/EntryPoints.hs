@@ -38,6 +38,11 @@ handleExecuteGraphExpr sessionId conn graphExpr = do
   ret <- liftIO $ executeGraphExpr sessionId conn graphExpr
   reply ret conn
   
+handleExecuteTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)
+handleExecuteTransGraphRelationalExpr sessionId conn graphExpr = do
+  ret <- liftIO $ executeTransGraphRelationalExpr sessionId conn graphExpr
+  reply ret conn
+
 handleExecuteTypeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> Process (ProcessReply (Either RelationalError Relation) Connection)  
 handleExecuteTypeForRelationalExpr sessionId conn relExpr = do
   ret <- liftIO $ typeForRelationalExpr sessionId conn relExpr

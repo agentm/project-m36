@@ -15,6 +15,7 @@ import ProjectM36.Relation.Show.Term
 import GHC.Generics
 import Data.Monoid
 import Control.Monad (void)
+import qualified Data.UUID as U
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -123,3 +124,10 @@ normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 
 quotedString :: Parser Text
 quotedString = try tripleQuotedString <|> normalQuotedString
+
+uuidP :: Parser U.UUID
+uuidP = do
+  uuidStr <- count' 28 (28 + 4) (hexDigitChar <|> char '-') -- min 28 with no dashes, maximum 4 dashes
+  case U.fromString uuidStr of
+    Nothing -> fail "Invalid uuid string"
+    Just uuid -> return uuid

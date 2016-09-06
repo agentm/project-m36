@@ -3,7 +3,6 @@ module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
 import Text.Megaparsec.Text
 import Text.Megaparsec
-import qualified Data.UUID as U
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.Error
@@ -73,12 +72,6 @@ transactionGraphOpP = do
 roTransactionGraphOpP :: Parser ROTransactionGraphOperator
 roTransactionGraphOpP = showGraphP
 
-uuidP :: Parser U.UUID
-uuidP = do
-  uuidStr <- many (alphaNumChar <|> char '-')
-  case U.fromString uuidStr of
-    Nothing -> fail "Invalid uuid string"
-    Just uuid -> return uuid
 
 
 {-

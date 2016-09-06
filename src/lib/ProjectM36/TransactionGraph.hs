@@ -22,6 +22,7 @@ import Data.Either (lefts, rights, isRight)
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
                            TransactionIdHeadNameLookup HeadName 
+                           deriving (Show, Eq, Binary, Generic)
                            
 -- topic~3^2
 data TransactionIdHeadBacktrack = TransactionIdHeadParentBackTrack Int | -- git ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
@@ -419,9 +420,8 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
   types <- unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   pure (Transaction newId (MergeTransactionInfo (transactionId t1) (transactionId t2) S.empty) (DatabaseContext incDeps relVars atomFuncs notifs types))
 
--- | 
-evalTransactionIdLookup :: TransactionGraph -> TransactionIdLookup -> Either RelationalError TransactionId
-evalTransactionIdLookup = undefined
-
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
-lookupTransaction = undefined
+lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
+lookupTransaction graph (TransactionIdHeadNameLookup headName) = case transactionForHead headName graph of 
+  Just t -> Right t
+  Nothing -> Left (NoSuchHeadNameError headName)
