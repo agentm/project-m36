@@ -46,6 +46,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Merge Transactions](docs/merge_transactions.markdown)
 1. [WebSocket Server](docs/websocket_server.markdown)
 1. [Atom (Value) Functions](docs/atomfunctions.markdown)
+1. [Trans-Graph Relational Expressions](docs/transgraphrelationalexpr.markdown)
 
 ## Development
 
