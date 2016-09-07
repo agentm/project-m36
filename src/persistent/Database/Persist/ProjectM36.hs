@@ -139,7 +139,7 @@ lookupByKey :: forall record m.
            => Key record -> ReaderT ProjectM36Backend m (Maybe (Entity record))
 lookupByKey key = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
-  let query = Restrict restrictionPredicate (RelationVariable relVarName)
+  let query = Restrict restrictionPredicate (RelationVariable relVarName ())
   (sessionId, conn) <- ask
   resultRel <- Trans.liftIO $ C.executeRelationalExpr sessionId conn query
   case resultRel of
@@ -399,7 +399,7 @@ instance PersistUnique ProjectM36Backend where
         case predicate of
             Left err -> throwRelErr err
             Right predicate' -> do
-                let restrictExpr = Restrict predicate' (RelationVariable relVarName)
+                let restrictExpr = Restrict predicate' (RelationVariable relVarName ())
                 singletonRel <- Trans.liftIO $ C.executeRelationalExpr sessionId conn restrictExpr
                 case singletonRel of
                     Left err -> throwRelErr err
@@ -474,7 +474,7 @@ selectionFromRestriction filters = do
         restrictionPredicate <- hoistEither $ multiFilterAsRestrictionPredicate True filters
         let entDef = entityDef $ dummyFromFilters filters
             relVarName = unDBName $ entityDB entDef
-        right $ Restrict restrictionPredicate (RelationVariable relVarName)
+        right $ Restrict restrictionPredicate (RelationVariable relVarName ())
 
 
 instance PersistQuery ProjectM36Backend where
@@ -519,8 +519,8 @@ instance PersistQuery ProjectM36Backend where
                      relVarName = unDBName $ entityDB entDef
                      allAttrNamesList = map (unDBName . fieldDB) (entityFields entDef) ++ [unDBName (fieldDB (entityId entDef))]
                      allAttrNames = AttributeNames $ S.fromList allAttrNamesList
-                     groupExpr = Group allAttrNames "persistcountrel" (Restrict restrictionPredicate (RelationVariable relVarName))
-                     tupleExpr = AttributeExtendTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"])
+                     groupExpr = Group allAttrNames "persistcountrel" (Restrict restrictionPredicate (RelationVariable relVarName ()))
+                     tupleExpr = AttributeExtendTupleExpr "persistcount" (FunctionAtomExpr "count" [AttributeAtomExpr "persistcountrel"] ())
                      countExpr = Extend tupleExpr groupExpr
                  rel <- Trans.liftIO $ C.executeRelationalExpr sessionId conn countExpr
                  case rel of

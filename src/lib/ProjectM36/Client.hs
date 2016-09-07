@@ -30,7 +30,7 @@ module ProjectM36.Client
        defaultHeadName,
        PersistenceStrategy(..),
        RelationalExpr,
-       RelationalExprBase,
+       RelationalExprBase(..),
        DatabaseContextExpr(..),
        Attribute(..),
        attributesFromList,
@@ -41,7 +41,7 @@ module ProjectM36.Client
        addClientNode,
        RelationCardinality(..),
        TransactionGraphOperator(..),
-       TransGraphRelationalExpr(..),
+       TransGraphRelationalExpr,
        NodeId(..),
        Atom(..),
        Session,
@@ -51,7 +51,8 @@ module ProjectM36.Client
        EvaluatedNotification(..),
        atomTypesAsRelation,
        AttributeExpr,
-       TypeConstructor,
+       AttributeExprBase(..),
+       TypeConstructor(..),
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -458,7 +459,7 @@ commitSTM_ freshUUID sessionId sessions graph = do
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
-executeTransGraphRelationalExpr sessionId conn@(InProcessConnection _ _ sessions graphTvar _) tgraphExpr = excEither . atomically $ do
+executeTransGraphRelationalExpr _ (InProcessConnection _ _ _ graphTvar _) tgraphExpr = excEither . atomically $ do
   graph <- readTVar graphTvar
   case evalTransGraphRelationalExpr tgraphExpr graph of
     Left err -> pure (Left err)

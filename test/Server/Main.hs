@@ -65,19 +65,19 @@ launchTestServer = do
   
 testRelationalExpr :: SessionId -> Connection -> Test  
 testRelationalExpr sessionId conn = TestCase $ do
-  relResult <- executeRelationalExpr sessionId conn (RelationVariable "true")
+  relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
   
 testDatabaseContextExpr :: SessionId -> Connection -> Test
 testDatabaseContextExpr sessionId conn = TestCase $ do 
-  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" TextAtomType)]
+  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" TextAtomType) ()]
       attrs = attributesFromList [Attribute "x" TextAtomType]
       testrv = "testrv"
   dbResult <- executeDatabaseContextExpr sessionId conn (Define testrv attrExprs)
   case dbResult of
     Just err -> assertFailure (show err)
     Nothing -> do
-      eRel <- executeRelationalExpr sessionId conn (RelationVariable testrv)
+      eRel <- executeRelationalExpr sessionId conn (RelationVariable testrv ())
       let expected = mkRelation attrs emptyTupleSet
       case eRel of
         Left err -> assertFailure (show err)
@@ -92,14 +92,14 @@ testGraphExpr sessionId conn = TestCase $ do
     
 testTypeForRelationalExpr :: SessionId -> Connection -> Test
 testTypeForRelationalExpr sessionId conn = TestCase $ do
-  relResult <- typeForRelationalExpr sessionId conn (RelationVariable "true")
+  relResult <- typeForRelationalExpr sessionId conn (RelationVariable "true" ())
   case relResult of
     Left err -> assertFailure (show err)
     Right rel -> assertEqual "typeForRelationalExpr failure" relationFalse rel
     
 testPlanForDatabaseContextExpr :: SessionId -> Connection -> Test    
 testPlanForDatabaseContextExpr sessionId conn = TestCase $ do
-  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType)]
+  let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType) ()]
       testrv = "testrv"
       dbExpr = Define testrv attrExprs
   planResult <- planForDatabaseContextExpr sessionId conn dbExpr
@@ -154,7 +154,7 @@ testNotificationCallback mvar _ _ = putMVar mvar ()
 -- create a relvar x, add a notification on x, update x and wait for the notification
 testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
-  let relvarx = RelationVariable "x"
+  let relvarx = RelationVariable "x" ()
       check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
   check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
   check $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  

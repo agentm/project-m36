@@ -22,7 +22,7 @@ testBasicAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Int \"\\\\(IntAtom x:xs) -> IntAtom x\""
   let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)]
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
       expectedResult = mkRelationFromList (V.fromList attrs) [[IntAtom 3]]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
@@ -35,7 +35,7 @@ testErrorAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Int \"\"\"\\(IntAtom x:xs) -> (error (show 1) ) :: Atom\"\"\""
   let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)]
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
       expectedResult = Left (UnhandledExceptionError "1")
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
@@ -46,7 +46,7 @@ testNoArgumentAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sess conn "addatomfunction \"mkTest\" Int \"\"\"\\(x :: [Atom]) -> IntAtom 5\"\"\""
   let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" []
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
       expectedResult = mkRelationFromList (V.fromList attrs) [[IntAtom 5]]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)

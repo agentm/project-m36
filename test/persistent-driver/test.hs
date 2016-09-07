@@ -45,9 +45,9 @@ defPersonRel sessionId conn = do
         intTypCons = PrimitiveTypeConstructor "Int" IntAtomType
 
     maybeErr <- C.executeDatabaseContextExpr sessionId conn (Define "person" [
-                                                                AttributeAndTypeNameExpr "name" textTypCons,
-                                                                AttributeAndTypeNameExpr "age" intTypCons,
-                                                                AttributeAndTypeNameExpr "id" textTypCons])
+                                                                AttributeAndTypeNameExpr "name" textTypCons (),
+                                                                AttributeAndTypeNameExpr "age" intTypCons (),
+                                                                AttributeAndTypeNameExpr "id" textTypCons ()])
     case maybeErr of
         Nothing -> return ()
         Just err -> assertFailure $ "defPersonRel" ++ show err

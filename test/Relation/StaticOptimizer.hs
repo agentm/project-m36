@@ -14,21 +14,22 @@ main = do
   where
     tests = relationOptTests ++ databaseOptTests
     optTest optfunc testparams = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (evalState (optfunc unopt) dateExamples)) $ testparams
+    relvar nam = RelationVariable nam ()
     relationOptTests = optTest applyStaticRelationalOptimization [
-      ("StaticProject", Right $ RelationVariable "s", Project (AttributeNames (attributeNames suppliersRel)) (RelationVariable "s")),
-      ("StaticUnion", Right $ RelationVariable "s", Union (RelationVariable "s") (RelationVariable "s")),
-      ("StaticJoin", Right $ RelationVariable "s", Join (RelationVariable "s") (RelationVariable "s")),
-      ("StaticRestrictTrue", Right $ RelationVariable "s", Restrict TruePredicate (RelationVariable "s")),
-      ("StaticRestrictFalse", Right $ MakeStaticRelation (attributes suppliersRel) emptyTupleSet, Restrict (NotPredicate TruePredicate) (RelationVariable "s"))
+      ("StaticProject", Right $ relvar "s", Project (AttributeNames (attributeNames suppliersRel)) (relvar "s")),
+      ("StaticUnion", Right $ relvar "s", Union (relvar "s") (relvar "s")),
+      ("StaticJoin", Right $ relvar "s", Join (relvar "s") (relvar "s")),
+      ("StaticRestrictTrue", Right $ relvar "s", Restrict TruePredicate (relvar "s")),
+      ("StaticRestrictFalse", Right $ MakeStaticRelation (attributes suppliersRel) emptyTupleSet, Restrict (NotPredicate TruePredicate) (relvar "s"))
       ]
     databaseOptTests = optTest applyStaticDatabaseOptimization [
       ("StaticAssign", 
-       Right $ Assign "z" (RelationVariable "s"),
-       Assign "z" (Restrict TruePredicate (RelationVariable "s"))
+       Right $ Assign "z" (relvar "s"),
+       Assign "z" (Restrict TruePredicate (relvar "s"))
        ),
       ("StaticMultipleExpr", 
-       Right $ MultipleExpr [Assign "z" (RelationVariable "s"), 
-                             Assign "z" (RelationVariable "s")],
-       MultipleExpr [Assign "z" (Restrict TruePredicate (RelationVariable "s")),
-                     Assign "z" (Restrict TruePredicate (RelationVariable "s"))])
+       Right $ MultipleExpr [Assign "z" (relvar "s"), 
+                             Assign "z" (relvar "s")],
+       MultipleExpr [Assign "z" (Restrict TruePredicate (relvar "s")),
+                     Assign "z" (Restrict TruePredicate (relvar "s"))])
       ]
