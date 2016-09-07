@@ -5,7 +5,7 @@ import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as Lex
 import ProjectM36.Base
 import ProjectM36.AtomType
-import Data.Text
+import Data.Text hiding (count)
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Vector as V
@@ -127,7 +127,16 @@ quotedString = try tripleQuotedString <|> normalQuotedString
 
 uuidP :: Parser U.UUID
 uuidP = do
-  uuidStr <- count' 28 (28 + 4) (hexDigitChar <|> char '-') -- min 28 with no dashes, maximum 4 dashes
+  uuidStart <- count 8 hexDigitChar 
+  _ <- char '-' -- min 28 with no dashes, maximum 4 dashes
+  uuidMid1 <- count 4 hexDigitChar
+  _ <- char '-'
+  uuidMid2 <- count 4 hexDigitChar
+  _ <- char '-'
+  uuidMid3 <- count 4 hexDigitChar
+  _ <- char '-'
+  uuidEnd <- count 12 hexDigitChar
+  let uuidStr = L.intercalate "-" [uuidStart, uuidMid1, uuidMid2, uuidMid3, uuidEnd]
   case U.fromString uuidStr of
     Nothing -> fail "Invalid uuid string"
     Just uuid -> return uuid
