@@ -30,7 +30,7 @@ main = do
       
           --6. execute a relational algebra query
           let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (TextAtom "Steve"))
-          eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person"))
+          eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person" ()))
           case eRel of
             Left err -> putStrLn (show err)
             Right rel -> putStrLn (show $ showRelation rel)
