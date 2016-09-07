@@ -32,7 +32,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -164,7 +164,7 @@ transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   graph <- transactionGraph dbconn
-  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s"))
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ()))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
@@ -179,7 +179,7 @@ transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   (DisconnectedTransaction firstUUID _) <- disconnectedTransaction sessionId dbconn
-  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s"))
+  maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ()))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
@@ -197,10 +197,10 @@ transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   mapM_ (\x -> x >>= maybeFail) [executeGraphExpr sessionId dbconn (Branch "test"),
-                  executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s")),
+                  executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ())),
                   commit sessionId dbconn,
                   executeGraphExpr sessionId dbconn (JumpToHead "master"),
-                  executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "s"))
+                  executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "s" ()))
                   ]
   graph <- transactionGraph dbconn
   assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
@@ -252,7 +252,7 @@ testNotification :: Test
 testNotification = TestCase $ do
   notifmvar <- newEmptyMVar
   let notifCallback mvar = \_ _ -> putMVar mvar ()
-      relvarx = RelationVariable "x"
+      relvarx = RelationVariable "x" ()
   (sess, conn) <- dateExamplesConnection (notifCallback notifmvar)
   let check' x = x >>= maybe (pure ()) (\err -> assertFailure (show err))  
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
@@ -286,7 +286,7 @@ testMergeTransactions = TestCase $ do
   case mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) [[IntAtom 1],[IntAtom 2]] of
     Left err -> assertFailure (show err)
     Right conflictCheck -> do
-      eRv <- executeRelationalExpr sessionId dbconn (RelationVariable "conflictrv")
+      eRv <- executeRelationalExpr sessionId dbconn (RelationVariable "conflictrv" ())
       case eRv of
         Left err -> assertFailure (show err)
         Right conflictrv -> assertEqual "conflict union merge relvar" conflictCheck conflictrv
@@ -298,4 +298,25 @@ testComments = TestCase $ do
     ":branch testbranch --test comment\n",
     ":jumphead {- test comment -} master"]
   
-    
+-- create a graph and query from two disparate contexts  
+testTransGraphRelationalExpr :: Test    
+testTransGraphRelationalExpr = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  mapM_ (executeTutorialD sessionId dbconn) [
+    ":commit",
+    ":branch testbranch",
+    "insert s relation{tuple{city \"Boston\", s# \"S9\", sname \"Smithers\", status 50}}",
+    ":commit"
+    ]
+  let masterMarker = TransactionIdHeadNameLookup "master"
+      testBranchMarker = TransactionIdHeadNameLookup "testbranch"
+      sattrs = attributesFromList [Attribute "city" TextAtomType,
+                                   Attribute "sname" TextAtomType,
+                                   Attribute "s#" TextAtomType,
+                                   Attribute "status" IntAtomType]
+      expectedRel = mkRelationFromList sattrs [[TextAtom "Boston",
+                                                TextAtom "Smithers",
+                                                TextAtom "S9",
+                                                IntAtom 50]]
+  diff <- executeTransGraphRelationalExpr sessionId dbconn (Difference (RelationVariable "s" testBranchMarker) (RelationVariable "s" masterMarker))
+  assertEqual "difference in s" expectedRel diff 
