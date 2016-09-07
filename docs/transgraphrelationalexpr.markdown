@@ -29,7 +29,7 @@ Note that the only difference is that the second expression explicitly reference
 Naturally, the trans-graph relational expression is most useful when querying across multiple transactions. This can be accomplished by specifying the transaction id (UUID) or using head name backtracking which is intentionally similar to the git traversal syntax.
 
 ```
-:showtransgraphexpr s@master~ join sp@master
+TutorialD (master): :showtransgraphexpr s@master~ join sp@master
 ```
 
 The transaction marker ```master~``` indicates that we wish to reference the first parent of the transaction at the head of the "master" branch. Then, we wish to join it with the relation variable ```sp``` at the head transaction of the master branch. Thusly, we can join two relations from two different transactions.
