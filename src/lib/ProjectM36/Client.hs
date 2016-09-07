@@ -42,6 +42,8 @@ module ProjectM36.Client
        RelationCardinality(..),
        TransactionGraphOperator(..),
        TransGraphRelationalExpr,
+       TransactionIdLookup(..),
+       TransactionIdHeadBacktrack(..),
        NodeId(..),
        Atom(..),
        Session,

@@ -21,12 +21,13 @@ import Data.Either (lefts, rights, isRight)
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
-                           TransactionIdHeadNameLookup HeadName 
+                           TransactionIdHeadNameLookup HeadName [TransactionIdHeadBacktrack]
                            deriving (Show, Eq, Binary, Generic)
                            
 -- topic~3^2
-data TransactionIdHeadBacktrack = TransactionIdHeadParentBackTrack Int | -- git ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
-                                  TransactionIdHeadBranchBackTrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
+data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
+                                  TransactionIdHeadBranchBacktrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
+                                  deriving (Show, Eq, Binary, Generic)
 
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
@@ -422,6 +423,36 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
 
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
 lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
-lookupTransaction graph (TransactionIdHeadNameLookup headName) = case transactionForHead headName graph of 
-  Just t -> Right t
+lookupTransaction graph (TransactionIdHeadNameLookup headName backtracks) = case transactionForHead headName graph of 
   Nothing -> Left (NoSuchHeadNameError headName)
+  Just headTrans -> do
+    traversedId <- traverseGraph graph (transactionId headTrans) backtracks
+    transactionForId traversedId graph
+    
+traverseGraph :: TransactionGraph -> TransactionId -> [TransactionIdHeadBacktrack] -> Either RelationalError TransactionId
+traverseGraph graph currentTid backtrackSteps = foldM (backtrackGraph graph) currentTid backtrackSteps
+             
+backtrackGraph :: TransactionGraph -> TransactionId -> TransactionIdHeadBacktrack -> Either RelationalError TransactionId
+-- tilde, step back one parent link- if a choice must be made, choose the "first" link arbitrarily
+backtrackGraph graph currentTid (TransactionIdHeadParentBacktrack steps) = do
+  trans <- transactionForId currentTid graph
+  let parents = S.toAscList (transactionParentIds trans)
+  if length parents < 1 then
+    Left RootTransactionTraversalError
+    else do
+    parentTrans <- transactionForId (head parents) graph
+    if steps == 1 then do
+      pure (transactionId parentTrans)
+      else
+      backtrackGraph graph (transactionId parentTrans) (TransactionIdHeadParentBacktrack (steps - 1))
+  
+backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
+  trans <- transactionForId currentTid graph
+  let parents = transactionParentIds trans
+  if S.size parents < 1 then
+    Left RootTransactionTraversalError    
+    else if S.size parents < steps then
+           Left (ParentCountTraversalError (S.size parents) steps)
+         else
+           pure (S.elemAt (steps - 1) parents)
+    

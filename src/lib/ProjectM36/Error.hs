@@ -31,6 +31,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | HeadNameSwitchingHeadProhibitedError HeadName
                      | NoSuchHeadNameError HeadName
                      | NewTransactionMayNotHaveChildrenError TransactionId
+                     | ParentCountTraversalError Int Int --maximum, requested
                      | NewTransactionMissingParentError TransactionId
                      | TransactionIsNotAHeadError TransactionId
                      | TransactionGraphCycleError TransactionId

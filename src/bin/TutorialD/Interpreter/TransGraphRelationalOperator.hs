@@ -20,8 +20,17 @@ data TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelationalE
 
 transactionIdLookupP :: Parser TransactionIdLookup
 transactionIdLookupP =  (TransactionIdLookup <$> uuidP) <|>
-                        (TransactionIdHeadNameLookup <$> identifier)
+                        (TransactionIdHeadNameLookup <$> identifier <*> many transactionIdHeadBacktrackP)
                         
+transactionIdHeadBacktrackP :: Parser TransactionIdHeadBacktrack                        
+transactionIdHeadBacktrackP = (string "~" *> (TransactionIdHeadParentBacktrack <$> backtrackP)) <|>
+                              (string "^" *> (TransactionIdHeadBranchBacktrack <$> backtrackP))
+                              
+backtrackP :: Parser Int
+backtrackP = do
+  steps <- integer <|> pure 1
+  pure (fromIntegral steps)
+  
 transGraphRelationalOpP :: Parser TransGraphRelationalOperator                     
 transGraphRelationalOpP = showTransGraphRelationalOpP
   

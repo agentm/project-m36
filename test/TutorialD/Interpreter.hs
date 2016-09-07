@@ -308,8 +308,8 @@ testTransGraphRelationalExpr = TestCase $ do
     "insert s relation{tuple{city \"Boston\", s# \"S9\", sname \"Smithers\", status 50}}",
     ":commit"
     ]
-  let masterMarker = TransactionIdHeadNameLookup "master"
-      testBranchMarker = TransactionIdHeadNameLookup "testbranch"
+  let masterMarker = TransactionIdHeadNameLookup "master" []
+      testBranchMarker = TransactionIdHeadNameLookup "testbranch" []
       sattrs = attributesFromList [Attribute "city" TextAtomType,
                                    Attribute "sname" TextAtomType,
                                    Attribute "s#" TextAtomType,
@@ -320,3 +320,9 @@ testTransGraphRelationalExpr = TestCase $ do
                                                 IntAtom 50]]
   diff <- executeTransGraphRelationalExpr sessionId dbconn (Difference (RelationVariable "s" testBranchMarker) (RelationVariable "s" masterMarker))
   assertEqual "difference in s" expectedRel diff 
+  
+  --test graph traversal (head backtracking
+  let testBranchBacktrack = TransactionIdHeadNameLookup "testbranch" [TransactionIdHeadParentBacktrack 1]
+  backtrackRel <- executeTransGraphRelationalExpr sessionId dbconn (Equals (RelationVariable "s" testBranchBacktrack) (RelationVariable "s" masterMarker))
+  assertEqual "backtrack to master" (Right relationTrue) backtrackRel
+  
