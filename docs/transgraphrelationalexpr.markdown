@@ -1,4 +1,4 @@
-# TransGraphRelational Expressions
+# Trans-Graph Relational Expressions
 
 ## Introduction
 
@@ -8,7 +8,7 @@ In contrast, a trans-graph relational expression can refer to any transaction's 
 
 ## Motivation
 
-Common SQL DBMSs contend all database changes (INSERTs, UPDATEs, DELETEs) on a single state. The DBMS is responsible for simulating serialized access to this every-changing state. Access to previous states are impossible- the only state visible is the one which is available when the client initiated the transaction.
+Common SQL DBMSs contend all database changes (INSERTs, UPDATEs, DELETEs) on a single state. The DBMS is responsible for simulating serialized access to this ever-changing state. Access to previous states is impossible- the only state visible is the one which is available when the client initiated the transaction.
 
 In constrast, Project:M36 allows queries against current *and* past transactions. This is useful for learning how a database has changed over time. One essential use for this feature is for "auditing", whereby the database can be queried to explain how, when, and by whom certain changes were made.
 
@@ -29,10 +29,10 @@ Note that the only difference is that the second expression explicitly reference
 Naturally, the trans-graph relational expression is most useful when querying across multiple transactions. This can be accomplished by specifying the transaction id (UUID) or using head name backtracking which is intentionally similar to the git traversal syntax.
 
 ```
-:showtransgraphexpr s@master~
+:showtransgraphexpr s@master~ join sp@master
 ```
 
-The transaction marker ```master~``` indicates that we wish to reference the first parent of the transaction at the head of the "master" branch.
+The transaction marker ```master~``` indicates that we wish to reference the first parent of the transaction at the head of the "master" branch. Then, we wish to join it with the relation variable ```sp``` at the head transaction of the master branch. Thusly, we can join two relations from two different transactions.
 
 Since transactions can have multiple parents due to merge commits, the ```^x``` syntax can be used to specify the ```x```-th parent of the referenced transaction.
 
@@ -58,4 +58,4 @@ Other than the following markers, trans-graph relational expressions share ident
 |--------|---------|---------|
 | &lt;uuid&gt; | ```rv@dc385ccc-387e-407d-b65f-e3681cf221a9``` | The relation variable ```rv``` at the state of transaction referred to by explicit unique identifier.|
 | ^[&lt;n-th parent&gt;] | ```rv@addcustomer^2``` | The relation variable ```rv``` at the state of the second parent transaction of the head transaction of the branch ```addcustomer```. |
-| ~[&lt;steps&gt;] | ```rv@addcustomer~3``` | The relation variable ```rv``` at the state of the great-grandparent of the head transaction of branch ```addcustomer```.|
+| ~[&lt;steps&gt;] | ```rv@addcustomer~3``` | The relation variable ```rv``` at the state of the great-grandparent of the head transaction of branch ```addcustomer```. The tilde operator always traverses the "first" parent transaction of any merge transaction.|
