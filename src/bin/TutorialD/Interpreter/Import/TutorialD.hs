@@ -19,7 +19,8 @@ importTutorialD pathIn = do
     Left err -> return $ Left (ImportError $ T.pack (show err))
     Right tutdData' -> do 
       case parse multipleDatabaseContextExprP "import" tutdData' of
-        Left err -> pure (Left (PM36E.ParseError (T.pack (parseErrorPretty err))))
+        --parseErrorPretty is new in megaparsec 5
+        Left err -> pure (Left (PM36E.ParseError (T.pack (show err))))
         Right expr -> pure (Right expr)
 
 tutdImportP :: Parser DatabaseContextDataImportOperator

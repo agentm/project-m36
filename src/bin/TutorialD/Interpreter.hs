@@ -71,11 +71,11 @@ promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
   where
     transInfo = fromMaybe "<unknown>" mHeadName
           
-parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+parseTutorialD :: T.Text -> Either ParseError ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+safeParseTutorialD :: T.Text -> Either ParseError ParsedOperation
 safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
@@ -194,7 +194,7 @@ reprLoop config sessionId conn = do
     Just line -> do
       case parseTutorialD (T.pack line) of
         Left err -> do
-          let strErr = parseErrorPretty err
+          let strErr = show err --parseErrorPretty new in megaparsec 5
           displayOpResult $ DisplayErrorResult (T.pack strErr)
         Right parsed -> do 
           evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
