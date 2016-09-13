@@ -339,33 +339,36 @@ evalContextExpr (RemoveAtomFunction funcName) = do
     else
       pure (Just (AtomFunctionNameNotInUseError funcName))
       
-evalDatabaseContextIOExpr :: ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
-evalDatabaseContextIOExpr scriptSession currentContext (AddAtomFunction funcName funcType script) = do
-  res <- try $ runGhc (Just libdir) $ do
-    setSession (hscEnv scriptSession)
-    let atomFuncs = atomFunctions currentContext
-    --compile the function
-    eCompiledFunc  <- compileAtomFunctionScript scriptSession script
-    pure $ case eCompiledFunc of
-      Left err -> Left (AtomFunctionBodyScriptError err)
-      Right compiledFunc -> do
-        funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) funcType
-        let updatedFuncs = HS.insert newAtomFunc atomFuncs
-            newContext = currentContext { atomFunctions = updatedFuncs }
-            newAtomFunc = AtomFunction { atomFuncName = funcName,
-                                         atomFuncType = funcAtomType,
-                                         atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
+evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
+evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = do
+  case mScriptSession of
+    Nothing -> pure (Left (AtomFunctionBodyScriptError ScriptCompilationDisabledError))
+    Just scriptSession -> do
+      res <- try $ runGhc (Just libdir) $ do
+        setSession (hscEnv scriptSession)
+        let atomFuncs = atomFunctions currentContext
+        --compile the function
+        eCompiledFunc  <- compileAtomFunctionScript scriptSession script
+        pure $ case eCompiledFunc of
+          Left err -> Left (AtomFunctionBodyScriptError err)
+          Right compiledFunc -> do
+            funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) funcType
+            let updatedFuncs = HS.insert newAtomFunc atomFuncs
+                newContext = currentContext { atomFunctions = updatedFuncs }
+                newAtomFunc = AtomFunction { atomFuncName = funcName,
+                                           atomFuncType = funcAtomType,
+                                           atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
       
-        -- check if the name is already in use
-        if HS.member funcName (HS.map atomFuncName atomFuncs) then
-          Left (AtomFunctionNameInUseError funcName)
-          else do
-          Right newContext
-  case res of
-    Left (exc :: SomeException) -> pure $ Left (AtomFunctionBodyScriptError (OtherScriptCompilationError (show exc)))
-    Right eContext -> case eContext of
-      Left err -> pure (Left err)
-      Right context' -> pure (Right context')
+            -- check if the name is already in use
+            if HS.member funcName (HS.map atomFuncName atomFuncs) then
+              Left (AtomFunctionNameInUseError funcName)
+              else do
+              Right newContext
+      case res of
+        Left (exc :: SomeException) -> pure $ Left (AtomFunctionBodyScriptError (OtherScriptCompilationError (show exc)))
+        Right eContext -> case eContext of
+          Left err -> pure (Left err)
+          Right context' -> pure (Right context')
     
 updateTupleWithAtomExprs :: (M.Map AttributeName AtomExpr) -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do

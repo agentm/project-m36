@@ -104,6 +104,7 @@ instance NFData MergeError where rnf = genericRnf
                                  
 data AtomFunctionBodyCompilationError = TypeCheckCompilationError String String | --expected, got
                                         SyntaxErrorCompilationError String |
+                                        ScriptCompilationDisabledError |
                                         OtherScriptCompilationError String
                                       deriving (Show,Eq, Generic, Binary, Typeable, NFData)
                                  

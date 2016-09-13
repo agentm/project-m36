@@ -96,6 +96,7 @@ import ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
+import System.IO
 --import Debug.Trace
 
 type Hostname = String
@@ -148,7 +149,7 @@ defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (c
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 type ClientNodes = STMSet.Set ProcessId
 
-data Connection = InProcessConnection PersistenceStrategy ClientNodes Sessions (TVar TransactionGraph) ScriptSession |
+data Connection = InProcessConnection PersistenceStrategy ClientNodes Sessions (TVar TransactionGraph) (Maybe ScriptSession) |
                   RemoteProcessConnection LocalNode ProcessId
                   
 -- | There are several reasons why a connection can fail.
@@ -189,6 +190,13 @@ startNotificationListener callback = do
     Left err -> error ("Failed to start local notification listener: " ++ show err)
     Right localNode -> forkProcess localNode (notificationListener callback)
   
+createScriptSession :: [String] -> IO (Maybe ScriptSession)  
+createScriptSession ghcPkgPaths = do
+  eScriptSession <- initScriptSession ghcPkgPaths
+  case eScriptSession of
+    Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ (show err)) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
+    Right s -> pure (Just s)
+
 -- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
@@ -203,8 +211,8 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         clientNodes <- STMSet.newIO
         sessions <- STMMap.newIO
         notificationPid <- startNotificationListener notificationCallback
-        interpreterSession <- initScriptSession ghcPkgPaths
-        let conn = InProcessConnection strat clientNodes sessions graphTvar interpreterSession
+        mScriptSession <- createScriptSession ghcPkgPaths
+        let conn = InProcessConnection strat clientNodes sessions graphTvar mScriptSession
         addClientNode conn notificationPid
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -251,8 +259,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
           tvarGraph <- newTVarIO graph'
           sessions <- STMMap.newIO
           clientNodes <- STMSet.newIO
-          scriptSession <- initScriptSession ghcPkgPaths
-          let conn = InProcessConnection strat clientNodes sessions tvarGraph scriptSession
+          mScriptSession <- createScriptSession ghcPkgPaths
+          let conn = InProcessConnection strat clientNodes sessions tvarGraph mScriptSession
           notificationPid <- startNotificationListener notificationCallback 
           addClientNode conn notificationPid
           pure (Right conn)
