@@ -4,7 +4,6 @@
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Base
-import ProjectM36.ConcreteTypeRep
 import ProjectM36.Error
 import ProjectM36.DataTypes.Primitive
 
@@ -59,19 +58,6 @@ instance FromJSON TypeConstructor
 instance ToJSON TypeConstructorArg
 instance FromJSON TypeConstructorArg
 
-instance ToJSON SerialRep
-instance FromJSON SerialRep
-
-instance FromJSON ConcreteTypeRep where
-  parseJSON = withObject "ctr" $ \o -> do
-    serialRep <- o .: "serialrep"
-    pure $ fromSerial serialRep
-    
-instance ToJSON ConcreteTypeRep where
-  toJSON ctr = object [
-    "serialrep" .= toSerial ctr
-    ]
-                   
 instance ToJSON Atom where                   
   toJSON atom@(IntAtom i) = object [ "type" .= atomTypeForAtom atom,
                                      "val" .= i ]

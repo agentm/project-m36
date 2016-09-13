@@ -82,6 +82,7 @@ Library
                      ProjectM36.TupleSet,
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
+                     ProjectM36.AtomFunctionBodyDeps,
                      ProjectM36.Key,
                      ProjectM36.DatabaseContext,
                      ProjectM36.DateExamples,
@@ -98,7 +99,6 @@ Library
                      ProjectM36.AtomType,
                      ProjectM36.AtomFunctions.Basic,
                      ProjectM36.AtomFunctions.Primitive,
-                     ProjectM36.ConcreteTypeRep,
                      ProjectM36.DataConstructorDef,
                      ProjectM36.DataTypes.Basic,
                      ProjectM36.DataTypes.Day,
@@ -427,9 +427,9 @@ Test-Suite test-websocket-server
 -- create a distributable bundle for the current OS
 Executable dist
     Default-Language: Haskell2010
-    Build-Depends: base, shake
+    Build-Depends: base, shake, directory
     Main-Is: distribution.hs
     Other-Modules: ProjectM36.AtomFunctionBodyDeps
     GHC-Options: -Wall
     Hs-source-dirs: ./src/bin, ./src/lib
-    
+    CPP-Options: -DPROJECTM36_VERSION="v0.1"    
