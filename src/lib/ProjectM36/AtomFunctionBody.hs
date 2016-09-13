@@ -3,6 +3,7 @@
 module ProjectM36.AtomFunctionBody where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.AtomFunctionBodyDeps
 
 import Control.Monad.IO.Class
 import Control.Exception
@@ -47,18 +48,7 @@ initScriptSession ghcPkgPaths = do
                 `xopt_set` Opt_ScopedTypeVariables
                 `gopt_set` Opt_PackageTrust
                 --`gopt_set` Opt_ImplicitImportQualified
-        packages = map TrustPackage ["base", 
-                                   "containers",
-                                   "unordered-containers",
-                                   "hashable",
-                                   "uuid",
-                                   "vector",
-                                   "text",
-                                   "binary",
-                                   "vector-binary-instances",
-                                   "time",
-                                   "project-m36",
-                                   "bytestring"] -- package flags changed in 8.0
+        packages = map TrustPackage atomFunctionDeps -- package flags changed in 8.0
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn = ImportDecl {
           ideclSourceSrc = Nothing,

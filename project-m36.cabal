@@ -423,3 +423,13 @@ Test-Suite test-websocket-server
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, .
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
+
+-- create a distributable bundle for the current OS
+Executable dist
+    Default-Language: Haskell2010
+    Build-Depends: base, shake
+    Main-Is: distribution.hs
+    Other-Modules: ProjectM36.AtomFunctionBodyDeps
+    GHC-Options: -Wall
+    Hs-source-dirs: ./src/bin, ./src/lib
+    
