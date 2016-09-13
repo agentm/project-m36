@@ -48,7 +48,7 @@ initScriptSession ghcPkgPaths = do
                 `xopt_set` Opt_ScopedTypeVariables
                 `gopt_set` Opt_PackageTrust
                 --`gopt_set` Opt_ImplicitImportQualified
-        packages = map TrustPackage atomFunctionDeps -- package flags changed in 8.0
+        packages = map TrustPackage atomFunctionBodyDeps -- package flags changed in 8.0
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn = ImportDecl {
           ideclSourceSrc = Nothing,

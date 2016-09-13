@@ -2,6 +2,9 @@
 *.hi
 *~
 dist/
+dist_build/
+RelatedPapers/
+_shake/
 .cabal-sandbox/
 cabal.sandbox.config
 .stack-work
