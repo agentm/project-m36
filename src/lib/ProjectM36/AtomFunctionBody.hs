@@ -13,6 +13,7 @@ import Unsafe.Coerce
 import GHC
 import GHC.Paths (libdir)
 import DynFlags
+import Panic
 import Outputable hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
@@ -22,13 +23,17 @@ data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
   atomFunctionBodyType :: Type
   }
+                     
+data ScriptSessionError = ScriptSessionLoadError GhcException
+                          deriving (Show)
 
 -- | Configure a GHC environment/session which we will use for all script compilation.
-initScriptSession :: [String] -> IO ScriptSession
+initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
 initScriptSession ghcPkgPaths = do
     --for the sake of convenience, for developers' builds, include the local cabal sandbox pacakge database
   sandboxPkgPaths <- liftIO (glob ".cabal-sandbox/*packages.conf.d")
-  runGhc (Just libdir) $ do
+  let excHandler exc = pure $ Left (ScriptSessionLoadError exc)
+  handleGhcException excHandler $ runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
       
@@ -67,7 +72,7 @@ initScriptSession ghcPkgPaths = do
                  "ProjectM36.Base"])
     env <- getSession
     fType <- mkAtomFunctionBodyType
-    pure (ScriptSession env fType)
+    pure (Right (ScriptSession env fType))
       
 mkAtomFunctionBodyType :: Ghc Type      
 mkAtomFunctionBodyType = do
