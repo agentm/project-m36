@@ -4,6 +4,7 @@ import Development.Shake
 import Development.Shake.FilePath
 --du -hs /biimport ProjectM36.AtomFunctionBodyDeps
 import System.Directory
+import System.Info
  
 bundle_name :: FilePath
 bundle_name = "project-m36-" ++ PROJECTM36_VERSION
@@ -35,8 +36,11 @@ main = shakeArgs shakeOptions{shakeFiles="_shake", shakeVerbosity=Chatty} $ do
     --copy binaries to dist_build
     mapM_ (\bin -> copyFileChanged (dist_dir </> "build" </> bin </> bin) (binary_dest bin)) binaries
     zip_abs <- liftIO $ makeAbsolute out
-    let stripInitPath = joinPath . tail . splitPath 
-    cmd (Cwd dist_build) "zip" zip_abs (map stripInitPath dist_bins)
+    let stripInitPath = joinPath . tail . splitPath
+        zip_bins = map stripInitPath dist_bins
+    case os of        
+      "mingw32" -> cmd (Cwd dist_build) "7z.exe" "a" "-tzip" zip_abs zip_bins
+      _ -> cmd (Cwd dist_build) "zip" zip_abs zip_bins 
    
 -- ghc-pkgs are NOT relocatable, so we need a different strategy if we want it to be relocatable      
 {-  "libs" ~> do
