@@ -5,9 +5,6 @@ import Development.Shake.FilePath
 --du -hs /biimport ProjectM36.AtomFunctionBodyDeps
 import System.Directory
  
-binary_src :: FilePath -> FilePath  
-binary_src bin_name = "dist" </> "build" </> bin_name </> bin_name
-
 bundle_name :: FilePath
 bundle_name = "project-m36-" ++ PROJECTM36_VERSION
 
@@ -20,30 +17,23 @@ dist_build = "dist_build"
 --lib_dest :: FilePath
 --lib_dest = "dist_build" </> "lib"
 
+--current system: copy stack-built binaries into "dist_build", then create a zip file
 main :: IO ()
 main = shakeArgs shakeOptions{shakeFiles="_shake", shakeVerbosity=Chatty} $ do
   let binaries = ["tutd", 
                   "project-m36-server",
                   "project-m36-websocket-server"]
-      bin_zip = "dist" </> bundle_name ++ ".zip"
+      bin_zip = dist_build </> bundle_name ++ ".zip"
       -- libraries required by AtomFunctionBody scripting
       --libs = atomFunctionBodyDeps
       dist_bins = map binary_dest binaries
   want [bin_zip]
-  {-build_zip %> \out -> do
-    need (
-    cmd "zip" out dist_binaries-}
-  --create a directory containing all the components for the distribution
-  (map binary_src binaries) |%> \out -> do
-      alwaysRerun
-      let bin_name = takeFileName out
-      cmd "cabal build" bin_name
-  dist_bins |%> \out -> do
-      let bin_name = takeFileName out
-      need [binary_src bin_name]
-      copyFileChanged (binary_src bin_name) out
   bin_zip %> \out -> do
-    need dist_bins
+    --check where the binaries are located
+    Stdout res <- cmd "stack path --dist-dir"
+    let dist_dir = init res
+    --copy binaries to dist_build
+    mapM_ (\bin -> copyFileChanged (dist_dir </> "build" </> bin </> bin) (binary_dest bin)) binaries
     zip_abs <- liftIO $ makeAbsolute out
     let stripInitPath = joinPath . tail . splitPath 
     cmd (Cwd dist_build) "zip" zip_abs (map stripInitPath dist_bins)
