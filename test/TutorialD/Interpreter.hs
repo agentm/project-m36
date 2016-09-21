@@ -206,6 +206,12 @@ transactionBranchTest = TestCase $ do
   assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
   assertBool "test branch exists" $ isJust (transactionForHead "test" graph)
 
+-- test that overlapping attribute names with different types fail with an error
+failJoinTest :: Test
+failJoinTest = TestCase $ assertTutdEqual basicDatabaseContext err "x:=relation{tuple{test Int}} join relation{tuple{test Text}}"
+  where
+    err = Left (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "test" IntAtomType]))
+
 simpleJoinTest :: Test
 simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=s join sp"
     where

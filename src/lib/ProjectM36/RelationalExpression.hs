@@ -596,3 +596,4 @@ evalTupleExpr context attrs (TupleExpr tupMap) = do
   tup' <- resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup)
   _ <- validateTuple tup' tConss
   pure tup'
+

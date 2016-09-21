@@ -34,11 +34,16 @@ addAttribute attr attrs = attrs `V.snoc` attr
 
 --if some attribute names overlap but the types do not, then spit back an error
 joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
-joinAttributes attrs1 attrs2 = if V.length (vectorUniqueify overlappingAttributes) /= V.length overlappingAttributes then
+joinAttributes attrs1 attrs2 = if V.length uniqueOverlappingAttributes /= V.length overlappingAttributes then
                                  Left $ TupleAttributeTypeMismatchError overlappingAttributes
-                               else
-                                 Right $ vectorUniqueify (attrs1 V.++ attrs2)
+                               else if V.length overlappingAttrsDifferentTypes > 0 then
+                                      Left (TupleAttributeTypeMismatchError overlappingAttrsDifferentTypes)
+                                    else
+                                      Right $ vectorUniqueify (attrs1 V.++ attrs2)
   where
+    overlappingAttrsDifferentTypes = V.filter (\attr -> V.elem (attributeName attr) attrNames2 && V.notElem attr attrs2) attrs1
+    attrNames2 = V.map attributeName attrs2
+    uniqueOverlappingAttributes = vectorUniqueify overlappingAttributes
     overlappingAttributes = V.filter (\attr -> V.elem attr attrs2) attrs1
 
 addAttributes :: Attributes -> Attributes -> Attributes
