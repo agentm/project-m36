@@ -93,6 +93,7 @@ Library
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
+                     ProjectM36.IsomorphicSchema,
                      ProjectM36.Client,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,
@@ -419,6 +420,16 @@ Test-Suite test-websocket-server
     main-is: test/Server/WebSocket.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, uuid-aeson, project-m36 == 0.1
     Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TransGraphRelationalOperator
+    Default-Extensions: OverloadedStrings
+    GHC-Options: -Wall
+    Hs-Source-Dirs: ./src/bin, .
+    CPP-Options: -DPROJECTM36_VERSION="v0.1"
+
+Test-Suite test-isomorphic-schemas
+    Default-Language: Haskell2010
+    type: exitcode-stdio-1.0
+    main-is: test/IsomorphicSchema.hs
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, distributed-process, distributed-process-extras, distributed-process-client-server, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, uuid-aeson, project-m36 == 0.1
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, .

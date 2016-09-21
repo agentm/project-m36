@@ -86,19 +86,6 @@ isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
 
-{-
-atomTypeForAtom :: Atom -> AtomType
-atomTypeForAtom (IntAtom _) = IntAtomType
-atomTypeForAtom (DoubleAtom _) = DoubleAtomType
-atomTypeForAtom (TextAtom _) = TextAtomType
-atomTypeForAtom (DayAtom _) = DayAtomType
-atomTypeForAtom (DateTimeAtom _)  = DateTimeAtomType
-atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
-atomTypeForAtom (BoolAtom _) = BoolAtomType
-atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
-atomTypeForAtom (ConstructedAtom _ aType _) = aType
--}
-
 -- | The AttributeName is the name of an attribute in a relation.
 type AttributeName = StringType
 
