@@ -259,7 +259,8 @@ prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append`
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
 prettyAtomType AnyAtomType = "?AnyAtomType?"
-prettyAtomType aType = (T.pack . show) aType
+prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
+  where fullName = (T.pack . show) aType
 
 prettyAttribute :: Attribute -> T.Text
 prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)
