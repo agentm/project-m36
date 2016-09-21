@@ -32,7 +32,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -208,7 +208,7 @@ transactionBranchTest = TestCase $ do
 
 -- test that overlapping attribute names with different types fail with an error
 failJoinTest :: Test
-failJoinTest = TestCase $ assertTutdEqual basicDatabaseContext err "x:=relation{tuple{test Int}} join relation{tuple{test Text}}"
+failJoinTest = TestCase $ assertTutdEqual basicDatabaseContext err "x:=relation{tuple{test 4}} join relation{tuple{test \"test\"}}"
   where
     err = Left (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "test" IntAtomType]))
 
@@ -332,3 +332,12 @@ testTransGraphRelationalExpr = TestCase $ do
   backtrackRel <- executeTransGraphRelationalExpr sessionId dbconn (Equals (RelationVariable "s" testBranchBacktrack) (RelationVariable "s" masterMarker))
   assertEqual "backtrack to master" (Right relationTrue) backtrackRel
   
+
+testMultiAttributeRename :: Test
+testMultiAttributeRename = TestCase $ assertTutdEqual dateExamples renamedRel "x:=s rename {city as town, status as price} where false"
+  where
+    sattrs = attributesFromList [Attribute "town" TextAtomType,
+                                 Attribute "sname" TextAtomType,
+                                 Attribute "s#" TextAtomType,
+                                 Attribute "price" IntAtomType]
+    renamedRel = mkRelationFromList sattrs []

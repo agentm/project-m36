@@ -80,8 +80,11 @@ renameClauseP = do
 renameP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 renameP = do
   reservedOp "rename"
-  (oldAttr, newAttr) <- braces renameClauseP
-  return $ Rename oldAttr newAttr
+  renameList <- braces (sepBy renameClauseP comma)
+  case renameList of
+    [] -> pure (Restrict TruePredicate) --no-op when rename list is empty
+    renames -> do
+      pure $ \expr -> foldl (\acc (oldAttr, newAttr) -> Rename oldAttr newAttr acc) expr renames
 
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 whereClauseP = reservedOp "where" *> (Restrict <$> restrictionPredicateP)
