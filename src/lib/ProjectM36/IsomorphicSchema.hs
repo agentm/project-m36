@@ -10,11 +10,6 @@ import Control.Monad
 
 -- the isomorphic building blocks should not be arbitrarily combined; for example, combing restrict and union on the same target relvar does not make sense as that would create effects at a distance in the secondary schema
 --this should create a new schema
-data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (Maybe RelVarName, Maybe RelVarName) | --maps one relvar into two relvars (true, false), if the false name is Nothing, no relvar in schemaB is created. This is useful for renaming relation variables between schemas or hiding relvars altogether.
-                      IsoUnion (RelVarName, Maybe RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
-                      -- IsoTypeConstructor in morphAttrExpr
-                      
-type SchemaIsomorphs = [SchemaIsomorph]
 
 -- | Return True iff the SchemaIsomorph is fully isomorphic in the sense that it does not represent an isomorphic sub-schema.
 isFullyIsomorphic :: SchemaIsomorph -> Bool
@@ -108,11 +103,9 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt split) = \expr -> case expr 
       (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
       (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
   Update rv attrMap predi | rv == rvIn -> do
---something missing here, create a function to conver the attr->atom map to a relexpr to insert based on what matches in the existing relation variable    
-    let trueExpr n = MultipleExpr [Update n attrMap (AndPredicate predi filt)]
-                                   --Insert rvTrue ...
-        falseExpr n = MultipleExpr [Update n attrMap (AndPredicate predi (NotPredicate filt))]
-                      --Insert rvFalse, retrieve matching tuples based on attrMap
+    -- if the update would "shift" a tuple from the true->false relvar or vice versa, that would be a constraint violation in the virtual schema
+    let trueExpr n = Update n attrMap (AndPredicate predi filt)
+        falseExpr n = Update n attrMap (AndPredicate predi (NotPredicate filt))
     case split of
       (Just rvTrue, Just rvFalse) -> pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
       (Just rvTrue, Nothing) -> pure (trueExpr rvTrue)
@@ -151,3 +144,26 @@ applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprM
 -- | Apply the isomorphism transformations to the database context expression to convert the expression from operating on one schema to a disparate, isomorphic schema.
 applyDatabaseCotextExprSchemaIsomorphs :: SchemaIsomorphs -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 applyDatabaseCotextExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> databaseContextExprMogrify (databaseContextExprMorph morph) expr') expr morphs
+
+inclusionDependenciesMorph :: SchemaIsomorph -> (InclusionDependency -> Either RelationalError InclusionDependency)
+inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> InclusionDependency <$> relExprMorph iso subExpr <*> relExprMorph iso expr
+
+applyInclusionDependenciesSchemaIsoMorphs :: SchemaIsomorphs -> InclusionDependencies -> Either RelationalError InclusionDependencies
+--add inc deps for restriction with some automatic name
+applyInclusionDependenciesSchemaIsoMorphs morphs incDeps = undefined
+  
+applyRelationVariablesSchemaIsomorphs :: SchemaIsomorphs -> RelationVariables -> Either RelationalError RelationVariables                                                                 
+applyRelationVariablesSchemaIsomorphs = undefined
+
+applySchemaIsomorphsToDatabaseContext :: SchemaIsomorphs -> DatabaseContext -> Either RelationalError DatabaseContext
+applySchemaIsomorphsToDatabaseContext morphs context = do
+  incdeps <- applyInclusionDependenciesSchemaIsoMorphs morphs (inclusionDependencies context)
+  relvars <- applyRelationVariablesSchemaIsomorphs morphs (relationVariables context)
+  pure (context { inclusionDependencies = incdeps,
+                  relationVariables = relvars
+                  --atomFunctions = atomfuncs,
+                  --notifications = notifs,
+                  --typeConstructorMapping = tconsmapping
+                })
+
+    

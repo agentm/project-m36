@@ -64,6 +64,8 @@ import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.DatabaseContext (basicDatabaseContext)
 import ProjectM36.TransactionGraph
+import qualified ProjectM36.Transaction as Trans
+import qualified ProjectM36.DisconnectedTransaction as DTrans
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute hiding (atomTypes)
 import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
@@ -90,6 +92,7 @@ import Control.Distributed.Process.Serializable (Serializable)
 --import Control.Distributed.Process.Debug
 import qualified STMContainers.Map as STMMap
 import qualified STMContainers.Set as STMSet
+import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
 import ListT
@@ -279,7 +282,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection _ _ sessions g
     case transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (transactionContext transaction)
+            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) 
             keyDuplication <- STMMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
@@ -361,7 +364,7 @@ executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = ex
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right (Session (DisconnectedTransaction _ context)) -> case evalState (RE.evalRelationalExpr expr) context of
+    Right (Session discon) -> case evalState (RE.evalRelationalExpr expr) (DTrans.concreteDatabaseContext discon) of
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
@@ -373,10 +376,11 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr
   case eSession of
     Left err -> pure $ Just err
     Right session -> do
-      case runState (RE.evalContextExpr expr) (sessionContext session) of
+      case runState (RE.evalContextExpr expr) (Sess.concreteDatabaseContext session) of
         (Just err,_) -> return $ Just err
         (Nothing, context') -> do
-          let newDiscon = DisconnectedTransaction (sessionParentId session) context'
+          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
+              newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon
           STMMap.insert newSession sessionId sessions
           pure Nothing
@@ -391,11 +395,12 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection _ _ sessions _ scrip
   case eSession of
     Left err -> pure $ Just err
     Right session -> do
-      res <- RE.evalDatabaseContextIOExpr scriptSession (sessionContext session) expr
+      res <- RE.evalDatabaseContextIOExpr scriptSession (Sess.concreteDatabaseContext session) expr
       case res of
         Left err -> pure (Just err)
         Right context' -> do
-          let newDiscon = DisconnectedTransaction (sessionParentId session) context'
+          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
+              newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon
           atomically $ STMMap.insert newSession sessionId sessions
           pure Nothing
@@ -434,16 +439,16 @@ executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graph
     oldGraph <- readTVar graphTvar
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction parentId currentContext)) -> do
+      Right session -> do
         eGraph <- executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar
         case eGraph of
           Left err -> pure (Left err)
           Right newGraph -> do
             if graphExpr == Commit then
-              case transactionForId parentId oldGraph of
+              case transactionForId (Sess.parentId session) oldGraph of
                 Left err -> pure $ Left err
-                Right (Transaction _ _ previousContext) -> do
-                  (evaldNots, nodes) <- executeCommitExprSTM_ previousContext currentContext clientNodes
+                Right previousTrans -> do
+                  (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
                   nodesToNotify <- toList (STMSet.stream nodes)                  
                   pure $ Right (evaldNots, nodesToNotify, newGraph)
             else
@@ -512,7 +517,7 @@ typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExp
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right session -> pure $ evalState (RE.typeForRelationalExpr relExpr) (sessionContext session)
+    Right session -> pure $ evalState (RE.typeForRelationalExpr relExpr) (Sess.concreteDatabaseContext session)
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
@@ -523,7 +528,7 @@ inclusionDependencies sessionId (InProcessConnection _ _ sessions _ _) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure $ Left err
-      Right session -> pure $ Right (B.inclusionDependencies (sessionContext session))
+      Right session -> pure $ Right (B.inclusionDependencies (Sess.concreteDatabaseContext session))
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -534,7 +539,7 @@ planForDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) dbEx
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure $ Left err
-      Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (sessionContext session)
+      Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
@@ -560,7 +565,7 @@ relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = d
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction _ context)) -> pure $ R.relationVariablesAsRelation (relationVariables context)
+      Right session -> pure $ R.relationVariablesAsRelation (relationVariables (Sess.concreteDatabaseContext session))
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
@@ -571,7 +576,7 @@ headTransactionId sessionId (InProcessConnection _ _ sessions _ _) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure Nothing
-      Right session -> pure $ Just (sessionParentId session)
+      Right session -> pure $ Just (Sess.parentId session)
 headTransactionId sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionId sessionId)
     
 headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe HeadName)  
@@ -580,7 +585,7 @@ headNameSTM_ sessionId sessions graphTvar = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure $ Nothing
-      Right session -> pure $ case transactionForId (sessionParentId session) graph of
+      Right session -> pure $ case transactionForId (Sess.parentId session) graph of
         Left _ -> Nothing
         Right parentTrans -> headNameForTransaction parentTrans graph
   
@@ -596,8 +601,8 @@ atomTypesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction _ context)) -> do
-        case typesAsRelation (typeConstructorMapping context) of
+      Right session -> do
+        case typesAsRelation (typeConstructorMapping (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)

@@ -4,6 +4,7 @@
 module ProjectM36.TransGraphRelationalExpression where
 import ProjectM36.Base
 import ProjectM36.TransactionGraph
+import ProjectM36.Transaction
 import ProjectM36.RelationalExpression
 import ProjectM36.Error
 import Control.Monad.State
@@ -48,7 +49,7 @@ evalTransGraphRelationalExpr (MakeStaticRelation attrs tupSet) _ = pure (MakeSta
 evalTransGraphRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelation rel)
 evalTransGraphRelationalExpr (RelationVariable rvname transLookup) graph = do
   trans <- lookupTransaction graph transLookup
-  rel <- evalState (evalRelationalExpr (RelationVariable rvname ())) (transactionContext trans)
+  rel <- evalState (evalRelationalExpr (RelationVariable rvname ())) (concreteDatabaseContext trans)
   pure (ExistingRelation rel)
 evalTransGraphRelationalExpr (Project attrNames expr) graph = do
   expr' <- evalTransGraphRelationalExpr expr graph
@@ -106,7 +107,7 @@ evalTransGraphAtomExpr graph (FunctionAtomExpr funcName args tLookup) = do
   trans <- lookupTransaction graph tLookup
   --I can't return a FunctionAtomExpr because the function needs to be resolved at a specific context
   args' <- mapM (evalTransGraphAtomExpr graph) args
-  atom <- evalAtomExpr emptyTuple (transactionContext trans) (FunctionAtomExpr funcName args' ())
+  atom <- evalAtomExpr emptyTuple (concreteDatabaseContext trans) (FunctionAtomExpr funcName args' ())
   pure (NakedAtomExpr atom)
 evalTransGraphAtomExpr graph (RelationAtomExpr expr) = do
   expr' <- evalTransGraphRelationalExpr expr graph 
@@ -114,7 +115,7 @@ evalTransGraphAtomExpr graph (RelationAtomExpr expr) = do
 evalTransGraphAtomExpr graph (ConstructedAtomExpr dConsName args tLookup) = do
   trans <- lookupTransaction graph tLookup  
   args' <- mapM (evalTransGraphAtomExpr graph) args
-  atom <- evalAtomExpr emptyTuple (transactionContext trans) (ConstructedAtomExpr dConsName args' ())
+  atom <- evalAtomExpr emptyTuple (concreteDatabaseContext trans) (ConstructedAtomExpr dConsName args' ())
   pure (NakedAtomExpr atom)
 
 evalTransGraphRestrictionPredicateExpr :: TransGraphRestrictionPredicateExpr -> TransactionGraph -> Either RelationalError RestrictionPredicateExpr
@@ -148,6 +149,6 @@ evalTransGraphExtendTupleExpr (AttributeExtendTupleExpr attrName expr) graph = d
 evalTransGraphAttributeExpr :: TransactionGraph -> TransGraphAttributeExpr -> Either RelationalError AttributeExpr
 evalTransGraphAttributeExpr graph (AttributeAndTypeNameExpr attrName tCons tLookup) = do
   trans <- lookupTransaction graph tLookup
-  aType <- atomTypeForTypeConstructor tCons (typeConstructorMapping (transactionContext trans))
+  aType <- atomTypeForTypeConstructor tCons (typeConstructorMapping (concreteDatabaseContext trans))
   pure (NakedAttributeExpr (Attribute attrName aType))
 evalTransGraphAttributeExpr _ (NakedAttributeExpr attr) = pure (NakedAttributeExpr attr)  

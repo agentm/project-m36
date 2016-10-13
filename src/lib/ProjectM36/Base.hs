@@ -259,15 +259,33 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 type RelationVariables = M.Map RelVarName Relation
-                                    
+
+type SchemaName = StringType                         
+
+type Subschemas = M.Map SchemaName Schema
+
+-- | Every transaction has one concrete database context and any number of isomorphic subschemas.
+data Schemas = Schemas DatabaseContext Subschemas
+
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
-data DatabaseContext = DatabaseContext { 
+-- I spent some time thinking about whether the VirtualDatabaseContext/Schema and DatabaseContext data constructors should be the same constructor, but that would allow relation variables to be created in a "virtual" context which would appear to defeat the isomorphisms of the contexts. It should be possible to switch to an alternative schema to view the same equivalent information without information loss. However, allowing all contexts to reference another context while maintaining its own relation variables, new types, etc. could be interesting from a security perspective. For example, if a user creates a new relvar in a virtual context, then does it necessarily appear in all linked contexts? After deliberation, I think the relvar should appear in *all* linked contexts to retain the isomorphic properties, even when the isomorphism is for a subset of the context. This hints that the IsoMorphs should allow for "fall-through"; that is, when a relvar is not defined in the virtual context (for morphing), then the lookup should fall through to the underlying context.
+data Schema = Schema SchemaIsomorphs
+              deriving (Generic, Binary)
+                              
+data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (Maybe RelVarName, Maybe RelVarName) | --maps one relvar into two relvars (true, false), if the false name is Nothing, no relvar in schemaB is created. This is useful for renaming relation variables between schemas or hiding relvars altogether.
+                      IsoUnion (RelVarName, Maybe RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
+                      -- IsoTypeConstructor in morphAttrExpr
+                      deriving (Generic, Binary)
+                      
+type SchemaIsomorphs = [SchemaIsomorph]
+                              
+data DatabaseContext = DatabaseContext {
   inclusionDependencies :: InclusionDependencies,
   relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping
-  } deriving (Show, Generic)
+  } 
              
 type IncDepName = StringType             
 
@@ -275,6 +293,8 @@ type IncDepName = StringType
 data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic)
 
 instance Binary InclusionDependency
+
+type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 
 -- | Database context expressions modify the database context.
 data DatabaseContextExpr = 
@@ -284,7 +304,7 @@ data DatabaseContextExpr =
   Assign RelVarName RelationalExpr |
   Insert RelVarName RelationalExpr |
   Delete RelVarName RestrictionPredicateExpr |
-  Update RelVarName (M.Map AttributeName AtomExpr) RestrictionPredicateExpr |
+  Update RelVarName AttributeNameAtomExprMap RestrictionPredicateExpr |
   
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |
@@ -331,7 +351,6 @@ type TransactionHeads = M.Map HeadName Transaction
 
 -- | The transaction graph is the global database's state which references every committed transaction.
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
-                        deriving (Show, Eq)
 
 transactionsForGraph :: TransactionGraph -> S.Set Transaction
 transactionsForGraph (TransactionGraph _ t) = t
@@ -349,23 +368,19 @@ instance Binary TransactionInfo
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 type TransactionId = UUID
 
-data Transaction = Transaction TransactionId TransactionInfo DatabaseContext -- self uuid
-                   deriving (Show, Generic)
-
+data Transaction = Transaction TransactionId TransactionInfo Schemas
+                            
 --instance Binary Transaction
                             
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction TransactionId DatabaseContext --parentID, context
+data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas --parentID, context- the context here represents the singular concrete context from the schema
                             
 transactionId :: Transaction -> TransactionId
 transactionId (Transaction tid _ _) = tid
 
-transactionContext :: Transaction -> DatabaseContext
-transactionContext (Transaction _ _ context) = context
-
 transactionInfo :: Transaction -> TransactionInfo
 transactionInfo (Transaction _ info _) = info
-                            
+
 instance Eq Transaction where                            
   (Transaction uuidA _ _) == (Transaction uuidB _ _) = uuidA == uuidB
                    

@@ -1,6 +1,7 @@
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Transaction
 import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -38,6 +39,9 @@ atomFuncsDir transdir = transdir </> "atomfuncs"
 typeConsPath :: FilePath -> FilePath
 typeConsPath transdir = transdir </> "typecons"
 
+subschemasPath :: FilePath -> FilePath
+subschemasPath transdir = transdir </> "subschemas"
+
 readTransaction :: FilePath -> TransactionId -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transId = do
   let transDir = transactionDir dbdir transId
@@ -49,6 +53,7 @@ readTransaction dbdir transId = do
     transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
+    sschemas <- readSubschemas transDir
     --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
@@ -56,14 +61,14 @@ readTransaction dbdir transId = do
                                        typeConstructorMapping = typeCons,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs }
-    
-    return $ Right $ Transaction transId transInfo newContext
+        newSchemas = Schemas newContext sschemas
+    return $ Right $ Transaction transId transInfo newSchemas
         
 writeTransaction :: DiskSync -> FilePath -> Transaction -> IO ()
 writeTransaction sync dbdir trans = do
   let tempTransDir = tempTransactionDir dbdir (transactionId trans)
       finalTransDir = transactionDir dbdir (transactionId trans)
-      context = transactionContext trans
+      context = concreteDatabaseContext trans
   transDirExists <- doesDirectoryExist finalTransDir      
   if not transDirExists then do
     --create sub directories
@@ -137,6 +142,17 @@ readIncDeps transDir = do
   incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
   return $ M.fromList incDeps
   
+readSubschemas :: FilePath -> IO Subschemas  
+readSubschemas transDir = do
+  let sschemasPath = subschemasPath transDir
+  bytes <- BS.readFile sschemasPath
+  pure (B.decode bytes)
+  
+writeSubschemas :: FilePath -> Subschemas -> IO ()  
+writeSubschemas transDir sschemas = do
+  let sschemasPath = subschemasPath transDir
+  BS.writeFile sschemasPath (B.encode sschemas)
+  
 writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
 writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
   writeBSFileSync sync atPath $ B.encode types
@@ -145,3 +161,5 @@ readTypeConstructorMapping :: FilePath -> IO (TypeConstructorMapping)
 readTypeConstructorMapping path = do
   let atPath = typeConsPath path
   liftM B.decode (BS.readFile atPath)
+  
+  

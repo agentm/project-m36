@@ -2,15 +2,12 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
-import ProjectM36.Relation.Show.Term
 import ProjectM36.RelationalExpression
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import System.Exit
 import qualified Data.Map as M
 import Control.Monad.State
-
-import qualified Data.Text as T
 
 testList :: Test
 testList = TestList [testIsoRelVarName, testIsoRestrict]
@@ -65,7 +62,4 @@ testIsoRestrict = TestCase $ do
   empExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB employeeq)
   let empResult = evalState (evalRelationalExpr empExpr) schemaA
       unionResult = evalState (evalRelationalExpr unionq) schemaA
-  case empResult of
-    Right rel -> putStrLn $ T.unpack (showRelation rel)
-  putStrLn $ T.unpack (showRelation nonBossRel)    
   assertEqual "boss/nonboss isorestrict" unionResult empResult

@@ -8,9 +8,14 @@ type SessionId = UUID
 -- sessions are not associated with connections and have separate lifetimes
 data Session = Session DisconnectedTransaction
 
-sessionContext :: Session -> DatabaseContext
-sessionContext (Session (DisconnectedTransaction _ context)) = context
+concreteDatabaseContext :: Session -> DatabaseContext
+concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _))) = context
 
-sessionParentId :: Session -> TransactionId
-sessionParentId (Session (DisconnectedTransaction parentUUID _)) = parentUUID
+parentId :: Session -> TransactionId
+parentId (Session (DisconnectedTransaction parentUUID _)) = parentUUID
 
+subschemas :: Session -> Subschemas
+subschemas (Session (DisconnectedTransaction _ (Schemas _ s))) = s
+
+schemas :: Session -> Schemas
+schemas (Session (DisconnectedTransaction _ s)) = s

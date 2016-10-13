@@ -85,6 +85,7 @@ Library
                      ProjectM36.Key,
                      ProjectM36.DatabaseContext,
                      ProjectM36.DateExamples,
+                     ProjectM36.DisconnectedTransaction,
                      ProjectM36.AtomFunctionBody,		  
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
