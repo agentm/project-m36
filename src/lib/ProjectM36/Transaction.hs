@@ -2,7 +2,6 @@ module ProjectM36.Transaction where
 import ProjectM36.Base
 import qualified Data.Set as S
 import qualified Data.UUID as U
-import qualified Data.Map as M
 
 transactionParentIds :: Transaction -> S.Set TransactionId
 transactionParentIds (Transaction _ (TransactionInfo pId _) _) = S.singleton pId

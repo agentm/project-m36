@@ -1,8 +1,12 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
 import Data.Maybe
 import Control.Monad
+import GHC.Generics
+import Data.Binary
+import qualified Data.Map as M
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -10,6 +14,11 @@ import Control.Monad
 
 -- the isomorphic building blocks should not be arbitrarily combined; for example, combing restrict and union on the same target relvar does not make sense as that would create effects at a distance in the secondary schema
 --this should create a new schema
+
+data SchemaExpr = AddSubschema SchemaName |
+                  AddSubschemaIsomorph SchemaName SchemaIsomorph |
+                  RemoveSubschema SchemaName
+                  deriving (Generic, Binary)
 
 -- | Return True iff the SchemaIsomorph is fully isomorphic in the sense that it does not represent an isomorphic sub-schema.
 isFullyIsomorphic :: SchemaIsomorph -> Bool
@@ -76,11 +85,13 @@ relExprMogrify func (NotEquals exprA exprB) = do
 relExprMogrify func (Extend ext expr) = func expr >>= \ex -> func (Extend ext ex)
 relExprMogrify func other = func other
 
+{-
 spam :: Either RelationalError RelationalExpr
 spam = relExprMogrify (relExprMorph (IsoRestrict "emp" TruePredicate (Just "nonboss", Just "boss"))) (RelationVariable "emp" ())
 
 spam2 :: Either RelationalError RelationalExpr
 spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePredicate "emp")) (RelationVariable "boss" ()) 
+-}
 
 databaseContextExprMorph :: SchemaIsomorph -> (DatabaseContextExpr -> Either RelationalError DatabaseContextExpr)
 databaseContextExprMorph iso@(IsoRestrict rvIn filt split) = \expr -> case expr of
@@ -166,4 +177,15 @@ applySchemaIsomorphsToDatabaseContext morphs context = do
                   --typeConstructorMapping = tconsmapping
                 })
 
-    
+evalSchemaExpr :: SchemaExpr -> Subschemas -> Either RelationalError Subschemas
+evalSchemaExpr (AddSubschema sname) sschemas = if M.member sname sschemas then
+                                                 Left (SubschemaNameInUseError sname)
+                                               else
+                                                 pure (M.insert sname (Schema []) sschemas)
+evalSchemaExpr (AddSubschemaIsomorph sname morph) sschemas = case M.lookup sname sschemas of
+  Nothing -> Left (SubschemaNameNotInUseError sname)
+  Just (Schema oldMorphs) -> pure (M.insert sname (Schema (oldMorphs ++ [morph])) sschemas)
+evalSchemaExpr (RemoveSubschema sname) sschemas = if M.member sname sschemas then
+                                           pure (M.delete sname sschemas)
+                                         else
+                                           Left (SubschemaNameNotInUseError sname)

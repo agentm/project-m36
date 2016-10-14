@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
+import ProjectM36.IsomorphicSchema
 import ProjectM36.TransactionGraph
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
@@ -28,6 +29,10 @@ data ExecuteHeadName = ExecuteHeadName SessionId
                      deriving (Binary, Generic)
 data ExecuteTypeForRelationalExpr = ExecuteTypeForRelationalExpr SessionId RelationalExpr
                                   deriving (Binary, Generic)
+data ExecuteSchemaExpr = ExecuteSchemaExpr SessionId SchemaExpr                                 
+                         deriving (Binary, Generic)
+data ExecuteSetCurrentSchema = ExecuteSetCurrentSchema SessionId SchemaName
+                               deriving (Binary, Generic)
 data RetrieveInclusionDependencies = RetrieveInclusionDependencies SessionId
                                    deriving (Binary, Generic)
 data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr SessionId DatabaseContextExpr
@@ -46,3 +51,5 @@ data RetrieveAtomTypesAsRelation = RetrieveAtomTypesAsRelation SessionId
                                    deriving (Binary, Generic)
 data RetrieveRelationVariableSummary = RetrieveRelationVariableSummary SessionId
                                      deriving (Binary, Generic)
+data RetrieveCurrentSchemaName = RetrieveCurrentSchemaName SessionId
+                                 deriving (Binary, Generic)

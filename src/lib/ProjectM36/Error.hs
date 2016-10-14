@@ -73,6 +73,11 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | AtomFunctionBodyScriptError AtomFunctionBodyCompilationError
+                       
+                     | SubschemaNameInUseError SchemaName
+                     | SubschemaNameNotInUseError SchemaName
+                       
+                       
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 

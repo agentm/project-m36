@@ -20,7 +20,7 @@ uuidAtom = TextAtom . U.toText
 sessionsAsRelation :: Sessions -> STM (Either RelationalError Relation)
 sessionsAsRelation sessions = do
   sessionAssocs <- stmMapToList sessions
-  let atomMatrix = map (\(sessionId, (Session (DisconnectedTransaction parentUUID _))) -> [uuidAtom sessionId, uuidAtom parentUUID]) sessionAssocs
+  let atomMatrix = map (\(sessionId, session) -> [uuidAtom sessionId, uuidAtom (parentId session)]) sessionAssocs
   pure $ mkRelationFromList (attributesFromList [Attribute "sessionid" TextAtomType,
                              Attribute "parentCommit" TextAtomType]) atomMatrix
     
