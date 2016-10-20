@@ -404,12 +404,14 @@ setCurrentSchemaName sessionId conn@(RemoteProcessConnection _ _) sname = remote
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excEither $ atomically $ do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right session -> case evalState (RE.evalRelationalExpr expr) (Sess.concreteDatabaseContext session) of
-      Left err -> pure (Left err)
-      Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+    Right (session, schema) -> case Schema.processRelationalExprInSchema schema expr of
+        Left err -> pure (Left err)
+        Right expr' -> case evalState (RE.evalRelationalExpr expr') (Sess.concreteDatabaseContext session) of
+          Left err -> pure (Left err)
+          Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
