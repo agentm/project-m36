@@ -1,7 +1,6 @@
 module TutorialD.Interpreter.SchemaOperator where
 import Text.Megaparsec
 import Text.Megaparsec.Text
-import qualified Data.Map as M
 
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
@@ -24,7 +23,8 @@ setCurrentSchemaP = do
   SetCurrentSchema <$> identifier
   
 schemaExprP :: Parser SchemaExpr
-schemaExprP = addSubschemaP
+schemaExprP = addSubschemaIsoMorphP <|>
+              addSubschemaP
   
 addSubschemaP :: Parser SchemaExpr
 addSubschemaP = do
@@ -42,7 +42,9 @@ schemaIsomorphP = isoRestrictP <|> isoUnionP
 isoRestrictP :: Parser SchemaIsomorph
 isoRestrictP = do
   reserved "isorestrict"
-  IsoRestrict <$> quotedString <*> restrictionPredicateP <*> isoRestrictOutRelVarsP
+  relVarIn <- quotedString
+  relvarsOut <- isoRestrictOutRelVarsP
+  IsoRestrict <$> pure relVarIn <*> restrictionPredicateP <*> pure relvarsOut
   
 isoRestrictOutRelVarsP :: Parser (Maybe RelVarName, Maybe RelVarName)  
 isoRestrictOutRelVarsP = (,) <$> maybeRelVarP <*> maybeRelVarP
@@ -58,9 +60,7 @@ isoUnionP = do
 isoUnionInRelVarsP :: Parser (RelVarName, Maybe RelVarName)  
 isoUnionInRelVarsP = (,) <$> quotedString <*> maybeRelVarP
   
-evalSchemaOperator :: SessionId -> Connection -> SchemaOperator -> Either RelationalError Session
-evalSchemaOperator sessionId conn (ModifySchemaExpr expr) = do
-  newSubschemas <- evalSchemaExpr sessionId conn expr (subschemas session) 
-  pure (Session (DisconnectedTransaction (parentId session) (Schemas (concreteDatabaseContext session) newSubschemas)) (schemaName session)) 
+evalSchemaOperator :: SessionId -> Connection -> SchemaOperator -> IO (Maybe RelationalError)
+evalSchemaOperator sessionId conn (ModifySchemaExpr expr) =  executeSchemaExpr sessionId conn expr
 evalSchemaOperator sessionId conn (SetCurrentSchema sname) = setCurrentSchemaName sessionId conn sname
   

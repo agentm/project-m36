@@ -25,6 +25,9 @@ displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && 
   outputf stderr ("ERR: " <> err)
 displayOpResult QuietSuccessResult = return ()
 displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
+displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStrLn ("ERR:" <> T.pack (show err))
+  where
+    pointyString = T.justifyRight (promptLength + (sourceColumn (errorPos err))) ' ' "^"
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
@@ -108,6 +111,7 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
                                DisplayErrorResult StringType |
+                               DisplayParseErrorResult Int ParseError | -- Int refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
                                

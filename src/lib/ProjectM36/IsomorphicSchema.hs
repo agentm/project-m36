@@ -7,6 +7,7 @@ import Control.Monad
 import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
+import qualified Data.Set as S
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -25,17 +26,46 @@ isFullyIsomorphic :: SchemaIsomorph -> Bool
 isFullyIsomorphic (IsoRestrict _ _ (a, b)) = isJust a && isJust b
 isFullyIsomorphic (IsoUnion (_, a) _ _) = isJust a
 
+isomorphs :: Schema -> SchemaIsomorphs
+isomorphs (Schema i) = i
+
 -- | Convenience function which renames a relvar in schemaA to another name in schemaB.
 isomorphRename :: RelVarName -> RelVarName -> SchemaIsomorph
 isomorphRename nameA nameB = IsoRestrict nameA TruePredicate (Just nameB, Nothing)
 
-isomorphHide :: RelVarName -> SchemaIsomorph
-isomorphHide nameA = IsoRestrict nameA (NotPredicate TruePredicate) (Nothing, Nothing)
-
-{-
+{- -- useful for transforming a concrete context into a virtual schema and vice versa
 invert :: SchemaIsomorph -> SchemaIsomorph
 invert (IsoRelVarName nameA nameB) = IsoRelVarName nameB nameA
 -}
+
+isomorphInRelVarNames :: SchemaIsomorph -> [RelVarName]
+isomorphInRelVarNames (IsoRestrict rv _ _) = [rv]
+isomorphInRelVarNames (IsoUnion (rvA, mRvB) _ _) = rvA : maybe [] (\x -> [x]) mRvB
+
+-- | Relation variables names represented in the virtual schema space. Useful for determining if a relvar name is valid in the schema.
+isomorphsInRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
+isomorphsInRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
+  where
+    rvnames morph acc = acc ++ isomorphInRelVarNames morph
+    
+isomorphOutRelVarNames :: SchemaIsomorph -> [RelVarName]    
+isomorphOutRelVarNames (IsoRestrict _ _ (mRvA, mRvB)) = catMaybes [mRvA, mRvB]
+isomorphOutRelVarNames (IsoUnion _ _ rvA) = [rvA]
+
+isomorphsOutRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
+isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
+  where
+    rvnames morph acc = acc ++ isomorphOutRelVarNames morph
+
+processRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError RelationalExpr
+processRelationalExprInSchema (Schema morphs) relExprIn = do
+  let validRelVarNames = isomorphsInRelVarNames morphs
+  --validate that all rvs are present in the virtual schema- this prevents relation variables being referenced in the underlying schema (falling through the transformation)
+  let processRelExpr rexpr morph = relExprMogrify (\expr -> case expr of
+                                                      RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
+                                                      ex -> relExprMorph morph ex) rexpr
+        
+  foldM processRelExpr relExprIn morphs
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
 relExprMorph :: SchemaIsomorph -> (RelationalExpr -> Either RelationalError RelationalExpr)
@@ -162,9 +192,17 @@ inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> Inclusio
 applyInclusionDependenciesSchemaIsoMorphs :: SchemaIsomorphs -> InclusionDependencies -> Either RelationalError InclusionDependencies
 --add inc deps for restriction with some automatic name
 applyInclusionDependenciesSchemaIsoMorphs morphs incDeps = undefined
+
+{-
+proposal
+data DatabaseContext = 
+Concrete ...|
+Virtual Isomorphs
+-}
   
 applyRelationVariablesSchemaIsomorphs :: SchemaIsomorphs -> RelationVariables -> Either RelationalError RelationVariables                                                                 
 applyRelationVariablesSchemaIsomorphs = undefined
+  
 
 applySchemaIsomorphsToDatabaseContext :: SchemaIsomorphs -> DatabaseContext -> Either RelationalError DatabaseContext
 applySchemaIsomorphsToDatabaseContext morphs context = do
@@ -176,16 +214,29 @@ applySchemaIsomorphsToDatabaseContext morphs context = do
                   --notifications = notifs,
                   --typeConstructorMapping = tconsmapping
                 })
+    
+validate :: SchemaIsomorph -> S.Set RelVarName -> Either RelationalError SchemaIsomorph
+validate morph underlyingRvNames = if S.size invalidRvNames > 0 then 
+                          Left (MultipleErrors (map RelVarNotDefinedError (S.toList invalidRvNames)))
+                         else
+                           Right morph
+  where
+    morphRvNames = S.fromList (isomorphOutRelVarNames morph)
+    invalidRvNames = S.difference morphRvNames underlyingRvNames
 
-evalSchemaExpr :: SchemaExpr -> Subschemas -> Either RelationalError Subschemas
-evalSchemaExpr (AddSubschema sname) sschemas = if M.member sname sschemas then
+-- the second argument really should be a database context in the future so we can morph other context items
+evalSchemaExpr :: SchemaExpr -> S.Set RelVarName -> Subschemas -> Either RelationalError Subschemas
+evalSchemaExpr (AddSubschema sname) _ sschemas = if M.member sname sschemas then
                                                  Left (SubschemaNameInUseError sname)
-                                               else
+                                               else 
                                                  pure (M.insert sname (Schema []) sschemas)
-evalSchemaExpr (AddSubschemaIsomorph sname morph) sschemas = case M.lookup sname sschemas of
+evalSchemaExpr (AddSubschemaIsomorph sname morph) underlyingRvNames sschemas = case M.lookup sname sschemas of
   Nothing -> Left (SubschemaNameNotInUseError sname)
-  Just (Schema oldMorphs) -> pure (M.insert sname (Schema (oldMorphs ++ [morph])) sschemas)
-evalSchemaExpr (RemoveSubschema sname) sschemas = if M.member sname sschemas then
+  Just (Schema oldMorphs) -> do
+    morph' <- validate morph underlyingRvNames
+    pure (M.insert sname (Schema (oldMorphs ++ [morph'])) sschemas)
+evalSchemaExpr (RemoveSubschema sname) _ sschemas = if M.member sname sschemas then
                                            pure (M.delete sname sschemas)
                                          else
                                            Left (SubschemaNameNotInUseError sname)
+

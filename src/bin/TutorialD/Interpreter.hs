@@ -20,7 +20,6 @@ import TutorialD.Interpreter.Export.Base
 import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
-import ProjectM36.IsomorphicSchema
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
@@ -199,14 +198,14 @@ reprLoop config sessionId conn = do
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
   mHeadName <- C.headName sessionId conn
   mSchemaName <- C.currentSchemaName sessionId conn
-  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText mHeadName mSchemaName))
+  let prompt = promptText mHeadName mSchemaName
+  maybeLine <- runInputT settings $ getInputLine (T.unpack prompt)
   case maybeLine of
     Nothing -> return ()
     Just line -> do
       case parseTutorialD (T.pack line) of
         Left err -> do
-          let strErr = show err --parseErrorPretty new in megaparsec 5
-          displayOpResult $ DisplayErrorResult (T.pack strErr)
+          displayOpResult $ DisplayParseErrorResult (T.length prompt) err
         Right parsed -> do 
           evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
           displayOpResult evald

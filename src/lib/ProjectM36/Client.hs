@@ -362,6 +362,27 @@ sessionForSessionId sessionId sessions = do
   maybeSession <- STMMap.lookup sessionId sessions
   pure $ maybe (Left $ NoSuchSessionError sessionId) Right maybeSession
   
+schemaForSessionId :: Session -> STM (Either RelationalError Schema)  
+schemaForSessionId session = do
+  let sname = schemaName session
+  if sname == defaultSchemaName then
+    pure (Right (Schema [])) -- the main schema includes no transformations
+    else
+    case M.lookup sname (subschemas session) of
+      Nothing -> pure (Left (SubschemaNameNotInUseError sname))
+      Just schema -> pure (Right schema)
+  
+sessionAndSchema :: SessionId -> Sessions -> STM (Either RelationalError (Session, Schema))
+sessionAndSchema sessionId sessions = do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left err -> pure (Left err)
+    Right session -> do  
+      eSchema <- schemaForSessionId session
+      case eSchema of
+        Left err -> pure (Left err)
+        Right schema -> pure (Right (session, schema))
+  
 currentSchemaName :: SessionId -> Connection -> IO (Maybe SchemaName)
 currentSchemaName sessionId (InProcessConnection _ _ sessions _ _) = atomically $ do
   eSession <- sessionForSessionId sessionId sessions
@@ -507,12 +528,16 @@ executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _ _) tgr
 
 executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Maybe RelationalError)
 executeSchemaExpr sessionId (InProcessConnection _ _ sessions _ _) schemaExpr = atomically $ do
-  eSession <- sessionForSessionId sessionId sessions  
+  eSession <- sessionAndSchema sessionId sessions  
   case eSession of
     Left err -> pure (Just err)
-    Right session -> do
+    Right (session, schema) -> do
       let subschemas' = subschemas session
-      case Schema.evalSchemaExpr schemaExpr subschemas' of
+          underlyingRelVarNames = if schemaName session == defaultSchemaName then
+                                    M.keysSet (relationVariables (Sess.concreteDatabaseContext session))
+                                  else
+                                    Schema.isomorphsInRelVarNames (Schema.isomorphs schema)
+      case Schema.evalSchemaExpr schemaExpr underlyingRelVarNames subschemas' of
         Left err -> pure (Just err)
         Right newSubschemas -> do
           --hm- maybe we should start using lenses
@@ -554,10 +579,13 @@ typeForRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = rem
     
 typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
 typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExpr = do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right session -> pure $ evalState (RE.typeForRelationalExpr relExpr) (Sess.concreteDatabaseContext session)
+    Right (session, schema) -> do
+      case Schema.processRelationalExprInSchema schema relExpr of
+        Left err -> pure (Left err)
+        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (Sess.concreteDatabaseContext session)
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
