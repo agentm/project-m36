@@ -8,13 +8,16 @@ import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
 --TODO: rel attrs rename or transform (needs bidirectional atom functions)
+-- TODO: IsoRestrict should include requirement that union'd relations should retain the same tuple count (no tuples are lost or ambiguous between the two relations)
+--TODO: allow morphs to stack (morph a schema to a new schema)
+ -- this could be accomplished by morphing the morphs or by chain linking schemas so that they need not directly reference the underlying concrete schema
 
 -- the isomorphic building blocks should not be arbitrarily combined; for example, combing restrict and union on the same target relvar does not make sense as that would create effects at a distance in the secondary schema
---this should create a new schema
 
 data SchemaExpr = AddSubschema SchemaName |
                   AddSubschemaIsomorph SchemaName SchemaIsomorph |
@@ -66,6 +69,21 @@ processRelationalExprInSchema (Schema morphs) relExprIn = do
                                                       ex -> relExprMorph morph ex) rexpr
         
   foldM processRelExpr relExprIn morphs
+  
+processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr  
+processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
+  let processDbExpr expr morph = case expr of
+        Assign rv _ | notMember rv -> badRv rv
+        Insert rv _ | notMember rv -> badRv rv
+        Update rv _ _ | notMember rv -> badRv rv
+        MultipleExpr exprs -> MultipleExpr <$> mapM (processDatabaseContextExprInSchema schema) exprs
+        e -> databaseContextExprMorph morph relExprMogrifier e
+      relExprMogrifier = processRelationalExprInSchema schema
+      badRv rv = Left (RelVarNotDefinedError rv)
+      notMember rv = S.notMember rv validRelVarNames
+      validRelVarNames = isomorphsInRelVarNames morphs
+  foldM processDbExpr dbExpr morphs
+  
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
 relExprMorph :: SchemaIsomorph -> (RelationalExpr -> Either RelationalError RelationalExpr)
@@ -123,10 +141,10 @@ spam2 :: Either RelationalError RelationalExpr
 spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePredicate "emp")) (RelationVariable "boss" ()) 
 -}
 
-databaseContextExprMorph :: SchemaIsomorph -> (DatabaseContextExpr -> Either RelationalError DatabaseContextExpr)
-databaseContextExprMorph iso@(IsoRestrict rvIn filt split) = \expr -> case expr of
+databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
+databaseContextExprMorph iso@(IsoRestrict rvIn filt split) relExprFunc expr = case expr of
   Assign rv relExpr | rv == rvIn -> do
-    ex <- relExprF relExpr
+    ex <- relExprFunc relExpr
     let trueExpr n = Assign n (Restrict filt ex)
         falseExpr n = Assign n (Restrict (NotPredicate filt) ex)
     case split of
@@ -135,7 +153,7 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt split) = \expr -> case expr 
       (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
       (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
   Insert rv relExpr | rv == rvIn -> do
-    ex <- relExprF relExpr
+    ex <- relExprFunc relExpr
     let trueExpr n = Insert n (Restrict filt ex)
         falseExpr n = Insert n (Restrict (NotPredicate filt) ex)
     case split of
@@ -152,39 +170,25 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt split) = \expr -> case expr 
       (Just rvTrue, Nothing) -> pure (trueExpr rvTrue)
       (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
       (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
-  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso) exprs
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
   orig -> pure orig                                    
- where
-   relExprF = relExprMogrify (relExprMorph iso)
-databaseContextExprMorph iso@(IsoUnion (rvTrue, mRvFalse) filt rvOut) = \expr -> case expr of   
+databaseContextExprMorph iso@(IsoUnion (rvTrue, mRvFalse) filt rvOut) relExprFunc expr = case expr of   
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
-  Assign rv relExpr | rv == rvTrue -> relExprF relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
+  Assign rv relExpr | rv == rvTrue -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
                                                                                       Insert rvOut (Restrict filt ex)]
-  Assign rv relExpr | Just rv == mRvFalse -> relExprF relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
+  Assign rv relExpr | Just rv == mRvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
                                                                   Insert rvOut (Restrict (NotPredicate filt) ex)]
-  Insert rv relExpr | rv == rvTrue || Just rv == mRvFalse -> relExprF relExpr >>= \ex -> pure $ Insert rvOut ex
+  Insert rv relExpr | rv == rvTrue || Just rv == mRvFalse -> relExprFunc relExpr >>= \ex -> pure $ Insert rvOut ex
   Delete rv delPred | rv == rvTrue -> pure $ Delete rvOut (AndPredicate delPred filt)
   Delete rv delPred | Just rv == mRvFalse -> pure $ Delete rvOut (AndPredicate delPred (NotPredicate filt))
   Update rv attrMap predi | rv == rvTrue -> pure $ Update rvOut attrMap (AndPredicate predi filt)
   Update rv attrMap predi | Just rv == mRvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
   orig -> pure orig
- where
-   relExprF = relExprMogrify (relExprMorph iso)
   
-databaseContextExprMogrify :: (DatabaseContextExpr -> Either RelationalError DatabaseContextExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
-databaseContextExprMogrify func (MultipleExpr exprs) = do 
-  exprs' <- mapM func exprs
-  func (MultipleExpr exprs')
-databaseContextExprMogrify func orig = func orig
-
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
 applyRelationalExprSchemaIsomorphs :: SchemaIsomorphs -> RelationalExpr -> Either RelationalError RelationalExpr
 applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprMogrify (relExprMorph morph) expr') expr morphs
-
--- | Apply the isomorphism transformations to the database context expression to convert the expression from operating on one schema to a disparate, isomorphic schema.
-applyDatabaseCotextExprSchemaIsomorphs :: SchemaIsomorphs -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
-applyDatabaseCotextExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> databaseContextExprMogrify (databaseContextExprMorph morph) expr') expr morphs
 
 inclusionDependenciesMorph :: SchemaIsomorph -> (InclusionDependency -> Either RelationalError InclusionDependency)
 inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> InclusionDependency <$> relExprMorph iso subExpr <*> relExprMorph iso expr

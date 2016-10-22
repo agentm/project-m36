@@ -417,18 +417,20 @@ executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = rem
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excMaybe $ atomically $ do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Just err
-    Right session -> do
-      case runState (RE.evalContextExpr expr) (Sess.concreteDatabaseContext session) of
-        (Just err,_) -> return $ Just err
-        (Nothing, context') -> do
-          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
-              newSchemas = Schemas context' (Sess.subschemas session)
-              newSession = Session newDiscon (Sess.schemaName session)
-          STMMap.insert newSession sessionId sessions
-          pure Nothing
+    Right (session, schema) -> do
+      case Schema.processDatabaseContextExprInSchema schema expr of
+        Left err -> pure (Just err)
+        Right expr' -> case runState (RE.evalContextExpr expr') (Sess.concreteDatabaseContext session) of
+          (Just err,_) -> return $ Just err
+          (Nothing, context') -> do
+            let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
+                newSchemas = Schemas context' (Sess.subschemas session)
+                newSession = Session newDiscon (Sess.schemaName session)
+            STMMap.insert newSession sessionId sessions
+            pure Nothing
       
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
