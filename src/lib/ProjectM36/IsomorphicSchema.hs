@@ -2,13 +2,15 @@
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.RelationalExpression
 import Data.Maybe
 import Control.Monad
+import Control.Monad.State
 import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Debug.Trace
+--import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -83,6 +85,16 @@ processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
       notMember rv = S.notMember rv validRelVarNames
       validRelVarNames = isomorphsInRelVarNames morphs
   foldM processDbExpr dbExpr morphs
+  
+-- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema! 
+-- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.
+  {-
+-- | Convert inclusion dependencies for display in a specific schema.
+applySchemaToInclusionDependencies :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
+applySchemaToInclusionDependencies (Schema morphs) incDeps = 
+  let incDepMorph incDep = --check that the mentioned relvars are in fact in the current schema
+  M.update incDepMorph incDeps        
+  -}
   
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
@@ -196,6 +208,22 @@ inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> Inclusio
 applyInclusionDependenciesSchemaIsoMorphs :: SchemaIsomorphs -> InclusionDependencies -> Either RelationalError InclusionDependencies
 --add inc deps for restriction with some automatic name
 applyInclusionDependenciesSchemaIsoMorphs morphs incDeps = undefined
+
+relationVariablesInSchema :: Schema -> DatabaseContext -> Either RelationalError RelationVariables
+relationVariablesInSchema schema@(Schema morphs) context = if null morphs then --main schema
+                                                                     pure (relationVariables context)
+                                                                   else
+                                                                      foldM transform M.empty morphs
+  where
+    transform newRvMap morph = do
+      let rvNames = isomorphInRelVarNames morph
+      rvAssocs <- mapM (\rv -> do
+                           expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
+                           rel <- evalState (evalRelationalExpr expr') context
+                           pure (rv, rel)) rvNames
+      pure (M.union newRvMap (M.fromList rvAssocs))
+
+
 
 {-
 proposal

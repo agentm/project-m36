@@ -634,10 +634,12 @@ transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _ _) = remote
 relationVariablesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right session -> pure $ R.relationVariablesAsRelation (relationVariables (Sess.concreteDatabaseContext session))
+      Right (session, schema) -> case Schema.relationVariablesInSchema schema (Sess.concreteDatabaseContext session) of
+        Left err -> pure (Left err)
+        Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
