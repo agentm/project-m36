@@ -3,7 +3,6 @@ module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
-import Data.Maybe
 import Control.Monad
 import Control.Monad.State
 import GHC.Generics
@@ -26,17 +25,8 @@ data SchemaExpr = AddSubschema SchemaName |
                   RemoveSubschema SchemaName
                   deriving (Generic, Binary)
 
--- | Return True iff the SchemaIsomorph is fully isomorphic in the sense that it does not represent an isomorphic sub-schema.
-isFullyIsomorphic :: SchemaIsomorph -> Bool
-isFullyIsomorphic (IsoRestrict _ _ (a, b)) = isJust a && isJust b
-isFullyIsomorphic (IsoUnion (_, a) _ _) = isJust a
-
 isomorphs :: Schema -> SchemaIsomorphs
 isomorphs (Schema i) = i
-
--- | Convenience function which renames a relvar in schemaA to another name in schemaB.
-isomorphRename :: RelVarName -> RelVarName -> SchemaIsomorph
-isomorphRename nameA nameB = IsoRestrict nameA TruePredicate (Just nameB, Nothing)
 
 {- -- useful for transforming a concrete context into a virtual schema and vice versa
 invert :: SchemaIsomorph -> SchemaIsomorph
@@ -45,7 +35,7 @@ invert (IsoRelVarName nameA nameB) = IsoRelVarName nameB nameA
 
 isomorphInRelVarNames :: SchemaIsomorph -> [RelVarName]
 isomorphInRelVarNames (IsoRestrict rv _ _) = [rv]
-isomorphInRelVarNames (IsoUnion (rvA, mRvB) _ _) = rvA : maybe [] (\x -> [x]) mRvB
+isomorphInRelVarNames (IsoUnion (rvA, rvB) _ _) = [rvA, rvB]
 
 -- | Relation variables names represented in the virtual schema space. Useful for determining if a relvar name is valid in the schema.
 isomorphsInRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
@@ -54,7 +44,7 @@ isomorphsInRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
     rvnames morph acc = acc ++ isomorphInRelVarNames morph
     
 isomorphOutRelVarNames :: SchemaIsomorph -> [RelVarName]    
-isomorphOutRelVarNames (IsoRestrict _ _ (mRvA, mRvB)) = catMaybes [mRvA, mRvB]
+isomorphOutRelVarNames (IsoRestrict _ _ (rvA, rvB)) = [rvA, rvB]
 isomorphOutRelVarNames (IsoUnion _ _ rvA) = [rvA]
 
 isomorphsOutRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
@@ -99,21 +89,14 @@ applySchemaToInclusionDependencies (Schema morphs) incDeps =
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
 relExprMorph :: SchemaIsomorph -> (RelationalExpr -> Either RelationalError RelationalExpr)
-relExprMorph (IsoRestrict relIn predi split) = \expr -> case expr of 
-  RelationVariable rv () | rv == relIn -> case split of
-    -- hide the relvarname
-    (Nothing, Nothing) -> Left (RelVarNotDefinedError rv)
-    --simple relvar rename
-    (Just relOutTrue, Nothing) -> Right (Restrict predi (RelationVariable relOutTrue ()))
-    --rename but always empty relation- is this useful?
-    (Nothing, Just relOutFalse) -> Right (Restrict (NotPredicate predi) (RelationVariable relOutFalse ()))
-    (Just relOutTrue, Just relOutFalse) -> Right (Union (RelationVariable relOutTrue ()) (RelationVariable relOutFalse ()))
+relExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \expr -> case expr of 
+  RelationVariable rv () | rv == relIn -> Right (Union (RelationVariable relOutTrue ()) (RelationVariable relOutFalse ()))
   orig -> Right orig
-relExprMorph (IsoUnion (relInT, mRelInF) predi relTarget) = \expr -> case expr of
+relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \expr -> case expr of
   --only the true predicate portion appears in the virtual schema  
   RelationVariable rv () | rv == relInT -> Right (Restrict predi (RelationVariable relTarget ()))
 
-  RelationVariable rv () | Just rv == mRelInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget ()))
+  RelationVariable rv () | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget ()))
   orig -> Right orig
   
 relExprMogrify :: (RelationalExpr -> Either RelationalError RelationalExpr) -> RelationalExpr -> Either RelationalError RelationalExpr
@@ -154,48 +137,36 @@ spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePred
 -}
 
 databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
-databaseContextExprMorph iso@(IsoRestrict rvIn filt split) relExprFunc expr = case expr of
+databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFunc expr = case expr of
   Assign rv relExpr | rv == rvIn -> do
     ex <- relExprFunc relExpr
     let trueExpr n = Assign n (Restrict filt ex)
         falseExpr n = Assign n (Restrict (NotPredicate filt) ex)
-    case split of
-      (Just rvTrue, Just rvFalse) -> pure $ MultipleExpr [trueExpr rvTrue, falseExpr rvFalse]
-      (Just rvTrue, Nothing) -> pure (trueExpr rvTrue)
-      (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
-      (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
+    pure $ MultipleExpr [trueExpr rvTrue, falseExpr rvFalse]
   Insert rv relExpr | rv == rvIn -> do
     ex <- relExprFunc relExpr
     let trueExpr n = Insert n (Restrict filt ex)
         falseExpr n = Insert n (Restrict (NotPredicate filt) ex)
-    case split of
-      (Just rvTrue, Just rvFalse) -> pure $ MultipleExpr [trueExpr rvTrue, falseExpr rvFalse]
-      (Just rvTrue, Nothing) -> pure (trueExpr rvTrue)
-      (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
-      (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
+    pure $ MultipleExpr [trueExpr rvTrue, falseExpr rvFalse]
   Update rv attrMap predi | rv == rvIn -> do
     -- if the update would "shift" a tuple from the true->false relvar or vice versa, that would be a constraint violation in the virtual schema
     let trueExpr n = Update n attrMap (AndPredicate predi filt)
         falseExpr n = Update n attrMap (AndPredicate predi (NotPredicate filt))
-    case split of
-      (Just rvTrue, Just rvFalse) -> pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
-      (Just rvTrue, Nothing) -> pure (trueExpr rvTrue)
-      (Nothing, Just rvFalse) -> pure (falseExpr rvFalse)
-      (Nothing, Nothing) -> Left (RelVarNotDefinedError rvIn)
+    pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
   MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
   orig -> pure orig                                    
-databaseContextExprMorph iso@(IsoUnion (rvTrue, mRvFalse) filt rvOut) relExprFunc expr = case expr of   
+databaseContextExprMorph (IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of   
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
   Assign rv relExpr | rv == rvTrue -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
                                                                                       Insert rvOut (Restrict filt ex)]
-  Assign rv relExpr | Just rv == mRvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
-                                                                  Insert rvOut (Restrict (NotPredicate filt) ex)]
-  Insert rv relExpr | rv == rvTrue || Just rv == mRvFalse -> relExprFunc relExpr >>= \ex -> pure $ Insert rvOut ex
+  Assign rv relExpr | rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
+                                                                                           Insert rvOut (Restrict (NotPredicate filt) ex)]
+  Insert rv relExpr | rv == rvTrue || rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ Insert rvOut ex
   Delete rv delPred | rv == rvTrue -> pure $ Delete rvOut (AndPredicate delPred filt)
-  Delete rv delPred | Just rv == mRvFalse -> pure $ Delete rvOut (AndPredicate delPred (NotPredicate filt))
+  Delete rv delPred | rv == rvFalse -> pure $ Delete rvOut (AndPredicate delPred (NotPredicate filt))
   Update rv attrMap predi | rv == rvTrue -> pure $ Update rvOut attrMap (AndPredicate predi filt)
-  Update rv attrMap predi | Just rv == mRvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
+  Update rv attrMap predi | rv == rvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
   orig -> pure orig
   
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
@@ -207,13 +178,10 @@ inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> Inclusio
 
 applyInclusionDependenciesSchemaIsoMorphs :: SchemaIsomorphs -> InclusionDependencies -> Either RelationalError InclusionDependencies
 --add inc deps for restriction with some automatic name
-applyInclusionDependenciesSchemaIsoMorphs morphs incDeps = undefined
+applyInclusionDependenciesSchemaIsoMorphs _ _ = undefined
 
 relationVariablesInSchema :: Schema -> DatabaseContext -> Either RelationalError RelationVariables
-relationVariablesInSchema schema@(Schema morphs) context = if null morphs then --main schema
-                                                                     pure (relationVariables context)
-                                                                   else
-                                                                      foldM transform M.empty morphs
+relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.empty morphs
   where
     transform newRvMap morph = do
       let rvNames = isomorphInRelVarNames morph

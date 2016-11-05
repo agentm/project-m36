@@ -366,7 +366,7 @@ schemaForSessionId :: Session -> STM (Either RelationalError Schema)
 schemaForSessionId session = do
   let sname = schemaName session
   if sname == defaultSchemaName then
-    pure (Right (Schema [])) -- the main schema includes no transformations
+    pure (Right (Schema [])) -- the main schema includes no transformations (but neither do empty schemas :/ )
     else
     case M.lookup sname (subschemas session) of
       Nothing -> pure (Left (SubschemaNameNotInUseError sname))
@@ -506,7 +506,7 @@ executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graph
       --update filesystem database, if necessary
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
-      sendNotifications nodesToNotify notsToFire
+      sendNotifications nodesToNotify notsToFire --TODO: schema mod
       return Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
@@ -597,10 +597,10 @@ typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-l
 inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError (M.Map IncDepName InclusionDependency))
 inclusionDependencies sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err
-      Right session -> pure $ Right (B.inclusionDependencies (Sess.concreteDatabaseContext session))
+      Left err -> pure $ Left err --TODO: schema application
+      Right (session, schema) -> pure $ Right (B.inclusionDependencies (Sess.concreteDatabaseContext session))
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -608,10 +608,10 @@ inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall 
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) dbExpr = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err
-      Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
+      Left err -> pure $ Left err --TODO: schema application
+      Right (session, schema) -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
@@ -637,9 +637,10 @@ relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = d
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, schema) -> case Schema.relationVariablesInSchema schema (Sess.concreteDatabaseContext session) of
-        Left err -> pure (Left err)
-        Right relvars -> pure $ R.relationVariablesAsRelation relvars
+      Right (session, schema) -> do
+        case Schema.relationVariablesInSchema schema (Sess.concreteDatabaseContext session) of
+          Left err -> pure (Left err)
+          Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 

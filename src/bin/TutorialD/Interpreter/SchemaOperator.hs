@@ -42,23 +42,23 @@ schemaIsomorphP = isoRestrictP <|> isoUnionP
 isoRestrictP :: Parser SchemaIsomorph
 isoRestrictP = do
   reserved "isorestrict"
-  relVarIn <- quotedString
+  relVarIn <- qrelVarP
   relvarsOut <- isoRestrictOutRelVarsP
   IsoRestrict <$> pure relVarIn <*> restrictionPredicateP <*> pure relvarsOut
   
-isoRestrictOutRelVarsP :: Parser (Maybe RelVarName, Maybe RelVarName)  
-isoRestrictOutRelVarsP = (,) <$> maybeRelVarP <*> maybeRelVarP
+isoRestrictOutRelVarsP :: Parser (RelVarName, RelVarName)  
+isoRestrictOutRelVarsP = (,) <$> qrelVarP <*> qrelVarP
 
-maybeRelVarP :: Parser (Maybe RelVarName)
-maybeRelVarP = (Just <$> quotedString) <|> (reserved "Nothing" >> pure Nothing)
+qrelVarP :: Parser RelVarName
+qrelVarP = quotedString 
 
 isoUnionP :: Parser SchemaIsomorph
 isoUnionP = do
   reserved "isounion"
-  IsoUnion <$> isoUnionInRelVarsP <*> restrictionPredicateP <*> quotedString
+  IsoUnion <$> isoUnionInRelVarsP <*> restrictionPredicateP <*> qrelVarP
   
-isoUnionInRelVarsP :: Parser (RelVarName, Maybe RelVarName)  
-isoUnionInRelVarsP = (,) <$> quotedString <*> maybeRelVarP
+isoUnionInRelVarsP :: Parser (RelVarName, RelVarName)  
+isoUnionInRelVarsP = (,) <$> qrelVarP <*> qrelVarP
   
 evalSchemaOperator :: SessionId -> Connection -> SchemaOperator -> IO (Maybe RelationalError)
 evalSchemaOperator sessionId conn (ModifySchemaExpr expr) =  executeSchemaExpr sessionId conn expr
