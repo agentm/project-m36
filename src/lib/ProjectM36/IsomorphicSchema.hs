@@ -2,6 +2,7 @@
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.MiscUtils
 import ProjectM36.RelationalExpression
 import Control.Monad
 import Control.Monad.State
@@ -9,6 +10,7 @@ import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.List as L
 --import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
@@ -20,22 +22,41 @@ import qualified Data.Set as S
 
 -- the isomorphic building blocks should not be arbitrarily combined; for example, combing restrict and union on the same target relvar does not make sense as that would create effects at a distance in the secondary schema
 
-data SchemaExpr = AddSubschema SchemaName |
-                  AddSubschemaIsomorph SchemaName SchemaIsomorph |
+data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs|
                   RemoveSubschema SchemaName
                   deriving (Generic, Binary)
 
+  
 isomorphs :: Schema -> SchemaIsomorphs
 isomorphs (Schema i) = i
 
-{- -- useful for transforming a concrete context into a virtual schema and vice versa
+-- | Return an error if the schema is not isomorphic to the base database context.
+-- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
+--TODO: add relvar must appear exactly once constraint
+validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
+validateSchema potentialSchema baseContext = if not (S.null rvDiff) then
+                                               Just (RelVarReferencesMissing rvDiff)
+                                             else if not (null duplicateNames) then
+                                                    Just (RelVarReferencedMoreThanOnce (head duplicateNames))
+                                                  else
+                                                    Nothing
+  where
+    duplicateNames = dupes (L.sort outRvNamesList)
+    outRvNamesList = concat (map isomorphOutRelVarNames (isomorphs potentialSchema))
+    expectedRelVars = M.keysSet (relationVariables baseContext)
+    schemaRelVars = isomorphsOutRelVarNames (isomorphs potentialSchema)
+    rvDiff = S.difference expectedRelVars schemaRelVars
+
+-- useful for transforming a concrete context into a virtual schema and vice versa
 invert :: SchemaIsomorph -> SchemaIsomorph
-invert (IsoRelVarName nameA nameB) = IsoRelVarName nameB nameA
--}
+invert (IsoRename rvIn rvOut) = IsoRename rvOut rvIn
+invert (IsoRestrict rvIn predi (rvAOut, rvBOut)) = IsoUnion (rvAOut, rvBOut) predi rvIn
+invert (IsoUnion (rvAIn, rvBIn) predi rvOut) = IsoRestrict rvOut predi (rvAIn, rvBIn)
 
 isomorphInRelVarNames :: SchemaIsomorph -> [RelVarName]
 isomorphInRelVarNames (IsoRestrict rv _ _) = [rv]
 isomorphInRelVarNames (IsoUnion (rvA, rvB) _ _) = [rvA, rvB]
+isomorphInRelVarNames (IsoRename rv _) = [rv]
 
 -- | Relation variables names represented in the virtual schema space. Useful for determining if a relvar name is valid in the schema.
 isomorphsInRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
@@ -45,7 +66,8 @@ isomorphsInRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
     
 isomorphOutRelVarNames :: SchemaIsomorph -> [RelVarName]    
 isomorphOutRelVarNames (IsoRestrict _ _ (rvA, rvB)) = [rvA, rvB]
-isomorphOutRelVarNames (IsoUnion _ _ rvA) = [rvA]
+isomorphOutRelVarNames (IsoUnion _ _ rv) = [rv]
+isomorphOutRelVarNames (IsoRename _ rv) = [rv]
 
 isomorphsOutRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
 isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
@@ -54,12 +76,14 @@ isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
 
 processRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError RelationalExpr
 processRelationalExprInSchema (Schema morphs) relExprIn = do
-  let validRelVarNames = isomorphsInRelVarNames morphs
   --validate that all rvs are present in the virtual schema- this prevents relation variables being referenced in the underlying schema (falling through the transformation)
-  let processRelExpr rexpr morph = relExprMogrify (\expr -> case expr of
-                                                      RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
-                                                      ex -> relExprMorph morph ex) rexpr
-        
+  let processRelExpr rexpr morph = relExprMogrify (relExprMorph morph) rexpr
+  -- validate all in relvar names so that the actual relvar names don't leak through as errors
+      validRelVarNames = isomorphsInRelVarNames morphs
+  _ <- relExprMogrify (\expr -> case expr of
+                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
+                     ex -> Right ex) relExprIn
+                    
   foldM processRelExpr relExprIn morphs
   
 processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr  
@@ -97,6 +121,9 @@ relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \expr -> case expr of
   RelationVariable rv () | rv == relInT -> Right (Restrict predi (RelationVariable relTarget ()))
 
   RelationVariable rv () | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget ()))
+  orig -> Right orig
+relExprMorph (IsoRename relIn relOut) = \expr -> case expr of
+  RelationVariable rv () | rv == relIn -> Right (RelationVariable relOut ())
   orig -> Right orig
   
 relExprMogrify :: (RelationalExpr -> Either RelationalError RelationalExpr) -> RelationalExpr -> Either RelationalError RelationalExpr
@@ -168,18 +195,40 @@ databaseContextExprMorph (IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc exp
   Update rv attrMap predi | rv == rvTrue -> pure $ Update rvOut attrMap (AndPredicate predi filt)
   Update rv attrMap predi | rv == rvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
   orig -> pure orig
+databaseContextExprMorph (IsoRename relIn relOut) relExprFunc expr = case expr of
+  Assign rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure (Assign relOut ex)
+  Insert rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure $ Insert relOut ex
+  Delete rv delPred | rv == relIn -> pure $ Delete relOut delPred
+  Update rv attrMap predi | rv == relIn -> pure $ Update relOut attrMap predi
+  orig -> pure orig
   
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
 applyRelationalExprSchemaIsomorphs :: SchemaIsomorphs -> RelationalExpr -> Either RelationalError RelationalExpr
 applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprMogrify (relExprMorph morph) expr') expr morphs
 
-inclusionDependenciesMorph :: SchemaIsomorph -> (InclusionDependency -> Either RelationalError InclusionDependency)
-inclusionDependenciesMorph iso = \(InclusionDependency subExpr expr) -> InclusionDependency <$> relExprMorph iso subExpr <*> relExprMorph iso expr
+-- the morph must be applied in the opposite direction
+--algorithm: create a relexpr for each relvar in the schema, then replace those rel exprs wherever they appear in the inc dep relexprs
+-- x = x1 union x2
+inclusionDependencyInSchema :: Schema -> InclusionDependency -> Either RelationalError InclusionDependency
+inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
+  --collect all relvars which appear in the schema
+  let schemaRelVars = isomorphsInRelVarNames (isomorphs schema)
+  rvAssoc <- mapM (\rvIn -> do 
+                      rvOut <- processRelationalExprInSchema schema (RelationVariable rvIn ())
+                      pure (rvOut, RelationVariable rvIn ())
+                  )
+             (S.toList schemaRelVars)
+  let replacer exprOrig = foldM (\expr (find, replace) -> if expr == find then
+                                                            pure replace
+                                                          else
+                                                            pure expr) exprOrig rvAssoc
+  rexprA' <- relExprMogrify replacer rexprA
+  rexprB' <- relExprMogrify replacer rexprB
+  pure (InclusionDependency rexprA' rexprB')
 
-applyInclusionDependenciesSchemaIsoMorphs :: SchemaIsomorphs -> InclusionDependencies -> Either RelationalError InclusionDependencies
---add inc deps for restriction with some automatic name
-applyInclusionDependenciesSchemaIsoMorphs _ _ = undefined
-
+inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
+inclusionDependenciesInSchema schema incDeps = mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps) >>= pure . M.fromList
+  
 relationVariablesInSchema :: Schema -> DatabaseContext -> Either RelationalError RelationVariables
 relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.empty morphs
   where
@@ -206,15 +255,16 @@ applyRelationVariablesSchemaIsomorphs = undefined
 
 applySchemaIsomorphsToDatabaseContext :: SchemaIsomorphs -> DatabaseContext -> Either RelationalError DatabaseContext
 applySchemaIsomorphsToDatabaseContext morphs context = do
-  incdeps <- applyInclusionDependenciesSchemaIsoMorphs morphs (inclusionDependencies context)
+--  incdeps <- inclusionDependen morphs (inclusionDependencies context)
   relvars <- applyRelationVariablesSchemaIsomorphs morphs (relationVariables context)
-  pure (context { inclusionDependencies = incdeps,
+  pure (context { --inclusionDependencies = incdeps,
                   relationVariables = relvars
                   --atomFunctions = atomfuncs,
                   --notifications = notifs,
                   --typeConstructorMapping = tconsmapping
                 })
     
+{-    
 validate :: SchemaIsomorph -> S.Set RelVarName -> Either RelationalError SchemaIsomorph
 validate morph underlyingRvNames = if S.size invalidRvNames > 0 then 
                           Left (MultipleErrors (map RelVarNotDefinedError (S.toList invalidRvNames)))
@@ -223,18 +273,18 @@ validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
   where
     morphRvNames = S.fromList (isomorphOutRelVarNames morph)
     invalidRvNames = S.difference morphRvNames underlyingRvNames
+-}
 
 -- the second argument really should be a database context in the future so we can morph other context items
-evalSchemaExpr :: SchemaExpr -> S.Set RelVarName -> Subschemas -> Either RelationalError Subschemas
-evalSchemaExpr (AddSubschema sname) _ sschemas = if M.member sname sschemas then
+evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError Subschemas
+evalSchemaExpr (AddSubschema sname morphs) context sschemas = if M.member sname sschemas then
                                                  Left (SubschemaNameInUseError sname)
-                                               else 
-                                                 pure (M.insert sname (Schema []) sschemas)
-evalSchemaExpr (AddSubschemaIsomorph sname morph) underlyingRvNames sschemas = case M.lookup sname sschemas of
-  Nothing -> Left (SubschemaNameNotInUseError sname)
-  Just (Schema oldMorphs) -> do
-    morph' <- validate morph underlyingRvNames
-    pure (M.insert sname (Schema (oldMorphs ++ [morph'])) sschemas)
+                                               else case valid of
+                                                                Just err -> Left (SchemaCreationError err)
+                                                                Nothing -> pure (M.insert sname newSchema sschemas)
+  where
+    newSchema = Schema morphs
+    valid = validateSchema newSchema context
 evalSchemaExpr (RemoveSubschema sname) _ sschemas = if M.member sname sschemas then
                                            pure (M.delete sname sschemas)
                                          else

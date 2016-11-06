@@ -407,9 +407,14 @@ executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = ex
   eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right (session, schema) -> case Schema.processRelationalExprInSchema schema expr of
+    Right (session, schema) -> do
+      let expr' = if schemaName session /= defaultSchemaName then
+                    Schema.processRelationalExprInSchema schema expr
+                  else
+                    Right expr
+      case expr' of
         Left err -> pure (Left err)
-        Right expr' -> case evalState (RE.evalRelationalExpr expr') (Sess.concreteDatabaseContext session) of
+        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (Sess.concreteDatabaseContext session) of
           Left err -> pure (Left err)
           Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
@@ -535,13 +540,9 @@ executeSchemaExpr sessionId (InProcessConnection _ _ sessions _ _) schemaExpr = 
   eSession <- sessionAndSchema sessionId sessions  
   case eSession of
     Left err -> pure (Just err)
-    Right (session, schema) -> do
+    Right (session, _) -> do
       let subschemas' = subschemas session
-          underlyingRelVarNames = if schemaName session == defaultSchemaName then
-                                    M.keysSet (relationVariables (Sess.concreteDatabaseContext session))
-                                  else
-                                    Schema.isomorphsInRelVarNames (Schema.isomorphs schema)
-      case Schema.evalSchemaExpr schemaExpr underlyingRelVarNames subschemas' of
+      case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
         Left err -> pure (Just err)
         Right newSubschemas -> do
           --hm- maybe we should start using lenses
@@ -594,13 +595,18 @@ typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExp
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
 -- | Return a 'Map' of the database's constraints at the context of the session and connection.
-inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError (M.Map IncDepName InclusionDependency))
+inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError InclusionDependencies)
 inclusionDependencies sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure $ Left err --TODO: schema application
-      Right (session, schema) -> pure $ Right (B.inclusionDependencies (Sess.concreteDatabaseContext session))
+      Right (session, schema) -> do
+            let context = Sess.concreteDatabaseContext session
+            if schemaName session == defaultSchemaName then
+              pure $ Right (B.inclusionDependencies context)
+              else
+              pure (Schema.inclusionDependenciesInSchema schema (B.inclusionDependencies context))
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -638,9 +644,13 @@ relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = d
     case eSession of
       Left err -> pure (Left err)
       Right (session, schema) -> do
-        case Schema.relationVariablesInSchema schema (Sess.concreteDatabaseContext session) of
-          Left err -> pure (Left err)
-          Right relvars -> pure $ R.relationVariablesAsRelation relvars
+        let context = Sess.concreteDatabaseContext session
+        if Sess.schemaName session == defaultSchemaName then
+          pure $ R.relationVariablesAsRelation (relationVariables context)
+          else
+          case Schema.relationVariablesInSchema schema context of
+            Left err -> pure (Left err)
+            Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 

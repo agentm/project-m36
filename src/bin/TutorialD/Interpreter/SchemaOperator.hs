@@ -23,21 +23,21 @@ setCurrentSchemaP = do
   SetCurrentSchema <$> identifier
   
 schemaExprP :: Parser SchemaExpr
-schemaExprP = addSubschemaIsoMorphP <|>
-              addSubschemaP
-  
+schemaExprP = addSubschemaP <|>
+              removeSubschemaP
+              
 addSubschemaP :: Parser SchemaExpr
 addSubschemaP = do
   reserved ":addsubschema"
-  AddSubschema <$> identifier
-  
-addSubschemaIsoMorphP :: Parser SchemaExpr  
-addSubschemaIsoMorphP = do
-  reserved ":addsubschemaisomorph"
-  AddSubschemaIsomorph <$> identifier <*> schemaIsomorphP
+  AddSubschema <$> identifier <*> parens (sepBy schemaIsomorphP comma)
   
 schemaIsomorphP :: Parser SchemaIsomorph  
-schemaIsomorphP = isoRestrictP <|> isoUnionP
+schemaIsomorphP = isoRestrictP <|> isoUnionP <|> isoRenameP <|> isoPassthrough
+
+removeSubschemaP :: Parser SchemaExpr
+removeSubschemaP = do
+  reserved ":removesubschema"
+  RemoveSubschema <$> identifier
 
 isoRestrictP :: Parser SchemaIsomorph
 isoRestrictP = do
@@ -56,6 +56,17 @@ isoUnionP :: Parser SchemaIsomorph
 isoUnionP = do
   reserved "isounion"
   IsoUnion <$> isoUnionInRelVarsP <*> restrictionPredicateP <*> qrelVarP
+  
+isoRenameP :: Parser SchemaIsomorph
+isoRenameP = do
+  reserved "isorename"
+  IsoRename <$> qrelVarP <*> qrelVarP
+  
+isoPassthrough :: Parser SchemaIsomorph  
+isoPassthrough = do
+  reserved "isopassthrough"
+  rv <- qrelVarP
+  pure (IsoRename rv rv)
   
 isoUnionInRelVarsP :: Parser (RelVarName, RelVarName)  
 isoUnionInRelVarsP = (,) <$> qrelVarP <*> qrelVarP
