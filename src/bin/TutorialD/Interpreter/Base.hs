@@ -27,7 +27,7 @@ displayOpResult QuietSuccessResult = return ()
 displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
 displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStrLn ("ERR:" <> T.pack (show err))
   where
-    pointyString = T.justifyRight (promptLength + (sourceColumn (errorPos err))) ' ' "^"
+    pointyString = T.justifyRight (promptLength + (sourceColumn (errorPos err))) '_' "^"
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
