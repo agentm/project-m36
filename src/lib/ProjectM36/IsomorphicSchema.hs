@@ -22,7 +22,7 @@ import qualified Data.List as L
 
 -- the isomorphic building blocks should not be arbitrarily combined; for example, combing restrict and union on the same target relvar does not make sense as that would create effects at a distance in the secondary schema
 
-data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs|
+data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs |
                   RemoveSubschema SchemaName
                   deriving (Generic, Binary)
 
@@ -34,13 +34,15 @@ isomorphs (Schema i) = i
 -- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
 --TODO: add relvar must appear exactly once constraint
 validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
-validateSchema potentialSchema baseContext = if not (S.null rvDiff) then
-                                               Just (RelVarReferencesMissing rvDiff)
-                                             else if not (null duplicateNames) then
-                                                    Just (RelVarReferencedMoreThanOnce (head duplicateNames))
-                                                  else
-                                                    Nothing
+validateSchema potentialSchema baseContext = do
+  if not (S.null rvDiff) then
+    Just (RelVarReferencesMissing rvDiff)
+    else if not (null duplicateNames) then 
+           Just (RelVarReferencedMoreThanOnce (head duplicateNames))
+         else
+           Nothing
   where
+    --check that the predicate for IsoUnion and IsoRestrict holds right now
     duplicateNames = dupes (L.sort outRvNamesList)
     outRvNamesList = concat (map isomorphOutRelVarNames (isomorphs potentialSchema))
     expectedRelVars = M.keysSet (relationVariables baseContext)
@@ -74,31 +76,31 @@ isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
   where
     rvnames morph acc = acc ++ isomorphOutRelVarNames morph
 
+-- | Check that all mentioned relvars are actually present in the current schema.
+validateRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError ()
+validateRelationalExprInSchema schema relExprIn = relExprMogrify (\expr -> case expr of
+                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
+                     ex -> Right ex) relExprIn >> pure ()
+  where
+    validRelVarNames = isomorphsInRelVarNames (isomorphs schema)
+  
 processRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError RelationalExpr
-processRelationalExprInSchema (Schema morphs) relExprIn = do
+processRelationalExprInSchema schema relExprIn = do
   --validate that all rvs are present in the virtual schema- this prevents relation variables being referenced in the underlying schema (falling through the transformation)
   let processRelExpr rexpr morph = relExprMogrify (relExprMorph morph) rexpr
-  -- validate all in relvar names so that the actual relvar names don't leak through as errors
-      validRelVarNames = isomorphsInRelVarNames morphs
-  _ <- relExprMogrify (\expr -> case expr of
-                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
-                     ex -> Right ex) relExprIn
-                    
-  foldM processRelExpr relExprIn morphs
+  validateRelationalExprInSchema schema relExprIn                    
+  foldM processRelExpr relExprIn (isomorphs schema)
+  
+validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError ()  
+validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema) >> pure ()
   
 processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr  
 processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
-  let processDbExpr expr morph = case expr of
-        Assign rv _ | notMember rv -> badRv rv
-        Insert rv _ | notMember rv -> badRv rv
-        Update rv _ _ | notMember rv -> badRv rv
-        MultipleExpr exprs -> MultipleExpr <$> mapM (processDatabaseContextExprInSchema schema) exprs
-        e -> databaseContextExprMorph morph relExprMogrifier e
-      relExprMogrifier = processRelationalExprInSchema schema
-      badRv rv = Left (RelVarNotDefinedError rv)
-      notMember rv = S.notMember rv validRelVarNames
-      validRelVarNames = isomorphsInRelVarNames morphs
-  foldM processDbExpr dbExpr morphs
+  let relExprMogrifier = processRelationalExprInSchema schema
+  --validate that all mentioned relvars are in the valid set
+  _ <- validateDatabaseContextExprInSchema schema dbExpr      
+  --perform the morph
+  foldM (\ex morph -> databaseContextExprMorph morph relExprMogrifier ex) dbExpr morphs
   
 -- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema! 
 -- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.
@@ -109,7 +111,6 @@ applySchemaToInclusionDependencies (Schema morphs) incDeps =
   let incDepMorph incDep = --check that the mentioned relvars are in fact in the current schema
   M.update incDepMorph incDeps        
   -}
-  
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
 relExprMorph :: SchemaIsomorph -> (RelationalExpr -> Either RelationalError RelationalExpr)
