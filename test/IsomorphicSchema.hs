@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import Control.Monad.State
 
 testList :: Test
-testList = TestList [testIsoRelVarName, testIsoRestrict]
+testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion]
 
 main :: IO ()           
 main = do 
@@ -22,15 +22,20 @@ assertEither x = case x of
   Left err -> assertFailure (show err) >> undefined
   Right val -> pure val
   
-testIsoRelVarName :: Test
-testIsoRelVarName = TestCase $ do
+-- create some potential schemas which should not be accepted  
+testSchemaValidation :: Test
+testSchemaValidation = TestCase $ do  
+  undefined
+  
+testIsoRename :: Test
+testIsoRename = TestCase $ do
   -- create a schema with two relvars and rename one while the other remains the same in the isomorphic schema
   let schemaA = DBC.empty { 
         relationVariables = M.fromList [("employee", relationTrue), 
                                         ("department", relationFalse)]
         }
-      isomorphsAtoB = [isomorphRename "emp" "employee", 
-                       isomorphRename "department" "department"]
+      isomorphsAtoB = [IsoRename "emp" "employee", 
+                       IsoRename "department" "department"]
       unionExpr = Union (RelationVariable "emp" ()) (RelationVariable "department" ())      
   relExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB unionExpr)
   let relResult = evalState (evalRelationalExpr relExpr) schemaA                             
@@ -54,7 +59,7 @@ testIsoRestrict = TestCase $ do
                                         ("boss", bossRel)]
         }
 
-      isomorphsAtoB = [IsoRestrict "employee" predicate (Just "boss", Just "nonboss")]
+      isomorphsAtoB = [IsoRestrict "employee" predicate ("boss", "nonboss")]
       bossq = RelationVariable "boss" ()
       nonbossq = RelationVariable "nonboss" ()
       employeeq = RelationVariable "employee" ()
@@ -63,3 +68,31 @@ testIsoRestrict = TestCase $ do
   let empResult = evalState (evalRelationalExpr empExpr) schemaA
       unionResult = evalState (evalRelationalExpr unionq) schemaA
   assertEqual "boss/nonboss isorestrict" unionResult empResult
+  -- TODO: add databaseContextExprs
+  
+testIsoUnion :: Test  
+testIsoUnion = TestCase $ do
+  --create motors relation which is split into low-power (<50 horsepower) and high-power (>=50 horsepower) motors
+  --the schema is contains the split relvars
+  motorsRel <- assertEither $ mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType,
+                                                                        Attribute "power" IntAtomType]) 
+               [[TextAtom "Puny", IntAtom 10],
+                [TextAtom "Scooter", IntAtom 49],
+                [TextAtom "Auto", IntAtom 200],
+                [TextAtom "Tractor", IntAtom 500]]
+  let baseSchema = DBC.basicDatabaseContext {
+        relationVariables = M.singleton "motor" motorsRel
+        }
+      splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntAtom 50)] ())
+      splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",
+                        IsoRename "true" "true",
+                        IsoRename "false" "false"]
+      lowmotors = evalState (evalRelationalExpr (Restrict splitPredicate (RelationVariable "motor" ()))) baseSchema
+      highmotors = evalState (evalRelationalExpr (Restrict (NotPredicate splitPredicate) (RelationVariable "motor" ()))) baseSchema
+      relResult expr = evalState (evalRelationalExpr expr) baseSchema
+  lowpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "lowpower" ()))
+  lowpowerRel <- assertEither (relResult lowpowerExpr)
+  highpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "highpower" ()))
+  highpowerRel <- assertEither (relResult highpowerExpr)
+  assertEqual "lowpower relation difference" (Right lowpowerRel) lowmotors
+  assertEqual "highpower relation difference" (Right highpowerRel) highmotors
