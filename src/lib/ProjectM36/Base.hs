@@ -272,7 +272,7 @@ data Schemas = Schemas DatabaseContext Subschemas
 data Schema = Schema SchemaIsomorphs
               deriving (Generic, Binary)
                               
-data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarName, RelVarName) | --maps one relvar into two relvars (true, false), if the false name is Nothing, no relvar in schemaB is created. This is useful for renaming relation variables between schemas or hiding relvars altogether.
+data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarName, RelVarName) | 
                       IsoRename RelVarName RelVarName |
                       IsoUnion (RelVarName, RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
                       -- IsoTypeConstructor in morphAttrExpr

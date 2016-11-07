@@ -184,6 +184,7 @@ notificationListener callback = do
     receiveWait [
       match (\(NotificationMessage eNots) -> do
             --say $ "NOTIFICATION: " ++ show eNots
+            -- when notifications are thrown, they are not adjusted for the current schema which could be problematic, but we don't have access to the current session here
             liftIO $ mapM_ (uncurry callback) (M.toList eNots)
             )
       ]
@@ -426,9 +427,13 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr
   case eSession of
     Left err -> pure $ Just err
     Right (session, schema) -> do
-      case Schema.processDatabaseContextExprInSchema schema expr of
+      let expr' = if schemaName session == defaultSchemaName then
+                    Right expr
+                  else
+                    Schema.processDatabaseContextExprInSchema schema expr   
+      case expr' of 
         Left err -> pure (Just err)
-        Right expr' -> case runState (RE.evalContextExpr expr') (Sess.concreteDatabaseContext session) of
+        Right expr'' -> case runState (RE.evalContextExpr expr'') (Sess.concreteDatabaseContext session) of
           (Just err,_) -> return $ Just err
           (Nothing, context') -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
@@ -511,7 +516,7 @@ executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graph
       --update filesystem database, if necessary
       --this should really grab a lock at the beginning of the method to be threadsafe
       processPersistence strat newGraph
-      sendNotifications nodesToNotify notsToFire --TODO: schema mod
+      sendNotifications nodesToNotify notsToFire
       return Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _ _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
@@ -600,7 +605,7 @@ inclusionDependencies sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err --TODO: schema application
+      Left err -> pure $ Left err 
       Right (session, schema) -> do
             let context = Sess.concreteDatabaseContext session
             if schemaName session == defaultSchemaName then
@@ -616,8 +621,12 @@ planForDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) dbEx
   atomically $ do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err --TODO: schema application
-      Right (session, schema) -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
+      Left err -> pure $ Left err 
+      Right (session, _) -> if schemaName session == defaultSchemaName then
+                                   pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
+                                 else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly
+                                   pure (Right dbExpr)
+
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
