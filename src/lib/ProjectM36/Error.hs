@@ -115,7 +115,8 @@ data AtomFunctionBodyCompilationError = TypeCheckCompilationError String String 
                                       deriving (Show,Eq, Generic, Binary, Typeable, NFData)
                                                
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
-                   RelVarReferencedMoreThanOnce RelVarName
+                   RelVarInReferencedMoreThanOnce RelVarName |
+                   RelVarOutReferencedMoreThanOnce RelVarName
                    deriving (Show, Eq, Generic, Binary, Typeable, NFData)
                            
                                                

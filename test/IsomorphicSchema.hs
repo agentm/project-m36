@@ -1,5 +1,6 @@
 import Test.HUnit
 import ProjectM36.Base
+import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
 import ProjectM36.RelationalExpression
@@ -7,10 +8,11 @@ import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import System.Exit
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.State
 
 testList :: Test
-testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion]
+testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
 
 main :: IO ()           
 main = do 
@@ -25,7 +27,17 @@ assertEither x = case x of
 -- create some potential schemas which should not be accepted  
 testSchemaValidation :: Test
 testSchemaValidation = TestCase $ do  
-  undefined
+  let potentialSchema = DBC.basicDatabaseContext {
+        relationVariables = M.singleton "anotherRel" relationTrue
+        }
+  -- missing relvars failure
+      morphs = [IsoRename "true" "true", IsoRename "false" "false"]
+      missingRelVarError = Just (RelVarReferencesMissing (S.singleton "anotherRel"))
+  assertEqual "missing relvar validation" missingRelVarError (validateSchema (Schema morphs) potentialSchema)
+  -- duplicate relvar mention
+  let morphs' = [IsoRename "true" "true", IsoRename "false" "true", IsoRename "true" "anotherRel"]
+      duplicateRelVarError = Just (RelVarOutReferencedMoreThanOnce "true")
+  assertEqual "duplicate relvars in morphs" duplicateRelVarError (validateSchema (Schema morphs') potentialSchema)
   
 testIsoRename :: Test
 testIsoRename = TestCase $ do

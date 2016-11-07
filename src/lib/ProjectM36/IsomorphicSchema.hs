@@ -11,7 +11,7 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
---import Debug.Trace
+import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -37,14 +37,18 @@ validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
 validateSchema potentialSchema baseContext = do
   if not (S.null rvDiff) then
     Just (RelVarReferencesMissing rvDiff)
-    else if not (null duplicateNames) then 
-           Just (RelVarReferencedMoreThanOnce (head duplicateNames))
+    else if not (null outDupes) then 
+           Just (RelVarOutReferencedMoreThanOnce (head outDupes))
+         else if not (null inDupes) then
+           Just (RelVarInReferencedMoreThanOnce (head inDupes))                
          else
            Nothing
   where
     --check that the predicate for IsoUnion and IsoRestrict holds right now
-    duplicateNames = dupes (L.sort outRvNamesList)
-    outRvNamesList = concat (map isomorphOutRelVarNames (isomorphs potentialSchema))
+    outDupes = duplicateNames (namesList isomorphOutRelVarNames)
+    inDupes = duplicateNames (namesList isomorphInRelVarNames)
+    duplicateNames = dupes . L.sort
+    namesList isoFunc = concat (map isoFunc (isomorphs potentialSchema))
     expectedRelVars = M.keysSet (relationVariables baseContext)
     schemaRelVars = isomorphsOutRelVarNames (isomorphs potentialSchema)
     rvDiff = S.difference expectedRelVars schemaRelVars
