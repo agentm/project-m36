@@ -28,7 +28,7 @@ schemaExprP = addSubschemaP <|>
               
 addSubschemaP :: Parser SchemaExpr
 addSubschemaP = do
-  reserved ":addsubschema"
+  reserved ":addschema"
   AddSubschema <$> identifier <*> parens (sepBy schemaIsomorphP comma)
   
 schemaIsomorphP :: Parser SchemaIsomorph  
@@ -36,7 +36,7 @@ schemaIsomorphP = isoRestrictP <|> isoUnionP <|> isoRenameP <|> isoPassthrough
 
 removeSubschemaP :: Parser SchemaExpr
 removeSubschemaP = do
-  reserved ":removesubschema"
+  reserved ":removeschema"
   RemoveSubschema <$> identifier
 
 isoRestrictP :: Parser SchemaIsomorph
