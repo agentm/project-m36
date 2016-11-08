@@ -24,6 +24,11 @@ assertEither x = case x of
   Left err -> assertFailure (show err) >> undefined
   Right val -> pure val
   
+assertMaybe :: Maybe a -> String -> IO a  
+assertMaybe x msg = case x of
+  Nothing -> assertFailure msg >> undefined
+  Just x' -> pure x'
+  
 -- create some potential schemas which should not be accepted  
 testSchemaValidation :: Test
 testSchemaValidation = TestCase $ do  
@@ -57,8 +62,9 @@ testIsoRestrict :: Test
 testIsoRestrict = TestCase $ do
   -- create a emp relation which is restricted into two boss, nonboss rel vars
   -- the virtual schema has an employee
-  emprel <- assertEither $ mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType,
-                                                                    Attribute "boss" TextAtomType])
+  let empattrs = (A.attributesFromList [Attribute "name" TextAtomType,
+                                        Attribute "boss" TextAtomType])
+  emprel <- assertEither $ mkRelationFromList empattrs
             [[TextAtom "Steve", TextAtom ""],
              [TextAtom "Cindy", TextAtom "Steve"],
              [TextAtom "Sam", TextAtom "Steve"]]
@@ -80,7 +86,16 @@ testIsoRestrict = TestCase $ do
   let empResult = evalState (evalRelationalExpr empExpr) schemaA
       unionResult = evalState (evalRelationalExpr unionq) schemaA
   assertEqual "boss/nonboss isorestrict" unionResult empResult
-  -- TODO: add databaseContextExprs
+  --execute database context expr
+  bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
+  let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
+  schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
+  let postInsertContext = execState (evalContextExpr schemaBInsertExpr') schemaA
+      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) postInsertContext
+  --execute the expression against the schema and compare against the base context
+  processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
+  let processedRel = evalState (evalRelationalExpr processedExpr) postInsertContext
+  assertEqual "insert bob boss" expectedRel processedRel
   
 testIsoUnion :: Test  
 testIsoUnion = TestCase $ do
