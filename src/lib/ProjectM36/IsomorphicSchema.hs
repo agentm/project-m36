@@ -4,6 +4,8 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.MiscUtils
 import ProjectM36.RelationalExpression
+import ProjectM36.Relation
+import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
 import Control.Monad.State
 import GHC.Generics
@@ -11,7 +13,9 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-import Debug.Trace
+import qualified Data.Text as T
+import Data.Monoid
+-- import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -280,18 +284,35 @@ validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
     invalidRvNames = S.difference morphRvNames underlyingRvNames
 -}
 
--- the second argument really should be a database context in the future so we can morph other context items
-evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError Subschemas
-evalSchemaExpr (AddSubschema sname morphs) context sschemas = if M.member sname sschemas then
-                                                 Left (SubschemaNameInUseError sname)
-                                               else case valid of
-                                                                Just err -> Left (SchemaCreationError err)
-                                                                Nothing -> pure (M.insert sname newSchema sschemas)
+-- | Create inclusion dependencies mainly for IsoRestrict because the predicate should hold in the base schema.
+createIncDepsForIsomorph :: SchemaName -> SchemaIsomorph -> InclusionDependencies
+createIncDepsForIsomorph sname (IsoRestrict _ predi (rvTrue, rvFalse)) = let 
+  newIncDep predicate rv = InclusionDependency (Project AN.empty (Restrict predicate (RelationVariable rv ()))) (ExistingRelation relationTrue)
+  incDepName b = "schema" <> "_" <> sname <> "_" <> T.pack (show b) in
+  M.fromList [(incDepName True, newIncDep predi rvTrue),
+              (incDepName False, newIncDep (NotPredicate predi) rvFalse)]
+createIncDepsForIsomorph _ _ = M.empty
+
+-- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
+evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
+evalSchemaExpr (AddSubschema sname morphs) context sschemas = do
+  if M.member sname sschemas then
+    Left (SubschemaNameInUseError sname)
+    else case valid of
+    Just err -> Left (SchemaCreationError err)
+    Nothing -> 
+      let newSchemas = M.insert sname newSchema sschemas
+          moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
+          incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
+      in
+      case runState (evalContextExpr incDepExprs) context of
+        (Just err, _) -> Left err
+        (Nothing, newContext) -> pure (newSchemas, newContext)
   where
     newSchema = Schema morphs
     valid = validateSchema newSchema context
-evalSchemaExpr (RemoveSubschema sname) _ sschemas = if M.member sname sschemas then
-                                           pure (M.delete sname sschemas)
+evalSchemaExpr (RemoveSubschema sname) context sschemas = if M.member sname sschemas then
+                                           pure (M.delete sname sschemas, context)
                                          else
                                            Left (SubschemaNameNotInUseError sname)
 

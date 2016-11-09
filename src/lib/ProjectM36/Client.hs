@@ -549,10 +549,10 @@ executeSchemaExpr sessionId (InProcessConnection _ _ sessions _ _) schemaExpr = 
       let subschemas' = subschemas session
       case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
         Left err -> pure (Just err)
-        Right newSubschemas -> do
+        Right (newSubschemas, newContext) -> do
           --hm- maybe we should start using lenses
           let discon = Sess.disconnectedTransaction session 
-              newSchemas = Schemas (Sess.concreteDatabaseContext session) newSubschemas
+              newSchemas = Schemas newContext newSubschemas
               newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas) (Sess.schemaName session)
           STMMap.insert newSession sessionId sessions
           pure Nothing
