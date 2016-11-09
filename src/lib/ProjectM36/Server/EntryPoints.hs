@@ -93,3 +93,8 @@ handleRetrieveRelationVariableSummary :: SessionId -> Connection -> Process (Pro
 handleRetrieveRelationVariableSummary sessionId conn = do
   ret <- liftIO $ relationVariablesAsRelation sessionId conn
   reply ret conn  
+  
+handleRetrieveCurrentSchemaName :: SessionId -> Connection -> Process (ProcessReply (Maybe SchemaName) Connection)
+handleRetrieveCurrentSchemaName sessionId conn = do
+  ret <- liftIO $ currentSchemaName sessionId conn
+  reply ret conn

@@ -17,9 +17,9 @@ import Data.Maybe (isJust)
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId conn) [
   testRelationalExpr,
+  testTypeForRelationalExpr,  
   testDatabaseContextExpr,
   testGraphExpr,
-  testTypeForRelationalExpr,
   testPlanForDatabaseContextExpr,
   testTransactionGraphAsRelation,
   testHeadTransactionId,

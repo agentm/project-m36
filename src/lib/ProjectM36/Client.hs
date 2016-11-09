@@ -593,7 +593,11 @@ typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExp
   case eSession of
     Left err -> pure $ Left err
     Right (session, schema) -> do
-      case Schema.processRelationalExprInSchema schema relExpr of
+      let processed = if schemaName session == defaultSchemaName then
+                       Right relExpr
+                     else
+                       Schema.processRelationalExprInSchema schema relExpr
+      case processed of
         Left err -> pure (Left err)
         Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (Sess.concreteDatabaseContext session)
     
