@@ -68,6 +68,9 @@ testRelationalExpr sessionId conn = TestCase $ do
   relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
   
+--testSchemaExpr :: SessionId -> Connection -> Test
+--testSchemaExpr sessionId conn = TestCase $ do
+  
 testDatabaseContextExpr :: SessionId -> Connection -> Test
 testDatabaseContextExpr sessionId conn = TestCase $ do 
   let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" TextAtomType) ()]

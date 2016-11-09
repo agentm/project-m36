@@ -14,7 +14,8 @@ import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
-import ProjectM36.Session
+import qualified ProjectM36.DisconnectedTransaction as Discon
+import qualified ProjectM36.Session as Sess
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import System.Exit
@@ -154,10 +155,12 @@ transactionGraphAddCommitTest = TestCase $ do
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
-        DisplayErrorResult err -> assertFailure (show err)        
+        DisplayParseErrorResult _ _ -> assertFailure "displayparseerror?"
+        DisplayErrorResult err -> assertFailure (show err)   
         QuietSuccessResult -> do
           commit sessionId dbconn >>= maybeFail
-          (DisconnectedTransaction _ context) <- disconnectedTransaction sessionId dbconn
+          discon <- disconnectedTransaction sessionId dbconn
+          let context = Discon.concreteDatabaseContext discon
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
 
 transactionRollbackTest :: Test
@@ -169,10 +172,11 @@ transactionRollbackTest = TestCase $ do
     Just err -> assertFailure (show err)
     Nothing -> do
       rollback sessionId dbconn >>= maybeFail
-      (DisconnectedTransaction _ context') <- disconnectedTransaction sessionId dbconn
+      discon <- disconnectedTransaction sessionId dbconn
       graph' <- transactionGraph dbconn
-      assertEqual "validate context" Nothing (M.lookup "x" (relationVariables context'))
-      assertEqual "validate graph" graph graph'
+      assertEqual "validate context" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))
+      let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)
+      assertEqual "validate graph" (graphEq graph) (graphEq graph')
 
 --commit a new transaction with "x" relation, jump to first transaction, verify that "x" is not present
 transactionJumpTest :: Test
@@ -190,8 +194,8 @@ transactionJumpTest = TestCase $ do
         Just err -> assertFailure (show err)
         Nothing -> do
           --check that the disconnected transaction does not include "x"
-          (DisconnectedTransaction _ context') <- disconnectedTransaction sessionId dbconn
-          assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables context'))          
+          discon <- disconnectedTransaction sessionId dbconn
+          assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))          
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
@@ -238,7 +242,7 @@ disconnectedTransaction sessionId (InProcessConnection _ _ sessions _ _) = do
     STMMap.lookup sessionId sessions
   case mSession of
     Nothing -> error "No such session"
-    Just (Session discon) -> pure discon
+    Just (Sess.Session discon _) -> pure discon
 disconnectedTransaction _ _ = error "remote connection used"
 
 {-

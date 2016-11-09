@@ -125,6 +125,9 @@ instance FromJSON AtomFunctionBodyCompilationError
 instance ToJSON RelationalError
 instance FromJSON RelationalError
 
+instance ToJSON SchemaError
+instance FromJSON SchemaError
+
 instance ToJSON MergeError
 instance FromJSON MergeError
 

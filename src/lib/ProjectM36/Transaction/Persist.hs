@@ -40,7 +40,7 @@ typeConsPath :: FilePath -> FilePath
 typeConsPath transdir = transdir </> "typecons"
 
 subschemasPath :: FilePath -> FilePath
-subschemasPath transdir = transdir </> "subschemas"
+subschemasPath transdir = transdir </> "schemas"
 
 readTransaction :: FilePath -> TransactionId -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transId = do
@@ -77,6 +77,7 @@ writeTransaction sync dbdir trans = do
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
+    writeSubschemas sync tempTransDir (subschemas trans)
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
@@ -148,10 +149,10 @@ readSubschemas transDir = do
   bytes <- BS.readFile sschemasPath
   pure (B.decode bytes)
   
-writeSubschemas :: FilePath -> Subschemas -> IO ()  
-writeSubschemas transDir sschemas = do
+writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
+writeSubschemas sync transDir sschemas = do
   let sschemasPath = subschemasPath transDir
-  BS.writeFile sschemasPath (B.encode sschemas)
+  writeBSFileSync sync sschemasPath (B.encode sschemas)
   
 writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
 writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in

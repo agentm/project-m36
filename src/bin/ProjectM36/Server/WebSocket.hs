@@ -69,5 +69,6 @@ handleOpResult conn db QuitResult = WS.sendClose conn ("close" :: T.Text) >> clo
 handleOpResult conn  _ (DisplayResult out) = WS.sendTextData conn (encode (object ["display" .= out]))
 handleOpResult _ _ (DisplayIOResult ioout) = ioout
 handleOpResult conn _ (DisplayErrorResult err) = WS.sendTextData conn (encode (object ["displayerror" .= err]))
+handleOpResult conn _ (DisplayParseErrorResult _ err) = WS.sendTextData conn (encode (object ["displayparseerrorresult" .= show err]))
 handleOpResult conn _ QuietSuccessResult = WS.sendTextData conn (encode (object ["acknowledged" .= True]))
 handleOpResult conn _ (DisplayRelationResult rel) = WS.sendTextData conn (encode (object ["displayrelation" .= rel]))

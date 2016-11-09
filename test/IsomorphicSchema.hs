@@ -23,11 +23,13 @@ assertEither :: (Show a) => Either a b -> IO b
 assertEither x = case x of
   Left err -> assertFailure (show err) >> undefined
   Right val -> pure val
-  
+
+{-  
 assertMaybe :: Maybe a -> String -> IO a  
 assertMaybe x msg = case x of
   Nothing -> assertFailure msg >> undefined
   Just x' -> pure x'
+-}
   
 -- create some potential schemas which should not be accepted  
 testSchemaValidation :: Test
