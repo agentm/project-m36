@@ -33,7 +33,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, testSchemaExpr]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -329,4 +329,28 @@ testTransGraphRelationalExpr = TestCase $ do
   let testBranchBacktrack = TransactionIdHeadNameLookup "testbranch" [TransactionIdHeadParentBacktrack 1]
   backtrackRel <- executeTransGraphRelationalExpr sessionId dbconn (Equals (RelationVariable "s" testBranchBacktrack) (RelationVariable "s" masterMarker))
   assertEqual "backtrack to master" (Right relationTrue) backtrackRel
+  
+testSchemaExpr :: Test
+testSchemaExpr = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  mapM_ (executeTutorialD sessionId dbconn) [
+    ":addschema test (isopassthrough \"true\", isopassthrough \"false\", isorename \"supplier\" \"s\", isorename \"supplier_product\" \"sp\", isounion \"heavy_product\" \"light_product\" \"p\" ^gte(17,@weight))",
+    ":setschema test",
+    ""
+    ]
+  eLightProduct <- executeRelationalExpr sessionId dbconn (RelationVariable "light_product" ())
+  lightProduct <- assertEither eLightProduct
+  let restriction = NotPredicate (AtomExprPredicate (FunctionAtomExpr "gte" [NakedAtomExpr (IntAtom 17), AttributeAtomExpr "weight"] ()))
+  mErr <- setCurrentSchemaName sessionId dbconn Sess.defaultSchemaName
+  case mErr of
+    Just err -> assertFailure (show err)
+    Nothing -> do 
+      eRestrictedProduct <- executeRelationalExpr sessionId dbconn (Restrict restriction (RelationVariable "p" ()))
+      restrictedProduct <- assertEither eRestrictedProduct
+      assertEqual "light product" restrictedProduct lightProduct
+  
+assertEither :: (Show a) => Either a b -> IO b
+assertEither x = case x of
+  Left err -> assertFailure (show err) >> undefined
+  Right val -> pure val
   

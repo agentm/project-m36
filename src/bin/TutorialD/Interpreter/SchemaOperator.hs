@@ -55,7 +55,9 @@ qrelVarP = quotedString
 isoUnionP :: Parser SchemaIsomorph
 isoUnionP = do
   reserved "isounion"
-  IsoUnion <$> isoUnionInRelVarsP <*> restrictionPredicateP <*> qrelVarP
+  relVarsIn <- isoUnionInRelVarsP
+  relVarsOut <- qrelVarP
+  IsoUnion <$> pure relVarsIn <*> restrictionPredicateP <*> pure relVarsOut
   
 isoRenameP :: Parser SchemaIsomorph
 isoRenameP = do
