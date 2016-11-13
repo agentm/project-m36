@@ -4,7 +4,7 @@
 
 Project:M36 implements a unique feature called "isomorphic schemas" which allow database users to create any number of additional schemas which are completely isomorphic to the original schema.
 
-Two schemas which are isomorphic have different structure, such as different relation variables, but actually represent identical information. This means that both schemas contain the same data, but the database structures such as relations are defined distinctly and in such a way as to make the schemas serve potentially different purposes.
+Two schemas which are isomorphic can have different structure, such as different relation variables, but actually represent identical information. This means that both schemas contain the same data, but the database structures such as relations are defined distinctly and in such a way as to make the schemas serve potentially different purposes. Tautologically, two schemas which are identical are isomorphic to each other.
 
 ## Towards Solving Action-at-a-Distance
 
@@ -14,7 +14,7 @@ Chris Date elucidates on the numerous caveats involved in updateable SQL views i
 
 Furthermore, SQL views violate the "Principle of Interchangeability" because of the special nature of views. Whether views are updateable or not is at the discretion of the database user. Some SQL views are proveably not updateable such as with summary or report views which intentionally collate data. Therefore, views do not behave identically to tables/relation variables.
 
-SQL views violate "The Information Principle" because they represent variable storage which may behave outside the realm of what a table/relation variable could accomplish. A simple example is an SQL view which does *not* change the database state on an UPDATE (ON UPDATE DO NOTHING).
+SQL views violate "The Information Principle" because they represent variable storage which may behave outside the realm of what a table/relation variable could accomplish. A simple example is an SQL view which does *not* change the database state on an UPDATE (ON UPDATE DO NOTHING). A more complex example could involve a one-way hash function against database values which would be impossible to invert and thus prevent a logical update.
 
 Updateable SQL views necessarily allow for "action at-a-distance", i.e. when a view is updated, an unknown number of actual tables may be altered in unanticipatable ways.
 
@@ -33,7 +33,7 @@ Despite their flaws, SQL views are useful for several reasons:
  * as a means to contain different access methods to the database as the database evoles, i.e. the database schema needs to be altered, but the old access strategies can be emulated through views
  * as a means of enforcing security access by implementing views which offer a restricted subset of the original data
 
-Of these use cases, isomorphic schemas only cover the schema complexity and database evolution use cases.
+Of these use cases, isomorphic schemas only cover the schema complexity and database evolution use cases. Further research (see Conclusion) may be able to extend this design to the missing use cases.
 
 ## Isomorphic Schema Building Blocks
 
