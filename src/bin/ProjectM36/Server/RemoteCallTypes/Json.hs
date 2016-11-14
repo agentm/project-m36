@@ -7,6 +7,7 @@ import ProjectM36.Base
 import ProjectM36.ConcreteTypeRep
 import ProjectM36.Error
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.IsomorphicSchema
 
 import Control.Monad
 import Data.Aeson
@@ -61,6 +62,12 @@ instance FromJSON TypeConstructorArg
 
 instance ToJSON SerialRep
 instance FromJSON SerialRep
+
+instance ToJSON SchemaExpr
+instance FromJSON SchemaExpr
+
+instance ToJSON SchemaIsomorph
+instance FromJSON SchemaIsomorph
 
 instance FromJSON ConcreteTypeRep where
   parseJSON = withObject "ctr" $ \o -> do
@@ -124,6 +131,9 @@ instance FromJSON AtomFunctionBodyCompilationError
 
 instance ToJSON RelationalError
 instance FromJSON RelationalError
+
+instance ToJSON SchemaError
+instance FromJSON SchemaError
 
 instance ToJSON MergeError
 instance FromJSON MergeError

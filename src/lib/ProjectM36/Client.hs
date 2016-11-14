@@ -12,6 +12,7 @@ module ProjectM36.Client
        executeDatabaseContextExpr,
        executeDatabaseContextIOExpr,       
        executeGraphExpr,
+       executeSchemaExpr,
        executeTransGraphRelationalExpr,
        commit,
        rollback,
@@ -19,6 +20,8 @@ module ProjectM36.Client
        inclusionDependencies,
        planForDatabaseContextExpr,
        processPersistence,
+       currentSchemaName,
+       setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
        headName,
@@ -60,16 +63,19 @@ import ProjectM36.Base hiding (inclusionDependencies) --defined in this module a
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.StaticOptimizer
+import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.DatabaseContext (basicDatabaseContext)
 import ProjectM36.TransactionGraph
+import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute hiding (atomTypes)
 import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
+import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.AtomFunctionBody (initScriptSession, ScriptSession)
 import qualified ProjectM36.Relation as R
@@ -90,6 +96,7 @@ import Control.Distributed.Process.Serializable (Serializable)
 --import Control.Distributed.Process.Debug
 import qualified STMContainers.Map as STMMap
 import qualified STMContainers.Set as STMSet
+import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
 import ListT
@@ -177,6 +184,7 @@ notificationListener callback = do
     receiveWait [
       match (\(NotificationMessage eNots) -> do
             --say $ "NOTIFICATION: " ++ show eNots
+            -- when notifications are thrown, they are not adjusted for the current schema which could be problematic, but we don't have access to the current session here
             liftIO $ mapM_ (uncurry callback) (M.toList eNots)
             )
       ]
@@ -279,12 +287,12 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection _ _ sessions g
     case transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (transactionContext transaction)
+            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) 
             keyDuplication <- STMMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
                 Nothing -> do
-                   STMMap.insert (Session freshDiscon) newSessionId sessions
+                   STMMap.insert (Session freshDiscon defaultSchemaName) newSessionId sessions
                    pure $ Right newSessionId
 createSessionAtCommit_ _ _ (RemoteProcessConnection _ _) = error "createSessionAtCommit_ called on remote connection"
   
@@ -354,32 +362,85 @@ sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Sess
 sessionForSessionId sessionId sessions = do
   maybeSession <- STMMap.lookup sessionId sessions
   pure $ maybe (Left $ NoSuchSessionError sessionId) Right maybeSession
+  
+schemaForSessionId :: Session -> STM (Either RelationalError Schema)  
+schemaForSessionId session = do
+  let sname = schemaName session
+  if sname == defaultSchemaName then
+    pure (Right (Schema [])) -- the main schema includes no transformations (but neither do empty schemas :/ )
+    else
+    case M.lookup sname (subschemas session) of
+      Nothing -> pure (Left (SubschemaNameNotInUseError sname))
+      Just schema -> pure (Right schema)
+  
+sessionAndSchema :: SessionId -> Sessions -> STM (Either RelationalError (Session, Schema))
+sessionAndSchema sessionId sessions = do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left err -> pure (Left err)
+    Right session -> do  
+      eSchema <- schemaForSessionId session
+      case eSchema of
+        Left err -> pure (Left err)
+        Right schema -> pure (Right (session, schema))
+  
+currentSchemaName :: SessionId -> Connection -> IO (Maybe SchemaName)
+currentSchemaName sessionId (InProcessConnection _ _ sessions _ _) = atomically $ do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left _ -> pure Nothing
+    Right session -> pure (Just (Sess.schemaName session))
+currentSchemaName sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveCurrentSchemaName sessionId)
+
+setCurrentSchemaName :: SessionId -> Connection -> SchemaName -> IO (Maybe RelationalError)
+setCurrentSchemaName sessionId (InProcessConnection _ _ sessions _ _) sname = atomically $ do
+  eSession <- sessionForSessionId sessionId sessions
+  case eSession of
+    Left _ -> pure Nothing
+    Right session -> case Sess.setSchemaName sname session of
+      Left err -> pure (Just err)
+      Right newSession -> STMMap.insert newSession sessionId sessions >> pure Nothing
+setCurrentSchemaName sessionId conn@(RemoteProcessConnection _ _) sname = remoteCall conn (ExecuteSetCurrentSchema sessionId sname)
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excEither $ atomically $ do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right (Session (DisconnectedTransaction _ context)) -> case evalState (RE.evalRelationalExpr expr) context of
-      Left err -> pure (Left err)
-      Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+    Right (session, schema) -> do
+      let expr' = if schemaName session /= defaultSchemaName then
+                    Schema.processRelationalExprInSchema schema expr
+                  else
+                    Right expr
+      case expr' of
+        Left err -> pure (Left err)
+        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (Sess.concreteDatabaseContext session) of
+          Left err -> pure (Left err)
+          Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
 executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr = excMaybe $ atomically $ do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Just err
-    Right session -> do
-      case runState (RE.evalContextExpr expr) (sessionContext session) of
-        (Just err,_) -> return $ Just err
-        (Nothing, context') -> do
-          let newDiscon = DisconnectedTransaction (sessionParentId session) context'
-              newSession = Session newDiscon
-          STMMap.insert newSession sessionId sessions
-          pure Nothing
+    Right (session, schema) -> do
+      let expr' = if schemaName session == defaultSchemaName then
+                    Right expr
+                  else
+                    Schema.processDatabaseContextExprInSchema schema expr   
+      case expr' of 
+        Left err -> pure (Just err)
+        Right expr'' -> case runState (RE.evalContextExpr expr'') (Sess.concreteDatabaseContext session) of
+          (Just err,_) -> return $ Just err
+          (Nothing, context') -> do
+            let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
+                newSchemas = Schemas context' (Sess.subschemas session)
+                newSession = Session newDiscon (Sess.schemaName session)
+            STMMap.insert newSession sessionId sessions
+            pure Nothing
       
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
@@ -391,12 +452,13 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection _ _ sessions _ scrip
   case eSession of
     Left err -> pure $ Just err
     Right session -> do
-      res <- RE.evalDatabaseContextIOExpr scriptSession (sessionContext session) expr
+      res <- RE.evalDatabaseContextIOExpr scriptSession (Sess.concreteDatabaseContext session) expr
       case res of
         Left err -> pure (Just err)
         Right context' -> do
-          let newDiscon = DisconnectedTransaction (sessionParentId session) context'
-              newSession = Session newDiscon
+          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
+              newSchemas = Schemas context' (Sess.subschemas session)
+              newSession = Session newDiscon (Sess.schemaName session)
           atomically $ STMMap.insert newSession sessionId sessions
           pure Nothing
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
@@ -407,11 +469,11 @@ executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar = do
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
       Left err -> pure $ Left err
-      Right (Session discon) -> case evalGraphOp freshId discon graph graphExpr of
+      Right session -> case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
         Left err -> pure $ Left err
         Right (discon', graph') -> do
           writeTVar graphTvar graph'
-          let newSession = Session discon'
+          let newSession = Session discon' (Sess.schemaName session)
           STMMap.insert newSession sessionId sessions
           pure $ Right graph'
   
@@ -434,16 +496,16 @@ executeGraphExpr sessionId (InProcessConnection strat clientNodes sessions graph
     oldGraph <- readTVar graphTvar
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction parentId currentContext)) -> do
+      Right session -> do
         eGraph <- executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar
         case eGraph of
           Left err -> pure (Left err)
           Right newGraph -> do
             if graphExpr == Commit then
-              case transactionForId parentId oldGraph of
+              case transactionForId (Sess.parentId session) oldGraph of
                 Left err -> pure $ Left err
-                Right (Transaction _ _ previousContext) -> do
-                  (evaldNots, nodes) <- executeCommitExprSTM_ previousContext currentContext clientNodes
+                Right previousTrans -> do
+                  (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
                   nodesToNotify <- toList (STMSet.stream nodes)                  
                   pure $ Right (evaldNots, nodesToNotify, newGraph)
             else
@@ -478,6 +540,24 @@ executeTransGraphRelationalExpr _ (InProcessConnection _ _ _ graphTvar _) tgraph
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _ _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
+executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Maybe RelationalError)
+executeSchemaExpr sessionId (InProcessConnection _ _ sessions _ _) schemaExpr = atomically $ do
+  eSession <- sessionAndSchema sessionId sessions  
+  case eSession of
+    Left err -> pure (Just err)
+    Right (session, _) -> do
+      let subschemas' = subschemas session
+      case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
+        Left err -> pure (Just err)
+        Right (newSubschemas, newContext) -> do
+          --hm- maybe we should start using lenses
+          let discon = Sess.disconnectedTransaction session 
+              newSchemas = Schemas newContext newSubschemas
+              newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas) (Sess.schemaName session)
+          STMMap.insert newSession sessionId sessions
+          pure Nothing
+executeSchemaExpr sessionId conn@(RemoteProcessConnection _ _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
+
 -- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Maybe RelationalError)
 commit sessionId conn@(InProcessConnection _ _ _ _ _) = executeGraphExpr sessionId conn Commit
@@ -509,21 +589,33 @@ typeForRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = rem
     
 typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
 typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExpr = do
-  eSession <- sessionForSessionId sessionId sessions
+  eSession <- sessionAndSchema sessionId sessions
   case eSession of
     Left err -> pure $ Left err
-    Right session -> pure $ evalState (RE.typeForRelationalExpr relExpr) (sessionContext session)
+    Right (session, schema) -> do
+      let processed = if schemaName session == defaultSchemaName then
+                       Right relExpr
+                     else
+                       Schema.processRelationalExprInSchema schema relExpr
+      case processed of
+        Left err -> pure (Left err)
+        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (Sess.concreteDatabaseContext session)
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
 -- | Return a 'Map' of the database's constraints at the context of the session and connection.
-inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError (M.Map IncDepName InclusionDependency))
+inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError InclusionDependencies)
 inclusionDependencies sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err
-      Right session -> pure $ Right (B.inclusionDependencies (sessionContext session))
+      Left err -> pure $ Left err 
+      Right (session, schema) -> do
+            let context = Sess.concreteDatabaseContext session
+            if schemaName session == defaultSchemaName then
+              pure $ Right (B.inclusionDependencies context)
+              else
+              pure (Schema.inclusionDependenciesInSchema schema (B.inclusionDependencies context))
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -531,10 +623,14 @@ inclusionDependencies sessionId conn@(RemoteProcessConnection _ _) = remoteCall 
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) dbExpr = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
-      Left err -> pure $ Left err
-      Right session -> pure $ evalState (applyStaticDatabaseOptimization dbExpr) (sessionContext session)
+      Left err -> pure $ Left err 
+      Right (session, _) -> if schemaName session == defaultSchemaName then
+                                   pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
+                                 else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly
+                                   pure (Right dbExpr)
+
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _ _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
@@ -548,19 +644,26 @@ transactionGraphAsRelation sessionId (InProcessConnection _ _ sessions tvar _) =
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure $ Left err
-      Right (Session discon) -> do
+      Right session -> do
         graph <- readTVar tvar
-        pure $ graphAsRelation discon graph
+        pure $ graphAsRelation (Sess.disconnectedTransaction session) graph
     
 transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 
 relationVariablesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 relationVariablesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = do
   atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
+    eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction _ context)) -> pure $ R.relationVariablesAsRelation (relationVariables context)
+      Right (session, schema) -> do
+        let context = Sess.concreteDatabaseContext session
+        if Sess.schemaName session == defaultSchemaName then
+          pure $ R.relationVariablesAsRelation (relationVariables context)
+          else
+          case Schema.relationVariablesInSchema schema context of
+            Left err -> pure (Left err)
+            Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
@@ -571,7 +674,7 @@ headTransactionId sessionId (InProcessConnection _ _ sessions _ _) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure Nothing
-      Right session -> pure $ Just (sessionParentId session)
+      Right session -> pure $ Just (Sess.parentId session)
 headTransactionId sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveHeadTransactionId sessionId)
     
 headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe HeadName)  
@@ -580,7 +683,7 @@ headNameSTM_ sessionId sessions graphTvar = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left _ -> pure $ Nothing
-      Right session -> pure $ case transactionForId (sessionParentId session) graph of
+      Right session -> pure $ case transactionForId (Sess.parentId session) graph of
         Left _ -> Nothing
         Right parentTrans -> headNameForTransaction parentTrans graph
   
@@ -596,8 +699,8 @@ atomTypesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (Session (DisconnectedTransaction _ context)) -> do
-        case typesAsRelation (typeConstructorMapping context) of
+      Right session -> do
+        case typesAsRelation (typeConstructorMapping (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)

@@ -7,6 +7,7 @@ import TutorialD.Interpreter.TransactionGraphOperator
 import TutorialD.Interpreter.InformationOperator
 import TutorialD.Interpreter.DatabaseContextIOOperator
 import TutorialD.Interpreter.TransGraphRelationalOperator
+import TutorialD.Interpreter.SchemaOperator
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
@@ -30,6 +31,7 @@ import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
 import System.IO (hPutStrLn, stderr)
+import Data.Monoid
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -46,7 +48,8 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
                        ImportBasicExampleOp ImportBasicExampleOperator |
                        RelVarExportOp RelVarDataExportOperator |
-                       TransGraphRelationalOp TransGraphRelationalOperator
+                       TransGraphRelationalOp TransGraphRelationalOperator |
+                       SchemaOp SchemaOperator
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = safeInterpreterParserP <|>
@@ -63,13 +66,13 @@ safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <
                          liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
                          liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
                          liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
-                         liftM TransGraphRelationalOp (transGraphRelationalOpP <* eof)
+                         liftM TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
+                         liftM SchemaOp (schemaOperatorP <* eof)
 
-
-promptText :: Maybe HeadName -> StringType
-promptText mHeadName = "TutorialD (" `T.append` transInfo `T.append` "): "
+promptText :: Maybe HeadName -> Maybe SchemaName -> StringType
+promptText mHeadName mSchemaName = "TutorialD (" <> transInfo <> "): "
   where
-    transInfo = fromMaybe "<unknown>" mHeadName
+    transInfo = fromMaybe "<unknown>" mHeadName <> "/" <> fromMaybe "<no schema>" mSchemaName
           
 parseTutorialD :: T.Text -> Either ParseError ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
@@ -115,6 +118,12 @@ evalTutorialD sessionId conn safe expr = case expr of
     case opResult of 
       Left err -> barf err
       Right rel -> pure (DisplayRelationResult rel)
+      
+  (SchemaOp execOp) -> do
+    opResult <- evalSchemaOperator sessionId conn execOp
+    case opResult of
+      Just err -> barf err
+      Nothing -> pure QuietSuccessResult
       
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     if needsSafe then
@@ -188,14 +197,15 @@ reprLoop config sessionId conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
   mHeadName <- C.headName sessionId conn
-  maybeLine <- runInputT settings $ getInputLine (T.unpack (promptText mHeadName))
+  mSchemaName <- C.currentSchemaName sessionId conn
+  let prompt = promptText mHeadName mSchemaName
+  maybeLine <- runInputT settings $ getInputLine (T.unpack prompt)
   case maybeLine of
     Nothing -> return ()
     Just line -> do
       case parseTutorialD (T.pack line) of
         Left err -> do
-          let strErr = show err --parseErrorPretty new in megaparsec 5
-          displayOpResult $ DisplayErrorResult (T.pack strErr)
+          displayOpResult $ DisplayParseErrorResult (T.length prompt) err
         Right parsed -> do 
           evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
           displayOpResult evald

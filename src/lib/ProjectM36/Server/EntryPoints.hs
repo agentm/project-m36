@@ -1,5 +1,6 @@
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
+import ProjectM36.IsomorphicSchema
 import ProjectM36.Client
 import ProjectM36.Error
 import Control.Distributed.Process (Process, ProcessId)
@@ -93,3 +94,13 @@ handleRetrieveRelationVariableSummary :: SessionId -> Connection -> Process (Pro
 handleRetrieveRelationVariableSummary sessionId conn = do
   ret <- liftIO $ relationVariablesAsRelation sessionId conn
   reply ret conn  
+  
+handleRetrieveCurrentSchemaName :: SessionId -> Connection -> Process (ProcessReply (Maybe SchemaName) Connection)
+handleRetrieveCurrentSchemaName sessionId conn = do
+  ret <- liftIO $ currentSchemaName sessionId conn
+  reply ret conn
+  
+handleExecuteSchemaExpr :: SessionId -> Connection -> SchemaExpr -> Process (ProcessReply (Maybe RelationalError) Connection)  
+handleExecuteSchemaExpr sessionId conn schemaExpr = do
+  ret <- liftIO $ executeSchemaExpr sessionId conn schemaExpr 
+  reply ret conn

@@ -73,6 +73,12 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | AtomFunctionBodyScriptError AtomFunctionBodyCompilationError
+                       
+                     | SubschemaNameInUseError SchemaName
+                     | SubschemaNameNotInUseError SchemaName
+                       
+                     | SchemaCreationError SchemaError 
+                       
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable) 
 
@@ -107,4 +113,11 @@ data AtomFunctionBodyCompilationError = TypeCheckCompilationError String String 
                                         ScriptCompilationDisabledError |
                                         OtherScriptCompilationError String
                                       deriving (Show,Eq, Generic, Binary, Typeable, NFData)
+                                               
+data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
+                   RelVarInReferencedMoreThanOnce RelVarName |
+                   RelVarOutReferencedMoreThanOnce RelVarName
+                   deriving (Show, Eq, Generic, Binary, Typeable, NFData)
+                           
+                                               
                                  

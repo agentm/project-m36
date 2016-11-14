@@ -5,4 +5,4 @@ dupes :: Eq a => [a] -> [a]
 dupes [] = []
 dupes (_:[]) = []
 dupes (x:y:[]) = if x == y then [x] else []
-dupes (x:y:xs) = dupes(x:[y]) ++ dupes(xs)
+dupes (x:y:xs) = dupes(x:[y]) ++ dupes(y : xs)

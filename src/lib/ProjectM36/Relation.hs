@@ -38,6 +38,9 @@ mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
 mkRelationFromList attrs atomMatrix = do
   tupSet <- mkTupleSetFromList attrs atomMatrix
   return $ Relation attrs tupSet
+  
+emptyRelationWithAttrs :: Attributes -> Relation  
+emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet = do

@@ -8,6 +8,8 @@ import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
 import ProjectM36.TupleSet
+import ProjectM36.IsomorphicSchema
+import ProjectM36.Base
 
 import System.Exit
 import Control.Concurrent
@@ -17,16 +19,17 @@ import Data.Maybe (isJust)
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId conn) [
   testRelationalExpr,
+  testSchemaExpr,
+  testTypeForRelationalExpr,  
   testDatabaseContextExpr,
   testGraphExpr,
-  testTypeForRelationalExpr,
   testPlanForDatabaseContextExpr,
   testTransactionGraphAsRelation,
   testHeadTransactionId,
   testHeadName,
   testSession,
   testRelationVariableSummary,
-  testNotification notificationTestMVar  
+  testNotification notificationTestMVar
   ]
            
 main :: IO ()
@@ -68,6 +71,14 @@ testRelationalExpr sessionId conn = TestCase $ do
   relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
   
+-- test adding an removing a schema against true/false relations  
+testSchemaExpr :: SessionId -> Connection -> Test
+testSchemaExpr sessionId conn = TestCase $ do
+  result <- executeSchemaExpr sessionId conn (AddSubschema "test-schema" [IsoRename "table_dee" "true", IsoRename "table_dum" "false"])
+  assertEqual "executeSchemaExpr" Nothing result
+  result' <- executeSchemaExpr sessionId conn (RemoveSubschema "test-schema")
+  assertEqual "executeSchemaExpr2" Nothing result'
+  
 testDatabaseContextExpr :: SessionId -> Connection -> Test
 testDatabaseContextExpr sessionId conn = TestCase $ do 
   let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" TextAtomType) ()]
@@ -106,8 +117,7 @@ testPlanForDatabaseContextExpr sessionId conn = TestCase $ do
   case planResult of
     Left err -> assertFailure (show err)
     Right plan -> assertEqual "planForDatabaseContextExpr failure" dbExpr plan
-    
-    
+        
 testTransactionGraphAsRelation :: SessionId -> Connection -> Test    
 testTransactionGraphAsRelation sessionId conn = TestCase $ do
   eGraph <- transactionGraphAsRelation sessionId conn

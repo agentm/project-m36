@@ -35,6 +35,7 @@ executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
+        DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> pure ()
 

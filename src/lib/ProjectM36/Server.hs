@@ -36,7 +36,9 @@ serverDefinition = defaultProcess {
      handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn),
      handleCall (\conn (CloseSession sessionId) -> handleCloseSession sessionId conn),
      handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation sessionId conn),
-     handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary sessionId conn)
+     handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary sessionId conn),
+     handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName sessionId conn),
+     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr sessionId conn schemaExpr)
      ],
   unhandledMessagePolicy = Log
   }
