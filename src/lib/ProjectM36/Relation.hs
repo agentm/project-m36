@@ -17,6 +17,8 @@ import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
 import qualified Data.Text as T
 import Data.Either (isRight)
+import System.Random.Shuffle
+import Control.Monad.Random
 --import Debug.Trace
 
 attributes :: Relation -> Attributes
@@ -309,4 +311,9 @@ relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
       Right rel -> RelationAtom rel
     attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       
+-- | Randomly resort the tuples. This is useful for emphasizing that two relations are equal even when they are printed to the console in different orders.
+randomizeTupleOrder :: MonadRandom m => Relation -> m Relation
+randomizeTupleOrder (Relation attrs tupSet) = do
+  newTupSet <- shuffleM (asList tupSet)
+  pure (Relation attrs (RelationTupleSet newTupSet))
 

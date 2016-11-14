@@ -16,6 +16,8 @@ import GHC.Generics
 import Data.Monoid
 import Control.Monad (void)
 import qualified Data.UUID as U
+import Control.Monad.Random
+import ProjectM36.Relation
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -24,7 +26,10 @@ displayOpResult (DisplayIOResult ioout) = ioout
 displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && T.last err /= '\n' then TIO.hPutStrLn else TIO.hPutStr in 
   outputf stderr ("ERR: " <> err)
 displayOpResult QuietSuccessResult = return ()
-displayOpResult (DisplayRelationResult rel) = TIO.putStrLn (showRelation rel)
+displayOpResult (DisplayRelationResult rel) = do
+  gen <- newStdGen
+  let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
+  TIO.putStrLn (showRelation randomlySortedRel)
 displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStrLn ("ERR:" <> T.pack (show err))
   where
     pointyString = T.justifyRight (promptLength + (sourceColumn (errorPos err))) '_' "^"
