@@ -109,6 +109,21 @@ processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
   _ <- validateDatabaseContextExprInSchema schema dbExpr      
   --perform the morph
   foldM (\ex morph -> databaseContextExprMorph morph relExprMogrifier ex) dbExpr morphs
+
+-- | If the database context expression adds or removes a relvar, we need to update the isomorphs to create a passthrough Isomorph.
+processDatabaseContextExprSchemaUpdate :: Schema -> DatabaseContextExpr -> Schema
+processDatabaseContextExprSchemaUpdate schema@(Schema morphs) expr = case expr of
+  Define rv _ | S.notMember rv validSchemaName -> passthru rv
+  Assign rv _ | S.notMember rv validSchemaName -> passthru rv
+  Undefine rv | S.member rv validSchemaName -> Schema (filter (\morph -> elem rv (isomorphInRelVarNames morph)) morphs)
+  MultipleExpr exprs -> foldr (\expr' schema' -> processDatabaseContextExprSchemaUpdate schema' expr') schema exprs
+  _ -> schema
+  where
+    validSchemaName = isomorphsInRelVarNames morphs
+    passthru rvname = Schema (morphs ++ [IsoRename rvname rvname])
+    
+processDatabaseContextExprSchemasUpdate :: Subschemas -> DatabaseContextExpr -> Subschemas    
+processDatabaseContextExprSchemasUpdate subschemas expr = M.map (\schema -> processDatabaseContextExprSchemaUpdate schema expr) subschemas
   
 -- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema! 
 -- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.

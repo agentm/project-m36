@@ -437,7 +437,8 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr
           (Just err,_) -> return $ Just err
           (Nothing, context') -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
-                newSchemas = Schemas context' (Sess.subschemas session)
+                newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
+                newSchemas = Schemas context' newSubschemas
                 newSession = Session newDiscon (Sess.schemaName session)
             STMMap.insert newSession sessionId sessions
             pure Nothing
