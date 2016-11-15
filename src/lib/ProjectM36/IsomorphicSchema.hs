@@ -15,7 +15,7 @@ import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Monoid
--- import Debug.Trace
+--import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -206,7 +206,7 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFu
     pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
   MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
   orig -> pure orig                                    
-databaseContextExprMorph (IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of   
+databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of   
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
   Assign rv relExpr | rv == rvTrue -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
@@ -218,12 +218,14 @@ databaseContextExprMorph (IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc exp
   Delete rv delPred | rv == rvFalse -> pure $ Delete rvOut (AndPredicate delPred (NotPredicate filt))
   Update rv attrMap predi | rv == rvTrue -> pure $ Update rvOut attrMap (AndPredicate predi filt)
   Update rv attrMap predi | rv == rvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
   orig -> pure orig
-databaseContextExprMorph (IsoRename relIn relOut) relExprFunc expr = case expr of
+databaseContextExprMorph iso@(IsoRename relIn relOut) relExprFunc expr = case expr of
   Assign rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure (Assign relOut ex)
   Insert rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure $ Insert relOut ex
   Delete rv delPred | rv == relIn -> pure $ Delete relOut delPred
   Update rv attrMap predi | rv == relIn -> pure $ Update relOut attrMap predi
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs  
   orig -> pure orig
   
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
