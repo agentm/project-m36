@@ -6,6 +6,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Hashable as Hash
 import qualified Data.HashSet as HS
+import Debug.Trace
 
 arity :: Attributes -> Int
 arity = V.length
@@ -69,7 +70,7 @@ atomTypeForAttributeName attrName attrs = do
   return atype
 
 attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
-attributeForName attrName attrs = case V.find ((attrName ==) . attributeName) attrs of
+attributeForName attrName attrs = case V.find (\attr -> attributeName attr == attrName) attrs of
   Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
   Just attr -> Right attr
 

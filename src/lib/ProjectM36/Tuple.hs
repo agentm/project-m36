@@ -82,6 +82,12 @@ mkRelationTuples :: Attributes -> [V.Vector Atom] -> [RelationTuple]
 mkRelationTuples attrs atomsVec = map mapper atomsVec
   where
     mapper = mkRelationTuple attrs
+    
+mkRelationTupleFromMap :: M.Map AttributeName Atom -> RelationTuple
+mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (\attrName -> attrMap M.! attrName) attrNames)
+  where
+    attrNames = V.fromList (M.keys attrMap)
+    attrs = V.map (\attrName -> Attribute attrName (atomTypeForAtom (attrMap M.! attrName))) attrNames
 
 --return error if attribute names match but their types do not
 singleTupleSetJoin :: Attributes -> RelationTuple -> RelationTupleSet -> Either RelationalError [RelationTuple]

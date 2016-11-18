@@ -12,7 +12,7 @@ import Data.Either (rights, lefts)
 -- apply optimizations which merely remove steps to become no-ops: example: projection of a relation across all of its attributes => original relation
 
 --should optimizations offer the possibility to return errors? If they perform the up-front type-checking, maybe so
-applyStaticRelationalOptimization :: RelationalExpr -> DatabaseState (Either RelationalError RelationalExpr)
+applyStaticRelationalOptimization :: RelationalExpr -> RelationalExprState (Either RelationalError RelationalExpr)
 applyStaticRelationalOptimization e@(MakeStaticRelation _ _) = return $ Right e
 
 applyStaticRelationalOptimization e@(MakeRelationFromExprs _ _) = return $ Right e
@@ -112,25 +112,29 @@ applyStaticDatabaseOptimization x@(Define _ _) = pure $ Right x
 applyStaticDatabaseOptimization x@(Undefine _) = pure $ Right x
 
 applyStaticDatabaseOptimization (Assign name expr) = do
-  optimizedExpr <- applyStaticRelationalOptimization expr
+  context <- get
+  let optimizedExpr = evalState (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
   case optimizedExpr of
     Left err -> return $ Left err
     Right optimizedExpr2 -> return $ Right (Assign name optimizedExpr2)
     
 applyStaticDatabaseOptimization (Insert name expr) = do
-  optimizedExpr <- applyStaticRelationalOptimization expr
+  context <- get
+  let optimizedExpr = evalState (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
   case optimizedExpr of
     Left err -> return $ Left err
     Right optimizedExpr2 -> return $ Right (Insert name optimizedExpr2)
   
 applyStaticDatabaseOptimization (Delete name predicate) = do  
-  optimizedPredicate <- applyStaticPredicateOptimization predicate
+  context <- get
+  let optimizedPredicate = evalState (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
   case optimizedPredicate of
       Left err -> return $ Left err
       Right optimizedPredicate2 -> return $ Right (Delete name optimizedPredicate2)
 
 applyStaticDatabaseOptimization (Update name upmap predicate) = do 
-  optimizedPredicate <- applyStaticPredicateOptimization predicate
+  context <- get
+  let optimizedPredicate = evalState (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
   case optimizedPredicate of
       Left err -> return $ Left err
       Right optimizedPredicate2 -> return $ Right (Update name upmap optimizedPredicate2)
@@ -140,12 +144,13 @@ applyStaticDatabaseOptimization dep@(AddInclusionDependency _ _) = return $ Righ
 applyStaticDatabaseOptimization (RemoveInclusionDependency name) = return $ Right (RemoveInclusionDependency name)
 
 applyStaticDatabaseOptimization (AddNotification name triggerExpr resultExpr) = do
-    eTriggerExprOpt <- applyStaticRelationalOptimization triggerExpr
-    case eTriggerExprOpt of
+  context <- get
+  let eTriggerExprOpt = evalState (applyStaticRelationalOptimization triggerExpr) (RelationalExprStateElems context)
+  case eTriggerExprOpt of
          Left err -> pure $ Left err
          Right triggerExprOpt -> do
-             eResultExprOpt <- applyStaticRelationalOptimization resultExpr
-             case eResultExprOpt of
+           let eResultExprOpt = evalState (applyStaticRelationalOptimization resultExpr) (RelationalExprStateElems context)
+           case eResultExprOpt of
                   Left err -> pure $ Left err
                   Right resultExprOpt -> pure (Right (AddNotification name triggerExprOpt resultExprOpt))
 
@@ -175,5 +180,5 @@ applyStaticDatabaseOptimization (MultipleExpr exprs) = do
   --this error handling could be improved with some lifting presumably
   --restore original context
 
-applyStaticPredicateOptimization :: RestrictionPredicateExpr -> DatabaseState (Either RelationalError RestrictionPredicateExpr)
+applyStaticPredicateOptimization :: RestrictionPredicateExpr -> RelationalExprState (Either RelationalError RestrictionPredicateExpr)
 applyStaticPredicateOptimization predicate = return $ Right predicate

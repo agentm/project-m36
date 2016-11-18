@@ -5,7 +5,6 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable, hashWithSalt)
 import qualified Data.Set as S
-import Control.Monad.State (State)
 import Data.UUID (UUID)
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -325,8 +324,6 @@ data DatabaseContextExpr =
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
 data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript
                            deriving (Show, Eq, Generic, Binary)
-
-type DatabaseState a = State DatabaseContext a
 
 -- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 

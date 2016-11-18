@@ -430,7 +430,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection _ _ sessions _ _) expr
       let expr' = if schemaName session == defaultSchemaName then
                     Right expr
                   else
-                    Schema.processDatabaseContextExprInSchema schema expr   
+                    Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Just err)
         Right expr'' -> case runState (RE.evalContextExpr expr'') (Sess.concreteDatabaseContext session) of

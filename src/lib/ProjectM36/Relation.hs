@@ -155,7 +155,7 @@ group groupAttrNames newAttrName rel = do
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
-      mogrifier tupIn = tupleExtend tupIn (matchingRelTuple tupIn)
+      mogrifier tupIn = pure (tupleExtend tupIn (matchingRelTuple tupIn))
       newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
   nonGroupProjection <- project nonGroupAttrNames rel
   relMogrify mogrifier newAttrs nonGroupProjection
@@ -249,11 +249,10 @@ relMap mapper (Relation attrs tupleSet) = do
         then Right remappedTuple
         else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)
 
-relMogrify :: (RelationTuple -> RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
+relMogrify :: (RelationTuple -> Either RelationalError RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = do
-    mkRelationFromTuples newAttributes newTuples
-    where
-        newTuples = map mapper (asList tupSet)
+  newTuples <- mapM mapper (asList tupSet)  
+  mkRelationFromTuples newAttributes newTuples
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
 relFold folder acc (Relation _ tupleSet) = foldr folder acc (asList tupleSet)

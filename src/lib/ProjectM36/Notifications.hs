@@ -9,8 +9,8 @@ import Data.Either (isRight)
 notificationChanges :: Notifications -> DatabaseContext -> DatabaseContext -> Notifications
 notificationChanges nots context1 context2 = M.filter notificationFilter nots
   where
-    notificationFilter (Notification chExpr _) = let oldChangeEval = evalChangeExpr chExpr context1
-                                                     newChangeEval = evalChangeExpr chExpr context2 in
+    notificationFilter (Notification chExpr _) = let oldChangeEval = evalChangeExpr chExpr (RelationalExprStateElems context1)
+                                                     newChangeEval = evalChangeExpr chExpr (RelationalExprStateElems context2) in
                                                  oldChangeEval /= newChangeEval && isRight oldChangeEval
     evalChangeExpr chExpr = evalState (evalRelationalExpr chExpr)
 

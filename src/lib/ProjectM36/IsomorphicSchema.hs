@@ -209,6 +209,7 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFu
 databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of   
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
+  -- if any tuples are filtered out of the insert/assign, we need to simulate a constraint violation
   Assign rv relExpr | rv == rvTrue -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
                                                                                       Insert rvOut (Restrict filt ex)]
   Assign rv relExpr | rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
@@ -252,6 +253,10 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
   rexprB' <- relExprMogrify replacer rexprB
   pure (InclusionDependency rexprA' rexprB')
 
+-- #55 add two virtual constraints for IsoUnion and enforce them before the tuples disappear
+-- this is needed to
+-- also, it's inverse to IsoRestrict which adds two constraints at the base level
+-- for IsoRestrict, consider hiding the two, generated constraints since they can never be thrown in the isomorphic schema
 inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
 inclusionDependenciesInSchema schema incDeps = mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps) >>= pure . M.fromList
   
@@ -262,7 +267,7 @@ relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.emp
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
                            expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
-                           rel <- evalState (evalRelationalExpr expr') context
+                           rel <- evalState (evalRelationalExpr expr') (RelationalExprStateElems context)
                            pure (rv, rel)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 
