@@ -89,6 +89,6 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTy
 testMkRelationFromExprsBadAttrs :: Test
 testMkRelationFromExprsBadAttrs = TestCase $ do
   let context = DBC.empty
-  case evalState (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) context of
+  case evalState (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"
