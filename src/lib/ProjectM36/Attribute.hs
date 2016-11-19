@@ -6,7 +6,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Hashable as Hash
 import qualified Data.HashSet as HS
-import Debug.Trace
+import qualified Data.Map as M
 
 arity :: Attributes -> Int
 arity = V.length
@@ -127,3 +127,12 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
 attributesEqual :: Attributes -> Attributes -> Bool
 attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
 
+attributesAsMap :: Attributes -> M.Map AttributeName Attribute
+attributesAsMap attrs = (M.fromList . V.toList) (V.map (\attr -> (attributeName attr, attr)) attrs)
+
+-- | Left-biased union of attributes.
+union :: Attributes -> Attributes -> Attributes
+union attrsA attrsB = V.fromList (M.elems unioned)
+  where
+    unioned = M.union (attributesAsMap attrsA) (attributesAsMap attrsB)
+                      

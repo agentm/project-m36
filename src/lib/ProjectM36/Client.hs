@@ -415,7 +415,7 @@ executeRelationalExpr sessionId (InProcessConnection _ _ sessions _ _) expr = ex
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (Sess.concreteDatabaseContext session) of
+        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _ _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
@@ -484,7 +484,7 @@ executeCommitExprSTM_ oldContext newContext nodes = do
   let nots = notifications oldContext
       fireNots = notificationChanges nots oldContext newContext 
       evaldNots = M.map mkEvaldNot fireNots
-      mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) oldContext }
+      mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) (RE.mkRelationalExprState oldContext) }
   pure (evaldNots, nodes)
                 
 
@@ -536,7 +536,7 @@ executeTransGraphRelationalExpr _ (InProcessConnection _ _ _ graphTvar _) tgraph
   graph <- readTVar graphTvar
   case evalTransGraphRelationalExpr tgraphExpr graph of
     Left err -> pure (Left err)
-    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) RE.emptyDatabaseContext of
+    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RE.mkRelationalExprState RE.emptyDatabaseContext) of
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _ _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
@@ -600,7 +600,7 @@ typeForRelationalExprSTM sessionId (InProcessConnection _ _ sessions _ _) relExp
                        Schema.processRelationalExprInSchema schema relExpr
       case processed of
         Left err -> pure (Left err)
-        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (Sess.concreteDatabaseContext session)
+        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session))
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
