@@ -49,7 +49,7 @@ testSchemaValidation = TestCase $ do
 testIsoRename :: Test
 testIsoRename = TestCase $ do
   -- create a schema with two relvars and rename one while the other remains the same in the isomorphic schema
-  let schemaA = DBC.empty { 
+  let schemaA = mkRelationalExprState DBC.empty { 
         relationVariables = M.fromList [("employee", relationTrue), 
                                         ("department", relationFalse)]
         }
@@ -71,10 +71,10 @@ testIsoRestrict = TestCase $ do
              [TextAtom "Cindy", TextAtom "Steve"],
              [TextAtom "Sam", TextAtom "Steve"]]
   let predicate = AttributeEqualityPredicate "boss" (NakedAtomExpr (TextAtom ""))
-  bossRel <- assertEither $ evalState (evalRelationalExpr (Restrict predicate (ExistingRelation emprel))) DBC.empty
-  nonBossRel <- assertEither $ evalState (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel))) DBC.empty
+  bossRel <- assertEither $ evalState (evalRelationalExpr (Restrict predicate (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
+  nonBossRel <- assertEither $ evalState (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
             
-  let schemaA = DBC.empty {
+  let schemaA = mkRelationalExprState DBC.empty {
         relationVariables = M.fromList [("nonboss", nonBossRel),
                                         ("boss", bossRel)]
         }
@@ -92,11 +92,11 @@ testIsoRestrict = TestCase $ do
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let postInsertContext = execState (evalContextExpr schemaBInsertExpr') schemaA
-      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) postInsertContext
+  let postInsertContext = execState (evalContextExpr schemaBInsertExpr') (stateContext schemaA)
+      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
   --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
-  let processedRel = evalState (evalRelationalExpr processedExpr) postInsertContext
+  let processedRel = evalState (evalRelationalExpr processedExpr) (mkRelationalExprState postInsertContext)
   assertEqual "insert bob boss" expectedRel processedRel
   
 testIsoUnion :: Test  
@@ -109,7 +109,7 @@ testIsoUnion = TestCase $ do
                 [TextAtom "Scooter", IntAtom 49],
                 [TextAtom "Auto", IntAtom 200],
                 [TextAtom "Tractor", IntAtom 500]]
-  let baseSchema = DBC.basicDatabaseContext {
+  let baseSchema = mkRelationalExprState DBC.basicDatabaseContext {
         relationVariables = M.singleton "motor" motorsRel
         }
       splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntAtom 50)] ())
