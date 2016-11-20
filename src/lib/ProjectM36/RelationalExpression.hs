@@ -24,7 +24,7 @@ import Control.Monad.Trans.Except
 
 import GHC
 import GHC.Paths
-import Debug.Trace
+--import Debug.Trace
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
@@ -525,9 +525,8 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
         Right atomIn -> 
           let atomEvald = evalState (evalAtomExpr tupleIn atomExpr) rstate in
           case atomEvald of
-            Left _ -> False
             Right atomCmp -> atomCmp == atomIn
-
+            Left _ -> False
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance
 predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
   --merge attrs into the state attributes
@@ -565,7 +564,15 @@ extendTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrName atomE
                )
 
 evalAtomExpr :: RelationTuple -> AtomExpr -> RelationalExprState (Either RelationalError Atom)
-evalAtomExpr tupIn (AttributeAtomExpr attrName) = pure (atomForAttributeName attrName tupIn)
+evalAtomExpr tupIn (AttributeAtomExpr attrName) = case atomForAttributeName attrName tupIn of
+  Right atom -> pure (Right atom)
+  err@(Left (NoSuchAttributeNamesError _)) -> do
+    rstate <- get
+    case rstate of
+      RelationalExprStateElems _ -> pure err
+      RelationalExprStateAttrsElems _ _ -> pure err
+      RelationalExprStateTupleElems _ ctxtup -> pure (atomForAttributeName attrName ctxtup)
+  Left err -> pure (Left err)
 evalAtomExpr _ (NakedAtomExpr atom) = pure (Right atom)
 evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
   argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn)) arguments
@@ -589,7 +596,6 @@ evalAtomExpr tupIn (RelationAtomExpr relExpr) = do
   rstate <- get
   runExceptT $ do
     let newState = mergeTuplesIntoRelationalExprState tupIn rstate
-    traceShowM newState
     relAtom <- either throwE pure (evalState (evalRelationalExpr relExpr) newState)
     pure (RelationAtom relAtom)
 evalAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs ()) = runExceptT $ do
