@@ -33,7 +33,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -369,3 +369,19 @@ assertEither x = case x of
   Left err -> assertFailure (show err) >> undefined
   Right val -> pure val
   
+-- | Validate that a tuple passed through the context correctly typechecks and propagates to the AttributeAtomExpr.
+testRelationalExprStateTupleElems :: Test
+testRelationalExprStateTupleElems = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x := (s : { parts := p rename {city as pcity} where pcity=@city}) : {z:=count(@parts)}"
+
+  executeTutorialD sessionId dbconn "y:=x{city,z}"
+  eRv <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  let expectedRel = mkRelationFromList (attributesFromList [Attribute "city" TextAtomType,
+                                                            Attribute "z" IntAtomType])
+                    [[TextAtom "Paris", IntAtom 2],
+                     [TextAtom "London", IntAtom 3],
+                     [TextAtom "Athens", IntAtom 0]]
+  assertEqual "validate parts count" expectedRel eRv
+  
+    
