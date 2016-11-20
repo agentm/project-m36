@@ -1,5 +1,7 @@
 # Project:M36 Relational Algebra Engine
 
+*Software can always be made faster, but rarely can it be made more correct.*
+
 ## Introduction
 
 Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date.
