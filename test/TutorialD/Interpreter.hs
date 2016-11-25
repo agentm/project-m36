@@ -331,10 +331,22 @@ testTransGraphRelationalExpr = TestCase $ do
   diff <- executeTransGraphRelationalExpr sessionId dbconn (Difference (RelationVariable "s" testBranchMarker) (RelationVariable "s" masterMarker))
   assertEqual "difference in s" expectedRel diff 
   
-  --test graph traversal (head backtracking
+  --test graph traversal (head backtracking)
   let testBranchBacktrack = TransactionIdHeadNameLookup "testbranch" [TransactionIdHeadParentBacktrack 1]
   backtrackRel <- executeTransGraphRelationalExpr sessionId dbconn (Equals (RelationVariable "s" testBranchBacktrack) (RelationVariable "s" masterMarker))
   assertEqual "backtrack to master" (Right relationTrue) backtrackRel
+
+  --test branch deletion
+  mapM_ (executeTutorialD sessionId dbconn) [
+        ":jumphead master",
+        ":deletebranch testbranch"]
+  eEvald <- case parseTutorialD ":jumphead testbranch" of
+    Left _ -> assertFailure "jumphead parse error" >> error "x"
+    Right parsed -> evalTutorialD sessionId dbconn UnsafeEvaluation parsed
+  case eEvald of
+    DisplayErrorResult err -> assertEqual "testbranch deletion"  (show (NoSuchHeadNameError "testbranch")) (unpack err)
+    _ -> assertFailure "failed to delete branch"
+                 
   
 testMultiAttributeRename :: Test
 testMultiAttributeRename = TestCase $ assertTutdEqual dateExamples renamedRel "x:=s rename {city as town, status as price} where false"
