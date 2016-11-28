@@ -645,9 +645,9 @@ verifyAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = runExceptT
   rstate <- get
   case A.atomTypeForAttributeName attrName (attributes relIn) of
     Right aType -> pure aType
-    Left (NoSuchAttributeNamesError _) -> case rstate of
-      RelationalExprStateTupleElems _ _ -> error "impossible"
-      RelationalExprStateElems _ -> error "poop"
+    (Left err@(NoSuchAttributeNamesError _)) -> case rstate of
+      RelationalExprStateTupleElems _ _ -> throwE err
+      RelationalExprStateElems _ -> throwE err
       RelationalExprStateAttrsElems _ attrs -> case A.attributeForName attrName attrs of
         Left err' -> throwE err'
         Right attrType -> either throwE pure (atomTypeVerify expectedType (A.atomType attrType))
