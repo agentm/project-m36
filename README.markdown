@@ -61,6 +61,7 @@ Project:M36 is developed in Haskell and compiled with GHC 7.8 or later.
 * [The Third Manifesto](http://thethirdmanifesto.com/): the philosophical basis for relational algebra engines
 * [Rel](http://reldb.org/): a TutorialD implementation against a BerkeleyDB backend
 * [Andl](http://andl.org/): a new database language with SQLite and PostgreSQL backends
+* [Coddie](https://github.com/scvalencia/Coddie): a python-based relational algebra interpreter
 
 ## Suggested Reading
 
