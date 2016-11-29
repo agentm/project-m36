@@ -8,6 +8,9 @@ import qualified Data.Set as S
 empty :: AttributeNames
 empty = AttributeNames S.empty
 
+all :: AttributeNames
+all = InvertedAttributeNames S.empty
+
 --check that the attribute names are actually in the attributes
 projectionAttributesForAttributeNames :: Attributes -> AttributeNames -> Either RelationalError Attributes
 projectionAttributesForAttributeNames attrs (AttributeNames attrNameSet) = do
@@ -21,12 +24,13 @@ projectionAttributesForAttributeNames attrs (InvertedAttributeNames unselectedAt
   if not $ S.null nonExistentAttributeNames then
     Left $ AttributeNamesMismatchError nonExistentAttributeNames
     else
-      return $ A.attributesForNames (A.nonMatchingAttributeNameSet unselectedAttrNameSet (A.attributeNameSet attrs)) attrs
-
-attributeNameSet :: AttributeNames -> S.Set AttributeName
-attributeNameSet (AttributeNames nameSet) = nameSet
-attributeNameSet (InvertedAttributeNames nameSet) = nameSet
-
+      return $ A.attributesForNames (A.nonMatchingAttributeNameSet unselectedAttrNameSet (A.attributeNameSet attrs)) attrs      
+projectionAttributesForAttributeNames attrs (UnionAttributeNames namesA namesB) = do
+  attrsA <- projectionAttributesForAttributeNames attrs namesA
+  attrsB <- projectionAttributesForAttributeNames attrs namesB
+  pure (A.union attrsA attrsB)
+      
 invertAttributeNames :: AttributeNames -> AttributeNames
 invertAttributeNames (AttributeNames names) = InvertedAttributeNames names
 invertAttributeNames (InvertedAttributeNames names) = AttributeNames names
+invertAttributeNames (UnionAttributeNames namesA namesB) = UnionAttributeNames (invertAttributeNames namesA) (invertAttributeNames namesB)

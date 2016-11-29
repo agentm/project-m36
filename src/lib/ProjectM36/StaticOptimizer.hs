@@ -26,7 +26,9 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
   relType <- typeForRelationalExpr expr
   case relType of
     Left err -> return $ Left err
-    Right relType2 -> if attributeNames relType2 == AS.attributeNameSet attrNameSet then
+    Right relType2 -> if AS.all == attrNameSet then
+                        applyStaticRelationalOptimization expr
+                      else if AttributeNames (attributeNames relType2) == attrNameSet then
                        applyStaticRelationalOptimization expr
                        else do
                          optimizedSubExpression <- applyStaticRelationalOptimization expr 

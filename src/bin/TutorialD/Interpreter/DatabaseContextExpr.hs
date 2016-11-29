@@ -13,6 +13,7 @@ import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Key
+import ProjectM36.FunctionalDependency
 import Data.Monoid
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
@@ -23,6 +24,7 @@ databaseContextExprP = choice [insertP,
                                updateP,
                                addConstraintP,
                                keyP,
+                               funcDepP,
                                defineP,
                                undefineP,
                                assignP,
@@ -120,6 +122,20 @@ keyP = do
   uniquenessExpr <- relExprP
   let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
   pure $ AddInclusionDependency keyName newIncDep
+  
+funcDepP :: Parser DatabaseContextExpr  
+funcDepP = do
+  reserved "funcdep"
+  keyName <- identifier
+  source <- parens attributeListP
+  dependents <- parens attributeListP
+  expr <- relExprP
+  let newIncDeps = inclusionDependenciesForFunctionalDependency funcDep
+      funcDep = FunctionalDependency source dependents expr
+      nameA = keyName <> "_A"
+      nameB = keyName <> "_B"
+  pure (MultipleExpr [AddInclusionDependency nameA (fst newIncDeps),
+                      AddInclusionDependency nameB (snd newIncDeps)])
   
 attributeAssignmentP :: Parser (AttributeName, AtomExpr)
 attributeAssignmentP = do

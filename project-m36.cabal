@@ -85,6 +85,7 @@ Library
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
                      ProjectM36.Key,
+                     ProjectM36.FunctionalDependency,
                      ProjectM36.DatabaseContext,
                      ProjectM36.DateExamples,
                      ProjectM36.DisconnectedTransaction,

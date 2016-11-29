@@ -453,7 +453,8 @@ instance Show AtomFunction where
      
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
 data AttributeNames = AttributeNames (S.Set AttributeName) |
-                      InvertedAttributeNames (S.Set AttributeName)
+                      InvertedAttributeNames (S.Set AttributeName) |
+                      UnionAttributeNames AttributeNames AttributeNames 
                       deriving (Eq, Show, Generic)
                                 
 instance Binary AttributeNames 
