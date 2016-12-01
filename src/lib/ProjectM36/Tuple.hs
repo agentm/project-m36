@@ -192,7 +192,7 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
   if V.length attrs /= V.length tupleTypes then
     Left $ TupleAttributeCountMismatchError 0
   else if attrsTypes /= tupleTypes then
-         -- Left $ traceShow (show attrsTypes ++ "gonk" ++ show tupleTypes ++ "done") $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
+         --Left $ traceShow (show attrsTypes ++ " " ++ show tupleTypes ++ " " ++ show tuple) $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
          Left $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
        else
          Right $ tuple

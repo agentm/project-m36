@@ -98,6 +98,7 @@ Library
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
                      ProjectM36.IsomorphicSchema,
+                     ProjectM36.InclusionDependency,
                      ProjectM36.Client,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,

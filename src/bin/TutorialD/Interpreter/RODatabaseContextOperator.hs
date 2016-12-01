@@ -1,6 +1,8 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
+import ProjectM36.Error
+import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
 import Text.Megaparsec
 import Text.Megaparsec.Text
@@ -100,13 +102,16 @@ evalRODatabaseContextOp sessionId conn (PlotRelation expr) = do
 
 evalRODatabaseContextOp sessionId conn (ShowConstraint name) = do
   eIncDeps <- C.inclusionDependencies sessionId conn
-  pure $ case eIncDeps of
-    Left err -> DisplayErrorResult $ T.pack (show err)
-    Right incDeps -> case name of
-      "" -> DisplayResult $ T.pack (show incDeps)
-      depName -> case M.lookup depName incDeps of
-        Nothing -> DisplayErrorResult "No such constraint."
-        Just dep -> DisplayResult $ T.pack (show dep)
+  let val = case eIncDeps of
+        Left err -> Left err
+        Right incDeps -> case name of
+          "" -> inclusionDependenciesAsRelation incDeps
+          depName -> case M.lookup depName incDeps of
+            Nothing -> Left (InclusionDependencyNameNotInUseError depName)
+            Just dep -> inclusionDependenciesAsRelation (M.singleton depName dep)
+  pure $ case val of
+     Left err -> DisplayErrorResult (T.pack (show err))
+     Right rel -> DisplayRelationResult rel
 
 evalRODatabaseContextOp sessionId conn (ShowPlan dbExpr) = do
   plan <- C.planForDatabaseContextExpr sessionId conn dbExpr
