@@ -9,6 +9,7 @@ import TutorialD.Interpreter.Base
 
 data InformationOperator = HelpOperator |
                            GetVersionOperator 
+                           deriving (Show)
                            
 infoOpP :: Parser InformationOperator                           
 infoOpP = helpOpP <|> getVersionP

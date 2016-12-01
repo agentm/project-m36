@@ -1,12 +1,19 @@
 module TutorialD.Interpreter.Import.Base where
 import ProjectM36.Base
 import ProjectM36.Error
+import Data.Monoid
 
 -- | import data into a relation variable
 data RelVarDataImportOperator = RelVarDataImportOperator RelVarName FilePath (RelVarName -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr))
 
+instance Show RelVarDataImportOperator where
+  show (RelVarDataImportOperator rv path _) = "RelVarDataImportOperator " <> show rv <> " " <> path
+
 -- | import data into a database context
 data DatabaseContextDataImportOperator = DatabaseContextDataImportOperator FilePath (FilePath -> IO (Either RelationalError DatabaseContextExpr))
+
+instance Show DatabaseContextDataImportOperator where
+  show (DatabaseContextDataImportOperator path _) = "DatabaseContextDataImportOperator " <> path
 
 -- perhaps create a structure to import a whole transaction graph section in the future
 

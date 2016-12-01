@@ -7,6 +7,7 @@ import TutorialD.Interpreter.Base
 import Text.Megaparsec.Text
 
 data ImportBasicExampleOperator = ImportBasicDateExampleOperator
+                                deriving (Show)
 
 evalImportBasicExampleOperator :: ImportBasicExampleOperator -> DatabaseContextExpr
 evalImportBasicExampleOperator ImportBasicDateExampleOperator = databaseContextAsDatabaseContextExpr dateExamples

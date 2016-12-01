@@ -12,6 +12,7 @@ import TutorialD.Interpreter.Base
 
 data SchemaOperator = ModifySchemaExpr SchemaExpr |
                       SetCurrentSchema SchemaName
+                      deriving Show
                       
 schemaOperatorP :: Parser SchemaOperator                      
 schemaOperatorP = (ModifySchemaExpr <$> schemaExprP) <|>

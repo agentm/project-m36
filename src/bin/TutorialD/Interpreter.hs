@@ -50,6 +50,7 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        RelVarExportOp RelVarDataExportOperator |
                        TransGraphRelationalOp TransGraphRelationalOperator |
                        SchemaOp SchemaOperator
+                       deriving (Show)
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = safeInterpreterParserP <|>
