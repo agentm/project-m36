@@ -28,7 +28,7 @@ import Data.Monoid
 
 data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs |
                   RemoveSubschema SchemaName
-                  deriving (Generic, Binary)
+                  deriving (Generic, Binary, Show)
 
   
 isomorphs :: Schema -> SchemaIsomorphs

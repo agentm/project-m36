@@ -128,6 +128,7 @@ funcDepP = do
   reserved "funcdep"
   keyName <- identifier
   source <- parens attributeListP
+  reserved "->"
   dependents <- parens attributeListP
   expr <- relExprP
   let newIncDeps = inclusionDependenciesForFunctionalDependency funcDep

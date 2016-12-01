@@ -24,7 +24,6 @@ import Control.Monad.Trans.Except
 
 import GHC
 import GHC.Paths
---import Debug.Trace
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
@@ -432,27 +431,15 @@ checkConstraints context = case failures of
         (Left err, _) -> Just err
         (Right relSub, _) -> case evaldSuper of
           (Left err, _) -> Just err
-          (Right relSuper, _) -> case union relSub relSuper of
+          (Right relSuper, _) -> case union relSub relSuper of -- maybe this should be rewritten as a RelationalExpr in order to take advantage of optimizations (union, ==)
             Left err -> Just err
             Right resultRel -> if resultRel == relSuper then
                                  Nothing
-                               else
+                               else do
                                  Just $ InclusionDependencyCheckError depName
        where
          evaldSub = eval subsetExpr
          evaldSuper = eval supersetExpr
-
-{-
-checkConstraint :: InclusionDependency -> DatabaseState (Maybe RelationalError)
-checkConstraint (InclusionDependency name subDep superDep) = do
-  evalSub <- evalRelationalExpr subDep
-  evalSuper <- evalRelationalExpr superDep
-  case evalSub of
-    Left err -> Just err
-    Right relSub
-  result <- liftM2 union evalSub evalSuper
-  return $ Nothing
--}
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation

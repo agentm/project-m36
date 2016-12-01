@@ -36,7 +36,7 @@ addAttribute attr attrs = attrs `V.snoc` attr
 --if some attribute names overlap but the types do not, then spit back an error
 joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
 joinAttributes attrs1 attrs2 = if V.length uniqueOverlappingAttributes /= V.length overlappingAttributes then
-                                 Left $ TupleAttributeTypeMismatchError overlappingAttributes
+                                 Left (TupleAttributeTypeMismatchError overlappingAttributes)
                                else if V.length overlappingAttrsDifferentTypes > 0 then
                                       Left (TupleAttributeTypeMismatchError overlappingAttrsDifferentTypes)
                                     else
@@ -118,7 +118,7 @@ vectorUniqueify vecIn = V.fromList $ HS.toList $ HS.fromList $ V.toList vecIn
 --check that each attribute only appears once
 verifyAttributes :: Attributes -> Either RelationalError Attributes
 verifyAttributes attrs = if collapsedAttrs /= attrs then
-                           Left $ TupleAttributeTypeMismatchError (attributesDifference collapsedAttrs attrs)
+                           Left (TupleAttributeTypeMismatchError (attributesDifference collapsedAttrs attrs))
                          else
                            Right attrs
   where
@@ -136,3 +136,7 @@ union attrsA attrsB = V.fromList (M.elems unioned)
   where
     unioned = M.union (attributesAsMap attrsA) (attributesAsMap attrsB)
                       
+intersection :: Attributes -> Attributes -> Attributes
+intersection attrsA attrsB = V.fromList (M.elems intersected)
+  where
+    intersected = M.intersection (attributesAsMap attrsA) (attributesAsMap attrsB)

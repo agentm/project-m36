@@ -33,7 +33,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems, testFunctionalDependencies]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -384,4 +384,13 @@ testRelationalExprStateTupleElems = TestCase $ do
                      [TextAtom "Athens", IntAtom 0]]
   assertEqual "validate parts count" expectedRel eRv
   
-    
+-- | Add a functional dependency on sname -> status and insert one tuple which is valid and another tuple which is invalid.
+testFunctionalDependencies :: Test    
+testFunctionalDependencies = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  executeTutorialD sessionId dbconn "funcdep sname_status (sname) -> (status) s"
+  --insert a new, valid tuple
+  executeTutorialD sessionId dbconn "insert s relation{tuple{city \"Boston\", s# \"S6\", sname \"Stevens\", status 30}}"
+  --insert an constraint-violating tuple
+  let expectedError = InclusionDependencyCheckError "sname_status_A"
+  expectTutorialDErr sessionId dbconn expectedError "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"

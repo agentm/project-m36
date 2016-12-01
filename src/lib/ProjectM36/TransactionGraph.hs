@@ -39,6 +39,7 @@ data TransactionGraphOperator = JumpToHead HeadName  |
                               deriving (Eq, Show, Binary, Generic)
 
 data ROTransactionGraphOperator = ShowGraph
+                                  deriving Show
 
 
 bootstrapTransactionGraph :: TransactionId -> DatabaseContext -> TransactionGraph

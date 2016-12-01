@@ -275,7 +275,7 @@ data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarNam
                       IsoRename RelVarName RelVarName |
                       IsoUnion (RelVarName, RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
                       -- IsoTypeConstructor in morphAttrExpr
-                      deriving (Generic, Binary)
+                      deriving (Generic, Binary, Show)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
                               
@@ -454,7 +454,8 @@ instance Show AtomFunction where
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
 data AttributeNames = AttributeNames (S.Set AttributeName) |
                       InvertedAttributeNames (S.Set AttributeName) |
-                      UnionAttributeNames AttributeNames AttributeNames 
+                      UnionAttributeNames AttributeNames AttributeNames |
+                      IntersectAttributeNames AttributeNames AttributeNames
                       deriving (Eq, Show, Generic)
                                 
 instance Binary AttributeNames 

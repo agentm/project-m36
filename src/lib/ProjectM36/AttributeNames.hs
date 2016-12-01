@@ -29,8 +29,10 @@ projectionAttributesForAttributeNames attrs (UnionAttributeNames namesA namesB) 
   attrsA <- projectionAttributesForAttributeNames attrs namesA
   attrsB <- projectionAttributesForAttributeNames attrs namesB
   pure (A.union attrsA attrsB)
+projectionAttributesForAttributeNames attrs (IntersectAttributeNames namesA namesB) = A.intersection <$> projectionAttributesForAttributeNames attrs namesA <*> projectionAttributesForAttributeNames attrs namesB  
       
 invertAttributeNames :: AttributeNames -> AttributeNames
 invertAttributeNames (AttributeNames names) = InvertedAttributeNames names
 invertAttributeNames (InvertedAttributeNames names) = AttributeNames names
-invertAttributeNames (UnionAttributeNames namesA namesB) = UnionAttributeNames (invertAttributeNames namesA) (invertAttributeNames namesB)
+invertAttributeNames (UnionAttributeNames namesA namesB) = IntersectAttributeNames (invertAttributeNames namesA) (invertAttributeNames namesB)
+invertAttributeNames (IntersectAttributeNames namesA namesB) = UnionAttributeNames (invertAttributeNames namesA) (invertAttributeNames namesB)

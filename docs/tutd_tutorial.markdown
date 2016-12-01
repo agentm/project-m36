@@ -468,6 +468,18 @@ TutorialD (master): foreign key s#_in_sp sp{s#} in s{s#}
 
 This expression ensure that any sp{s#} must also appear as a value in s{s#}.
 
+#### Functional dependencies
+
+Unlike SQL databases, Project:M36 includes first-class support for functional dependencies. A functional dependency for an attribute set ```A``` to attribute set ```B``` ensures that for every unique appearance of a value for ```A``` there is only one possible value for ```B```.
+
+To create a functional dependency:
+
+```
+TutorialD (master): funcdep sname_status (sname) -> (status) s
+```
+
+In this example, the functional dependency is named "sname_status" and creates a constraint which ensures that the "sname" value is functionally determines "status" value in the relation variable "s", though the final argument can be any relational expression. Multiple attribute names are separated by a comma.
+
 #### Other Constraints
 
 All other constraints can be represented by a set of inclusion dependencies.
@@ -477,6 +489,8 @@ TutorialD (master): constraint s_status_less_than_50 (s where ^lt(50,@status)){}
 ```
 
 This expression ensures that the relation variable's relation can never include a tuple with status greater than 50.
+
+Internally, *all* constraints are converted and stored as inclusion dependencies.
 
 ## Aggregate Queries
 
