@@ -426,20 +426,15 @@ checkConstraints context = case failures of
   where
     failures = M.elems $ M.mapMaybeWithKey checkIncDep deps
     deps = inclusionDependencies context
-    eval expr = runState (evalRelationalExpr expr) (RelationalExprStateElems context)
-    checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = case evaldSub of
-        (Left err, _) -> Just err
-        (Right relSub, _) -> case evaldSuper of
-          (Left err, _) -> Just err
-          (Right relSuper, _) -> case union relSub relSuper of -- maybe this should be rewritten as a RelationalExpr in order to take advantage of optimizations (union, ==)
-            Left err -> Just err
-            Right resultRel -> if resultRel == relSuper then
-                                 Nothing
-                               else do
-                                 Just $ InclusionDependencyCheckError depName
-       where
-         evaldSub = eval subsetExpr
-         evaldSuper = eval supersetExpr
+    eval expr = evalState (evalRelationalExpr expr) (RelationalExprStateElems context)
+    checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
+      let checkExpr = Equals supersetExpr (Union subsetExpr supersetExpr)
+      case eval checkExpr of
+        Left err -> Just err
+        Right resultRel -> if resultRel == relationTrue then
+                                   Nothing
+                                else 
+                                  Just $ InclusionDependencyCheckError depName
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
