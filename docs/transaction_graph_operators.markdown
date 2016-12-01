@@ -37,7 +37,7 @@ Note that this transaction graph approach is different from that of most SQL DBM
 To convert a mutable database context into a transaction, it must be "committed" to the transaction graph. The equivalent in SQL is COMMIT.
 
 ```
-TutorialD (master): :commit
+TutorialD (master/main): :commit
 ```
 
 Once committed, the transaction's database context becomes immutable. Internally, Project:M36 uniquely identifies each transaction with a UUID.
@@ -47,7 +47,7 @@ Once committed, the transaction's database context becomes immutable. Internally
 Sometimes, the user determines that the changes in the mutable database context can be discarded and the context reset to be a copy of its parent's transaction. This is called a "rollback" because it  rolls back to a previous known state. The equivalent in SQL is ROLLBACK.
 
 ```
-TutorialD (master): :rollback
+TutorialD (master/main): :rollback
 ```
 
 #### Show Transaction Graph
@@ -55,7 +55,7 @@ TutorialD (master): :rollback
 In order to navigate the transaction graph, one must specify transaction UUIDs. Viewing the entirety of the transaction graph as a relation is a single command.
 
 ```
-TutorialD (master): :showgraph
+TutorialD (master/main): :showgraph
 ┌───────┬──────┬────────────────────────────────────┬───────┐
 │current│head  │id                                  │parents│
 ├───────┼──────┼────────────────────────────────────┼───────┤
@@ -75,7 +75,7 @@ The "parents" attribute is a subrelation holding all parent transaction UUIDs fo
 A new branch can be create from any point in the transaction. A branch associates a human-readable name with a set of transactions diverging from a parent transaction. After a branch, there are two heads to which one could commit.
 
 ```
-TutorialD (master): :branch testing_data_2005
+TutorialD (master/main): :branch testing_data_2005
 TutorialD (testing_data_2005):
 ```
 
@@ -89,7 +89,7 @@ Note that jumping to another head implies losing any changes in the current data
 
 ```
 TutorialD (testing_data_2005): :jumphead master
-TutorialD (master): 
+TutorialD (master/main):
 ```
 
 Further commits will be added to the target branch.
@@ -104,12 +104,8 @@ Instead of jumping to the head of a branch for the purpose of adding more commit
 If one jumps to a non-head transaction, committing new transactions are no longer possible because the past transactions cannot be overwritten.
 
 ```
-TutorialD (master): :jump 11b601c9-f46b-42b0-a2ce-cf18ced31b7f
-TutorialD (11b601c9-f46b-42b0-a2ce-cf18ced31b7f): 
+TutorialD (master/main): :jump 11b601c9-f46b-42b0-a2ce-cf18ced31b7f
+TutorialD (11b601c9-f46b-42b0-a2ce-cf18ced31b7f):
 ```
 
 Note that the ```tutd``` prompt now indicates that the mutable database context now refers to a specific transaction by UUID.
-
-
-
-

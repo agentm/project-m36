@@ -58,7 +58,7 @@ Branching and merging are built-in to the Project:M36 ```tutd``` client.
 
 First, let's create a new branch for some new sales data.
 ```
-TutorialD (master): :branch add_sales_feature
+TutorialD (master/main): :branch add_sales_feature
 TutorialD (add_sales_feature):
 ```
 
@@ -82,15 +82,15 @@ Now, the relation variable "sales" is available on the "add_sales_feature" branc
 
 ```
 TutorialD (add_sales_feature): :jumphead master
-TutorialD (master): :showexpr sales
+TutorialD (master/main): :showexpr sales
 ERR: RelVarNotDefinedError "sales"
 ```
 
 Now that we are on the "master" branch, let's add a relation variables unrelated to sales.
 
 ```
-TutorialD (master): employees := relation{tuple{name "Steve"},tuple{name "Cindy"}}
-TutorialD (master): :commit
+TutorialD (master/main): employees := relation{tuple{name "Steve"},tuple{name "Cindy"}}
+TutorialD (master/main): :commit
 ```
 
 Note that the "employees" relation variable is only available on the "master" branch and not on the "add_sales_feature" branch.
@@ -98,7 +98,7 @@ Note that the "employees" relation variable is only available on the "master" br
 Let's look at the transaction graph:
 
 ```
-TutorialD (master): :showgraph
+TutorialD (master/main): :showgraph
 ┌─────────────┬───────────────────┬──────────────────────────────────────┬────────────────────────────────────────┐
 │current::Bool│head::Text         │id::Text                              │parents::relation {id::Text}            │
 ├─────────────┼───────────────────┼──────────────────────────────────────┼────────────────────────────────────────┤
@@ -129,15 +129,15 @@ TutorialD (master): :showgraph
 Now, imagine that the work on the "add_sales_merge" branch is complete, so we will merge the "add_sales_feature" branch back into the "master" branch. We say we are merging "back" because both branches share a common ancestor transaction.
 
 ```
-TutorialD (master): :mergetrans union add_sales_feature master
-TutorialD (master): :showexpr employees
+TutorialD (master/main): :mergetrans union add_sales_feature master
+TutorialD (master/main): :showexpr employees
 ┌──────────┐
 │name::Text│
 ├──────────┤
 │"Steve"   │
 │"Cindy"   │
 └──────────┘
-TutorialD (master): :showexpr sales
+TutorialD (master/main): :showexpr sales
 ┌───────────┬─────────────┐
 │amount::Int│product::Text│
 ├───────────┼─────────────┤

@@ -37,8 +37,8 @@ unnotify <notification name>
 Consider the following ```person``` relation variable where "name" is a key:
 
 ```
-TutorialD (master): person:=relation{tuple{name "Steve",address "Main St."},tuple{name "John", address "Elm St."}}
-TutorialD (master): :showexpr person
+TutorialD (master/main): person:=relation{tuple{name "Steve",address "Main St."},tuple{name "John", address "Elm St."}}
+TutorialD (master/main): :showexpr person
 ┌────────┬─────┐
 │address │name │
 ├────────┼─────┤
@@ -50,22 +50,22 @@ TutorialD (master): :showexpr person
 If a remote application is currently the address in the tuple for "Steve", then it would install a notification for that tuple's key:
 
 ```
-TutorialD (master): notify steve_change person where name="Steve" (person where name="Steve"){address}
-TutorialD (master): :commit
+TutorialD (master/main): notify steve_change person where name="Steve" (person where name="Steve"){address}
+TutorialD (master/main): :commit
 ```
 
 Then, when any client including the initiating client updates the "Steve" tuple, an asynchronous notification is fired:
 
 ```
-TutorialD (master): update person where name="Steve" (address:="Grove St.")
-TutorialD (master): :commit
-TutorialD (master): Notification received "steve_change": ...
+TutorialD (master/main): update person where name="Steve" (address:="Grove St.")
+TutorialD (master/main): :commit
+TutorialD (master/main): Notification received "steve_change": ...
 ```
 
 The asynchronously-received notification contains the result from the evaluated report relational expression. The expression, in this case, is the result of the report expression evaluated against the parent transactoin
 
 ```
-TutorialD (master): Notification received "steve_change":
+TutorialD (master/main): Notification received "steve_change":
 Project (AttributeNames (fromList ["address"])) (Restrict (AttributeEqualityPredicate "name" (NakedAtomExpr Atom "Steve")) (RelationVariable "person"))
 ┌────────┐
 │address │

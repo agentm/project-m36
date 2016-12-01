@@ -13,8 +13,8 @@ Project:M36 makes it easy to add any Haskell data type to the database. Any type
 Use the ```tutd``` interpreter to create new type and data constructors with essentially the same syntax as in Haskell:
 
 ```
-TutorialD (master): data Hair = Bald | Brown | Blond | OtherColor Text
-TutorialD (master): :showexpr relation{tuple{name "Steve", hair Blond}, tuple{name "Sam", hair OtherColor "Grey"}}
+TutorialD (master/main): data Hair = Bald | Brown | Blond | OtherColor Text
+TutorialD (master/main): :showexpr relation{tuple{name "Steve", hair Blond}, tuple{name "Sam", hair OtherColor "Grey"}}
 ┌─────────────────┬──────────┐
 │hair::Hair       │name::Text│
 ├─────────────────┼──────────┤
@@ -28,7 +28,7 @@ SQL's enumerations or even joins do not compare favorably to a genuine algebraic
 Types can be forgotten as well:
 
 ```
-TutorialD (master): undata Hair
+TutorialD (master/main): undata Hair
 ```
 
 These runtime types can therefore change between transactions. Note that the underlying data values do not change when the types change. Once changed, only new values will reflect the new data constructors.

@@ -9,7 +9,7 @@ It is presumed that the audience for this tutorial has at least some minimal bac
 From the project-m36 source directory, execute ```cabal run tutd``` to start the interactive TutorialD interpreter. You will be greeted by the interactive prompt:
 
 ```
-TutorialD (master):
+TutorialD (master/main):
 ```
 
 "master" refers to the name of the branch to which the current transaction will be potentially committing.
@@ -32,7 +32,7 @@ With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a 
 Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
 
 ```
-TutorialD (master): :showexpr S:{more:=add(10,@sname)}
+TutorialD (master/main): :showexpr S:{more:=add(10,@sname)}
 ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
 ```
 
@@ -84,7 +84,7 @@ Each section assumes a fresh instance of the Date examples. The relation variabl
 A relational expression combines relational operators to create a new relation. ```tutd``` can display the result of executing a relational expression with ":showexpr".
 
 ```
-TutorialD (master): :showexpr p
+TutorialD (master/main): :showexpr p
 ┌──────┬─────┬──┬─────┬──────┐
 │city  │color│p#│pname│weight│
 ├──────┼─────┼──┼─────┼──────┤
@@ -100,7 +100,7 @@ TutorialD (master): :showexpr p
 To show all relation variables in the current session, use ```:showrelvars```:
 
 ```
-TutorialD (master): :showrelvars
+TutorialD (master/main): :showrelvars
 ┌─────────────────────────────────────────────────┬──────────┐
 │attributes::relation {attribute::Text,type::Text}│name::Text│
 ├─────────────────────────────────────────────────┼──────────┤
@@ -146,7 +146,7 @@ Relational operators generate new relations from existing relations. The operato
 The unary rename operator outputs a new relation with chosen attributes renamed. In SQL, the equivalent is to use "AS" in the column name list of SELECTS.
 
 ```
-TutorialD (master): :showexpr s rename {city as town}
+TutorialD (master/main): :showexpr s rename {city as town}
 ┌──┬─────┬──────┬──────┐
 │s#│sname│status│town  │
 ├──┼─────┼──────┼──────┤
@@ -165,7 +165,7 @@ Projection is applied by adding curly braces and attribute names following a rel
 For example:
 
 ```
-TutorialD (master): :showexpr p{color,city}
+TutorialD (master/main): :showexpr p{color,city}
 ┌──────┬─────┐
 │city  │color│
 ├──────┼─────┤
@@ -181,7 +181,7 @@ TutorialD (master): :showexpr p{color,city}
 Restriction is applied using a "where" clause, much like in SQL.
 
 ```
-TutorialD (master): :showexpr p where color="Blue" and city="Paris"
+TutorialD (master/main): :showexpr p where color="Blue" and city="Paris"
 ┌─────┬─────┬──┬─────┬──────┐
 │city │color│p#│pname│weight│
 ├─────┼─────┼──┼─────┼──────┤
@@ -192,7 +192,7 @@ TutorialD (master): :showexpr p where color="Blue" and city="Paris"
 The restriction predicate can be built from "and", "not", and "or". Boolean atom functions can also appear in a restriction as long as they are preceded by "^". For example:
 
 ```
-TutorialD (master): :showexpr s where ^lt(@status,20)
+TutorialD (master/main): :showexpr s where ^lt(@status,20)
 ┌─────┬──┬─────┬──────┐
 │city │s#│sname│status│
 ├─────┼──┼─────┼──────┤
@@ -205,7 +205,7 @@ TutorialD (master): :showexpr s where ^lt(@status,20)
 Joins are binary operators and are applied with the "join" keyword. The equivalent in SQL would be a "NATURAL JOIN". To join attributes which are not identically-named, use the rename operator
 
 ```
-TutorialD (master): :showexpr s join sp
+TutorialD (master/main): :showexpr s join sp
 ┌──────┬──┬───┬──┬─────┬──────┐
 │city  │p#│QTY│s#│sname│status│
 ├──────┼──┼───┼──┼─────┼──────┤
@@ -228,7 +228,7 @@ TutorialD (master): :showexpr s join sp
 The binary union operator merges tuples from both relations if-and-only-if the attributes of both relations are identical. The SQL equivalent is the "UNION" operator. Unlike SQL, however, duplicate tuples are not tolerated, so there is no "UNION ALL" equivalent in the relational algebra.
 
 ```
-TutorialD (master): :showexpr S union S
+TutorialD (master/main): :showexpr S union S
 ┌──────┬──┬─────┬──────┐
 │city  │s#│sname│status│
 ├──────┼──┼─────┼──────┤
@@ -247,7 +247,7 @@ The union of any relation with itself is itself.
 The extend unary operator adds an attribute to a relation's header and body and is represented by a colon ":". The equivalent in SQL is a subselect in a SELECT column list. Typically, extend is used to add information derived from relation.
 
 ```
-TutorialD (master): :showexpr s:{status2:=add(10,@status)}
+TutorialD (master/main): :showexpr s:{status2:=add(10,@status)}
 ┌──────┬──┬─────┬──────┬───────┐
 │city  │s#│sname│status│status2│
 ├──────┼──┼─────┼──────┼───────┤
@@ -279,7 +279,7 @@ The unary group operator groups the argument attributes into subrelations for ea
 Grouping is useful for aggregate operations (see below) or for summarizing data against a set of attributes; for example, "display all employees grouped by boss name".
 
 ```
-TutorialD (master): :showexpr s group ({sname,status,s#} as subrel)
+TutorialD (master/main): :showexpr s group ({sname,status,s#} as subrel)
 ┌──────┬─────────────────┐
 │city  │subrel           │
 ├──────┼─────────────────┤
@@ -308,7 +308,7 @@ TutorialD (master): :showexpr s group ({sname,status,s#} as subrel)
 The unary ungroup operator "unwraps" subrelations in a relation-valued attribute. There is no equivalent in SQL.
 
 ```
-TutorialD (master): :showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel
+TutorialD (master/main): :showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel
 ┌──────┬──┬─────┬──────┐
 │city  │s#│sname│status│
 ├──────┼──┼─────┼──────┤
@@ -331,8 +331,8 @@ While relational operators compose to relational expressions representing querie
 The relation variable assignment mentioned above certainly changes the state of the database.
 
 ```
-TutorialD (master): newrelvar:=relation{tuple{age 3}}
-TutorialD (master): :showexpr newrelvar
+TutorialD (master/main): newrelvar:=relation{tuple{age 3}}
+TutorialD (master/main): :showexpr newrelvar
 ┌───┐
 │age│
 ├───┤
@@ -347,8 +347,8 @@ All further operators are convenience operators and could be implemented with si
 To signal that a relation variable should be forgotten, undefine it.
 
 ```
-TutorialD (master): undefine s
-TutorialD (master): :showexpr s
+TutorialD (master/main): undefine s
+TutorialD (master/main): :showexpr s
 ERR: RelVarNotDefinedError "s"
 ```
 
@@ -357,8 +357,8 @@ ERR: RelVarNotDefinedError "s"
 The insert operators accepts a relation variable and a relation of the same type (a relation having an identical header), and replaces the relation referenced by the relation variable with the union of the previous relation value and the argument's relation value.
 
 ```
-TutorialD (master): insert s relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
-TutorialD (master): :showexpr s
+TutorialD (master/main): insert s relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
+TutorialD (master/main): :showexpr s
 ┌──────┬───┬────────┬──────┐
 │city  │s# │sname   │status│
 ├──────┼───┼────────┼──────┤
@@ -381,8 +381,8 @@ s:=s union relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
 The update operator accepts a relation argument and a predicate, optionally filters and creates new tuples based on the original relation.
 
 ```
-TutorialD (master): update s where status=20 (sname:="Mr. Twenty")
-TutorialD (master): :showexpr s
+TutorialD (master/main): update s where status=20 (sname:="Mr. Twenty")
+TutorialD (master/main): :showexpr s
 ┌──────┬──┬──────────┬──────┐
 │city  │s#│sname     │status│
 ├──────┼──┼──────────┼──────┤
@@ -397,8 +397,8 @@ TutorialD (master): :showexpr s
 This is logically equivalent to:
 
 ```
-TutorialD (master): s:=(((s where status=20){city,s#,status}):{sname:="Mr. Twenty"}) union (s where not status=20)
-TutorialD (master): :showexpr s
+TutorialD (master/main): s:=(((s where status=20){city,s#,status}):{sname:="Mr. Twenty"}) union (s where not status=20)
+TutorialD (master/main): :showexpr s
 ┌──────┬──┬──────────┬──────┐
 │city  │s#│sname     │status│
 ├──────┼──┼──────────┼──────┤
@@ -417,8 +417,8 @@ This query means: "Drop the sname attribute from S filtered where status equals 
 The delete operator accepts a relation argument and a filtering predicate, creates a new relation with only the tuples which do not match the predicate, and stores the result in the relation variable argument.
 
 ```
-TutorialD (master): delete sp where s#="S4"
-TutorialD (master): :showexpr sp
+TutorialD (master/main): delete sp where s#="S4"
+TutorialD (master/main): :showexpr sp
 ┌──┬───┬──┐
 │p#│QTY│s#│
 ├──┼───┼──┤
@@ -437,7 +437,7 @@ TutorialD (master): :showexpr sp
 This is logically equivalent to:
 
 ```
-TutorialD (master): sp:=sp where not s#="S4"
+TutorialD (master/main): sp:=sp where not s#="S4"
 ```
 
 Note the inverted predicate.
@@ -453,7 +453,7 @@ Chris Date identified that all constraints can be represented as inclusion depen
 Uniqueness constraints ensure that a set of attributes' values are unique throughout a relational expression. For example, it is useful to ensure that all products' identifiers are unique. The equivalent in SQL is the UNIQUE expression found in table creation.
 
 ```
-TutorialD (master): key s_key_constraint {s#} s
+TutorialD (master/main): key s_key_constraint {s#} s
 ```
 
 This expression creates a constraint named "S_key_constraint" and ensure that the values of the "s#" attribute are unique in the "S" relational expression.
@@ -463,7 +463,7 @@ This expression creates a constraint named "S_key_constraint" and ensure that th
 Foreign keys are constraints which require that certain values appearing in one relation variable must appear in another. The equivalent in SQL is the FOREIGN KEY() construction in table creation.
 
 ```
-TutorialD (master): foreign key s#_in_sp sp{s#} in s{s#}
+TutorialD (master/main): foreign key s#_in_sp sp{s#} in s{s#}
 ```
 
 This expression ensure that any sp{s#} must also appear as a value in s{s#}.
@@ -475,7 +475,7 @@ Unlike SQL databases, Project:M36 includes first-class support for functional de
 To create a functional dependency:
 
 ```
-TutorialD (master): funcdep sname_status (sname) -> (status) s
+TutorialD (master/main): funcdep sname_status (sname) -> (status) s
 ```
 
 In this example, the functional dependency is named "sname_status" and creates a constraint which ensures that the "sname" value is functionally determines "status" value in the relation variable "s", though the final argument can be any relational expression. Multiple attribute names are separated by a comma.
@@ -485,7 +485,7 @@ In this example, the functional dependency is named "sname_status" and creates a
 All other constraints can be represented by a set of inclusion dependencies.
 
 ```
-TutorialD (master): constraint s_status_less_than_50 (s where ^lt(50,@status)){} in false
+TutorialD (master/main): constraint s_status_less_than_50 (s where ^lt(50,@status)){} in false
 ```
 
 This expression ensures that the relation variable's relation can never include a tuple with status greater than 50.
@@ -499,7 +499,7 @@ Aggregate queries in TutorialD are able to provide much more information than SQ
 SQL supports aggregate queries using aggregate functions (SUM(), COUNT(), AVERAGE(), etc.) and GROUP BY while the aggregate functions in the relational algebra simply accept relation values as arguments.
 
 ```
-TutorialD (master): :showexpr s group ({s#,sname,status} as subrel):{citycount:=count(@subrel)}
+TutorialD (master/main): :showexpr s group ({s#,sname,status} as subrel):{citycount:=count(@subrel)}
 ┌──────┬─────────┬─────────────────┐
 │city  │citycount│subrel           │
 ├──────┼─────────┼─────────────────┤

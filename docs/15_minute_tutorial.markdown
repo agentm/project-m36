@@ -26,13 +26,13 @@ Note that TutorialD is strongly-typed- no type coercions take place automaticall
 ### Load the Canonical Chris Date Example
 
 ```
-TutorialD (master): :importexample date
+TutorialD (master/main): :importexample date
 ```
 
 or
 
 ```
-TutorialD (master): :importtud "scripts/DateExamples.tutd"
+TutorialD (master/main): :importtud "scripts/DateExamples.tutd"
 ```
 
 ```:importtutd``` (do not skip typing the preceding colon), loads a file which contains a script written in the TutorialD dialect used by Project:M36 and executes it to change the state of the database. In this case, the relations "s" (supplier), "p" (product), and "sp" (suppliers-products) are now loaded.
@@ -42,7 +42,7 @@ TutorialD (master): :importtud "scripts/DateExamples.tutd"
 ### Execute Relational Expressions
 
 ```
-TutorialD (master): :showexpr s
+TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -63,7 +63,7 @@ You will need to [learn TutorialD](/docs/tutd_tutorial.markdown) to create relat
 #### Joins
 
 ```
-TutorialD (master): :showexpr s join sp
+TutorialD (master/main): :showexpr s join sp
 ┌──────────┬────────┬────────┬────────┬───────────┬───────────┐
 │city::Text│p#::Text│qty::Int│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼────────┼────────┼───────────┼───────────┤
@@ -86,7 +86,7 @@ All joins in TutorialD are similar to "NATURAL JOIN" in SQL.
 #### Restriction
 
 ```
-TutorialD (master): :showexpr s where status=20
+TutorialD (master/main): :showexpr s where status=20
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -100,7 +100,7 @@ Restrictions are similar to the "WHERE" clause in SQL.
 #### Projection
 
 ```
-TutorialD (master): :showexpr p{color,p#,weight}
+TutorialD (master/main): :showexpr p{color,p#,weight}
 ┌───────────┬────────┬───────────┐
 │color::Text│p#::Text│weight::Int│
 ├───────────┼────────┼───────────┤
@@ -118,7 +118,7 @@ Projection is equivalent to "SELECT <columns>" in SQL.
 #### Attribute Rename
 
 ```
-TutorialD (master): :showexpr s rename {city as town}
+TutorialD (master/main): :showexpr s rename {city as town}
 ┌────────┬───────────┬───────────┬──────────┐
 │s#::Text│sname::Text│status::Int│town::Text│
 ├────────┼───────────┼───────────┼──────────┤
@@ -139,7 +139,7 @@ The relational algebra includes two fundamental named relations: "true" and "fal
 "true" is the name of the relation with no attributes and a set of one tuple of no attributes.
 
 ```
-TutorialD (master): :showexpr true
+TutorialD (master/main): :showexpr true
 ┌┐
 ││
 ├┤
@@ -149,7 +149,7 @@ TutorialD (master): :showexpr true
 "false" is the name of the relation with no attributes and an empty tuples set.
 
 ```
-TutorialD (master): :showexpr false
+TutorialD (master/main): :showexpr false
 ┌┐
 ││
 └┘
@@ -164,8 +164,8 @@ Database context expressions change the state of the database, much like "CREATE
 #### Create a Relation Variable
 
 ```
-TutorialD (master): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
-TutorialD (master): :showexpr x
+TutorialD (master/main): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
+TutorialD (master/main): :showexpr x
 ┌────────┬──────────┐
 │age::Int│name::Text│
 ├────────┼──────────┤
@@ -179,16 +179,16 @@ This is similar to SQL's "CREATE TABLE" operator.
 #### Insert Additional Tuples
 
 ```
-TutorialD (master): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
-TutorialD (master): :showexpr x
+TutorialD (master/main): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
+TutorialD (master/main): :showexpr x
 ┌────────┬──────────┐
 │age::Int│name::Text│
 ├────────┼──────────┤
 │40      │"Steve"   │
 │31      │"Mike"    │
 └────────┴──────────┘
-TutorialD (master): insert x relation{tuple{name "Bob", age 24}}
-TutorialD (master): :showexpr x
+TutorialD (master/main): insert x relation{tuple{name "Bob", age 24}}
+TutorialD (master/main): :showexpr x
 ┌────────┬──────────┐
 │age::Int│name::Text│
 ├────────┼──────────┤
@@ -203,7 +203,7 @@ Note that the relational insertion is identical to "x:=x union relation{...}".
 #### Update Tuples in a Relation Variable
 
 ```
-TutorialD (master): :showexpr s
+TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -213,8 +213,8 @@ TutorialD (master): :showexpr s
 │"London"  │"S4"    │"Clark"    │20         │
 │"Athens"  │"S5"    │"Adams"    │30         │
 └──────────┴────────┴───────────┴───────────┘
-TutorialD (master): update s where city="London" (status:=35)
-TutorialD (master): :showexpr s
+TutorialD (master/main): update s where city="London" (status:=35)
+TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -228,7 +228,7 @@ TutorialD (master): :showexpr s
 #### Deleting Tuples from a Relation Variable
 
 ```
-TutorialD (master): :showexpr s
+TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -238,8 +238,8 @@ TutorialD (master): :showexpr s
 │"London"  │"S4"    │"Clark"    │20         │
 │"Athens"  │"S5"    │"Adams"    │30         │
 └──────────┴────────┴───────────┴───────────┘
-TutorialD (master): delete s where sname="Adams"
-TutorialD (master): :showexpr s
+TutorialD (master/main): delete s where sname="Adams"
+TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────┐
 │city::Text│s#::Text│sname::Text│status::Int│
 ├──────────┼────────┼───────────┼───────────┤
@@ -257,19 +257,19 @@ Unlike typical SQL DBMSs, Project:M36 maintains a graph of transactions, similar
 #### Committing
 
 ```
-TutorialD (master): :commit
+TutorialD (master/main): :commit
 ```
 
 #### Rollback
 
 ```
-TutorialD (master): :rollback
+TutorialD (master/main): :rollback
 ```
 
 #### Branching
 
 ```
-TutorialD (master): :branch experimental
+TutorialD (master/main): :branch experimental
 TutorialD (experimental): employee:=relation{name Text, salary Int}
 TutorialD (experimental): :commit
 ```
@@ -280,7 +280,7 @@ Note how the prompt changes to reflect the current branch's name.
 
 ```
 TutorialD (experimental): :jumphead master
-TutorialD (master): :showexpr employee
+TutorialD (master/main): :showexpr employee
 ERR: RelVarNotDefinedError "employee"
 ```
 

@@ -18,10 +18,10 @@ In practice, trans-graph relational expressions are very similar to normal relat
 
 In ```tutd```, here are two equivalent queries (assuming that ```s``` and ```sp``` are relation variables which have been committed to the ```master``` branch):
 ```
-TutorialD (master): :showexpr s join sp
+TutorialD (master/main): :showexpr s join sp
 ```
 ```
-TutorialD (master): :showtransgraphexpr s@master join sp@master
+TutorialD (master/main): :showtransgraphexpr s@master join sp@master
 ```
 
 Note that the only difference is that the second expression explicitly references which transaction the relation variable is referencing. In the first relational expression, this marker is implicit because the query can only reference the current in-flight transaction.
@@ -29,7 +29,7 @@ Note that the only difference is that the second expression explicitly reference
 Naturally, the trans-graph relational expression is most useful when querying across multiple transactions. This can be accomplished by specifying the transaction id (UUID) or using head name backtracking which is intentionally similar to the git traversal syntax.
 
 ```
-TutorialD (master): :showtransgraphexpr s@master~ join sp@master
+TutorialD (master/main): :showtransgraphexpr s@master~ join sp@master
 ```
 
 The transaction marker ```master~``` indicates that we wish to reference the first parent of the transaction at the head of the "master" branch. Then, we wish to join it with the relation variable ```sp``` at the head transaction of the master branch. Thusly, we can join two relations from two different transactions.
@@ -39,7 +39,7 @@ Since transactions can have multiple parents due to merge commits, the ```^x``` 
 These markers can be freely mixed to traverse the graph from a head, as in the following example:
 
 ```
-TutorialD (master): :showtransgraphexpr s@improveheadlights~^2
+TutorialD (master/main): :showtransgraphexpr s@improveheadlights~^2
 ```
 
 This query asks to return relation variable ```s``` at the transaction context from the second parent of the first parent of the head of the "improveheadlights" branch.

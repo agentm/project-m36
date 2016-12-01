@@ -58,8 +58,8 @@ Project:M36 implements multiple interfaces:
 To understand how Project:M36 stacks up against the fictional programming language shown in the paper, we have implemented the [example from the paper](/examples/out_of_the_tarpit.tutd). The language used in the script is a dialect of Chris Date's TutorialD language. It can be loaded into an interactive ```tutd``` session like so:
 
 ```
-TutorialD (master): :importexample date
-TutorialD (master): :showexpr p
+TutorialD (master/main): :importexample date
+TutorialD (master/main): :showexpr p
 ┌───────────────────┬────────────┬───────────────────┬────────────┬────────────┐
 │address::Address   │agent::Agent│dateRegistered::Day│photo::Text │price::Price│
 ├───────────────────┼────────────┼───────────────────┼────────────┼────────────┤

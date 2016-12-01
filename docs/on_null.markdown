@@ -347,8 +347,8 @@ But all we have really done is add even more NULLs. Retrieving a sensible value 
 Project:M36 supports management of new algebraic data types at runtime. These types are associated with transactions and can changed over time whereas primitive Atoms cannot be changed.
 d
 ```
-TutorialD (master): data Age = PreciseAge Int | ForgotToAsk | RefusedToDisclose | NotApplicable | ApproximateAge Int Int
-TutorialD (master): :showexpr relation{tuple{name "Steve", age ApproximateAge 20 30}, tuple{name "Bob", age RefusedToDisclose}, tuple {name "Initech Corp.", age NotApplicable}}
+TutorialD (master/main): data Age = PreciseAge Int | ForgotToAsk | RefusedToDisclose | NotApplicable | ApproximateAge Int Int
+TutorialD (master/main): :showexpr relation{tuple{name "Steve", age ApproximateAge 20 30}, tuple{name "Bob", age RefusedToDisclose}, tuple {name "Initech Corp.", age NotApplicable}}
 ┌────────────────────┬───────────────┐
 │age::Age            │name::Text     │
 ├────────────────────┼───────────────┤
@@ -361,8 +361,8 @@ TutorialD (master): :showexpr relation{tuple{name "Steve", age ApproximateAge 20
 Note that the two values which would normally be rendered as NULL in SQL are indeed proper values and can be distinguished. Three-valued logic makes no appearance. The type constructors can also have arguments:
 
 ```
-TutorialD (master): data Tree a = Node a (Tree a) (Tree a) | EmptyNode
-TutorialD (master): :showexpr relation{tuple{family "Stevenson", familytree Node "Jim" (Node "Cindy" EmptyNode EmptyNode) (Node "Mike" EmptyNode EmptyNode)}}
+TutorialD (master/main): data Tree a = Node a (Tree a) (Tree a) | EmptyNode
+TutorialD (master/main): :showexpr relation{tuple{family "Stevenson", familytree Node "Jim" (Node "Cindy" EmptyNode EmptyNode) (Node "Mike" EmptyNode EmptyNode)}}
 ┌────────────┬───────────────────────────────────────────────────────────────────────────────┐
 │family::Text│familytree::Tree (a::Text)                                                     │
 ├────────────┼───────────────────────────────────────────────────────────────────────────────┤
