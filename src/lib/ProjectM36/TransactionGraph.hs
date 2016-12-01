@@ -33,6 +33,7 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git 
 data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
                                 Branch HeadName |
+                                DeleteBranch HeadName |
                                 MergeTransactions MergeStrategy HeadName HeadName |
                                 Commit |
                                 Rollback
@@ -240,8 +241,11 @@ evalGraphOp _ (DisconnectedTransaction parentId _) graph Rollback = case transac
     where
       newDiscon = DisconnectedTransaction parentId (schemas parentTransaction)
       
--- a successful merge should remove a head
 evalGraphOp newId (DisconnectedTransaction parentId _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions newId parentId mergeStrategy (headNameA, headNameB) graph
+
+evalGraphOp _ discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) = case transactionForHead branchName graph of
+  Nothing -> Left (NoSuchHeadNameError branchName)
+  Just _ -> Right (discon, TransactionGraph (M.delete branchName graphHeads) transSet)
 
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation

@@ -26,6 +26,11 @@ branchTransactionP = do
   branchName <- identifier
   return $ Branch branchName
 
+deleteBranchP :: Parser TransactionGraphOperator
+deleteBranchP = do
+  reserved ":deletebranch"
+  DeleteBranch <$> identifier
+
 commitTransactionP :: Parser TransactionGraphOperator
 commitTransactionP = do
   reservedOp ":commit"
@@ -65,6 +70,7 @@ transactionGraphOpP = do
   jumpToHeadP
   <|> jumpToTransactionP
   <|> branchTransactionP
+  <|> deleteBranchP
   <|> commitTransactionP
   <|> rollbackTransactionP
   <|> mergeTransactionsP
