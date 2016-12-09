@@ -51,7 +51,7 @@ Library
                    ,extended-reals
                    ,network-transport
 --required for persistent db driver
-                   ,persistent >= 2.2 && <2.3,
+                   ,persistent >= 2.2 && <2.3
                    ,persistent-template
                    ,aeson
                    ,path-pieces

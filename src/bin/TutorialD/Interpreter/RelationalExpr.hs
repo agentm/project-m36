@@ -65,7 +65,7 @@ tupleAtomExprP = do
   atomExpr <- atomExprP
   pure $ (attributeName, atomExpr)
   
-projectP :: RelationalMarkerExpr a => Parser (RelationalExprBase a  -> RelationalExprBase a)
+projectP :: Parser (RelationalExprBase a  -> RelationalExprBase a)
 projectP = do
   attrs <- braces attributeListP
   pure $ Project attrs
@@ -77,7 +77,7 @@ renameClauseP = do
   newAttr <- identifier
   pure $ (oldAttr, newAttr)
 
-renameP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
+renameP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 renameP = do
   reservedOp "rename"
   renameList <- braces (sepBy renameClauseP comma)
@@ -96,14 +96,14 @@ groupClauseP = do
   newAttrName <- identifier
   return $ (attrs, newAttrName)
 
-groupP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
+groupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClauseP
   pure $ Group groupAttrList groupAttrName
 
 --in "Time and Relational Theory" (2014), Date's Tutorial D grammar for ungroup takes one attribute, while in previous books, it take multiple arguments. Let us assume that nested ungroups are the same as multiple attributes.
-ungroupP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
+ungroupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 ungroupP = do
   reservedOp "ungroup"
   rvaAttrName <- identifier
@@ -195,13 +195,13 @@ consumeAtomExprP consume = try functionAtomExprP <|>
             nakedAtomExprP <|>
             relationalAtomExprP
 
-attributeAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
   _ <- string "@"
   attrName <- identifier
   return $ AttributeAtomExpr attrName
 
-nakedAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+nakedAtomExprP :: Parser (AtomExprBase a)
 nakedAtomExprP = NakedAtomExpr <$> atomP
 
 constructedAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
