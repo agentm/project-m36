@@ -5,6 +5,7 @@ import ProjectM36.Client
 import System.IO
 import Options.Applicative
 import System.Exit
+import Data.Monoid
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseGhcPkgPaths <|>

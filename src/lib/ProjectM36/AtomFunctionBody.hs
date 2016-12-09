@@ -6,11 +6,12 @@ import ProjectM36.Error
 
 import Control.Monad.IO.Class
 import Control.Exception
-import Data.Text hiding (map)
+import Data.Text hiding (map, foldl)
 
 import Unsafe.Coerce
 import GHC
 import GHC.Paths (libdir)
+import GHC.LanguageExtensions
 import DynFlags
 import Panic
 import Outputable hiding ((<>))
@@ -36,7 +37,7 @@ initScriptSession ghcPkgPaths = do
     dflags <- getSessionDynFlags
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
       
-    let dflags' = dflags { hscTarget = HscInterpreted , 
+    let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted , 
                            ghcLink = LinkInMemory, 
                            safeHaskell = Sf_Trustworthy,
                            safeInfer = True,
@@ -45,25 +46,33 @@ initScriptSession ghcPkgPaths = do
                            packageFlags = (packageFlags dflags) ++ packages,
                            extraPkgConfs = const ([GlobalPkgConf, UserPkgConf] ++ localPkgPaths)
                          }
-                `xopt_set` Opt_ExtendedDefaultRules
-                `xopt_set` Opt_ImplicitPrelude
-                `xopt_set` Opt_OverloadedStrings
-                `gopt_set` Opt_DistrustAllPackages 
-                `xopt_set` Opt_ScopedTypeVariables
-                `gopt_set` Opt_PackageTrust
-                --`gopt_set` Opt_ImplicitImportQualified
-        packages = map TrustPackage ["base", 
-                                   "containers",
-                                   "unordered-containers",
-                                   "hashable",
-                                   "uuid",
-                                   "vector",
-                                   "text",
-                                   "binary",
-                                   "vector-binary-instances",
-                                   "time",
-                                   "project-m36",
-                                   "bytestring"] -- package flags changed in 8.0
+        applyGopts flags = foldl gopt_set flags gopts
+        applyXopts flags = foldl xopt_set flags xopts
+#if __GLASGOW_HASKELL__ >= 800
+        xopts = [OverloadedStrings, ExtendedDefaultRules, ImplicitPrelude, ScopedTypeVariables]
+        gopts = [Opt_DistrustAllPackages, Opt_PackageTrust]
+#else               
+        xopts = [Opt_OverloadedStrings, Opt_ExtendedDefaultRules, Opt_ImplicitPrelude,  Opt_ScopedTypeVariables]
+        gopts = [Opt_DistrustAllPackages, Opt_PackageTrust]
+#endif
+        required_packages = ["base", 
+                             "containers",
+                             "unordered-containers",
+                             "hashable",
+                             "uuid",
+                             "vector",
+                             "text",
+                             "binary",
+                             "vector-binary-instances",
+                             "time",
+                             "project-m36",
+                             "bytestring"]
+#if __GLASGOW_HASKELL__ >= 800
+        packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
+#else
+
+        packages = map TrustPackage required_packages
+#endif
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn = ImportDecl {
           ideclSourceSrc = Nothing,

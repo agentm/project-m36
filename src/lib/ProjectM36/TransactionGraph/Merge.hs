@@ -12,7 +12,7 @@ import qualified Data.HashSet as HS
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
 -- Check for overlapping keys. If the values differ, try a preference resolution
-unionMergeMaps :: (Ord k, Eq k, Eq a) => MergePreference -> M.Map k a -> M.Map k a -> Either MergeError (M.Map k a)
+unionMergeMaps :: (Ord k, Eq a) => MergePreference -> M.Map k a -> M.Map k a -> Either MergeError (M.Map k a)
 unionMergeMaps prefer mapA mapB = case prefer of
   PreferFirst -> pure $ M.union mapA mapB
   PreferSecond -> pure $ M.union mapB mapA
