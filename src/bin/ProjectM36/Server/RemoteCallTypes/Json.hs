@@ -59,9 +59,6 @@ instance FromJSON TypeConstructor
 instance ToJSON TypeConstructorArg
 instance FromJSON TypeConstructorArg
 
-instance ToJSON SerialRep
-instance FromJSON SerialRep
-
 instance ToJSON SchemaExpr
 instance FromJSON SchemaExpr
 
