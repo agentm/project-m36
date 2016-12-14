@@ -22,6 +22,11 @@ Project:M36 supports multiple frontends which target different audiences.
 * store and manipulate databases
 * use Project:M36 as a native Haskell database backend
 
+## Community
+
+* [Developer's Blog](https://agentm.github.io/project-m36/)
+* [Mailing List/Discussion Group](https://groups.google.com/d/forum/project-m36)
+
 ## Documentation
 
 ### Introductory Materials
