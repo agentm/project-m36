@@ -14,10 +14,11 @@ import GHC.Paths (libdir)
 import GHC.LanguageExtensions
 import DynFlags
 import Panic
-import Outputable hiding ((<>))
+import Outputable --hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
 import System.FilePath.Glob
+import Debug.Trace
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
@@ -42,21 +43,25 @@ initScriptSession ghcPkgPaths = do
                            safeHaskell = Sf_Trustworthy,
                            safeInfer = True,
                            safeInferred = True,
-                           --trustFlags = [TrustPackage "base"] -- new in 8
+                           --verbosity = 3,
+#if __GLASGOW_HASKELL__ >= 800                           
+                           trustFlags = map TrustPackage required_packages,
+#endif                                        
                            packageFlags = (packageFlags dflags) ++ packages,
-                           extraPkgConfs = const ([GlobalPkgConf, UserPkgConf] ++ localPkgPaths)
+                           extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
                          }
         applyGopts flags = foldl gopt_set flags gopts
         applyXopts flags = foldl xopt_set flags xopts
 #if __GLASGOW_HASKELL__ >= 800
         xopts = [OverloadedStrings, ExtendedDefaultRules, ImplicitPrelude, ScopedTypeVariables]
-        gopts = [Opt_DistrustAllPackages, Opt_PackageTrust]
 #else               
         xopts = [Opt_OverloadedStrings, Opt_ExtendedDefaultRules, Opt_ImplicitPrelude,  Opt_ScopedTypeVariables]
-        gopts = [Opt_DistrustAllPackages, Opt_PackageTrust]
 #endif
+        gopts = [] --[Opt_DistrustAllPackages, Opt_PackageTrust]
         required_packages = ["base", 
                              "containers",
+                             "Glob",
+                             "directory",
                              "unordered-containers",
                              "hashable",
                              "uuid",
@@ -70,9 +75,9 @@ initScriptSession ghcPkgPaths = do
 #if __GLASGOW_HASKELL__ >= 800
         packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
 #else
-
         packages = map TrustPackage required_packages
 #endif
+  --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn = ImportDecl {
           ideclSourceSrc = Nothing,
