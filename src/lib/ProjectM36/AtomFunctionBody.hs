@@ -8,8 +8,8 @@ import Control.Monad.IO.Class
 import Control.Exception
 import Data.Text hiding (map, concat, foldl)
 import System.FilePath.Glob
-import System.Directory
-import System.FilePath
+--import System.Directory
+--import System.FilePath
 import Control.Monad
 
 import Unsafe.Coerce
@@ -36,11 +36,12 @@ data ScriptSessionError = ScriptSessionLoadError GhcException
 initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
 initScriptSession ghcPkgPaths = do
     --for the sake of convenience, for developers' builds, include the local cabal sandbox package database and the cabal new-build package database
-  homeDir <- getHomeDirectory
+  --homeDir <- getHomeDirectory
   sandboxPkgPaths <- liftM concat $ mapM glob [
-    "./dist-newstyle/packagedb/ghc-*",
-    ".cabal-sandbox/*packages.conf.d", 
-    homeDir </> ".cabal/store/ghc-*/package.db"
+    ".cabal-sandbox/*packages.conf.d"
+    --"./dist-newstyle/packagedb/ghc-*",
+
+    --homeDir </> ".cabal/store/ghc-*/package.db"
     ]
   let excHandler exc = pure $ Left (ScriptSessionLoadError exc)
   handleGhcException excHandler $ runGhc (Just libdir) $ do
