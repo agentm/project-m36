@@ -42,6 +42,12 @@ Compilation steps:
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
+Alternative building with GHC 8.0.x:
+
+* ```cabal new-build```
+
+The resultant binaries can be found in ```./dist-newstyle/build/project-m36-0.1/build```.
+
 ## Accessing Project:M36 Databases
 
 Project:M36 implements a generic relational algebra DBMS backend with multiple data access frontends. Such frontends currently include:
