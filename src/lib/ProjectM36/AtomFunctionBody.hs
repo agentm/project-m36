@@ -20,7 +20,6 @@ import Outputable --hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
 import System.FilePath.Glob
-import Debug.Trace
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
