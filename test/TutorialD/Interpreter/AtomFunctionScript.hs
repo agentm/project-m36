@@ -37,9 +37,10 @@ testErrorAtomFunction = TestCase $ do
   let attrs = [Attribute "x" IntAtomType]
       funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
-      expectedResult = Left (UnhandledExceptionError "1")
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
-  assertEqual "catch error exception from script" expectedResult result
+  assertBool "catch error exception from script" (case result of
+                                                     Left (UnhandledExceptionError _) -> True
+                                                     _ -> False)
   
 testNoArgumentAtomFunction :: Test
 testNoArgumentAtomFunction = TestCase $ do

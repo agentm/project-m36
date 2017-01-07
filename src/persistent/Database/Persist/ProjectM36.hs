@@ -36,7 +36,7 @@ import Web.HttpApiData (ToHttpApiData(..), FromHttpApiData(..), parseUrlPieceWit
 type ProjectM36Backend = (C.SessionId, C.Connection)
 
 --convert a PersistEntity to a RelationTuple
-recordAsTuple :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend)
+recordAsTuple :: forall record. (PersistEntity record)
             => Maybe U.UUID -> record -> Either RelationalError RelationTuple
 recordAsTuple uuid record = do -- if the uuid is passed in, set the idDBName attribute
   let entInfo = zip entFields entValues
@@ -46,7 +46,7 @@ recordAsTuple uuid record = do -- if the uuid is passed in, set the idDBName att
   atomVec <- recordAsAtoms uuid attrVec record
   return $ RelationTuple attrVec atomVec
 
-recordAttributes :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend)
+recordAttributes :: forall record. (PersistEntity record)
            => [(EmbedFieldDef, PersistValue)] -> record -> Either RelationalError Attributes
 recordAttributes entInfo record = do
   let convertAttr = uncurry fieldDefAsAttribute
@@ -86,7 +86,7 @@ atomAsPersistValue (ByteStringAtom i) = PersistByteString i
 atomAsPersistValue (BoolAtom i) = PersistBool i
 atomAsPersistValue _ = error "Persist: missing conversion"
 
-recordAsAtoms :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend)
+recordAsAtoms :: forall record. (PersistEntity record)
            => Maybe U.UUID -> Attributes -> record -> Either RelationalError (V.Vector Atom)
 recordAsAtoms freshUUID _ record = do
   let pValues = map toPersistValue $ toPersistFields record
@@ -99,7 +99,7 @@ recordAsAtoms freshUUID _ record = do
     Just uuid -> [TextAtom $ T.pack (U.toString uuid)] ++ atoms
 
 --used by insert operations
-recordsAsRelation :: forall record. (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend) =>
+recordsAsRelation :: forall record. (PersistEntity record) =>
                      [(Maybe U.UUID, record)] -> Either RelationalError Relation
 recordsAsRelation [] = Left EmptyTuplesError
 recordsAsRelation recordZips = do
@@ -108,16 +108,13 @@ recordsAsRelation recordZips = do
   mkRelation (tupleAttributes oneTuple) (RelationTupleSet tupleList)
 
 keyFromValuesOrDie :: (Trans.MonadIO m,
-                       PersistEntity record,
-                       PersistEntityBackend record ~ ProjectM36Backend
-                       ) => [PersistValue] -> m (Key record)
+                       PersistEntity record) => [PersistValue] -> m (Key record)
 keyFromValuesOrDie val = case keyFromValues val of
   Right k -> return k
   Left _ -> Trans.liftIO $ throwIO $ PersistError "key pooped"
 
 insertNewRecords :: (Trans.MonadIO m,
-                     PersistEntity record,
-                     PersistEntityBackend record ~ ProjectM36Backend) =>
+                     PersistEntity record) =>
                     [U.UUID] -> [record] -> ReaderT ProjectM36Backend m [Key record]
 insertNewRecords uuids records = do
   let recordsZip = zip (map Just uuids) records
@@ -134,8 +131,7 @@ throwIOPersistError msg = Trans.liftIO $ throwIO $ PersistError (T.pack msg)
 
 lookupByKey :: forall record m.
                (Trans.MonadIO m,
-                PersistEntity record,
-                PersistEntityBackend record ~ ProjectM36Backend)
+                PersistEntity record)
            => Key record -> ReaderT ProjectM36Backend m (Maybe (Entity record))
 lookupByKey key = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
@@ -152,8 +148,7 @@ lookupByKey key = do
         return $ Just entity
 
 fromPersistValuesThrow :: (Trans.MonadIO m,
-                           PersistEntity record,
-                           PersistEntityBackend record ~ ProjectM36Backend) => EntityDef -> RelationTuple -> m (Entity record)
+                           PersistEntity record) => EntityDef -> RelationTuple -> m (Entity record)
 fromPersistValuesThrow entDef tuple = do
   let body = fromPersistValues $ map getValue (entityFields entDef)
       getValue field = case atomForAttributeName (unDBName (fieldDB field)) tuple of
@@ -168,7 +163,7 @@ fromPersistValuesThrow entDef tuple = do
         Left err -> throwIOPersistError (show err)
         Right body' -> return $ Entity key body'
 
-commonKeyQueryProperties :: (Trans.MonadIO m, PersistEntityBackend val ~ ProjectM36Backend, PersistEntity val) => Key val -> ReaderT ProjectM36Backend m (RelVarName, RestrictionPredicateExpr)
+commonKeyQueryProperties :: (Trans.MonadIO m, PersistEntity val) => Key val -> ReaderT ProjectM36Backend m (RelVarName, RestrictionPredicateExpr)
 commonKeyQueryProperties key = do
   let matchUUID = keyToUUID key
       keyAttributeName = unDBName (fieldDB $ entityId entityInfo)
@@ -178,7 +173,7 @@ commonKeyQueryProperties key = do
       restrictionPredicate = AttributeEqualityPredicate keyAttributeName (NakedAtomExpr (TextAtom matchUUIDText))
   return (relVarName, restrictionPredicate)
 
-deleteByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ ProjectM36Backend, PersistEntity val) => Key val -> ReaderT ProjectM36Backend m (Bool)
+deleteByKey :: (Trans.MonadIO m, PersistEntity val) => Key val -> ReaderT ProjectM36Backend m (Bool)
 deleteByKey key = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
   let query = Delete relVarName restrictionPredicate
@@ -188,7 +183,6 @@ deleteByKey key = do
 
 --convert persistent update list to ProjectM36 Update map
 updatesToUpdateMap :: (Trans.MonadIO m,
-                       PersistEntityBackend val ~ ProjectM36Backend,
                        PersistEntity val) =>
                       [DP.Update val] -> ReaderT ProjectM36Backend m (M.Map AttributeName AtomExpr)
 updatesToUpdateMap updates = do
@@ -202,7 +196,7 @@ updatesToUpdateMap updates = do
   updateAtomList <- mapM convertMap updates
   return $ M.fromList updateAtomList
 
-updateByKey :: (Trans.MonadIO m, PersistEntityBackend val ~ ProjectM36Backend, PersistEntity val) => Key val -> [DP.Update val] -> ReaderT ProjectM36Backend m ()
+updateByKey :: (Trans.MonadIO m, PersistEntity val) => Key val -> [DP.Update val] -> ReaderT ProjectM36Backend m ()
 updateByKey key updates = do
   (relVarName, restrictionPredicate) <- commonKeyQueryProperties key
   updateMap <- updatesToUpdateMap updates
@@ -316,7 +310,7 @@ executeDatabaseContextExpr sessionId conn expr = do
     Nothing -> return ()
     Just err -> throwIO (PersistError $ T.pack (show err))
 
-relVarNameFromRecord :: (PersistEntity record, PersistEntityBackend record ~ ProjectM36Backend)
+relVarNameFromRecord :: (PersistEntity record)
                => record -> RelVarName
 relVarNameFromRecord = unDBName . entityDB . entityDef . Just
 
@@ -361,12 +355,12 @@ instance PersistConfig C.ConnectionInfo where
          --runPool :: (MonadBaseControl IO m, MonadIO m) => c -> PersistConfigBackend c m a -> PersistConfigPool c -> m a
          runPool _ r = runReaderT r
 
-withProjectM36Conn :: (Monad m, Trans.MonadIO m) => C.ConnectionInfo -> (ProjectM36Backend -> m a) -> m a
+withProjectM36Conn :: (Trans.MonadIO m) => C.ConnectionInfo -> (ProjectM36Backend -> m a) -> m a
 withProjectM36Conn conf connReader = do
     backend <- Trans.liftIO $ createPoolConfig conf
     connReader backend
 
-runProjectM36Conn :: (Trans.MonadIO m) => ReaderT ProjectM36Backend m a -> (C.SessionId, C.Connection) -> m a
+runProjectM36Conn :: ReaderT ProjectM36Backend m a -> (C.SessionId, C.Connection) -> m a
 runProjectM36Conn m1 (sessionId, conn) = runReaderT m1 (sessionId, conn)
 
 instance PathPiece (BackendKey ProjectM36Backend) where

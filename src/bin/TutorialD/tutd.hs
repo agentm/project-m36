@@ -5,6 +5,9 @@ import ProjectM36.Client
 import System.IO
 import Options.Applicative
 import System.Exit
+#if __GLASGOW_HASKELL__ >= 800
+import Data.Monoid
+#endif
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseGhcPkgPaths <|>

@@ -6,17 +6,21 @@ import ProjectM36.Error
 
 import Control.Monad.IO.Class
 import Control.Exception
-import Data.Text hiding (map)
+import Data.Text hiding (map, foldl)
 
 import Unsafe.Coerce
 import GHC
 import GHC.Paths (libdir)
+#if __GLASGOW_HASKELL__ >= 800
+import GHC.LanguageExtensions
+#endif
 import DynFlags
 import Panic
-import Outputable hiding ((<>))
+import Outputable --hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
 import System.FilePath.Glob
+import Debug.Trace
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
@@ -36,34 +40,46 @@ initScriptSession ghcPkgPaths = do
     dflags <- getSessionDynFlags
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
       
-    let dflags' = dflags { hscTarget = HscInterpreted , 
+    let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted , 
                            ghcLink = LinkInMemory, 
                            safeHaskell = Sf_Trustworthy,
                            safeInfer = True,
                            safeInferred = True,
-                           --trustFlags = [TrustPackage "base"] -- new in 8
+                           --verbosity = 3,
+#if __GLASGOW_HASKELL__ >= 800                           
+                           trustFlags = map TrustPackage required_packages,
+#endif                                        
                            packageFlags = (packageFlags dflags) ++ packages,
-                           extraPkgConfs = const ([GlobalPkgConf, UserPkgConf] ++ localPkgPaths)
+                           extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
                          }
-                `xopt_set` Opt_ExtendedDefaultRules
-                `xopt_set` Opt_ImplicitPrelude
-                `xopt_set` Opt_OverloadedStrings
-                `gopt_set` Opt_DistrustAllPackages 
-                `xopt_set` Opt_ScopedTypeVariables
-                `gopt_set` Opt_PackageTrust
-                --`gopt_set` Opt_ImplicitImportQualified
-        packages = map TrustPackage ["base", 
-                                   "containers",
-                                   "unordered-containers",
-                                   "hashable",
-                                   "uuid",
-                                   "vector",
-                                   "text",
-                                   "binary",
-                                   "vector-binary-instances",
-                                   "time",
-                                   "project-m36",
-                                   "bytestring"] -- package flags changed in 8.0
+        applyGopts flags = foldl gopt_set flags gopts
+        applyXopts flags = foldl xopt_set flags xopts
+#if __GLASGOW_HASKELL__ >= 800
+        xopts = [OverloadedStrings, ExtendedDefaultRules, ImplicitPrelude, ScopedTypeVariables]
+#else               
+        xopts = [Opt_OverloadedStrings, Opt_ExtendedDefaultRules, Opt_ImplicitPrelude,  Opt_ScopedTypeVariables]
+#endif
+        gopts = [] --[Opt_DistrustAllPackages, Opt_PackageTrust]
+        required_packages = ["base", 
+                             "containers",
+                             "Glob",
+                             "directory",
+                             "unordered-containers",
+                             "hashable",
+                             "uuid",
+                             "vector",
+                             "text",
+                             "binary",
+                             "vector-binary-instances",
+                             "time",
+                             "project-m36",
+                             "bytestring"]
+#if __GLASGOW_HASKELL__ >= 800
+        packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
+#else
+        packages = map TrustPackage required_packages
+#endif
+  --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn = ImportDecl {
           ideclSourceSrc = Nothing,

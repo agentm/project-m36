@@ -22,6 +22,7 @@ import System.IO
 import Control.Monad.State
 import Control.DeepSeq
 import Data.Text hiding (map)
+import Data.Monoid
 
 dumpcsv :: Relation -> IO ()
 dumpcsv rel = case relationAsCSV rel of
