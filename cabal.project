@@ -1,0 +1,3 @@
+-- this is needed for GHC8 until distributed-process-extras is updated on Hackage with increased upper bounds
+packages: project-m36.cabal
+allow-newer: distributed-process-extras:time,distributed-process-extras:binary,distributed-process-client-server:binary,distributed-process-client-server:time,distributed-process-async:time,distributed-process-async:binary

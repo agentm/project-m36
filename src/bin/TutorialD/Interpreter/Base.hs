@@ -6,6 +6,7 @@ import qualified Text.Megaparsec.Lexer as Lex
 import ProjectM36.Base
 import ProjectM36.AtomType
 import Data.Text hiding (count)
+import System.Random
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Vector as V
@@ -16,8 +17,8 @@ import GHC.Generics
 import Data.Monoid
 import Control.Monad (void)
 import qualified Data.UUID as U
-import Control.Monad.Random
 import ProjectM36.Relation
+import Control.Monad.Random
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()

@@ -6,7 +6,11 @@ import ProjectM36.Error
 
 import Control.Monad.IO.Class
 import Control.Exception
-import Data.Text hiding (map, foldl)
+import Data.Text hiding (map, concat, foldl)
+import System.FilePath.Glob
+import System.Directory
+import System.FilePath
+import Control.Monad
 
 import Unsafe.Coerce
 import GHC
@@ -19,7 +23,6 @@ import Panic
 import Outputable --hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
-import System.FilePath.Glob
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
@@ -32,8 +35,13 @@ data ScriptSessionError = ScriptSessionLoadError GhcException
 -- | Configure a GHC environment/session which we will use for all script compilation.
 initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
 initScriptSession ghcPkgPaths = do
-    --for the sake of convenience, for developers' builds, include the local cabal sandbox pacakge database
-  sandboxPkgPaths <- liftIO (glob ".cabal-sandbox/*packages.conf.d")
+    --for the sake of convenience, for developers' builds, include the local cabal sandbox package database and the cabal new-build package database
+  homeDir <- getHomeDirectory
+  sandboxPkgPaths <- liftM concat $ mapM glob [
+    "./dist-newstyle/packagedb/ghc-*",
+    ".cabal-sandbox/*packages.conf.d", 
+    homeDir </> ".cabal/store/ghc-*/package.db"
+    ]
   let excHandler exc = pure $ Left (ScriptSessionLoadError exc)
   handleGhcException excHandler $ runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
