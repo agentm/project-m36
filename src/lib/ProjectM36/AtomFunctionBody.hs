@@ -11,7 +11,9 @@ import Data.Text hiding (map, foldl)
 import Unsafe.Coerce
 import GHC
 import GHC.Paths (libdir)
+#if __GLASGOW_HASKELL__ >= 800
 import GHC.LanguageExtensions
+#endif
 import DynFlags
 import Panic
 import Outputable --hiding ((<>))
