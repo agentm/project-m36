@@ -37,14 +37,17 @@ initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
 initScriptSession ghcPkgPaths = do
     --for the sake of convenience, for developers' builds, include the local cabal sandbox package database and the cabal new-build package database
   homeDir <- getHomeDirectory
-  sandboxPkgPaths <- liftM concat $ mapM glob [
-    "./dist-newstyle/packagedb/ghc-*",
-    ".cabal-sandbox/*packages.conf.d", 
-    homeDir </> ".cabal/store/ghc-*/package.db"
-    ]
   let excHandler exc = pure $ Left (ScriptSessionLoadError exc)
   handleGhcException excHandler $ runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
+    let ghcVersion = projectVersion dflags
+
+    sandboxPkgPaths <- liftIO $ liftM concat $ mapM glob [
+      "./dist-newstyle/packagedb/ghc-" ++ ghcVersion,
+      ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d", 
+      homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
+      ]
+    
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
       
     let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted , 
