@@ -6,7 +6,7 @@ import ProjectM36.Server.Config
 import Data.Monoid
 
 parseArgs :: Parser ServerConfig
-parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> many parseGhcPkgPaths
+parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> many parseGhcPkgPaths <*> parseTimeout
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -42,8 +42,12 @@ parsePort = option auto (short 'p' <>
 parseGhcPkgPaths :: Parser String
 parseGhcPkgPaths = strOption (long "ghc-pkg-dir" <>
                               metavar "GHC_PACKAGE_DIRECTORY")
+                   
+parseTimeout :: Parser Int              
+parseTimeout = option auto (long "timeout" <>
+                            metavar "MICROSECONDS" <>
+                            value (perRequestTimeout defaultServerConfig))                   
 
 parseConfig :: IO ServerConfig
 parseConfig = execParser $ info parseArgs idm
   
-              

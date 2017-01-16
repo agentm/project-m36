@@ -12,36 +12,38 @@ import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNo
 import Control.Distributed.Process.Extras.Time (Delay(..))
 import Control.Distributed.Process (Process, register, RemoteTable, getSelfPid)
 import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
-import System.IO (hPutStrLn, stderr)
 import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 import Control.Concurrent.MVar (putMVar, MVar)
+import System.IO (stderr, hPutStrLn)
 
 -- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
-serverDefinition :: ProcessDefinition Connection
-serverDefinition = defaultProcess {
+--trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
+serverDefinition :: Timeout -> ProcessDefinition Connection
+serverDefinition ti = defaultProcess {
   apiHandlers = [                 
-     handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName sessionId conn),
-     handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr sessionId conn expr),
-     handleCall (\conn (ExecuteDatabaseContextExpr sessionId expr) -> handleExecuteDatabaseContextExpr sessionId conn expr),
-     handleCall (\conn (ExecuteDatabaseContextIOExpr sessionId expr) -> handleExecuteDatabaseContextIOExpr sessionId conn expr),
-     handleCall (\conn (ExecuteGraphExpr sessionId expr) -> handleExecuteGraphExpr sessionId conn expr),
-     handleCall (\conn (ExecuteTransGraphRelationalExpr sessionId expr) -> handleExecuteTransGraphRelationalExpr sessionId conn expr),     
-     handleCall (\conn (ExecuteTypeForRelationalExpr sessionId expr) -> handleExecuteTypeForRelationalExpr sessionId conn expr),
-     handleCall (\conn (RetrieveInclusionDependencies sessionId) -> handleRetrieveInclusionDependencies sessionId conn),
-     handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr sessionId conn dbExpr),
-     handleCall (\conn (RetrieveHeadTransactionId sessionId) -> handleRetrieveHeadTransactionId sessionId conn),
-     handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph sessionId conn),
-     handleCall (\conn (Login procId) -> handleLogin conn procId),
-     handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead headn conn),
-     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit commitId conn),
-     handleCall (\conn (CloseSession sessionId) -> handleCloseSession sessionId conn),
-     handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation sessionId conn),
-     handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary sessionId conn),
-     handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName sessionId conn),
-     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr sessionId conn schemaExpr)
+     handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName ti sessionId conn),
+     handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr ti sessionId conn expr),
+     handleCall (\conn (ExecuteDatabaseContextExpr sessionId expr) -> handleExecuteDatabaseContextExpr ti sessionId conn expr),
+     handleCall (\conn (ExecuteDatabaseContextIOExpr sessionId expr) -> handleExecuteDatabaseContextIOExpr ti sessionId conn expr),
+     handleCall (\conn (ExecuteGraphExpr sessionId expr) -> handleExecuteGraphExpr ti sessionId conn expr),
+     handleCall (\conn (ExecuteTransGraphRelationalExpr sessionId expr) -> handleExecuteTransGraphRelationalExpr ti sessionId conn expr),     
+     handleCall (\conn (ExecuteTypeForRelationalExpr sessionId expr) -> handleExecuteTypeForRelationalExpr ti sessionId conn expr),
+     handleCall (\conn (RetrieveInclusionDependencies sessionId) -> handleRetrieveInclusionDependencies ti sessionId conn),
+     handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr),
+     handleCall (\conn (RetrieveHeadTransactionId sessionId) -> handleRetrieveHeadTransactionId ti sessionId conn),
+     handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph ti sessionId conn),
+     handleCall (\conn (Login procId) -> handleLogin ti conn procId),
+     handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead ti headn conn),
+     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit ti commitId conn),
+     handleCall (\conn (CloseSession sessionId) -> handleCloseSession ti sessionId conn),
+     handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
+     handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
+     handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
+     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr)
      ],
   unhandledMessagePolicy = Log
   }
+
                  
 initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar Port), Port) Connection
 initServer (conn, dbname, mPortMVar, portNum) = do
@@ -82,7 +84,7 @@ launchServer daemonConfig mPortMVar = do
         Right transport -> do
           localTCPNode <- newLocalNode transport remoteTable
           runProcess localTCPNode $ do
-            serve (conn, databaseName daemonConfig, mPortMVar, port) initServer serverDefinition
+            serve (conn, databaseName daemonConfig, mPortMVar, port) initServer (serverDefinition (perRequestTimeout daemonConfig))
             liftIO $ putStrLn "serve returned"
           pure True
   
