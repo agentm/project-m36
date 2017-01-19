@@ -53,3 +53,6 @@ data RetrieveRelationVariableSummary = RetrieveRelationVariableSummary SessionId
                                      deriving (Binary, Generic)
 data RetrieveCurrentSchemaName = RetrieveCurrentSchemaName SessionId
                                  deriving (Binary, Generic)
+                                          
+                                      
+                                          

@@ -58,6 +58,7 @@ module ProjectM36.Client
        AttributeExpr,
        AttributeExprBase(..),
        TypeConstructor(..),
+       RequestTimeoutException(..),
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -89,11 +90,10 @@ import Data.UUID.V4 (nextRandom)
 import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
-import Control.Exception (IOException, handle, AsyncException, throwIO, fromException)
+import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
---import Control.Distributed.Process.Debug
 import qualified STMContainers.Map as STMMap
 import qualified STMContainers.Set as STMSet
 import qualified ProjectM36.Session as Sess
@@ -104,7 +104,6 @@ import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
---import Debug.Trace
 
 type Hostname = String
 
@@ -120,6 +119,11 @@ emptyNotificationCallback :: NotificationCallback
 emptyNotificationCallback _ _ = pure ()
 
 type GhcPkgPath = String
+
+data RequestTimeoutException = RequestTimeoutException
+                             deriving (Show, Eq)
+
+instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'.
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath]|
@@ -240,7 +244,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
         case mServerProcessId of
           Nothing -> liftIO $ putMVar connStatus $ Left (NoSuchDatabaseByNameError databaseName)
           Just serverProcessId -> do
-            loginConfirmation <- call serverProcessId (Login notificationListenerPid)
+            loginConfirmation <- safeLogin (Login notificationListenerPid) serverProcessId
             if not loginConfirmation then
               liftIO $ putMVar connStatus (Left LoginError)
               else do
@@ -350,13 +354,22 @@ runProcessResult localNode proc = do
     liftIO $ putMVar ret val
   takeMVar ret
 
+safeLogin :: Login -> ProcessId -> Process (Bool)
+safeLogin login procId = do 
+  ret <- call procId login
+  case ret of
+    Left (_ :: ServerError) -> pure False
+    Right val -> pure val
+
 remoteCall :: (Serializable a, Serializable b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ _ _ _ _) _ = error "remoteCall called on local connection"
 remoteCall (RemoteProcessConnection localNode serverProcessId) arg = runProcessResult localNode $ do
   ret <- safeCall serverProcessId arg
   case ret of
-    Left err -> error (show err)
-    Right ret' -> pure ret'
+    Left err -> error ("server died: " ++ show err)
+    Right ret' -> case ret' of
+                       Left RequestTimeoutError -> liftIO (throwIO RequestTimeoutException)
+                       Right val -> pure val
 
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
 sessionForSessionId sessionId sessions = do

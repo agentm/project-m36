@@ -32,6 +32,7 @@ import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
 import System.IO (hPutStrLn, stderr)
 import Data.Monoid
+import Control.Exception
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -208,6 +209,8 @@ reprLoop config sessionId conn = do
         Left err -> do
           displayOpResult $ DisplayParseErrorResult (T.length prompt) err
         Right parsed -> do 
-          evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
-          displayOpResult evald
+          catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
+            evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
+            displayOpResult evald)
+            (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))
       reprLoop config sessionId conn
