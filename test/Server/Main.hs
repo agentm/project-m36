@@ -4,6 +4,7 @@ test client/server interaction
 import Test.HUnit
 import ProjectM36.Client
 import qualified ProjectM36.Client as C
+import ProjectM36.Server.EntryPoints
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
@@ -13,42 +14,54 @@ import ProjectM36.Base
 
 import System.Exit
 import Control.Concurrent
+import Network.Transport (EndPointAddress)
+import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
 import Data.Maybe (isJust)
+import Control.Exception
+import Control.Monad.IO.Class
 
 testList :: SessionId -> Connection -> MVar () -> Test
-testList sessionId conn notificationTestMVar = TestList $ map (\t -> t sessionId conn) [
-  testRelationalExpr,
-  testSchemaExpr,
-  testTypeForRelationalExpr,  
-  testDatabaseContextExpr,
-  testGraphExpr,
-  testPlanForDatabaseContextExpr,
-  testTransactionGraphAsRelation,
-  testHeadTransactionId,
-  testHeadName,
-  testSession,
-  testRelationVariableSummary,
-  testNotification notificationTestMVar
-  ]
+testList sessionId conn notificationTestMVar = TestList $ serverTests
+  where
+    sessionTests = map (\t -> t sessionId conn) [
+      testRelationalExpr,
+      testSchemaExpr,
+      testTypeForRelationalExpr,  
+      testDatabaseContextExpr,
+      testGraphExpr,
+      testPlanForDatabaseContextExpr,
+      testTransactionGraphAsRelation,
+      testHeadTransactionId,
+      testHeadName,
+      testSession,
+      testRelationVariableSummary,
+      testNotification notificationTestMVar
+      ] 
+    serverTests = [testRequestTimeout]
            
 main :: IO ()
 main = do
-  port <- launchTestServer
+  (serverAddress, _) <- launchTestServer 0
   notificationTestMVar <- newEmptyMVar 
-  eTestConn <- testConnection port notificationTestMVar
+  eTestConn <- testConnection serverAddress notificationTestMVar
   case eTestConn of
     Left err -> putStrLn (show err) >> exitFailure
     Right (session, testConn) -> do
       tcounts <- runTestTT (testList session testConn notificationTestMVar)
       if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
+{-main = do
+    tcounts <- runTestTT (TestList [testRequestTimeout])
+    if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess-}
+                                                                     
 testDatabaseName :: DatabaseName
 testDatabaseName = "test"
 
-testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
-testConnection port mvar = do
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (createNodeId "127.0.0.1" port) (testNotificationCallback mvar)
+testConnection :: EndPointAddress -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
+testConnection serverAddress mvar = do
+  let connInfo = RemoteProcessConnectionInfo testDatabaseName (NodeId serverAddress) (testNotificationCallback mvar)
+  putStrLn ("Connecting to " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err
@@ -59,12 +72,18 @@ testConnection port mvar = do
         Right sessionId -> pure $ Right (sessionId, conn)
 
 -- | A version of 'launchServer' which returns the port on which the server is listening on a secondary thread
-launchTestServer :: IO (Port)
-launchTestServer = do
-  let config = defaultServerConfig { databaseName = testDatabaseName }
-  portVar <- newEmptyMVar
-  _ <- forkIO $ launchServer config (Just portVar) >> pure ()
-  takeMVar portVar
+launchTestServer :: Timeout -> IO (EndPointAddress, ThreadId)
+launchTestServer ti = do
+  let config = defaultServerConfig { databaseName = testDatabaseName, 
+                                     perRequestTimeout = ti,
+                                     testMode = True,
+                                     bindPort = 0
+                                   }
+  addressMVar <- newEmptyMVar
+  tid <- forkIO $ launchServer config (Just addressMVar) >> pure ()
+  endPointAddress <- takeMVar addressMVar
+  liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
+  pure (endPointAddress, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
 testRelationalExpr sessionId conn = TestCase $ do
@@ -172,3 +191,18 @@ testNotification mvar sess conn = TestCase $ do
   check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
   check $ commit sess conn
   takeMVar mvar
+
+testRequestTimeout :: Test
+testRequestTimeout = TestCase $ do
+  (serverAddress, serverTid) <- launchTestServer 1000
+  unusedMVar <- newEmptyMVar       
+  let Just (host, service, _) = decodeEndPointAddress serverAddress
+      serverAddress' = encodeEndPointAddress host service 1
+  eTestConn <- testConnection serverAddress' unusedMVar  
+  --eTestConn <- testConnection (encodeEndPointAddress "127.0.0.1" "10000" 1) unusedMVar
+  case eTestConn of
+    Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
+    Right (session, testConn) -> do
+      res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
+      assertBool "exception was not thrown" (not res)
+      killThread serverTid

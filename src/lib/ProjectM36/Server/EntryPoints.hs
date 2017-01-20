@@ -27,7 +27,7 @@ type Reply a = Process (ProcessReply (Either ServerError a) Connection)
     
 handleExecuteRelationalExpr :: Timeout -> SessionId -> Connection -> RelationalExpr -> Reply (Either RelationalError Relation)
 handleExecuteRelationalExpr ti sessionId conn expr = do
-  ret <- timeoutOrDie ti (threadDelay 5000 >> executeRelationalExpr sessionId conn expr)
+  ret <- timeoutOrDie ti (executeRelationalExpr sessionId conn expr)
   reply ret conn
   
 handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Maybe RelationalError)
@@ -119,8 +119,14 @@ handleRetrieveCurrentSchemaName :: Timeout -> SessionId -> Connection -> Reply (
 handleRetrieveCurrentSchemaName ti sessionId conn = do
   ret <- timeoutOrDie ti (currentSchemaName sessionId conn)
   reply ret conn  
+
 handleExecuteSchemaExpr :: Timeout -> SessionId -> Connection -> SchemaExpr -> Reply (Maybe RelationalError)
 handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
   ret <- timeoutOrDie ti (executeSchemaExpr sessionId conn schemaExpr)
+  reply ret conn
+  
+handleTestTimeout :: Timeout -> SessionId -> Connection -> Reply Bool  
+handleTestTimeout ti _ conn = do
+  ret <- timeoutOrDie ti (threadDelay 100000 >> pure True)
   reply ret conn
   

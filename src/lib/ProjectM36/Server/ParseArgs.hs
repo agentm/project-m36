@@ -6,7 +6,7 @@ import ProjectM36.Server.Config
 import Data.Monoid
 
 parseArgs :: Parser ServerConfig
-parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> many parseGhcPkgPaths <*> parseTimeout
+parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> many parseGhcPkgPaths <*> parseTimeout <*> pure False
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>

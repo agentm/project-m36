@@ -47,8 +47,12 @@ websocketProxyServer port host pending = do
                     case parseTutorialD tutdString of
                       Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
                       Right parsed -> do
-                        result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
-                        handleOpResult conn dbconn result
+                        let timeoutFilter = \exc -> if exc == RequestTimeoutException 
+                                                    then Just exc 
+                                                    else Nothing
+                        catchJust timeoutFilter (do
+                                                    result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
+                                                    handleOpResult conn dbconn result) (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
                   _ -> unexpectedMsg
               pure ()
     

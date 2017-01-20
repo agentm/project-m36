@@ -6,8 +6,10 @@ data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    bindHost :: Hostname,
                                    bindPort :: Port,
                                    ghcPkgPaths :: [String], -- used for AtomFunction dynamic compilation
-                                   perRequestTimeout :: Int
+                                   perRequestTimeout :: Int,
+                                   testMode :: Bool -- used exclusively for automated testing of the server, thus not accessible from the command line
                                    }
+                    deriving (Show)
 
 defaultServerConfig :: ServerConfig
 defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
@@ -15,5 +17,6 @@ defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
                                      bindHost = "127.0.0.1",
                                      bindPort = 6543,
                                      ghcPkgPaths = [],
-                                     perRequestTimeout = 0
+                                     perRequestTimeout = 0,
+                                     testMode = False
                                      }

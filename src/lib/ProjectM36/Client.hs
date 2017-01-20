@@ -42,6 +42,7 @@ module ProjectM36.Client
        createSessionAtHead,
        closeSession,
        addClientNode,
+       callTestTimeout_,
        RelationCardinality(..),
        TransactionGraphOperator(..),
        TransGraphRelationalExpr,
@@ -105,6 +106,8 @@ import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
 
+import Debug.Trace
+
 type Hostname = String
 
 type Port = Word16
@@ -143,7 +146,7 @@ data EvaluatedNotification = EvaluatedNotification {
                            deriving(Binary, Eq, Show, Generic)
                       
 createNodeId :: Hostname -> Port -> NodeId                      
-createNodeId host port = NodeId $ encodeEndPointAddress host (show port) 0
+createNodeId host port = NodeId $ encodeEndPointAddress host (show port) 1
                       
 defaultServerPort :: Port
 defaultServerPort = 6543
@@ -235,7 +238,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
   eLocalNode <- commonLocalNode
   notificationListenerPid <- startNotificationListener notificationCallback
   let dbName = remoteDBLookupName databaseName
-  --putStrLn $ show serverNodeId ++ " " ++ dbName
+  putStrLn $ "Connecting to " ++ show serverNodeId ++ " " ++ dbName
   case eLocalNode of
     Left err -> pure (Left err)
     Right localNode -> do
@@ -719,3 +722,7 @@ atomTypesAsRelation sessionId (InProcessConnection _ _ sessions _ _) = do
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)
         
+--used only for testing- we expect this to throw an exception
+callTestTimeout_ :: SessionId -> Connection -> IO Bool
+callTestTimeout_ _ (InProcessConnection _ _ _ _ _) = error "bad testing call"
+callTestTimeout_ sessionId conn@(RemoteProcessConnection _ _) = remoteCall conn (TestTimeout sessionId)

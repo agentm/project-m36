@@ -8,6 +8,7 @@ import ProjectM36.Server.Config (ServerConfig(..))
 
 import Control.Monad.IO.Class (liftIO)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
+import Network.Transport (EndPointAddress(..), newEndPoint, address)
 import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode)
 import Control.Distributed.Process.Extras.Time (Delay(..))
 import Control.Distributed.Process (Process, register, RemoteTable, getSelfPid)
@@ -18,8 +19,8 @@ import System.IO (stderr, hPutStrLn)
 
 -- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
 --trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
-serverDefinition :: Timeout -> ProcessDefinition Connection
-serverDefinition ti = defaultProcess {
+serverDefinition :: Bool -> Timeout -> ProcessDefinition Connection
+serverDefinition testBool ti = defaultProcess {
   apiHandlers = [                 
      handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName ti sessionId conn),
      handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr ti sessionId conn expr),
@@ -40,17 +41,23 @@ serverDefinition ti = defaultProcess {
      handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
      handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
      handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr)
-     ],
+     ] ++ testModeHandlers,
   unhandledMessagePolicy = Log
   }
-
+  where
+    testModeHandlers = if not testBool then
+                         []
+                       else
+                         [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn)]
+                               
                  
-initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar Port), Port) Connection
-initServer (conn, dbname, mPortMVar, portNum) = do
+initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar EndPointAddress), EndPointAddress) Connection
+initServer (conn, dbname, mAddressMVar, saddress) = do
   registerDB dbname
-  case mPortMVar of
+  case mAddressMVar of
        Nothing -> pure ()
-       Just portMVar -> liftIO $ putMVar portMVar portNum
+       Just addressMVar -> liftIO $ putMVar addressMVar saddress
+  --traceShowM ("server started on " ++ show saddress)
   pure $ InitOk conn Infinity
 
 remoteTable :: RemoteTable
@@ -68,8 +75,8 @@ loggingNotificationCallback :: NotificationCallback
 loggingNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received \"" ++ show notName ++ "\": " ++ show evaldNot
 
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
-launchServer :: ServerConfig -> Maybe (MVar Port) -> IO (Bool)
-launchServer daemonConfig mPortMVar = do  
+launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO (Bool)
+launchServer daemonConfig mAddressMVar = do  
   econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
   case econn of 
     Left err -> do      
@@ -82,9 +89,15 @@ launchServer daemonConfig mPortMVar = do
       case etransport of
         Left err -> error (show err)
         Right transport -> do
-          localTCPNode <- newLocalNode transport remoteTable
-          runProcess localTCPNode $ do
-            serve (conn, databaseName daemonConfig, mPortMVar, port) initServer (serverDefinition (perRequestTimeout daemonConfig))
-            liftIO $ putStrLn "serve returned"
-          pure True
+          eEndpoint <- newEndPoint transport
+          case eEndpoint of 
+            Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
+            Right endpoint -> do
+              localTCPNode <- newLocalNode transport remoteTable
+              runProcess localTCPNode $ do
+                let testBool = testMode daemonConfig
+                    reqTimeout = perRequestTimeout daemonConfig
+                serve (conn, databaseName daemonConfig, mAddressMVar, (address endpoint)) initServer (serverDefinition testBool reqTimeout)
+              liftIO $ putStrLn "serve returned"
+              pure True
   
