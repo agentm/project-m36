@@ -13,6 +13,7 @@ import Data.Aeson
 import Data.UUID.Aeson ()
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding
+import Data.Time.Calendar
 
 instance ToJSON RelationalExpr
 instance FromJSON RelationalExpr
@@ -72,8 +73,9 @@ instance ToJSON Atom where
                                         "val" .= i ]
   toJSON atom@(TextAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
-  toJSON atom@(DayAtom i) = object [ "type" .= atomTypeForAtom atom,
-                                      "val" .= i ]
+  toJSON atom@(DayAtom i) = do
+    object [ "type" .= atomTypeForAtom atom,
+             "val" .= toGregorian i ]
   toJSON atom@(DateTimeAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
   toJSON atom@(ByteStringAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -100,7 +102,9 @@ instance FromJSON Atom where
       IntAtomType -> IntAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"
       TextAtomType -> TextAtom <$> o .: "val"
-      DayAtomType -> DayAtom <$> o .: "val"
+      DayAtomType -> do
+        (y, m, d) <- o .: "val"
+        pure (DayAtom (fromGregorian y m d))
       DateTimeAtomType -> DateTimeAtom <$> o .: "val"
       ByteStringAtomType -> do
         b64bs <- liftM encodeUtf8 (o .: "val")
