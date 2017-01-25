@@ -17,25 +17,28 @@ import ProjectM36.Base
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
+import Network.Transport.TCP (decodeEndPointAddress)
 
 --start the websocket server
 -- run some tutoriald against it
 
 launchTestServer :: IO (PortNumber, DatabaseName)
 launchTestServer = do
-  portMVar <- newEmptyMVar
-  let config = defaultServerConfig { databaseName = testDatabaseName }
+  addressMVar <- newEmptyMVar
+  let config = defaultServerConfig { databaseName = testDatabaseName, 
+                                     bindPort = 0 }
       testDatabaseName = "test"
   -- start normal server
-  _ <- forkIO (launchServer config (Just portMVar) >> pure ())
-  serverPort <- takeMVar portMVar
-  let serverHost = "127.0.0.1"
-  let testPort = 8889
+  _ <- forkIO (launchServer config (Just addressMVar) >> pure ())
+  serverAddress <- takeMVar addressMVar
+  let wsServerHost = "127.0.0.1"
+      wsServerPort = 8889
+      Just (dbHost, dbPort, _) = decodeEndPointAddress serverAddress      
   -- start websocket server proxy -- runServer doesn't support returning an arbitrary socket
-  _ <- forkIO (WS.runServer serverHost testPort (websocketProxyServer serverPort serverHost))
+  _ <- forkIO (WS.runServer wsServerHost wsServerPort (websocketProxyServer (read dbPort) dbHost))
   --wait for socket to be listening
-  waitForListenSocket 5 (fromIntegral testPort)
-  pure (fromIntegral testPort, testDatabaseName)
+  waitForListenSocket 5 (fromIntegral wsServerPort)
+  pure (fromIntegral wsServerPort, testDatabaseName)
   
 data TestException = WaitForSocketListenException
                    deriving (Show, Typeable)

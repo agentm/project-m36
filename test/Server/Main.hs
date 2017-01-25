@@ -22,7 +22,7 @@ import Control.Exception
 import Control.Monad.IO.Class
 
 testList :: SessionId -> Connection -> MVar () -> Test
-testList sessionId conn notificationTestMVar = TestList $ serverTests
+testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
   where
     sessionTests = map (\t -> t sessionId conn) [
       testRelationalExpr,
@@ -60,8 +60,10 @@ testDatabaseName = "test"
 
 testConnection :: EndPointAddress -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
 testConnection serverAddress mvar = do
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (NodeId serverAddress) (testNotificationCallback mvar)
-  putStrLn ("Connecting to " ++ show serverAddress)
+  let Just (host, service, _) = decodeEndPointAddress serverAddress
+      serverAddress' = encodeEndPointAddress host service 1  
+  let connInfo = RemoteProcessConnectionInfo testDatabaseName (NodeId serverAddress') (testNotificationCallback mvar)
+  --putStrLn ("testConnection: " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err
@@ -82,7 +84,7 @@ launchTestServer ti = do
   addressMVar <- newEmptyMVar
   tid <- forkIO $ launchServer config (Just addressMVar) >> pure ()
   endPointAddress <- takeMVar addressMVar
-  liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
+  --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
   pure (endPointAddress, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
@@ -196,9 +198,7 @@ testRequestTimeout :: Test
 testRequestTimeout = TestCase $ do
   (serverAddress, serverTid) <- launchTestServer 1000
   unusedMVar <- newEmptyMVar       
-  let Just (host, service, _) = decodeEndPointAddress serverAddress
-      serverAddress' = encodeEndPointAddress host service 1
-  eTestConn <- testConnection serverAddress' unusedMVar  
+  eTestConn <- testConnection serverAddress unusedMVar  
   --eTestConn <- testConnection (encodeEndPointAddress "127.0.0.1" "10000" 1) unusedMVar
   case eTestConn of
     Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
