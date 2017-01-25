@@ -6,3 +6,4 @@ dist/
 cabal.sandbox.config
 .stack-work
 dist-newstyle/
+dist_build/
