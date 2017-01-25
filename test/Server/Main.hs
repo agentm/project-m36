@@ -19,7 +19,7 @@ import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
 import Data.Maybe (isJust)
 import Control.Exception
-import Control.Monad.IO.Class
+--import Control.Monad.IO.Class
 
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
