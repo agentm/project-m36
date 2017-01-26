@@ -14,10 +14,14 @@ import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import ProjectM36.Client
 import Control.Exception
+import Data.Maybe (fromMaybe)
+import System.IO (hPutStrLn, stderr)
+import System.Exit
 
 -- | Called when the project-m36-server exits.
 failureHandler :: Either SomeException Bool -> IO ()
-failureHandler = error "project-m36-server exited unexpectedly"
+failureHandler (Left exc) = hPutStrLn stderr ("WebSocket server encountered exception: " ++ show exc) >> exitFailure
+failureHandler (Right boo) = hPutStrLn stderr ("WebSocket server encountered boolean failure: " ++ show boo) >> exitFailure
 
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
@@ -39,6 +43,9 @@ websocketProxyServer port host pending = do
             Right sessionId -> do
               --phase 2- accept tutoriald commands
               _ <- forever $ do
+                pInfo <- promptInfo sessionId dbconn
+                sendPromptInfo pInfo conn                
+                sendPromptInfo pInfo conn
                 msg <- (WS.receiveData conn) :: IO T.Text
                 let tutdprefix = "executetutd:"
                 case msg of
@@ -50,9 +57,12 @@ websocketProxyServer port host pending = do
                         let timeoutFilter = \exc -> if exc == RequestTimeoutException 
                                                     then Just exc 
                                                     else Nothing
-                        catchJust timeoutFilter (do
-                                                    result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
-                                                    handleOpResult conn dbconn result) (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
+                            responseHandler = do
+                              result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
+                              pInfo' <- promptInfo sessionId dbconn
+                              sendPromptInfo pInfo' conn                       
+                              handleOpResult conn dbconn result
+                        catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
                   _ -> unexpectedMsg
               pure ()
     
@@ -76,3 +86,13 @@ handleOpResult conn _ (DisplayErrorResult err) = WS.sendTextData conn (encode (o
 handleOpResult conn _ (DisplayParseErrorResult _ err) = WS.sendTextData conn (encode (object ["displayparseerrorresult" .= show err]))
 handleOpResult conn _ QuietSuccessResult = WS.sendTextData conn (encode (object ["acknowledged" .= True]))
 handleOpResult conn _ (DisplayRelationResult rel) = WS.sendTextData conn (encode (object ["displayrelation" .= rel]))
+
+-- get current schema and head name for client
+promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
+promptInfo sessionId conn = do
+  mHeadName <- headName sessionId conn  
+  mSchemaName <- currentSchemaName sessionId conn
+  pure (fromMaybe "<unknown>" mHeadName, fromMaybe "<no schema>" mSchemaName)
+  
+sendPromptInfo :: (HeadName, SchemaName) -> WS.Connection -> IO ()
+sendPromptInfo (hName, sName) conn = WS.sendTextData conn (encode (object ["promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))

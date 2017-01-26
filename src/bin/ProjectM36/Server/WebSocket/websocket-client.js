@@ -44,6 +44,11 @@ function updateStatus(status)
     }
 }
 
+function promptUpdate(headName, schemaName)
+{
+    document.getElementById("promptinfo").textContent = "Current Branch: (" + headName + ") Schema: (" + schemaName + ")";
+}
+
 var conn;
 
 function connectOrDisconnect(form)
@@ -52,20 +57,24 @@ function connectOrDisconnect(form)
     var host = formin["host"].value;
     var port = formin["port"].value;
     var dbname = formin["dbname"].value;
+    var conninfo = document.getElementById("conninfo");
     
     if(window.conn && window.conn.readyState() == 1)
     {
 	//disconnect
 	window.conn.close();
+	conninfo.textContent = "Connect to:";
 	toggleConnectionFields(form, true, "Connect");
     }
     else
     {
 	//connect
+	conninfo.textContent = "Connected to:";
 	window.conn = new ProjectM36Connection(host, port, dbname,
 					       connectionOpened,
 					       connectionError,
 					       updateStatus,
+					       promptUpdate,
 					       connectionClosed);
 	toggleConnectionFields(form, false, "Connecting...");
     }

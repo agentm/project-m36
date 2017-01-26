@@ -59,9 +59,9 @@ margin: 3px;
   width: 100px;
 }
 
-#samples
+#samples li
 {
-  display:none;
+  font-family: Courier;
 }
 
 #samplesouter
@@ -77,17 +77,29 @@ margin: 3px;
   background-color: #d1d1e0;
 }
 
+#tutd
+{
+  width: 300pt;
+  height: 100pt;
+  text-valign: top;
+}
+
 </style>
 </head>
 <body onload="installSampleHandlers();">
-<h1>Project:M36 WebSocket Client</h1>
+<h1><a href="https://github.com/agentm/project-m36">Project:M36</a> WebSocket Client</h1>
 <div id="sheet">
   <div id="interactor">
     <form onsubmit="return connectOrDisconnect(this);" id="connection">
-      <label>Connection:</label><input type="text" name="host" value="localhost" placeholder="Host"/>:<input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/<input type="text" placeholder="Database Name" name="dbname" value="test"/><input type="submit" name="connect" value="Connect"/>
+      <label id="conninfo">Connect to:</label><input type="text" name="host" value="localhost" placeholder="Host"/>:<input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/<input type="text" placeholder="Database Name" name="dbname" value="test"/><input type="submit" name="connect" value="Connect"/>
     </form>
-    <div onmouseover="toggleSamples(this, true);" onmouseleave="toggleSamples(this, false);" id="samplesouter">
-      <span>Sample TutorialD: <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a>.</span>
+    <form onsubmit="return execTutorialD();">
+    <input type="textarea" id="tutd" placeholder="Enter a TutorialD query here."/>
+    <label id="promptinfo"></label>
+    <input type="submit" value="Evaluate TutorialD"/>
+    </form>
+    <div id="samplesouter">
+      <span>Try our <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a> or click these sample queries below:</span>
 </span>
       <ul id="samples">
 	<li>:showexpr true</li>
@@ -100,10 +112,6 @@ margin: 3px;
 	<li>:showgraph</li>
       </ul>
     </div>
-    <form onsubmit="return execTutorialD();">
-    <input type="text" id="tutd"/>
-    <input type="submit"/>
-    </form>
   </div>
   <div id="sectiontemplate">
     <span class="title"></span>

@@ -1,4 +1,4 @@
-var ProjectM36Connection = function (host, port, dbname, openCallback, errorCallback, statusCallback, closeCallback) {
+var ProjectM36Connection = function (host, port, dbname, openCallback, errorCallback, statusCallback, promptCallback, closeCallback) {
     this.host = host
     this.port = port
     this.dbname = dbname
@@ -21,6 +21,7 @@ var ProjectM36Connection = function (host, port, dbname, openCallback, errorCall
 	closeCallback(event);
     };
     this.statuscallback = statusCallback;
+    this.promptcallback = promptCallback;
     this.socket = socket;
 }
 
@@ -46,6 +47,8 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     var relation = message["displayrelation"];
     var acknowledged = message["acknowledged"];
     var error = message["displayerror"];
+    var prompt = message["promptInfo"];
+
     if(relation)
     {
         this.statuscallback(new ProjectM36Status(relation, null, null));
@@ -63,6 +66,11 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 	    error=error.tag; // for error objects
 	}
 	this.statuscallback(new ProjectM36Status(null, null, error));
+    }
+
+    if(prompt)
+    {
+	this.promptcallback(prompt["headname"], prompt["schemaname"]);
     }
 }
 

@@ -21,6 +21,8 @@ module ProjectM36.Client
        planForDatabaseContextExpr,
        processPersistence,
        currentSchemaName,
+       SchemaName,
+       HeadName,
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
@@ -106,7 +108,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
 
-import Debug.Trace
+--import Debug.Trace
 
 type Hostname = String
 
