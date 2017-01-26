@@ -57,14 +57,18 @@ function connectOrDisconnect(form)
     var host = formin["host"].value;
     var port = formin["port"].value;
     var dbname = formin["dbname"].value;
+
     var conninfo = document.getElementById("conninfo");
+    var promptInfo = document.getElementById("promptinfo");
     
     if(window.conn && window.conn.readyState() == 1)
     {
 	//disconnect
 	window.conn.close();
 	conninfo.textContent = "Connect to:";
+	
 	toggleConnectionFields(form, true, "Connect");
+	promptInfo.textContent = "";
     }
     else
     {
@@ -98,6 +102,8 @@ function toggleConnectionFields(form, enabled, status)
 {
     form.elements["connect"].value = status;
     var readonlyElements = [form.elements["host"], form.elements["port"], form.elements["dbname"]];
+    var evalButton = document.getElementById("eval");
+
     for(var ein=0; ein < readonlyElements.length; ein++)
     {
 	var e = readonlyElements[ein];
@@ -110,6 +116,16 @@ function toggleConnectionFields(form, enabled, status)
 	    e.setAttribute("readonly", "readonly");
 	}
     }
+    //also update the eval/submit button
+    if(enabled)
+    {
+	evalButton.setAttribute("disabled", "disabled");
+    }
+    else
+    {
+	evalButton.removeAttribute("disabled");
+    }
+
 }
 
 function connectionOpened(event)
@@ -133,23 +149,10 @@ function execTutorialD()
     return false;
 }
 
-function hideParent(element)
+function hideResult(element)
 {
-    var deleteNode = element.parentNode;
-    element.parentNode.parentNode.removeChild(deleteNode)
-}
-
-function toggleSamples(element,show)
-{
-    var samples = document.getElementById("samples");
-    if(show)
-    {
-	samples.style.display = "block";
-    }
-    else
-    {
-	samples.style.display = "none";
-    }
+    var deleteNode = element.parentNode.parentNode;
+    element.parentNode.parentNode.parentNode.removeChild(deleteNode)
 }
 
 function installSampleHandlers()

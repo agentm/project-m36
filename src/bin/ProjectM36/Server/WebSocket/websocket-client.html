@@ -13,7 +13,6 @@
 
 .deletesection
 {
-  float:right;
   border: 1px solid;
   padding: 3px;
   border-radius: 3px;
@@ -29,11 +28,17 @@ background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75
 
 .title
 {
+font-family: Courier;
 padding: 3pt;
 border: 1px solid;
 border-radius: 3px;
 background-image: linear-gradient(to top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0)); 
 margin: 3px;
+}
+
+.titlesection
+{
+margin-bottom: 5pt;
 }
 
 .result table
@@ -95,8 +100,9 @@ margin: 3px;
     </form>
     <form onsubmit="return execTutorialD();">
     <input type="textarea" id="tutd" placeholder="Enter a TutorialD query here."/>
+    <br/>
     <label id="promptinfo"></label>
-    <input type="submit" value="Evaluate TutorialD"/>
+    <input type="submit" id="eval" value="Evaluate TutorialD" disabled="disabled"/>
     </form>
     <div id="samplesouter">
       <span>Try our <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a> or click these sample queries below:</span>
@@ -114,9 +120,10 @@ margin: 3px;
     </div>
   </div>
   <div id="sectiontemplate">
-    <span class="title"></span>
-    <span class="deletesection" onclick="return hideParent(this);">X</span>
-    <div style="clear: both;"></div>
+    <div class="titlesection">
+      <span class="deletesection" onclick="return hideResult(this);">-</span>
+      <span class="title"></span>
+    </div>
     <div class="result">
     </div>
     <span class="relinfo"></span>
