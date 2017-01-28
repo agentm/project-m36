@@ -82,10 +82,23 @@ testBasicConnection port _ = TestCase $ basicConnection port (\conn -> WS.sendCl
 testTutorialD :: PortNumber -> DatabaseName -> Test
 testTutorialD port dbname = TestCase $ basicConnectionWithDatabase port dbname testtutd
   where
-    testtutd = \conn -> do
-      WS.sendTextData conn ("executetutd:" `append` ":showexpr true")
+    discardPromptInfo conn = do
       response <- WS.receiveData conn :: IO BS.ByteString
+      let decoded = decode response :: Maybe (M.Map Text (M.Map Text Text))
+      case decoded of
+        Just _ -> pure ()
+        Nothing ->  assertFailure ("failed to decode prompt info: " ++ show response)
+      
+    testtutd conn = do
+      discardPromptInfo conn
+      WS.sendTextData conn ("executetutd:" `append` ":showexpr true")
+      discardPromptInfo conn
+      discardPromptInfo conn
+      
+      --receive relation response
+      response <- WS.receiveData conn :: IO BS.ByteString      
       let decoded = decode response :: Maybe (M.Map Text Relation)
+      
       case decoded of
         Just val -> assertEqual "round-trip true relation" (M.lookup "displayrelation" val) (Just relationTrue) >> WS.sendClose conn ("test close"::Text)
-        Nothing -> assertFailure "failed to decode relation"
+        Nothing -> assertFailure ("failed to decode relation from: " ++ show response)
