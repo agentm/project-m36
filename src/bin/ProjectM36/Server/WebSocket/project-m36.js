@@ -3,7 +3,7 @@ var ProjectM36Connection = function (host, port, dbname, openCallback, errorCall
     this.port = port
     this.dbname = dbname
     var connectURL = "ws://" + host + ":" + port + "/";
-    var socket = new WebSocket("ws://localhost:8888/");
+    var socket = new WebSocket(connectURL);
     var self = this;
     socket.onopen = function(event) {
 	self.socket.send("connectdb:" + self.dbname);
