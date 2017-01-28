@@ -1,8 +1,10 @@
-var ProjectM36Connection = function (host, port, dbname, openCallback, errorCallback, statusCallback, promptCallback, closeCallback) {
-    this.host = host
-    this.port = port
-    this.dbname = dbname
-    var connectURL = "ws://" + host + ":" + port + "/";
+var ProjectM36Connection = function (protocol, host, port, path, dbname, openCallback, errorCallback, statusCallback, promptCallback, closeCallback) {
+    this.protocol = protocol;
+    this.host = host;
+    this.port = port;
+    this.path = path;
+    this.dbname = dbname;
+    var connectURL = protocol + '://' + host + ":" + port + "/" + path;
     var socket = new WebSocket(connectURL);
     var self = this;
     socket.onopen = function(event) {

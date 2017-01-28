@@ -54,8 +54,10 @@ var conn;
 function connectOrDisconnect(form)
 {
     var formin = form.elements;
+    var protocol = formin["protocol"].value;
     var host = formin["host"].value;
     var port = formin["port"].value;
+    var path = formin["path"].value;
     var dbname = formin["dbname"].value;
 
     var conninfo = document.getElementById("conninfo");
@@ -74,7 +76,8 @@ function connectOrDisconnect(form)
     {
 	//connect
 	conninfo.textContent = "Connected to:";
-	window.conn = new ProjectM36Connection(host, port, dbname,
+	window.conn = new ProjectM36Connection(protocol, host, port, path,
+					       dbname,
 					       connectionOpened,
 					       connectionError,
 					       updateStatus,
@@ -101,8 +104,13 @@ function connectionClosed(event)
 function toggleConnectionFields(form, enabled, status)
 {
     form.elements["connect"].value = status;
-    var readonlyElements = [form.elements["host"], form.elements["port"], form.elements["dbname"]];
-    var evalButton = document.getElementById("eval");
+    var readonlyElements = [form.elements["host"], 
+			    form.elements["port"], 
+			    form.elements["dbname"],
+			    form.elements["path"]];
+    var disableElements = [form.elements["protocol"],
+			   document.getElementById("eval")
+			  ]
 
     for(var ein=0; ein < readonlyElements.length; ein++)
     {
@@ -117,13 +125,18 @@ function toggleConnectionFields(form, enabled, status)
 	}
     }
     //also update the eval/submit button
-    if(enabled)
+    for(var ein=0; ein < disableElements.length; ein++)
     {
-	evalButton.setAttribute("disabled", "disabled");
-    }
-    else
-    {
-	evalButton.removeAttribute("disabled");
+	var e = disableElements[ein];
+	if(enabled)
+	{
+	    e.removeAttribute("disabled");	    
+	}
+	else
+	{
+	    e.setAttribute("disabled", "disabled");
+
+	}
     }
 
 }

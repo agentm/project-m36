@@ -96,7 +96,16 @@ margin-bottom: 5pt;
 <div id="sheet">
   <div id="interactor">
     <form onsubmit="return connectOrDisconnect(this);" id="connection">
-      <label id="conninfo">Connect to:</label><input type="text" name="host" value="localhost" placeholder="Host"/>:<input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/<input type="text" placeholder="Database Name" name="dbname" value="test"/><input type="submit" name="connect" value="Connect"/>
+      <span id="conninfo">Connect to: </span>
+      <select name="protocol">
+	<option value="wss" selected="selected">wss://</option>
+	<option value="ws">ws://</option>
+      </select>
+      <input type="text" name="host" value="localhost" placeholder="Host"/>:
+      <input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/
+      <input type="text" name="path" placeholder="path" value=""/>
+      <label>database:</label><input type="text" placeholder="Database Name" name="dbname" value="test"/>
+      <input type="submit" name="connect" value="Connect"/>
     </form>
     <form onsubmit="return execTutorialD();">
     <input type="textarea" id="tutd" placeholder="Enter a TutorialD query here."/>
