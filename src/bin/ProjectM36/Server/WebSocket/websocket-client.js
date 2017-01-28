@@ -109,8 +109,8 @@ function toggleConnectionFields(form, enabled, status)
 			    form.elements["dbname"],
 			    form.elements["path"]];
     var disableElements = [form.elements["protocol"],
-			   document.getElementById("eval")
 			  ]
+    var enableElements = [document.getElementById("eval")];
 
     for(var ein=0; ein < readonlyElements.length; ein++)
     {
@@ -138,6 +138,22 @@ function toggleConnectionFields(form, enabled, status)
 
 	}
     }
+
+    for(var ein=0; ein < enableElements.length; ein++)
+    {
+	var e = enableElements[ein];
+	if(!enabled)
+	{
+	    e.removeAttribute("disabled");	    
+	}
+	else
+	{
+	    e.setAttribute("disabled", "disabled");
+
+	}
+    }
+
+
 
 }
 

@@ -4,7 +4,15 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     this.port = port;
     this.path = path;
     this.dbname = dbname;
-    var connectURL = protocol + '://' + host + ":" + port + "/" + path;
+    var connectURL = protocol + '://' + host;
+    if(port)
+    {
+	connectURL = connectURL + ":" + port;
+    }
+    if(path)
+    {
+	connectURL = connectURL + "/" + path;
+    }
     var socket = new WebSocket(connectURL);
     var self = this;
     socket.onopen = function(event) {
