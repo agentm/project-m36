@@ -8,8 +8,8 @@ import Control.Monad.IO.Class
 import Control.Exception
 import Data.Text hiding (map, concat, foldl)
 import System.FilePath.Glob
---import System.Directory
---import System.FilePath
+import System.Directory
+import System.FilePath
 import Control.Monad
 
 import Unsafe.Coerce
