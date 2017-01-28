@@ -5,7 +5,6 @@ import ProjectM36.Server
 import Control.Concurrent
 import qualified Network.WebSockets as WS
 import Network.Transport.TCP (decodeEndPointAddress)
-import Debug.Trace
 
 main :: IO ()
 main = do
@@ -22,5 +21,5 @@ main = do
   address <- takeMVar addressMVar
   let Just (_, serverPort, _) = decodeEndPointAddress address
   --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
-  WS.runServer (traceShowId wsHost) (traceShowId (fromIntegral wsPort)) (websocketProxyServer (read serverPort) serverHost)
+  WS.runServer wsHost (fromIntegral wsPort) (websocketProxyServer (read serverPort) serverHost)
 
