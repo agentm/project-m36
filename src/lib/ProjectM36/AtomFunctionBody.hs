@@ -9,6 +9,7 @@ import Control.Exception
 import Data.Text hiding (map, concat, foldl)
 import System.FilePath.Glob
 import System.Directory
+import System.IO.Error
 import System.FilePath
 import Control.Monad
 
@@ -24,6 +25,7 @@ import Outputable --hiding ((<>))
 import PprTyThing
 import Type hiding (pprTyThing)
 
+
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
   atomFunctionBodyType :: Type
@@ -36,7 +38,8 @@ data ScriptSessionError = ScriptSessionLoadError GhcException
 initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
 initScriptSession ghcPkgPaths = do
     --for the sake of convenience, for developers' builds, include the local cabal sandbox package database and the cabal new-build package database
-  homeDir <- getHomeDirectory
+  eHomeDir <- tryJust (guard . isDoesNotExistError) getHomeDirectory
+  let homeDir = either (const "/") id eHomeDir
   let excHandler exc = pure $ Left (ScriptSessionLoadError exc)
   handleGhcException excHandler $ runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
