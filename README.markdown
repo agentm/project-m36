@@ -14,6 +14,10 @@ Project:M36 can be used as an in-process or remote DBMS.
 
 Project:M36 is written entirely in the [Haskell programming language](https://www.haskell.org/).
 
+## Try It!
+
+You can experiment instantly with Project:M36 straight from your browser at [try.project-m36.io](https://try.project-m36.io)!
+
 ## Use-Cases
 
 Project:M36 supports multiple frontends which target different audiences.
