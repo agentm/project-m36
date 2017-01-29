@@ -196,3 +196,18 @@ function installSampleHandlers()
 	}
     }
 }
+
+function setupDefaultConfig()
+{
+    var form = document.getElementById("connection");
+    for(var key in defaultConfig)
+    {
+	form.elements[key].value = defaultConfig[key];
+    }
+}
+
+function pageload()
+{
+    installSampleHandlers();
+    setupDefaultConfig();
+}

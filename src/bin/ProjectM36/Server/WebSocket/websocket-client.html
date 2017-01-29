@@ -5,6 +5,7 @@
 <title>Project:M36 WebSocket Client</title>
 <script type="text/javascript" src="project-m36.js"></script>
 <script type="text/javascript" src="websocket-client.js"></script>
+<script type="text/javascript" src="websocket-config.js"></script>
 <style>
 #sectiontemplate
 {
@@ -59,9 +60,14 @@ margin-bottom: 5pt;
   background-image: linear-gradient(to top, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0));
 }
 
+#connection #port
+{
+  width: 50pt;
+}
+
 #connection input
 {
-  width: 100px;
+  width: 100pt;
 }
 
 #samples li
@@ -85,13 +91,12 @@ margin-bottom: 5pt;
 #tutd
 {
   width: 300pt;
-  height: 100pt;
-  text-valign: top;
+  height: 50pt;
 }
 
 </style>
 </head>
-<body onload="installSampleHandlers();">
+<body onload="pageload();">
 <h1><a href="https://github.com/agentm/project-m36">Project:M36</a> WebSocket Client</h1>
 <div id="sheet">
   <div id="interactor">
@@ -102,16 +107,16 @@ margin-bottom: 5pt;
 	<option value="ws">ws://</option>
       </select>
       <input type="text" name="host" value="localhost" placeholder="Host"/>:
-      <input type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/
+      <input id="port" type="number" placeholder="Port" name="port" min="0" max="32767" value="8888"/>/
       <input type="text" name="path" placeholder="path" value=""/>
       <label>database:</label><input type="text" placeholder="Database Name" name="dbname" value="test"/>
       <input type="submit" name="connect" value="Connect"/>
     </form>
     <form onsubmit="return execTutorialD();">
-    <input type="textarea" id="tutd" placeholder="Enter a TutorialD query here."/>
-    <br/>
-    <label id="promptinfo"></label>
-    <input type="submit" id="eval" value="Evaluate TutorialD" disabled="disabled"/>
+      <textarea id="tutd" placeholder="Enter a TutorialD query here."></textarea>
+      <br/>
+      <label id="promptinfo"></label>
+      <input type="submit" id="eval" value="Evaluate TutorialD" disabled="disabled"/>
     </form>
     <div id="samplesouter">
       <span>Try our <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a> or click these sample queries below:</span>
