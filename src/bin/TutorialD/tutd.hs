@@ -33,6 +33,7 @@ parseHeadName = option auto (long "head" <>
                
 parseDatabaseName :: Parser DatabaseName               
 parseDatabaseName = strOption (long "database" <>
+                               short 'n' <>
                                help "Remote database name")
                
 parseNodeId :: Parser NodeId
