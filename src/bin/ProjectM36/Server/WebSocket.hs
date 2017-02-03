@@ -15,13 +15,6 @@ import TutorialD.Interpreter.Base
 import ProjectM36.Client
 import Control.Exception
 import Data.Maybe (fromMaybe)
-import System.IO (hPutStrLn, stderr)
-import System.Exit
-
--- | Called when the project-m36-server exits.
-failureHandler :: Either SomeException Bool -> IO ()
-failureHandler (Left exc) = hPutStrLn stderr ("WebSocket server encountered exception: " ++ show exc) >> exitFailure
-failureHandler (Right boo) = hPutStrLn stderr ("WebSocket server encountered boolean failure: " ++ show boo) >> exitFailure
 
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
@@ -32,39 +25,43 @@ websocketProxyServer port host pending = do
   let connectdbmsg = "connectdb:"
   if not (connectdbmsg `T.isPrefixOf` dbmsg) then unexpectedMsg >> WS.sendClose conn ("" :: T.Text)
     else do
-      let dbname = T.unpack $ T.drop (T.length connectdbmsg) dbmsg
-      eDbconn <- createConnection conn dbname port host
-      case eDbconn of
-        Left err -> sendError conn err
-        Right dbconn -> do
-          eSessionId <- createSessionAtHead "master" dbconn
-          case eSessionId of
+        let dbname = T.unpack $ T.drop (T.length connectdbmsg) dbmsg
+        bracket (createConnection conn dbname port host) 
+          (\eDBconn -> case eDBconn of
+                            Right dbconn -> close dbconn
+                            Left _ -> pure ()) $ \eDBconn -> do
+          case eDBconn of
             Left err -> sendError conn err
-            Right sessionId -> do
-              --phase 2- accept tutoriald commands
-              _ <- forever $ do
-                pInfo <- promptInfo sessionId dbconn
-                sendPromptInfo pInfo conn                
-                sendPromptInfo pInfo conn
-                msg <- (WS.receiveData conn) :: IO T.Text
-                let tutdprefix = "executetutd:"
-                case msg of
-                  _ | tutdprefix `T.isPrefixOf` msg -> do
-                    let tutdString = T.drop (T.length tutdprefix) msg
-                    case parseTutorialD tutdString of
-                      Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
-                      Right parsed -> do
-                        let timeoutFilter = \exc -> if exc == RequestTimeoutException 
-                                                    then Just exc 
-                                                    else Nothing
-                            responseHandler = do
-                              result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
-                              pInfo' <- promptInfo sessionId dbconn
-                              sendPromptInfo pInfo' conn                       
-                              handleOpResult conn dbconn result
-                        catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
-                  _ -> unexpectedMsg
-              pure ()
+            Right dbconn -> do
+                eSessionId <- createSessionAtHead "master" dbconn
+                case eSessionId of
+                  Left err -> sendError conn err
+                  Right sessionId -> do
+                    --phase 2- accept tutoriald commands
+                    _ <- forever $ do
+                      pInfo <- promptInfo sessionId dbconn
+                      --figure out why sending three times during startup is necessary
+                      sendPromptInfo pInfo conn                
+                      sendPromptInfo pInfo conn
+                      msg <- (WS.receiveData conn) :: IO T.Text
+                      let tutdprefix = "executetutd:"
+                      case msg of
+                        _ | tutdprefix `T.isPrefixOf` msg -> do
+                          let tutdString = T.drop (T.length tutdprefix) msg
+                          case parseTutorialD tutdString of
+                            Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
+                            Right parsed -> do
+                              let timeoutFilter = \exc -> if exc == RequestTimeoutException 
+                                                          then Just exc 
+                                                          else Nothing
+                                  responseHandler = do
+                                    result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
+                                    pInfo' <- promptInfo sessionId dbconn
+                                    sendPromptInfo pInfo' conn                       
+                                    handleOpResult conn dbconn result
+                              catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
+                        _ -> unexpectedMsg
+                    pure ()
     
 notificationCallback :: WS.Connection -> NotificationCallback    
 notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,
