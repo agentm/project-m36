@@ -5,9 +5,16 @@ import Options.Applicative
 import ProjectM36.Server.Config
 import Data.Monoid
 
-parseArgs :: Parser ServerConfig
-parseArgs = ServerConfig <$> parsePersistenceStrategy <*> parseDatabaseName <*> parseHostname <*> parsePort <*> many parseGhcPkgPaths <*> parseTimeout <*> pure False
-
+parseArgsWithDefaults :: ServerConfig -> Parser ServerConfig
+parseArgsWithDefaults defaults = ServerConfig <$> 
+                     parsePersistenceStrategy <*> 
+                     parseDatabaseName <*> 
+                     parseHostname (bindHost defaults) <*> 
+                     parsePort (bindPort defaults) <*> 
+                     many parseGhcPkgPaths <*> 
+                     parseTimeout (perRequestTimeout defaults) <*> 
+                     pure False
+                     
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
                            MinimalPersistence <$> dbdirOpt <|>
@@ -27,27 +34,29 @@ parseDatabaseName = strOption (short 'n' <>
                                long "database" <>
                                metavar "DATABASE_NAME")
                     
-parseHostname :: Parser Hostname                    
-parseHostname = strOption (short 'h' <>
+parseHostname :: Hostname -> Parser Hostname                    
+parseHostname defHostname = strOption (short 'h' <>
                            long "hostname" <>
                            metavar "HOST_NAME" <>
-                           value (bindHost defaultServerConfig))
+                           value defHostname)
                 
-parsePort :: Parser Port                
-parsePort = option auto (short 'p' <>
+parsePort :: Port -> Parser Port                
+parsePort defPort = option auto (short 'p' <>
                          long "port" <>
                          metavar "PORT_NUMBER" <>
-                         value (bindPort defaultServerConfig))
+                         value defPort)
             
 parseGhcPkgPaths :: Parser String
 parseGhcPkgPaths = strOption (long "ghc-pkg-dir" <>
                               metavar "GHC_PACKAGE_DIRECTORY")
                    
-parseTimeout :: Parser Int              
-parseTimeout = option auto (long "timeout" <>
+parseTimeout :: Int -> Parser Int              
+parseTimeout defTimeout = option auto (long "timeout" <>
                             metavar "MICROSECONDS" <>
-                            value (perRequestTimeout defaultServerConfig))                   
+                            value defTimeout)
 
 parseConfig :: IO ServerConfig
-parseConfig = execParser $ info parseArgs idm
+parseConfig = parseConfigWithDefaults defaultServerConfig
   
+parseConfigWithDefaults :: ServerConfig -> IO ServerConfig
+parseConfigWithDefaults defaults = execParser (info (parseArgsWithDefaults defaults) idm)
