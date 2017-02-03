@@ -40,9 +40,11 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
      handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
      handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
-     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr)
+     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr),
+     handleCall (\conn Logout -> handleLogout ti conn)
      ] ++ testModeHandlers,
-  unhandledMessagePolicy = Log
+  unhandledMessagePolicy = Terminate
+  --unhandledMessagePolicy = Log
   }
   where
     testModeHandlers = if not testBool then
@@ -68,7 +70,7 @@ registerDB dbname = do
   self <- getSelfPid
   let dbname' = remoteDBLookupName dbname  
   register dbname' self
-  liftIO $ putStrLn $ "registered " ++ (show self) ++ " " ++ dbname'
+  --liftIO $ putStrLn $ "registered " ++ (show self) ++ " " ++ dbname'
 
 -- | A notification callback which logs the notification to stderr and does nothing else.
 loggingNotificationCallback :: NotificationCallback
@@ -94,6 +96,7 @@ launchServer daemonConfig mAddressMVar = do
             Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
             Right endpoint -> do
               localTCPNode <- newLocalNode transport remoteTable
+              --traceShowM ("newLocalNode in Server " ++ show (localNodeId localTCPNode))
               runProcess localTCPNode $ do
                 let testBool = testMode daemonConfig
                     reqTimeout = perRequestTimeout daemonConfig

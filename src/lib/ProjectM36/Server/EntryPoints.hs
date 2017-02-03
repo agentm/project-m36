@@ -125,8 +125,15 @@ handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
   ret <- timeoutOrDie ti (executeSchemaExpr sessionId conn schemaExpr)
   reply ret conn
   
+handleLogout :: Timeout -> Connection -> Reply Bool
+handleLogout _ conn = do
+  --liftIO $ closeRemote_ conn
+  reply (pure True) conn
+    
 handleTestTimeout :: Timeout -> SessionId -> Connection -> Reply Bool  
 handleTestTimeout ti _ conn = do
   ret <- timeoutOrDie ti (threadDelay 100000 >> pure True)
   reply ret conn
+
   
+ 
