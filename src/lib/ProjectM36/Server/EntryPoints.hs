@@ -6,20 +6,23 @@ import ProjectM36.Error
 import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
+import Control.Distributed.Process.Async (async, task, waitCancelTimeout, AsyncResult(..))
+import Control.Distributed.Process.Extras.Time (microSeconds)
+import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
-import System.Timeout
 import Control.Concurrent (threadDelay)
 
-timeoutOrDie :: Timeout -> IO a -> Process (Either ServerError a)
+timeoutOrDie :: Serializable a => Timeout -> IO a -> Process (Either ServerError a)
 timeoutOrDie micros act = do
   if micros == 0 then
     liftIO act >>= \x -> pure (Right x)
     else do
-    mRes <- liftIO (timeout micros act)
-    case mRes of
-      Just res -> pure (Right res)
-      Nothing -> pure (Left RequestTimeoutError)
+    asyncUnit <- async (task (liftIO act))
+    asyncRes <- waitCancelTimeout (microSeconds micros) asyncUnit
+    case asyncRes of
+      AsyncDone x -> pure (Right x)
+      AsyncCancelled -> pure (Left RequestTimeoutError)
     
 type Timeout = Int
 

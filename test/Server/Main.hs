@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-
 test client/server interaction
 -}
@@ -13,6 +14,7 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Base
 
 import System.Exit
+
 import Control.Concurrent
 import Network.Transport (EndPointAddress)
 import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
@@ -20,6 +22,9 @@ import Data.Either (isRight)
 import Data.Maybe (isJust)
 import Control.Exception
 --import Control.Monad.IO.Class
+#if defined(linux_HOST_OS)
+import System.Directory
+#endif
 
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
@@ -38,7 +43,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [testRequestTimeout]
+    serverTests = [testRequestTimeout, testFileDescriptorCount]
            
 main :: IO ()
 main = do
@@ -206,3 +211,26 @@ testRequestTimeout = TestCase $ do
       res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
       assertBool "exception was not thrown" (not res)
       killThread serverTid
+      
+testFileDescriptorCount :: Test
+#if defined(linux_HOST_OS)
+--validate that creating a server, connecting a client, and then disconnecting doesn't leak file descriptors
+testFileDescriptorCount = TestCase $ do
+  (serverAddress, serverTid) <- launchTestServer 1000
+  startCount <- fdCount
+  unusedMVar <- newEmptyMVar
+  Right (_, testConn) <- testConnection serverAddress unusedMVar
+  close testConn
+  endCount <- fdCount
+  assertEqual "fd leak" startCount endCount
+  killThread serverTid
+  
+-- returns the number of open file descriptors -- linux only /proc usage
+fdCount :: IO Int
+fdCount = do
+  fds <- getDirectoryContents "/proc/self/fd"
+  pure ((length fds) - 2)
+#else 
+  --pass on non-linux platforms
+  testFileDescriptorCount = TestCase (pure ())
+#endif

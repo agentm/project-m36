@@ -62,6 +62,7 @@ Library
                    ,distributed-process-client-server
                    ,distributed-process
                    ,distributed-process-extras
+                   ,distributed-process-async
                    ,network-transport-tcp
                    ,network-transport
                    ,stm-containers
