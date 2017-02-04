@@ -65,6 +65,7 @@ module ProjectM36.Client
        AttributeExprBase(..),
        TypeConstructor(..),
        RequestTimeoutException(..),
+       RemoteProcessDiedException(..),
        AtomType(..)) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -127,6 +128,11 @@ emptyNotificationCallback _ _ = pure ()
 
 type GhcPkgPath = String
 
+data RemoteProcessDiedException = RemoteProcessDiedException
+                                  deriving (Show, Eq)
+                                           
+instance Exception RemoteProcessDiedException                                          
+  
 data RequestTimeoutException = RequestTimeoutException
                              deriving (Show, Eq)
 
@@ -423,6 +429,7 @@ remoteCall (RemoteProcessConnection conf) arg = runProcessResult localNode $ do
     Left err -> error ("server died: " ++ show err)
     Right ret' -> case ret' of
                        Left RequestTimeoutError -> liftIO (throwIO RequestTimeoutException)
+                       Left (ProcessDiedError _) -> liftIO (throwIO RemoteProcessDiedException)
                        Right val -> pure val
   where
     localNode = rLocalNode conf
