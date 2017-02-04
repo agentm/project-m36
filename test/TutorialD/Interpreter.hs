@@ -139,7 +139,7 @@ assertTutdEqual databaseContext expected tutd = assertEqual (unpack tutd) expect
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
   (_, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  graph <- transactionGraph dbconn
+  graph <- transactionGraph_ dbconn
   assertEqual "validate bootstrapped graph" (validateGraph graph) Nothing
 
 --add a new transaction to the graph, validate it is in the graph
@@ -159,21 +159,21 @@ transactionGraphAddCommitTest = TestCase $ do
         DisplayErrorResult err -> assertFailure (show err)   
         QuietSuccessResult -> do
           commit sessionId dbconn >>= maybeFail
-          discon <- disconnectedTransaction sessionId dbconn
+          discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  graph <- transactionGraph dbconn
+  graph <- transactionGraph_ dbconn
   maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ()))
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
       rollback sessionId dbconn >>= maybeFail
-      discon <- disconnectedTransaction sessionId dbconn
-      graph' <- transactionGraph dbconn
+      discon <- disconnectedTransaction_ sessionId dbconn
+      graph' <- transactionGraph_ dbconn
       assertEqual "validate context" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))
       let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)
       assertEqual "validate graph" (graphEq graph) (graphEq graph')
@@ -182,7 +182,7 @@ transactionRollbackTest = TestCase $ do
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction sessionId dbconn
+  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction_ sessionId dbconn
   maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ()))
   case maybeErr of
     Just err -> assertFailure (show err)
@@ -194,7 +194,7 @@ transactionJumpTest = TestCase $ do
         Just err -> assertFailure (show err)
         Nothing -> do
           --check that the disconnected transaction does not include "x"
-          discon <- disconnectedTransaction sessionId dbconn
+          discon <- disconnectedTransaction_ sessionId dbconn
           assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))          
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
@@ -206,7 +206,7 @@ transactionBranchTest = TestCase $ do
                   executeGraphExpr sessionId dbconn (JumpToHead "master"),
                   executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "s" ()))
                   ]
-  graph <- transactionGraph dbconn
+  graph <- transactionGraph_ dbconn
   assertBool "master branch exists" $ isJust (transactionForHead "master" graph)
   assertBool "test branch exists" $ isJust (transactionForHead "test" graph)
 
@@ -238,19 +238,8 @@ simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=s join sp
                                               [TextAtom "London", IntAtom 200, TextAtom "P4", TextAtom "S1", TextAtom "Smith", IntAtom 20],
                                               [TextAtom "London", IntAtom 200, TextAtom "P2", TextAtom "S4", TextAtom "Clark", IntAtom 20]
                                               ]
-transactionGraph :: Connection -> IO TransactionGraph
-transactionGraph (InProcessConnection _ _ _ tvar _) = atomically $ readTVar tvar
-transactionGraph _ = error "remote connection used"
-
-disconnectedTransaction :: SessionId -> Connection -> IO DisconnectedTransaction
-disconnectedTransaction sessionId (InProcessConnection _ _ sessions _ _) = do
-  mSession <- atomically $ do
-    STMMap.lookup sessionId sessions
-  case mSession of
-    Nothing -> error "No such session"
-    Just (Sess.Session discon _) -> pure discon
-disconnectedTransaction _ _ = error "remote connection used"
-
+                    
+                    
 {-
 inclusionDependencies :: Connection -> M.Map IncDepName InclusionDependency
 inclusionDependencies (InProcessConnection (DisconnectedTransaction _ context)) = inclusionDependencies context
