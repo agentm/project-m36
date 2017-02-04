@@ -123,5 +123,6 @@ data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                            
                                                
 -- errors returned from the distributed-process call handlers
-data ServerError = RequestTimeoutError
+data ServerError = RequestTimeoutError |
+                   ProcessDiedError String
                    deriving (Generic, Binary, Eq)

@@ -23,6 +23,9 @@ timeoutOrDie micros act = do
     case asyncRes of
       AsyncDone x -> pure (Right x)
       AsyncCancelled -> pure (Left RequestTimeoutError)
+      AsyncFailed reason -> pure (Left (ProcessDiedError (show reason)))
+      AsyncLinkFailed reason -> pure (Left (ProcessDiedError (show reason)))
+      AsyncPending -> pure (Left (ProcessDiedError "process pending"))
     
 type Timeout = Int
 
