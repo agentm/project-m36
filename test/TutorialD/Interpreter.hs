@@ -22,9 +22,7 @@ import System.Exit
 import Data.Maybe (isJust)
 import qualified Data.Vector as V
 import Data.Text.Encoding as TE
-import Control.Concurrent.STM
 import Control.Concurrent
-import qualified STMContainers.Map as STMMap
 import qualified Data.Set as S
 import Data.Text hiding (map)
 
@@ -395,3 +393,4 @@ testFunctionalDependencies = TestCase $ do
   --insert an constraint-violating tuple
   let expectedError = InclusionDependencyCheckError "sname_status_A"
   expectTutorialDErr sessionId dbconn expectedError "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"
+
