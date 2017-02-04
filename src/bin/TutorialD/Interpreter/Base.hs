@@ -15,9 +15,7 @@ import System.IO
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
 import Data.Monoid
-#if __GLASGOW_HASKELL__ >= 800
 import Control.Monad (void)
-#endif
 import qualified Data.UUID as U
 import ProjectM36.Relation
 import Control.Monad.Random
