@@ -1,4 +1,4 @@
-# Project:M36 Relational Algebra Engine
+# Ξ Project:M36 Relational Algebra Engine
 
 *Software can always be made faster, but rarely can it be made more correct.*
 
