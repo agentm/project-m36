@@ -11,7 +11,7 @@ main :: IO ()
 main = do
   -- launch normal project-m36-server
   addressMVar <- newEmptyMVar
-  serverConfig <- parseConfigWithDefaults (defaultServerConfig { bindPort = 8000 })
+  serverConfig <- parseConfigWithDefaults (defaultServerConfig { bindPort = 8000, bindHost = "127.0.0.1" })
   --usurp the serverConfig for our websocket server and make the proxied server run locally
   let wsHost = bindHost serverConfig
       wsPort = bindPort serverConfig
