@@ -55,7 +55,6 @@ Project:M36 supports multiple frontends which target different audiences.
 ### Advanced Features
 
 1. [Transaction Graph Operators](docs/transaction_graph_operators.markdown)
-1. [Persistent Library Driver](docs/persistent_library_driver.markdown)
 1. [ProjectM36.Client Library](docs/projectm36_client_library.markdown)
 1. [Adding New Data Types](docs/new_datatypes.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)

@@ -54,7 +54,6 @@ Project:M36 implements a generic relational algebra DBMS backend with multiple d
 
 * TutorialD: Chris Date's interactive language for learning about the relational algebra
 * ProjectM36.Client: a Haskell library for native access
-* Database.Persist.ProjectM36: a driver for the Haskell persistent library
 
 More frontends are expected to be supported in the future.
 

@@ -51,7 +51,6 @@ Project:M36 implements multiple interfaces:
 
 * an interactive console implementing [TutorialD](https://en.wikipedia.org/wiki/D_%28data_language_specification%29), a small language for learning about the relational algebra
 * a native Haskell API
-* a database driver for the [persistent framework](http://www.yesodweb.com/book/persistent)
 
 ### Real Estate Database Example
 

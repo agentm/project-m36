@@ -3,5 +3,4 @@
 1. [Introduction to ProjectM36](introduction_to_projectm36.markdown)
 1. [TutorialD Tutorial](tutd_tutorial.markdown)
 1. [Transaction Graph Operators](transaction_graph_operators.markdown)
-1. [Persistent Library Driver](persistent_library_driver.markdown)
 1. [ProjectM36.Client Library](projectm36_client_library.markdown)
