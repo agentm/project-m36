@@ -89,7 +89,7 @@ launchServer daemonConfig mAddressMVar = do
           port = bindPort daemonConfig
       etransport <- createTransport hostname (show port) defaultTCPParameters
       case etransport of
-        Left err -> error (show err)
+        Left err -> error ("failed to create transport: " ++ show err)
         Right transport -> do
           eEndpoint <- newEndPoint transport
           case eEndpoint of 
