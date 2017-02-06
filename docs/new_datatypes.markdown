@@ -39,13 +39,31 @@ Note that the Haskell-standard "Maybe a" and "Either a b" data types are include
 
 ## Support for Haskell Types
 
-Any Haskell data type which is an instance of ```Atomable``` is a candidate for a Project:M36 value called an ```Atom```. Database tuples are composed of Atoms.
-
-Project:M36 does not yet support dynamically-loaded components, so the data type must be compiled into the Project:M36 backend.
+New algebraic data types can be added to the database context at any time via TutorialD or Haskell. Typeclasses for database types are not supported.
 
 ### Implementation for Haskell Types
 
-1. Create an instance of your data type for the ```Atomable``` typeclass. The ```Atomable``` typeclass implies instances for a variety of standard typeclasses.
-1. Update the ```Binary Atom``` instance to include deserialization for your type.
-1. Update the ```makeAtomFromText``` in ```ProjectM36/Atom.hs``` to support CSV import.
-1. Optionally adjust ```TutorialD/Interpreter/RelationalExpression.hs``` to add support for parsing your data type in the TutorialD interpreter. Look for ```atomP```.
+Given a ```ProjectM36.Client``` ```Connection```, create an ```AddTypeConstructor``` with arguments a) type constructor name and b) data constructors.
+
+Example:
+```haskell
+AddTypeConstructor (ADTypeConstructorDef "Hair" []) [DataConstructorDef "Brown" [], DataConstructorDef "Blond" [], DataConstructorDef "Bald" [],...]
+```
+
+Pass the ```AddTypeConstructor``` value to ```executeDatabaseContextExpr``` to add it to the database.
+
+To create a value for the new algebraic data type, create the type:
+
+```haskell
+let hairType = ConstructedAtomType "Hair" M.empty
+```
+
+then create the value:
+
+```haskell
+let blondAtom = ConstructedAtom "Blond" hairType []
+```
+
+The ```blondAtom``` can now be used in any place where an Atom is otherwise used such as in ```AtomExpr``` checking for equality in restriction or as an argument to ```AtomFunction```s or simply in building a new relation.
+
+In the previous example, the additional empty arguments are for polymorphic variables and arguments. In this simple ADT, there is no polymorphism necessary, so the arguments are empty.
