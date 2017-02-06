@@ -1,84 +1,122 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
 {-# LANGUAGE DeriveAnyClass #-}
 import ProjectM36.Client
-import qualified Data.Text as T
-import ProjectM36.Atom
-import Data.Proxy
+import qualified Data.Map as M
+import qualified Data.Set as S
+import Data.Maybe
+import Control.Monad
+import Data.Monoid
 
-type Text = T.Text
+addressAtomType :: AtomType
+addressAtomType = TextAtomType
 
---custom types cannot yet be made due to hardcoding in the Atom Binary implementation
-type Address = Text
-type Agent = Text
-type Name = Text
-type Price = Double
-type FileName = Text
-data RoomType = Kitchen | Bathroom | LivingRoom deriving (Atomable)
-roomTypeAtomType = atomTypeForProxy (Proxy :: RoomType)
+nameAtomType :: AtomType
+nameAtomType = TextAtomType
 
-data PriceBand = Low | Medium | High | Premium 
-priceBandAtomType = atomTypeForProxy (Proxy :: PriceBand)
+priceAtomType :: AtomType
+priceAtomType = DoubleAtomType
 
-data AreaCode = City | Suburban | Rural
-areaCodeAtomType = atomTypeForProxy (Proxy :: AreaCode)
+fileNameAtomType :: AtomType
+fileNameAtomType = TextAtomType
 
-data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand
-speedBandAtomType = atomTypeForProxy (Proxy :: SpeedBand)
+roomAtomType :: AtomType
+roomAtomType = ConstructedAtomType "Room" M.empty
 
+priceBandAtomType :: AtomType
+priceBandAtomType = ConstructedAtomType "PriceBand" M.empty
+
+areaCodeAtomType :: AtomType
+areaCodeAtomType = ConstructedAtomType "AreaCode" M.empty
+
+speedBandAtomType :: AtomType
+speedBandAtomType = ConstructedAtomType "SpeedBand" M.empty
   
 main :: IO ()
 main = do
-  let connInfo = InProcessConnectionInfo emptyNotificationCallback
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
       check x = case x of 
         Left err -> error (show err)
         Right x' -> x'
   eConn <- connectProjectM36 connInfo
   let conn = check eConn
   
-  eSessionId <- createSessionAtHead "master" conn
+  eSessionId <- createSessionAtHead "master" conn  
   let sessionId = check eSessionId
   
   createSchema sessionId conn
   
-createSchema :: Connection -> IO ()  
-createSchema conn = do
+createSchema :: SessionId -> Connection -> IO ()  
+createSchema sessionId conn = do
   let propertyAttrs = [Attribute "address" addressAtomType,
-                       Attribute "price" priceAtomType
+                       Attribute "price" priceAtomType,
                        Attribute "photo" fileNameAtomType,
-                       Attribute "dateRegistered" dateAtomType]
+                       Attribute "dateRegistered" DayAtomType]
       offerAttrs = [Attribute "address" addressAtomType,
                     Attribute "offerPrice" priceAtomType,
-                    Attribute "offerDate" dateAtomType,
+                    Attribute "offerDate" DayAtomType,
                     Attribute "bidderName" nameAtomType,
                     Attribute "bidderAddress" addressAtomType,
-                    Attribute "decisionDate" dateAtomType,
-                    Attribute "accepted" boolAtomType]
+                    Attribute "decisionDate" DayAtomType,
+                    Attribute "accepted" BoolAtomType]
       decisionAttrs = [Attribute "address" addressAtomType,             
-                       Attribute "offerDate" dateAtomType,
+                       Attribute "offerDate" DayAtomType,
                        Attribute "bidderName" nameAtomType,
                        Attribute "bidderAddress" addressAtomType,
-                       Attribute "decisionDate" dateAtomType,
-                       Attribute "accepted" boolAtomType]
+                       Attribute "decisionDate" DayAtomType,
+                       Attribute "accepted" BoolAtomType]
       roomAttrs = [Attribute "address" addressAtomType, 
-                   Attribute "roomName" stringAtomType,
-                   Attribute "width" doubleAtomType,
-                   Attribute "breadth" doubleAtomType,
-                   Attribute "type" roomTypeAtomType]
+                   Attribute "roomName" TextAtomType,
+                   Attribute "width" DoubleAtomType,
+                   Attribute "breadth" DoubleAtomType,
+                   Attribute "type" roomAtomType]
       floorAttrs = [Attribute "address" addressAtomType,
-                    Attribute "roomName" stringAtomType,
-                    Attribute "floor" intAtomType]
+                    Attribute "roomName" TextAtomType,
+                    Attribute "floor" IntAtomType]
       commissionAttrs = [Attribute "priceBand" priceBandAtomType,
                     Attribute "areaCode" areaCodeAtomType,
                     Attribute "saleSpeed" speedBandAtomType,
-                    Attribute "commission" doubleAtomType]
+                    Attribute "commission" DoubleAtomType]
+      idKey rvName attrNames = AddInclusionDependency (rvName <> "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
+      incDepKeys =  map (uncurry idKey) 
+                [("property", ["address"]),
+                 ("offer", ["address", "offerDate", "bidderName", "bidderAddress"]),
+                 ("decision", ["address", "offerDate", "bidderName", "bidderAddress"]),
+                 ("room", ["address", "roomName"]),
+                 ("floor", ["address", "roomName"]),
+                 --"commision" misspelled in OotT
+                 ("commission", ["priceBand", "areaCode", "saleSpeed"])
+                 ]
+      foreignKeys = [("offer_property_fk", 
+                      ("offer", ["address"]), 
+                      ("property", ["address"])),
+                     ("decision_offer_fk",
+                      ("decision", ["address", "offerDate", "bidderName", "bidderAddress"]),
+                      ("offer", ["address", "offerDate", "bidderName", "bidderAddress"])),
+                     ("room_property_fk",
+                      ("room", ["address"]),
+                      ("property", ["address"])),
+                     ("floor_property_fk",
+                      ("floor", ["address"]),
+                      ("property", ["address"]))
+                    ]
+      attrsL = AttributeNames . S.fromList
+      makeFk (fkName, (rvA, attrsA), (rvB, attrsB)) = AddInclusionDependency fkName $ InclusionDependency (Project (attrsL attrsA) (RelationVariable rvA ())) (Project (attrsL attrsB) (RelationVariable rvB ()))
+      incDepForeignKeys = map makeFk foreignKeys
       relvarMap = [("property", propertyAttrs),
                    ("offer", offerAttrs),
                    ("decision", decisionAttrs),
                    ("room", roomAttrs),
                    ("floor", floorAttrs),
                    ("commission", commissionAttrs)]
-      dbcontextExprs = map (\(name, attrs) -> Define name (attributesFromList attrs)) relvarMap
-  mapM executeDatabaseContextExpr dbcontextExprs
-  
+      simple_adt tCons dConsList = AddTypeConstructor (ADTypeConstructorDef tCons []) (map (\name -> DataConstructorDef name []) dConsList)
+      new_adts = map (uncurry simple_adt) [
+        ("Room", ["Kitchen", "Bathroom", "LivingRoom"]),
+        ("PriceBand", ["Low", "Medium", "High", "Premium"]),
+        ("AreaCode", ["City", "Suburban", "Rural"]),
+        ("SpeedBand", ["VeryFastBand", "FastBand", "MediumBand", "SlowBand"])]
+      rvDefs = map (\(name, attrs) -> Define name (map NakedAttributeExpr attrs)) relvarMap
+  mErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
+  let errs = catMaybes mErrs
+  when (length errs > 0) (error (show errs))
   
   
