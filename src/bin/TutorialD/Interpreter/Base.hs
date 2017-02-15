@@ -19,6 +19,7 @@ import Control.Monad (void)
 import qualified Data.UUID as U
 import ProjectM36.Relation
 import Control.Monad.Random
+import Data.List.NonEmpty as NE
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -31,9 +32,11 @@ displayOpResult (DisplayRelationResult rel) = do
   gen <- newStdGen
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
-displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStrLn ("ERR:" <> T.pack (show err))
+displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStr ("ERR:" <> errString)
   where
-    pointyString = T.justifyRight (promptLength + (sourceColumn (errorPos err))) '_' "^"
+    errString = T.pack (parseErrorPretty err)
+    errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+    pointyString = T.justifyRight (promptLength + fromIntegral errorIndent) '_' "^"
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
@@ -117,7 +120,7 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
                                DisplayErrorResult StringType |
-                               DisplayParseErrorResult Int ParseError | -- Int refers to length of prompt text
+                               DisplayParseErrorResult Int (ParseError Char Dec) | -- Int refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
                                

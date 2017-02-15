@@ -76,11 +76,11 @@ promptText mHeadName mSchemaName = "TutorialD (" <> transInfo <> "): "
   where
     transInfo = fromMaybe "<unknown>" mHeadName <> "/" <> fromMaybe "<no schema>" mSchemaName
           
-parseTutorialD :: T.Text -> Either ParseError ParsedOperation
+parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: T.Text -> Either ParseError ParsedOperation
+safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)

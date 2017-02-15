@@ -2,7 +2,7 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-6.27
+resolver: lts-8.0
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -15,6 +15,10 @@ extra-deps:
 - gnuplot-0.5.4.1
 - text-1.2.2.1
 - uuid-aeson-0.1.0.0
+- distributed-process-0.6.6
+- distributed-process-async-0.2.3
+- distributed-process-client-server-0.1.3.2
+- distributed-process-extras-0.2.1.2
 
 # Override default flag values for local packages and extra-deps
 flags: {}
