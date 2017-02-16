@@ -1,3 +1,15 @@
+/**
+* Returns a connection to a Project:M36 database. The connection created relies on websockets and should therefore function from any modern web browser or node server. This API is asynchronous and callback-based.
+* @param {string} protocol - Choose from "ws://" and "wss://". "wss" is the SSL-wrapped websockets protocol and should therefore be preferred.
+* @param {string} host - The IP address or name of the host of the database.
+* @param {string} path - The websocket path where the websocket server is bound. Unless the project-m36-websocket-server is proxied, this is ignored by the server.
+* @param {string} dbname - The name of the remote database.
+* @param {openCallback} openCallback - A function to call when the connection is successfully open and ready for queries.
+* @param {errorCallback} errorCallback - A function called if the connection process encounters an error. This is not called for errors in the queries.
+* @param {statusCallback} statusCallback - A function called with synchronous and asynchronous status updates such as query errors and query results.
+* @param {promptCallback} promptCallback - A function called whenever prompt information such as the current schema name and current branch name (if any).
+* @param {closeCallback} closeCallback - A function called once the connection is closed.
+*/
 var ProjectM36Connection = function (protocol, host, port, path, dbname, openCallback, errorCallback, statusCallback, promptCallback, closeCallback) {
     this.protocol = protocol;
     this.host = host;
@@ -35,6 +47,13 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     this.socket = socket;
 }
 
+/**
+* The argument returned as part of the 'statusCallback'. Typically, only one of the three status types is populated. These status updates are groups together so that the callback can feed into a user interface update function.
+* @callback statusCallback
+* @param {Object} relationResult - The status update containing a relation or null.
+* @param {Object} acknowledgementresult - The status update containing an acknowledgement that the query was executed or null.
+* @param {Object} errorResult - The status update containing the error information or null.
+*/
 var ProjectM36Status = function (relationResult, acknowledgementResult, errorResult)
 {
     this.relation = relationResult;
@@ -84,11 +103,19 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     }
 }
 
+/**
+* Executes a TutorialD string.
+* @param {string} tutd - The TutorialD string.
+*/
 ProjectM36Connection.prototype.executeTutorialD = function(tutd)
 {
     this.socket.send("executetutd:" + tutd);
 }
 
+/**
+* A utitily function which creates and returns a table element representing the relation.
+* @param {object} - The relation returned from executing a relational expression.
+*/
 ProjectM36Connection.prototype.generateRelation = function(relation)
 {
     var table = document.createElement("table");
