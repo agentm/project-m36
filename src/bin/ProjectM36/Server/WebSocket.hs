@@ -6,6 +6,7 @@ module ProjectM36.Server.WebSocket where
 -- proxy all connections to it through ProjectM36.Client
 import Control.Monad (forever)
 import qualified Data.Text as T
+import Data.Text.Encoding as TE
 import qualified Network.WebSockets as WS
 import ProjectM36.Server.RemoteCallTypes.Json ()
 import ProjectM36.Client.Json ()
@@ -42,26 +43,46 @@ websocketProxyServer port host pending = do
                       pInfo <- promptInfo sessionId dbconn
                       --figure out why sending three times during startup is necessary
                       sendPromptInfo pInfo conn                
-                      sendPromptInfo pInfo conn
+                      --sendPromptInfo pInfo conn
+                      sendError conn (RelationVariable "spammo" ())
                       msg <- (WS.receiveData conn) :: IO T.Text
                       let tutdprefix = "executetutd:"
+                          evalRelExprPrefix = "evalrelexpr:"
+                          dropt t = T.drop (T.length t) msg
                       case msg of
                         _ | tutdprefix `T.isPrefixOf` msg -> do
-                          let tutdString = T.drop (T.length tutdprefix) msg
-                          case parseTutorialD tutdString of
-                            Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
-                            Right parsed -> do
-                              let timeoutFilter = \exc -> if exc == RequestTimeoutException 
-                                                          then Just exc 
-                                                          else Nothing
-                                  responseHandler = do
-                                    result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
-                                    pInfo' <- promptInfo sessionId dbconn
-                                    sendPromptInfo pInfo' conn                       
-                                    handleOpResult conn dbconn result
-                              catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn (DisplayErrorResult "Request Timed Out."))
+                          let tutdString = dropt tutdprefix
+                          handleExecuteTutorialD conn sessionId dbconn tutdString
+                        _ | evalRelExprPrefix `T.isPrefixOf` msg -> do
+                          let relExprJson = dropt evalRelExprPrefix
+                          handleEvalRelExpr conn sessionId dbconn relExprJson
                         _ -> unexpectedMsg
                     pure ()
+                    
+handleExecuteTutorialD :: WS.Connection -> SessionId -> Connection -> T.Text -> IO ()
+handleExecuteTutorialD wsconn sessionId dbconn tutdString = do
+  case parseTutorialD tutdString of
+    Left err -> handleOpResult wsconn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
+    Right parsed -> do
+      let timeoutFilter = \exc -> if exc == RequestTimeoutException 
+                                  then Just exc 
+                                  else Nothing
+          responseHandler = do
+            result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
+            pInfo' <- promptInfo sessionId dbconn
+            sendPromptInfo pInfo' wsconn                       
+            handleOpResult wsconn dbconn result
+      catchJust timeoutFilter responseHandler (\_ -> handleOpResult wsconn dbconn (DisplayErrorResult "Request Timed Out."))
+      
+handleEvalRelExpr :: WS.Connection -> SessionId -> Connection -> T.Text -> IO ()
+handleEvalRelExpr wsconn sessionId dbconn relExprText = do
+  case (eitherDecodeStrict' (TE.encodeUtf8 relExprText)) :: Either String RelationalExpr of
+    Left err -> sendError wsconn err --perhaps send an error data type instead (?)
+    Right relExpr -> do
+      result <- executeRelationalExpr sessionId dbconn relExpr
+      case result of
+        Left err -> sendError wsconn err
+        Right rel -> handleOpResult wsconn dbconn (DisplayRelationResult rel)
     
 notificationCallback :: WS.Connection -> NotificationCallback    
 notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,
