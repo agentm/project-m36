@@ -9,9 +9,11 @@ import ProjectM36.AtomType
 import ProjectM36.AtomFunctionBody
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
+import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Control.Exception
 import Data.Maybe
@@ -24,6 +26,8 @@ import Control.Monad.Trans.Except
 
 import GHC
 import GHC.Paths
+
+import Debug.Trace
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
@@ -420,11 +424,14 @@ updateTupleWithAtomExprs exprMap context tupIn = do
 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> Maybe RelationalError
-checkConstraints context = case failures of
-  [] -> Nothing
-  l:_ -> Just l
+checkConstraints context = case optimizedIncDepMap of
+  Left err -> Just err
+  Right filteredIncDepMap -> case failures filteredIncDepMap of
+    [] -> Nothing
+    l -> Just (MultipleErrors l)
   where
-    failures = M.elems $ M.mapMaybeWithKey checkIncDep deps
+    optimizedIncDepMap = filterInclusionDependenciesForValidation deps
+    failures incDeps = M.elems $ M.mapMaybeWithKey checkIncDep incDeps
     deps = inclusionDependencies context
     eval expr = evalState (evalRelationalExpr expr) (RelationalExprStateElems context)
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
@@ -688,3 +695,55 @@ evalTupleExpr attrs (TupleExpr tupMap) = runExceptT $ do
   _ <- either throwE pure (validateTuple tup' tConss)
   pure tup'
 
+  -- | Return all relation variable names mentioned in the relational expression. This is used by the constraint static optimizer to determine which relvars are relevant.
+relationVariableNames :: Show a => RelationalExprBase a -> S.Set RelVarName
+relationVariableNames relExpr = foldRelationalExprs (\names re -> case re of 
+                                  RelationVariable name _ -> S.insert name names
+                                  _ -> names) S.empty relExpr
+
+-- | Return all the unit RelationalExprs. This is useful, for example, for finding all mentions of relation
+foldRelationalExprs :: (b -> RelationalExprBase a -> b) -> b -> RelationalExprBase a -> b
+foldRelationalExprs func accum expr = case expr of
+  e@(MakeRelationFromExprs _ tupleExprs) -> foldl func accum (e : concatMap tupleExprRelationalExprs tupleExprs)
+  e@(MakeStaticRelation _ _) -> folder e []
+  e@(ExistingRelation _) -> folder e []
+  e@(RelationVariable _ _) -> folder e []
+  e@(Project _ expr2) -> folder e [expr2]
+  e@(Union exprA exprB) -> folder e [exprA, exprB]
+  e@(Join exprA exprB) -> folder e [exprA, exprB]
+  e@(Rename _ _ expr2) -> folder e [expr2]
+  e@(Difference exprA exprB) -> folder e [exprA, exprB]  
+  e@(Group _ _ expr2) -> folder e [expr2]
+  e@(Ungroup _ expr2) -> folder e [expr2]
+  e@(Restrict predi expr2) -> folder e (expr2 : restrictionPredicateRelationalExprs predi)
+  e@(Equals exprA exprB) -> folder e [exprA, exprB]
+  e@(NotEquals exprA exprB) -> folder e [exprA, exprB]
+  e@(Extend extendExpr expr2) -> folder e (expr2 : extendTupleRelationalExprs extendExpr)
+  where
+    folder e exprs = func (foldl (foldRelationalExprs func) accum exprs) e
+  
+-- | Scan tupleExpr to return RelationExprs.   
+tupleExprRelationalExprs :: TupleExprBase a -> [RelationalExprBase a]
+tupleExprRelationalExprs (TupleExpr amap) = concat (map atomExprRelationalExprs (M.elems amap))
+
+atomExprRelationalExprs :: AtomExprBase a -> [RelationalExprBase a]
+atomExprRelationalExprs (FunctionAtomExpr _ exprs _) = concatMap atomExprRelationalExprs exprs
+atomExprRelationalExprs (RelationAtomExpr expr) = [expr]
+atomExprRelationalExprs (ConstructedAtomExpr _ exprs _) = concatMap atomExprRelationalExprs exprs
+atomExprRelationalExprs _ = []
+
+restrictionPredicateRelationalExprs :: RestrictionPredicateExprBase a -> [RelationalExprBase a]
+restrictionPredicateRelationalExprs predi = case predi of
+  TruePredicate -> []
+  AndPredicate exprA exprB -> restrictionPredicateRelationalExprs exprA ++ restrictionPredicateRelationalExprs exprB
+  OrPredicate exprA exprB -> restrictionPredicateRelationalExprs exprA ++ restrictionPredicateRelationalExprs exprB
+  NotPredicate expr -> restrictionPredicateRelationalExprs expr
+  RelationalExprPredicate relExpr -> foldRelationalExprs (\acc expr -> expr : acc) [] relExpr
+  AtomExprPredicate atomExpr -> atomExprRelationalExprs atomExpr
+  AttributeEqualityPredicate _ atomExpr -> atomExprRelationalExprs atomExpr
+  
+extendTupleRelationalExprs :: ExtendTupleExprBase a -> [RelationalExprBase a]  
+extendTupleRelationalExprs (AttributeExtendTupleExpr _ atomExpr) = atomExprRelationalExprs atomExpr
+
+relvarReferences :: InclusionDependency -> S.Set RelVarName  
+relvarReferences (InclusionDependency super sub) = S.union (relationVariableNames super) (relationVariableNames sub)

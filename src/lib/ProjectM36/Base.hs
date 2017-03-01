@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances, DeriveFoldable #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import qualified Data.Map as M

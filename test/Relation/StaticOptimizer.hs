@@ -4,16 +4,19 @@ import ProjectM36.RelationalExpression
 import ProjectM36.DateExamples
 import ProjectM36.TupleSet
 import ProjectM36.StaticOptimizer
+import ProjectM36.Key
+import ProjectM36.InclusionDependency
 import System.Exit
 import Control.Monad.State
 import Test.HUnit
+import qualified Data.Set as S
 
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = relationOptTests ++ databaseOptTests
+    tests = relationOptTests ++ databaseOptTests ++ [testIncDepOptimizer]
     optTest optfunc estate testparams = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (evalState (optfunc unopt) estate)) $ testparams
     relvar nam = RelationVariable nam ()
     relationOptTests = optTest applyStaticRelationalOptimization  (mkRelationalExprState dateExamples) [
@@ -34,3 +37,16 @@ main = do
        MultipleExpr [Assign "z" (Restrict TruePredicate (relvar "s")),
                      Assign "z" (Restrict TruePredicate (relvar "s"))])
       ]
+
+-- test that the static optimizer doesn't eliminate inclusion dependencies improperly
+testIncDepOptimizer :: Test
+testIncDepOptimizer = TestCase $ do
+  --simple case: an insert not mentioning the incdep need not be validated
+  let incDep1 = inclusionDependencyForKey (AttributeNames (S.singleton "attrX")) (RelationVariable "rv" ())
+      (InclusionDependency i1 _) = incDep1
+  putStrLn (show i1)
+  putStrLn (show (relationVariableNames i1))
+  assertEqual "relevant relvar names" (S.singleton "rv") (relvarReferences incDep1)
+  assertEqual "irrelevant insert" NoValidationNeeded (inclusionDependencyValidation (Insert "rv2" (RelationVariable "x" ())) incDep1)
+  assertEqual "relevant insert" ValidationNeeded (inclusionDependencyValidation (Insert "rv" (RelationVariable "x" ())) incDep1)
+  
