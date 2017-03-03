@@ -14,7 +14,8 @@ checkConstraints expr context = case optimizedIncDepMap of
   Left err -> Just err
   Right filteredIncDepMap -> case failures filteredIncDepMap of
     [] -> Nothing
-    l -> Just (MultipleErrors l)
+    err:[] -> Just err
+    list -> Just (MultipleErrors list)
   where
     optimizedIncDepMap = filterInclusionDependenciesForValidation expr deps
     failures incDeps = M.elems $ M.mapMaybeWithKey checkIncDep incDeps

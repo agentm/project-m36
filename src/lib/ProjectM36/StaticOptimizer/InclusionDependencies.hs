@@ -27,8 +27,8 @@ inclusionDependencyValidation (Delete name _) incDep =  _nameInIncDepValidation 
 
 inclusionDependencyValidation (Update name _ _) incDep = _nameInIncDepValidation name incDep
 
---inc deps can't violate another inc dep- there is no change in relvars
-inclusionDependencyValidation (AddInclusionDependency _ _) _ = NoValidationNeeded
+--inc deps can't violate another inc dep- there is no change in relvars, but a new inc dep must be unconditionally validated
+inclusionDependencyValidation (AddInclusionDependency _ _) _ = ValidationNeeded
 
 inclusionDependencyValidation (RemoveInclusionDependency _) _ = NoValidationNeeded
 
@@ -71,7 +71,7 @@ data Validation = NoValidationNeeded |
                   deriving (Eq, Show, Ord)
 
 filterInclusionDependenciesForValidation :: DatabaseContextExpr -> InclusionDependencies -> Either RelationalError InclusionDependencies
-filterInclusionDependenciesForValidation context incDeps = if length errors > 0 then
+filterInclusionDependenciesForValidation expr incDeps = if length errors > 0 then
                                                              Left (MultipleErrors errors)
                                                            else
                                                              Right filteredIncDeps
@@ -79,6 +79,6 @@ filterInclusionDependenciesForValidation context incDeps = if length errors > 0 
     filteredIncDeps = M.filterWithKey (\incDepName _ -> M.member incDepName needValidation) incDeps
     violated = M.filter ((==) Violated) validationMap
     errors = map InclusionDependencyCheckError (M.keys violated)
-    validationMap = M.map (inclusionDependencyValidation context) incDeps
+    validationMap = M.map (inclusionDependencyValidation expr) incDeps
     needValidation = M.filter ((==) ValidationNeeded) validationMap
                               

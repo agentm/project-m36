@@ -6,6 +6,7 @@ import ProjectM36.DateExamples
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.Tuple
+import ProjectM36.RelationalExpressionState
 import qualified ProjectM36.DatabaseContext as DBC
 import Control.Monad.State
 import qualified ProjectM36.Attribute as A

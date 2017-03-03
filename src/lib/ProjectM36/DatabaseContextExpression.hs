@@ -153,6 +153,7 @@ evalContextExpr expr@(AddInclusionDependency newDepName newDep) = do
     return $ Just (InclusionDependencyNameInUseError newDepName)
     else do
       let potentialContext = currContext { inclusionDependencies = newDeps }
+      --when adding a constraint, it is new and must be unconditionally validated without being optimized away
       validateConstraints expr potentialContext
 
 evalContextExpr (RemoveInclusionDependency depName) = do

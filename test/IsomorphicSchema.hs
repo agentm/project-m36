@@ -4,6 +4,9 @@ import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
 import ProjectM36.RelationalExpression
+import ProjectM36.DatabaseContextExpression
+import ProjectM36.RelationalExpressionState
+import ProjectM36.InclusionDependencyValidation
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import System.Exit
@@ -30,6 +33,13 @@ assertMaybe x msg = case x of
   Nothing -> assertFailure msg >> undefined
   Just x' -> pure x'
 -}
+
+--copied from ProjectM36.Client so that Client doesn't need to export this
+defaultDatabaseContextEvalState :: DatabaseContext -> DatabaseContextEvalState
+defaultDatabaseContextEvalState context = DatabaseContextEvalState {
+  dbcontext = context,
+  constraintValidator = checkConstraints
+  }
   
 -- create some potential schemas which should not be accepted  
 testSchemaValidation :: Test
@@ -92,11 +102,11 @@ testIsoRestrict = TestCase $ do
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let postInsertContext = execState (evalContextExpr schemaBInsertExpr') (stateContext schemaA)
-      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
+  let postInsertState = execState (evalContextExpr schemaBInsertExpr') (defaultDatabaseContextEvalState (stateContext schemaA))
+      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState (dbcontext postInsertState))
   --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
-  let processedRel = evalState (evalRelationalExpr processedExpr) (mkRelationalExprState postInsertContext)
+  let processedRel = evalState (evalRelationalExpr processedExpr) (mkRelationalExprState (dbcontext postInsertState))
   assertEqual "insert bob boss" expectedRel processedRel
   
 testIsoUnion :: Test  

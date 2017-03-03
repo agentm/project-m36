@@ -391,6 +391,6 @@ testFunctionalDependencies = TestCase $ do
   --insert a new, valid tuple
   executeTutorialD sessionId dbconn "insert s relation{tuple{city \"Boston\", s# \"S6\", sname \"Stevens\", status 30}}"
   --insert an constraint-violating tuple
-  let expectedError = InclusionDependencyCheckError "sname_status_A"
+  let expectedError = MultipleErrors (map InclusionDependencyCheckError ["sname_status_A", "sname_status_B"])
   expectTutorialDErr sessionId dbconn expectedError "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"
 
