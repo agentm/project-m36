@@ -5,7 +5,6 @@ import ProjectM36.Error
 import ProjectM36.Relation
 import qualified Data.Map as M
 import qualified Data.Text as T
-import qualified Data.Set as S
 
 inclusionDependenciesAsRelation :: InclusionDependencies -> Either RelationalError Relation
 inclusionDependenciesAsRelation incDeps = do

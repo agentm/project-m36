@@ -6,6 +6,7 @@ import ProjectM36.Base
 import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpressionState
 import ProjectM36.Error
 import Control.Monad.State
 import ProjectM36.Tuple

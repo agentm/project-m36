@@ -5,6 +5,7 @@ import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.Relation
+import ProjectM36.TupleSet
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -30,3 +31,10 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          notifications = M.empty,
                                          typeConstructorMapping = basicTypeConstructorMapping
                                          }
+
+--returns a database context with all tuples removed
+--this is useful for type checking and optimization
+contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
+contextWithEmptyTupleSets contextIn = contextIn { relationVariables = relVars }
+  where
+    relVars = M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)

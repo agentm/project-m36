@@ -78,11 +78,15 @@ module ProjectM36.Client
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
-import ProjectM36.StaticOptimizer
+import ProjectM36.StaticOptimizer.DatabaseContextExpression
 import ProjectM36.Key
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
+import qualified ProjectM36.RelationalExpressionState as RES
+import ProjectM36.InclusionDependencyValidation
+import qualified ProjectM36.DatabaseContextExpression as DCE
+import ProjectM36.DatabaseContextExpression
 import ProjectM36.DatabaseContext (basicDatabaseContext)
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Transaction as Trans
@@ -504,7 +508,7 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
+        Right expr'' -> case evalState (RE.evalRelationalExpr expr'') (RES.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
@@ -523,12 +527,12 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excMaybe 
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Just err)
-        Right expr'' -> case runState (RE.evalContextExpr expr'') (Sess.concreteDatabaseContext session) of
+        Right expr'' -> case runState (DCE.evalContextExpr expr'') (defaultDatabaseContextEvalState (Sess.concreteDatabaseContext session)) of
           (Just err,_) -> return $ Just err
-          (Nothing, context') -> do
+          (Nothing, evaldState) -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
-                newSchemas = Schemas context' newSubschemas
+                newSchemas = Schemas (dbcontext evaldState) newSubschemas
                 newSession = Session newDiscon (Sess.schemaName session)
             STMMap.insert newSession sessionId sessions
             pure Nothing
@@ -545,7 +549,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excMayb
   case eSession of
     Left err -> pure $ Just err
     Right session -> do
-      res <- RE.evalDatabaseContextIOExpr scriptSession (Sess.concreteDatabaseContext session) expr
+      res <- DCE.evalDatabaseContextIOExpr scriptSession (Sess.concreteDatabaseContext session) expr
       case res of
         Left err -> pure (Just err)
         Right context' -> do
@@ -576,7 +580,7 @@ executeCommitExprSTM_ oldContext newContext nodes = do
   let nots = notifications oldContext
       fireNots = notificationChanges nots oldContext newContext 
       evaldNots = M.map mkEvaldNot fireNots
-      mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) (RE.mkRelationalExprState oldContext) }
+      mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) (RES.mkRelationalExprState oldContext) }
   pure (evaldNots, nodes)
                 
 
@@ -633,7 +637,7 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
   graph <- readTVar graphTvar
   case evalTransGraphRelationalExpr tgraphExpr graph of
     Left err -> pure (Left err)
-    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RE.mkRelationalExprState RE.emptyDatabaseContext) of
+    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RES.mkRelationalExprState DCE.emptyDatabaseContext) of
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
@@ -646,12 +650,12 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
     Left err -> pure (Just err)
     Right (session, _) -> do
       let subschemas' = subschemas session
-      case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
-        Left err -> pure (Just err)
-        Right (newSubschemas, newContext) -> do
+      case runState (Schema.evalSchemaExpr schemaExpr subschemas') (defaultDatabaseContextEvalState (Sess.concreteDatabaseContext session))  of
+        (Left err, _) -> pure (Just err)
+        (Right newSubschemas, evaldState) -> do
           --hm- maybe we should start using lenses
           let discon = Sess.disconnectedTransaction session 
-              newSchemas = Schemas newContext newSubschemas
+              newSchemas = Schemas (dbcontext evaldState) newSubschemas
               newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas) (Sess.schemaName session)
           STMMap.insert newSession sessionId sessions
           pure Nothing
@@ -696,7 +700,7 @@ typeForRelationalExprSTM sessionId (InProcessConnection conf) relExpr = do
                        Schema.processRelationalExprInSchema schema relExpr
       case processed of
         Left err -> pure (Left err)
-        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session))
+        Right relExpr' -> pure $ evalState (RE.typeForRelationalExpr relExpr') (RES.mkRelationalExprState (Sess.concreteDatabaseContext session))
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
@@ -709,11 +713,11 @@ inclusionDependencies sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure $ Left err 
       Right (session, schema) -> do
-            let context = Sess.concreteDatabaseContext session
+            let context' = Sess.concreteDatabaseContext session
             if schemaName session == defaultSchemaName then
-              pure $ Right (B.inclusionDependencies context)
+              pure $ Right (B.inclusionDependencies context')
               else
-              pure (Schema.inclusionDependenciesInSchema schema (B.inclusionDependencies context))
+              pure (Schema.inclusionDependenciesInSchema schema (B.inclusionDependencies context'))
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -726,7 +730,7 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
     case eSession of
       Left err -> pure $ Left err 
       Right (session, _) -> if schemaName session == defaultSchemaName then
-                                   pure $ evalState (applyStaticDatabaseOptimization dbExpr) (Sess.concreteDatabaseContext session)
+                                   pure $ evalState (applyStaticDatabaseOptimization dbExpr) (defaultDatabaseContextEvalState (Sess.concreteDatabaseContext session))
                                  else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly
                                    pure (Right dbExpr)
 
@@ -759,11 +763,11 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right (session, schema) -> do
-        let context = Sess.concreteDatabaseContext session
+        let context' = Sess.concreteDatabaseContext session
         if Sess.schemaName session == defaultSchemaName then
-          pure $ R.relationVariablesAsRelation (relationVariables context)
+          pure $ R.relationVariablesAsRelation (relationVariables context')
           else
-          case Schema.relationVariablesInSchema schema context of
+          case Schema.relationVariablesInSchema schema context' of
             Left err -> pure (Left err)
             Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
@@ -831,3 +835,10 @@ disconnectedTransaction_ sessionId (InProcessConnection conf) = do
     Nothing -> error "No such session"
     Just (Sess.Session discon _) -> pure discon
 disconnectedTransaction_ _ _= error "remote connection used"
+
+--includes standard constraint validator
+defaultDatabaseContextEvalState :: DatabaseContext -> DatabaseContextEvalState
+defaultDatabaseContextEvalState context = DatabaseContextEvalState {
+  dbcontext = context,
+  constraintValidator = checkConstraints
+  }

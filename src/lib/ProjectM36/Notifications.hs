@@ -1,6 +1,7 @@
 module ProjectM36.Notifications where
 import ProjectM36.Base
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpressionState
 import Control.Monad.State
 import qualified Data.Map as M
 import Data.Either (isRight)

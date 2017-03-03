@@ -4,6 +4,8 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.MiscUtils
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpressionState
+import ProjectM36.DatabaseContextExpression
 import ProjectM36.Relation
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
@@ -316,25 +318,28 @@ createIncDepsForIsomorph sname (IsoRestrict _ predi (rvTrue, rvFalse)) = let
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
-evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
-evalSchemaExpr (AddSubschema sname morphs) context sschemas = do
+evalSchemaExpr :: SchemaExpr -> Subschemas -> DatabaseState (Either RelationalError Subschemas)
+evalSchemaExpr (AddSubschema sname morphs) sschemas = do
+  context <- getDatabaseContext
+  let valid = validateSchema newSchema context
+      newSchema = Schema morphs
+
   if M.member sname sschemas then
-    Left (SubschemaNameInUseError sname)
+    pure (Left (SubschemaNameInUseError sname))
     else case valid of
-    Just err -> Left (SchemaCreationError err)
-    Nothing -> 
+    Just err -> pure (Left (SchemaCreationError err))
+    Nothing -> do
       let newSchemas = M.insert sname newSchema sschemas
           moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
-      in
-      case runState (evalContextExpr incDepExprs) context of
-        (Just err, _) -> Left err
-        (Nothing, newContext) -> pure (newSchemas, newContext)
-  where
-    newSchema = Schema morphs
-    valid = validateSchema newSchema context
-evalSchemaExpr (RemoveSubschema sname) context sschemas = if M.member sname sschemas then
-                                           pure (M.delete sname sschemas, context)
+      mErr <- evalContextExpr incDepExprs
+      case mErr of
+        Just err -> pure (Left err)
+        Nothing -> pure (Right newSchemas)
+
+
+evalSchemaExpr (RemoveSubschema sname) sschemas = if M.member sname sschemas then
+                                           pure (Right (M.delete sname sschemas))
                                          else
-                                           Left (SubschemaNameNotInUseError sname)
+                                           pure (Left (SubschemaNameNotInUseError sname))
 

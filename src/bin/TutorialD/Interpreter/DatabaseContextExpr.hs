@@ -8,12 +8,13 @@ import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Types
 import qualified Data.Map as M
 import Control.Monad.State
-import ProjectM36.StaticOptimizer
+import ProjectM36.StaticOptimizer.DatabaseContextExpression
+import ProjectM36.DatabaseContextExpression
 import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
-import ProjectM36.RelationalExpression
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
+import ProjectM36.InclusionDependencyValidation
 import Data.Monoid
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
@@ -181,18 +182,24 @@ removeAtomFunctionP = do
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP
 
-evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContext
-evalDatabaseContextExpr useOptimizer context expr = do
-    optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) context
-    case runState (evalContextExpr (if useOptimizer then optimizedExpr else expr)) context of
-        (Nothing, context') -> Right context'
-        (Just err, _) -> Left err
-
+evalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
+evalDatabaseContextExpr useOptimizer expr = do
+    eOptimizedExpr <- applyStaticDatabaseOptimization expr
+    case eOptimizedExpr of
+      Left err -> pure (Just err)
+      Right optimizedExpr -> evalContextExpr (if useOptimizer then optimizedExpr else expr)
 
 interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
                                     Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> evalDatabaseContextExpr True context parsed
+                                    Right parsed -> case runState (evalDatabaseContextExpr True parsed) dbContextState of
+                                      (Just err, _) -> Left err
+                                      (Nothing, evaldState) -> Right (dbcontext evaldState)
+  where
+   dbContextState = DatabaseContextEvalState { dbcontext = context,
+                                               constraintValidator = checkConstraints
+                                               }
+                                      
 
 {-
 --no optimization
