@@ -120,7 +120,7 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   
   -- add another relvar to branchB
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
-  updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (defaultDatabaseContextEvalState (concreteDatabaseContext branchBTrans)) of
+  updatedBranchBContext <- case runState (evalDatabaseContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (defaultDatabaseContextEvalState (concreteDatabaseContext branchBTrans)) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) (dbcontext updatedBranchBContext)) graph
@@ -147,7 +147,7 @@ testSelectedBranchMerge = TestCase $ do
   
   -- add another relvar to branchB
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
-  updatedBranchBContext <- case runState (evalContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (defaultDatabaseContextEvalState (concreteDatabaseContext branchBTrans)) of
+  updatedBranchBContext <- case runState (evalDatabaseContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (defaultDatabaseContextEvalState (concreteDatabaseContext branchBTrans)) of
     (Just err, _) -> assertFailure (show err) >> undefined
     (Nothing, context) -> pure context
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) (dbcontext updatedBranchBContext)) graph

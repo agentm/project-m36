@@ -332,7 +332,7 @@ evalSchemaExpr (AddSubschema sname morphs) sschemas = do
       let newSchemas = M.insert sname newSchema sschemas
           moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
-      mErr <- evalContextExpr incDepExprs
+      mErr <- evalDatabaseContextExpr incDepExprs
       case mErr of
         Just err -> pure (Left err)
         Nothing -> pure (Right newSchemas)

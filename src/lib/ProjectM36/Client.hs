@@ -527,7 +527,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excMaybe 
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Just err)
-        Right expr'' -> case runState (DCE.evalContextExpr expr'') (defaultDatabaseContextEvalState (Sess.concreteDatabaseContext session)) of
+        Right expr'' -> case runState (DCE.evalDatabaseContextExpr expr'') (defaultDatabaseContextEvalState (Sess.concreteDatabaseContext session)) of
           (Just err,_) -> return $ Just err
           (Nothing, evaldState) -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas

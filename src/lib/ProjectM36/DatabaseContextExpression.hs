@@ -80,10 +80,10 @@ deleteRelVar expr relVarName = do
       newContext = currContext { relationVariables = newRelVars }
   validateConstraints expr newContext
 
-evalContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
-evalContextExpr NoOperation = pure Nothing
+evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
+evalDatabaseContextExpr NoOperation = pure Nothing
   
-evalContextExpr expr@(Define relVarName attrExprs) = do
+evalDatabaseContextExpr expr@(Define relVarName attrExprs) = do
   relvars <- liftM relationVariables getDatabaseContext
   tConss <- liftM typeConstructorMapping getDatabaseContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
@@ -96,10 +96,10 @@ evalContextExpr expr@(Define relVarName attrExprs) = do
           attrs = A.attributesFromList (rights eAttrs)
           emptyRelation = Relation attrs emptyTupleSet
 
-evalContextExpr expr@(Undefine relVarName) = do
+evalDatabaseContextExpr expr@(Undefine relVarName) = do
   deleteRelVar expr relVarName
 
-evalContextExpr ex@(Assign relVarName expr) = do
+evalDatabaseContextExpr ex@(Assign relVarName expr) = do
   -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it
   context <- getDatabaseContext
   let existingRelVar = M.lookup relVarName relVarTable
@@ -116,9 +116,9 @@ evalContextExpr ex@(Assign relVarName expr) = do
                           else
                             return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
 
-evalContextExpr (Insert relVarName relExpr) = evalContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName ()))
+evalDatabaseContextExpr (Insert relVarName relExpr) = evalDatabaseContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName ()))
 
-evalContextExpr expr@(Delete relVarName predicate) = do
+evalDatabaseContextExpr expr@(Delete relVarName predicate) = do
   context <- getDatabaseContext
   let updatedRel = evalState (evalRelationalExpr (Restrict (NotPredicate predicate) (RelationVariable relVarName ()))) (RelationalExprStateElems context)
   case updatedRel of
@@ -126,7 +126,7 @@ evalContextExpr expr@(Delete relVarName predicate) = do
     Right rel -> setRelVar expr relVarName rel
 
 --union of restricted+updated portion and the unrestricted+unupdated portion
-evalContextExpr expr@(Update relVarName atomExprMap restrictionPredicateExpr) = do
+evalDatabaseContextExpr expr@(Update relVarName atomExprMap restrictionPredicateExpr) = do
   context <- getDatabaseContext
   let relVarTable = relationVariables context
   case M.lookup relVarName relVarTable of
@@ -145,7 +145,7 @@ evalContextExpr expr@(Update relVarName atomExprMap restrictionPredicateExpr) = 
               updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
               union updatedPortion unrestrictedPortion
 
-evalContextExpr expr@(AddInclusionDependency newDepName newDep) = do
+evalDatabaseContextExpr expr@(AddInclusionDependency newDepName newDep) = do
   currContext <- getDatabaseContext
   let currDeps = inclusionDependencies currContext
       newDeps = M.insert newDepName newDep currDeps
@@ -156,7 +156,7 @@ evalContextExpr expr@(AddInclusionDependency newDepName newDep) = do
       --when adding a constraint, it is new and must be unconditionally validated without being optimized away
       validateConstraints expr potentialContext
 
-evalContextExpr (RemoveInclusionDependency depName) = do
+evalDatabaseContextExpr (RemoveInclusionDependency depName) = do
   currContext <- getDatabaseContext
   let currDeps = inclusionDependencies currContext
       newDeps = M.delete depName currDeps
@@ -167,7 +167,7 @@ evalContextExpr (RemoveInclusionDependency depName) = do
     return Nothing
     
 -- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
-evalContextExpr (AddNotification notName triggerExpr resultExpr) = do
+evalDatabaseContextExpr (AddNotification notName triggerExpr resultExpr) = do
   currentContext <- getDatabaseContext
   let nots = notifications currentContext
   if M.member notName nots then
@@ -179,7 +179,7 @@ evalContextExpr (AddNotification notName triggerExpr resultExpr) = do
       putDatabaseContext $ currentContext { notifications = newNotifications }
       return Nothing
   
-evalContextExpr (RemoveNotification notName) = do
+evalDatabaseContextExpr (RemoveNotification notName) = do
   currentContext <- getDatabaseContext
   let nots = notifications currentContext
   if M.notMember notName nots then
@@ -191,7 +191,7 @@ evalContextExpr (RemoveNotification notName) = do
 
 -- | Adds type and data constructors to the database context.
 -- validate that the type *and* constructor names are unique! not yet implemented!
-evalContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
+evalDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   currentContext <- getDatabaseContext
   let oldTypes = typeConstructorMapping currentContext
       tConsName = TCD.name tConsDef
@@ -209,7 +209,7 @@ evalContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
                pure Nothing
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
-evalContextExpr (RemoveTypeConstructor tConsName) = do
+evalDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
   currentContext <- getDatabaseContext
   let oldTypes = typeConstructorMapping currentContext
   if findTypeConstructor tConsName oldTypes == Nothing then
@@ -219,15 +219,15 @@ evalContextExpr (RemoveTypeConstructor tConsName) = do
       putDatabaseContext $ currentContext { typeConstructorMapping = newTypes }
       pure Nothing
 
-evalContextExpr (MultipleExpr exprs) = do
+evalDatabaseContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context
-  evald <- forM exprs evalContextExpr
+  evald <- forM exprs evalDatabaseContextExpr
   --some lifting magic needed here
   case catMaybes evald of
     [] -> return $ Nothing
     err:_ -> return $ Just err
              
-evalContextExpr (RemoveAtomFunction funcName) = do
+evalDatabaseContextExpr (RemoveAtomFunction funcName) = do
   currentContext <- getDatabaseContext
   let atomFuncs = atomFunctions currentContext
       dudFunc = emptyAtomFunction funcName -- just for lookup in the hashset

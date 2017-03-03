@@ -9,7 +9,7 @@ import TutorialD.Interpreter.Types
 import qualified Data.Map as M
 import Control.Monad.State
 import ProjectM36.StaticOptimizer.DatabaseContextExpression
-import ProjectM36.DatabaseContextExpression
+import ProjectM36.DatabaseContextExpression 
 import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
 import ProjectM36.Key
@@ -182,17 +182,17 @@ removeAtomFunctionP = do
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP
 
-evalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
-evalDatabaseContextExpr useOptimizer expr = do
+evalDatabaseContextExprWithOpt :: Bool -> DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
+evalDatabaseContextExprWithOpt useOptimizer expr = do
     eOptimizedExpr <- applyStaticDatabaseOptimization expr
     case eOptimizedExpr of
       Left err -> pure (Just err)
-      Right optimizedExpr -> evalContextExpr (if useOptimizer then optimizedExpr else expr)
+      Right optimizedExpr -> evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)
 
 interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
                                     Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> case runState (evalDatabaseContextExpr True parsed) dbContextState of
+                                    Right parsed -> case runState (evalDatabaseContextExprWithOpt True parsed) dbContextState of
                                       (Just err, _) -> Left err
                                       (Nothing, evaldState) -> Right (dbcontext evaldState)
   where
