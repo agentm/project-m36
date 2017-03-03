@@ -10,6 +10,8 @@ import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
 import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
+import ProjectM36.DatabaseContextExpression
+import ProjectM36.InclusionDependencyValidation
 import qualified Data.HashSet as HS
 import qualified Data.ByteString.Lazy.Char8 as BS
 import qualified Data.IntMap as IM
@@ -50,6 +52,12 @@ main = do
   matrixRun bigrelArgs
     --vectorMatrixRun
     --intmapMatrixRun
+    
+defaultDatabaseContextEvalState :: DatabaseContext -> DatabaseContextEvalState
+defaultDatabaseContextEvalState context = DatabaseContextEvalState {
+  dbcontext = context,
+  constraintValidator = checkConstraints
+  }
 
 matrixRun :: BigrelArgs -> IO ()
 matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
@@ -59,8 +67,8 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                    putStrLn "Done."
                  else do
                    let setx = Assign "x" (ExistingRelation (force rel))
-                       context = execState (evalDatabaseContextExpr setx) dateExamples
-                       interpreted = interpretDatabaseContextExpr context tutd
+                       evaldState = execState (evalDatabaseContextExpr setx) (defaultDatabaseContextEvalState dateExamples)
+                       interpreted = interpretDatabaseContextExpr (dbcontext evaldState) tutd
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
                    case interpreted of
