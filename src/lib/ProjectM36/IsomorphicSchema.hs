@@ -6,6 +6,7 @@ import ProjectM36.MiscUtils
 import ProjectM36.RelationalExpression
 import ProjectM36.RelationalExpressionState
 import ProjectM36.DatabaseContextExpression
+import ProjectM36.DatabaseContextState
 import ProjectM36.Relation
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad

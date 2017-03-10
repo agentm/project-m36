@@ -153,7 +153,8 @@ instance Eq RelationTuple where
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
+data Relation = Relation Attributes RelationTupleSet
+                deriving (Show, Generic,Typeable)
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
@@ -188,6 +189,7 @@ data RelationalExprBase a =
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   --- | Reference a relation variable by its name.
+  -- this relies on access to the database context without altering the context, so should there be another type of expression? RODatabaseContextExpr? That would allow the RelationalExprs to be evaluated without ANY state needed
   RelationVariable RelVarName a |
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
   Project AttributeNames (RelationalExprBase a) |
@@ -210,10 +212,8 @@ data RelationalExprBase a =
   NotEquals (RelationalExprBase a) (RelationalExprBase a) |
   Extend (ExtendTupleExprBase a) (RelationalExprBase a)
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, NFData, Binary)
            
-instance Binary RelationalExpr            
-
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
 
@@ -284,8 +284,10 @@ data DatabaseContext = DatabaseContext {
   relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
   notifications :: Notifications,
-  typeConstructorMapping :: TypeConstructorMapping
+  typeConstructorMapping :: TypeConstructorMapping,
+  thunks :: DatabaseContextExpr
   } 
+
              
 type IncDepName = StringType             
 
@@ -337,9 +339,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq, Generic)
-
-instance Binary RestrictionPredicateExpr
+  deriving (Show, Eq, Generic, NFData, Binary)
 
 -- child + parent links
 -- | A transaction graph's head name references the leaves of the transaction graph and can be used during session creation to indicate at which point in the graph commits should persist.
@@ -393,18 +393,14 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq,Show,Generic)
+                    deriving (Eq, Show, Generic, NFData, Binary)
                        
-instance Binary AtomExpr                       
-
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Eq, Generic)
+                     deriving (Show, Eq, Generic, NFData, Binary)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()                              
 
-instance Binary ExtendTupleExpr
-           
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
 
@@ -456,7 +452,7 @@ data AttributeNames = AttributeNames (S.Set AttributeName) |
                       InvertedAttributeNames (S.Set AttributeName) |
                       UnionAttributeNames AttributeNames AttributeNames |
                       IntersectAttributeNames AttributeNames AttributeNames
-                      deriving (Eq, Show, Generic)
+                      deriving (Eq, Show, Generic, NFData)
                                 
 instance Binary AttributeNames 
 
@@ -470,12 +466,10 @@ type AttributeExpr = AttributeExprBase ()
 
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary)
+                         deriving (Eq, Show, Generic, Binary, NFData)
                               
 data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Generic)
-                          
-instance Binary TupleExpr
+                 deriving (Eq, Show, Generic, NFData, Binary)
                           
 type TupleExpr = TupleExprBase ()                           
 

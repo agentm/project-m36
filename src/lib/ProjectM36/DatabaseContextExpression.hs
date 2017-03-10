@@ -2,6 +2,7 @@
 module ProjectM36.DatabaseContextExpression where
 import ProjectM36.RelationalExpression
 import ProjectM36.RelationalExpressionState
+import ProjectM36.DatabaseContextState
 import ProjectM36.Relation
 import ProjectM36.Base
 import ProjectM36.Error
@@ -24,26 +25,7 @@ import Data.Maybe
 import GHC
 import GHC.Paths
 
-type ConstraintValidator = DatabaseContextExpr -> DatabaseContext -> Maybe RelationalError
-
-data DatabaseContextEvalState = DatabaseContextEvalState {
-  dbcontext :: DatabaseContext,
-  constraintValidator :: ConstraintValidator
-  }
-                                
-type DatabaseState a = State DatabaseContextEvalState a
-
-getDatabaseContext :: DatabaseState DatabaseContext
-getDatabaseContext = liftM dbcontext get
-
-getConstraintValidator :: DatabaseState ConstraintValidator
-getConstraintValidator = liftM constraintValidator get
-
-putDatabaseContext :: DatabaseContext -> DatabaseState ()
-putDatabaseContext context = do
-  dbstate <- get
-  put (dbstate {dbcontext = context})
-
+{-
 emptyDatabaseContext :: DatabaseContext
 emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.empty,
@@ -51,8 +33,7 @@ emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          notifications = M.empty,
                                          typeConstructorMapping = []
                                          }
-
-
+-}
 
 --helper function to process relation variable creation/assignment
 --the dbcontextexpr is useful for optimizing the constraint validation
@@ -97,6 +78,7 @@ evalDatabaseContextExpr expr@(Define relVarName attrExprs) = do
           emptyRelation = Relation attrs emptyTupleSet
 
 evalDatabaseContextExpr expr@(Undefine relVarName) = do
+  --this can always result in a lazy application as long as the relvar exists
   deleteRelVar expr relVarName
 
 evalDatabaseContextExpr ex@(Assign relVarName expr) = do

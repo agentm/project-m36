@@ -86,8 +86,9 @@ import qualified ProjectM36.RelationalExpression as RE
 import qualified ProjectM36.RelationalExpressionState as RES
 import ProjectM36.InclusionDependencyValidation
 import qualified ProjectM36.DatabaseContextExpression as DCE
-import ProjectM36.DatabaseContextExpression
+import ProjectM36.DatabaseContextState
 import ProjectM36.DatabaseContext (basicDatabaseContext)
+import qualified ProjectM36.DatabaseContext as DC
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
@@ -637,7 +638,7 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
   graph <- readTVar graphTvar
   case evalTransGraphRelationalExpr tgraphExpr graph of
     Left err -> pure (Left err)
-    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RES.mkRelationalExprState DCE.emptyDatabaseContext) of
+    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RES.mkRelationalExprState DC.empty) of
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  

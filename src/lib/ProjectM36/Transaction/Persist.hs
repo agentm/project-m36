@@ -54,13 +54,15 @@ readTransaction dbdir transId = do
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
     sschemas <- readSubschemas transDir
+    thunks <- readThunks transDir
     --atomFuncs <- readAtomFuncs transDir -- not yet supported since there is no bytecode to serialize yet
     let atomFuncs = basicAtomFunctions
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
                                        notifications = M.empty,
-                                       atomFunctions = atomFuncs }
+                                       atomFunctions = atomFuncs, 
+                                       thunks = thunks }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
         

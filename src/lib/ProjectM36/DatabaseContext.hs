@@ -38,3 +38,9 @@ contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
 contextWithEmptyTupleSets contextIn = contextIn { relationVariables = relVars }
   where
     relVars = M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
+
+thunkless :: DatabaseContext -> Bool
+thunkless context = case thunks context of
+  NoOperation -> True
+  MultipleExpr multi -> length (filter ((/=) NoOperation) multi) == 0
+  _ -> False

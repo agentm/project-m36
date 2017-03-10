@@ -427,7 +427,7 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
   notifs <- unionMergeMaps preference (notifications contextA) (notifications contextB)
   types <- unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   -- TODO: add merge of subschemas
-  let newContext = DatabaseContext incDeps relVars atomFuncs notifs types
+  let newContext = DatabaseContext incDeps relVars atomFuncs notifs types NoOperation
       newSchemas = Schemas newContext (subschemas t1)
   pure (Transaction newId (MergeTransactionInfo (transactionId t1) (transactionId t2) S.empty) newSchemas)
 

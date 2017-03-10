@@ -2,6 +2,7 @@ module ProjectM36.StaticOptimizer.DatabaseContextExpression where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContextState
 import ProjectM36.DatabaseContextExpression
 import ProjectM36.RelationalExpressionState
 import ProjectM36.StaticOptimizer.RelationalExpression
