@@ -841,5 +841,8 @@ disconnectedTransaction_ _ _= error "remote connection used"
 defaultDatabaseContextEvalState :: DatabaseContext -> DatabaseContextEvalState
 defaultDatabaseContextEvalState context = DatabaseContextEvalState {
   dbcontext = context,
-  constraintValidator = checkConstraints
+  constraintValidator = checkConstraints,
+  incDepValidationNeeded = \expr incdeps -> do
+    val <- filterInclusionDependenciesForValidation expr incdeps
+    pure (val /= NoValidationNeeded)
   }

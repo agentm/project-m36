@@ -25,18 +25,15 @@ import Data.Maybe
 import GHC
 import GHC.Paths
 
-{-
-emptyDatabaseContext :: DatabaseContext
-emptyDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
-                                         relationVariables = M.empty,
-                                         atomFunctions = HS.empty,
-                                         notifications = M.empty,
-                                         typeConstructorMapping = []
-                                         }
--}
+
+--implementation plan:
+-- thunks and thunk storage
+-- set of changed relvars per context
+-- disk writes of partial relvar map with links to previous context
 
 --helper function to process relation variable creation/assignment
 --the dbcontextexpr is useful for optimizing the constraint validation
+--it may be possible to handle all the thunk creation logic in this function IF we allow the option to disable it as well, perhaps through the db context state
 setRelVar :: DatabaseContextExpr -> RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
 setRelVar expr relVarName rel = do
   currentContext <- getDatabaseContext
@@ -57,14 +54,25 @@ validateConstraints expr potentialContext = do
 deleteRelVar :: DatabaseContextExpr -> RelVarName -> DatabaseState (Maybe RelationalError)
 deleteRelVar expr relVarName = do
   currContext <- getDatabaseContext
-  let newRelVars = M.delete relVarName (relationVariables currContext)
-      newContext = currContext { relationVariables = newRelVars }
-  validateConstraints expr newContext
+  thunks <- getThunks
+  -- deleting a rv which doesn't exist is a no-op, so if the relvarname doesn't exist in the thunks or rv map, then just discard the update
+  -- it is still worthwhile to thunk set/del because it reduces immediate vwrites to the disk
+  let thunkrvs = assignedRelVarNames thunks
+      relvars = relationVariables currContext
+  if S.notMember relVarName thunkrvs && M.notMember relVarName relationVariables then
+    pure Nothing
+    else do
+    let newRelVars = M.delete relVarName relvars
+        newContext = currContext { relationVariables = newRelVars }
+    validateConstraints expr newContext
 
 evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
 evalDatabaseContextExpr NoOperation = pure Nothing
   
 evalDatabaseContextExpr expr@(Define relVarName attrExprs) = do
+  --thunkify if the relvar name is not defined by previous thunks and the rvname is absent from the relvar map
+  --since this rv cannot possibly exist in the incDeps, there can be no incdeps to validate, thus no validation is required
+  --however, this function is O(1) already (adds an entry to the map), so the value of thunking it is marginal
   relvars <- liftM relationVariables getDatabaseContext
   tConss <- liftM typeConstructorMapping getDatabaseContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
@@ -79,6 +87,8 @@ evalDatabaseContextExpr expr@(Define relVarName attrExprs) = do
 
 evalDatabaseContextExpr expr@(Undefine relVarName) = do
   --this can always result in a lazy application as long as the relvar exists
+  --this operation can be O(n) because it will cause the relvar map to be written again to disk, so it can be worth thunking to delay a re-write of the relvar map
+  --undefining an rv multiple times is not an error
   deleteRelVar expr relVarName
 
 evalDatabaseContextExpr ex@(Assign relVarName expr) = do
@@ -99,6 +109,7 @@ evalDatabaseContextExpr ex@(Assign relVarName expr) = do
                             return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
 
 evalDatabaseContextExpr (Insert relVarName relExpr) = evalDatabaseContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName ()))
+--insert can be thunked if the rv exists and all types match
 
 evalDatabaseContextExpr expr@(Delete relVarName predicate) = do
   context <- getDatabaseContext
@@ -262,3 +273,19 @@ updateTupleWithAtomExprs exprMap context tupIn = do
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
+
+assignedRelVarNames :: DatabaseContextExpr -> S.Set RelVarName
+assignedRelVarNames expr = case expr of
+  NoOperation -> S.empty
+  Define rv _ -> S.singleton rv
+  Undefine rv -> S.singleton rv
+  Assign rv -> S.singleton rv
+  Insert rv _ -> S.singleton rv
+  Delete rv _ -> S.singleton rv
+  Update rv _ _ -> S.singleton rv
+  AddInclusionDependency _ _ -> S.empty
+  RemoveInclusionDependency _ -> S.empty
+  AddTypeConstructor _ _ -> S.empty
+  RemoveTypeConstructor _ -> S.empty
+  RemoveAtomFunction _ -> S.empty
+  MultipleExpr exprs -> S.fromList (map assignedRelVarNames exprs)

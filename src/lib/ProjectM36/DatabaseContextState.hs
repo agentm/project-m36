@@ -5,9 +5,18 @@ import Control.Monad.State
 
 type ConstraintValidator = DatabaseContextExpr -> DatabaseContext -> Maybe RelationalError
 
+
+type ValidationNeeded = Bool
+
+--returns True if validation is needed for this context expression
+--requiring validation can remove the possibility to store the update as a thunk
+type IncDepValidationNeeded = DatabaseContextExpr -> InclusionDependencies -> Either RelationalError ValidationNeeded
+
 data DatabaseContextEvalState = DatabaseContextEvalState {
   dbcontext :: DatabaseContext,
-  constraintValidator :: ConstraintValidator
+  constraintValidator :: ConstraintValidator,
+  incDepValidationNeeded :: IncDepValidationNeeded,
+  allowNewThunks ::
   }
                                 
 type DatabaseState a = State DatabaseContextEvalState a
