@@ -10,19 +10,30 @@ import qualified Data.Map as M
 --import Debug.Trace
 
 data TestT = TestC Int
-            deriving (Generic, Show)
+            deriving (Generic, Show, Eq)
                     
 data Test2T x = Test2C x
-              deriving (Show, Generic)
-                    
+              deriving (Show, Generic, Eq)
+                       
+data Test3T = Test3C Int Int                        
+              deriving (Show, Generic, Eq)
+                       
+data Test4T = Test4Ca Int |                       
+              Test4Cb Int 
+              deriving (Show, Generic, Eq)
+                       
+data TyTest a = TyTest a                       
+
 instance Atomable TestT
 instance Atomable a => Atomable (Test2T a)
+instance Atomable Test3T
+--instance Atomable Test4T
 
-class Atomable a where
+class (Eq a, Show a) => Atomable a where
   --type AtomT a
   toAtom :: a -> Atom
   default toAtom :: (Generic a, AtomableG (Rep a)) => a -> Atom
-  toAtom v = toAtomG (from v)
+  toAtom v = toAtomG (from v) (toAtomTypeG (from v))
   
   toAtomType :: a -> AtomType
   default toAtomType :: (Generic a, AtomableG (Rep a)) => a -> AtomType
@@ -32,23 +43,17 @@ instance Atomable Int where
   toAtom i = IntAtom i
   toAtomType _ = IntAtomType
 
-instance Atomable Text where
+instance Atomable T.Text where
   toAtom i = TextAtom i
   toAtomType _ = TextAtomType
   
 -- Generics
 class AtomableG g where
   --type AtomTG g
-  toAtomG :: g a -> Atom
+  toAtomG :: g a -> AtomType -> Atom
   toAtomTypeG :: g a -> AtomType --overall ConstructedAtomType
-  toAtomTypesG :: g a -> [AtomType] --built from individual atom types
+  toAtomsG :: g a -> [Atom]
   
-{-
-instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
-  --type AtomTG (a :*: b) = (AtomTG a, AtomTG b)
-  toAtomG v = undefined
-  toAtomTypeG v = undefined
--}  
 -- Right | Left  
   {-
 instance (AtomableG (a p), AtomableG (b p)) => AtomableG ((a :+: b) p) where
@@ -64,48 +69,33 @@ instance (Atomable (a p), Atomable (b p)) => AtomableG ((a :*: b) p) where
   
 --data type metadata
 instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where  
-  --type AtomTG (M1 D c a) = AtomTG a
-  toAtomG = undefined
-  toAtomTypesG = undefined
-  toAtomTypeG (M1 v) = ConstructedAtomType (T.pack typeName) tvMap
+  toAtomG (M1 v) t = toAtomG v t
+  toAtomsG = undefined
+  toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
     where
-      aTypes = toAtomTypesG v
-      a2z = map T.singleton ['a'..'z']
-      tvMap = M.fromList (zip a2z aTypes)
       typeName = datatypeName (undefined :: M1 D c a x)
   
 
 instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
-  --M.Map TypeVarName AtomType
   --constructor name needed for Atom but not for atomType
-  toAtomG (M1 _) = ConstructedAtom (T.pack constructorName) AnyAtomType []
+  toAtomG (M1 v) t = ConstructedAtom (T.pack constructorName) t atoms
     where
+      atoms = toAtomsG v
       constructorName = conName (undefined :: M1 C c a x)
+  toAtomsG = undefined
   toAtomTypeG = undefined
-  toAtomTypesG (M1 v) = toAtomTypesG v
 
-instance Atomable f => AtomableG (M1 S c (Rec0 f)) where
+instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
+  toAtomG = undefined
+  toAtomsG (M1 v) = toAtomsG v
+  toAtomTypeG (M1 v) = toAtomTypeG v
+
+instance (Atomable a) => AtomableG (K1 c a) where
+  toAtomG (K1 v) _ = toAtom v
+  toAtomsG (K1 v) = [toAtom v]
+  toAtomTypeG (K1 v) = toAtomType (undefined :: a)
+
+instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
   toAtomG = undefined
   toAtomTypeG = undefined
-  toAtomTypesG _ = [toAtomType (undefined :: f)]
-
-{-
---constructor metadata
-instance AtomableG a => AtomableG (M1 C c a) where
-  --type AtomTG (M1 C c a) = AtomTG a
-  toAtomG v = undefined
-  toAtomTypeG v = 
-  
---record selector metdata
-instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where  
-  --type AtomTG (M1 S c a) = AtomTG a
-  toAtomG v = undefined
-  toAtomTypeG v = undefined
-
---constants or recursion
-instance Atomable a => AtomableG (K1 i a) where  
-  --type AtomTG (K1 i s) = AtomT s
-  
-toAtomG (K1 a) = toAtom a
-  toAtomTypeG = undefined  
--}
+  toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
