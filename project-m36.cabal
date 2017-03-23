@@ -100,6 +100,7 @@ Library
                      ProjectM36.AtomType,
                      ProjectM36.AtomFunctions.Basic,
                      ProjectM36.AtomFunctions.Primitive,
+                     ProjectM36.ConstructedAtom,
                      ProjectM36.DataConstructorDef,
                      ProjectM36.DataTypes.Basic,
                      ProjectM36.DataTypes.Day,
