@@ -74,10 +74,13 @@ module ProjectM36.Client
        AttributeName,
        RequestTimeoutException(..),
        RemoteProcessDiedException(..),
-       AtomType(..)) where
+       AtomType(..),
+       Atomable(..),
+       ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
+import ProjectM36.ConstructedAtom
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
 import qualified ProjectM36.IsomorphicSchema as Schema

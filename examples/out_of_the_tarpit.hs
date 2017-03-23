@@ -1,11 +1,14 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
 import ProjectM36.Client
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Maybe
 import Control.Monad
 import Data.Monoid
+import GHC.Generics
+import Data.Binary
+import Control.DeepSeq
 
 addressAtomType :: AtomType
 addressAtomType = TextAtomType
@@ -19,14 +22,26 @@ priceAtomType = DoubleAtomType
 fileNameAtomType :: AtomType
 fileNameAtomType = TextAtomType
 
-roomAtomType :: AtomType
-roomAtomType = ConstructedAtomType "Room" M.empty
-
+data Room = Kitchen | Bathroom | LivingRoom
+          deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+                   
+roomAtomType :: AtomType                   
+roomAtomType = toAtomType (undefined :: Room)
+                   
+data PriceBand = Low | Medium | High | Premium
+               deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+                        
 priceBandAtomType :: AtomType
-priceBandAtomType = ConstructedAtomType "PriceBand" M.empty
+priceBandAtomType = toAtomType (undefined :: PriceBand)
+
+data AreaCode = City | Suburban | Rural
+              deriving (Generic, Atomable, Eq, Show, Binary, NFData)
 
 areaCodeAtomType :: AtomType
 areaCodeAtomType = ConstructedAtomType "AreaCode" M.empty
+
+data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand 
+               deriving (Generic, Atomable, Eq, Show, Binary, NFData)
 
 speedBandAtomType :: AtomType
 speedBandAtomType = ConstructedAtomType "SpeedBand" M.empty
