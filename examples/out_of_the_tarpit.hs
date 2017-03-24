@@ -8,6 +8,7 @@ import GHC.Generics
 import Data.Binary
 import Control.DeepSeq
 
+--create various database value (atom) types
 addressAtomType :: AtomType
 addressAtomType = TextAtomType
 
@@ -46,6 +47,7 @@ speedBandAtomType = ConstructedAtomType "SpeedBand" M.empty
   
 main :: IO ()
 main = do
+  --connect to the database
   let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
       check x = case x of 
         Left err -> error (show err)
@@ -53,6 +55,7 @@ main = do
   eConn <- connectProjectM36 connInfo
   let conn = check eConn
   
+  --create a database session at the default branch of the fresh database
   eSessionId <- createSessionAtHead "master" conn  
   let sessionId = check eSessionId
   
