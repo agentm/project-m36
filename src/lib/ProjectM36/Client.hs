@@ -63,6 +63,8 @@ module ProjectM36.Client
        atomTypesAsRelation,
        AttributeExpr,
        inclusionDependencyForKey,
+       databaseContextExprForUniqueKey,
+       databaseContextExprForForeignKey,
        AttributeExprBase(..),
        TypeConstructor(..),
        TypeConstructorDef(..),

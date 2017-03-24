@@ -2,6 +2,8 @@ module ProjectM36.Key where
 import ProjectM36.Base
 import ProjectM36.Relation
 import qualified Data.Set as S
+import Data.Monoid
+import qualified Data.Text as T
 
 {-
 keys can be implemented using inclusion dependencies as well: the count of the projection of the keys' attributes must be equal to the count of the tuples- p. 120 Database in Depth
@@ -30,3 +32,10 @@ inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCo
     projectionForCount expr = Project (AttributeNames $ S.fromList ["b"]) expr
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
+databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
+
+databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
+databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) = AddInclusionDependency fkName $ InclusionDependency (Project (attrsL attrsA) (RelationVariable rvA ())) (Project (attrsL attrsB) (RelationVariable rvB ()))
+  where
+    attrsL = AttributeNames . S.fromList    

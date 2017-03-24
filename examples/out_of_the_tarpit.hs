@@ -1,11 +1,9 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
 import ProjectM36.Client
 import qualified Data.Map as M
-import qualified Data.Set as S
 import Data.Maybe
 import Control.Monad
-import Data.Monoid
 import GHC.Generics
 import Data.Binary
 import Control.DeepSeq
@@ -62,6 +60,7 @@ main = do
   
 createSchema :: SessionId -> Connection -> IO ()  
 createSchema sessionId conn = do
+  --create attributes for relvars
   let propertyAttrs = [Attribute "address" addressAtomType,
                        Attribute "price" priceAtomType,
                        Attribute "photo" fileNameAtomType,
@@ -91,8 +90,8 @@ createSchema sessionId conn = do
                     Attribute "areaCode" areaCodeAtomType,
                     Attribute "saleSpeed" speedBandAtomType,
                     Attribute "commission" DoubleAtomType]
-      idKey rvName attrNames = AddInclusionDependency (rvName <> "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
-      incDepKeys =  map (uncurry idKey) 
+      --create uniqueness constraints                     
+      incDepKeys = map (uncurry databaseContextExprForUniqueKey)
                 [("property", ["address"]),
                  ("offer", ["address", "offerDate", "bidderName", "bidderAddress"]),
                  ("decision", ["address", "offerDate", "bidderName", "bidderAddress"]),
@@ -101,6 +100,7 @@ createSchema sessionId conn = do
                  --"commision" misspelled in OotT
                  ("commission", ["priceBand", "areaCode", "saleSpeed"])
                  ]
+      --create foreign key constraints
       foreignKeys = [("offer_property_fk", 
                       ("offer", ["address"]), 
                       ("property", ["address"])),
@@ -114,22 +114,21 @@ createSchema sessionId conn = do
                       ("floor", ["address"]),
                       ("property", ["address"]))
                     ]
-      attrsL = AttributeNames . S.fromList
-      makeFk (fkName, (rvA, attrsA), (rvB, attrsB)) = AddInclusionDependency fkName $ InclusionDependency (Project (attrsL attrsA) (RelationVariable rvA ())) (Project (attrsL attrsB) (RelationVariable rvB ()))
-      incDepForeignKeys = map makeFk foreignKeys
+      incDepForeignKeys = map (\(n, a, b) -> databaseContextExprForForeignKey n a b) foreignKeys
+      --define the relvars
       relvarMap = [("property", propertyAttrs),
                    ("offer", offerAttrs),
                    ("decision", decisionAttrs),
                    ("room", roomAttrs),
                    ("floor", floorAttrs),
                    ("commission", commissionAttrs)]
-      simple_adt tCons dConsList = AddTypeConstructor (ADTypeConstructorDef tCons []) (map (\name -> DataConstructorDef name []) dConsList)
-      new_adts = map (uncurry simple_adt) [
-        ("Room", ["Kitchen", "Bathroom", "LivingRoom"]),
-        ("PriceBand", ["Low", "Medium", "High", "Premium"]),
-        ("AreaCode", ["City", "Suburban", "Rural"]),
-        ("SpeedBand", ["VeryFastBand", "FastBand", "MediumBand", "SlowBand"])]
-      rvDefs = map (\(name, attrs) -> Define name (map NakedAttributeExpr attrs)) relvarMap
+      rvDefs = map (\(name, attrs) -> Define name (map NakedAttributeExpr attrs)) relvarMap     
+      --create the new algebraic data types
+      new_adts = [toDatabaseContextExpr (undefined :: Room),
+                  toDatabaseContextExpr (undefined :: PriceBand),
+                  toDatabaseContextExpr (undefined :: AreaCode),
+                  toDatabaseContextExpr (undefined :: SpeedBand)]
+  --gather up and execute all database updates
   mErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   let errs = catMaybes mErrs
   when (length errs > 0) (error (show errs))
