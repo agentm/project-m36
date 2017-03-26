@@ -10,39 +10,28 @@ import qualified Data.Map as M
 import Control.DeepSeq (NFData)
 import Data.Binary
 
-data TestT = TestC Int
-            deriving (Generic, Show, Eq, Binary, NFData)
-                    
-data Test2T x = Test2C x
-              deriving (Show, Generic, Eq, Binary, NFData)
-                       
-data Test3T = Test3C Int Int                        
-              deriving (Show, Generic, Eq, Binary, NFData)
-                       
-data Test4T = Test4Ca Int |                       
-              Test4Cb Int 
-              deriving (Show, Generic, Eq, Binary, NFData)
-                       
-data Test5T = Test5Ca | Test5Cb                       
-            deriving (Show, Generic, Eq, Binary, NFData)
-                       
-data TyTest a = TyTest a                       
+--also add haskell scripting atomable support
+--rename this module to Atomable along with test
 
-instance Atomable TestT
-instance Atomable a => Atomable (Test2T a)
-instance Atomable Test3T
-instance Atomable Test4T
-instance Atomable Test5T
+data Test1T = Test1C Int
+            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
+                     
+data Test2T = Test2C Int Int                     
+            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
 
 class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtom :: a -> Atom
   default toAtom :: (Generic a, AtomableG (Rep a)) => a -> Atom
   toAtom v = toAtomG (from v) (toAtomTypeG (from v))
   
+  fromAtom :: Atom -> a
+  default fromAtom :: (Generic a, AtomableG (Rep a)) => Atom -> a
+  fromAtom = to `fmap` fromAtomG
+  
   toAtomType :: a -> AtomType
   default toAtomType :: (Generic a, AtomableG (Rep a)) => a -> AtomType
   toAtomType v = toAtomTypeG (from v)
-  
+                      
   --creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database
   toDatabaseContextExpr :: a -> DatabaseContextExpr
   default toDatabaseContextExpr :: (Generic a, AtomableG (Rep a)) => a -> DatabaseContextExpr
@@ -50,11 +39,15 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   
 instance Atomable Int where  
   toAtom i = IntAtom i
+  fromAtom (IntAtom i) = i
+  fromAtom e = error ("improper fromAtom" ++ show e)
   toAtomType _ = IntAtomType
   toDatabaseContextExpr _ = NoOperation
 
 instance Atomable T.Text where
-  toAtom i = TextAtom i
+  toAtom t = TextAtom t
+  fromAtom (TextAtom t) = t
+  fromAtom _ = error "improper fromAtom"  
   toAtomType _ = TextAtomType
   toDatabaseContextExpr _ = NoOperation
   
@@ -62,6 +55,7 @@ instance Atomable T.Text where
 class AtomableG g where
   --type AtomTG g
   toAtomG :: g a -> AtomType -> Atom
+  fromAtomG :: Atom -> g a
   toAtomTypeG :: g a -> AtomType --overall ConstructedAtomType
   toAtomsG :: g a -> [Atom]
   toDatabaseContextExprG :: g a -> AtomType -> DatabaseContextExpr
@@ -71,6 +65,7 @@ class AtomableG g where
 --data type metadata
 instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where  
   toAtomG (M1 v) t = toAtomG v t
+  fromAtomG = M1 <$> fromAtomG
   toAtomsG = undefined
   toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
     where
@@ -90,6 +85,7 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
     where
       atoms = toAtomsG v
       constructorName = conName (undefined :: M1 C c a x)
+  fromAtomG = M1 <$> fromAtomG
   toAtomsG = undefined
   toAtomTypeG = undefined
   toDatabaseContextExprG = undefined  
@@ -102,6 +98,7 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
 --field metadata
 instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
   toAtomG = undefined
+  fromAtomG = M1 <$> fromAtomG
   toAtomsG (M1 v) = toAtomsG v
   toAtomTypeG (M1 v) = toAtomTypeG v
   toDatabaseContextExprG _ _ = undefined  
@@ -111,6 +108,7 @@ instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
 -- field data metadata
 instance (Atomable a) => AtomableG (K1 c a) where
   toAtomG (K1 v) _ = toAtom v
+  fromAtomG = K1 <$> fromAtom
   toAtomsG (K1 v) = [toAtom v]
   toAtomTypeG _ = toAtomType (undefined :: a)
   toDatabaseContextExprG _ _ = undefined    
@@ -125,6 +123,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
         
 instance AtomableG U1 where
   toAtomG = undefined
+  fromAtomG = pure U1
   toAtomsG _ = []
   toAtomTypeG = undefined
   toDatabaseContextExprG = undefined
@@ -134,6 +133,7 @@ instance AtomableG U1 where
 -- product types
 instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
   toAtomG = undefined
+  fromAtomG = (:*:) <$> fromAtomG <*> fromAtomG
   toAtomTypeG = undefined
   toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
   toDatabaseContextExprG _ _ = undefined    
@@ -144,6 +144,7 @@ instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
 instance (AtomableG a, AtomableG b) => AtomableG (a :+: b) where
   toAtomG (L1 x) = toAtomG x
   toAtomG (R1 x) = toAtomG x
+  fromAtomG = undefined
   toAtomTypeG = undefined
   toAtomsG (L1 x) = toAtomsG x
   toAtomsG (R1 x) = toAtomsG x
@@ -152,12 +153,8 @@ instance (AtomableG a, AtomableG b) => AtomableG (a :+: b) where
   getConstructorArgsG = undefined  
   
 --this represents the unimplemented generics traversals which should never be called
+{-
 missingError :: a
 missingError = error "missing generics traversal"
-  
-{-
-appendExpr :: DatabaseContextExpr -> DatabaseContextExpr -> DatabaseContextExpr
-appendExpr expr (MultipleExpr l) = MultipleExpr l ++ [expr]
-appendExpr exprA exprB = MultipleExpr [exprA, exprB]
 -}
 
