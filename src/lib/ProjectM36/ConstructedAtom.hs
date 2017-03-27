@@ -18,6 +18,9 @@ data Test1T = Test1C Int
                      
 data Test2T = Test2C Int Int                     
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
+                     
+data Test3T = Test3Ca | Test3Cb                     
+            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
 
 class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtom :: a -> Atom
@@ -26,8 +29,11 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   
   fromAtom :: Atom -> a
   default fromAtom :: (Generic a, AtomableG (Rep a)) => Atom -> a
-  fromAtom = to `fmap` fromAtomG
-  
+  fromAtom v@(ConstructedAtom _ _ args) = case fromAtomG v args of
+    Nothing -> error "no fromAtomG traversal found"
+    Just x -> to x
+  fromAtom v = to (fromAtomG v [])
+    
   toAtomType :: a -> AtomType
   default toAtomType :: (Generic a, AtomableG (Rep a)) => a -> AtomType
   toAtomType v = toAtomTypeG (from v)
@@ -55,7 +61,7 @@ instance Atomable T.Text where
 class AtomableG g where
   --type AtomTG g
   toAtomG :: g a -> AtomType -> Atom
-  fromAtomG :: Atom -> g a
+  fromAtomG :: Atom -> [Atom] -> Maybe (g a)
   toAtomTypeG :: g a -> AtomType --overall ConstructedAtomType
   toAtomsG :: g a -> [Atom]
   toDatabaseContextExprG :: g a -> AtomType -> DatabaseContextExpr
@@ -65,7 +71,7 @@ class AtomableG g where
 --data type metadata
 instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where  
   toAtomG (M1 v) t = toAtomG v t
-  fromAtomG = M1 <$> fromAtomG
+  fromAtomG atom args = M1 (fromAtomG atom args)
   toAtomsG = undefined
   toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
     where
@@ -85,7 +91,13 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
     where
       atoms = toAtomsG v
       constructorName = conName (undefined :: M1 C c a x)
-  fromAtomG = M1 <$> fromAtomG
+  fromAtomG atom@(ConstructedAtom dConsName _ _) args = if dName == dConsName then
+                                                      M1 (fromAtomG atom args)
+                                                   else
+                                                     error "constructor name mismatch"
+    where
+      dName = T.pack (conName (undefined :: M1 C c a x))
+  fromAtomG _ _ = error "unsupported generic traversal"
   toAtomsG = undefined
   toAtomTypeG = undefined
   toDatabaseContextExprG = undefined  
@@ -98,7 +110,7 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
 --field metadata
 instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
   toAtomG = undefined
-  fromAtomG = M1 <$> fromAtomG
+  fromAtomG atom args = M1 (fromAtomG atom args)
   toAtomsG (M1 v) = toAtomsG v
   toAtomTypeG (M1 v) = toAtomTypeG v
   toDatabaseContextExprG _ _ = undefined  
@@ -108,7 +120,9 @@ instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
 -- field data metadata
 instance (Atomable a) => AtomableG (K1 c a) where
   toAtomG (K1 v) _ = toAtom v
-  fromAtomG = K1 <$> fromAtom
+  fromAtomG _ args = K1 (fromAtom (headatom args))
+                     where headatom (x:_) = x
+                           headatom [] = error "no more atoms for constructor!"
   toAtomsG (K1 v) = [toAtom v]
   toAtomTypeG _ = toAtomType (undefined :: a)
   toDatabaseContextExprG _ _ = undefined    
@@ -123,7 +137,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
         
 instance AtomableG U1 where
   toAtomG = undefined
-  fromAtomG = pure U1
+  fromAtomG _ = pure U1
   toAtomsG _ = []
   toAtomTypeG = undefined
   toDatabaseContextExprG = undefined
@@ -133,7 +147,11 @@ instance AtomableG U1 where
 -- product types
 instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
   toAtomG = undefined
-  fromAtomG = (:*:) <$> fromAtomG <*> fromAtomG
+  fromAtomG atom args = (:*:) (fromAtomG atom [headatom args]) (fromAtomG atom (tailatoms args))
+    where headatom (x:_) = x
+          headatom [] = error "no more atoms in head for product!"
+          tailatoms (_:xs) = xs
+          tailatoms [] = error "no more atoms in tail for product!"
   toAtomTypeG = undefined
   toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
   toDatabaseContextExprG _ _ = undefined    
@@ -144,7 +162,7 @@ instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
 instance (AtomableG a, AtomableG b) => AtomableG (a :+: b) where
   toAtomG (L1 x) = toAtomG x
   toAtomG (R1 x) = toAtomG x
-  fromAtomG = undefined
+  fromAtomG atom args = L1 (fromAtomG atom args)  -- I can take both branches, match on the dconsname and return through the Either monad
   toAtomTypeG = undefined
   toAtomsG (L1 x) = toAtomsG x
   toAtomsG (R1 x) = toAtomsG x
