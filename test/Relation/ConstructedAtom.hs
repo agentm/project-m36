@@ -7,8 +7,10 @@ import Control.DeepSeq
 import System.Exit
 import TutorialD.Interpreter.TestBase
 import GHC.Generics
+import ProjectM36.Relation
 import ProjectM36.Base
 import Data.Text
+import qualified Data.Map as M
 
 data Test1T = Test1C Int
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
@@ -45,6 +47,20 @@ testHaskell2DB = TestCase $ do
       expectedTest1TExpr = AddTypeConstructor (ADTypeConstructorDef "Test1T" []) [DataConstructorDef "Test1C" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" IntAtomType)]]
   assertEqual "simple ADT1" expectedTest1TExpr test1TExpr
   checkExecuteDatabaseContextExpr sessionId dbconn test1TExpr
+  --execute some expressions involving Atomable data types
+ 
+  let createRelExpr = Assign "x" rel
+            
+      rel = MakeRelationFromExprs Nothing
+            [TupleExpr (M.singleton "a1" (NakedAtomExpr atomVal))]
+      atomVal = toAtom exampleVal
+      exampleVal = Test1C 10
+  checkExecuteDatabaseContextExpr sessionId dbconn createRelExpr
+  
+  let retrieveValExpr = Restrict (AttributeEqualityPredicate "a1" (NakedAtomExpr atomVal)) (RelationVariable "x" ())
+  ret <- executeRelationalExpr sessionId dbconn retrieveValExpr
+  let expectedRel = mkRelationFromList (attributesFromList [Attribute "a1" (toAtomType exampleVal)]) [[atomVal]]
+  assertEqual "retrieve atomable atom" expectedRel ret
   
 testADT1 :: Test
 testADT1 = TestCase $ do
