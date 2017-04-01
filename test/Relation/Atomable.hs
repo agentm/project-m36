@@ -9,6 +9,7 @@ import TutorialD.Interpreter.TestBase
 import GHC.Generics
 import ProjectM36.Relation
 import ProjectM36.Base
+import Data.Time.Calendar (Day,toGregorian)
 import Data.Text
 import qualified Data.Map as M
 
@@ -36,8 +37,21 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling]
 
+-- test some basic data types like int, day, etc.
+testBasicMarshaling :: Test
+testBasicMarshaling = TestCase $ do
+    assertEqual "to IntAtom" (IntAtom 5) (toAtom (5 :: Int))
+    assertEqual "from IntAtom" (5 :: Int) (fromAtom (IntAtom 5))
+
+    assertEqual "to BoolAtom" (BoolAtom False) (toAtom False)
+    assertEqual "from BoolAtom" False (fromAtom (BoolAtom False))
+
+    let day = fromGregorian 2012 10 19
+    assertEqual "to DayAtom" (DayAtom day) (toAtom day)
+    assertEqual "from DayAtom" day (fromAtom (DayAtom day))
+  
 --test marshaling of Generics-derived Atom to database ADT
 testHaskell2DB :: Test
 testHaskell2DB = TestCase $ do
@@ -91,7 +105,4 @@ testADT5 = TestCase $ do
   assertEqual "record-based ADT" example (fromAtom (toAtom example))  
   
 checkExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO ()
-checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= maybe (pure ()) (\err -> assertFailure (show err))    
-
-
-  
+checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= maybe (pure ()) (\err -> assertFailure (show err))

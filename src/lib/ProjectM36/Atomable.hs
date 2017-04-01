@@ -1,8 +1,9 @@
 {-# LANGUAGE DefaultSignatures, TypeFamilies, TypeOperators, PolyKinds, FlexibleInstances, ScopedTypeVariables, FlexibleContexts, DeriveGeneric, DeriveAnyClass #-}
-module ProjectM36.ConstructedAtom where
+module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
 import ProjectM36.Base
+import ProjectM36.Relation
 import ProjectM36.DataTypes.Primitive
 import GHC.Generics
 import qualified Data.Map as M
@@ -10,6 +11,9 @@ import qualified Data.Text as T
 import Control.DeepSeq (NFData)
 import Data.Binary
 import Control.Applicative
+import Data.Time.Calendar
+import Data.ByteString (ByteString)
+import Data.Time.Clock
 
 --also add haskell scripting atomable support
 --rename this module to Atomable along with test
@@ -54,13 +58,56 @@ instance Atomable Int where
   toAtomType _ = IntAtomType
   toDatabaseContextExpr _ = NoOperation
 
+instance Atomable Double where
+  toAtom d = DoubleAtom d
+  fromAtom (DoubleAtom d) = d
+  fromAtom _ = error "improper fromAtom"
+  toAtomType _ = DoubleAtomType
+  toDatabaseContextExpr _ = NoOperation
+
 instance Atomable T.Text where
   toAtom t = TextAtom t
   fromAtom (TextAtom t) = t
   fromAtom _ = error "improper fromAtom"  
   toAtomType _ = TextAtomType
   toDatabaseContextExpr _ = NoOperation
-  
+
+instance Atomable Day where
+  toAtom d = DayAtom d
+  fromAtom (DayAtom d) = d
+  fromAtom _ = error "improper fromAtom"
+  toAtomType _ = DayAtomType
+  toDatabaseContextExpr _ = NoOperation
+
+instance Atomable UTCTime where
+  toAtom t = DateTimeAtom t
+  fromAtom (DateTimeAtom t) = t
+  fromAtom _ = error "improper fromAtom"
+  toAtomType _ = DateTimeAtomType
+  toDatabaseContextExpr _ = NoOperation
+
+instance Atomable ByteString where
+  toAtom = ByteStringAtom
+  fromAtom (ByteStringAtom b) = b
+  fromAtom _ = error "improper fromAtom"
+  toAtomType _ = ByteStringAtomType
+  toDatabaseContextExpr _ = NoOperation
+
+instance Atomable Bool where
+  toAtom = BoolAtom
+  fromAtom (BoolAtom b) = b
+  fromAtom _ = error "improper fromAtom"
+  toAtomType _ = BoolAtomType
+  toDatabaseContextExpr _ = NoOperation
+
+instance Atomable Relation where
+  toAtom = RelationAtom
+  fromAtom (RelationAtom r) = r
+  fromAtom _ = error "improper fromAtom"
+  --warning: cannot be used with undefined "Relation"
+  toAtomType rel = RelationAtomType (attributes rel) 
+  toDatabaseContextExpr _ = NoOperation 	 
+
 -- Generics
 class AtomableG g where
   --type AtomTG g
