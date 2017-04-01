@@ -10,7 +10,10 @@ module ProjectM36.Persist (writeFileSync,
 import qualified System.Win32 as Win32
 #else
 import qualified System.Posix as Posix
+  #ifdef HAVE_FDATASYNC
 import System.Posix.Unistd (fileSynchroniseDataOnly)
+  #endif
+import System.Posix.Unistd (fileSynchronise)
 import System.Posix.IO (handleToFd)
 import Foreign.C
 #endif
@@ -51,8 +54,10 @@ syncHandle :: DiskSync -> Handle -> IO ()
 syncHandle FsyncDiskSync handle = do
 #if defined(mingw32_HOST_OS)
   withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
-#else
+#elif HAVE_FDATASYNC
   handleToFd handle >>= fileSynchroniseDataOnly
+#else
+  handleToFd handle >>= fileSynchronise
 #endif
 syncHandle NoDiskSync _ = pure ()
 
