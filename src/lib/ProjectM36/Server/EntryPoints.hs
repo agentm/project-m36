@@ -7,7 +7,6 @@ import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Distributed.Process.Async (async, task, waitCancelTimeout, AsyncResult(..))
-import Control.Distributed.Process.Extras.Time (microSeconds)
 import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
@@ -19,7 +18,7 @@ timeoutOrDie micros act = do
     liftIO act >>= \x -> pure (Right x)
     else do
     asyncUnit <- async (task (liftIO act))
-    asyncRes <- waitCancelTimeout (microSeconds micros) asyncUnit
+    asyncRes <- waitCancelTimeout micros asyncUnit
     case asyncRes of
       AsyncDone x -> pure (Right x)
       AsyncCancelled -> pure (Left RequestTimeoutError)

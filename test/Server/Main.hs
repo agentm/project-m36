@@ -231,6 +231,6 @@ fdCount = do
   fds <- getDirectoryContents "/proc/self/fd"
   pure ((length fds) - 2)
 #else 
-  --pass on non-linux platforms
-  testFileDescriptorCount = TestCase (pure ())
+--pass on non-linux platforms
+testFileDescriptorCount = TestCase (pure ())
 #endif

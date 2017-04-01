@@ -56,10 +56,10 @@ Library
                    ,resourcet
                    ,http-api-data
 --needed for remote access                   
-                   ,distributed-process-client-server
-                   ,distributed-process
-                   ,distributed-process-extras
-                   ,distributed-process-async
+                   ,distributed-process-client-server >= 0.2.3
+                   ,distributed-process >= 0.6.6
+                   ,distributed-process-extras >= 0.3.2
+                   ,distributed-process-async >= 0.2.4
                    ,network-transport-tcp
                    ,network-transport
                    ,stm-containers

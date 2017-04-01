@@ -9,11 +9,10 @@ import ProjectM36.Server.Config (ServerConfig(..))
 import Control.Monad.IO.Class (liftIO)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Transport (EndPointAddress(..), newEndPoint, address)
-import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode)
+import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode, initRemoteTable)
 import Control.Distributed.Process.Extras.Time (Delay(..))
-import Control.Distributed.Process (Process, register, RemoteTable, getSelfPid)
+import Control.Distributed.Process (Process, register, getSelfPid)
 import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
-import qualified Control.Distributed.Process.Extras.Internal.Types as DIT
 import Control.Concurrent.MVar (putMVar, MVar)
 import System.IO (stderr, hPutStrLn)
 
@@ -62,9 +61,6 @@ initServer (conn, dbname, mAddressMVar, saddress) = do
   --traceShowM ("server started on " ++ show saddress)
   pure $ InitOk conn Infinity
 
-remoteTable :: RemoteTable
-remoteTable = DIT.__remoteTable initRemoteTable
-
 registerDB :: DatabaseName -> Process ()
 registerDB dbname = do
   self <- getSelfPid
@@ -95,7 +91,7 @@ launchServer daemonConfig mAddressMVar = do
           case eEndpoint of 
             Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
             Right endpoint -> do
-              localTCPNode <- newLocalNode transport remoteTable
+              localTCPNode <- newLocalNode transport initRemoteTable
               --traceShowM ("newLocalNode in Server " ++ show (localNodeId localTCPNode))
               runProcess localTCPNode $ do
                 let testBool = testMode daemonConfig
