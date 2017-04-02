@@ -106,7 +106,7 @@ instance Atomable Relation where
   fromAtom _ = error "improper fromAtom"
   --warning: cannot be used with undefined "Relation"
   toAtomType rel = RelationAtomType (attributes rel) 
-  toDatabaseContextExpr _ = NoOperation 	 
+  toDatabaseContextExpr _ = NoOperation
 
 -- Generics
 class AtomableG g where
