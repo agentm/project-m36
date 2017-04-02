@@ -58,7 +58,7 @@ main = do
   --create a database session at the default branch of the fresh database
   eSessionId <- createSessionAtHead "master" conn  
   let sessionId = check eSessionId
-  
+
   createSchema sessionId conn
   
 createSchema :: SessionId -> Connection -> IO ()  
@@ -134,6 +134,4 @@ createSchema sessionId conn = do
   --gather up and execute all database updates
   mErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   let errs = catMaybes mErrs
-  when (length errs > 0) (error (show errs))
-  
-  
+  when (length errs > 0) (error (show errs))  

@@ -78,6 +78,9 @@ module ProjectM36.Client
        RemoteProcessDiedException(..),
        AtomType(..),
        Atomable(..),
+       TupleExprBase(..),
+       AtomExprBase(..),
+       RestrictionPredicateExprBase(..)
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B

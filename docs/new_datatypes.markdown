@@ -43,27 +43,65 @@ New algebraic data types can be added to the database context at any time via Tu
 
 ### Implementation for Haskell Types
 
-Given a ```ProjectM36.Client``` ```Connection```, create an ```AddTypeConstructor``` with arguments a) type constructor name and b) data constructors.
+Any Haskell ADT which implements the ```Atomable``` typeclass can be used directly as a database value or "atom" in Project:M36 parlance. The ```Atomable``` typeclass requires a set of prerequisite typeclasses be included, but, luckily, all of these typeclasses can be derived.
 
-Example:
-```haskell
-AddTypeConstructor (ADTypeConstructorDef "Hair" []) [DataConstructorDef "Brown" [], DataConstructorDef "Blond" [], DataConstructorDef "Bald" [],...]
-```
+Let's implement the ```Hair``` algebraic data type from the TutorialD example, but in Haskell. The full source code is available under the [examples directory](/examples/hair.hs).
 
-Pass the ```AddTypeConstructor``` value to ```executeDatabaseContextExpr``` to add it to the database.
-
-To create a value for the new algebraic data type, create the type:
+First, we define our data type and derive all the required typeclasses:
 
 ```haskell
-let hairType = ConstructedAtomType "Hair" M.empty
+data Hair = Bald | Brown | Blond | OtherColor Text
+   deriving (Generic, Show, Eq, Binary, NFData, Atomable)
 ```
 
-then create the value:
+Note that the ```Atomable``` instance can also be derived.
+
+After setting up the connection (which we elide here), the database context is loaded with the expression to define the data type.
 
 ```haskell
-let blondAtom = ConstructedAtom "Blond" hairType []
+executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
 ```
 
-The ```blondAtom``` can now be used in any place where an Atom is otherwise used such as in ```AtomExpr``` checking for equality in restriction or as an argument to ```AtomFunction```s or simply in building a new relation.
+Using a ```Proxy``` would also be acceptable, but the result would be the same.
 
-In the previous example, the additional empty arguments are for polymorphic variables and arguments. In this simple ADT, there is no polymorphism necessary, so the arguments are empty.
+Next, we can create a relation variable named "people" containing our new data type alongside a person's name.
+
+```haskell
+  let blond = NakedAtomExpr (toAtom Blond)
+  executeDatabaseContextExpr sessionId conn (Assign "people" (MakeRelationFromExprs Nothing [
+            TupleExpr (M.fromList [("hair", blond), ("name", NakedAtomExpr (TextAtom "Colin"))])]))
+```
+
+To demonstrate that the new value is fully integrated with the database, we can create a restriction which matches against the value in the database.
+
+```haskell
+let restrictionPredicate = AttributeEqualityPredicate "hair" blond
+peopleRelOrErr <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "people" ()))
+```
+
+Finally, we can print the resultant relation to show that it can be properly displayed (via the type's ```Show``` instance).
+
+```
+TIO.putStrLn (showRelation peopleRel)
+```
+
+```
+┌──────────┬──────────┐
+│hair::Hair│name::Text│
+├──────────┼──────────┤
+│Blond     │"Colin"   │
+└──────────┴──────────┘
+```
+
+The essential ```Atomable``` typeclass functions are:
+
+| Function | Purpose |
+| -------- | ------- |
+| toAtom :: a -> Atom | convert a Haskell data type to a database atom |
+| fromAtom :: Atom -> a | convert a database atom to a Haskell data type |
+| toAtomType :: a -> AtomType | generate a database AtomType for a Haskell datatype |
+| toDatabaseContextExpr :: a -> DatabaseContextExpr | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
+
+In addition, basic Haskell data types like ```Int```, ```Text```, ```Bool```, ```UTCTime```, and more already have Atomable instances ready-to-go.
+
+To be clear, these data types are not black boxes once stored in the database. These new types can be scanned and manipulated by Haskell scripts which can be created at runtime. For more information, read about [```AtomFunction```s](/docs/atomfunctions.markdown).
