@@ -93,14 +93,16 @@ TIO.putStrLn (showRelation peopleRel)
 └──────────┴──────────┘
 ```
 
+Note here that ```Blond``` is not quoted because it is not a text value, but rather a real algebraic data type constructor honored by the database. The value is not a black box nor is an enumeration. Try, for example, replacing the ```Blond``` value with an ```OtherColor "Black"``` value to see how it appears and can be matched as well.
+
 The essential ```Atomable``` typeclass functions are:
 
 | Function | Purpose |
 | -------- | ------- |
-| toAtom :: a -> Atom | convert a Haskell data type to a database atom |
-| fromAtom :: Atom -> a | convert a database atom to a Haskell data type |
-| toAtomType :: a -> AtomType | generate a database AtomType for a Haskell datatype |
-| toDatabaseContextExpr :: a -> DatabaseContextExpr | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
+| ```toAtom :: a -> Atom``` | convert a Haskell data type to a database atom |
+| ```fromAtom :: Atom -> a``` | convert a database atom to a Haskell data type |
+| ```toAtomType :: a -> AtomType``` | generate a database AtomType for a Haskell datatype |
+| ```toDatabaseContextExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
 
 In addition, basic Haskell data types like ```Int```, ```Text```, ```Bool```, ```UTCTime```, and more already have Atomable instances ready-to-go.
 
