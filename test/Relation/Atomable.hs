@@ -9,7 +9,7 @@ import TutorialD.Interpreter.TestBase
 import GHC.Generics
 import ProjectM36.Relation
 import ProjectM36.Base
-import Data.Time.Calendar (Day,toGregorian)
+import Data.Time.Calendar (fromGregorian)
 import Data.Text
 import qualified Data.Map as M
 
