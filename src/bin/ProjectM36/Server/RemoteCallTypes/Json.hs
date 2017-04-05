@@ -116,8 +116,8 @@ instance FromJSON Atom where
 instance ToJSON Notification
 instance FromJSON Notification
 
-instance ToJSON AtomFunctionBodyCompilationError
-instance FromJSON AtomFunctionBodyCompilationError
+instance ToJSON ScriptCompilationError
+instance FromJSON ScriptCompilationError
 
 instance ToJSON RelationalError
 instance FromJSON RelationalError

@@ -39,7 +39,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchSessionError TransactionId
                      | FailedToFindTransactionError TransactionId
                      | TransactionIdInUseError TransactionId
-                     | NoSuchTupleExprFunctionError AtomFunctionName
+                     | NoSuchFunctionError AtomFunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
                      | AtomTypeMismatchError AtomType AtomType
@@ -54,9 +54,9 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
-                     | AtomFunctionNameInUseError AtomFunctionName
-                     | AtomFunctionNameNotInUseError AtomFunctionName
-                     | AtomFunctionArgumentCountMismatch Int Int
+                     | FunctionNameInUseError AtomFunctionName
+                     | FunctionNameNotInUseError AtomFunctionName
+                     | FunctionArgumentCountMismatch Int Int
                      | NoSuchDataConstructorError DataConstructorName
                      | NoSuchTypeConstructorError TypeConstructorName
                      | InvalidAtomTypeName AtomTypeName
@@ -72,7 +72,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | ExportError T.Text
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
-                     | AtomFunctionBodyScriptError AtomFunctionBodyCompilationError
+                     | ScriptError ScriptCompilationError
                        
                      | SubschemaNameInUseError SchemaName
                      | SubschemaNameNotInUseError SchemaName
@@ -110,11 +110,11 @@ data MergeError = SelectedHeadMismatchMergeError |
                            
 instance NFData MergeError where rnf = genericRnf                           
                                  
-data AtomFunctionBodyCompilationError = TypeCheckCompilationError String String | --expected, got
-                                        SyntaxErrorCompilationError String |
-                                        ScriptCompilationDisabledError |
-                                        OtherScriptCompilationError String
-                                      deriving (Show,Eq, Generic, Binary, Typeable, NFData)
+data ScriptCompilationError = TypeCheckCompilationError String String | --expected, got
+                              SyntaxErrorCompilationError String |
+                              ScriptCompilationDisabledError |
+                              OtherScriptCompilationError String
+                            deriving (Show,Eq, Generic, Binary, Typeable, NFData)
                                                
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |

@@ -60,7 +60,8 @@ readTransaction dbdir transId = do
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
                                        notifications = M.empty,
-                                       atomFunctions = atomFuncs }
+                                       atomFunctions = atomFuncs, 
+                                       dbcFunctions = undefined }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
         

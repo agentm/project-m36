@@ -283,6 +283,7 @@ data DatabaseContext = DatabaseContext {
   inclusionDependencies :: InclusionDependencies,
   relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
+  dbcFunctions :: DatabaseContextFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping
   } 
@@ -318,11 +319,16 @@ data DatabaseContextExpr =
   --adding an AtomFunction is not a pure operation (required loading GHC modules)
   RemoveAtomFunction AtomFunctionName |
   
+  RemoveDatabaseContextFunction DatabaseContextFunctionName |
+  
+  ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExpr] |
+  
   MultipleExpr [DatabaseContextExpr]
   deriving (Show, Eq, Binary, Generic)
 
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
-data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript
+data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
+                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript
                            deriving (Show, Eq, Generic, Binary)
 
 -- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
@@ -488,4 +494,35 @@ data MergeStrategy =
   SelectedBranchMergeStrategy HeadName
                      deriving (Eq, Show, Binary, Generic, NFData)
 
+type DatabaseContextFunctionName = StringType
 
+type DatabaseContextFunctionBodyScript = StringType
+
+type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> DatabaseContext
+
+data DatabaseContextFunctionBody = DatabaseContextFunctionBody (Maybe DatabaseContextFunctionBodyScript) DatabaseContextFunctionBodyType
+
+data DatabaseContextFunction = DatabaseContextFunction {
+  dbcFuncName :: DatabaseContextFunctionName,
+  dbcFuncType :: [AtomType],
+  dbcFuncBody :: DatabaseContextFunctionBody
+  }
+                               
+type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
+
+instance Hashable DatabaseContextFunction where
+  hashWithSalt salt func = salt `hashWithSalt` (dbcFuncName func)
+                           
+instance Eq DatabaseContextFunction where                           
+  f1 == f2 = let (DatabaseContextFunctionBody mScript1 _) = dbcFuncBody f1 
+                 (DatabaseContextFunctionBody mScript2 _) = dbcFuncBody f2 in
+             if dbcFuncName f1 == dbcFuncName f2 then
+               if isJust mScript1 then
+                 if mScript1 == mScript2 then
+                   True
+                 else 
+                   False
+               else
+                 True
+             else
+               False

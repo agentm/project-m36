@@ -4,6 +4,7 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
+import ProjectM36.DatabaseContextFunction
 import ProjectM36.Relation
 
 empty :: DatabaseContext
@@ -11,6 +12,7 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           relationVariables = M.empty, 
                           notifications = M.empty,
                           atomFunctions = HS.empty,
+                          dbcFunctions = HS.empty,
                           typeConstructorMapping = [] }
         
 -- | convert an existing database context into its constituent expression.   
@@ -27,6 +29,7 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          relationVariables = M.fromList [("true", relationTrue),
                                                                          ("false", relationFalse)],
                                          atomFunctions = basicAtomFunctions,
+                                         dbcFunctions = basicDatabaseContextFunctions,
                                          notifications = M.empty,
                                          typeConstructorMapping = basicTypeConstructorMapping
                                          }

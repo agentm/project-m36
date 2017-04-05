@@ -32,6 +32,7 @@ databaseContextExprP = choice [insertP,
                                removeNotificationP,
                                addTypeConstructorP,
                                removeTypeConstructorP,
+                               executeDatabaseContextFunctionP,
                                nothingP]
             
 nothingP :: Parser DatabaseContextExpr            
@@ -177,6 +178,18 @@ removeAtomFunctionP :: Parser DatabaseContextExpr
 removeAtomFunctionP = do
   reserved "removeatomfunction"
   RemoveAtomFunction <$> quotedString
+  
+removeDatabaseContextFunctionP :: Parser DatabaseContextExpr
+removeDatabaseContextFunctionP = do
+  reserved "removedatabasecontextfunction"
+  RemoveDatabaseContextFunction <$> quotedString
+
+executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
+executeDatabaseContextFunctionP = do
+  reserved "execute"
+  funcName <- identifier
+  args <- parens (sepBy atomExprP comma)
+  pure (ExecuteDatabaseContextFunction funcName args)
 
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP

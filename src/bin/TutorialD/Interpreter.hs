@@ -58,7 +58,7 @@ interpreterParserP = safeInterpreterParserP <|>
                      liftM ImportRelVarOp (importCSVP <* eof) <|>
                      liftM ImportDBContextOp (tutdImportP <* eof) <|>
                      liftM RelVarExportOp (exportCSVP <* eof) <|>
-                     liftM DatabaseContextIOExprOp (addAtomFunctionExprP <* eof)
+                     liftM DatabaseContextIOExprOp (dbContextIOExprP <* eof)
                      
 -- the safe interpreter never reads or writes the file system
 safeInterpreterParserP :: Parser ParsedOperation

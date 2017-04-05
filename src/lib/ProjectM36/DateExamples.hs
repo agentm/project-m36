@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 dateExamples :: DatabaseContext
-dateExamples = DatabaseContext { inclusionDependencies = dateIncDeps,
+dateExamples = empty { inclusionDependencies = dateIncDeps,
                                  relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
                                  notifications = M.empty,
                                  atomFunctions = basicAtomFunctions,

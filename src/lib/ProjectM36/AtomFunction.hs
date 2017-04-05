@@ -9,7 +9,7 @@ foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [
 
 atomFunctionForName :: AtomFunctionName -> AtomFunctions -> Either RelationalError AtomFunction
 atomFunctionForName funcName funcSet = if HS.null foundFunc then
-                                         Left $ NoSuchTupleExprFunctionError funcName
+                                         Left $ NoSuchFunctionError funcName
                                         else
                                          Right $ head $ HS.toList foundFunc
   where

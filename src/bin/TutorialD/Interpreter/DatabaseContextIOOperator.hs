@@ -14,6 +14,19 @@ addAtomFunctionExprP = do
   funcType <- atomTypeSignatureP
   funcScript <- quotedString
   pure $ AddAtomFunction funcName funcType funcScript
-  
+
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
+
+addDatabaseContextFunctionExprP :: Parser DatabaseContextIOExpr
+addDatabaseContextFunctionExprP = do
+  reserved "adddatabasecontextfunction"
+  funcName <- quotedString
+  funcType <- atomTypeSignatureP
+  funcScript <- quotedString
+  pure $ AddDatabaseContextFunction funcName funcType funcScript
+  
+dbContextIOExprP :: Parser DatabaseContextIOExpr
+dbContextIOExprP = addAtomFunctionExprP <|> addDatabaseContextFunctionExprP
+  
+                                             

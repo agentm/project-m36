@@ -80,6 +80,8 @@ Library
                      ProjectM36.TupleSet,
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
+                     ProjectM36.ScriptSession,
+                     ProjectM36.DatabaseContextFunction,
                      ProjectM36.Key,
                      ProjectM36.FunctionalDependency,
                      ProjectM36.DatabaseContext,

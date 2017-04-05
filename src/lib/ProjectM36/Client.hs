@@ -102,8 +102,10 @@ import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
-import ProjectM36.AtomFunctionBody (initScriptSession, ScriptSession)
+import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
 import qualified ProjectM36.Relation as R
+import qualified ProjectM36.DatabaseContext as DBC
+
 import Network.Transport (Transport(closeTransport))
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
@@ -641,7 +643,7 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
   graph <- readTVar graphTvar
   case evalTransGraphRelationalExpr tgraphExpr graph of
     Left err -> pure (Left err)
-    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RE.mkRelationalExprState RE.emptyDatabaseContext) of
+    Right relExpr -> case evalState (RE.evalRelationalExpr relExpr) (RE.mkRelationalExprState DBC.empty) of
       Left err -> pure (Left err)
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
