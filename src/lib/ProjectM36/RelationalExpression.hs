@@ -398,18 +398,20 @@ evalContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) = do
         if expectedArgCount /= actualArgCount then
           pure (Just (FunctionArgumentCountMismatch expectedArgCount actualArgCount))
           else do
-          {-
-          mapM_ (\(expType, actType) -> case atomTypeVerify expType actType of 
-                    Left err -> pure (Just err) 
-                    Right _ -> pure Nothing) (safeInit (zip (dbcFuncType func) atomTypes))
-          -}
-          let eAtomArgs = map (\arg -> evalState (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
+          
+          let mValidTypes = map (\(expType, actType) -> case atomTypeVerify expType actType of 
+                                    Left err -> Just err
+                                    Right _ -> Nothing) (safeInit (zip (dbcFuncType func) atomTypes))
+              typeErrors = catMaybes mValidTypes 
+              eAtomArgs = map (\arg -> evalState (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
           if length (lefts eAtomArgs) > 1 then
             pure (Just (MultipleErrors (lefts eAtomArgs)))
-            else do
-            let newContext = evalDatabaseContextFunction func (rights eAtomArgs) context
-            put newContext
-            pure Nothing
+            else if length typeErrors > 1 then
+                   pure (Just (MultipleErrors typeErrors))                   
+                 else do
+                   let newContext = evalDatabaseContextFunction func (rights eAtomArgs) context
+                   put newContext
+                   pure Nothing
       
 evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
 evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = do
@@ -445,32 +447,42 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
 evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunction funcName funcType script) = do
   case mScriptSession of
     Nothing -> pure (Left (ScriptError ScriptCompilationDisabledError))
-    Just scriptSession -> do    
-      res <- try $ runGhc (Just libdir) $ do
-        setSession (hscEnv scriptSession)
-        eCompiledFunc  <- compileScript (dbcFunctionBodyType scriptSession) script
-        pure $ case eCompiledFunc of        
-          Left err -> Left (ScriptError err)
-          Right compiledFunc -> do
-            funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) funcType
-            let updatedDBCFuncs = HS.insert newDBCFunc (dbcFunctions currentContext)
-                newContext = currentContext { dbcFunctions = updatedDBCFuncs }
-                dbcFuncs = dbcFunctions currentContext
-                newDBCFunc = DatabaseContextFunction {
-                  dbcFuncName = funcName,
-                  dbcFuncType = funcAtomType,
-                  dbcFuncBody = DatabaseContextFunctionBody (Just script) compiledFunc
-                  }
+    Just scriptSession -> do
+      --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
+      let last2Args = take 2 (reverse funcType)
+          atomArgs = take (length funcType - 2) funcType
+          dbContextTypeCons = ADTypeConstructor "DatabaseContext" []
+          expectedType = "DatabaseContextExpr -> DatabaseContextExpr"
+          actualType = show funcType
+      if last2Args /= replicate 2 dbContextTypeCons then 
+        pure (Left (ScriptError (TypeCheckCompilationError expectedType actualType)))
+        else do
+        res <- try $ runGhc (Just libdir) $ do
+          setSession (hscEnv scriptSession)
+          eCompiledFunc  <- compileScript (dbcFunctionBodyType scriptSession) script
+          pure $ case eCompiledFunc of        
+            Left err -> Left (ScriptError err)
+            Right compiledFunc -> do
+              --if we are here, we have validated that the written function type is X -> DatabaseContext -> DatabaseContext, so we need to munge the first elements into an array
+              funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) atomArgs
+              let updatedDBCFuncs = HS.insert newDBCFunc (dbcFunctions currentContext)
+                  newContext = currentContext { dbcFunctions = updatedDBCFuncs }
+                  dbcFuncs = dbcFunctions currentContext
+                  newDBCFunc = DatabaseContextFunction {
+                    dbcFuncName = funcName,
+                    dbcFuncType = funcAtomType,
+                    dbcFuncBody = DatabaseContextFunctionBody (Just script) compiledFunc
+                    }
                 -- check if the name is already in use                                              
-            if HS.member funcName (HS.map dbcFuncName dbcFuncs) then
-              Left (FunctionNameInUseError funcName)
-              else do
-              Right newContext
-      case res of
-        Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
-        Right eContext -> case eContext of
-          Left err -> pure (Left err)
-          Right context' -> pure (Right context')
+              if HS.member funcName (HS.map dbcFuncName dbcFuncs) then
+                Left (FunctionNameInUseError funcName)
+                else do
+                Right newContext
+        case res of
+          Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
+          Right eContext -> case eContext of
+            Left err -> pure (Left err)
+            Right context' -> pure (Right context')
               
     
 updateTupleWithAtomExprs :: (M.Map AttributeName AtomExpr) -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
@@ -626,7 +638,7 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
   runExceptT $ do
     let functions = atomFunctions context
     func <- either throwE pure (atomFunctionForName funcName functions)
-    let expectedArgCount = length (atomFuncType func) - 1
+    let expectedArgCount = length (atomFuncType func)
         actualArgCount = length argTypes
         safeInit [_] = []
         safeInit [] = [] -- different behavior from normal init

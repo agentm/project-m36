@@ -106,7 +106,10 @@ initScriptSession ghcPkgPaths = do
     setContext (map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn))
                 ["Prelude",
                  "Data.Map",
-                 "ProjectM36.Base"])
+                 "Control.Monad.State",
+                 "ProjectM36.Base",
+                 "ProjectM36.Relation",
+                 "ProjectM36.RelationalExpression"])
     env <- getSession
     atomFuncType <- mkTypeForName "AtomFunctionBodyType"
     dbcFuncType <- mkTypeForName "DatabaseContextFunctionBodyType"
@@ -118,7 +121,7 @@ addImport moduleNam = do
   setContext ( (IIDecl $ simpleImportDecl (mkModuleName moduleNam)) : ctx )
   
 showType :: DynFlags -> Type -> String
-showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)  
+showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)
 
 mkTypeForName :: String -> Ghc Type
 mkTypeForName name = do
@@ -153,7 +156,7 @@ typeCheckScript expectedType inp = do
   dflags <- getSessionDynFlags  
   --catch exception for SyntaxError
   funcType <- GHC.exprType (unpack inp)
-
+  --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType 
   if eqType funcType expectedType then
     pure Nothing
     else
