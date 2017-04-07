@@ -92,7 +92,7 @@ testIsoRestrict = TestCase $ do
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let postInsertContext = execState (evalContextExpr schemaBInsertExpr') (stateContext schemaA)
+  let postInsertContext = execState (evalDatabaseContextExpr schemaBInsertExpr') (stateContext schemaA)
       expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
   --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))

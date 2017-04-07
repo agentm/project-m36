@@ -327,7 +327,7 @@ evalSchemaExpr (AddSubschema sname morphs) context sschemas = do
           moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
       in
-      case runState (evalContextExpr incDepExprs) context of
+      case runState (evalDatabaseContextExpr incDepExprs) context of
         (Just err, _) -> Left err
         (Nothing, newContext) -> pure (newSchemas, newContext)
   where

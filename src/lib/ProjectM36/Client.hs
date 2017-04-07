@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns #-}
 module ProjectM36.Client
        (ConnectionInfo(..),
        Connection(..),
@@ -392,7 +392,7 @@ close :: Connection -> IO ()
 close (InProcessConnection conf) = do
   atomically $ do
     let sessions = ipSessions conf
-    traverse_ (\(k,_) -> STMMap.delete k sessions) (STMMap.stream sessions)
+    STMMap.deleteAll sessions
     pure ()
   closeLocalNode (ipLocalNode conf)
   closeTransport (ipTransport conf)
@@ -533,9 +533,9 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excMaybe 
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Just err)
-        Right expr'' -> case runState (RE.evalContextExpr expr'') (Sess.concreteDatabaseContext session) of
+        Right expr'' -> case runState (RE.evalDatabaseContextExpr expr'') (Sess.concreteDatabaseContext session) of
           (Just err,_) -> return $ Just err
-          (Nothing, context') -> do
+          (Nothing, !context') -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas

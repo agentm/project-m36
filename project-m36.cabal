@@ -284,6 +284,17 @@ Test-Suite test-tutoriald-atomfunctionscript
     Hs-Source-Dirs: ./src/bin, ./test, .
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
+Test-Suite test-tutoriald-databasecontextfunctionscript
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    type: exitcode-stdio-1.0
+    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.SchemaOperator
+    main-is: test/TutorialD/Interpreter/DatabaseContextFunctionScript.hs
+    Build-Depends: base, HUnit, project-m36 == 0.1, uuid, containers, megaparsec, text, vector, directory, bytestring, mtl, haskeline, random, MonadRandom
+    GHC-Options: -Wall
+    Hs-Source-Dirs: ./src/bin, ./test, .
+    CPP-Options: -DPROJECTM36_VERSION="v0.1"
+
 Test-Suite test-relation
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings

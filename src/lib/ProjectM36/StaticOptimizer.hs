@@ -179,7 +179,7 @@ applyStaticDatabaseOptimization (MultipleExpr exprs) = do
    where
      substateRunner = forM exprs $ \expr -> do
                                     --a previous expression could create a relvar, we don't want to miss it, so we clear the tuples and execute the expression to get an empty relation in the relvar                                
-       _ <- evalContextExpr expr    
+       _ <- evalDatabaseContextExpr expr    
        applyStaticDatabaseOptimization expr
   --this error handling could be improved with some lifting presumably
   --restore original context

@@ -106,6 +106,7 @@ initScriptSession ghcPkgPaths = do
     setContext (map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn))
                 ["Prelude",
                  "Data.Map",
+                 "Data.Either",
                  "Control.Monad.State",
                  "ProjectM36.Base",
                  "ProjectM36.Relation",

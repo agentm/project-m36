@@ -1,6 +1,5 @@
 module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
-import ProjectM36.Error
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import qualified ProjectM36.Base as Base
@@ -40,8 +39,8 @@ executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
         DisplayErrorResult err -> assertFailure (show err)        
         QuietSuccessResult -> pure ()
         
-expectTutorialDErr :: SessionId -> Connection -> RelationalError -> Text -> IO ()        
-expectTutorialDErr sessionId conn expectedErr tutd = case parseTutorialD tutd of
+expectTutorialDErr :: SessionId -> Connection -> (Text -> Bool) -> Text -> IO ()        
+expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
     Left err -> assertFailure (show tutd ++ ": " ++ show err)  
     Right parsed -> do
       result <- evalTutorialD sessionId conn UnsafeEvaluation parsed      
@@ -51,9 +50,8 @@ expectTutorialDErr sessionId conn expectedErr tutd = case parseTutorialD tutd of
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
-        DisplayErrorResult err -> assertEqual "match error" (pack (show expectedErr)) err
+        DisplayErrorResult err -> assertBool ("match error on: " ++ unpack err) (matchFunc err)
         QuietSuccessResult -> pure ()
-      
         
 maybeFail :: (Show a) => Maybe a -> IO ()
 maybeFail (Just err) = assertFailure (show err)

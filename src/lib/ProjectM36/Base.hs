@@ -89,14 +89,10 @@ isRelationAtomType _ = False
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic)
+data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic, NFData, Binary)
 
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
-
-instance NFData Attribute where rnf = genericRnf
-                                
-instance Binary Attribute
 
 -- | 'Attributes' represent the head of a relation.
 type Attributes = V.Vector Attribute
@@ -210,10 +206,10 @@ data RelationalExprBase a =
   NotEquals (RelationalExprBase a) (RelationalExprBase a) |
   Extend (ExtendTupleExprBase a) (RelationalExprBase a)
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, NFData)
            
-instance Binary RelationalExpr            
-
+instance Binary RelationalExpr
+           
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
 
@@ -222,7 +218,7 @@ data Notification = Notification {
   changeExpr :: RelationalExpr,
   reportExpr :: RelationalExpr
   }
-  deriving (Show, Eq, Binary, Generic)
+  deriving (Show, Eq, Binary, Generic, NFData)
 
 type TypeVarName = StringType
   
@@ -248,7 +244,7 @@ type DataConstructorName = StringType
 type AtomTypeName = StringType
 
 -- | Used to define a data constructor in a type constructor context. (Left a | Right b)
-data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic)
+data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic, NFData)
 
 type DataConstructorDefs = [DataConstructorDef]
 
@@ -286,12 +282,12 @@ data DatabaseContext = DatabaseContext {
   dbcFunctions :: DatabaseContextFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping
-  } 
+  } deriving (NFData, Generic)
              
 type IncDepName = StringType             
 
 -- | Inclusion dependencies represent every possible database constraints. Constraints enforce specific, arbitrarily-complex rules to which the database context must adhere.
-data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic)
+data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData)
 
 instance Binary InclusionDependency
 
@@ -343,7 +339,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, NFData)
 
 instance Binary RestrictionPredicateExpr
 
@@ -399,13 +395,13 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq,Show,Generic)
+                    deriving (Eq,Show,Generic, NFData)
                        
 instance Binary AtomExpr                       
 
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Eq, Generic)
+                     deriving (Show, Eq, Generic, NFData)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()                              
 
@@ -421,6 +417,9 @@ type AtomFunctionBodyScript = StringType
 type AtomFunctionBodyType = [Atom] -> Atom
 
 data AtomFunctionBody = AtomFunctionBody (Maybe AtomFunctionBodyScript) AtomFunctionBodyType
+
+instance NFData AtomFunctionBody where
+  rnf (AtomFunctionBody mScript _) = rnf mScript
                         
 instance Show AtomFunctionBody where
   show (AtomFunctionBody mScript _) = case mScript of
@@ -432,24 +431,13 @@ data AtomFunction = AtomFunction {
   atomFuncName :: AtomFunctionName,
   atomFuncType :: [AtomType], 
   atomFuncBody :: AtomFunctionBody
-  }
+  } deriving (Generic, NFData)
            
 instance Hashable AtomFunction where
   hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
                            
 instance Eq AtomFunction where                           
-  f1 == f2 = let (AtomFunctionBody mScript1 _) = atomFuncBody f1 
-                 (AtomFunctionBody mScript2 _) = atomFuncBody f2 in
-             if atomFuncName f1 == atomFuncName f2 then
-               if isJust mScript1 then
-                 if mScript1 == mScript2 then
-                   True
-                 else 
-                   False
-               else
-                 True
-             else
-               False
+  f1 == f2 = atomFuncName f1 == atomFuncName f2 
   
 instance Show AtomFunction where  
   show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes ++ "; " ++ body
@@ -462,10 +450,8 @@ data AttributeNames = AttributeNames (S.Set AttributeName) |
                       InvertedAttributeNames (S.Set AttributeName) |
                       UnionAttributeNames AttributeNames AttributeNames |
                       IntersectAttributeNames AttributeNames AttributeNames
-                      deriving (Eq, Show, Generic)
+                      deriving (Eq, Show, Generic, Binary, NFData)
                                 
-instance Binary AttributeNames 
-
 -- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
 data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory-only database
                            MinimalPersistence FilePath | -- ^ fsync off, not crash-safe
@@ -476,12 +462,12 @@ type AttributeExpr = AttributeExprBase ()
 
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary)
+                         deriving (Eq, Show, Generic, Binary, NFData)
                               
 data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Generic)
+                 deriving (Eq, Show, Generic, NFData)
                           
-instance Binary TupleExpr
+instance Binary TupleExpr                          
                           
 type TupleExpr = TupleExprBase ()                           
 
@@ -500,13 +486,16 @@ type DatabaseContextFunctionBodyScript = StringType
 
 type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> DatabaseContext
 
-data DatabaseContextFunctionBody = DatabaseContextFunctionBody (Maybe DatabaseContextFunctionBodyScript) DatabaseContextFunctionBodyType
+data DatabaseContextFunctionBody = DatabaseContextFunctionBody (Maybe DatabaseContextFunctionBodyScript) DatabaseContextFunctionBodyType 
+
+instance NFData DatabaseContextFunctionBody where
+  rnf (DatabaseContextFunctionBody mScript _) = rnf mScript
 
 data DatabaseContextFunction = DatabaseContextFunction {
   dbcFuncName :: DatabaseContextFunctionName,
   dbcFuncType :: [AtomType],
   dbcFuncBody :: DatabaseContextFunctionBody
-  }
+  } deriving (Generic, NFData)
                                
 type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
 
@@ -514,15 +503,4 @@ instance Hashable DatabaseContextFunction where
   hashWithSalt salt func = salt `hashWithSalt` (dbcFuncName func)
                            
 instance Eq DatabaseContextFunction where                           
-  f1 == f2 = let (DatabaseContextFunctionBody mScript1 _) = dbcFuncBody f1 
-                 (DatabaseContextFunctionBody mScript2 _) = dbcFuncBody f2 in
-             if dbcFuncName f1 == dbcFuncName f2 then
-               if isJust mScript1 then
-                 if mScript1 == mScript2 then
-                   True
-                 else 
-                   False
-               else
-                 True
-             else
-               False
+  f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
