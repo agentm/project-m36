@@ -55,5 +55,3 @@ testDBCFunctionWithAtomArguments = TestCase $ do
 adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", name),("age",age))]] in if isRight (runState (executeRelationalExpr (RelationVariable "person" ()) ctx)) then execState (executeContextExpr (Insert "person" newrel)) ctx else execState (executeContextExpr (Assign "person" newrel)) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""
 -}
 
-f :: [Atom] -> DatabaseContext -> DatabaseContext
-f = \(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", name),("age",age))]] in if isRight (runState (executeRelationalExpr (RelationVariable "person" ()))ctx) then execState (executeContextExpr (Insert "person" newrel)) ctx else execState (executeContextExpr (Assign "person" newrel)) ctx

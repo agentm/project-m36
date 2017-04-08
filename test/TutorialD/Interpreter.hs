@@ -25,6 +25,7 @@ import Data.Text.Encoding as TE
 import Control.Concurrent
 import qualified Data.Set as S
 import Data.Text hiding (map)
+import qualified Data.Text as T
 
 main :: IO ()
 main = do
@@ -391,6 +392,6 @@ testFunctionalDependencies = TestCase $ do
   --insert a new, valid tuple
   executeTutorialD sessionId dbconn "insert s relation{tuple{city \"Boston\", s# \"S6\", sname \"Stevens\", status 30}}"
   --insert an constraint-violating tuple
-  let expectedError = InclusionDependencyCheckError "sname_status_A"
-  expectTutorialDErr sessionId dbconn expectedError "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"
+  let expectedError = "InclusionDependencyCheckError \"sname_status_A\""
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf expectedError) "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"
 
