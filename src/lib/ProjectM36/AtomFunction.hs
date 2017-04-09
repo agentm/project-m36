@@ -32,3 +32,4 @@ compiledAtomFunction name aType body = AtomFunction { atomFuncName = name,
 evalAtomFunction :: AtomFunction -> [Atom] -> Atom
 evalAtomFunction func args = case atomFuncBody func of
   (AtomFunctionBody _ f) -> f args
+

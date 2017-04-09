@@ -9,7 +9,7 @@ emptyDatabaseContextFunction :: DatabaseContextFunctionName -> DatabaseContextFu
 emptyDatabaseContextFunction name = DatabaseContextFunction { 
   dbcFuncName = name,
   dbcFuncType = [],
-  dbcFuncBody = DatabaseContextFunctionBody Nothing (\_ ctx -> ctx)
+  dbcFuncBody = DatabaseContextFunctionBody Nothing (\_ ctx -> pure ctx)
   }
 
 databaseContextFunctionForName :: DatabaseContextFunctionName -> DatabaseContextFunctions -> Either RelationalError DatabaseContextFunction
@@ -20,14 +20,16 @@ databaseContextFunctionForName funcName funcs = if HS.null foundFunc then
   where
     foundFunc = HS.filter (\(DatabaseContextFunction name _ _) -> name == funcName) funcs
 
-evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> DatabaseContext
+evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 evalDatabaseContextFunction func args ctx = case dbcFuncBody func of
-  (DatabaseContextFunctionBody _ f) -> f args ctx
+  (DatabaseContextFunctionBody _ f) -> case f args ctx of
+    Left err -> Left (DatabaseContextFunctionUserError err)
+    Right c -> pure c
   
 basicDatabaseContextFunctions :: DatabaseContextFunctions
 basicDatabaseContextFunctions = HS.fromList [
   DatabaseContextFunction { dbcFuncName = "deleteAll",
                             dbcFuncType = [],
-                            dbcFuncBody = DatabaseContextFunctionBody Nothing (\_ ctx -> ctx { relationVariables = M.empty })
+                            dbcFuncBody = DatabaseContextFunctionBody Nothing (\_ ctx -> pure $ ctx { relationVariables = M.empty })
                           }
   ]

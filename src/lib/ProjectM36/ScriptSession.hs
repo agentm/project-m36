@@ -110,6 +110,7 @@ initScriptSession ghcPkgPaths = do
                  "Control.Monad.State",
                  "ProjectM36.Base",
                  "ProjectM36.Relation",
+                 "ProjectM36.DatabaseContextFunctionError",
                  "ProjectM36.RelationalExpression"])
     env <- getSession
     atomFuncType <- mkTypeForName "AtomFunctionBodyType"

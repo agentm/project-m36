@@ -374,7 +374,6 @@ evalDatabaseContextExpr (RemoveDatabaseContextFunction funcName) = do
   context <- get
   let dudFunc = emptyDatabaseContextFunction funcName
       dbcFuncs = dbcFunctions context
-      names = HS.map dbcFuncName dbcFuncs
   if HS.member dudFunc dbcFuncs then do
     let updatedFuncs = HS.delete dudFunc dbcFuncs
     put (context { dbcFunctions = updatedFuncs })
@@ -411,9 +410,9 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
                 else if length typeErrors > 0 then
                      pure (Just (someErrors typeErrors))                   
                    else do
-                     let newContext = evalDatabaseContextFunction func (rights eAtomArgs) context
-                     put newContext
-                     pure Nothing
+                     case evalDatabaseContextFunction func (rights eAtomArgs) context of
+                       Left err -> pure (Just err)
+                       Right newContext -> put newContext >> pure Nothing
       
 evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
 evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = do
@@ -451,12 +450,12 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
     Nothing -> pure (Left (ScriptError ScriptCompilationDisabledError))
     Just scriptSession -> do
       --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
-      let last2Args = take 2 (reverse funcType)
+      let last2Args = reverse (take 2 (reverse funcType))
           atomArgs = take (length funcType - 2) funcType
-          dbContextTypeCons = ADTypeConstructor "DatabaseContext" []
-          expectedType = "DatabaseContextExpr -> DatabaseContextExpr"
+          dbContextTypeCons = ADTypeConstructor "Either" [TypeConstructorArg (ADTypeConstructor "DatabaseContextFunctionError" []), TypeConstructorArg (ADTypeConstructor "DatabaseContext" [])]
+          expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
           actualType = show funcType
-      if last2Args /= replicate 2 dbContextTypeCons then 
+      if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
         pure (Left (ScriptError (TypeCheckCompilationError expectedType actualType)))
         else do
         res <- try $ runGhc (Just libdir) $ do

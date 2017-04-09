@@ -8,18 +8,19 @@ import qualified Data.Text as T
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList [testBasicDBCFunction,
-                                  testErrorDBCFunction,
+                                  testErrorDBCFunction,             
+                                  testExceptionDBCFunction,
                                   testDBCFunctionWithAtomArguments
                                   ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 {-
-adddatabasecontextfunction "addtruerv" DatabaseContext -> DatabaseContext """(\[] ctx -> execState (evalContextExpr (Assign "true2" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""
+adddatabasecontextfunction "addtruerv" DatabaseContext -> DatabaseContext """(\[] ctx -> execState (evalDatabaseContextExpr (Assign "true2" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""
 -}
 testBasicDBCFunction :: Test
 testBasicDBCFunction = TestCase $ do  
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> DatabaseContext  \"\"\"(\\[] ctx -> execState (evalContextExpr (Assign \"true2\" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext  \"\"\"(\\[] ctx -> pure $ execState (evalDatabaseContextExpr (Assign \"true2\" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute addTrue2()"
   let true2Expr = RelationVariable "true2" ()
@@ -28,20 +29,28 @@ testBasicDBCFunction = TestCase $ do
 
 testErrorDBCFunction :: Test
 testErrorDBCFunction = TestCase $ do
+  (sess, conn) <- dateExamplesConnection emptyNotificationCallback  
+  let addfunc = "adddatabasecontextfunction \"retErr\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\[] ctx -> Left (DatabaseContextFunctionUserError \"err\")) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  executeTutorialD sess conn addfunc
+  expectTutorialDErr sess conn (T.isPrefixOf "DatabaseContextFunctionUserError (DatabaseContextFunctionUserError \"err\")") "execute retErr()"
+  
+testExceptionDBCFunction :: Test
+testExceptionDBCFunction = TestCase $ do
   -- throw an error, make sure it is caught- it might not be caught, for example, if the function is not forced
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"bomb\" DatabaseContext -> DatabaseContext \"\"\"(\\[] _ -> error \"boom\") :: [Atom] -> DatabaseContext -> DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"bomb\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\[] _ -> error \"boom\") :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   expectTutorialDErr sess conn (\err -> "UnhandledExceptionError" `T.isPrefixOf` err) "execute bomb()"
+  
 
 {-
-adddatabasecontextfunction "multiArgFunc" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> execState (evalContextExpr (Assign "person" (MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name), ("age", NakedAtomExpr age)])]))) ctx)"""
+adddatabasecontextfunction "multiArgFunc" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> execState (evalDatabaseContextExpr (Assign "person" (MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name), ("age", NakedAtomExpr age)])]))) ctx)"""
 -}
 testDBCFunctionWithAtomArguments :: Test
 testDBCFunctionWithAtomArguments = TestCase $ do
   --test function with creation of a relvar with some arguments
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Int -> Text -> DatabaseContext -> DatabaseContext \"\"\"(\\(age:name:_) ctx -> execState (evalContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])]))) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> pure $ execState (evalDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])]))) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute multiArgFunc(30,\"Steve\")"
   result <- executeRelationalExpr sess conn (RelationVariable "person" ())

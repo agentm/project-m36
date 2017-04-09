@@ -1,6 +1,8 @@
 {-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
+import ProjectM36.DatabaseContextFunctionError
+
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable, hashWithSalt)
@@ -20,7 +22,6 @@ import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
-import Data.Maybe (isJust)
 
 type StringType = Text
   
@@ -484,7 +485,7 @@ type DatabaseContextFunctionName = StringType
 
 type DatabaseContextFunctionBodyScript = StringType
 
-type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> DatabaseContext
+type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 
 data DatabaseContextFunctionBody = DatabaseContextFunctionBody (Maybe DatabaseContextFunctionBodyScript) DatabaseContextFunctionBodyType 
 

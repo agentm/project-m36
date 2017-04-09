@@ -316,15 +316,15 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Just err' -> return $ Left (SetupDatabaseDirectoryError err')
-    Nothing -> do 
-      graph <- transactionGraphLoad dbdir emptyTransactionGraph
+    Nothing -> do
+      mScriptSession <- createScriptSession ghcPkgPaths
+      graph <- transactionGraphLoad dbdir emptyTransactionGraph mScriptSession
       case graph of
         Left err' -> return $ Left (SetupDatabaseDirectoryError err')
         Right graph' -> do
           tvarGraph <- newTVarIO graph'
           sessions <- STMMap.newIO
           clientNodes <- STMSet.newIO
-          mScriptSession <- createScriptSession ghcPkgPaths
           (localNode, transport) <- createLocalNode
           let conn = InProcessConnection (InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,

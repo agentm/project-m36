@@ -4,6 +4,7 @@ import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.Base
+import ProjectM36.ScriptSession
 import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)
 import System.Directory
 import System.FilePath
@@ -97,8 +98,8 @@ load any transactions which are not already part of the incoming transaction gra
 -}
 
 --ALERT I need to figure out how to manage the transaction heads (branch names)
-transactionGraphLoad :: FilePath -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)
-transactionGraphLoad dbdir graphIn = do
+transactionGraphLoad :: FilePath -> TransactionGraph -> Maybe ScriptSession -> IO (Either PersistenceError TransactionGraph)
+transactionGraphLoad dbdir graphIn mScriptSession = do
   --optimization: perform tail-bisection search to find last-recorded transaction in the existing stream- replay the rest
   --read in all missing transactions from transaction directories and add to graph
   uuidInfo <- readGraphTransactionIdFile dbdir
@@ -108,7 +109,7 @@ transactionGraphLoad dbdir graphIn = do
     Right info -> do  
       let folder = \eitherGraph transId -> case eitherGraph of
             Left err -> return $ Left err
-            Right graph -> readTransactionIfNecessary dbdir transId graph
+            Right graph -> readTransactionIfNecessary dbdir transId mScriptSession graph
       loadedGraph <- foldM folder (Right graphIn) (map fst info)
       case loadedGraph of 
         Left err -> return $ Left err
@@ -120,8 +121,8 @@ transactionGraphLoad dbdir graphIn = do
 {-  
 if the transaction with the TransactionId argument is not yet part of the graph, then read the transaction and add it - this does not update the heads
 -}
-readTransactionIfNecessary :: FilePath -> TransactionId -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)  
-readTransactionIfNecessary dbdir transId graphIn = do
+readTransactionIfNecessary :: FilePath -> TransactionId -> Maybe ScriptSession -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)  
+readTransactionIfNecessary dbdir transId mScriptSession graphIn = do
   if isRight $ transactionForId transId graphIn then
     --the transaction is already known and loaded- done
     return $ Right graphIn

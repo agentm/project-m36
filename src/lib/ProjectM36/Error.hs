@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import ProjectM36.DatabaseContextFunctionError
 import qualified Data.Set as S
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -73,6 +74,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | ScriptError ScriptCompilationError
+                     | DatabaseContextFunctionUserError DatabaseContextFunctionError
                        
                      | SubschemaNameInUseError SchemaName
                      | SubschemaNameNotInUseError SchemaName
@@ -82,10 +84,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | ImproperDatabaseStateError
                        
                      | MultipleErrors [RelationalError]
-                       deriving (Show,Eq,Generic,Binary,Typeable) 
+                       deriving (Show,Eq,Generic,Binary,Typeable, NFData) 
 
-instance NFData RelationalError where rnf = genericRnf
-                                      
 data PersistenceError = InvalidDirectoryError FilePath | 
                         MissingTransactionError TransactionId
                       deriving (Show, Eq, Generic)
