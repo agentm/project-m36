@@ -13,10 +13,10 @@ In order to use this feature in Project:M36, be sure to build your own Project:M
 The Haskell type of all database context functions is:
 
 ```haskell
-[Atom] -> DatabaseContext -> DatabaseContext
+[Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 ```
 
-That is, the function takes an array of ```Atom```s which represent the function's arguments and a context and returns an updated context. Notice that this operation is idempotent ("pure" in Haskell parlance).
+That is, the function takes an array of ```Atom```s which represent the function's arguments and a context and returns an updated context or an error. Notice that this operation is idempotent ("pure" in Haskell parlance).
 
 The database context references all data which can be committed; this includes relation variables, atom functions, notifications, database context functions, and other versionable data. Database contexts become immutable once committed.
 
@@ -26,12 +26,14 @@ Database context functions are committed alongside the transaction. Thus, previo
 
 Remember that database context functions don't need to worry about locks or other synchronization. The database context is completely isolated from other ongoing transactions.
 
+Returning a ```DatabaseContextFunctionError``` from the function ensures that any changes made by the function are discarded.
+
 ## TutorialD Demonstration
 
 Use ```adddatabasecontextfunction``` to compile and name a new database context function:
 
 ```
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight (evalState (evalRelationalExpr (RelationVariable "person" ())) (mkRelationalExprState ctx)) then execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx else execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""   
+adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight (evalState (evalRelationalExpr (RelationVariable "person" ())) (mkRelationalExprState ctx)) then pure (execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx) else pure (execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"""   
 ```
 
 This function is quite dense, so let's examine its components.
@@ -39,7 +41,7 @@ This function is quite dense, so let's examine its components.
 The first components are:
 
 ```
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> DatabaseContext
+adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 ```
 
 which defines a function "addperson" which takes three arguments (an Int value, a Text value, and a DatabaseContext) and returns a DatabaseContext. All database context functions take as a final argument a database context and must return a database context.
@@ -49,9 +51,9 @@ The meat of the function is obviously the Haskell, so let's lay it out:
 ```haskell
 (\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in
   if isRight (evalState (evalRelationalExpr (RelationVariable "person" ())) (mkRelationalExprState ctx)) then
-    execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx
+    pure (execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx)
   else
-    execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext
+    pure (execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 ```
 
 Line 1 sets up a new relation created from the function's arguments. In this case, we create a relation to represent a new person in our database.
@@ -113,5 +115,3 @@ from the same module.
 ## Future Improvements
 
 There are likely a variety of convenience functions which would make sense in the context of the scripted function. If you have ideas for such functions, please open a GitHub issue.
-
-Error-handling is currently based on exceptions thrown from the functions. It would likely be smoother to be able to return errors from the functions instead.
