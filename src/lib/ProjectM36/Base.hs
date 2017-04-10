@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
+import ProjectM36.AtomFunctionError
 
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -415,7 +416,7 @@ type AtomFunctionName = StringType
 
 type AtomFunctionBodyScript = StringType
 
-type AtomFunctionBodyType = [Atom] -> Atom
+type AtomFunctionBodyType = [Atom] -> Either AtomFunctionError Atom
 
 data AtomFunctionBody = AtomFunctionBody (Maybe AtomFunctionBodyScript) AtomFunctionBodyType
 

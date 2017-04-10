@@ -2,6 +2,7 @@ module ProjectM36.AtomFunctions.Primitive where
 import ProjectM36.Base
 import ProjectM36.Relation (relFold)
 import ProjectM36.Tuple
+import ProjectM36.AtomFunctionError
 import ProjectM36.AtomFunction
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
@@ -13,10 +14,10 @@ primitiveAtomFunctions = HS.fromList [
   --match on any relation type
   AtomFunction { atomFuncName = "add",
                  atomFuncType = [IntAtomType, IntAtomType, IntAtomType],
-                 atomFuncBody = body (\((IntAtom i1):(IntAtom i2):_) -> IntAtom $  i1 + i2)},
+                 atomFuncBody = body (\((IntAtom i1):(IntAtom i2):_) -> pure (IntAtom (i1 + i2)))},
   AtomFunction { atomFuncName = "id",
                  atomFuncType = [AnyAtomType, AnyAtomType],
-                 atomFuncBody = body (\(x:_) -> x)},
+                 atomFuncBody = body (\(x:_) -> pure x)},
   AtomFunction { atomFuncName = "sum",
                  atomFuncType = foldAtomFuncType IntAtomType IntAtomType,
                  atomFuncBody = body (\(RelationAtom rel:_) -> relationSum rel)},
@@ -37,49 +38,50 @@ primitiveAtomFunctions = HS.fromList [
                  atomFuncBody = body $ intAtomFuncLessThan True},
   AtomFunction { atomFuncName = "gte",
                  atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
-                 atomFuncBody = body $ boolAtomNot . (:[]) . intAtomFuncLessThan False},
+                 atomFuncBody = body $ \args -> intAtomFuncLessThan False args >>= boolAtomNot},
   AtomFunction { atomFuncName = "gt",
                  atomFuncType = [IntAtomType, IntAtomType, BoolAtomType],
-                 atomFuncBody = body $ boolAtomNot . (:[]) . intAtomFuncLessThan True},
+                 atomFuncBody = body $ \args -> intAtomFuncLessThan True args >>= boolAtomNot},
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [BoolAtomType, BoolAtomType],
-                 atomFuncBody = body boolAtomNot},
+                 atomFuncBody = body $ \(b:_) -> boolAtomNot b },
   AtomFunction { atomFuncName = "makeByteString",
                  atomFuncType = [TextAtomType, ByteStringAtomType],
-                 --I need a proper error-handling scheme for AtomFunctions!
-                 atomFuncBody = body $ \((TextAtom textIn):_) -> ByteStringAtom $ (B64.decodeLenient . TE.encodeUtf8) textIn }
+                 atomFuncBody = body $ \((TextAtom textIn):_) -> case B64.decode (TE.encodeUtf8 textIn) of
+                   Left err -> Left (AtomFunctionBytesDecodingError err)
+                   Right bs -> pure (ByteStringAtom bs) }
   ]
   where
     body = AtomFunctionBody Nothing
                          
-intAtomFuncLessThan :: Bool -> [Atom] -> Atom
-intAtomFuncLessThan equality ((IntAtom i1):(IntAtom i2):_) = BoolAtom $ i1 `op` i2
+intAtomFuncLessThan :: Bool -> [Atom] -> Either AtomFunctionError Atom
+intAtomFuncLessThan equality ((IntAtom i1):(IntAtom i2):_) = pure (BoolAtom (i1 `op` i2))
   where
     op = if equality then (<=) else (<)
-intAtomFuncLessThan _ _= BoolAtom False
+intAtomFuncLessThan _ _= pure (BoolAtom False)
 
-boolAtomNot :: [Atom] -> Atom
-boolAtomNot ((BoolAtom b):_) = BoolAtom $ not b
-boolAtomNot _ = BoolAtom False
+boolAtomNot :: Atom -> Either AtomFunctionError Atom
+boolAtomNot (BoolAtom b) = pure (BoolAtom (not b))
+boolAtomNot _ = error "boolAtomNot called on non-Bool atom"
 
 --used by sum atom function
-relationSum :: Relation -> Atom
-relationSum relIn = IntAtom $ relFold (\tupIn acc -> acc + (newVal tupIn)) 0 relIn
+relationSum :: Relation -> Either AtomFunctionError Atom
+relationSum relIn = pure (IntAtom (relFold (\tupIn acc -> acc + (newVal tupIn)) 0 relIn))
   where
     --extract Int from Atom
     newVal :: RelationTuple -> Int
     newVal tupIn = castInt ((tupleAtoms tupIn) V.! 0)
     
-relationCount :: Relation -> Atom
-relationCount relIn = IntAtom $ relFold (\_ acc -> acc + 1) (0::Int) relIn
+relationCount :: Relation -> Either AtomFunctionError Atom
+relationCount relIn = pure (IntAtom (relFold (\_ acc -> acc + 1) (0::Int) relIn))
 
-relationMax :: Relation -> Atom
-relationMax relIn = IntAtom $ relFold (\tupIn acc -> max acc (newVal tupIn)) minBound relIn
+relationMax :: Relation -> Either AtomFunctionError Atom
+relationMax relIn = pure (IntAtom (relFold (\tupIn acc -> max acc (newVal tupIn)) minBound relIn))
   where
     newVal tupIn = castInt ((tupleAtoms tupIn) V.! 0)
 
-relationMin :: Relation -> Atom
-relationMin relIn = IntAtom $ relFold (\tupIn acc -> min acc (newVal tupIn)) maxBound relIn
+relationMin :: Relation -> Either AtomFunctionError Atom
+relationMin relIn = pure (IntAtom (relFold (\tupIn acc -> min acc (newVal tupIn)) maxBound relIn))
   where
     newVal tupIn = castInt ((tupleAtoms tupIn) V.! 0)
 

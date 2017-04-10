@@ -2,6 +2,7 @@
 module ProjectM36.Error where
 import ProjectM36.Base
 import ProjectM36.DatabaseContextFunctionError
+import ProjectM36.AtomFunctionError
 import qualified Data.Set as S
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -66,6 +67,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | EmptyTuplesError -- used by persistent driver
                      | AtomTypeCountError [AtomType] [AtomType]
                      | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
+                     | AtomFunctionUserError AtomFunctionError
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName

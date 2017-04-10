@@ -27,6 +27,8 @@ import Control.Monad.Trans.Except
 import GHC
 import GHC.Paths
 
+import Debug.Trace
+
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
                                 RelationalExprStateAttrsElems DatabaseContext Attributes | --used when evaluating the type of a relexpr
@@ -422,23 +424,25 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
       res <- try $ runGhc (Just libdir) $ do
         setSession (hscEnv scriptSession)
         let atomFuncs = atomFunctions currentContext
-        --compile the function
-        eCompiledFunc  <- compileScript (atomFunctionBodyType scriptSession) script
-        pure $ case eCompiledFunc of
-          Left err -> Left (ScriptError err)
-          Right compiledFunc -> do
-            funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) funcType
-            let updatedFuncs = HS.insert newAtomFunc atomFuncs
-                newContext = currentContext { atomFunctions = updatedFuncs }
-                newAtomFunc = AtomFunction { atomFuncName = funcName,
-                                           atomFuncType = funcAtomType,
-                                           atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
-      
-            -- check if the name is already in use
-            if HS.member funcName (HS.map atomFuncName atomFuncs) then
-              Left (FunctionNameInUseError funcName)
-              else do
-              Right newContext
+        case extractAtomFunctionType funcType of
+          Left err -> pure (Left err)
+          Right adjustedAtomTypeCons -> do
+            --compile the function
+            eCompiledFunc  <- compileScript (atomFunctionBodyType scriptSession) script
+            pure $ case eCompiledFunc of
+              Left err -> Left (ScriptError err)
+              Right compiledFunc -> do
+                funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) adjustedAtomTypeCons
+                let updatedFuncs = HS.insert newAtomFunc atomFuncs
+                    newContext = currentContext { atomFunctions = updatedFuncs }
+                    newAtomFunc = AtomFunction { atomFuncName = funcName,
+                                                 atomFuncType = funcAtomType,
+                                                 atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
+               -- check if the name is already in use
+                if HS.member funcName (HS.map atomFuncName atomFuncs) then
+                  Left (FunctionNameInUseError funcName)
+                  else do
+                  Right newContext
       case res of
         Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
         Right eContext -> case eContext of
@@ -639,7 +643,7 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
   runExceptT $ do
     let functions = atomFunctions context
     func <- either throwE pure (atomFunctionForName funcName functions)
-    let expectedArgCount = length (atomFuncType func)
+    let expectedArgCount = length (atomFuncType func) - 1
         actualArgCount = length argTypes
         safeInit [_] = []
         safeInit [] = [] -- different behavior from normal init
@@ -649,7 +653,9 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
       else do
       _ <- mapM (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
       evaldArgs <- mapM (\arg -> liftE (evalAtomExpr tupIn arg)) arguments
-      pure $ (evalAtomFunction func) evaldArgs
+      case evalAtomFunction func evaldArgs of
+        Left err -> throwE (AtomFunctionUserError err)
+        Right result -> pure result
 evalAtomExpr tupIn (RelationAtomExpr relExpr) = do
   --merge existing state tuple context into new state tuple context to support an arbitrary number of levels, but new attributes trounce old attributes
   rstate <- get

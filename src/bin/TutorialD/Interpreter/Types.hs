@@ -39,7 +39,8 @@ typeConstructorP = primitiveTypeConstructorP <|>
                    ADTypeConstructor <$> capitalizedIdentifier <*> many typeConstructorArgP
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
-monoTypeConstructorP = ADTypeConstructor <$> capitalizedIdentifier <*> pure []
+monoTypeConstructorP = primitiveTypeConstructorP <|>
+  ADTypeConstructor <$> capitalizedIdentifier <*> pure []
                    
 typeConstructorArgP :: Parser TypeConstructorArg                   
 typeConstructorArgP = TypeConstructorArg <$> monoTypeConstructorP <|>

@@ -1,6 +1,7 @@
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.AtomFunctionError
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 
@@ -19,7 +20,7 @@ atomFunctionForName funcName funcSet = if HS.null foundFunc then
 emptyAtomFunction :: AtomFunctionName -> AtomFunction
 emptyAtomFunction name = AtomFunction { atomFuncName = name,
                                         atomFuncType = [AnyAtomType, AnyAtomType],
-                                        atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> x) }
+                                        atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> pure x) }
                                           
                                           
 -- | AtomFunction constructor for compiled-in functions.
@@ -29,7 +30,21 @@ compiledAtomFunction name aType body = AtomFunction { atomFuncName = name,
                                                       atomFuncBody = AtomFunctionBody Nothing body }
 
 --the atom function really should offer some way to return an error
-evalAtomFunction :: AtomFunction -> [Atom] -> Atom
+evalAtomFunction :: AtomFunction -> [Atom] -> Either AtomFunctionError Atom
 evalAtomFunction func args = case atomFuncBody func of
   (AtomFunctionBody _ f) -> f args
 
+--expect "Int -> Either AtomFunctionError Int"
+--return "Int -> Int" for funcType
+extractAtomFunctionType :: [TypeConstructor] -> Either RelationalError [TypeConstructor]
+extractAtomFunctionType typeIn = do
+  let atomArgs = take (length typeIn - 1) typeIn
+      --expected atom ret value - used to make funcType
+      lastArg = take 1 (reverse typeIn)
+  case lastArg of
+    (ADTypeConstructor "Either" 
+     (TypeConstructorArg 
+      (ADTypeConstructor "AtomFunctionError" []):
+      (TypeConstructorArg atomRetArg):[])):[] -> do
+      pure (atomArgs ++ [atomRetArg])
+    otherType -> Left (ScriptError (TypeCheckCompilationError "function returning \"Either AtomFunctionError a\"" (show otherType)))

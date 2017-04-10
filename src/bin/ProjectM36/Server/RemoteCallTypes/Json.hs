@@ -8,6 +8,7 @@ import ProjectM36.Error
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.IsomorphicSchema
 import ProjectM36.DatabaseContextFunctionError
+import ProjectM36.AtomFunctionError
 
 import Control.Monad
 import Data.Aeson
@@ -137,3 +138,5 @@ instance FromJSON MergeStrategy
 
 instance ToJSON PersistenceError
 
+instance ToJSON AtomFunctionError
+instance FromJSON AtomFunctionError
