@@ -15,10 +15,10 @@ In this example, we install an atom function to convert between Fahrenheit and C
 We write the function giving it the name "celsiusToFahrenheit" with type ```Int -> Int``` which indicates to the compiler that the function take one ```Int``` argument value and returns one ```Int``` value. Finally, the body of the function is implemented in quotes or triple-quotes. Note that the function makes use of the "[ProjectM36.Base](/src/lib/ProjectM36/Base.hs)" module to handle the Atom type. The function must take a list of Atoms as arguments and return an Atom. The standard GHC Prelude is available in this AtomFunctionBody context.
 
 ```
-TutorialD (master/main): addatomfunction "celsiusToFahrenheit" Int -> Int """\((IntAtom c):_) -> IntAtom ( (c * 9 `div` 5) + 32)"""
+TutorialD (master/main): addatomfunction "celsiusToFahrenheit" Int -> Either AtomFunctionError Int """(\\((IntAtom c):_) -> pure $ IntAtom ( (c * 9 `div` 5) + 32)) :: [Atom] -> Either AtomFunctionError Atom"""
 ```
 
-Using triple-quotes allows quotes to be used inside the string without backslash escaping, which can become tedious.
+Using triple-quotes allows quotes to be used inside the string without backslash escaping, which can become tedious. The sum type using ```Either``` allows the function to return an error, if necessary.
 
 ## Advanced Atom Function Example
 
@@ -30,7 +30,7 @@ In the following example, splitting the temperature values into two types make s
 data CelsiusTemperature = CelsiusTemperature Int
 data FahrenheitTemperature = FahrenheitTemperature Int
 
-addatomfunction "celsiusToFahrenheit" CelsiusTemperature -> FahrenheitTemperature """\(ConstructedAtom _ _ (IntAtom celsius:_):_) -> ConstructedAtom "Fahrenheit" (ConstructedAtomType "Fahrenheit" empty) [IntAtom (celsius * (9 `div` 5) + 32)] """
+addatomfunction "celsiusToFahrenheit" CelsiusTemperature -> Either AtomFunctionError FahrenheitTemperature """(\(ConstructedAtom _ _ (IntAtom celsius:_):_) -> pure $ ConstructedAtom "Fahrenheit" (ConstructedAtomType "Fahrenheit" empty) [IntAtom (celsius * (9 `div` 5) + 32)]) :: [Atom] -> Either AtomFunctionError Atom """
 ```
 
 First, we define our new types and use these types in the function's type definition. Next, we deconstruct the incoming ```ConstructedAtom``` argument to extract its ```Int``` value. Finally, we perform the calculation and wrap the value in a new Fahrenheit-based ```ConstructedAtom```.
