@@ -27,8 +27,6 @@ import Control.Monad.Trans.Except
 import GHC
 import GHC.Paths
 
-import Debug.Trace
-
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
                                 RelationalExprStateAttrsElems DatabaseContext Attributes | --used when evaluating the type of a relexpr

@@ -32,6 +32,7 @@ databaseContextExprP = choice [insertP,
                                removeNotificationP,
                                addTypeConstructorP,
                                removeTypeConstructorP,
+                               removeAtomFunctionP,
                                executeDatabaseContextFunctionP,
                                removeDatabaseContextFunctionP,
                                nothingP]
