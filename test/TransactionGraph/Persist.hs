@@ -6,6 +6,8 @@ import ProjectM36.TransactionGraph.Persist
 import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.DateExamples
+import ProjectM36.Client
+import ProjectM36.Relation
 import System.IO.Temp
 import System.Exit
 import Data.Either
@@ -21,7 +23,9 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   
 testList :: Test
-testList = TestList [testBootstrapDB, testDBSimplePersistence]
+testList = TestList [testBootstrapDB, 
+                     testDBSimplePersistence, 
+                     testFunctionPersistence]
 
 {- bootstrap a database, ensure that it can be read -}
 testBootstrapDB :: Test
@@ -29,7 +33,7 @@ testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> d
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
   _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph freshId dateExamples)
-  loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph
+  loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
 {- create a database with several transactions, ensure that all transactions can be read -}
@@ -55,11 +59,34 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
                   --persist the new graph
                   transactionGraphPersist NoDiskSync dbdir graph'
                   --reload the graph from the filesystem and confirm that the transaction is present
-                  graphErr <- transactionGraphLoad dbdir emptyTransactionGraph
+                  graphErr <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
                   let mapEq graphArg = S.map transactionId (transactionsForGraph graphArg)
                   case graphErr of
                     Left err -> assertFailure (show err)
                     Right graph'' -> assertBool "graph equality" (mapEq graph'' == mapEq graph')
       
 
-                   
+--only Haskell-scripted dbc and atom functions can be serialized                   
+testFunctionPersistence :: Test
+testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
+  let dbdir = tempdir </> "dbdir"
+      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
+  Right conn <- connectProjectM36 connInfo
+  Right sess <- createSessionAtHead "master" conn
+  let intTCons = PrimitiveTypeConstructor "Int" IntAtomType
+      addfunc = AddAtomFunction "testdisk" [
+        intTCons, 
+        ADTypeConstructor "Either" [TypeConstructorArg (ADTypeConstructor "AtomFunctionError" []),
+                                    TypeConstructorArg intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
+  Nothing <- executeDatabaseContextIOExpr sess conn addfunc
+  Nothing <- commit sess conn
+  close conn
+  --re-open the connection to reload the graph
+  Right conn2 <- connectProjectM36 connInfo
+  Right sess2 <- createSessionAtHead "master" conn2
+  
+  res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
+  let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
+  assertEqual "testdisk dbc function run" expectedRel res
+    
+                                                                                       

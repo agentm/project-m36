@@ -33,3 +33,16 @@ basicDatabaseContextFunctions = HS.fromList [
                             dbcFuncBody = DatabaseContextFunctionBody Nothing (\_ ctx -> pure $ ctx { relationVariables = M.empty })
                           }
   ]
+                                
+--the precompiled functions are special because they cannot be serialized. Their names are therefore used in perpetuity so that the functions can be "serialized" (by name).
+precompiledDatabaseContextFunctions :: DatabaseContextFunctions
+precompiledDatabaseContextFunctions = HS.filter (not . isScriptedDatabaseContextFunction) basicDatabaseContextFunctions
+                                
+isScriptedDatabaseContextFunction :: DatabaseContextFunction -> Bool
+isScriptedDatabaseContextFunction func = case dbcFuncBody func of
+  DatabaseContextFunctionBody (Just _) _ -> True
+  DatabaseContextFunctionBody Nothing _ -> False
+  
+databaseContextFunctionScript :: DatabaseContextFunction -> Maybe DatabaseContextFunctionBodyScript
+databaseContextFunctionScript func = case dbcFuncBody func of
+  DatabaseContextFunctionBody script _ -> script

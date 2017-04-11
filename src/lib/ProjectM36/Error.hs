@@ -10,6 +10,7 @@ import GHC.Generics (Generic)
 import qualified Data.Text as T
 import Data.Binary
 import Data.Typeable
+import Control.Exception
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -68,6 +69,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeCountError [AtomType] [AtomType]
                      | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
                      | AtomFunctionUserError AtomFunctionError
+                     | PrecompiledFunctionRemoveError AtomFunctionName -- pre-compiled atom functions cannot be serialized, so they cannot change over time- they are referred to in perpetuity
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName
@@ -117,6 +119,8 @@ data ScriptCompilationError = TypeCheckCompilationError String String | --expect
                               ScriptCompilationDisabledError |
                               OtherScriptCompilationError String
                             deriving (Show,Eq, Generic, Binary, Typeable, NFData)
+                                     
+instance Exception ScriptCompilationError                                     
                                                
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |

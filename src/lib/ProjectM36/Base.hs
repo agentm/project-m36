@@ -434,7 +434,7 @@ data AtomFunction = AtomFunction {
   atomFuncType :: [AtomType], 
   atomFuncBody :: AtomFunctionBody
   } deriving (Generic, NFData)
-           
+                          
 instance Hashable AtomFunction where
   hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
                            

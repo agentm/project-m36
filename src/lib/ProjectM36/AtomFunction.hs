@@ -48,3 +48,12 @@ extractAtomFunctionType typeIn = do
       (TypeConstructorArg atomRetArg):[])):[] -> do
       pure (atomArgs ++ [atomRetArg])
     otherType -> Left (ScriptError (TypeCheckCompilationError "function returning \"Either AtomFunctionError a\"" (show otherType)))
+    
+isScriptedAtomFunction :: AtomFunction -> Bool    
+isScriptedAtomFunction func = case atomFuncBody func of
+  AtomFunctionBody (Just _) _ -> True
+  AtomFunctionBody Nothing _ -> False
+  
+atomFunctionScript :: AtomFunction -> Maybe AtomFunctionBodyScript
+atomFunctionScript func = case atomFuncBody func of
+  AtomFunctionBody script _ -> script

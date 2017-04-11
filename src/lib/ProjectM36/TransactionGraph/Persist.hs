@@ -55,7 +55,6 @@ bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO ()
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   transactionGraphPersist sync dbdir bootstrapGraph
-  putStrLn "Bootstrapped DB."
 
 {- 
 incrementally updates an existing database directory
@@ -127,7 +126,7 @@ readTransactionIfNecessary dbdir transId mScriptSession graphIn = do
     --the transaction is already known and loaded- done
     return $ Right graphIn
     else do
-    trans <- readTransaction dbdir transId
+    trans <- readTransaction dbdir transId mScriptSession
     case trans of
       Left err -> return $ Left err
       Right trans' -> return $ Right $ TransactionGraph (transactionHeadsForGraph graphIn) (S.insert trans' (transactionsForGraph graphIn))

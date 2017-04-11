@@ -362,24 +362,27 @@ evalDatabaseContextExpr (MultipleExpr exprs) = do
 evalDatabaseContextExpr (RemoveAtomFunction funcName) = do
   currentContext <- get
   let atomFuncs = atomFunctions currentContext
-      dudFunc = emptyAtomFunction funcName -- just for lookup in the hashset
-  if HS.member dudFunc atomFuncs then do
-    let updatedFuncs = HS.delete dudFunc atomFuncs
-    put (currentContext {atomFunctions = updatedFuncs })
-    pure Nothing
-    else
-      pure (Just (FunctionNameNotInUseError funcName))
+  case atomFunctionForName funcName atomFuncs of
+    Left err -> pure (Just err)
+    Right realFunc -> if isScriptedAtomFunction realFunc then do
+      let updatedFuncs = HS.delete realFunc atomFuncs
+      put (currentContext {atomFunctions = updatedFuncs })
+      pure Nothing
+                      else
+                        pure (Just (PrecompiledFunctionRemoveError funcName))
+
       
 evalDatabaseContextExpr (RemoveDatabaseContextFunction funcName) = do      
   context <- get
-  let dudFunc = emptyDatabaseContextFunction funcName
-      dbcFuncs = dbcFunctions context
-  if HS.member dudFunc dbcFuncs then do
-    let updatedFuncs = HS.delete dudFunc dbcFuncs
-    put (context { dbcFunctions = updatedFuncs })
-    pure Nothing
-    else
-      pure (Just (FunctionNameNotInUseError funcName))    
+  let dbcFuncs = dbcFunctions context
+  case databaseContextFunctionForName funcName dbcFuncs of
+    Left err -> pure (Just err)
+    Right realFunc -> if isScriptedDatabaseContextFunction realFunc then do
+      let updatedFuncs = HS.delete realFunc dbcFuncs
+      put (context { dbcFunctions = updatedFuncs })
+      pure Nothing
+                      else
+                        pure (Just (PrecompiledFunctionRemoveError funcName))
       
 evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) = do
   context <- get
