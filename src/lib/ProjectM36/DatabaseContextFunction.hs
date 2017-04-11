@@ -46,3 +46,11 @@ isScriptedDatabaseContextFunction func = case dbcFuncBody func of
 databaseContextFunctionScript :: DatabaseContextFunction -> Maybe DatabaseContextFunctionBodyScript
 databaseContextFunctionScript func = case dbcFuncBody func of
   DatabaseContextFunctionBody script _ -> script
+  
+databaseContextFunctionReturnType :: TypeConstructor -> TypeConstructor
+databaseContextFunctionReturnType tCons = ADTypeConstructor "Either" [
+  TypeConstructorArg (ADTypeConstructor "DatabaseContextFunctionError" []),
+  TypeConstructorArg tCons]
+                                          
+createScriptedDatabaseContextFunction :: DatabaseContextFunctionName -> [TypeConstructor] -> TypeConstructor -> DatabaseContextFunctionBodyScript -> DatabaseContextIOExpr
+createScriptedDatabaseContextFunction funcName argsIn retArg script = AddDatabaseContextFunction funcName (argsIn ++ [databaseContextFunctionReturnType retArg]) script

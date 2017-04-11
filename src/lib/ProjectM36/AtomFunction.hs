@@ -57,3 +57,10 @@ isScriptedAtomFunction func = case atomFuncBody func of
 atomFunctionScript :: AtomFunction -> Maybe AtomFunctionBodyScript
 atomFunctionScript func = case atomFuncBody func of
   AtomFunctionBody script _ -> script
+  
+createScriptedAtomFunction :: AtomFunctionName -> [TypeConstructor] -> TypeConstructor -> AtomFunctionBodyScript -> DatabaseContextIOExpr
+createScriptedAtomFunction funcName argsType retType script = AddAtomFunction funcName (
+  argsType ++ [ADTypeConstructor "Either" [
+                TypeConstructorArg (ADTypeConstructor "AtomFunctionError" []),                     
+                TypeConstructorArg retType]]) script
+                                                     

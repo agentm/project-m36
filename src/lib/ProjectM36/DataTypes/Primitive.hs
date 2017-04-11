@@ -11,6 +11,12 @@ primitiveTypeConstructorMapping = map (\(name, aType) ->
              ("Bool", BoolAtomType),
              ("ByteString", ByteStringAtomType)
             ]
+            
+intTypeConstructor :: TypeConstructor            
+intTypeConstructor = PrimitiveTypeConstructor "Int" IntAtomType
+
+doubleTypeConstructor :: TypeConstructor
+doubleTypeConstructor = PrimitiveTypeConstructor "Double" DoubleAtomType
 
 -- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType

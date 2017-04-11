@@ -1,6 +1,7 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
 import ProjectM36.Client
+import ProjectM36.DataTypes.Primitive
 import qualified Data.Map as M
 import Data.Maybe
 import Control.Monad
@@ -131,7 +132,14 @@ createSchema sessionId conn = do
                   toDatabaseContextExpr (undefined :: PriceBand),
                   toDatabaseContextExpr (undefined :: AreaCode),
                   toDatabaseContextExpr (undefined :: SpeedBand)]
+      --create the stored atom functions
+      priceBandScript = "(\\(DoubleAtom price:_) -> do\n let band = if price < 10000.0 then \"Low\" else if price < 20000.0 then \"Medium\" else if price < 30000.0 then \"High\" else \"Premium\"\n let aType = ConstructedAtomType \"PriceBand\" empty\n pure (ConstructedAtom band aType [])) :: [Atom] -> Either AtomFunctionError Atom"
+      atomFuncs = [createScriptedAtomFunction "priceBandForPrice" [doubleTypeConstructor] (ADTypeConstructor "PriceBand" []) priceBandScript]
   --gather up and execute all database updates
   mErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   let errs = catMaybes mErrs
-  when (length errs > 0) (error (show errs))  
+  when (length errs > 0) (error (show errs))    
+  
+  mErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
+  let errs' = catMaybes mErrs'
+  when (length errs' > 0) (error (show errs'))

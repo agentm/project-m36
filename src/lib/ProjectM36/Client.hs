@@ -65,6 +65,7 @@ module ProjectM36.Client
        inclusionDependencyForKey,
        databaseContextExprForUniqueKey,
        databaseContextExprForForeignKey,
+       createScriptedAtomFunction,
        AttributeExprBase(..),
        TypeConstructor(..),
        TypeConstructorDef(..),
@@ -86,6 +87,7 @@ import ProjectM36.Base hiding (inclusionDependencies) --defined in this module a
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.Atomable
+import ProjectM36.AtomFunction
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
 import qualified ProjectM36.IsomorphicSchema as Schema
