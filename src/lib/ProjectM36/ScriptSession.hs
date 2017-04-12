@@ -10,6 +10,7 @@ import Control.Monad.IO.Class
 import System.FilePath.Glob
 import System.FilePath
 import Data.Text (Text, unpack)
+import Data.Maybe
 
 import GHC
 import GHC.Paths (libdir)
@@ -92,27 +93,32 @@ initScriptSession ghcPkgPaths = do
 #endif
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
-    let safeImportDecl mn = ImportDecl {
+    let safeImportDecl mn mQual = ImportDecl {
           ideclSourceSrc = Nothing,
           ideclName      = noLoc mn,
           ideclPkgQual   = Nothing,
           ideclSource    = False,
           ideclSafe      = True,
           ideclImplicit  = False,
-          ideclQualified = False,
-          ideclAs        = Nothing,
+          ideclQualified = (isJust mQual),
+          ideclAs        = mQual,
           ideclHiding    = Nothing
           }
-    setContext (map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn))
-                ["Prelude",
-                 "Data.Map",
-                 "Data.Either",
-                 "Control.Monad.State",
-                 "ProjectM36.Base",
-                 "ProjectM36.Relation",
-                 "ProjectM36.AtomFunctionError",
-                 "ProjectM36.DatabaseContextFunctionError",
-                 "ProjectM36.RelationalExpression"])
+        unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn) Nothing) [
+          "Prelude",
+          "Data.Map",
+          "Data.Either",
+          "Data.Time.Calendar",
+          "Control.Monad.State",
+          "ProjectM36.Base",
+          "ProjectM36.Relation",
+          "ProjectM36.AtomFunctionError",
+          "ProjectM36.DatabaseContextFunctionError",
+          "ProjectM36.RelationalExpression"]
+        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModuleName qualNam))) [
+          ("Data.Text", "T")
+          ]
+    setContext (unqualifiedModules ++ qualifiedModules)
     env <- getSession
     atomFuncType <- mkTypeForName "AtomFunctionBodyType"
     dbcFuncType <- mkTypeForName "DatabaseContextFunctionBodyType"

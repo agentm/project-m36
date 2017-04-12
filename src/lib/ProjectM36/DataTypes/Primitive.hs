@@ -18,6 +18,12 @@ intTypeConstructor = PrimitiveTypeConstructor "Int" IntAtomType
 doubleTypeConstructor :: TypeConstructor
 doubleTypeConstructor = PrimitiveTypeConstructor "Double" DoubleAtomType
 
+textTypeConstructor :: TypeConstructor
+textTypeConstructor = PrimitiveTypeConstructor "Text" TextAtomType
+
+dayTypeConstructor :: TypeConstructor
+dayTypeConstructor = PrimitiveTypeConstructor "Day" DayAtomType
+
 -- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
