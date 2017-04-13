@@ -5,6 +5,7 @@ module ProjectM36.Atomable where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.DataTypes.List
 import GHC.Generics
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -106,6 +107,18 @@ instance Atomable Relation where
   fromAtom _ = error "improper fromAtom"
   --warning: cannot be used with undefined "Relation"
   toAtomType rel = RelationAtomType (attributes rel) 
+  toDatabaseContextExpr _ = NoOperation
+  
+--convert to ADT list  
+instance Atomable a => Atomable [a] where
+  toAtom [] = ConstructedAtom "Empty" (listAtomType (toAtomType (undefined :: a))) []
+  toAtom (x:xs) = ConstructedAtom "Cons" (listAtomType (toAtomType x)) (map toAtom xs)
+  
+  fromAtom (ConstructedAtom "Empty" _ _) = []
+  fromAtom (ConstructedAtom "Cons" _ (x:xs)) = fromAtom x:map fromAtom xs
+  fromAtom _ = error "improper fromAtom [a]"
+  
+  toAtomType _ = ConstructedAtomType "List" (M.singleton "a" (toAtomType (undefined :: a)))
   toDatabaseContextExpr _ = NoOperation
 
 -- Generics

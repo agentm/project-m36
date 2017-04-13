@@ -3,6 +3,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Attribute
 import ProjectM36.Atom
+import ProjectM36.AtomType
 import ProjectM36.DataTypes.Primitive
 
 import qualified Data.Map as M
@@ -191,11 +192,9 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
                               tupleTypes = V.map atomTypeForAtom (tupleAtoms tuple) in
   if V.length attrs /= V.length tupleTypes then
     Left $ TupleAttributeCountMismatchError 0
-  else if attrsTypes /= tupleTypes then
-         --Left $ traceShow (show attrsTypes ++ " " ++ show tupleTypes ++ " " ++ show tuple) $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
-         Left $ TupleAttributeTypeMismatchError (attributesDifference attrs (tupleAttributes tuple))
-       else
-         Right $ tuple
+  else do
+    mapM_ (uncurry atomTypeVerify) (V.zip attrsTypes tupleTypes)
+    Right tuple
 
 --two tuples can be equal but the vectors of attributes could be out-of-order
 --reorder if necessary- this is useful during relMogrify so that all the relation's tuples have identical atom/attribute ordering

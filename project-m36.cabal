@@ -110,6 +110,7 @@ Library
                      ProjectM36.DataTypes.Day,
                      ProjectM36.DataTypes.Either,
                      ProjectM36.DataTypes.Maybe,
+                     ProjectM36.DataTypes.List,
                      ProjectM36.DataTypes.Primitive,
                      ProjectM36.MiscUtils,
                      ProjectM36.Notifications,

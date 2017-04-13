@@ -246,7 +246,7 @@ relMap mapper (Relation attrs tupleSet) = do
       remappedTuple <- mapper tupleIn
       if tupleAttributes remappedTuple == tupleAttributes tupleIn
         then Right remappedTuple
-        else Left $ TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs)
+        else Left (TupleAttributeTypeMismatchError (A.attributesDifference (tupleAttributes tupleIn) attrs))
 
 relMogrify :: (RelationTuple -> Either RelationalError RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = do

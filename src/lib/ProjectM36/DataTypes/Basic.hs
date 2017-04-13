@@ -4,11 +4,13 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.Day
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Maybe
+import ProjectM36.DataTypes.List
 import ProjectM36.Base
 
 basicTypeConstructorMapping :: TypeConstructorMapping
 basicTypeConstructorMapping = (primitiveTypeConstructorMapping ++ 
                                maybeTypeConstructorMapping ++ 
                                eitherTypeConstructorMapping ++ 
+                               listTypeConstructorMapping ++
                                dayTypeConstructorMapping)
 
