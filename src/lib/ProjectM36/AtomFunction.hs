@@ -19,7 +19,7 @@ atomFunctionForName funcName funcSet = if HS.null foundFunc then
 -- | Create a junk named atom function for use with searching for an already existing function in the AtomFunctions HashSet.
 emptyAtomFunction :: AtomFunctionName -> AtomFunction
 emptyAtomFunction name = AtomFunction { atomFuncName = name,
-                                        atomFuncType = [AnyAtomType, AnyAtomType],
+                                        atomFuncType = [TypeVar "a", TypeVar "a"],
                                         atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> pure x) }
                                           
                                           

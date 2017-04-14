@@ -15,7 +15,6 @@ import Data.Either (rights)
 import Control.Monad.Writer
 import qualified Data.Map as M
 import qualified Data.Text as T
---import Debug.Trace
 
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName tConsList = foldr tConsFolder Nothing tConsList
@@ -89,7 +88,7 @@ resolveDataConstructorTypeVars dCons aTypeArgs tConss = do
   case foldr typeVarMapFolder (Right M.empty) maps of
     Left err -> Left err
     Right typeVarMaps -> pure typeVarMaps
-  --if the data constructor cannot complete a type constructor variables (ex. "Nothing" could be Maybe Int or Maybe Text, etc.), then fill that space with AnyAtomType which is resolved when the relation is constructed- the relation must contain all resolved atom types.
+  --if the data constructor cannot complete a type constructor variables (ex. "Nothing" could be Maybe Int or Maybe Text, etc.), then fill that space with TypeVar which is resolved when the relation is constructed- the relation must contain all resolved atom types.
 
 
 -- | Attempt to match the data constructor argument to a type constructor type variable.
@@ -198,7 +197,7 @@ resolveTypeInAtom typeFromRelation atomIn@(ConstructedAtom dConsName _ args) = d
   pure (ConstructedAtom dConsName newType args)
 resolveTypeInAtom _ atom = Right atom
   
--- | When creating a tuple, the data constructor may not complete the type constructor arguments, so the wildcard "AnyAtomType" fills in the type constructor's argument. The tuple type must be resolved before it can be part of a relation, however.
+-- | When creating a tuple, the data constructor may not complete the type constructor arguments, so the wildcard "TypeVar x" fills in the type constructor's argument. The tuple type must be resolved before it can be part of a relation, however.
 -- Example: "Nothing" does not specify the the argument in "Maybe a", so allow delayed resolution in the tuple before it is added to the relation. Note that this resolution could cause a type error. Hardly a Hindley-Milner system.
 resolveTypesInTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
 resolveTypesInTuple resolvedAttrs (RelationTuple _ tupAtoms) = do
@@ -224,10 +223,10 @@ validateAtomType _ _ = Right ()
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
 validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms
 
--- | Determine if two types are equal or compatible (including special handling for AnyAtomType).
+-- | Determine if two types are equal or compatible (including special handling for TypeVar x).
 atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
-atomTypeVerify AnyAtomType x = Right x
-atomTypeVerify x AnyAtomType = Right x
+atomTypeVerify (TypeVar _) x = Right x
+atomTypeVerify x (TypeVar _) = Right x
 atomTypeVerify x@(ConstructedAtomType tConsNameA tVarMapA) (ConstructedAtomType tConsNameB tVarMapB) = 
   if tConsNameA /= tConsNameB then
     Left (TypeConstructorNameMismatch tConsNameA tConsNameB)
@@ -258,10 +257,30 @@ prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append`
   where
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
-prettyAtomType AnyAtomType = "?AnyAtomType?"
+prettyAtomType (TypeVar x) = "?TypeVar " <> x <> "?"
 prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
   where fullName = (T.pack . show) aType
 
 prettyAttribute :: Attribute -> T.Text
 prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)
 
+resolveTypeVariables :: [AtomType] -> [AtomType] -> TypeVarMap  
+resolveTypeVariables expectedArgTypes actualArgTypes = let tvmaps = map (uncurry resolveTypeVariable) (zip expectedArgTypes actualArgTypes) in
+  M.unions tvmaps
+  
+resolveTypeVariable :: AtomType -> AtomType -> TypeVarMap
+resolveTypeVariable (TypeVar tv) typ = M.singleton tv typ
+resolveTypeVariable (ConstructedAtomType _ _) (ConstructedAtomType _ actualTvMap) = actualTvMap
+resolveTypeVariable _ _ = M.empty
+
+resolveFunctionReturnValue :: AtomFunctionName -> TypeVarMap -> AtomType -> Either RelationalError AtomType
+resolveFunctionReturnValue funcName tvMap (ConstructedAtomType tCons retMap) = do
+  let diff = M.difference retMap tvMap
+  if M.null diff then
+    pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
+    else
+    Left (AtomFunctionTypeVariableResolutionError funcName (fst (head (M.toList diff))))
+resolveFunctionReturnValue funcName tvMap (TypeVar tvName) = case M.lookup tvName tvMap of
+  Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName tvName)
+  Just typ -> pure typ
+resolveFunctionReturnValue _ _ typ = pure typ  

@@ -73,7 +73,7 @@ data AtomType = IntAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
-                AnyAtomType
+                TypeVar TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq, NFData, Generic, Binary, Show)
                        

@@ -67,6 +67,6 @@ testArgumentTypeMismatch = TestCase $ do
   let tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
       funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
       attrs = [Attribute "x" IntAtomType]
-      expectedResult = Left (TupleAttributeTypeMismatchError emptyAttributes)
+      expectedResult = Left (AtomTypeMismatchError IntAtomType TextAtomType)
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
   assertEqual "type mismatch not detected" expectedResult result

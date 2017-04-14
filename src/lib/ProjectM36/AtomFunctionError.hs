@@ -8,4 +8,4 @@ data AtomFunctionError = AtomFunctionUserError String |
                          AtomFunctionTypeMismatchError |
                          AtomFunctionBytesDecodingError String
                        deriving(Generic, Eq, Show, Binary, NFData)
-      
+

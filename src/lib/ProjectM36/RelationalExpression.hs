@@ -619,8 +619,8 @@ extendTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrName atomE
     Left err -> pure (Left err)
     Right _ -> runExceptT $ do
       atomExprType <- liftE (typeFromAtomExpr (attributes relIn) atomExpr)
-      _ <- liftE (verifyAtomExprTypes relIn atomExpr atomExprType)
-      let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType]
+      atomExprType' <- liftE (verifyAtomExprTypes relIn atomExpr atomExprType)
+      let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType']
           newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
       pure $ (newAndOldAttrs, \tup -> let substate = mergeTuplesIntoRelationalExprState tup rstate in case evalState (evalAtomExpr tup atomExpr) substate of
                  Left err -> Left err
@@ -687,12 +687,21 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
           Right atom -> pure (Right (atomTypeForAtom atom))
     Left err -> pure (Left err)
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
-typeFromAtomExpr _ (FunctionAtomExpr funcName _ _) = do
+typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
   context <- liftM stateContext get
   let funcs = atomFunctions context
-  runExceptT $ do
-    func <- either throwE pure (atomFunctionForName funcName funcs)
-    pure (last (atomFuncType func))
+  case atomFunctionForName funcName funcs of
+    Left err -> pure (Left err)
+    Right func -> do
+      let funcRetType = last (atomFuncType func)
+          funcArgTypes = reverse (tail (reverse (atomFuncType func)))        
+      eArgTypes <- mapM (typeFromAtomExpr attrs) atomArgs
+      case lefts eArgTypes of                   
+        errs@(_:_) -> pure (Left (someErrors errs))
+        [] -> do
+          let tvMap = resolveTypeVariables funcArgTypes argTypes
+              argTypes = rights eArgTypes
+          pure (resolveFunctionReturnValue funcName tvMap funcRetType)
 typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
   rstate <- get
   relType <- either throwE pure (evalState (typeForRelationalExpr relExpr) (mergeAttributesIntoRelationalExprState attrs rstate))

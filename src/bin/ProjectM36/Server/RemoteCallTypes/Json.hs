@@ -96,7 +96,7 @@ instance FromJSON Atom where
   parseJSON = withObject "atom" $ \o -> do
     atype <- o .: "type" 
     case atype of
-      AnyAtomType -> fail "cannot pass AnyAtomType over the wire"
+      TypeVar _ -> fail "cannot pass AnyAtomType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
       RelationAtomType _ -> do
         rel <- o .: "val"

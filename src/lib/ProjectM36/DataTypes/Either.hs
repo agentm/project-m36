@@ -14,5 +14,5 @@ eitherTypeConstructorMapping = [(ADTypeConstructorDef "Either" ["a", "b"],
        
 eitherAtomFunctions :: AtomFunctions                               
 eitherAtomFunctions = HS.fromList [
-  compiledAtomFunction "isLeft" [eitherAtomType AnyAtomType AnyAtomType, BoolAtomType] $ \((ConstructedAtom dConsName _ _):_) -> pure (BoolAtom (dConsName == "Left"))
+  compiledAtomFunction "isLeft" [eitherAtomType (TypeVar "a") (TypeVar "b"), BoolAtomType] $ \((ConstructedAtom dConsName _ _):_) -> pure (BoolAtom (dConsName == "Left"))
   ]

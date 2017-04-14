@@ -80,8 +80,9 @@ testRename2 = TestCase $ assertEqual "attribute in use" (rename "b" "a" simpleRe
 --mkRelation tests
 --test tupleset key mismatch failure
 testMkRelation1 :: Test
-testMkRelation1 = TestCase $ assertEqual "key mismatch" (Left $ TupleAttributeTypeMismatchError A.emptyAttributes) (mkRelation testAttrs testTupSet) -- the error attribute set is empty due to an optimization- the tuple attrs do not match the atoms' types
+testMkRelation1 = TestCase $ assertEqual "key mismatch" expectedError (mkRelation testAttrs testTupSet) -- the error attribute set is empty due to an optimization- the tuple attrs do not match the atoms' types
   where
+    expectedError = Left (AtomTypeMismatchError TextAtomType IntAtomType)
     testAttrs = A.attributesFromList [Attribute "a" TextAtomType]
     testTupSet = RelationTupleSet [mkRelationTuple testAttrs $ V.fromList [TextAtom "v"],
                                    mkRelationTuple testAttrs $ V.fromList [IntAtom 2]]
