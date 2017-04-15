@@ -35,6 +35,12 @@ addatomfunction "celsiusToFahrenheit" CelsiusTemperature -> Either AtomFunctionE
 
 First, we define our new types and use these types in the function's type definition. Next, we deconstruct the incoming ```ConstructedAtom``` argument to extract its ```Int``` value. Finally, we perform the calculation and wrap the value in a new Fahrenheit-based ```ConstructedAtom```.
 
+Project:M36 also supports polymorphic types when used with atom functions. Here is an implementation of the veritable ```id``` function which merely returns its argument:
+
+```
+addatomfunction "idTest" a -> Either AtomFunctionError a "(\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
+```
+
 ## Differences when compared to other DBMSes
 
 Project:M36 enforces strongly-typed atom functions. Specifically, atom functions must be pure (free of any side effects) and cannot operate on any variables other than the atoms passed in. This certainly sets stricter limits on what can be accomplished in an atom function when compared to stored functions in other DBMS products. For example, an atom function in Project:M36 would never be able to retrieve stock information from an external website because such a function cannot be pure and thus would be rejected by the atom function compiler. This restriction maintains the mathematical cohesiveness of the database and allows the DBMS to make performance-enhancing inferences it would not otherwise be able to make.
