@@ -113,5 +113,4 @@ checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextEx
 testListInstance :: Test
 testListInstance = TestCase $ do
   let example = TestListC [3,4,5]
-  traceShowM (toAtom example)
   assertEqual "List instance" example (fromAtom (toAtom example))
