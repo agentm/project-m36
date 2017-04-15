@@ -26,6 +26,9 @@ data Test4T = Test4Ca Int |
               Test4Cb Int 
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
+data TestListT = TestListC [Int]
+              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+                       
 data Test5T = Test5C {
   con1 :: Int,
   con2 :: Int
@@ -37,7 +40,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance]
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -106,3 +109,9 @@ testADT5 = TestCase $ do
   
 checkExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO ()
 checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= maybe (pure ()) (\err -> assertFailure (show err))
+
+testListInstance :: Test
+testListInstance = TestCase $ do
+  let example = TestListC [3,4,5]
+  traceShowM (toAtom example)
+  assertEqual "List instance" example (fromAtom (toAtom example))

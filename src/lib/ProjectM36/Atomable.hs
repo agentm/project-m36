@@ -112,7 +112,7 @@ instance Atomable Relation where
 --convert to ADT list  
 instance Atomable a => Atomable [a] where
   toAtom [] = ConstructedAtom "Empty" (listAtomType (toAtomType (undefined :: a))) []
-  toAtom (x:xs) = ConstructedAtom "Cons" (listAtomType (toAtomType x)) (map toAtom xs)
+  toAtom (x:xs) = ConstructedAtom "Cons" (listAtomType (toAtomType x)) (map toAtom (x:xs))
   
   fromAtom (ConstructedAtom "Empty" _ _) = []
   fromAtom (ConstructedAtom "Cons" _ (x:xs)) = fromAtom x:map fromAtom xs
