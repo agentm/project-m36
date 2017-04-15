@@ -76,8 +76,8 @@ testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let intTCons = PrimitiveTypeConstructor "Int" IntAtomType
       addfunc = AddAtomFunction "testdisk" [
         intTCons, 
-        ADTypeConstructor "Either" [TypeConstructorArg (ADTypeConstructor "AtomFunctionError" []),
-                                    TypeConstructorArg intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
+        ADTypeConstructor "Either" [ADTypeConstructor "AtomFunctionError" [],
+                                    intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
   Nothing <- executeDatabaseContextIOExpr sess conn addfunc
   Nothing <- commit sess conn
   close conn

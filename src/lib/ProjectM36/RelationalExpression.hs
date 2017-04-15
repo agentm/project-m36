@@ -457,7 +457,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
       --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
       let last2Args = reverse (take 2 (reverse funcType))
           atomArgs = take (length funcType - 2) funcType
-          dbContextTypeCons = ADTypeConstructor "Either" [TypeConstructorArg (ADTypeConstructor "DatabaseContextFunctionError" []), TypeConstructorArg (ADTypeConstructor "DatabaseContext" [])]
+          dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "DatabaseContextFunctionError" [], ADTypeConstructor "DatabaseContext" []]
           expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
           actualType = show funcType
       if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
@@ -694,14 +694,16 @@ typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
     Left err -> pure (Left err)
     Right func -> do
       let funcRetType = last (atomFuncType func)
-          funcArgTypes = reverse (tail (reverse (atomFuncType func)))        
+          funcArgTypes = reverse (tail (reverse (atomFuncType func)))
       eArgTypes <- mapM (typeFromAtomExpr attrs) atomArgs
       case lefts eArgTypes of                   
         errs@(_:_) -> pure (Left (someErrors errs))
         [] -> do
-          let tvMap = resolveTypeVariables funcArgTypes argTypes
+          let eTvMap = resolveTypeVariables funcArgTypes argTypes
               argTypes = rights eArgTypes
-          pure (resolveFunctionReturnValue funcName tvMap funcRetType)
+          case eTvMap of
+            Left err -> pure (Left err)
+            Right tvMap -> pure (resolveFunctionReturnValue funcName tvMap funcRetType)
 typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
   rstate <- get
   relType <- either throwE pure (evalState (typeForRelationalExpr relExpr) (mergeAttributesIntoRelationalExprState attrs rstate))
@@ -766,8 +768,8 @@ evalTupleExpr attrs (TupleExpr tupMap) = runExceptT $ do
   -- I could adjust this logic so that when the attributes are not specified (Nothing), then I can attempt to extract the attributes from the tuple- the type resolution will blow up if an ambiguous data constructor is used (Left 4) and this should allow simple cases to "relation{tuple{a 4}}" to be processed
   context <- liftM stateContext get
   attrAtoms <- mapM (\(attrName, aExpr) -> do
-                        newAtom <- liftE (evalAtomExpr emptyTuple aExpr)
                         newAtomType <- liftE (typeFromAtomExpr A.emptyAttributes aExpr)
+                        newAtom <- liftE (evalAtomExpr emptyTuple aExpr)
                         pure (attrName, newAtom, newAtomType)
                     ) (M.toList tupMap)
   let tupAttrs = A.attributesFromList $ map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms

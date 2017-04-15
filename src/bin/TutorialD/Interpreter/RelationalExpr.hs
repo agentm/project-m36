@@ -45,7 +45,7 @@ attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstruc
 adTypeConstructorP :: Parser TypeConstructor
 adTypeConstructorP = do
   tConsName <- capitalizedIdentifier
-  tConsArgs <- many typeConstructorArgP
+  tConsArgs <- many typeConstructorP
   pure $ ADTypeConstructor tConsName tConsArgs
 
 tupleExprP :: RelationalMarkerExpr a => Parser (TupleExprBase a)

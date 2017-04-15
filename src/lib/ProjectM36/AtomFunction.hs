@@ -19,7 +19,7 @@ atomFunctionForName funcName funcSet = if HS.null foundFunc then
 -- | Create a junk named atom function for use with searching for an already existing function in the AtomFunctions HashSet.
 emptyAtomFunction :: AtomFunctionName -> AtomFunction
 emptyAtomFunction name = AtomFunction { atomFuncName = name,
-                                        atomFuncType = [TypeVar "a", TypeVar "a"],
+                                        atomFuncType = [TypeVariableType "a", TypeVariableType "a"],
                                         atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> pure x) }
                                           
                                           
@@ -43,9 +43,8 @@ extractAtomFunctionType typeIn = do
       lastArg = take 1 (reverse typeIn)
   case lastArg of
     (ADTypeConstructor "Either" 
-     (TypeConstructorArg 
-      (ADTypeConstructor "AtomFunctionError" []):
-      (TypeConstructorArg atomRetArg):[])):[] -> do
+      ((ADTypeConstructor "AtomFunctionError" []):
+      atomRetArg:[])):[] -> do
       pure (atomArgs ++ [atomRetArg])
     otherType -> Left (ScriptError (TypeCheckCompilationError "function returning \"Either AtomFunctionError a\"" (show otherType)))
     
@@ -61,6 +60,6 @@ atomFunctionScript func = case atomFuncBody func of
 createScriptedAtomFunction :: AtomFunctionName -> [TypeConstructor] -> TypeConstructor -> AtomFunctionBodyScript -> DatabaseContextIOExpr
 createScriptedAtomFunction funcName argsType retType script = AddAtomFunction funcName (
   argsType ++ [ADTypeConstructor "Either" [
-                TypeConstructorArg (ADTypeConstructor "AtomFunctionError" []),                     
-                TypeConstructorArg retType]]) script
+                ADTypeConstructor "AtomFunctionError" [],                     
+                retType]]) script
                                                      

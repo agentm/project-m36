@@ -55,6 +55,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TypeConstructorTypeVarsTypesMismatch TypeConstructorName TypeVarMap TypeVarMap
                      | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
                      | AtomFunctionTypeVariableResolutionError AtomFunctionName TypeVarName
+                     | AtomFunctionTypeVariableMismatch TypeVarName AtomType AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName

@@ -18,12 +18,12 @@ maybeAtomFunctions :: AtomFunctions
 maybeAtomFunctions = HS.fromList [
   AtomFunction {
      atomFuncName ="isJust",
-     atomFuncType = [maybeAtomType (TypeVar "a"), BoolAtomType],
+     atomFuncType = [maybeAtomType (TypeVariableType "a"), BoolAtomType],
      atomFuncBody = AtomFunctionBody Nothing $ \((ConstructedAtom dConsName _ _):_) -> pure $ BoolAtom (dConsName /= "Nothing")
      },
   AtomFunction {
      atomFuncName = "fromMaybe",
-     atomFuncType = [TypeVar "a", maybeAtomType (TypeVar "a"), TypeVar "a"],
+     atomFuncType = [TypeVariableType "a", maybeAtomType (TypeVariableType "a"), TypeVariableType "a"],
      atomFuncBody = AtomFunctionBody Nothing $ \(defaultAtom:(ConstructedAtom dConsName _ (atomVal:_)):_) -> if atomTypeForAtom defaultAtom /= atomTypeForAtom atomVal then Left AtomFunctionTypeMismatchError else if dConsName == "Nothing" then pure defaultAtom else pure atomVal
      }
   ]

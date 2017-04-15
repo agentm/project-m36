@@ -11,7 +11,7 @@ import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.List as L
 import Data.Maybe (isJust)
-import Data.Either (rights)
+import Data.Either (rights, lefts)
 import Control.Monad.Writer
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -49,10 +49,6 @@ atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aT
 
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) aType _ = Right aType --any type is OK
         
-isValidAtomTypeForTypeConstructorArg :: AtomType -> TypeConstructorArg -> TypeConstructorMapping -> Maybe RelationalError
-isValidAtomTypeForTypeConstructorArg aType (TypeConstructorArg tCons) tConsList = isValidAtomTypeForTypeConstructor aType tCons tConsList
-isValidAtomTypeForTypeConstructorArg _ (TypeConstructorTypeVarArg _) _ = Nothing
-    
 --reconcile the atom-in types with the type constructors
 isValidAtomTypeForTypeConstructor :: AtomType -> TypeConstructor -> TypeConstructorMapping -> Maybe RelationalError
 isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedAType) _ = if expectedAType /= aType then Just (AtomTypeMismatchError expectedAType aType) else Nothing
@@ -112,10 +108,11 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
       Nothing -> Left (NoSuchTypeConstructorName tConsName)
       Just (tConsDef, _) -> let expectedPVarNames = S.fromList (TCD.typeVars tConsDef) in
         if M.keysSet pVarMap' `S.isSubsetOf` expectedPVarNames then
-          Right pVarMap' -- I wish we could actually resolve this- we are creating temporary AtomTypes which are actually invalid until they are resolved with a second pass of type resolution- not great
+          Right pVarMap' 
         else
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
-resolveTypeConstructorTypeVars _ _ _ = error "Unhandled type vars"                              
+resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)          
+resolveTypeConstructorTypeVars x y _ = error $ "Unhandled type vars:"  ++ show x ++ show y                             
     
 -- check that type vars on the right also appear on the left
 -- check that the data constructor names are unique      
@@ -134,17 +131,14 @@ validateTypeConstructorDef tConsDef dConsList = execWriter $ do
 -- Either Int Text -> ConstructedAtomType "Either" {Int , Text}
 atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> Either RelationalError AtomType
 atomTypeForTypeConstructor (PrimitiveTypeConstructor _ aType) _ = Right aType
+atomTypeForTypeConstructor (TypeVariable tvname) _ = Right (TypeVariableType tvname)
 atomTypeForTypeConstructor tCons tConss = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
   Just (tConsDef, _) -> do
-      tConsArgTypes <- mapM ((flip atomTypeForTypeConstructorArg) tConss) (TC.arguments tCons)    
+      tConsArgTypes <- mapM ((flip atomTypeForTypeConstructor) tConss) (TC.arguments tCons)    
       let pVarNames = TCD.typeVars tConsDef
           tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
       Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
-                                     
-atomTypeForTypeConstructorArg :: TypeConstructorArg -> TypeConstructorMapping -> Either RelationalError AtomType
-atomTypeForTypeConstructorArg (TypeConstructorTypeVarArg _) _ = Left IncompletelyDefinedAtomTypeWithConstructorError
-atomTypeForTypeConstructorArg (TypeConstructorArg tCons) tConsList = atomTypeForTypeConstructor tCons tConsList
 
 findTypeConstructor :: TypeConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, [DataConstructorDef])
 findTypeConstructor name tConsList = foldr tConsFolder Nothing tConsList
@@ -225,8 +219,8 @@ validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (at
 
 -- | Determine if two types are equal or compatible (including special handling for TypeVar x).
 atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
-atomTypeVerify (TypeVar _) x = Right x
-atomTypeVerify x (TypeVar _) = Right x
+atomTypeVerify (TypeVariableType _) x = Right x
+atomTypeVerify x (TypeVariableType _) = Right x
 atomTypeVerify x@(ConstructedAtomType tConsNameA tVarMapA) (ConstructedAtomType tConsNameB tVarMapB) = 
   if tConsNameA /= tConsNameB then
     Left (TypeConstructorNameMismatch tConsNameA tConsNameB)
@@ -257,19 +251,30 @@ prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append`
   where
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
-prettyAtomType (TypeVar x) = "?TypeVar " <> x <> "?"
+prettyAtomType (TypeVariableType x) = "?TypeVariableType " <> x <> "?"
 prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
   where fullName = (T.pack . show) aType
 
 prettyAttribute :: Attribute -> T.Text
 prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)
 
-resolveTypeVariables :: [AtomType] -> [AtomType] -> TypeVarMap  
-resolveTypeVariables expectedArgTypes actualArgTypes = let tvmaps = map (uncurry resolveTypeVariable) (zip expectedArgTypes actualArgTypes) in
-  M.unions tvmaps
+resolveTypeVariables :: [AtomType] -> [AtomType] -> Either RelationalError TypeVarMap  
+resolveTypeVariables expectedArgTypes actualArgTypes = do
+  let tvmaps = map (uncurry resolveTypeVariable) (zip expectedArgTypes actualArgTypes)
+  --if there are any new keys which don't have equal values then we have a conflict!
+  foldM (\acc tvmap -> do
+            let inter = M.intersectionWithKey (\tvName vala valb -> 
+                                                if vala /= valb then
+                                                  Left (AtomFunctionTypeVariableMismatch tvName vala valb)
+                                                else
+                                                  Right vala) acc tvmap
+                errs = lefts (M.elems inter)
+            case errs of
+              [] -> pure (M.unions tvmaps)
+              errs' -> Left (someErrors errs')) M.empty tvmaps
   
 resolveTypeVariable :: AtomType -> AtomType -> TypeVarMap
-resolveTypeVariable (TypeVar tv) typ = M.singleton tv typ
+resolveTypeVariable (TypeVariableType tv) typ = M.singleton tv typ
 resolveTypeVariable (ConstructedAtomType _ _) (ConstructedAtomType _ actualTvMap) = actualTvMap
 resolveTypeVariable _ _ = M.empty
 
@@ -280,7 +285,7 @@ resolveFunctionReturnValue funcName tvMap (ConstructedAtomType tCons retMap) = d
     pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
     else
     Left (AtomFunctionTypeVariableResolutionError funcName (fst (head (M.toList diff))))
-resolveFunctionReturnValue funcName tvMap (TypeVar tvName) = case M.lookup tvName tvMap of
+resolveFunctionReturnValue funcName tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName tvName)
   Just typ -> pure typ
-resolveFunctionReturnValue _ _ typ = pure typ  
+resolveFunctionReturnValue _ _ typ = pure typ

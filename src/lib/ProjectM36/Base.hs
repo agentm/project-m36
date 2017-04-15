@@ -73,7 +73,7 @@ data AtomType = IntAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
-                TypeVar TypeVarName
+                TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq, NFData, Generic, Binary, Show)
                        
@@ -230,14 +230,11 @@ data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName]
                         deriving (Show, Generic, Binary, Eq, NFData)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
-data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructorArg] |
-                       PrimitiveTypeConstructor TypeConstructorName AtomType
+data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructor] |
+                       PrimitiveTypeConstructor TypeConstructorName AtomType |
+                       TypeVariable TypeVarName
                      deriving (Show, Generic, Binary, Eq, NFData)
-                                    
-data TypeConstructorArg = TypeConstructorArg TypeConstructor |                                
-                          TypeConstructorTypeVarArg TypeVarName
-                          deriving (Show, Generic, Binary, Eq, NFData)
-                       
+            
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
 
 type TypeConstructorName = StringType

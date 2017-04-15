@@ -32,20 +32,19 @@ primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ,
                                                tName <- try $ symbol (T.unpack name)
                                                pure $ PrimitiveTypeConstructor tName typ)
                                        primitiveTypeConstructorMapping)
-                               
+                            
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
 typeConstructorP = primitiveTypeConstructorP <|>
-                   ADTypeConstructor <$> capitalizedIdentifier <*> many typeConstructorArgP
+                   TypeVariable <$> uncapitalizedIdentifier <|>
+                   ADTypeConstructor <$> capitalizedIdentifier <*> many (parens typeConstructorP <|>
+                                                                         monoTypeConstructorP)
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
 monoTypeConstructorP = primitiveTypeConstructorP <|>
-  ADTypeConstructor <$> capitalizedIdentifier <*> pure []
+  ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
+  TypeVariable <$> uncapitalizedIdentifier
                    
-typeConstructorArgP :: Parser TypeConstructorArg                   
-typeConstructorArgP = TypeConstructorArg <$> monoTypeConstructorP <|>
-  parens (TypeConstructorArg <$> typeConstructorP) <|>
-  TypeConstructorTypeVarArg <$> uncapitalizedIdentifier
 
 
 

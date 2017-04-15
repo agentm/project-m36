@@ -6,3 +6,4 @@ dupes [] = []
 dupes (_:[]) = []
 dupes (x:y:[]) = if x == y then [x] else []
 dupes (x:y:xs) = dupes(x:[y]) ++ dupes(y : xs)
+
