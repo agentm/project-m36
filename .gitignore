@@ -7,3 +7,11 @@ cabal.sandbox.config
 .stack-work
 dist-newstyle/
 dist_build/
+NOTES
+RelatedPapers/
+_shake
+nextsteps
+\#*\#
+view-system-notes
+persistence-notes
+*.pyc
