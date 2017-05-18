@@ -38,6 +38,7 @@ module ProjectM36.Client
        RelationalExpr,
        RelationalExprBase(..),
        DatabaseContextExpr(..),
+       DatabaseContextIOExpr(..),
        Attribute(..),
        attributesFromList,
        createNodeId,
