@@ -100,7 +100,7 @@ Library
                      ProjectM36.IsomorphicSchema,
                      ProjectM36.InclusionDependency,
                      ProjectM36.Client,
-                     ProjectM36.Client.Transaction,
+                     ProjectM36.Client.Staging,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,
                      ProjectM36.AtomFunctions.Basic,
