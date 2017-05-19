@@ -3,6 +3,7 @@
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
+import ProjectM36.TupleFunctionError
 
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -35,8 +36,11 @@ data Atom = IntAtom Int |
             ByteStringAtom ByteString |
             BoolAtom Bool |
             RelationAtom Relation |
-            ConstructedAtom DataConstructorName AtomType [Atom]
+            ConstructedAtom DataConstructorName AtomType [Atom] |
+            TupleFunctionAtom TupleFunctionName -- a function stored as an atom that runs on the current tuple
             deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+                     
+type TupleFunctionName = StringType
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -49,6 +53,7 @@ instance Hashable Atom where
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
+  hashWithSalt salt (TupleFunctionAtom nam) = salt `hashWithSalt` nam
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
@@ -73,6 +78,7 @@ data AtomType = IntAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
+                TupleFunctionAtomType |
                 TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq, NFData, Generic, Binary, Show)
@@ -273,6 +279,15 @@ data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarNam
                       deriving (Generic, Binary, Show)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
+
+type TupleFunctionScript = StringType
+
+type TupleFunctionBodyType = RelationTuple -> Either TupleFunctionError Atom
+
+data TupleFunction = TupleFunction (Maybe TupleFunctionScript) TupleFunctionBodyType
+                     deriving (Generic, NFData)
+
+type TupleFunctions = M.Map TupleFunctionName TupleFunction
                               
 data DatabaseContext = DatabaseContext {
   inclusionDependencies :: InclusionDependencies,
@@ -280,7 +295,8 @@ data DatabaseContext = DatabaseContext {
   atomFunctions :: AtomFunctions,
   dbcFunctions :: DatabaseContextFunctions,
   notifications :: Notifications,
-  typeConstructorMapping :: TypeConstructorMapping
+  typeConstructorMapping :: TypeConstructorMapping,
+  tupleFunctions :: TupleFunctions
   } deriving (NFData, Generic)
              
 type IncDepName = StringType             

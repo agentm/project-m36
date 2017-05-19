@@ -13,7 +13,8 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           notifications = M.empty,
                           atomFunctions = HS.empty,
                           dbcFunctions = HS.empty,
-                          typeConstructorMapping = [] }
+                          typeConstructorMapping = [], 
+                          tupleFunctions = M.empty }
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr
@@ -31,5 +32,6 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          atomFunctions = basicAtomFunctions,
                                          dbcFunctions = basicDatabaseContextFunctions,
                                          notifications = M.empty,
-                                         typeConstructorMapping = basicTypeConstructorMapping
+                                         typeConstructorMapping = basicTypeConstructorMapping,
+                                         tupleFunctions = M.empty
                                          }

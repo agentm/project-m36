@@ -19,7 +19,9 @@ makeAtomFromText _ DayAtomType textIn = maybe ((Left . ParseError) textIn) (Righ
 makeAtomFromText _ DateTimeAtomType textIn = maybe ((Left . ParseError) textIn) (Right . DateTimeAtom) (readMaybe (T.unpack textIn))
 makeAtomFromText _ ByteStringAtomType textIn = maybe ((Left . ParseError) textIn) (Right . ByteStringAtom) (readMaybe (T.unpack textIn))
 makeAtomFromText _ BoolAtomType textIn = maybe ((Left . ParseError) textIn) (Right . BoolAtom) (readMaybe (T.unpack textIn))
+makeAtomFromText attrName TupleFunctionAtomType _ = Left (AtomTypeNotSupported attrName)
 makeAtomFromText attrName _ _ = Left $ AtomTypeNotSupported attrName
+
 
 atomToText :: Atom -> T.Text
 atomToText (IntAtom i) = (T.pack . show) i
@@ -31,6 +33,6 @@ atomToText (ByteStringAtom i) = (T.pack . show) i
 atomToText (BoolAtom i) = (T.pack . show) i
 atomToText (RelationAtom i) = (T.pack . show) i
 atomToText (ConstructedAtom dConsName _ atoms) = dConsName `T.append` T.intercalate " " (map atomToText atoms)
-
+atomToText (TupleFunctionAtom _) = "<TupleFunctionAtom>"
 
 

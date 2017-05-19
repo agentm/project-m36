@@ -72,7 +72,8 @@ readTransaction dbdir transId mScriptSession = do
                                        typeConstructorMapping = typeCons,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs, 
-                                       dbcFunctions = dbcFuncs }
+                                       dbcFunctions = dbcFuncs, 
+                                       tupleFunctions = undefined}
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
         

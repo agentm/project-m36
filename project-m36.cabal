@@ -81,6 +81,7 @@ Library
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
                      ProjectM36.AtomFunctionError,
+                     ProjectM36.TupleFunction,
                      ProjectM36.ScriptSession,
                      ProjectM36.DatabaseContextFunction,
                      ProjectM36.DatabaseContextFunctionError,

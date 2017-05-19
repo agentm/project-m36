@@ -6,6 +6,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AtomType
+import ProjectM36.TupleFunction
 import ProjectM36.Attribute (emptyAttributes)
 import ProjectM36.ScriptSession
 import ProjectM36.DataTypes.Primitive
@@ -670,7 +671,14 @@ evalAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs ()) = runExcept
   aType <- either throwE pure (evalState (typeFromAtomExpr (tupleAttributes tupIn) cons) newState)
   argAtoms <- mapM (\arg -> either throwE pure (evalState (evalAtomExpr tupIn arg) newState)) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
-
+evalAtomExpr tupIn (TupleFunctionAtom tfName) = do  
+  rstate <- get
+  let context = stateContext rstate
+      functions = tupleFunctions context
+  runExceptT $ do
+    func <- either throwE pure (tupleFunctionForName tfName functions)
+    --validate argument types
+                                
 typeFromAtomExpr :: Attributes -> AtomExpr -> RelationalExprState (Either RelationalError AtomType)
 typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
   --first, check if the attribute is in the immediate attributes
