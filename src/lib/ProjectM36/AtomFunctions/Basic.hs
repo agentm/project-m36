@@ -7,11 +7,13 @@ import ProjectM36.DataTypes.Maybe
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.AtomFunction
 import ProjectM36.DataTypes.List
+import ProjectM36.DataTypes.DateTime
 import qualified Data.HashSet as HS
 
 basicAtomFunctions :: AtomFunctions
 basicAtomFunctions = HS.unions [primitiveAtomFunctions, 
                                 dayAtomFunctions,
+                                dateTimeAtomFunctions,
                                 eitherAtomFunctions,
                                 maybeAtomFunctions,
                                 listAtomFunctions]

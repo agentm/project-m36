@@ -12,5 +12,6 @@ basicTypeConstructorMapping = (primitiveTypeConstructorMapping ++
                                maybeTypeConstructorMapping ++ 
                                eitherTypeConstructorMapping ++ 
                                listTypeConstructorMapping ++
-                               dayTypeConstructorMapping)
+                               dayTypeConstructorMapping
+                              )
 

@@ -108,6 +108,7 @@ Library
                      ProjectM36.DataConstructorDef,
                      ProjectM36.DataTypes.Basic,
                      ProjectM36.DataTypes.Day,
+                     ProjectM36.DataTypes.DateTime,
                      ProjectM36.DataTypes.Either,
                      ProjectM36.DataTypes.Maybe,
                      ProjectM36.DataTypes.List,

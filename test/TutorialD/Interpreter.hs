@@ -26,6 +26,7 @@ import Control.Concurrent
 import qualified Data.Set as S
 import Data.Text hiding (map)
 import qualified Data.Text as T
+import Data.Time.Clock.POSIX
 
 main :: IO ()
 main = do
@@ -123,7 +124,9 @@ main = do
                            ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntAtomType [IntAtom 3]]]),
                            --test Either Int Text
                            ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
-                           ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntAtomType TextAtomType) [IntAtom 3]]])
+                           ("x:=relation{a Either Int Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntAtomType TextAtomType) [IntAtom 3]]]),
+                           --test datetime constructor
+                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac 1495199790))]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
