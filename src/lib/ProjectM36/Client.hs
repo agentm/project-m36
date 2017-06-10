@@ -580,20 +580,17 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excMayb
           pure Nothing
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
-executeGraphExprSTM_ :: TransactionId -> SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
-executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar = do
-  graph <- readTVar graphTvar
-  eSession <- sessionForSessionId sessionId sessions
-  case eSession of
-      Left err -> pure $ Left err
-      Right session -> case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
-        Left err -> pure $ Left err
-        Right (discon', graph') -> do
-          
-          writeTVar graphTvar graph'
-          let newSession = Session discon' (Sess.schemaName session)
-          STMMap.insert newSession sessionId sessions
-          pure $ Right graph'
+executeGraphExprSTM_ :: Bool -> TransactionId -> SessionId -> Session -> Sessions -> TransactionGraphOperator -> TransactionGraph -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
+executeGraphExprSTM_ updateGraphOnError freshId sessionId session sessions graphExpr graph graphTVar= do
+  case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
+    Left err -> do
+      when updateGraphOnError (writeTVar graphTVar graph)
+      pure $ Left err
+    Right (discon', graph') -> do
+      writeTVar graphTVar graph'
+      let newSession = Session discon' (Sess.schemaName session)
+      STMMap.insert newSession sessionId sessions
+      pure $ Right graph'
   
 -- process notifications for commits
 executeCommitExprSTM_ :: DatabaseContext -> DatabaseContext -> ClientNodes -> STM (EvaluatedNotifications, ClientNodes)
@@ -636,9 +633,6 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
     --if the database file has been updated since we wrote it last, load it before trying to sync our version done- this can result in TransactionNotAHeadErrors
     --read transaction data and compare to existing graph
       --in the future, we can detect if updated transaction graph can be safely merged (such as with a transaction on a separate head) (rebase-able commits should force the user to rebase from the client to confirm that the action makes sense)
-    if dbWrittenByOtherProcess then do
-      handleGraphFromDiskUpdate sessionId conf
-      else do
       manip <- atomically $ do
         eSession <- sessionForSessionId sessionId sessions
         --handle graph update by other process
@@ -646,20 +640,32 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
         case eSession of
          Left err -> pure (Left err)
          Right session -> do
-          eGraph <- executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar
-          case eGraph of
-            Left err -> pure (Left err)
-            Right newGraph -> do
-              --handle commmit
-              if graphExpr == Commit then
-                case transactionForId (Sess.parentId session) oldGraph of
-                  Left err -> pure $ Left err
-                  Right previousTrans -> do
-                    (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                    nodesToNotify <- toList (STMSet.stream nodes)
-                    pure $ Right (evaldNots, nodesToNotify, newGraph)
-                else
-                pure $ Right (M.empty, [], newGraph)
+          let mScriptSession = ipScriptSession conf              
+              dbdir = case strat of
+                MinimalPersistence x -> x
+                CrashSafePersistence x -> x
+                _ -> error "accessing dbdir on non-persisted connection"
+          eRefreshedGraph <- if dbWrittenByOtherProcess then
+                               unsafeIOToSTM (transactionGraphLoad dbdir oldGraph mScriptSession)
+                             else
+                               pure (Right oldGraph)
+          case eRefreshedGraph of
+            Left err -> pure (Left (DatabaseLoadError err))
+            Right refreshedGraph -> do
+              eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
+              case eGraph of
+                Left err -> pure (Left err)
+                Right newGraph -> do
+                  --handle commit
+                  if graphExpr == Commit then
+                    case transactionForId (Sess.parentId session) oldGraph of
+                      Left err -> pure $ Left err
+                      Right previousTrans -> do
+                        (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                        nodesToNotify <- toList (STMSet.stream nodes)
+                        pure $ Right (evaldNots, nodesToNotify, newGraph)
+                    else
+                    pure $ Right (M.empty, [], newGraph)
       case manip of 
        Left err -> return $ Just err
        Right (notsToFire, nodesToNotify, newGraph) -> do
@@ -668,33 +674,6 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
         sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
         pure Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
-
--- | Called when the transaction graph on disk has been updated by a secondary process. Reject the commit and update the graph
-handleGraphFromDiskUpdate :: SessionId -> InProcessConnectionConf -> IO (Maybe RelationalError)
-handleGraphFromDiskUpdate sessionId conf = do
-  let graphTVar = ipTransactionGraph conf
-      strat = ipPersistenceStrategy conf
-      sessions = ipSessions conf
-      mScriptSession = ipScriptSession conf
-      dbdir = case strat of
-        MinimalPersistence x -> x
-        CrashSafePersistence x -> x
-        _ -> error "handleGraphFromDiskUpdate on unpersisted database"
-  atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
-    case eSession of
-      Left err -> pure (Just err)
-      Right session -> do
-        graph <- readTVar graphTVar
-        let parentTid = Discon.parentId (disconnectedTransaction session)
-    --this should be re-entrant because it only reads from the disk to create immutable structures
-    --BUG: here, we unsafely assume that the updated graph is based on the original- that might not be true- we should check that the graph is sound and consistence with the previous graph
-        eGraph <- unsafeIOToSTM (transactionGraphLoad dbdir graph mScriptSession)
-        case eGraph of
-          Left err -> pure (Just (DatabaseLoadError err))
-          Right updatedGraph -> do
-            writeTVar graphTVar updatedGraph
-            pure (Just (TransactionIsNotAHeadError parentTid))
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
