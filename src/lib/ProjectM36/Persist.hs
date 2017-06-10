@@ -5,7 +5,8 @@ module ProjectM36.Persist (writeFileSync,
                            renameSync, 
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
-
+import qualified Data.Text.IO as TIO
+import Data.Text
 #if defined(mingw32_HOST_OS)
 import qualified System.Win32 as Win32
 #else
@@ -19,7 +20,7 @@ import System.Posix.IO (handleToFd)
 import Foreign.C
 #endif
 
-import System.IO (withFile, IOMode(WriteMode), hPutStr, Handle)
+import System.IO (withFile, IOMode(WriteMode), Handle)
 import qualified Data.ByteString.Lazy as BS
 
 #if defined(mingw32_HOST_OS)
@@ -30,11 +31,11 @@ foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO
 
 data DiskSync = NoDiskSync | FsyncDiskSync
 
-writeFileSync :: DiskSync -> FilePath -> String -> IO()
+writeFileSync :: DiskSync -> FilePath -> Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
-      hPutStr handle strOut
+      TIO.hPutStr handle strOut
       syncHandle sync handle
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()

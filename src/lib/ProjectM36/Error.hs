@@ -81,6 +81,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | MergeTransactionError MergeError
                      | ScriptError ScriptCompilationError
                      | DatabaseContextFunctionUserError DatabaseContextFunctionError
+                     | DatabaseLoadError PersistenceError
                        
                      | SubschemaNameInUseError SchemaName
                      | SubschemaNameNotInUseError SchemaName
@@ -94,7 +95,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
 
 data PersistenceError = InvalidDirectoryError FilePath | 
                         MissingTransactionError TransactionId
-                      deriving (Show, Eq, Generic)
+                      deriving (Show, Eq, Generic, Binary, NFData)
 
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      

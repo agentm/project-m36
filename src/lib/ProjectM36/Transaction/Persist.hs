@@ -19,8 +19,6 @@ import Control.Exception
 import GHC
 import GHC.Paths
 
-import Debug.Trace
-
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path = do
   subpaths <- getDirectoryContents path
@@ -164,7 +162,7 @@ writeDBCFuncs sync transDir funcs = mapM_ (writeDBCFunc sync transDir) (HS.toLis
 writeDBCFunc :: DiskSync -> FilePath -> DatabaseContextFunction -> IO ()
 writeDBCFunc sync transDir func = do
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack (dbcFuncName func)  
-  writeBSFileSync sync (traceShowId dbcFuncPath) (B.encode (dbcFuncType func, databaseContextFunctionScript func))
+  writeBSFileSync sync dbcFuncPath (B.encode (dbcFuncType func, databaseContextFunctionScript func))
 
 readDBCFuncs :: FilePath -> Maybe ScriptSession -> IO DatabaseContextFunctions
 readDBCFuncs transDir mScriptSession = do

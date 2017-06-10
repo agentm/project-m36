@@ -3,7 +3,6 @@ import ProjectM36.Base
 import ProjectM36.AtomFunctionBody
 import qualified Data.HashSet as HS
 import Data.Time.Clock.POSIX
-import Data.Time.Clock
 
 dateTimeAtomFunctions :: AtomFunctions
 dateTimeAtomFunctions = HS.fromList [ AtomFunction {

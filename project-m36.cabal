@@ -66,6 +66,8 @@ Library
                    ,list-t
                    ,optparse-applicative
                    ,Glob
+--used for hashing the transaction graph file to check for differences
+                   ,cryptonite >= 0.23
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -125,7 +127,8 @@ Library
                      ProjectM36.Sessions,
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
-                     ProjectM36.TypeConstructorDef
+                     ProjectM36.TypeConstructorDef,
+                     ProjectM36.FileLock
     GHC-Options: -Wall
     if os(windows)
       Build-Depends: Win32 >= 2.3 && < 2.4

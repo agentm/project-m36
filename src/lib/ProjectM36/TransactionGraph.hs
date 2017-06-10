@@ -17,7 +17,6 @@ import GHC.Generics
 import Data.Binary
 import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
---import Debug.Trace
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -55,7 +54,10 @@ emptyTransactionGraph :: TransactionGraph
 emptyTransactionGraph = TransactionGraph M.empty S.empty
 
 transactionForHead :: HeadName -> TransactionGraph -> Maybe Transaction
-transactionForHead headName (TransactionGraph heads _) = M.lookup headName heads
+transactionForHead headName graph = M.lookup headName (transactionHeadsForGraph graph)
+
+headList :: TransactionGraph -> [(HeadName, TransactionId)]
+headList graph = map (\(k,v) -> (k, transactionId v)) (M.assocs (transactionHeadsForGraph graph))
 
 headNameForTransaction :: Transaction -> TransactionGraph -> Maybe HeadName
 headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchingTrans then
@@ -186,7 +188,6 @@ walkChildTransactions seenTransSet graph trans =
 -- the current transaction is not part of the transaction graph until it is committed
 evalGraphOp :: TransactionId -> DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
 
---affects only disconncted transaction
 evalGraphOp _ _ graph (JumpToTransaction jumpId) = case transactionForId jumpId graph of
   Left err -> Left err
   Right parentTrans -> Right (newTrans, graph)
@@ -194,7 +195,6 @@ evalGraphOp _ _ graph (JumpToTransaction jumpId) = case transactionForId jumpId 
       newTrans = DisconnectedTransaction jumpId (schemas parentTrans)
 
 -- switch from one head to another
--- affects only disconnectedtransaction
 evalGraphOp _ _ graph (JumpToHead headName) =
   case transactionForHead headName graph of
     Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) in
