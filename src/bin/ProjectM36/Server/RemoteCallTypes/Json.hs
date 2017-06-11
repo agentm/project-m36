@@ -134,6 +134,7 @@ instance ToJSON MergeStrategy
 instance FromJSON MergeStrategy
 
 instance ToJSON PersistenceError
+instance FromJSON PersistenceError
 
 instance ToJSON AtomFunctionError
 instance FromJSON AtomFunctionError
