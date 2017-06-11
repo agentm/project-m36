@@ -16,6 +16,6 @@ To start an interactive session with the server, run ```cabal run tutd -- --data
 
 ## Connecting a Haskell Client
 
-Connecting to a local or remote database uses the same API found in ```ProjectM36.Client```. See [this annotated example](examples/SimpleClient.hs) for more information.
+Connecting to a local or remote database uses the same API found in ```ProjectM36.Client```. See [this annotated example](../examples/SimpleClient.hs) for more information.
 
 
