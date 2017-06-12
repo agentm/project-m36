@@ -1,3 +1,11 @@
+# 2017-06-12
+
+## add file locking
+
+This [feature](#102) allows Project:M36 database directories to be shared amongst multiple Project:M36 processes. This is similar to how SQLite operates except that the remote server mode supports the feature as well. This could allow, for example, multi-master, file-based replication across Windows shares or NFS.
+
+[Documentation](/docs/replication.markdown)
+
 # 2016-11-30
 
 ## add functional dependency macro

@@ -20,7 +20,7 @@ module ProjectM36.Client
        typeForRelationalExpr,
        inclusionDependencies,
        planForDatabaseContextExpr,
-       processPersistence,
+       processTransactionGraphPersistence,
        currentSchemaName,
        SchemaName,
        HeadName,
@@ -101,6 +101,7 @@ import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute hiding (atomTypes)
 import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
+import ProjectM36.FileLock
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
@@ -108,6 +109,8 @@ import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
 import qualified ProjectM36.Relation as R
 import qualified ProjectM36.DatabaseContext as DBC
+import Control.Exception.Base
+import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
 import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
@@ -117,7 +120,6 @@ import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Control.Distributed.Process (NodeId(..), reconnect)
 
 import Data.UUID.V4 (nextRandom)
-import Control.Concurrent.STM
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
@@ -134,6 +136,7 @@ import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
+import qualified Crypto.Hash.SHA256 as SHA256
 
 type Hostname = String
 
@@ -195,6 +198,8 @@ defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (c
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 type ClientNodes = STMSet.Set ProcessId
 
+type TransactionGraphLockHandle = Handle
+  
 -- internal structure specific to in-process connections
 data InProcessConnectionConf = InProcessConnectionConf {
   ipPersistenceStrategy :: PersistenceStrategy, 
@@ -203,7 +208,8 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipTransactionGraph :: TVar TransactionGraph,
   ipScriptSession :: Maybe ScriptSession,
   ipLocalNode :: LocalNode,
-  ipTransport :: Transport -- we hold onto this so that we can close it gracefully
+  ipTransport :: Transport, -- we hold onto this so that we can close it gracefully
+  ipLocks :: Maybe (TransactionGraphLockHandle, MVar LockFileHash) -- nothing when NoPersistence
   }
 
 data RemoteProcessConnectionConf = RemoteProcessConnectionConf {
@@ -275,14 +281,16 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         (localNode, transport) <- createLocalNode
         notificationPid <- startNotificationListener localNode notificationCallback
         mScriptSession <- createScriptSession ghcPkgPaths
+        
         let conn = InProcessConnection (InProcessConnectionConf {
-                                           ipPersistenceStrategy =strat, 
+                                           ipPersistenceStrategy = strat, 
                                            ipClientNodes = clientNodes, 
                                            ipSessions = sessions, 
                                            ipTransactionGraph = graphTvar, 
                                            ipScriptSession = mScriptSession,
                                            ipLocalNode = localNode,
-                                           ipTransport = transport })
+                                           ipTransport = transport, 
+                                           ipLocks = Nothing})
         addClientNode conn notificationPid
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -318,8 +326,8 @@ connectPersistentProjectM36 :: PersistenceStrategy ->
 connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
-    Just err' -> return $ Left (SetupDatabaseDirectoryError err')
-    Nothing -> do
+    Left err' -> return $ Left (SetupDatabaseDirectoryError err')
+    Right (lockFileH, digest) -> do
       mScriptSession <- createScriptSession ghcPkgPaths
       graph <- transactionGraphLoad dbdir emptyTransactionGraph mScriptSession
       case graph of
@@ -329,6 +337,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
           sessions <- STMMap.newIO
           clientNodes <- STMSet.newIO
           (localNode, transport) <- createLocalNode
+          lockMVar <- newMVar digest
           let conn = InProcessConnection (InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
@@ -336,7 +345,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipTransactionGraph = tvarGraph,
                                              ipScriptSession = mScriptSession,
                                              ipLocalNode = localNode,
-                                             ipTransport = transport
+                                             ipTransport = transport,
+                                             ipLocks = Just (lockFileH, lockMVar)
                                              })
 
           notificationPid <- startNotificationListener localNode notificationCallback 
@@ -569,19 +579,17 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excMayb
           pure Nothing
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
-executeGraphExprSTM_ :: TransactionId -> SessionId -> Sessions -> TransactionGraphOperator -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
-executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar = do
-  graph <- readTVar graphTvar
-  eSession <- sessionForSessionId sessionId sessions
-  case eSession of
-      Left err -> pure $ Left err
-      Right session -> case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
-        Left err -> pure $ Left err
-        Right (discon', graph') -> do
-          writeTVar graphTvar graph'
-          let newSession = Session discon' (Sess.schemaName session)
-          STMMap.insert newSession sessionId sessions
-          pure $ Right graph'
+executeGraphExprSTM_ :: Bool -> TransactionId -> SessionId -> Session -> Sessions -> TransactionGraphOperator -> TransactionGraph -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
+executeGraphExprSTM_ updateGraphOnError freshId sessionId session sessions graphExpr graph graphTVar= do
+  case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
+    Left err -> do
+      when updateGraphOnError (writeTVar graphTVar graph)
+      pure $ Left err
+    Right (discon', graph') -> do
+      writeTVar graphTVar graph'
+      let newSession = Session discon' (Sess.schemaName session)
+      STMMap.insert newSession sessionId sessions
+      pure $ Right graph'
   
 -- process notifications for commits
 executeCommitExprSTM_ :: DatabaseContext -> DatabaseContext -> ClientNodes -> STM (EvaluatedNotifications, ClientNodes)
@@ -591,53 +599,80 @@ executeCommitExprSTM_ oldContext newContext nodes = do
       evaldNots = M.map mkEvaldNot fireNots
       mkEvaldNot notif = EvaluatedNotification { notification = notif, reportRelation = evalState (RE.evalRelationalExpr (reportExpr notif)) (RE.mkRelationalExprState oldContext) }
   pure (evaldNots, nodes)
-                
-
+  
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
+-- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
+-- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
+-- perhaps keep hash of data file instead of checking if our head was updated on every write
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
   let strat = ipPersistenceStrategy conf
       clientNodes = ipClientNodes conf
       sessions = ipSessions conf
       graphTvar = ipTransactionGraph conf
+      mLockFileH = ipLocks conf
+      lockHandler body = case graphExpr of
+        Commit -> case mLockFileH of
+          Nothing -> body False
+          Just (lockFileH, lockMVar) -> let acquireLocks = do
+                                              lastWrittenDigest <- takeMVar lockMVar 
+                                              lockFile lockFileH WriteLock
+                                              latestDigest <- readGraphTransactionIdDigest strat
+                                              pure (latestDigest /= lastWrittenDigest)
+                                              
+                                            releaseLocks _ = do
+                                              --still holding the lock- get the latest digest
+                                              gDigest <- readGraphTransactionIdDigest strat
+                                              unlockFile lockFileH 
+                                              putMVar lockMVar gDigest
+                                        in bracket acquireLocks releaseLocks body
+        _ -> body False
   freshId <- nextRandom
-  manip <- atomically $ do
-    eSession <- sessionForSessionId sessionId sessions
-    oldGraph <- readTVar graphTvar
-    case eSession of
-      Left err -> pure (Left err)
-      Right session -> do
-        eGraph <- executeGraphExprSTM_ freshId sessionId sessions graphExpr graphTvar
-        case eGraph of
-          Left err -> pure (Left err)
-          Right newGraph -> do
-            if graphExpr == Commit then
-              case transactionForId (Sess.parentId session) oldGraph of
-                Left err -> pure $ Left err
-                Right previousTrans -> do
-                  (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                  nodesToNotify <- toList (STMSet.stream nodes)                  
-                  pure $ Right (evaldNots, nodesToNotify, newGraph)
-            else
-              pure $ Right (M.empty, [], newGraph)
-  case manip of 
-    Left err -> return $ Just err
-    Right (notsToFire, nodesToNotify, newGraph) -> do
-      --update filesystem database, if necessary
-      --this should really grab a lock at the beginning of the method to be threadsafe
-      processPersistence strat newGraph
-      sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
-      return Nothing
+  lockHandler $ \dbWrittenByOtherProcess -> do
+    --if the database file has been updated since we wrote it last, load it before trying to sync our version done- this can result in TransactionNotAHeadErrors
+    --read transaction data and compare to existing graph
+      --in the future, we can detect if updated transaction graph can be safely merged (such as with a transaction on a separate head) (rebase-able commits should force the user to rebase from the client to confirm that the action makes sense)
+      manip <- atomically $ do
+        eSession <- sessionForSessionId sessionId sessions
+        --handle graph update by other process
+        oldGraph <- readTVar graphTvar
+        case eSession of
+         Left err -> pure (Left err)
+         Right session -> do
+          let mScriptSession = ipScriptSession conf              
+              dbdir = case strat of
+                MinimalPersistence x -> x
+                CrashSafePersistence x -> x
+                _ -> error "accessing dbdir on non-persisted connection"
+          eRefreshedGraph <- if dbWrittenByOtherProcess then
+                               unsafeIOToSTM (transactionGraphLoad dbdir oldGraph mScriptSession)
+                             else
+                               pure (Right oldGraph)
+          case eRefreshedGraph of
+            Left err -> pure (Left (DatabaseLoadError err))
+            Right refreshedGraph -> do
+              eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
+              case eGraph of
+                Left err -> pure (Left err)
+                Right newGraph -> do
+                  --handle commit
+                  if graphExpr == Commit then
+                    case transactionForId (Sess.parentId session) oldGraph of
+                      Left err -> pure $ Left err
+                      Right previousTrans -> do
+                        (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                        nodesToNotify <- toList (STMSet.stream nodes)
+                        pure $ Right (evaldNots, nodesToNotify, newGraph)
+                    else
+                    pure $ Right (M.empty, [], newGraph)
+      case manip of 
+       Left err -> return $ Just err
+       Right (notsToFire, nodesToNotify, newGraph) -> do
+        --update filesystem database, if necessary
+        processTransactionGraphPersistence strat newGraph
+        sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
+        pure Nothing
 executeGraphExpr sessionId conn@(RemoteProcessConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
-
-{-
-commitSTM_ :: UUID -> SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe RelationalError)
-commitSTM_ freshUUID sessionId sessions graph = do
-  mErr <- executeGraphExprSTM_ freshUUID sessionId sessions Commit graph
-  pure $ case mErr of
-    Left err -> Just err
-    Right _ -> Nothing
--}
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
@@ -686,10 +721,15 @@ rollback :: SessionId -> Connection -> IO (Maybe RelationalError)
 rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Rollback      
 rollback sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
-processPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
-processPersistence NoPersistence _ = return ()
-processPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph
-processPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph
+processTransactionGraphPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
+processTransactionGraphPersistence NoPersistence _ = pure ()
+processTransactionGraphPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph >> pure ()
+processTransactionGraphPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph >> pure ()
+
+readGraphTransactionIdDigest :: PersistenceStrategy -> IO (LockFileHash)
+readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
+readGraphTransactionIdDigest (MinimalPersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
+readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
 
 -- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)

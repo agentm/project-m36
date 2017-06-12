@@ -6,17 +6,26 @@ import ProjectM36.Transaction.Persist
 import ProjectM36.Base
 import ProjectM36.ScriptSession
 import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)
+import ProjectM36.FileLock
 import System.Directory
 import System.FilePath
 import System.IO.Temp
-import Data.List
+import System.IO
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.Text as T
+import Data.Text.Encoding
 import Control.Monad (foldM)
 import Data.Either (isRight)
 import Data.Maybe (catMaybes)
+import Control.Exception.Base
+import qualified Data.Text.IO as TIO
+import Data.ByteString (ByteString)
+import Data.Monoid
+import qualified Crypto.Hash.SHA256 as SHA256
+
+type LockFileHash = ByteString
 
 {-
 The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
@@ -31,44 +40,63 @@ transactionLogPath dbdir = dbdir </> "m36v1"
 headsPath :: FilePath -> FilePath
 headsPath dbdir = dbdir </> "heads"
 
+lockFilePath :: FilePath -> FilePath
+lockFilePath dbdir = dbdir </> "lockFile"
+
 {-
 verify that the database directory is valid or bootstrap it 
 -note: checking for the existence of every transaction may be prohibitively expensive
+- return error or lock file handle which is already locked with a read lock
 -}
 
-setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Maybe PersistenceError)
+setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (Handle, LockFileHash))
 setupDatabaseDir sync dbdir bootstrapGraph = do
   dbdirExists <- doesDirectoryExist dbdir
   m36exists <- doesFileExist (transactionLogPath dbdir)  
-  if dbdirExists && m36exists then
-    return Nothing
+  if dbdirExists && m36exists then do
+      --no directories to write, just 
+      lockFileH <- openLockFile dbdir
+      gDigest <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (readGraphTransactionIdFileDigest dbdir)
+      pure (Right (lockFileH, gDigest))
     else if not m36exists then do
-           bootstrapDatabaseDir sync dbdir bootstrapGraph
-           return Nothing
+    locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
+    pure (Right locks)
          else
-           return $ Just (InvalidDirectoryError dbdir)
-
+           pure (Left (InvalidDirectoryError dbdir))
 {- 
-initialize a database directory with the graph from which to bootstrap
+initialize a database directory with the graph from which to bootstrap- return lock file handle
 -}
-bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Handle, LockFileHash)
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
-  transactionGraphPersist sync dbdir bootstrapGraph
+  lockFileH <- openLockFile dbdir
+  digest  <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (transactionGraphPersist sync dbdir bootstrapGraph)
+  pure (lockFileH, digest)
+  
+openLockFile :: FilePath -> IO (Handle)  
+openLockFile dbdir = do
+  lockFileH <- openFile (lockFilePath dbdir) WriteMode
+  pure lockFileH
 
 {- 
 incrementally updates an existing database directory
 --algorithm: 
--check that all heads have been written
+--assume that all transaction data has already been written
 -assume that all non-head transactions have already been written because this is an incremental (and concurrent!) write method
 --store the head names with a symlink to the transaction under "heads"
 -}
-transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
 transactionGraphPersist sync destDirectory graph = do
-  mapM_ (writeTransaction sync destDirectory) $ M.elems (transactionHeadsForGraph graph)
-  writeGraphTransactionIdFile sync destDirectory graph
+  transactionHeadTransactionsPersist sync destDirectory graph
+  --write graph file
+  newDigest <- writeGraphTransactionIdFile sync destDirectory graph
+  --write heads file
   transactionGraphHeadsPersist sync destDirectory graph
-  return ()
+  pure newDigest
+  
+-- | The incremental writer which only writes from the set of heads. New heads must be written on every commit. Most heads will already be written on every commit.
+transactionHeadTransactionsPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
+transactionHeadTransactionsPersist sync destDirectory graphIn = mapM_ (writeTransaction sync destDirectory) $ M.elems (transactionHeadsForGraph graphIn)
   
 {- 
 write graph heads to a file which can be atomically swapped
@@ -76,12 +104,12 @@ write graph heads to a file which can be atomically swapped
 --writing the heads in a directory is a synchronization nightmare, so just write the binary to a file and swap atomically
 transactionGraphHeadsPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
 transactionGraphHeadsPersist sync dbdir graph = do
-  let headFileStr :: (HeadName, Transaction) -> String
-      headFileStr (headName, trans) =  T.unpack headName ++ " " ++ U.toString (transactionId trans)
+  let headFileStr :: (HeadName, Transaction) -> T.Text
+      headFileStr (headName, trans) =  headName <> " " <> U.toText (transactionId trans)
   withTempDirectory dbdir ".heads.tmp" $ \tempHeadsDir -> do
     let tempHeadsPath = tempHeadsDir </> "heads"
         headsStrLines = map headFileStr $ M.toList (transactionHeadsForGraph graph)
-    writeFileSync sync tempHeadsPath $ intercalate "\n" headsStrLines
+    writeFileSync sync tempHeadsPath $ T.intercalate "\n" headsStrLines
     renameSync sync tempHeadsPath (headsPath dbdir)
                                                              
 transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,TransactionId)]
@@ -96,7 +124,6 @@ transactionGraphHeadsLoad dbdir = do
 load any transactions which are not already part of the incoming transaction graph
 -}
 
---ALERT I need to figure out how to manage the transaction heads (branch names)
 transactionGraphLoad :: FilePath -> TransactionGraph -> Maybe ScriptSession -> IO (Either PersistenceError TransactionGraph)
 transactionGraphLoad dbdir graphIn mScriptSession = do
   --optimization: perform tail-bisection search to find last-recorded transaction in the existing stream- replay the rest
@@ -131,20 +158,26 @@ readTransactionIfNecessary dbdir transId mScriptSession graphIn = do
       Left err -> return $ Left err
       Right trans' -> return $ Right $ TransactionGraph (transactionHeadsForGraph graphIn) (S.insert trans' (transactionsForGraph graphIn))
   
-writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO ()
-writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo 
+writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
+writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo >> pure digest
   where
     graphFile = destDirectory </> "m36v1"
-    uuidInfo = intercalate "\n" graphLines
+    uuidInfo = T.intercalate "\n" graphLines
+    digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 
-    graphLine trans = U.toString (transactionId trans) ++ " " ++ intercalate " " (S.toList (S.map U.toString $ transactionParentIds trans))
+    graphLine trans = U.toText (transactionId trans) <> " " <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
+    
+readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
+readGraphTransactionIdFileDigest dbdir = do
+  graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
+  pure (SHA256.hash (encodeUtf8 graphTransactionIdData))
     
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tids = catMaybes (map U.fromString (words line)) in
+  let grapher line = let tids = catMaybes (map U.fromText (T.words line)) in
         (head tids, tail tids)
   --warning: uses lazy IO
-  graphTransactionIdData <- readFile (transactionLogPath dbdir)
-  return $ Right (map grapher $ lines graphTransactionIdData)
+  graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
+  return $ Right (map grapher $ T.lines graphTransactionIdData)
 

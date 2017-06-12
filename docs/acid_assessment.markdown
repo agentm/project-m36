@@ -41,6 +41,6 @@ However, Project:M36 allows the user to disable fsync()'ing, for example, for th
 
 In addition, Project:M36 relies on the user to use Project:M36 databases on ordered, journaled metadata filesystems only. A future improvement could be to detect scenarios under which Project:M36 is not offering guaranteed durability. Write-ahead-logs do not suffer from this requirement.
 
-We feel that these potential pitfalls warrant removing an arbitrary 10% from the compliance scale because there is room for further improvement here. It is, however, possible to use Project:M36 with full durability guarantees.
+Database directories can be shared across multiple Project:M36 database processes. This operates similarly to SQLite and relies on POSIX advisory locking and Windows file locking to ensure consistency.
 
-Compliance: 90%
+Compliance: 100%
