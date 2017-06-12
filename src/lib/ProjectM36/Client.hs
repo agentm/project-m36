@@ -136,7 +136,7 @@ import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
-import Crypto.Hash
+import qualified Crypto.Hash.SHA256 as SHA256
 
 type Hostname = String
 
@@ -199,7 +199,6 @@ defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (c
 type ClientNodes = STMSet.Set ProcessId
 
 type TransactionGraphLockHandle = Handle
-type LockFileHash = Digest SHA256
   
 -- internal structure specific to in-process connections
 data InProcessConnectionConf = InProcessConnectionConf {
@@ -727,22 +726,10 @@ processTransactionGraphPersistence NoPersistence _ = pure ()
 processTransactionGraphPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph >> pure ()
 processTransactionGraphPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph >> pure ()
 
-readGraphTransactionIdDigest :: PersistenceStrategy -> IO (Digest SHA256)
+readGraphTransactionIdDigest :: PersistenceStrategy -> IO (LockFileHash)
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
 readGraphTransactionIdDigest (MinimalPersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
 readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
-
-{-
-sameGraphTransactionIdDigest :: PersistenceStrategy -> Digest SHA256 -> IO (Bool)
-sameGraphTransactionIdDigest NoPersistence _ = pure True
-sameGraphTransactionIdDigest persist lastDigest = do
-  let dbdir = case persist of
-        MinimalPersistence x -> x
-        CrashSafePersistence x -> x
-  newDigest <- readGraphTransactionIdDigest persist
-  pure (lastDigest == newDigest)
-
--}
 
 -- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)

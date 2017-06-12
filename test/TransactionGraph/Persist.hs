@@ -42,7 +42,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
   let graph = bootstrapTransactionGraph freshId dateExamples
-  bootstrapDatabaseDir NoDiskSync dbdir graph
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> do
@@ -57,7 +57,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
                 Left err -> assertFailure (show err)
                 Right (_, graph') -> do
                   --persist the new graph
-                  transactionGraphPersist NoDiskSync dbdir graph'
+                  _ <- transactionGraphPersist NoDiskSync dbdir graph'
                   --reload the graph from the filesystem and confirm that the transaction is present
                   graphErr <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
                   let mapEq graphArg = S.map transactionId (transactionsForGraph graphArg)

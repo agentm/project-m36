@@ -67,7 +67,7 @@ Library
                    ,optparse-applicative
                    ,Glob
 --used for hashing the transaction graph file to check for differences
-                   ,cryptonite >= 0.21
+                   ,cryptohash-sha256
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,

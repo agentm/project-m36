@@ -20,9 +20,12 @@ import Control.Monad (foldM)
 import Data.Either (isRight)
 import Data.Maybe (catMaybes)
 import Control.Exception.Base
-import Crypto.Hash
 import qualified Data.Text.IO as TIO
+import Data.ByteString (ByteString)
 import Data.Monoid
+import qualified Crypto.Hash.SHA256 as SHA256
+
+type LockFileHash = ByteString
 
 {-
 The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
@@ -46,7 +49,7 @@ verify that the database directory is valid or bootstrap it
 - return error or lock file handle which is already locked with a read lock
 -}
 
-setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (Handle, Digest SHA256))
+setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (Handle, LockFileHash))
 setupDatabaseDir sync dbdir bootstrapGraph = do
   dbdirExists <- doesDirectoryExist dbdir
   m36exists <- doesFileExist (transactionLogPath dbdir)  
@@ -63,7 +66,7 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
 {- 
 initialize a database directory with the graph from which to bootstrap- return lock file handle
 -}
-bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Handle, Digest SHA256)
+bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Handle, LockFileHash)
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   lockFileH <- openLockFile dbdir
@@ -82,7 +85,7 @@ incrementally updates an existing database directory
 -assume that all non-head transactions have already been written because this is an incremental (and concurrent!) write method
 --store the head names with a symlink to the transaction under "heads"
 -}
-transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO (Digest SHA256)
+transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
 transactionGraphPersist sync destDirectory graph = do
   transactionHeadTransactionsPersist sync destDirectory graph
   --write graph file
@@ -155,19 +158,19 @@ readTransactionIfNecessary dbdir transId mScriptSession graphIn = do
       Left err -> return $ Left err
       Right trans' -> return $ Right $ TransactionGraph (transactionHeadsForGraph graphIn) (S.insert trans' (transactionsForGraph graphIn))
   
-writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO (Digest SHA256)
+writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
 writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo >> pure digest
   where
     graphFile = destDirectory </> "m36v1"
     uuidInfo = T.intercalate "\n" graphLines
-    digest = hashWith SHA256 (encodeUtf8 uuidInfo)
+    digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 
     graphLine trans = U.toText (transactionId trans) <> " " <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
     
-readGraphTransactionIdFileDigest :: FilePath -> IO (Digest SHA256)
+readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
   graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
-  pure (hashWith SHA256 (encodeUtf8 graphTransactionIdData))
+  pure (SHA256.hash (encodeUtf8 graphTransactionIdData))
     
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
