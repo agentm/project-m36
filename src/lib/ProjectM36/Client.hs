@@ -614,7 +614,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
       mLockFileH = ipLocks conf
       lockHandler body = case graphExpr of
         Commit -> case mLockFileH of
-          Nothing -> pure Nothing
+          Nothing -> body False
           Just (lockFileH, lockMVar) -> let acquireLocks = do
                                               lastWrittenDigest <- takeMVar lockMVar 
                                               lockFile lockFileH WriteLock
