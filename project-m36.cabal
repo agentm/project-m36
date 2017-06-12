@@ -67,7 +67,7 @@ Library
                    ,optparse-applicative
                    ,Glob
 --used for hashing the transaction graph file to check for differences
-                   ,cryptonite >= 0.23
+                   ,cryptonite >= 0.21
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -131,7 +131,7 @@ Library
                      ProjectM36.FileLock
     GHC-Options: -Wall
     if os(windows)
-      Build-Depends: Win32 >= 2.3 && < 2.4
+      Build-Depends: Win32 >= 2.3
       Other-Modules: ProjectM36.Win32Handle
     else
       C-sources: cbits/DirectoryFsync.c

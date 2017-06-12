@@ -47,7 +47,7 @@ testMultipleProcessAccess = TestCase $ do
     assertIONothing $ executeDatabaseContextExpr session2 conn2 dudExpr
     mHeadId <- headTransactionId session2 conn2
     headId <- case mHeadId of
-      Nothing -> assertFailure "headTransactionId failed"
+      Nothing -> assertFailure "headTransactionId failed" >> undefined
       Just x -> pure x
     res <- commit session2 conn2
     assertEqual "commit should fail" (Just (TransactionIsNotAHeadError headId)) res
