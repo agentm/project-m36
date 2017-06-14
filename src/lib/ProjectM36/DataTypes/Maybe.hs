@@ -27,3 +27,12 @@ maybeAtomFunctions = HS.fromList [
      atomFuncBody = AtomFunctionBody Nothing $ \(defaultAtom:(ConstructedAtom dConsName _ (atomVal:_)):_) -> if atomTypeForAtom defaultAtom /= atomTypeForAtom atomVal then Left AtomFunctionTypeMismatchError else if dConsName == "Nothing" then pure defaultAtom else pure atomVal
      }
   ]
+
+{- To create an inclusion dependency for uniqueness for "Just a" values only 
+person := relation{name Text, boss Maybe Text}{tuple{name "Steve",boss Nothing}, tuple{name "Bob", boss Just "Steve"}}
+:showexpr ((relation{tuple{}}:{a:=person where ^isJust(@boss)}):{b:=count(@a)}){b}
+:showexpr ((relation{tuple{}}:{a:=person{boss} where ^isJust(@boss)}):{b:=count(@a)}){b}
+constraint uniqueJust ((relation{tuple{}}:{a:=person where ^isJust(@boss)}):{b:=count(@a)}){b} in ((relation{tuple{}}:{a:=person{boss} where ^isJust(@boss)}):{b:=count(@a)}){b}
+person := relation{name Text, boss Maybe Text}{tuple{name "Steve",boss Nothing}, tuple{name "Bob", boss Just "Steve"}, tuple{name "Jim", boss Just "Steve"}} 
+ERR: InclusionDependencyCheckError "uniqueJust"
+-}
