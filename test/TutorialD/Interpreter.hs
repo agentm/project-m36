@@ -33,7 +33,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems, testFunctionalDependencies]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems, testFunctionalDependencies, testEmptyCommits]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -184,7 +184,7 @@ transactionRollbackTest = TestCase $ do
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  (DisconnectedTransaction firstUUID _) <- disconnectedTransaction_ sessionId dbconn
+  (DisconnectedTransaction firstUUID _ _) <- disconnectedTransaction_ sessionId dbconn
   maybeErr <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ()))
   case maybeErr of
     Just err -> assertFailure (show err)
@@ -304,6 +304,7 @@ testTransGraphRelationalExpr :: Test
 testTransGraphRelationalExpr = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
   mapM_ (executeTutorialD sessionId dbconn) [
+    "x:=s", --dud relvar so that the commit isn't empty
     ":commit",
     ":branch testbranch",
     "insert s relation{tuple{city \"Boston\", s# \"S9\", sname \"Smithers\", status 50}}",
@@ -397,4 +398,23 @@ testFunctionalDependencies = TestCase $ do
   --insert an constraint-violating tuple
   let expectedError = "InclusionDependencyCheckError \"sname_status_A\""
   expectTutorialDErr sessionId dbconn (T.isPrefixOf expectedError) "insert s relation{tuple{city \"Boston\", s# \"S7\", sname \"Jones\", status 20}}"
+
+testEmptyCommits :: Test
+testEmptyCommits = TestCase $ do 
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  err <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "no updates empty commit" (Just EmptyCommitError) err
+  --insert no tuples
+  Nothing <- executeDatabaseContextExpr sessionId dbconn (Insert "s" (RelationVariable "s" ()))
+  err <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty insert empty commit" (Just EmptyCommitError) err
+  --update no tuples
+  Nothing <- executeDatabaseContextExpr sessionId dbconn (Update "s" (M.singleton "sname" (NakedAtomExpr (TextAtom "Bob"))) (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
+  err <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty update empty commit" (Just EmptyCommitError) err
+  --delete no tuples
+  Nothing <- executeDatabaseContextExpr sessionId dbconn (Delete "s" (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
+  err <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty delete empty commit" (Just EmptyCommitError) err
+  
 

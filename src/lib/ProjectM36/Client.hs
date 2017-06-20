@@ -641,8 +641,6 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
         case eSession of
          Left err -> pure (Left err)
          Right session -> do
-          if not (isDirty session) then pure (Left EmptyCommitError)
-            else do
             let mScriptSession = ipScriptSession conf              
                 dbdir = case strat of
                   MinimalPersistence x -> x
@@ -661,13 +659,15 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
                  Right newGraph -> do
                   --handle commit
                   if graphExpr == Commit then
-                    case transactionForId (Sess.parentId session) oldGraph of
-                      Left err -> pure $ Left err
-                      Right previousTrans -> do
-                        (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                        nodesToNotify <- toList (STMSet.stream nodes)
-                        pure $ Right (evaldNots, nodesToNotify, newGraph)
-                    else
+                    if not (isDirty session) then pure (Left EmptyCommitError)
+                    else do
+                      case transactionForId (Sess.parentId session) oldGraph of
+                        Left err -> pure $ Left err
+                        Right previousTrans -> do
+                          (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                          nodesToNotify <- toList (STMSet.stream nodes)
+                          pure $ Right (evaldNots, nodesToNotify, newGraph)
+                  else
                     pure $ Right (M.empty, [], newGraph)
       case manip of 
        Left err -> return $ Just err

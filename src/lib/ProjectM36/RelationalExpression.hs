@@ -91,18 +91,9 @@ getStateContext = do
   
 putStateContext :: DatabaseContext -> DatabaseState () 
 putStateContext ctx = do
-  (_, accum, flag) <- get
-  put (ctx, accum, flag)
+  (_, accum, _) <- get
+  put (ctx, accum, True)
   
--- indicates that the underlying database context has changed and warrants a new commit
-putDirtyFlag :: DatabaseState ()
-putDirtyFlag = do
-  (ctx, accum, flag) <- get
-  if flag then
-    pure ()
-    else
-    put (ctx, accum, True)
-
 type RelationalExprState a = Reader RelationalExprStateElems a
 
 stateElemsContext :: RelationalExprStateElems -> DatabaseContext
@@ -248,18 +239,20 @@ setRelVar relVarName rel = do
     Just err -> return $ Just err
     Nothing -> do
       putStateContext potentialContext
-      putDirtyFlag
       return Nothing
 
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
 deleteRelVar :: RelVarName -> DatabaseState (Maybe RelationalError)
 deleteRelVar relVarName = do
   currContext <- getStateContext
-  let newRelVars = M.delete relVarName (relationVariables currContext)
-      newContext = currContext { relationVariables = newRelVars }
-  putStateContext newContext
-  putDirtyFlag
-  pure Nothing
+  let relVars = relationVariables currContext
+  if M.notMember relVarName relVars then
+    pure Nothing
+    else do
+    let newRelVars = M.delete relVarName relVars
+        newContext = currContext { relationVariables = newRelVars }
+    putStateContext newContext
+    pure Nothing
 
 evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
 evalDatabaseContextExpr NoOperation = pure Nothing
@@ -272,7 +265,7 @@ evalDatabaseContextExpr (Define relVarName attrExprs) = do
     err:_ -> pure (Just err)
     [] -> case M.member relVarName relvars of
       True -> return (Just (RelVarAlreadyDefinedError relVarName))
-      False -> setRelVar relVarName emptyRelation >> putDirtyFlag >> pure Nothing
+      False -> setRelVar relVarName emptyRelation >> pure Nothing
         where
           attrs = A.attributesFromList (rights eAttrs)
           emptyRelation = Relation attrs emptyTupleSet
@@ -297,14 +290,34 @@ evalDatabaseContextExpr (Assign relVarName expr) = do
                           else
                             return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
 
-evalDatabaseContextExpr (Insert relVarName relExpr) = evalDatabaseContextExpr $ Assign relVarName (Union relExpr (RelationVariable relVarName ()))
+evalDatabaseContextExpr (Insert relVarName relExpr) = do
+  context <- getStateContext
+  let unionexp = Union relExpr rv
+      rv = RelationVariable relVarName ()
+      unioned = runReader (evalRelationalExpr unionexp) (RelationalExprStateElems context)
+      origRel = runReader (evalRelationalExpr rv) (RelationalExprStateElems context)
+  case unioned of
+    Left err -> pure (Just err)
+    Right unioned' -> case origRel of
+      Left err -> pure (Just err)
+      Right origRel' -> if cardinality unioned' == cardinality origRel' then --no tuples actually inserted
+                          pure Nothing
+                        else
+                          evalDatabaseContextExpr $ Assign relVarName (ExistingRelation unioned')
 
 evalDatabaseContextExpr (Delete relVarName predicate) = do
   context <- getStateContext
-  let updatedRel = runReader (evalRelationalExpr (Restrict (NotPredicate predicate) (RelationVariable relVarName ()))) (RelationalExprStateElems context)
+  let rv = RelationVariable relVarName ()
+  let updatedRel = runReader (evalRelationalExpr (Restrict (NotPredicate predicate) rv)) (RelationalExprStateElems context)
+      origRel = runReader (evalRelationalExpr rv) (RelationalExprStateElems context)
   case updatedRel of
-    Left err -> return $ Just err
-    Right rel -> setRelVar relVarName rel
+    Left err -> pure (Just err)
+    Right updatedRel' -> case origRel of
+                      Left err -> pure (Just err)
+                      Right origRel' -> if cardinality origRel' == cardinality updatedRel' then
+                                          pure Nothing
+                                        else
+                                          setRelVar relVarName updatedRel'
 
 --union of restricted+updated portion and the unrestricted+unupdated portion
 evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr) = do
@@ -316,15 +329,19 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
       case runReader (predicateRestrictionFilter (attributes rel) restrictionPredicateExpr) (RelationalExprStateElems context) of
         Left err -> return $ Just err
         Right predicateFunc -> do
-          case makeUpdatedRel rel of
-            Left err -> return $ Just err
-            Right updatedRel -> setRelVar relVarName updatedRel
-          where
-            makeUpdatedRel relin = do
-              restrictedPortion <- restrict predicateFunc relin
-              unrestrictedPortion <- restrict (not . predicateFunc) relin
-              updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
-              union updatedPortion unrestrictedPortion
+          let ret = do
+                restrictedPortion <- restrict predicateFunc rel
+                if cardinality restrictedPortion == Finite 0 then 
+                  pure Nothing
+                  else do
+                  unrestrictedPortion <- restrict (not . predicateFunc) rel
+                  updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
+                  updatedRel <- union updatedPortion unrestrictedPortion
+                  pure (Just updatedRel)
+          case ret of 
+            Left err -> pure (Just err)
+            Right Nothing -> pure Nothing
+            Right (Just updatedRel) -> setRelVar relVarName updatedRel
 
 evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
   currContext <- getStateContext

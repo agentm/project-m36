@@ -59,7 +59,7 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                    putStrLn "Done."
                  else do
                    let setx = Assign "x" (ExistingRelation (force rel))
-                       context = execState (evalDatabaseContextExpr setx) dateExamples
+                       (context,_,_) = execState (evalDatabaseContextExpr setx) (freshDatabaseState dateExamples)
                        interpreted = interpretDatabaseContextExpr context tutd
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan

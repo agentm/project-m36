@@ -6,6 +6,7 @@ import ProjectM36.TupleSet
 import ProjectM36.StaticOptimizer
 import System.Exit
 import Control.Monad.State
+import Control.Monad.Trans.Reader
 import Test.HUnit
 
 main :: IO ()
@@ -14,16 +15,18 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
     tests = relationOptTests ++ databaseOptTests
-    optTest optfunc estate testparams = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (evalState (optfunc unopt) estate)) $ testparams
+    optDBCTest = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (evalState (applyStaticDatabaseOptimization unopt) (freshDatabaseState dateExamples)))
     relvar nam = RelationVariable nam ()
-    relationOptTests = optTest applyStaticRelationalOptimization  (mkRelationalExprState dateExamples) [
+    startState = mkRelationalExprState dateExamples
+    optRelTest = map (\(name, expr, unopt) -> TestCase $ assertEqual name expr (runReader (applyStaticRelationalOptimization unopt) startState))
+    relationOptTests = optRelTest [
       ("StaticProject", Right $ relvar "s", Project (AttributeNames (attributeNames suppliersRel)) (relvar "s")),
       ("StaticUnion", Right $ relvar "s", Union (relvar "s") (relvar "s")),
       ("StaticJoin", Right $ relvar "s", Join (relvar "s") (relvar "s")),
       ("StaticRestrictTrue", Right $ relvar "s", Restrict TruePredicate (relvar "s")),
       ("StaticRestrictFalse", Right $ MakeStaticRelation (attributes suppliersRel) emptyTupleSet, Restrict (NotPredicate TruePredicate) (relvar "s"))
       ]
-    databaseOptTests = optTest applyStaticDatabaseOptimization dateExamples [
+    databaseOptTests = optDBCTest [
       ("StaticAssign", 
        Right $ Assign "z" (relvar "s"),
        Assign "z" (Restrict TruePredicate (relvar "s"))

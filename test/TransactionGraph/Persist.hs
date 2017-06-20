@@ -50,7 +50,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
-              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty)
+              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) True
                   addTrans = addDisconnectedTransaction freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of

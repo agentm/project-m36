@@ -8,6 +8,7 @@ import ProjectM36.RelationalExpression
 import ProjectM36.Tuple
 import qualified ProjectM36.DatabaseContext as DBC
 import Control.Monad.State
+import Control.Monad.Trans.Reader
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -90,6 +91,6 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" expectedError (mkRelatio
 testMkRelationFromExprsBadAttrs :: Test
 testMkRelationFromExprsBadAttrs = TestCase $ do
   let context = DBC.empty
-  case evalState (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
+  case runReader (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"

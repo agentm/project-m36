@@ -10,6 +10,7 @@ import System.Exit
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad.State
+import Control.Monad.Trans.Reader
 
 testList :: Test
 testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
@@ -57,7 +58,7 @@ testIsoRename = TestCase $ do
                        IsoRename "department" "department"]
       unionExpr = Union (RelationVariable "emp" ()) (RelationVariable "department" ())      
   relExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB unionExpr)
-  let relResult = evalState (evalRelationalExpr relExpr) schemaA                             
+  let relResult = runReader (evalRelationalExpr relExpr) schemaA                             
   assertEqual "employee relation morph" (Right relationTrue) relResult
   
 testIsoRestrict :: Test
@@ -71,8 +72,8 @@ testIsoRestrict = TestCase $ do
              [TextAtom "Cindy", TextAtom "Steve"],
              [TextAtom "Sam", TextAtom "Steve"]]
   let predicate = AttributeEqualityPredicate "boss" (NakedAtomExpr (TextAtom ""))
-  bossRel <- assertEither $ evalState (evalRelationalExpr (Restrict predicate (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
-  nonBossRel <- assertEither $ evalState (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
+  bossRel <- assertEither $ runReader (evalRelationalExpr (Restrict predicate (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
+  nonBossRel <- assertEither $ runReader (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
             
   let schemaA = mkRelationalExprState DBC.empty {
         relationVariables = M.fromList [("nonboss", nonBossRel),
@@ -85,18 +86,18 @@ testIsoRestrict = TestCase $ do
       employeeq = RelationVariable "employee" ()
       unionq = Union bossq nonbossq
   empExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB employeeq)
-  let empResult = evalState (evalRelationalExpr empExpr) schemaA
-      unionResult = evalState (evalRelationalExpr unionq) schemaA
+  let empResult = runReader (evalRelationalExpr empExpr) schemaA
+      unionResult = runReader (evalRelationalExpr unionq) schemaA
   assertEqual "boss/nonboss isorestrict" unionResult empResult
   --execute database context expr
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let postInsertContext = execState (evalDatabaseContextExpr schemaBInsertExpr') (stateContext schemaA)
-      expectedRel = evalState (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
+  let (postInsertContext,_,_) = execState (evalDatabaseContextExpr schemaBInsertExpr') (freshDatabaseState (stateElemsContext schemaA))
+      expectedRel = runReader (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
   --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
-  let processedRel = evalState (evalRelationalExpr processedExpr) (mkRelationalExprState postInsertContext)
+  let processedRel = runReader (evalRelationalExpr processedExpr) (mkRelationalExprState postInsertContext)
   assertEqual "insert bob boss" expectedRel processedRel
   
 testIsoUnion :: Test  
@@ -116,9 +117,9 @@ testIsoUnion = TestCase $ do
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",
                         IsoRename "true" "true",
                         IsoRename "false" "false"]
-      lowmotors = evalState (evalRelationalExpr (Restrict splitPredicate (RelationVariable "motor" ()))) baseSchema
-      highmotors = evalState (evalRelationalExpr (Restrict (NotPredicate splitPredicate) (RelationVariable "motor" ()))) baseSchema
-      relResult expr = evalState (evalRelationalExpr expr) baseSchema
+      lowmotors = runReader (evalRelationalExpr (Restrict splitPredicate (RelationVariable "motor" ()))) baseSchema
+      highmotors = runReader (evalRelationalExpr (Restrict (NotPredicate splitPredicate) (RelationVariable "motor" ()))) baseSchema
+      relResult expr = runReader (evalRelationalExpr expr) baseSchema
   lowpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "lowpower" ()))
   lowpowerRel <- assertEither (relResult lowpowerExpr)
   highpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "highpower" ()))
