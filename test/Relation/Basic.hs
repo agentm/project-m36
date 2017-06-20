@@ -7,7 +7,6 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.Tuple
 import qualified ProjectM36.DatabaseContext as DBC
-import Control.Monad.State
 import Control.Monad.Trans.Reader
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M

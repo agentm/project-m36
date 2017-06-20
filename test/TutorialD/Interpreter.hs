@@ -402,19 +402,19 @@ testFunctionalDependencies = TestCase $ do
 testEmptyCommits :: Test
 testEmptyCommits = TestCase $ do 
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  err <- executeGraphExpr sessionId dbconn Commit
-  assertEqual "no updates empty commit" (Just EmptyCommitError) err
+  err1 <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "no updates empty commit" (Just EmptyCommitError) err1
   --insert no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Insert "s" (RelationVariable "s" ()))
-  err <- executeGraphExpr sessionId dbconn Commit
-  assertEqual "empty insert empty commit" (Just EmptyCommitError) err
+  err2 <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty insert empty commit" (Just EmptyCommitError) err2
   --update no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Update "s" (M.singleton "sname" (NakedAtomExpr (TextAtom "Bob"))) (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
-  err <- executeGraphExpr sessionId dbconn Commit
-  assertEqual "empty update empty commit" (Just EmptyCommitError) err
+  err3 <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty update empty commit" (Just EmptyCommitError) err3
   --delete no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Delete "s" (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
-  err <- executeGraphExpr sessionId dbconn Commit
-  assertEqual "empty delete empty commit" (Just EmptyCommitError) err
+  err4 <- executeGraphExpr sessionId dbconn Commit
+  assertEqual "empty delete empty commit" (Just EmptyCommitError) err4
   
 
