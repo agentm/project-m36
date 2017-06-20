@@ -8,6 +8,7 @@ import ProjectM36.Relation
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Trans.Reader
 import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
@@ -267,7 +268,7 @@ relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.emp
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
                            expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
-                           rel <- evalState (evalRelationalExpr expr') (RelationalExprStateElems context)
+                           rel <- runReader (evalRelationalExpr expr') (RelationalExprStateElems context)
                            pure (rv, rel)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 
@@ -327,9 +328,9 @@ evalSchemaExpr (AddSubschema sname morphs) context sschemas = do
           moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
       in
-      case runState (evalDatabaseContextExpr incDepExprs) context of
+      case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
         (Just err, _) -> Left err
-        (Nothing, newContext) -> pure (newSchemas, newContext)
+        (Nothing, (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
   where
     newSchema = Schema morphs
     valid = validateSchema newSchema context

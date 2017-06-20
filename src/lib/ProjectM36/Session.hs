@@ -16,17 +16,20 @@ defaultSchemaName = "main"
 disconnectedTransaction :: Session -> DisconnectedTransaction
 disconnectedTransaction (Session discon _) = discon
 
+isDirty :: Session -> DirtyFlag
+isDirty (Session (DisconnectedTransaction _ _ dirtyFlag) _) = dirtyFlag
+
 concreteDatabaseContext :: Session -> DatabaseContext
-concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _)) _) = context
+concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _) _) _) = context
 
 parentId :: Session -> TransactionId
-parentId (Session (DisconnectedTransaction parentUUID _) _) = parentUUID
+parentId (Session (DisconnectedTransaction parentUUID _ _) _) = parentUUID
 
 subschemas :: Session -> Subschemas
-subschemas (Session (DisconnectedTransaction _ (Schemas _ s)) _) = s
+subschemas (Session (DisconnectedTransaction _ (Schemas _ s) _) _) = s
 
 schemas :: Session -> Schemas
-schemas (Session (DisconnectedTransaction _ s) _) = s
+schemas (Session (DisconnectedTransaction _ s _) _) = s
 
 schemaName :: Session -> SchemaName
 schemaName (Session _ s) = s

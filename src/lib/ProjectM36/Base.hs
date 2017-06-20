@@ -292,14 +292,17 @@ instance Binary InclusionDependency
 
 type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 
--- | Database context expressions modify the database context.
+--used for returning information about individual expressions
+type DatabaseContextExprName = StringType
+
+-- | Database context expressions modify the database context. The expression name is useful
 data DatabaseContextExpr = 
   NoOperation |
   Define RelVarName [AttributeExpr] |
   Undefine RelVarName | --forget existence of relvar X
   Assign RelVarName RelationalExpr |
   Insert RelVarName RelationalExpr |
-  Delete RelVarName RestrictionPredicateExpr |
+  Delete RelVarName RestrictionPredicateExpr  |
   Update RelVarName AttributeNameAtomExprMap RestrictionPredicateExpr |
   
   AddInclusionDependency IncDepName InclusionDependency |
@@ -371,8 +374,11 @@ data Transaction = Transaction TransactionId TransactionInfo Schemas
                             
 --instance Binary Transaction
                             
+type DirtyFlag = Bool
+
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas --parentID, context- the context here represents the singular concrete context from the schema
+data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DirtyFlag --parentID, context- the context here represents the singular concrete context from the schema
+--the dirty flag indicates that the database context has diverged from its parent's context
                             
 transactionId :: Transaction -> TransactionId
 transactionId (Transaction tid _ _) = tid

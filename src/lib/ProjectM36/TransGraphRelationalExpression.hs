@@ -7,10 +7,10 @@ import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.RelationalExpression
 import ProjectM36.Error
-import Control.Monad.State
 import ProjectM36.Tuple
 import ProjectM36.AtomType
 import qualified Data.Map as M
+import Control.Monad.Trans.Reader
 import Data.Binary
 
 -- | The TransGraphRelationalExpression is equivalent to a relational expression except that relation variables can reference points in the transaction graph (at previous points in time).
@@ -49,7 +49,7 @@ evalTransGraphRelationalExpr (MakeStaticRelation attrs tupSet) _ = pure (MakeSta
 evalTransGraphRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelation rel)
 evalTransGraphRelationalExpr (RelationVariable rvname transLookup) graph = do
   trans <- lookupTransaction graph transLookup
-  rel <- evalState (evalRelationalExpr (RelationVariable rvname ())) (RelationalExprStateElems (concreteDatabaseContext trans))
+  rel <- runReader (evalRelationalExpr (RelationVariable rvname ())) (RelationalExprStateElems (concreteDatabaseContext trans))
   pure (ExistingRelation rel)
 evalTransGraphRelationalExpr (Project attrNames expr) graph = do
   expr' <- evalTransGraphRelationalExpr expr graph
@@ -107,7 +107,7 @@ evalTransGraphAtomExpr graph (FunctionAtomExpr funcName args tLookup) = do
   trans <- lookupTransaction graph tLookup
   --I can't return a FunctionAtomExpr because the function needs to be resolved at a specific context
   args' <- mapM (evalTransGraphAtomExpr graph) args
-  atom <- evalState (evalAtomExpr emptyTuple (FunctionAtomExpr funcName args' ())) (RelationalExprStateElems (concreteDatabaseContext trans))
+  atom <- runReader (evalAtomExpr emptyTuple (FunctionAtomExpr funcName args' ())) (RelationalExprStateElems (concreteDatabaseContext trans))
   pure (NakedAtomExpr atom)
 evalTransGraphAtomExpr graph (RelationAtomExpr expr) = do
   expr' <- evalTransGraphRelationalExpr expr graph 
@@ -115,7 +115,7 @@ evalTransGraphAtomExpr graph (RelationAtomExpr expr) = do
 evalTransGraphAtomExpr graph (ConstructedAtomExpr dConsName args tLookup) = do
   trans <- lookupTransaction graph tLookup  
   args' <- mapM (evalTransGraphAtomExpr graph) args
-  atom <- evalState (evalAtomExpr emptyTuple (ConstructedAtomExpr dConsName args' ())) (RelationalExprStateElems (concreteDatabaseContext trans))
+  atom <- runReader (evalAtomExpr emptyTuple (ConstructedAtomExpr dConsName args' ())) (RelationalExprStateElems (concreteDatabaseContext trans))
   pure (NakedAtomExpr atom)
 
 evalTransGraphRestrictionPredicateExpr :: TransGraphRestrictionPredicateExpr -> TransactionGraph -> Either RelationalError RestrictionPredicateExpr

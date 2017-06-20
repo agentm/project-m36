@@ -1,7 +1,7 @@
 module ProjectM36.Notifications where
 import ProjectM36.Base
 import ProjectM36.RelationalExpression
-import Control.Monad.State
+import Control.Monad.Trans.Reader
 import qualified Data.Map as M
 import Data.Either (isRight)
 
@@ -12,6 +12,6 @@ notificationChanges nots context1 context2 = M.filter notificationFilter nots
     notificationFilter (Notification chExpr _) = let oldChangeEval = evalChangeExpr chExpr (RelationalExprStateElems context1)
                                                      newChangeEval = evalChangeExpr chExpr (RelationalExprStateElems context2) in
                                                  oldChangeEval /= newChangeEval && isRight oldChangeEval
-    evalChangeExpr chExpr = evalState (evalRelationalExpr chExpr)
+    evalChangeExpr chExpr = runReader (evalRelationalExpr chExpr)
 
     

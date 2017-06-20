@@ -7,6 +7,8 @@ import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import Control.Monad.State hiding (join)
 import Data.Either (rights, lefts)
+import Control.Monad.Trans.Reader
+import qualified Data.Map as M
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 -- apply optimizations which merely remove steps to become no-ops: example: projection of a relation across all of its attributes => original relation
@@ -114,29 +116,29 @@ applyStaticDatabaseOptimization x@(Define _ _) = pure $ Right x
 applyStaticDatabaseOptimization x@(Undefine _) = pure $ Right x
 
 applyStaticDatabaseOptimization (Assign name expr) = do
-  context <- get
-  let optimizedExpr = evalState (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
+  context <- getStateContext
+  let optimizedExpr = runReader (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
   case optimizedExpr of
     Left err -> return $ Left err
     Right optimizedExpr2 -> return $ Right (Assign name optimizedExpr2)
     
 applyStaticDatabaseOptimization (Insert name expr) = do
-  context <- get
-  let optimizedExpr = evalState (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
+  context <- getStateContext
+  let optimizedExpr = runReader (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
   case optimizedExpr of
     Left err -> return $ Left err
     Right optimizedExpr2 -> return $ Right (Insert name optimizedExpr2)
   
 applyStaticDatabaseOptimization (Delete name predicate) = do  
-  context <- get
-  let optimizedPredicate = evalState (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
+  context <- getStateContext
+  let optimizedPredicate = runReader (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
   case optimizedPredicate of
       Left err -> return $ Left err
       Right optimizedPredicate2 -> return $ Right (Delete name optimizedPredicate2)
 
 applyStaticDatabaseOptimization (Update name upmap predicate) = do 
-  context <- get
-  let optimizedPredicate = evalState (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
+  context <- getStateContext
+  let optimizedPredicate = runReader (applyStaticPredicateOptimization predicate) (RelationalExprStateElems context)
   case optimizedPredicate of
       Left err -> return $ Left err
       Right optimizedPredicate2 -> return $ Right (Update name upmap optimizedPredicate2)
@@ -146,12 +148,12 @@ applyStaticDatabaseOptimization dep@(AddInclusionDependency _ _) = return $ Righ
 applyStaticDatabaseOptimization (RemoveInclusionDependency name) = return $ Right (RemoveInclusionDependency name)
 
 applyStaticDatabaseOptimization (AddNotification name triggerExpr resultExpr) = do
-  context <- get
-  let eTriggerExprOpt = evalState (applyStaticRelationalOptimization triggerExpr) (RelationalExprStateElems context)
+  context <- getStateContext
+  let eTriggerExprOpt = runReader (applyStaticRelationalOptimization triggerExpr) (RelationalExprStateElems context)
   case eTriggerExprOpt of
          Left err -> pure $ Left err
          Right triggerExprOpt -> do
-           let eResultExprOpt = evalState (applyStaticRelationalOptimization resultExpr) (RelationalExprStateElems context)
+           let eResultExprOpt = runReader (applyStaticRelationalOptimization resultExpr) (RelationalExprStateElems context)
            case eResultExprOpt of
                   Left err -> pure $ Left err
                   Right resultExprOpt -> pure (Right (AddNotification name triggerExprOpt resultExprOpt))
@@ -169,8 +171,8 @@ applyStaticDatabaseOptimization c@(ExecuteDatabaseContextFunction _ _) = pure (R
 --applyStaticDatabaseOptimization (MultipleExpr exprs) = return $ Right $ MultipleExpr exprs
 --for multiple expressions, we must evaluate
 applyStaticDatabaseOptimization (MultipleExpr exprs) = do
-  context <- get
-  let optExprs = evalState substateRunner (contextWithEmptyTupleSets context) 
+  context <- getStateContext
+  let optExprs = evalState substateRunner ((contextWithEmptyTupleSets context), M.empty, False)
   let errors = lefts optExprs
   if length errors > 0 then
     return $ Left (head errors)

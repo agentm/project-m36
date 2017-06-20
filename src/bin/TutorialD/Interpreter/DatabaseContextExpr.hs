@@ -198,9 +198,9 @@ databaseExprOpP = multipleDatabaseContextExprP
 
 evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContext
 evalDatabaseContextExpr useOptimizer context expr = do
-    optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) context
-    case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) context of
-        (Nothing, context') -> Right context'
+    optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) (RE.freshDatabaseState context)
+    case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) (RE.freshDatabaseState context) of
+        (Nothing, (context',_, _)) -> Right context'
         (Just err, _) -> Left err
 
 

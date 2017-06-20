@@ -109,7 +109,7 @@ addBranch newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction newId headName (DisconnectedTransaction parentId schemas') graph = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId S.empty) schemas') graph
+addDisconnectedTransaction newId headName (DisconnectedTransaction parentId schemas' _) graph = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId S.empty) schemas') graph
 
 
 addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
@@ -192,12 +192,12 @@ evalGraphOp _ _ graph (JumpToTransaction jumpId) = case transactionForId jumpId 
   Left err -> Left err
   Right parentTrans -> Right (newTrans, graph)
     where
-      newTrans = DisconnectedTransaction jumpId (schemas parentTrans)
+      newTrans = DisconnectedTransaction jumpId (schemas parentTrans) False
 
 -- switch from one head to another
 evalGraphOp _ _ graph (JumpToHead headName) =
   case transactionForHead headName graph of
-    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) in
+    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) False in
       Right (disconnectedTrans, graph)
     Nothing -> Left $ NoSuchHeadNameError headName
 -- add new head pointing to branchPoint
@@ -215,15 +215,15 @@ evalGraphOp newId discon@(DisconnectedTransaction parentId disconContext) graph 
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-evalGraphOp newId (DisconnectedTransaction parentId schemas') graph (Branch newBranchName) = case addBranch newId newBranchName parentId graph of
-  Left err -> Left err
-  Right (_, newGraph) -> Right (newDiscon, newGraph)
-    where
-      newDiscon = DisconnectedTransaction newId schemas'
-
+evalGraphOp newId (DisconnectedTransaction parentId schemas' _) graph (Branch newBranchName) = do
+  let newDiscon = DisconnectedTransaction newId schemas' False
+  case addBranch newId newBranchName parentId graph of
+    Left err -> Left err
+    Right (_, newGraph) -> Right (newDiscon, newGraph)
+  
 -- add the disconnected transaction to the graph
 -- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
-evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas') graph Commit = case transactionForId parentId graph of
+evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas' _) graph Commit = case transactionForId parentId graph of
   Left err -> Left err
   Right parentTransaction -> case headNameForTransaction parentTransaction graph of
     Nothing -> Left $ TransactionIsNotAHeadError parentId
@@ -231,17 +231,17 @@ evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas') graph 
       Left err-> Left err
       Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
       where
-        newDisconnectedTrans = DisconnectedTransaction newTransId schemas'
+        newDisconnectedTrans = DisconnectedTransaction newTransId schemas' False
         maybeUpdatedGraph = addDisconnectedTransaction newTransId headName discon graph
 
 -- refresh the disconnected transaction, return the same graph
-evalGraphOp _ (DisconnectedTransaction parentId _) graph Rollback = case transactionForId parentId graph of
+evalGraphOp _ (DisconnectedTransaction parentId _ _) graph Rollback = case transactionForId parentId graph of
   Left err -> Left err
   Right parentTransaction -> Right (newDiscon, graph)
     where
-      newDiscon = DisconnectedTransaction parentId (schemas parentTransaction)
+      newDiscon = DisconnectedTransaction parentId (schemas parentTransaction) False
       
-evalGraphOp newId (DisconnectedTransaction parentId _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions newId parentId mergeStrategy (headNameA, headNameB) graph
+evalGraphOp newId (DisconnectedTransaction parentId _ _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions newId parentId mergeStrategy (headNameA, headNameB) graph
 
 evalGraphOp _ discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) = case transactionForHead branchName graph of
   Nothing -> Left (NoSuchHeadNameError branchName)
@@ -249,7 +249,7 @@ evalGraphOp _ discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch 
 
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation
-graphAsRelation (DisconnectedTransaction parentId _) graph@(TransactionGraph _ transSet) = do
+graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _ transSet) = do
   tupleMatrix <- mapM tupleGenerator (S.toList transSet)
   mkRelationFromList attrs tupleMatrix
   where
@@ -381,7 +381,7 @@ mergeTransactions newId parentId mergeStrategy (headNameA, headNameB) graph = do
       Just headName -> do 
         (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
         let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
-            newDiscon = DisconnectedTransaction newId (schemas newTrans)
+            newDiscon = DisconnectedTransaction newId (schemas newTrans) False
         pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
