@@ -194,9 +194,9 @@ testNotification mvar sess conn = TestCase $ do
       check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
   check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
   check $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
-  check $ commit sess conn
+  check $ commit sess conn ForbidEmptyCommitOption
   check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
-  check $ commit sess conn
+  check $ commit sess conn ForbidEmptyCommitOption
   takeMVar mvar
 
 testRequestTimeout :: Test

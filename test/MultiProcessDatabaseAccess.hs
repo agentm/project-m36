@@ -42,12 +42,12 @@ testMultipleProcessAccess = TestCase $ do
     session2 <- assertIOEither (createSessionAtHead master conn2)
     --add a commit on conn1 which conn2 doesn't know about
     assertIONothing $ executeDatabaseContextExpr session1 conn1 dudExpr
-    assertIONothing $ commit session1 conn1
+    assertIONothing $ commit session1 conn1 ForbidEmptyCommitOption
     
     assertIONothing $ executeDatabaseContextExpr session2 conn2 dudExpr
     mHeadId <- headTransactionId session2 conn2
     headId <- case mHeadId of
       Nothing -> assertFailure "headTransactionId failed" >> undefined
       Just x -> pure x
-    res <- commit session2 conn2
+    res <- commit session2 conn2 ForbidEmptyCommitOption
     assertEqual "commit should fail" (Just (TransactionIsNotAHeadError headId)) res

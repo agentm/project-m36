@@ -160,7 +160,7 @@ transactionGraphAddCommitTest = TestCase $ do
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerror?"
         DisplayErrorResult err -> assertFailure (show err)   
         QuietSuccessResult -> do
-          commit sessionId dbconn >>= maybeFail
+          commit sessionId dbconn ForbidEmptyCommitOption >>= maybeFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
@@ -189,7 +189,7 @@ transactionJumpTest = TestCase $ do
   case maybeErr of
     Just err -> assertFailure (show err)
     Nothing -> do
-      commit sessionId dbconn >>= maybeFail
+      commit sessionId dbconn ForbidEmptyCommitOption >>= maybeFail
       --perform the jump
       maybeErr2 <- executeGraphExpr sessionId dbconn (JumpToTransaction firstUUID)
       case maybeErr2 of
@@ -204,7 +204,7 @@ transactionBranchTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   mapM_ (\x -> x >>= maybeFail) [executeGraphExpr sessionId dbconn (Branch "test"),
                   executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ())),
-                  commit sessionId dbconn,
+                  commit sessionId dbconn ForbidEmptyCommitOption,
                   executeGraphExpr sessionId dbconn (JumpToHead "master"),
                   executeDatabaseContextExpr sessionId dbconn (Assign "y" (RelationVariable "s" ()))
                   ]
@@ -258,9 +258,9 @@ testNotification = TestCase $ do
   let check' x = x >>= maybe (pure ()) (\err -> assertFailure (show err))  
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
   check' $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
-  check' $ commit sess conn
+  check' $ commit sess conn ForbidEmptyCommitOption
   check' $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
-  check' $ commit sess conn
+  check' $ commit sess conn ForbidEmptyCommitOption
   takeMVar notifmvar
     
 testTypeConstructors :: Test
@@ -402,19 +402,31 @@ testFunctionalDependencies = TestCase $ do
 testEmptyCommits :: Test
 testEmptyCommits = TestCase $ do 
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  err1 <- executeGraphExpr sessionId dbconn Commit
+  err1 <- executeGraphExpr sessionId dbconn (Commit ForbidEmptyCommitOption)
   assertEqual "no updates empty commit" (Just EmptyCommitError) err1
   --insert no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Insert "s" (RelationVariable "s" ()))
-  err2 <- executeGraphExpr sessionId dbconn Commit
+  err2 <- executeGraphExpr sessionId dbconn (Commit ForbidEmptyCommitOption)
   assertEqual "empty insert empty commit" (Just EmptyCommitError) err2
   --update no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Update "s" (M.singleton "sname" (NakedAtomExpr (TextAtom "Bob"))) (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
-  err3 <- executeGraphExpr sessionId dbconn Commit
+  err3 <- executeGraphExpr sessionId dbconn (Commit ForbidEmptyCommitOption)
   assertEqual "empty update empty commit" (Just EmptyCommitError) err3
   --delete no tuples
   Nothing <- executeDatabaseContextExpr sessionId dbconn (Delete "s" (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
-  err4 <- executeGraphExpr sessionId dbconn Commit
+  err4 <- executeGraphExpr sessionId dbconn (Commit ForbidEmptyCommitOption)
   assertEqual "empty delete empty commit" (Just EmptyCommitError) err4
   
-
+  --test allow empty commit option
+  headId5 <- headTransactionId sessionId dbconn 
+  err5 <- executeGraphExpr sessionId dbconn (Commit AllowEmptyCommitOption)
+  assertEqual "allow empty commit" Nothing err5
+  headId5' <- headTransactionId sessionId dbconn 
+  assertBool "different heads" (headId5 /= headId5')
+  
+  --test ignore empty commit option
+  headId6 <- headTransactionId sessionId dbconn   
+  err6 <- executeGraphExpr sessionId dbconn (Commit IgnoreEmptyCommitOption)
+  assertEqual "ignore empty commit" Nothing err6  
+  headId6' <- headTransactionId sessionId dbconn     
+  assertEqual "same heads" headId6 headId6'

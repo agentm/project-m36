@@ -22,7 +22,7 @@ dateExamplesConnection callback = do
           mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr sessionId conn (Assign rvName (Base.ExistingRelation rvRel))) (M.toList (Base.relationVariables dateExamples))
           mapM_ (\(idName,incDep) -> executeDatabaseContextExpr sessionId conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
       --skipping atom functions for now- there are no atom function manipulation operators yet
-          commit sessionId conn >>= maybeFail
+          commit sessionId conn ForbidEmptyCommitOption >>= maybeFail
           pure (sessionId, conn)
 
 executeTutorialD :: SessionId -> Connection -> Text -> IO ()

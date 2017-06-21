@@ -49,6 +49,7 @@ module ProjectM36.Client
        callTestTimeout_,
        RelationCardinality(..),
        TransactionGraphOperator(..),
+       CommitOption(..),
        transactionGraph_,
        disconnectedTransaction_,
        TransGraphRelationalExpr,
@@ -614,7 +615,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
       graphTvar = ipTransactionGraph conf
       mLockFileH = ipLocks conf
       lockHandler body = case graphExpr of
-        Commit -> case mLockFileH of
+        Commit _ -> case mLockFileH of
           Nothing -> body False
           Just (lockFileH, lockMVar) -> let acquireLocks = do
                                               lastWrittenDigest <- takeMVar lockMVar 
@@ -653,22 +654,27 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
             case eRefreshedGraph of
               Left err -> pure (Left (DatabaseLoadError err))
               Right refreshedGraph -> do
-                eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
-                case eGraph of
-                 Left err -> pure (Left err)
-                 Right newGraph -> do
-                  --handle commit
-                  if graphExpr == Commit then
-                    if not (isDirty session) then pure (Left EmptyCommitError)
-                    else do
-                      case transactionForId (Sess.parentId session) oldGraph of
-                        Left err -> pure $ Left err
-                        Right previousTrans -> do
-                          (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                          nodesToNotify <- toList (STMSet.stream nodes)
-                          pure $ Right (evaldNots, nodesToNotify, newGraph)
-                  else
-                    pure $ Right (M.empty, [], newGraph)
+                if not (isDirty session) && graphExpr == Commit IgnoreEmptyCommitOption then
+                  pure (Right (M.empty, [], oldGraph))
+                  else do
+                   eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
+                   case eGraph of
+                     Left err -> pure (Left err)
+                     Right newGraph -> do
+                       --handle commit
+                       if not (isDirty session) && graphExpr == Commit ForbidEmptyCommitOption then
+                        pure (Left EmptyCommitError)
+                         else if not (isDirty session) && graphExpr == Commit IgnoreEmptyCommitOption then
+                             pure (Right (M.empty, [], newGraph)) 
+                           else if isCommit graphExpr then do
+                             case transactionForId (Sess.parentId session) oldGraph of
+                               Left err -> pure $ Left err
+                               Right previousTrans -> do
+                                 (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                                 nodesToNotify <- toList (STMSet.stream nodes)
+                                 pure $ Right (evaldNots, nodesToNotify, newGraph)
+                             else
+                              pure $ Right (M.empty, [], newGraph)
       case manip of 
        Left err -> return $ Just err
        Right (notsToFire, nodesToNotify, newGraph) -> do
@@ -710,9 +716,9 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
 
 -- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
-commit :: SessionId -> Connection -> IO (Maybe RelationalError)
-commit sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Commit
-commit sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
+commit :: SessionId -> Connection -> CommitOption -> IO (Maybe RelationalError)
+commit sessionId conn@(InProcessConnection _) cOpt = executeGraphExpr sessionId conn (Commit cOpt)
+commit sessionId conn@(RemoteProcessConnection _) cOpt = remoteCall conn (ExecuteGraphExpr sessionId (Commit cOpt))
   
 sendNotifications :: [ProcessId] -> LocalNode -> EvaluatedNotifications -> IO ()
 sendNotifications pids localNode nots = mapM_ sendNots pids

@@ -28,19 +28,27 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git 
                                   TransactionIdHeadBranchBacktrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
                                   deriving (Show, Eq, Binary, Generic)
 
+data CommitOption = AllowEmptyCommitOption | -- allow empty commit and add it to the graph
+                    ForbidEmptyCommitOption | --return error on empty commit- probably the safest option
+                    IgnoreEmptyCommitOption -- don't add the commit and don't add it to the graph (no-op) 
+                    deriving (Eq, Show, Binary, Generic)
+  
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
                                 Branch HeadName |
                                 DeleteBranch HeadName |
                                 MergeTransactions MergeStrategy HeadName HeadName |
-                                Commit |
+                                Commit CommitOption |
                                 Rollback
                               deriving (Eq, Show, Binary, Generic)
-
+                                       
+isCommit :: TransactionGraphOperator -> Bool                                       
+isCommit (Commit _) = True
+isCommit _ = False
+                                       
 data ROTransactionGraphOperator = ShowGraph
                                   deriving Show
-
 
 bootstrapTransactionGraph :: TransactionId -> DatabaseContext -> TransactionGraph
 bootstrapTransactionGraph freshId context = TransactionGraph bootstrapHeads bootstrapTransactions
@@ -223,7 +231,7 @@ evalGraphOp newId (DisconnectedTransaction parentId schemas' _) graph (Branch ne
   
 -- add the disconnected transaction to the graph
 -- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
-evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas' _) graph Commit = case transactionForId parentId graph of
+evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas' _) graph (Commit _) = case transactionForId parentId graph of
   Left err -> Left err
   Right parentTransaction -> case headNameForTransaction parentTransaction graph of
     Nothing -> Left $ TransactionIsNotAHeadError parentId

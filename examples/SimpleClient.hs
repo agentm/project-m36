@@ -1,6 +1,5 @@
 import ProjectM36.Client
 import ProjectM36.TupleSet
-import ProjectM36.Base
 import ProjectM36.Relation.Show.Term
 
 main :: IO ()
