@@ -29,6 +29,7 @@ data Test2T = Test2C Int Int
 data Test3T = Test3Ca | Test3Cb                     
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
 -}
+-- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
 class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtom :: a -> Atom
   default toAtom :: (Generic a, AtomableG (Rep a)) => a -> Atom
@@ -47,7 +48,7 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   default toAtomType :: (Generic a, AtomableG (Rep a)) => a -> AtomType
   toAtomType v = toAtomTypeG (from v)
                       
-  --creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database
+  -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
   toDatabaseContextExpr :: a -> DatabaseContextExpr
   default toDatabaseContextExpr :: (Generic a, AtomableG (Rep a)) => a -> DatabaseContextExpr
   toDatabaseContextExpr v = toDatabaseContextExprG (from v) (toAtomType v)

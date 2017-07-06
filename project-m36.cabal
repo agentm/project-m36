@@ -7,9 +7,19 @@ Bug-Reports: https://github.com/agentm/project-m36/issues
 Author: AgentM
 Stability: experimental
 Category: Relational Algebra
+Maintainer: agentm@themactionfaction.com
 Cabal-Version: >= 1.10
 Synopsis: Relational Algebra Engine
 Description: A relational algebra engine which can be used to persist and query Haskell data types.
+
+Source-Repository head
+    Type: git
+    location: https://github.com/agentm/project-m36
+
+Flag profiler
+  Description: Enable Haskell-specific profiling support
+  Default: False
+  Manual: True  
 
 Library
     Build-Depends: base>=4.8 && < 5.0
@@ -251,7 +261,8 @@ Executable project-m36-server
     Main-Is: ./src/bin/ProjectM36/Server/project-m36-server.hs
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     GHC-Options: -Wall -threaded -rtsopts
-    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 
@@ -267,7 +278,8 @@ Executable bigrel
     GHC-Options: -Wall -threaded -rtsopts
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     HS-Source-Dirs: ./src/bin
-    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
 Test-Suite test-tutoriald
     Default-Language: Haskell2010

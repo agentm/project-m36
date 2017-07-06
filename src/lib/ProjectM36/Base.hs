@@ -63,7 +63,7 @@ instance Binary Day where
     return (fromGregorian y m d)
 
 -- I suspect the definition of ConstructedAtomType with its name alone is insufficient to disambiguate the cases; for example, one could create a type named X, remove a type named X, and re-add it using different constructors. However, as long as requests are served from only one DatabaseContext at-a-time, the type name is unambiguous. This will become a problem for time-travel, however.
--- | The AtomType must uniquely identify the type of a atom.
+-- | The AtomType uniquely identifies the type of a atom.
 data AtomType = IntAtomType |                
                 DoubleAtomType |
                 TextAtomType |
@@ -167,6 +167,7 @@ instance Hashable Relation where
       
 instance Binary Relation      
   
+-- | Used to represent the number of tuples in a relation.         
 data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
 
 -- | Relation variables are identified by their names.
@@ -224,7 +225,7 @@ data Notification = Notification {
 
 type TypeVarName = StringType
   
--- | "data Either a b"
+-- | Metadata definition for type constructors such as @data Either a b@.
 data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName] |
                           PrimitiveTypeConstructorDef TypeConstructorName AtomType
                         deriving (Show, Generic, Binary, Eq, NFData)
@@ -242,7 +243,7 @@ type TypeConstructorArgName = StringType
 type DataConstructorName = StringType
 type AtomTypeName = StringType
 
--- | Used to define a data constructor in a type constructor context. (Left a | Right b)
+-- | Used to define a data constructor in a type constructor context such as @Left a | Right b@
 data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic, NFData)
 
 type DataConstructorDefs = [DataConstructorDef]
@@ -285,7 +286,7 @@ data DatabaseContext = DatabaseContext {
              
 type IncDepName = StringType             
 
--- | Inclusion dependencies represent every possible database constraints. Constraints enforce specific, arbitrarily-complex rules to which the database context must adhere.
+-- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
 data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData)
 
 instance Binary InclusionDependency
@@ -295,7 +296,7 @@ type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 --used for returning information about individual expressions
 type DatabaseContextExprName = StringType
 
--- | Database context expressions modify the database context. The expression name is useful
+-- | Database context expressions modify the database context.
 data DatabaseContextExpr = 
   NoOperation |
   Define RelVarName [AttributeExpr] |
@@ -329,10 +330,10 @@ data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] 
                              AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript
                            deriving (Show, Eq, Generic, Binary)
 
--- | Restriction predicate are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
+-- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 data RestrictionPredicateExprBase a =
   TruePredicate |
   AndPredicate (RestrictionPredicateExprBase a) (RestrictionPredicateExprBase a) |
@@ -392,9 +393,9 @@ instance Eq Transaction where
 instance Ord Transaction where                            
   compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
--- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 type AtomExpr = AtomExprBase ()
 
+-- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
                       NakedAtomExpr Atom |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
@@ -465,10 +466,12 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                                     
 type AttributeExpr = AttributeExprBase ()
 
+-- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
                          deriving (Eq, Show, Generic, Binary, NFData)
                               
+-- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Generic, NFData)
                           
