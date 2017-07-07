@@ -16,7 +16,7 @@ Let us begin by starting with the smallest units in the relational model and wor
 
 A value is a typed, singular unit of data.
 
-Common examples could be a number indicating a person's age, the number of dollars in a bank account, or a street address used for delivery. In all cases, a value must be of a specific type and must support the notion of equality. 
+Common examples could be a number indicating a person's age, the number of dollars in a bank account, or a street address used for delivery. In all cases, a value must be of a specific type and must support the notion of equality.
 
 As an example, it doesn't make sense to ask if a person's age is equal to a street address; the relational model can enforce this- this is called "type safety" and is the motivation for using types.
 
@@ -38,11 +38,11 @@ An attribute is a pair containing an attribute name along with an attribute type
 
 Examples:
 * An "Address" attribute name is of type "Text":
- 
+
 (Address, Text)
 
 * An "Current Balance" attribute name is of type "Dollar Amount":
- 
+
 (Current Balance, Dollar Amount)
 
 #### Tuple
@@ -62,7 +62,7 @@ In the last example, the fact that the car failed the inspection is implied by t
 
 #### Relation
 
-A relation is a container of values organized by tuples of the same type. Specifically, a relation is a set of attributes (a relation header) mapped over a set of tuples (a relation body). Note that this implies that tuples cannot appear more than once since a set can only hold unique items. 
+A relation is a container of values organized by tuples of the same type. Specifically, a relation is a set of attributes (a relation header) mapped over a set of tuples (a relation body). Note that this implies that tuples cannot appear more than once since a set can only hold unique items.
 
 When a tuple appears in a relation, a relation's attributes and respective types must match that of all of its tuples. Thus, a relation's header summarizes the attribute names and types of all of its constituent tuples.
 
@@ -116,7 +116,7 @@ To reiterate, the transition from T1 to T2 replaced the "Employees" relation var
 
 #### Relational Operators
 
-Since we refer to the relational algebra as a closed algebra, all relational operators necessarily operate on and generate relations. The purpose of the operators is allow data modelers to answer questions (queries) based on the current state of the database. For example, a modeler may wish to know the ages of the employees working in the accounting department. The modeler can then compose the relational operators together to answer this and virtually any other conceivable query. 
+Since we refer to the relational algebra as a closed algebra, all relational operators necessarily operate on and generate relations. The purpose of the operators is allow data modelers to answer questions (queries) based on the current state of the database. For example, a modeler may wish to know the ages of the employees working in the accounting department. The modeler can then compose the relational operators together to answer this and virtually any other conceivable query.
 
 ##### Project
 
@@ -186,7 +186,7 @@ Note that rename does not alter the type of the attribute in question.
 
 ##### Join
 
-One of the most essential-to-understand operators is the join operator. Unlike the previous two unary (single relation argument) operators, join operates on two (or potentially more) relations. The purpose of a join is to merge multiple relations into one relation in order to determine the relationships between data across relations. For example, there are good reasons (which have not yet been explained) why a relation representing a company's products and records of when those products were shipped should be two disparate relations. The join operators merges relation A and relation B by returning a new relation with the attribute sets of both relation headers merged and with a body of the tuples merged if-and-only-if the in-common attributes' values are equal. 
+One of the most essential-to-understand operators is the join operator. Unlike the previous two unary (single relation argument) operators, join operates on two (or potentially more) relations. The purpose of a join is to merge multiple relations into one relation in order to determine the relationships between data across relations. For example, there are good reasons (which have not yet been explained) why a relation representing a company's products and records of when those products were shipped should be two disparate relations. The join operators merges relation A and relation B by returning a new relation with the attribute sets of both relation headers merged and with a body of the tuples merged if-and-only-if the in-common attributes' values are equal.
 
 In the case where no attributes are in common between the relations, the join operator becomes a cross-product operator; this is not a special case, rather a logical consequence of the definition.
 
@@ -208,7 +208,7 @@ Join (Instructor relation)
 |French 2|Bob|Room 103|
 |English 2|Steve|Room 104|
 
-["Instructor Name" is the in-common attribute] 
+["Instructor Name" is the in-common attribute]
 ===>
 
 |(Instructor Name, Instructor Name Type)|(Office Number, Office Number Type)|(Course Name, Course Name Type)|(Course Room Number, Room Number Type)|
@@ -259,7 +259,7 @@ Examples:
 
 group ("Name") as "SameAgePeople"
 
-|(Name, Name Type)|(Age, Age Type)|
+| (Name, Name Type)|(Age, Age Type) |
 |-----------------|---------------|
 |Steve|12|
 |Cindy|12|
@@ -301,6 +301,37 @@ ungroup ("Pets")
 
 Note that Bob does not appear in the result relation because he has no pets.
 
+#### Difference
+
+The difference operator ("minus" in TutorialD) receives two relations of the same type (same attributes) as arguments rvA and rvB and returns a relation which contains tuples in rvA which are not found in rvB. This operator is similar to set difference.
+
+Example:
+
+* Show a relation of non-managers by starting with the relation of employees and removing the employees found in the manager relation.
+
+Employees
+
+|(Name, Name Type)|
+|-----------------|
+| Bob |
+| Jim |
+| Steve |
+| Bart |
+
+Managers
+
+|(Name, Name Type)|
+|-----------------|
+| Bob |
+| Steve |
+
+====>
+
+|(Name, Name Type)|
+|-----------------|
+| Jim |
+| Bart |
+
 ### Displaying Relations
 
 Note that in the above operator examples, the order of the tuples appears to shift around. Since a relation body is a set of tuples, any ordering, such as required to represent a relation in two-dimenstional space as a table, is completely arbitrary. Note that the following two relations are two representations of *same* relation:
@@ -311,7 +342,7 @@ Note that in the above operator examples, the order of the tuples appears to shi
 |Sam|41|
 |Cindy|42|
 
-and 
+and
 
 |(Name, Name Type)|(Age, Age Type)|
 |-----------------|---------------|
@@ -343,7 +374,7 @@ For most companies, its data, such as customer, employee, sales, and product inf
 
 ## What is the advantage of having relation-valued attributes?
 
-Since a value can store any (immutable) type, it can certainly hold a relation. At the very least, the mathematics does not exclude the possibility. This does create a recursively-defined data structure (Relation -> Tuple -> Value -> Relation), but it turns out that relations as values can be quite useful. 
+Since a value can store any (immutable) type, it can certainly hold a relation. At the very least, the mathematics does not exclude the possibility. This does create a recursively-defined data structure (Relation -> Tuple -> Value -> Relation), but it turns out that relations as values can be quite useful.
 
 For example, in SQL, if one wants to collect some aggregate data over some tuples while still returning the individual tuples, in the best case, the aggregate information must be repeated for every individual tuple. In the worst case, two separate queries are required since nested tables are not supported.
 
@@ -372,7 +403,7 @@ Example:
 
 ## Suggested Reading
 
-Chris Date has been researching the relational model and its consequences for over forty years. Date has published his findings in various papers but also summarizes his work in a series of introductory and advanced books. Date freely admits that his work on the relational algebra has been corrected over time, so it is best to read his latest works. 
+Chris Date has been researching the relational model and its consequences for over forty years. Date has published his findings in various papers but also summarizes his work in a series of introductory and advanced books. Date freely admits that his work on the relational algebra has been corrected over time, so it is best to read his latest works.
 
 Despite that fact that modern SQL databases do not adhere to the principles of relational algebra doesn't mean that the principles cannot be applied. Date often discusses and compares SQL constructions with his own "TutorialD" language. Project:M36 also supports TutorialD.
 
