@@ -35,6 +35,7 @@ Project:M36 supports multiple frontends which target different audiences.
 * [Developer's Blog](https://agentm.github.io/project-m36/)
 * [Mailing List/Discussion Group](https://groups.google.com/d/forum/project-m36)
 * IRC Channel: chat.freenode.net #project-m36
+* [Hackage](https://hackage.haskell.org/package/project-m36-0.1)
 
 ## Documentation
 
