@@ -15,6 +15,7 @@ import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import qualified ProjectM36.DisconnectedTransaction as Discon
+import qualified ProjectM36.AttributeNames as AN
 import qualified ProjectM36.Session as Sess
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
@@ -89,7 +90,7 @@ main = do
                                      Right $ updateTupleWithAtoms (M.singleton "status" (IntAtom ((castInt statusAtom) + 10))) tuple
                                      else Right tuple) suppliersRel
     dateExampleRelTests = [("x:=s where true", Right suppliersRel),
-                           ("x:=s where city = \"London\"", restrict (\tuple -> atomForAttributeName "city" tuple == (Right $ TextAtom "London")) suppliersRel),
+                           ("x:=s where city = \"London\"", restrict (\tuple -> pure $ atomForAttributeName "city" tuple == (Right $ TextAtom "London")) suppliersRel),
                            ("x:=s where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
                            ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntAtom 12, TextAtom "Paris"]]),
                            ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" IntAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" IntAtomType]) (V.fromList [IntAtom 50])])),
@@ -387,6 +388,23 @@ testRelationalExprStateTupleElems = TestCase $ do
                      [TextAtom "London", IntAtom 3],
                      [TextAtom "Athens", IntAtom 0]]
   assertEqual "validate parts count" expectedRel eRv
+  
+  executeTutorialD sessionId dbconn "rv1:=relation{tuple{test 1}}"
+  executeTutorialD sessionId dbconn "rv2:=relation{tuple{val 1},tuple{val 2}}"
+  --check subexpression evaluation in restriction predicate
+  -- "rv1 where ((rv2 where val=@test) {})"
+  let correctSubexpr = Restrict (AttributeEqualityPredicate "val" (AttributeAtomExpr "test")) (RelationVariable "rv2" ())
+      mainExpr subexpr = (Restrict 
+                          (RelationalExprPredicate
+                           (Project AN.empty subexpr)) (RelationVariable "rv1" ()))
+  eRv2 <- executeRelationalExpr sessionId dbconn (mainExpr correctSubexpr)
+  let expectedRel2 = mkRelationFromList (attributesFromList [Attribute "test" IntAtomType]) [[IntAtom 1]]
+  assertEqual "validate sub-expression attribute" expectedRel2 eRv2
+  
+  --check error in subexpression
+  let wrongSubexpr = Restrict (AttributeEqualityPredicate "nosuchattr" (AttributeAtomExpr "test")) (RelationVariable "rv2" ())
+  eRv3 <- executeRelationalExpr sessionId dbconn (mainExpr wrongSubexpr)
+  assertEqual "validate missing attribute in subexpression" (Left (NoSuchAttributeNamesError (S.singleton "nosuchattr"))) eRv3
   
 -- | Add a functional dependency on sname -> status and insert one tuple which is valid and another tuple which is invalid.
 testFunctionalDependencies :: Test    

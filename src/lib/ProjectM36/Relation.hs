@@ -12,7 +12,7 @@ import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
-import qualified Control.Parallel.Strategies as P
+--import qualified Control.Parallel.Strategies as P
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
 import qualified Data.Text as T
@@ -165,8 +165,8 @@ group groupAttrNames newAttrName rel = do
 restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
 restrictEq tuple rel = restrict rfilter rel
   where
-    rfilter :: RelationTuple -> Bool
-    rfilter tupleIn = tupleIntersection tuple tupleIn == tuple
+    rfilter :: RelationTuple -> Either RelationalError Bool
+    rfilter tupleIn = pure (tupleIntersection tuple tupleIn == tuple)
 
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
@@ -203,11 +203,11 @@ attributesForRelval relvalAttrName (Relation attrs _) = do
     (RelationAtomType relAttrs) -> Right relAttrs
     _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
 
-restrict :: (RelationTuple -> Bool) -> Relation -> Either RelationalError Relation
---restrict rfilter (Relation attrs tupset) = Right $ Relation attrs $ HS.filter rfilter tupset
-restrict rfilter (Relation attrs tupset) = Right $ Relation attrs processedTupSet
-  where
-    processedTupSet = RelationTupleSet ((filter rfilter (asList tupset)) `P.using` (P.parListChunk 1000 P.rdeepseq))
+type RestrictionFilter = RelationTuple -> Either RelationalError Bool
+restrict :: RestrictionFilter -> Relation -> Either RelationalError Relation
+restrict rfilter (Relation attrs tupset) = do
+  tuples <- filterM rfilter (asList tupset)
+  Right $ Relation attrs (RelationTupleSet tuples)
 
 --joins on columns with the same name- use rename to avoid this- base case: cartesian product
 --after changing from string atoms, there needs to be a type-checking step!
@@ -233,7 +233,7 @@ difference relA relB =
   where
     attrsA = attributes relA
     attrsB = attributes relB
-    rfilter tupInA = relFold (\tupInB acc -> if acc == False then False else if tupInB == tupInA then False else True) True relB
+    rfilter tupInA = relFold (\tupInB acc -> if acc == Right False then pure False else pure (tupInB /= tupInA)) (Right True) relB
       
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> Either RelationalError RelationTuple) -> Relation -> Either RelationalError Relation

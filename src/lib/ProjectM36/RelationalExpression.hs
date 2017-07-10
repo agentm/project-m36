@@ -195,7 +195,8 @@ evalRelationalExpr (Restrict predicateExpr relExpr) = do
       eFilterFunc <- predicateRestrictionFilter (attributes rel) predicateExpr
       case eFilterFunc of
         Left err -> return $ Left err
-        Right filterfunc -> return $ restrict filterfunc rel
+        Right filterfunc -> do
+          pure (restrict filterfunc rel)
 
 evalRelationalExpr (Equals relExprA relExprB) = do
   evaldA <- evalRelationalExpr relExprA
@@ -334,7 +335,7 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
                 if cardinality restrictedPortion == Finite 0 then 
                   pure Nothing
                   else do
-                  unrestrictedPortion <- restrict (not . predicateFunc) rel
+                  unrestrictedPortion <- restrict (\tup -> predicateFunc tup >>= pure . not) rel
                   updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
                   updatedRel <- union updatedPortion unrestrictedPortion
                   pure (Just updatedRel)
@@ -614,52 +615,73 @@ liftE v = do
     Right val -> pure val
 
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
-predicateRestrictionFilter :: Attributes -> RestrictionPredicateExpr -> RelationalExprState (Either RelationalError (RelationTuple -> Bool))
+predicateRestrictionFilter :: Attributes -> RestrictionPredicateExpr -> RelationalExprState (Either RelationalError RestrictionFilter)
 predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = do
   runExceptT $ do
     expr1v <- liftE (predicateRestrictionFilter attrs expr1)
     expr2v <- liftE (predicateRestrictionFilter attrs expr2)
-    pure (\x -> expr1v x && expr2v x)
+    pure (\x -> do
+                ev1 <- expr1v x 
+                ev2 <- expr2v x
+                pure (ev1 && ev2))
 
 predicateRestrictionFilter attrs (OrPredicate expr1 expr2) = do
   runExceptT $ do
     expr1v <- liftE (predicateRestrictionFilter attrs expr1)
     expr2v <- liftE (predicateRestrictionFilter attrs expr2)
-    pure (\x -> expr1v x || expr2v x)
+    pure (\x -> do
+                ev1 <- expr1v x 
+                ev2 <- expr2v x
+                pure (ev1 || ev2))
 
-predicateRestrictionFilter _ TruePredicate = pure (Right (\_ -> True))
+predicateRestrictionFilter _ TruePredicate = pure (Right (\_ -> pure True))
 
 predicateRestrictionFilter attrs (NotPredicate expr) = do
   runExceptT $ do
     exprv <- liftE (predicateRestrictionFilter attrs expr)
-    pure (\x -> not (exprv x))
+    pure (\x -> do
+                ev <- exprv x
+                pure (not ev))
 
-predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = runExceptT $ do
-    --merge attrs into to state attributes
-    rel <- liftE (evalRelationalExpr relExpr)
-    if rel == relationTrue then
-      pure (\_ -> True)
-      else if rel == relationFalse then
-             pure (\_ -> False)
-           else
-             throwE (PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'")
+--optimization opportunity: if the subexpression does not reference attributes in the top-level expression, then it need only be evaluated once, statically, outside the tuple filter- see historical implementation here
+predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = do
+  rstate <- ask
+  pure (Right (\tup -> case runReader (evalRelationalExpr relExpr) (mergeTuplesIntoRelationalExprState tup rstate) of
+    Left err -> Left err
+    Right rel -> if arity rel /= 0 then
+                   Left (PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'")
+                   else
+                   pure (rel == relationTrue)))
 
 predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) = do
-  --merge attrs into the state attributes
   rstate <- ask
+  let (attrs', ctxtup') = case rstate of
+                    RelationalExprStateElems _ -> (attrs, emptyTuple)
+                    RelationalExprStateAttrsElems _ _ -> (attrs, emptyTuple)
+                    RelationalExprStateTupleElems _ ctxtup -> (A.union attrs (tupleAttributes ctxtup), ctxtup)
   runExceptT $ do
-    atomExprType <- liftE (typeFromAtomExpr attrs atomExpr)
-    attr <- either throwE pure (A.attributeForName attrName attrs)
+    atomExprType <- liftE (typeFromAtomExpr attrs' atomExpr)
+    attr <- either throwE pure $ case A.attributeForName attrName attrs of
+      Right attr -> Right attr
+      Left (NoSuchAttributeNamesError _) -> case A.attributeForName attrName (tupleAttributes ctxtup') of
+        Right ctxattr -> Right ctxattr
+        Left err2@(NoSuchAttributeNamesError _) -> Left err2
+        Left err -> Left err
+      Left err -> Left err
     if atomExprType /= A.atomType attr then
       throwE (TupleAttributeTypeMismatchError (A.attributesFromList [attr]))
       else
-      pure $ \tupleIn -> case atomForAttributeName attrName tupleIn of
-        Left _ -> False
-        Right atomIn -> 
-          let atomEvald = runReader (evalAtomExpr tupleIn atomExpr) rstate in
-          case atomEvald of
-            Right atomCmp -> atomCmp == atomIn
-            Left _ -> False
+      pure $ \tupleIn -> let evalAndCmp atomIn = case atomEvald of
+                               Right atomCmp -> atomCmp == atomIn
+                               Left _ -> False
+                             atomEvald = runReader (evalAtomExpr tupleIn atomExpr) rstate
+                         in
+                          pure $ case atomForAttributeName attrName tupleIn of
+                            Left (NoSuchAttributeNamesError _) -> case atomForAttributeName attrName ctxtup' of
+                              Left _ -> False
+                              Right ctxatom -> evalAndCmp ctxatom
+                            Left _ -> False
+                            Right atomIn -> evalAndCmp atomIn
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance
 predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
   --merge attrs into the state attributes
@@ -670,13 +692,13 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
       throwE (AtomTypeMismatchError aType BoolAtomType)
       else
       pure (\tupleIn -> do
-                case runReader (evalAtomExpr tupleIn atomExpr) rstate of
+                pure $ case runReader (evalAtomExpr tupleIn atomExpr) rstate of
                   Left _ -> False
                   Right boolAtomValue -> boolAtomValue == BoolAtom True)
 
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
-tupleExprCheckNewAttrName attrName rel = if isRight $ attributeForName attrName rel then
-                                           Left $ AttributeNameInUseError attrName
+tupleExprCheckNewAttrName attrName rel = if isRight (attributeForName attrName rel) then
+                                           Left (error "SPAMMIT" $ AttributeNameInUseError attrName)
                                          else
                                            Right rel
 
@@ -742,19 +764,18 @@ evalAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs ()) = runExcept
 
 typeFromAtomExpr :: Attributes -> AtomExpr -> RelationalExprState (Either RelationalError AtomType)
 typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
-  --first, check if the attribute is in the immediate attributes
   rstate <- ask
   case A.atomTypeForAttributeName attrName attrs of
     Right aType -> pure (Right aType)
     Left err@(NoSuchAttributeNamesError _) -> case rstate of
         RelationalExprStateAttrsElems _ attrs' -> case A.attributeForName attrName attrs' of
-          Left err' -> pure (Left err')
+          Left err' -> pure (error "SPAMMO2" $ Left err')
           Right attr -> pure (Right (A.atomType attr))
-        RelationalExprStateElems _ -> pure (Left err)
+        RelationalExprStateElems _ -> pure (error (show attrs) $ Left err)
         RelationalExprStateTupleElems _ tup -> case atomForAttributeName attrName tup of
-          Left err' -> pure (Left err')
+          Left err' -> pure (error "STAMP" $ Left err')
           Right atom -> pure (Right (atomTypeForAtom atom))
-    Left err -> pure (Left err)
+    Left err -> pure (error "GONK" $ Left err)
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
 typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
   context <- liftM stateElemsContext ask
@@ -795,7 +816,7 @@ verifyAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = runExceptT
       RelationalExprStateTupleElems _ _ -> throwE err
       RelationalExprStateElems _ -> throwE err
       RelationalExprStateAttrsElems _ attrs -> case A.attributeForName attrName attrs of
-        Left err' -> throwE err'
+        Left err' -> throwE (error "GONK" err')
         Right attrType -> either throwE pure (atomTypeVerify expectedType (A.atomType attrType))
     Left err -> throwE err
 verifyAtomExprTypes _ (NakedAtomExpr atom) expectedType = pure (atomTypeVerify expectedType (atomTypeForAtom atom))

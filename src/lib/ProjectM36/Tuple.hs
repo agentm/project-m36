@@ -33,9 +33,9 @@ tupleAtoms (RelationTuple _ tupVec) = tupVec
 
 atomForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Atom
 atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) tupAttrs of
-  Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
+  Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just index -> case tupVec V.!? index of
-    Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
+    Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
     Just atom -> Right atom
 
 {- -- resolve naming clash with Attribute and Relation later
