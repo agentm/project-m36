@@ -97,6 +97,7 @@ Library
                      ProjectM36.ScriptSession,
                      ProjectM36.DatabaseContextFunction,
                      ProjectM36.DatabaseContextFunctionError,
+                     ProjectM36.DatabaseContextFunctionUtils,
                      ProjectM36.Key,
                      ProjectM36.FunctionalDependency,
                      ProjectM36.DatabaseContext,

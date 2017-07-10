@@ -18,6 +18,7 @@ import TutorialD.Interpreter.Export.CSV
 import TutorialD.Interpreter.Export.Base
 
 import ProjectM36.Base
+import ProjectM36.Error
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
@@ -156,7 +157,7 @@ evalTutorialD sessionId conn safe expr = case expr of
       unsafeError
       else
       case evalInformationOperator execOp of
-        Left err -> barf err
+        Left err -> pure (DisplayErrorResult err)
         Right info -> pure (DisplayResult info)
       
   (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
@@ -180,6 +181,8 @@ evalTutorialD sessionId conn safe expr = case expr of
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
+    barf :: RelationalError -> IO TutorialDOperatorResult
+    barf (ScriptError (OtherScriptCompilationError errStr)) = pure (DisplayErrorResult (T.pack errStr))
     barf err = return $ DisplayErrorResult (T.pack (show err))
   
 type GhcPkgPath = String  
