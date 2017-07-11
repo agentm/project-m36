@@ -66,7 +66,7 @@ Library
                    ,conduit
                    ,resourcet
                    ,http-api-data
---needed for remote access                   
+--needed for remote access
                    ,distributed-process-client-server >= 0.2.3
                    ,distributed-process >= 0.6.6
                    ,distributed-process-extras >= 0.3.2
@@ -103,7 +103,7 @@ Library
                      ProjectM36.DatabaseContext,
                      ProjectM36.DateExamples,
                      ProjectM36.DisconnectedTransaction,
-                     ProjectM36.AtomFunctionBody,		  
+                     ProjectM36.AtomFunctionBody,
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
@@ -114,6 +114,7 @@ Library
                      ProjectM36.IsomorphicSchema,
                      ProjectM36.InclusionDependency,
                      ProjectM36.Client,
+                     ProjectM36.Client.Staging,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,
                      ProjectM36.AtomFunctions.Basic,
@@ -157,7 +158,7 @@ Library
         ghc-boot
 
 Executable tutd
-    Build-Depends: base >=4.8 && <5.0, 
+    Build-Depends: base >=4.8 && <5.0,
                    ghc >= 7.8 && <= 8.1,
                    ghc-paths,
                    project-m36 == 0.1,
@@ -217,7 +218,7 @@ Executable tutd
     main-is: TutorialD/tutd.hs
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     CC-Options: -fPIC
-    GHC-Options: -Wall 
+    GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -227,7 +228,7 @@ Executable tutd
 --    else
 --      C-sources: ProjectM36/DirectoryFsync.c
 --      Build-Depends: unix
-    
+
 
 Executable project-m36-server
     Build-Depends: base,
@@ -368,7 +369,7 @@ Test-Suite test-relation-export-csv
     type: exitcode-stdio-1.0
     main-is: test/Relation/Export/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, project-m36 == 0.1
-    GHC-Options: -Wall 
+    GHC-Options: -Wall
 
 Test-Suite test-transactiongraph-merge
     Default-Language: Haskell2010
@@ -395,7 +396,7 @@ Test-Suite test-server
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, network-transport-tcp, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, project-m36 == 0.1, network-transport, semigroups
     HS-Source-Dirs: ., ./src/bin
     GHC-Options: -Wall
-    
+
 Executable Example-SimpleClient
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -418,7 +419,7 @@ Executable Example-Hair
     Main-Is: examples/hair.hs
     GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
-    
+
 Test-Suite test-scripts
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -434,7 +435,7 @@ Executable project-m36-websocket-server
     Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, uuid-aeson, optparse-applicative, project-m36 == 0.1, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, network-transport-tcp, semigroups
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator
-    GHC-Options: -Wall   
+    GHC-Options: -Wall
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
     Hs-Source-Dirs: ./src/bin
     Default-Extensions: OverloadedStrings
