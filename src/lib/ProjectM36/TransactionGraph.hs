@@ -17,6 +17,7 @@ import GHC.Generics
 import Data.Binary
 import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
+import Data.Monoid
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -28,11 +29,6 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git 
                                   TransactionIdHeadBranchBacktrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
                                   deriving (Show, Eq, Binary, Generic)
 
-data EmptyCommitOption = AllowEmptyCommitOption | -- allow empty commit and add it to the graph
-                    ForbidEmptyCommitOption | --return error on empty commit- probably the safest option
-                    IgnoreEmptyCommitOption -- don't add the commit and don't add it to the graph (no-op) 
-                    deriving (Eq, Show, Binary, Generic)
-                             
 data MergeCommitOption = NoMergeCommitOption | --no special handling                             
                          AutoMergeToHeadCommitOption -- branch, merge to current branch, commit- all-in-one in order to take advantage of atomic STM
                              
@@ -42,12 +38,12 @@ data TransactionGraphOperator = JumpToHead HeadName  |
                                 Branch HeadName |
                                 DeleteBranch HeadName |
                                 MergeTransactions MergeStrategy HeadName HeadName |
-                                Commit EmptyCommitOption MergeCommitOption |
+                                Commit |
                                 Rollback
                               deriving (Eq, Show, Binary, Generic)
                                        
 isCommit :: TransactionGraphOperator -> Bool                                       
-isCommit (Commit _) = True
+isCommit Commit = True
 isCommit _ = False
                                        
 data ROTransactionGraphOperator = ShowGraph
@@ -232,17 +228,9 @@ evalGraphOp newId (DisconnectedTransaction parentId schemas' _) graph (Branch ne
     Left err -> Left err
     Right (_, newGraph) -> Right (newDiscon, newGraph)
   
---a version of commit which adds the discon to a temporary branch and attempts to merge it to the head and commit it- deletes the merge branch so that the newTransId appears to be for a fast-forwardded commit
---this emulates a rebase based on the transaction merge code
-evalGraphOp newTransId discon@(DisconnectedTransaction parentId schema' _) graph cmd@(Commit _ AutoMergeToHeadOption) = do 
-  parentTrans <- transactionForId parentId graph
-  let tempBranchName = "mergebranch_" <> U.toText newTransId
-  evalGraphOp ? (Branch "junk
-  
-  
 -- add the disconnected transaction to the graph
 -- affects graph and disconnectedtransaction- the new disconnectedtransaction's parent is the freshly committed transaction
-evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas' _) graph (Commit _) = case transactionForId parentId graph of
+evalGraphOp newTransId discon@(DisconnectedTransaction parentId schemas' _) graph Commit = case transactionForId parentId graph of
   Left err -> Left err
   Right parentTransaction -> case headNameForTransaction parentTransaction graph of
     Nothing -> Left $ TransactionIsNotAHeadError parentId
@@ -492,3 +480,14 @@ backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
          else
            pure (S.elemAt (steps - 1) parents)
     
+-- | Create a temporary branch for commit, merge the result to head, delete the temporary branch. This is useful to atomically commit a transaction, avoiding a TransactionIsNotHeadError but trading it for a potential MergeError.
+autoMergeToHead :: (TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
+autoMergeToHead (tempTransId, newCommitTransId) discon mergeToHeadName strat graph = do
+  let tempBranchName = "mergebranch_" <> U.toText tempTransId
+  --create the temp branch
+  (discon', graph') <- evalGraphOp tempTransId discon graph (Branch tempBranchName)
+  --create the merge
+  (discon'', graph'') <- evalGraphOp newCommitTransId discon' graph' (MergeTransactions strat tempBranchName mergeToHeadName)
+  --delete the temp branch
+  evalGraphOp newCommitTransId discon'' graph'' (DeleteBranch tempBranchName)
+  
