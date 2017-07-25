@@ -140,5 +140,15 @@ handleTestTimeout ti _ conn = do
   ret <- timeoutOrDie ti (threadDelay 100000 >> pure True)
   reply ret conn
 
+handleRetrieveSessionIsDirty :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Bool)
+handleRetrieveSessionIsDirty ti sessionId conn = do
+  ret <- timeoutOrDie ti (disconnectedTransactionIsDirty sessionId conn)
+  reply ret conn
+  
+handleExecuteAutoMergeToHead :: Timeout -> SessionId -> Connection -> MergeStrategy -> HeadName -> Reply (Either RelationalError ())
+handleExecuteAutoMergeToHead ti sessionId conn strat headName' = do
+  ret <- timeoutOrDie ti (autoMergeToHead sessionId conn strat headName')
+  reply ret conn
+
   
  

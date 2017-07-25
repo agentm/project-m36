@@ -29,9 +29,6 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git 
                                   TransactionIdHeadBranchBacktrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
                                   deriving (Show, Eq, Binary, Generic)
 
-data MergeCommitOption = NoMergeCommitOption | --no special handling                             
-                         AutoMergeToHeadCommitOption -- branch, merge to current branch, commit- all-in-one in order to take advantage of atomic STM
-                             
 --operators which manipulate a transaction graph
 data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
@@ -481,6 +478,7 @@ backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
            pure (S.elemAt (steps - 1) parents)
     
 -- | Create a temporary branch for commit, merge the result to head, delete the temporary branch. This is useful to atomically commit a transaction, avoiding a TransactionIsNotHeadError but trading it for a potential MergeError.
+--this is not a GraphOp because it combines multiple graph operations
 autoMergeToHead :: (TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
 autoMergeToHead (tempTransId, newCommitTransId) discon mergeToHeadName strat graph = do
   let tempBranchName = "mergebranch_" <> U.toText tempTransId

@@ -27,6 +27,7 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       disconnectedTransactionIsDirty,
        headName,
        remoteDBLookupName,
        defaultServerPort,
@@ -49,6 +50,7 @@ module ProjectM36.Client
        callTestTimeout_,
        RelationCardinality(..),
        TransactionGraphOperator(..),
+       ProjectM36.Client.autoMergeToHead,
        transactionGraph_,
        disconnectedTransaction_,
        TransGraphRelationalExpr,
@@ -96,6 +98,7 @@ import Control.Monad.State
 import Control.Monad.Trans.Reader
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.DatabaseContext (basicDatabaseContext)
+import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
@@ -556,9 +559,30 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excMaybe 
                 newSession = Session newDiscon (Sess.schemaName session)
             STMMap.insert newSession sessionId sessions
             pure Nothing
-      
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
+-- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing).
+autoMergeToHead :: SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
+autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
+  let sessions = ipSessions conf
+      tvar = ipTransactionGraph conf
+  id1 <- nextRandom
+  id2 <- nextRandom
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions  
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        graph <- readTVar tvar
+        case Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph of
+          Left err -> pure (Left err)
+          Right (discon', graph') -> do
+            writeTVar tvar graph'
+            let newSession = Session discon' (Sess.schemaName session)
+            STMMap.insert newSession sessionId sessions
+            execute
+autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
+      
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
 --this is almost completely identical to executeDatabaseContextExpr above
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Maybe RelationalError)
@@ -865,6 +889,17 @@ atomTypesAsRelation sessionId (InProcessConnection conf) = do
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)
+
+disconnectedTransactionIsDirty :: SessionId -> Connection -> IO (Either RelationalError Bool)
+disconnectedTransactionIsDirty sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        pure (Right (isDirty session))
+disconnectedTransactionIsDirty sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveSessionIsDirty sessionId)
         
 --used only for testing- we expect this to throw an exception
 callTestTimeout_ :: SessionId -> Connection -> IO Bool

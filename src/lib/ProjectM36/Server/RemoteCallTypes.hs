@@ -55,3 +55,7 @@ data RetrieveCurrentSchemaName = RetrieveCurrentSchemaName SessionId
                                  deriving (Binary, Generic)
 data TestTimeout = TestTimeout SessionId                                          
                    deriving (Binary, Generic)
+data RetrieveSessionIsDirty = RetrieveSessionIsDirty SessionId                            
+                            deriving (Binary, Generic)
+data ExecuteAutoMergeToHead = ExecuteAutoMergeToHead SessionId MergeStrategy HeadName
+                              deriving (Binary, Generic)

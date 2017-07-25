@@ -34,7 +34,7 @@ deleteBranchP = do
 commitTransactionP :: Parser TransactionGraphOperator
 commitTransactionP = do
   reservedOp ":commit"
-  return $ Commit ForbidEmptyCommitOption
+  pure Commit 
 
 rollbackTransactionP :: Parser TransactionGraphOperator
 rollbackTransactionP = do
