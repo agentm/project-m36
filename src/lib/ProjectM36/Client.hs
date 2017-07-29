@@ -565,22 +565,14 @@ executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = r
 autoMergeToHead :: SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
 autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   let sessions = ipSessions conf
-      tvar = ipTransactionGraph conf
   id1 <- nextRandom
   id2 <- nextRandom
-  atomically $ do
+  commitLock_ sessionId conf $ \graph -> do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
       Right session -> do
-        graph <- readTVar tvar
-        case Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph of
-          Left err -> pure (Left err)
-          Right (discon', graph') -> do
-            writeTVar tvar graph'
-            let newSession = Session discon' (Sess.schemaName session)
-            STMMap.insert newSession sessionId sessions
-            execute
+        pure $ Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph 
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
@@ -677,7 +669,9 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
             case eRefreshedGraph of
               Left err -> pure (Left (DatabaseLoadError err))
               Right refreshedGraph -> do
+                   --snip it
                    eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
+                   --snip it
                    case eGraph of
                      Left err -> pure (Left err)
                      Right newGraph -> do
@@ -921,3 +915,72 @@ disconnectedTransaction_ sessionId (InProcessConnection conf) = do
     Nothing -> error "No such session"
     Just (Sess.Session discon _) -> pure discon
 disconnectedTransaction_ _ _= error "remote connection used"
+
+-- wrap an commit-based graph evaluation in file locking
+commitLock_ :: SessionId -> 
+               InProcessConnectionConf -> 
+               (TransactionGraph -> 
+                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph))) -> 
+               IO (Either RelationalError ())
+commitLock_ sessionId conf stmBlock = do
+  let sessions = ipSessions conf
+      strat = ipPersistenceStrategy conf      
+      mScriptSession = ipScriptSession conf              
+      graphTvar = ipTransactionGraph conf
+      clientNodes = ipClientNodes conf      
+      mLockFileH = ipLocks conf
+      lockHandler body = case mLockFileH of
+        Nothing -> body False
+        Just (lockFileH, lockMVar) ->
+          let acquireLocks = do
+                lastWrittenDigest <- takeMVar lockMVar 
+                lockFile lockFileH WriteLock
+                latestDigest <- readGraphTransactionIdDigest strat
+                pure (latestDigest /= lastWrittenDigest)
+              releaseLocks _ = do
+                --still holding the lock- get the latest digest
+                gDigest <- readGraphTransactionIdDigest strat
+                unlockFile lockFileH 
+                putMVar lockMVar gDigest
+          in bracket acquireLocks releaseLocks body
+  manip <- lockHandler $ \dbWrittenByOtherProcess -> atomically $ do
+     eSession <- sessionForSessionId sessionId sessions
+     --handle graph update by other process
+     oldGraph <- readTVar graphTvar
+     case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        let dbdir = case strat of
+              MinimalPersistence x -> x
+              CrashSafePersistence x -> x
+              _ -> error "accessing dbdir on non-persisted connection"
+        eRefreshedGraph <- if dbWrittenByOtherProcess then
+                             unsafeIOToSTM (transactionGraphLoad dbdir oldGraph mScriptSession)
+                           else
+                             pure (Right oldGraph)
+        case eRefreshedGraph of
+          Left err -> pure (Left (DatabaseLoadError err))
+          Right refreshedGraph -> do
+            eGraph <- stmBlock refreshedGraph
+            case eGraph of
+              Left err -> pure (Left err)
+              Right (discon', graph') -> do
+                writeTVar graphTvar graph'
+                let newSession = Session discon' (Sess.schemaName session)
+                STMMap.insert newSession sessionId sessions
+                case transactionForId (Sess.parentId session) oldGraph of
+                  Left err -> pure $ Left err
+                  Right previousTrans -> do
+                    (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                    nodesToNotify <- toList (STMSet.stream nodes)
+                    pure $ Right (evaldNots, nodesToNotify, graph')
+      --handle notification firing                
+  case manip of 
+    Left err -> pure (Left err)
+    Right (notsToFire, nodesToNotify, newGraph) -> do
+      --update filesystem database, if necessary
+      processTransactionGraphPersistence strat newGraph
+      sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
+      pure (Right ())
+
+  
