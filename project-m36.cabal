@@ -23,8 +23,8 @@ Flag profiler
   Manual: True  
 
 Library
-    Build-Depends: base>=4.8 && < 5.0
-                   ,ghc >= 7.8 && <= 8.1
+    Build-Depends: base>=4.8 && < 6.0
+                   ,ghc >= 7.8 && < 8.3
                    ,ghc-paths
                    ,mtl
                    ,containers
@@ -73,8 +73,8 @@ Library
                    ,distributed-process-async >= 0.2.4
                    ,network-transport-tcp
                    ,network-transport
-                   ,stm-containers
                    ,list-t
+                   ,stm-containers >= 0.2.15
                    ,optparse-applicative
                    ,Glob
 --used for hashing the transaction graph file to check for differences
@@ -158,7 +158,7 @@ Library
 
 Executable tutd
     Build-Depends: base >=4.8 && <5.0, 
-                   ghc >= 7.8 && <= 8.1,
+                   ghc >= 7.8 && < 8.3,
                    ghc-paths,
                    project-m36 == 0.1,
                    containers,
@@ -231,7 +231,7 @@ Executable tutd
 
 Executable project-m36-server
     Build-Depends: base,
-                   ghc >= 7.8 && <= 8.1,
+                   ghc >= 7.8 && < 8.3,
                    ghc-paths,
                    project-m36 == 0.1,
                    binary,
