@@ -19,7 +19,6 @@ import Control.Concurrent
 import Network.Transport (EndPointAddress)
 import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
-import Data.Maybe (isJust)
 import Control.Exception
 --import Control.Monad.IO.Class
 #if defined(linux_HOST_OS)
@@ -176,7 +175,7 @@ testSession _ conn = TestCase $ do
     Right sessionId1 -> do
       eHeadId <- headTransactionId sessionId1 conn
       case eHeadId of
-        Left err -> assertFailure "invalid head id"
+        Left err -> assertFailure ("invalid head id: " ++ show err)
         Right headId -> do
           eSessionId2 <- createSessionAtCommit headId conn
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
