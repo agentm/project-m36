@@ -40,7 +40,7 @@ handleExecuteDatabaseContextExpr ti sessionId conn dbexpr = do
   ret <- timeoutOrDie ti (executeDatabaseContextExpr sessionId conn dbexpr)
   reply ret conn
   
-handleExecuteDatabaseContextIOExpr :: Timeout -> SessionId -> Connection -> DatabaseContextIOExpr -> Reply (Maybe RelationalError)
+handleExecuteDatabaseContextIOExpr :: Timeout -> SessionId -> Connection -> DatabaseContextIOExpr -> Reply (Either RelationalError ())
 handleExecuteDatabaseContextIOExpr ti sessionId conn dbexpr = do
   ret <- timeoutOrDie ti (executeDatabaseContextIOExpr sessionId conn dbexpr)
   reply ret conn

@@ -429,12 +429,6 @@ closeRemote_ (RemoteProcessConnection conf) = runProcess (rLocalNode conf) (reco
 --within the database server, we must catch and handle all exception lest they take down the database process- this handling might be different for other use-cases
 --exceptions should generally *NOT* be thrown from any Project:M36 code paths, but third-party code such as AtomFunction scripts could conceivably throw undefined, etc.
 
-excMaybe :: IO (Maybe RelationalError) -> IO (Maybe RelationalError)
-excMaybe m = handle handler m
-  where
-    handler exc | Just (_ :: AsyncException) <- fromException exc = throwIO exc
-                | otherwise = pure (Just (UnhandledExceptionError (show exc)))
-                    
 excEither :: IO (Either RelationalError a) -> IO (Either RelationalError a)
 excEither m = handle handler m
   where
@@ -579,23 +573,23 @@ autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = rem
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
 --this is almost completely identical to executeDatabaseContextExpr above
-executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Maybe RelationalError)
-executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excMaybe $ do
+executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
+executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEither $ do
   let sessions = ipSessions conf
       scriptSession = ipScriptSession conf
   eSession <- atomically $ sessionForSessionId sessionId sessions --potentially race condition due to interleaved IO?
   case eSession of
-    Left err -> pure $ Just err
+    Left err -> pure (Left err)
     Right session -> do
       res <- RE.evalDatabaseContextIOExpr scriptSession (Sess.concreteDatabaseContext session) expr
       case res of
-        Left err -> pure (Just err)
+        Left err -> pure (Left err)
         Right context' -> do
           let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
               newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon (Sess.schemaName session)
           atomically $ STMMap.insert newSession sessionId sessions
-          pure Nothing
+          pure (Right ())
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
 {-

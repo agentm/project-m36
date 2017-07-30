@@ -88,32 +88,22 @@ data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
 --execute the operation and display result
 evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO (TutorialDOperatorResult)
 evalTutorialD sessionId conn safe expr = case expr of
-  
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
   (RODatabaseContextOp execOp) -> do
     evalRODatabaseContextOp sessionId conn execOp
     
   (DatabaseContextExprOp execOp) -> do 
-    maybeErr <- C.executeDatabaseContextExpr sessionId conn execOp 
-    case maybeErr of
-      Left err -> barf err
-      Right () -> return QuietSuccessResult
+    eHandler $ C.executeDatabaseContextExpr sessionId conn execOp 
       
   (DatabaseContextIOExprOp execOp) -> do
     if needsSafe then
       unsafeError
       else do
-      mErr <- C.executeDatabaseContextIOExpr sessionId conn execOp
-      case mErr of
-        Just err -> barf err
-        Nothing -> pure QuietSuccessResult
+      eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
     
   (GraphOp execOp) -> do
-    maybeErr <- C.executeGraphExpr sessionId conn execOp
-    case maybeErr of
-      Left err -> barf err
-      Right () -> return QuietSuccessResult
+    eHandler $ C.executeGraphExpr sessionId conn execOp
 
   (ROGraphOp execOp) -> do
     opResult <- evalROGraphOp sessionId conn execOp
@@ -122,10 +112,7 @@ evalTutorialD sessionId conn safe expr = case expr of
       Right rel -> pure (DisplayRelationResult rel)
       
   (SchemaOp execOp) -> do
-    opResult <- evalSchemaOperator sessionId conn execOp
-    case opResult of
-      Left err -> barf err
-      Right () -> pure QuietSuccessResult
+    eHandler $ evalSchemaOperator sessionId conn execOp
       
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     if needsSafe then
@@ -146,8 +133,8 @@ evalTutorialD sessionId conn safe expr = case expr of
     if needsSafe then
       unsafeError
       else do
-      mDbexprs <- evalDatabaseContextDataImportOperator execOp
-      case mDbexprs of 
+      eErr <- evalDatabaseContextDataImportOperator execOp
+      case eErr of
         Left err -> barf err
         Right dbexprs -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexprs)
       
@@ -181,7 +168,12 @@ evalTutorialD sessionId conn safe expr = case expr of
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
     barf err = return $ DisplayErrorResult (T.pack (show err))
-  
+    eHandler io = do
+      eErr <- io
+      case eErr of
+        Left err -> barf err
+        Right () -> return QuietSuccessResult
+      
 type GhcPkgPath = String  
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName [GhcPkgPath] |
                          RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName

@@ -97,35 +97,33 @@ testRelationalExpr sessionId conn = TestCase $ do
   relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
   
+eitherFail :: (Show e) => Either e a -> IO ()
+eitherFail (Left err) = assertFailure (show err)
+eitherFail (Right _) = pure ()
+  
 -- test adding an removing a schema against true/false relations  
 testSchemaExpr :: SessionId -> Connection -> Test
 testSchemaExpr sessionId conn = TestCase $ do
   result <- executeSchemaExpr sessionId conn (AddSubschema "test-schema" [IsoRename "table_dee" "true", IsoRename "table_dum" "false"])
-  assertEqual "executeSchemaExpr" Nothing result
+  assertEqual "executeSchemaExpr" (Right ()) result
   result' <- executeSchemaExpr sessionId conn (RemoveSubschema "test-schema")
-  assertEqual "executeSchemaExpr2" Nothing result'
+  assertEqual "executeSchemaExpr2" (Right ()) result'  
   
 testDatabaseContextExpr :: SessionId -> Connection -> Test
 testDatabaseContextExpr sessionId conn = TestCase $ do 
   let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Text" TextAtomType) ()]
       attrs = attributesFromList [Attribute "x" TextAtomType]
       testrv = "testrv"
-  dbResult <- executeDatabaseContextExpr sessionId conn (Define testrv attrExprs)
-  case dbResult of
-    Just err -> assertFailure (show err)
-    Nothing -> do
-      eRel <- executeRelationalExpr sessionId conn (RelationVariable testrv ())
-      let expected = mkRelation attrs emptyTupleSet
-      case eRel of
-        Left err -> assertFailure (show err)
-        Right rel -> assertEqual "dbcontext definition failed" expected (Right rel)
+  executeDatabaseContextExpr sessionId conn (Define testrv attrExprs) >>= eitherFail
+  eRel <- executeRelationalExpr sessionId conn (RelationVariable testrv ())
+  let expected = mkRelation attrs emptyTupleSet
+  case eRel of
+    Left err -> assertFailure (show err)
+    Right rel -> assertEqual "dbcontext definition failed" expected (Right rel)
         
 testGraphExpr :: SessionId -> Connection -> Test        
 testGraphExpr sessionId conn = TestCase $ do
-  graphResult <- executeGraphExpr sessionId conn (JumpToHead "master")
-  case graphResult of
-    Just err -> assertFailure (show err)
-    Nothing -> pure ()
+  executeGraphExpr sessionId conn (JumpToHead "master") >>= eitherFail
     
 testTypeForRelationalExpr :: SessionId -> Connection -> Test
 testTypeForRelationalExpr sessionId conn = TestCase $ do
@@ -159,8 +157,8 @@ testHeadTransactionId sessionId conn = TestCase $ do
   
 testHeadName :: SessionId -> Connection -> Test
 testHeadName sessionId conn = TestCase $ do
-  mHeadName <- headName sessionId conn
-  assertEqual "headName failure" (Just "master") mHeadName
+  eHeadName <- headName sessionId conn
+  assertEqual "headName failure" (Right "master") eHeadName
   
 testRelationVariableSummary :: SessionId -> Connection -> Test  
 testRelationVariableSummary sessionId conn = TestCase $ do
@@ -191,12 +189,11 @@ testNotificationCallback mvar _ _ = putMVar mvar ()
 testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
   let relvarx = RelationVariable "x" ()
-      check x = x >>= maybe  (pure ()) (\err -> assertFailure (show err))
-  check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
-  check $ executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx)  
-  check $ commit sess conn ForbidEmptyCommitOption
-  check $ executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse))
-  check $ commit sess conn ForbidEmptyCommitOption
+  executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
+  executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx) >>= eitherFail
+  commit sess conn >>= eitherFail
+  executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
+  commit sess conn >>= eitherFail
   takeMVar mvar
 
 testRequestTimeout :: Test

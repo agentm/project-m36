@@ -14,7 +14,6 @@ import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import ProjectM36.Client
 import Control.Exception
-import Data.Maybe (fromMaybe)
 
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
@@ -87,9 +86,9 @@ handleOpResult conn _ (DisplayRelationResult rel) = WS.sendTextData conn (encode
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
 promptInfo sessionId conn = do
-  mHeadName <- headName sessionId conn  
-  mSchemaName <- currentSchemaName sessionId conn
-  pure (fromMaybe "<unknown>" mHeadName, fromMaybe "<no schema>" mSchemaName)
+  eHeadName <- headName sessionId conn  
+  eSchemaName <- currentSchemaName sessionId conn
+  pure (either (const "<unknown>") id eHeadName, either (const "<no schema>") id eSchemaName)
   
 sendPromptInfo :: (HeadName, SchemaName) -> WS.Connection -> IO ()
 sendPromptInfo (hName, sName) conn = WS.sendTextData conn (encode (object ["promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))

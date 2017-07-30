@@ -1,5 +1,6 @@
 module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
+import ProjectM36.Error
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import qualified ProjectM36.Base as Base
@@ -22,7 +23,7 @@ dateExamplesConnection callback = do
           mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr sessionId conn (Assign rvName (Base.ExistingRelation rvRel))) (M.toList (Base.relationVariables dateExamples))
           mapM_ (\(idName,incDep) -> executeDatabaseContextExpr sessionId conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
       --skipping atom functions for now- there are no atom function manipulation operators yet
-          commit sessionId conn ForbidEmptyCommitOption >>= maybeFail
+          commit sessionId conn >>= eitherFail
           pure (sessionId, conn)
 
 executeTutorialD :: SessionId -> Connection -> Text -> IO ()
@@ -53,6 +54,6 @@ expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
         DisplayErrorResult err -> assertBool ("match error on: " ++ unpack err) (matchFunc err)
         QuietSuccessResult -> pure ()
         
-maybeFail :: (Show a) => Maybe a -> IO ()
-maybeFail (Just err) = assertFailure (show err)
-maybeFail Nothing = return ()
+eitherFail :: Either RelationalError a -> IO ()
+eitherFail (Left err) = assertFailure (show err)
+eitherFail (Right _) = pure ()

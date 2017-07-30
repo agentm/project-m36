@@ -78,8 +78,8 @@ testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
         intTCons, 
         ADTypeConstructor "Either" [ADTypeConstructor "AtomFunctionError" [],
                                     intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
-  Nothing <- executeDatabaseContextIOExpr sess conn addfunc
-  Nothing <- commit sess conn ForbidEmptyCommitOption
+  Right () <- executeDatabaseContextIOExpr sess conn addfunc
+  Right () <- commit sess conn
   close conn
   --re-open the connection to reload the graph
   Right conn2 <- connectProjectM36 connInfo
