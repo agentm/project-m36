@@ -74,7 +74,7 @@ isoPassthrough = do
 isoUnionInRelVarsP :: Parser (RelVarName, RelVarName)  
 isoUnionInRelVarsP = (,) <$> qrelVarP <*> qrelVarP
   
-evalSchemaOperator :: SessionId -> Connection -> SchemaOperator -> IO (Maybe RelationalError)
+evalSchemaOperator :: SessionId -> Connection -> SchemaOperator -> IO (Either RelationalError ())
 evalSchemaOperator sessionId conn (ModifySchemaExpr expr) =  executeSchemaExpr sessionId conn expr
 evalSchemaOperator sessionId conn (SetCurrentSchema sname) = setCurrentSchemaName sessionId conn sname
   

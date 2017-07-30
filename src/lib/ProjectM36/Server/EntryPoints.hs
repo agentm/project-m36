@@ -35,7 +35,7 @@ handleExecuteRelationalExpr ti sessionId conn expr = do
   ret <- timeoutOrDie ti (executeRelationalExpr sessionId conn expr)
   reply ret conn
   
-handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Maybe RelationalError)
+handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError ())
 handleExecuteDatabaseContextExpr ti sessionId conn dbexpr = do
   ret <- timeoutOrDie ti (executeDatabaseContextExpr sessionId conn dbexpr)
   reply ret conn
@@ -45,7 +45,7 @@ handleExecuteDatabaseContextIOExpr ti sessionId conn dbexpr = do
   ret <- timeoutOrDie ti (executeDatabaseContextIOExpr sessionId conn dbexpr)
   reply ret conn
   
-handleExecuteHeadName :: Timeout -> SessionId -> Connection -> Reply (Maybe HeadName)
+handleExecuteHeadName :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError HeadName)
 handleExecuteHeadName ti sessionId conn = do
   ret <- timeoutOrDie ti (headName sessionId conn)
   reply ret conn
@@ -57,7 +57,7 @@ handleLogin ti conn newClientProcessId = do
     Right () -> reply (Right True) conn
     Left err -> reply (Left err) conn
   
-handleExecuteGraphExpr :: Timeout -> SessionId -> Connection -> TransactionGraphOperator -> Reply (Maybe RelationalError)
+handleExecuteGraphExpr :: Timeout -> SessionId -> Connection -> TransactionGraphOperator -> Reply (Either RelationalError ())
 handleExecuteGraphExpr ti sessionId conn graphExpr = do
   ret <- timeoutOrDie ti (executeGraphExpr sessionId conn graphExpr)
   reply ret conn
@@ -120,12 +120,12 @@ handleRetrieveRelationVariableSummary ti sessionId conn = do
   ret <- timeoutOrDie ti (relationVariablesAsRelation sessionId conn)
   reply ret conn  
   
-handleRetrieveCurrentSchemaName :: Timeout -> SessionId -> Connection -> Reply (Maybe SchemaName)
+handleRetrieveCurrentSchemaName :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError SchemaName)
 handleRetrieveCurrentSchemaName ti sessionId conn = do
   ret <- timeoutOrDie ti (currentSchemaName sessionId conn)
   reply ret conn  
 
-handleExecuteSchemaExpr :: Timeout -> SessionId -> Connection -> SchemaExpr -> Reply (Maybe RelationalError)
+handleExecuteSchemaExpr :: Timeout -> SessionId -> Connection -> SchemaExpr -> Reply (Either RelationalError ())
 handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
   ret <- timeoutOrDie ti (executeSchemaExpr sessionId conn schemaExpr)
   reply ret conn

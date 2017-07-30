@@ -18,6 +18,7 @@ import TutorialD.Interpreter.Export.CSV
 import TutorialD.Interpreter.Export.Base
 
 import ProjectM36.Base
+import ProjectM36.Error
 import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
@@ -29,7 +30,6 @@ import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
-import Data.Maybe (fromMaybe)
 import System.IO (hPutStrLn, stderr)
 import Data.Monoid
 import Control.Exception
@@ -71,10 +71,10 @@ safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <
                          liftM TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
                          liftM SchemaOp (schemaOperatorP <* eof)
 
-promptText :: Maybe HeadName -> Maybe SchemaName -> StringType
-promptText mHeadName mSchemaName = "TutorialD (" <> transInfo <> "): "
+promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
+promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
-    transInfo = fromMaybe "<unknown>" mHeadName <> "/" <> fromMaybe "<no schema>" mSchemaName
+    transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
           
 parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
@@ -97,8 +97,8 @@ evalTutorialD sessionId conn safe expr = case expr of
   (DatabaseContextExprOp execOp) -> do 
     maybeErr <- C.executeDatabaseContextExpr sessionId conn execOp 
     case maybeErr of
-      Just err -> barf err
-      Nothing -> return QuietSuccessResult
+      Left err -> barf err
+      Right () -> return QuietSuccessResult
       
   (DatabaseContextIOExprOp execOp) -> do
     if needsSafe then
@@ -112,8 +112,8 @@ evalTutorialD sessionId conn safe expr = case expr of
   (GraphOp execOp) -> do
     maybeErr <- C.executeGraphExpr sessionId conn execOp
     case maybeErr of
-      Just err -> barf err
-      Nothing -> return QuietSuccessResult
+      Left err -> barf err
+      Right () -> return QuietSuccessResult
 
   (ROGraphOp execOp) -> do
     opResult <- evalROGraphOp sessionId conn execOp
@@ -124,8 +124,8 @@ evalTutorialD sessionId conn safe expr = case expr of
   (SchemaOp execOp) -> do
     opResult <- evalSchemaOperator sessionId conn execOp
     case opResult of
-      Just err -> barf err
-      Nothing -> pure QuietSuccessResult
+      Left err -> barf err
+      Right () -> pure QuietSuccessResult
       
   (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
     if needsSafe then
@@ -198,9 +198,9 @@ reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
 reprLoop config sessionId conn = do
   homeDirectory <- getHomeDirectory
   let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  mHeadName <- C.headName sessionId conn
-  mSchemaName <- C.currentSchemaName sessionId conn
-  let prompt = promptText mHeadName mSchemaName
+  eHeadName <- C.headName sessionId conn
+  eSchemaName <- C.currentSchemaName sessionId conn
+  let prompt = promptText eHeadName eSchemaName
   maybeLine <- runInputT settings $ getInputLine (T.unpack prompt)
   case maybeLine of
     Nothing -> return ()

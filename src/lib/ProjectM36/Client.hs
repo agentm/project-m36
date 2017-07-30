@@ -496,24 +496,24 @@ sessionAndSchema sessionId sessions = do
         Left err -> pure (Left err)
         Right schema -> pure (Right (session, schema))
   
-currentSchemaName :: SessionId -> Connection -> IO (Maybe SchemaName)
+currentSchemaName :: SessionId -> Connection -> IO (Either RelationalError SchemaName)
 currentSchemaName sessionId (InProcessConnection conf) = atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
-    Left _ -> pure Nothing
-    Right session -> pure (Just (Sess.schemaName session))
+    Left err -> pure (Left err)
+    Right session -> pure (Right (Sess.schemaName session))
 currentSchemaName sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveCurrentSchemaName sessionId)
 
-setCurrentSchemaName :: SessionId -> Connection -> SchemaName -> IO (Maybe RelationalError)
+setCurrentSchemaName :: SessionId -> Connection -> SchemaName -> IO (Either RelationalError ())
 setCurrentSchemaName sessionId (InProcessConnection conf) sname = atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionForSessionId sessionId sessions
   case eSession of
-    Left _ -> pure Nothing
+    Left err -> pure (Left err)
     Right session -> case Sess.setSchemaName sname session of
-      Left err -> pure (Just err)
-      Right newSession -> STMMap.insert newSession sessionId sessions >> pure Nothing
+      Left err -> pure (Left err)
+      Right newSession -> STMMap.insert newSession sessionId sessions >> pure (Right ())
 setCurrentSchemaName sessionId conn@(RemoteProcessConnection _) sname = remoteCall conn (ExecuteSetCurrentSchema sessionId sname)
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
@@ -536,29 +536,29 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
-executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Maybe RelationalError)
-executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excMaybe $ atomically $ do
+executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError ())
+executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither $ atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId sessions
   case eSession of
-    Left err -> pure $ Just err
+    Left err -> pure (Left err)
     Right (session, schema) -> do
       let expr' = if schemaName session == defaultSchemaName then
                     Right expr
                   else
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
-        Left err -> pure (Just err)
+        Left err -> pure (Left err)
         Right expr'' -> case runState (RE.evalDatabaseContextExpr expr'') (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
-          (Just err,_) -> return $ Just err
-          (Nothing, (_,_,False)) -> pure Nothing --optimization- if nothing was dirtied, nothing to do
+          (Just err,_) -> pure (Left err)
+          (Nothing, (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
           (Nothing, (!context',_,True)) -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas
                 newSession = Session newDiscon (Sess.schemaName session)
             STMMap.insert newSession sessionId sessions
-            pure Nothing
+            pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
 -- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing).
@@ -572,7 +572,9 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     case eSession of
       Left err -> pure (Left err)
       Right session -> do
-        pure $ Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph 
+        case Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph of
+          Left err -> pure (Left err)
+          Right (discon', graph') -> pure (Right (discon', graph', True))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
@@ -596,8 +598,9 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excMayb
           pure Nothing
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
-executeGraphExprSTM_ :: Bool -> TransactionId -> SessionId -> Session -> Sessions -> TransactionGraphOperator -> TransactionGraph -> TVar TransactionGraph -> STM (Either RelationalError TransactionGraph)
-executeGraphExprSTM_ updateGraphOnError freshId sessionId session sessions graphExpr graph graphTVar= do
+{-
+executeGraphExprSTM_ :: TransactionId -> SessionId -> Session -> Sessions -> TransactionGraphOperator -> TransactionGraph -> TVar TransactionGraph -> STM (Either RelationalError (TransactionGraph, DisconnectedTransaction)
+executeGraphExprSTM_ freshId sessionId session sessions graphExpr graph graphTVar= do
   case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
     Left err -> do
       when updateGraphOnError (writeTVar graphTVar graph)
@@ -607,6 +610,7 @@ executeGraphExprSTM_ updateGraphOnError freshId sessionId session sessions graph
       let newSession = Session discon' (Sess.schemaName session)
       STMMap.insert newSession sessionId sessions
       pure $ Right graph'
+-}
   
 -- process notifications for commits
 executeCommitExprSTM_ :: DatabaseContext -> DatabaseContext -> ClientNodes -> STM (EvaluatedNotifications, ClientNodes)
@@ -622,8 +626,21 @@ executeCommitExprSTM_ oldContext newContext nodes = do
 -- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
 -- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
 -- perhaps keep hash of data file instead of checking if our head was updated on every write
-executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Maybe RelationalError)
-executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
+executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
+executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
+  let sessions = ipSessions conf
+  freshId <- nextRandom
+  commitLock_ sessionId conf $ \updatedGraph -> do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        let discon = Sess.disconnectedTransaction session
+        case evalGraphOp freshId discon updatedGraph graphExpr of
+          Left err -> pure (Left err)
+          Right (discon', graph') -> pure (Right (discon', graph', isCommit graphExpr))
+{-
+executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let strat = ipPersistenceStrategy conf
       clientNodes = ipClientNodes conf
       sessions = ipSessions conf
@@ -692,6 +709,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excMaybe $ do
         processTransactionGraphPersistence strat newGraph
         sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
         pure Nothing
+-}
 executeGraphExpr sessionId conn@(RemoteProcessConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
@@ -706,27 +724,27 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
-executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Maybe RelationalError)
+executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Either RelationalError ())
 executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId sessions  
   case eSession of
-    Left err -> pure (Just err)
+    Left err -> pure (Left err)
     Right (session, _) -> do
       let subschemas' = subschemas session
       case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
-        Left err -> pure (Just err)
+        Left err -> pure (Left err)
         Right (newSubschemas, newContext) -> do
           --hm- maybe we should start using lenses
           let discon = Sess.disconnectedTransaction session 
               newSchemas = Schemas newContext newSubschemas
               newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas True) (Sess.schemaName session)
           STMMap.insert newSession sessionId sessions
-          pure Nothing
+          pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
 
 -- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
-commit :: SessionId -> Connection -> IO (Maybe RelationalError)
+commit :: SessionId -> Connection -> IO (Either RelationalError ())
 commit sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Commit 
 commit sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
   
@@ -737,7 +755,7 @@ sendNotifications pids localNode nots = mapM_ sendNots pids
       when (not (M.null nots)) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
           
 -- | Discard any changes made in the current session. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
-rollback :: SessionId -> Connection -> IO (Maybe RelationalError)
+rollback :: SessionId -> Connection -> IO (Either RelationalError ())
 rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Rollback      
 rollback sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
@@ -853,18 +871,20 @@ headTransactionId sessionId (InProcessConnection conf) = do
       Right session -> pure $ Just (Sess.parentId session)
 headTransactionId sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveHeadTransactionId sessionId)
     
-headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Maybe HeadName)  
+headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Either RelationalError HeadName)  
 headNameSTM_ sessionId sessions graphTvar = do
     graph <- readTVar graphTvar
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
-      Left _ -> pure $ Nothing
-      Right session -> pure $ case transactionForId (Sess.parentId session) graph of
-        Left _ -> Nothing
-        Right parentTrans -> headNameForTransaction parentTrans graph
+      Left err -> pure (Left err)
+      Right session -> case transactionForId (Sess.parentId session) graph of
+        Left err -> pure (Left err)
+        Right parentTrans -> case headNameForTransaction parentTrans graph of
+          Nothing -> pure (Left UnknownHeadError)
+          Just headName' -> pure (Right headName')
   
 -- | Returns Just the name of the head of the current disconnected transaction or Nothing.    
-headName :: SessionId -> Connection -> IO (Maybe HeadName)
+headName :: SessionId -> Connection -> IO (Either RelationalError HeadName)
 headName sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
       graphTvar = ipTransactionGraph conf
@@ -916,11 +936,13 @@ disconnectedTransaction_ sessionId (InProcessConnection conf) = do
     Just (Sess.Session discon _) -> pure discon
 disconnectedTransaction_ _ _= error "remote connection used"
 
--- wrap an commit-based graph evaluation in file locking
+type ProcessCommit = Bool
+
+-- wrap a graph evaluation in file locking
 commitLock_ :: SessionId -> 
                InProcessConnectionConf -> 
                (TransactionGraph -> 
-                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph))) -> 
+                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph, ProcessCommit))) -> 
                IO (Either RelationalError ())
 commitLock_ sessionId conf stmBlock = do
   let sessions = ipSessions conf
@@ -954,6 +976,7 @@ commitLock_ sessionId conf stmBlock = do
               MinimalPersistence x -> x
               CrashSafePersistence x -> x
               _ -> error "accessing dbdir on non-persisted connection"
+        --this should also happen for non-commit expressions
         eRefreshedGraph <- if dbWrittenByOtherProcess then
                              unsafeIOToSTM (transactionGraphLoad dbdir oldGraph mScriptSession)
                            else
@@ -964,16 +987,19 @@ commitLock_ sessionId conf stmBlock = do
             eGraph <- stmBlock refreshedGraph
             case eGraph of
               Left err -> pure (Left err)
-              Right (discon', graph') -> do
+              Right (discon', graph', processCommit) -> do
                 writeTVar graphTvar graph'
                 let newSession = Session discon' (Sess.schemaName session)
                 STMMap.insert newSession sessionId sessions
                 case transactionForId (Sess.parentId session) oldGraph of
                   Left err -> pure $ Left err
                   Right previousTrans -> do
-                    (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                    nodesToNotify <- toList (STMSet.stream nodes)
-                    pure $ Right (evaldNots, nodesToNotify, graph')
+                    if processCommit then do
+                      (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                      nodesToNotify <- toList (STMSet.stream nodes)
+                      pure $ Right (evaldNots, nodesToNotify, graph')
+                    else pure (Right (M.empty, [], graph'))
+
       --handle notification firing                
   case manip of 
     Left err -> pure (Left err)
@@ -982,5 +1008,10 @@ commitLock_ sessionId conf stmBlock = do
       processTransactionGraphPersistence strat newGraph
       sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
       pure (Right ())
-
-  
+{-
+writeDisconAndGraph_ :: TVar TransactionGraph -> SessionId -> Session -> Sessions -> DisconnectedTransaction -> TransactionGraph  -> STM ()
+writeDisconAndGraph_ graphTvar sessionId session sessions discon graph = do
+  writeTVar graphTvar graph
+  let newSession = Session discon (Sess.schemaName session)
+  STMMap.insert newSession sessionId sessions
+-}
