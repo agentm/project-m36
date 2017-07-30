@@ -8,7 +8,7 @@ import qualified Data.Text as T
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList [testBasicDBCFunction,
-                                  testErrorDBCFunction,             
+                                  testErrorDBCFunction,
                                   testExceptionDBCFunction,
                                   testDBCFunctionWithAtomArguments
                                   ])
@@ -20,7 +20,7 @@ adddatabasecontextfunction "addtruerv" DatabaseContext -> DatabaseContext """(\[
 testBasicDBCFunction :: Test
 testBasicDBCFunction = TestCase $ do  
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext  \"\"\"(\\[] ctx -> pure $ execState (evalDatabaseContextExpr (Assign \"true2\" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext  \"\"\"(\\[] ctx -> executeDatabaseContextExpr (Assign \"true2\" (ExistingRelation relationTrue)) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute addTrue2()"
   let true2Expr = RelationVariable "true2" ()
@@ -50,7 +50,7 @@ testDBCFunctionWithAtomArguments :: Test
 testDBCFunctionWithAtomArguments = TestCase $ do
   --test function with creation of a relvar with some arguments
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> pure $ execState (evalDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])]))) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> executeDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])])) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute multiArgFunc(30,\"Steve\")"
   result <- executeRelationalExpr sess conn (RelationVariable "person" ())

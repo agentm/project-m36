@@ -148,7 +148,7 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
       [InfixL (reservedOp "and" >> return AndPredicate)],
       [InfixL (reservedOp "or" >> return OrPredicate)]
       ]
-    predicateTerm = parens restrictionPredicateP
+    predicateTerm = try (parens restrictionPredicateP)
                     <|> try restrictionAtomExprP
                     <|> try restrictionAttributeEqualityP
                     <|> try relationalBooleanExprP
@@ -156,7 +156,8 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 relationalBooleanExprP = do
-  relexpr <- relExprP
+  relexpr <- parens relExprP <|> relTerm
+  --we can't actually detect if the type is relational boolean, so we just pass it to the next phase
   return $ RelationalExprPredicate relexpr
   
 restrictionAttributeEqualityP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)

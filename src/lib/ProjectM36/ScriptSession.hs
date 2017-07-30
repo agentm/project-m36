@@ -114,6 +114,7 @@ initScriptSession ghcPkgPaths = do
           "ProjectM36.Relation",
           "ProjectM36.AtomFunctionError",
           "ProjectM36.DatabaseContextFunctionError",
+          "ProjectM36.DatabaseContextFunctionUtils",
           "ProjectM36.RelationalExpression"]
         qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModuleName qualNam))) [
           ("Data.Text", "T")

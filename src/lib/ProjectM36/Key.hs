@@ -21,6 +21,8 @@ example:
 │5│
 └─┘
 -}
+
+-- | Create a uniqueness constraint for the attribute names and relational expression. Note that constraint can span multiple relation variables.
 inclusionDependencyForKey :: AttributeNames -> RelationalExpr -> InclusionDependency
 inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
@@ -31,9 +33,11 @@ inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCo
     projectionForCount expr = Project (AttributeNames $ S.fromList ["b"]) expr
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
+-- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.
 databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
 databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
 
+-- | Create a foreign key constraint from the first relation variable and attributes to the second.
 databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
 databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) = AddInclusionDependency fkName $ InclusionDependency (Project (attrsL attrsA) (RelationVariable rvA ())) (Project (attrsL attrsB) (RelationVariable rvB ()))
   where

@@ -57,6 +57,7 @@ atomFunctionScript :: AtomFunction -> Maybe AtomFunctionBodyScript
 atomFunctionScript func = case atomFuncBody func of
   AtomFunctionBody script _ -> script
   
+-- | Create a 'DatabaseContextIOExpr' which can be used to load a new atom function written in Haskell and loaded at runtime.
 createScriptedAtomFunction :: AtomFunctionName -> [TypeConstructor] -> TypeConstructor -> AtomFunctionBodyScript -> DatabaseContextIOExpr
 createScriptedAtomFunction funcName argsType retType script = AddAtomFunction funcName (
   argsType ++ [ADTypeConstructor "Either" [

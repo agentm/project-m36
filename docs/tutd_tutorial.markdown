@@ -320,6 +320,23 @@ TutorialD (master/main): :showexpr (s group ({sname,status,s#} as subrel)) ungro
 └──────┴──┴─────┴──────┘
 ```
 
+#### Minus
+
+The binary minus operator takes two relation variables of the same type and returns the tuples which appear in the first relation variable but not in the second relation.
+
+```
+TutorialD (master/main): x:=relation{tuple{name "Steve"},tuple{name "Bob"},tuple{name "Jim"},tuple{name "Bart"}}
+TutorialD (master/main): y:=relation{tuple{name "Jim"},tuple{name "Bart"}}
+TutorialD (master/main): :showexpr x minus y
+┌──────────┐
+│name::Text│
+├──────────┤
+│"Steve"   │
+│"Bob"     │
+└──────────┘
+```
+
+
 ## State Operators
 
 While relational operators compose to relational expressions representing queries of the database, state operators change the state of the database.

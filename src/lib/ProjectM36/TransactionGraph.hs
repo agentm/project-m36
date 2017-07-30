@@ -24,12 +24,13 @@ data TransactionIdLookup = TransactionIdLookup TransactionId |
                            TransactionIdHeadNameLookup HeadName [TransactionIdHeadBacktrack]
                            deriving (Show, Eq, Binary, Generic)
                            
--- topic~3^2
-data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- git ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
-                                  TransactionIdHeadBranchBacktrack Int -- git ^: walk back one parent level to the nth arbitrarily-chosen parent
+-- | Used for git-style head backtracking such as topic~3^2.
+data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ git equivalent of ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
+                                  TransactionIdHeadBranchBacktrack Int -- ^ git equivalent of ^: walk back one parent level to the nth arbitrarily-chosen parent
                                   deriving (Show, Eq, Binary, Generic)
 
---operators which manipulate a transaction graph
+  
+-- | Operators which manipulate a transaction graph and which transaction the current 'Session' is based upon.
 data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
                                 Branch HeadName |

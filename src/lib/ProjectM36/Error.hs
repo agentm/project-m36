@@ -123,7 +123,7 @@ data ScriptCompilationError = TypeCheckCompilationError String String | --expect
                               SyntaxErrorCompilationError String |
                               ScriptCompilationDisabledError |
                               OtherScriptCompilationError String
-                            deriving (Show,Eq, Generic, Binary, Typeable, NFData)
+                            deriving (Show, Eq, Generic, Binary, Typeable, NFData)
                                      
 instance Exception ScriptCompilationError                                     
                                                

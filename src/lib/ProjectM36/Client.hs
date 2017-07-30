@@ -1,11 +1,16 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns #-}
+{-|
+Module: ProjectM36.Client
+
+Client interface to local and remote Project:M36 databases. To get started, connect with 'connectProjectM36', then run some database changes with 'executeDatabaseContextExpr', and issue queries using 'executeRelationalExpr'.
+-}
 module ProjectM36.Client
        (ConnectionInfo(..),
        Connection(..),
        Port,
        Hostname,
        DatabaseName,
-       ConnectionError,
+       ConnectionError(..),
        connectProjectM36,
        close,
        closeRemote_,
@@ -20,7 +25,6 @@ module ProjectM36.Client
        typeForRelationalExpr,
        inclusionDependencies,
        planForDatabaseContextExpr,
-       processTransactionGraphPersistence,
        currentSchemaName,
        SchemaName,
        HeadName,
@@ -166,7 +170,7 @@ data RequestTimeoutException = RequestTimeoutException
 
 instance Exception RequestTimeoutException
 
--- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'.
+-- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via distributed-process.
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath]|
                       RemoteProcessConnectionInfo DatabaseName NodeId NotificationCallback
                       
@@ -183,18 +187,24 @@ data EvaluatedNotification = EvaluatedNotification {
   }
                            deriving(Binary, Eq, Show, Generic)
                       
+
+-- | Create a 'NodeId' for use in connecting to a remote server using distributed-process.
 createNodeId :: Hostname -> Port -> NodeId                      
 createNodeId host port = NodeId $ encodeEndPointAddress host (show port) 1
                       
+-- | Use this for connecting to remote servers on the default port.
 defaultServerPort :: Port
 defaultServerPort = 6543
 
+-- | Use this for connecting to remote servers with the default database name.
 defaultDatabaseName :: DatabaseName
 defaultDatabaseName = "base"
 
+-- | Use this for connecting to remote servers with the default head name.
 defaultHeadName :: HeadName
 defaultHeadName = "master"
 
+-- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback 
 
@@ -268,7 +278,7 @@ createScriptSession ghcPkgPaths = do
     Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ (show err)) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
--- | To create a 'Connection' to a remote or local database, create a connectionInfo and call 'connectProjectM36'.
+-- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
@@ -403,7 +413,7 @@ closeSession :: SessionId -> Connection -> IO ()
 closeSession sessionId (InProcessConnection conf) = do
     atomically $ STMMap.delete sessionId (ipSessions conf)
 closeSession sessionId conn@(RemoteProcessConnection _) = remoteCall conn (CloseSession sessionId)       
--- | 'close' cleans up the database access connection. Note that sessions persist even after the connection is closed.              
+-- | 'close' cleans up the database access connection and closes any relevant sockets.
 close :: Connection -> IO ()
 close (InProcessConnection conf) = do
   atomically $ do
@@ -415,8 +425,6 @@ close (InProcessConnection conf) = do
 
 close conn@(RemoteProcessConnection conf) = do
   _ <- (remoteCall conn Logout) :: IO Bool
-  --putStrLn ("closing " ++ show (localNodeId (rLocalNode conf)))
-
   closeLocalNode (rLocalNode conf)
   closeTransport (rTransport conf)
 
@@ -490,6 +498,7 @@ sessionAndSchema sessionId sessions = do
         Left err -> pure (Left err)
         Right schema -> pure (Right (session, schema))
   
+-- | Returns the name of the currently selected isomorphic schema.
 currentSchemaName :: SessionId -> Connection -> IO (Either RelationalError SchemaName)
 currentSchemaName sessionId (InProcessConnection conf) = atomically $ do
   let sessions = ipSessions conf
@@ -499,6 +508,7 @@ currentSchemaName sessionId (InProcessConnection conf) = atomically $ do
     Right session -> pure (Right (Sess.schemaName session))
 currentSchemaName sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveCurrentSchemaName sessionId)
 
+-- | Switch to the named isomorphic schema.
 setCurrentSchemaName :: SessionId -> Connection -> SchemaName -> IO (Either RelationalError ())
 setCurrentSchemaName sessionId (InProcessConnection conf) sname = atomically $ do
   let sessions = ipSessions conf
@@ -571,7 +581,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
           Right (discon', graph') -> pure (Right (discon', graph', True))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
--- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr` modify the DatabaseContext but cannot be purely implemented.
+-- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
 --this is almost completely identical to executeDatabaseContextExpr above
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
 executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEither $ do
@@ -617,6 +627,7 @@ executeCommitExprSTM_ oldContext newContext nodes = do
   pure (evaldNots, nodes)
   
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.
+
 -- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
 -- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
 -- perhaps keep hash of data file instead of checking if our head was updated on every write
@@ -718,6 +729,7 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
       Right rel -> pure (force (Right rel))
 executeTransGraphRelationalExpr sessionId conn@(RemoteProcessConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
+-- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'.
 executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Either RelationalError ())
 executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $ do
   let sessions = ipSessions conf
@@ -737,7 +749,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
 
--- | After modifying a session, 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
+-- | After modifying a 'DatabaseContext', 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Either RelationalError ())
 commit sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Commit 
 commit sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
@@ -748,11 +760,12 @@ sendNotifications pids localNode nots = mapM_ sendNots pids
     sendNots remoteClientPid = do
       when (not (M.null nots)) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
           
--- | Discard any changes made in the current session. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
+-- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
 rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Rollback      
 rollback sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
+-- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
 processTransactionGraphPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
 processTransactionGraphPersistence NoPersistence _ = pure ()
 processTransactionGraphPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph >> pure ()
@@ -818,10 +831,10 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
 planForDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
              
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
--- * current- boolean attribute representing whether or not the current session references this transaction
--- * head- text attribute which is a non-empty 'HeadName' iff the transaction references a head.
--- * id- id attribute of the transaction
--- * parents- a relation-valued attribute which contains a relation of transaction ids which are parent transaction to the transaction
+--    * current- boolean attribute representing whether or not the current session references this transaction
+--    * head- text attribute which is a non-empty 'HeadName' iff the transaction references a head.
+--    * id- id attribute of the transaction
+--    * parents- a relation-valued attribute which contains a relation of transaction ids which are parent transaction to the transaction
 transactionGraphAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 transactionGraphAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
@@ -836,6 +849,7 @@ transactionGraphAsRelation sessionId (InProcessConnection conf) = do
     
 transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 
+-- | Returns the names and types of the relation variables in the current 'Session'.
 relationVariablesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 relationVariablesAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
@@ -885,6 +899,7 @@ headName sessionId (InProcessConnection conf) = do
   atomically (headNameSTM_ sessionId sessions graphTvar)
 headName sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteHeadName sessionId)
 
+-- | Returns a listing of all available atom types.
 atomTypesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 atomTypesAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf

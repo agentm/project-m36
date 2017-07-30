@@ -71,7 +71,7 @@ atomTypeForAttributeName attrName attrs = do
 
 attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
 attributeForName attrName attrs = case V.find (\attr -> attributeName attr == attrName) attrs of
-  Nothing -> Left $ NoSuchAttributeNamesError (S.singleton attrName)
+  Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just attr -> Right attr
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes

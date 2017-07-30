@@ -35,6 +35,7 @@ Project:M36 supports multiple frontends which target different audiences.
 * [Developer's Blog](https://agentm.github.io/project-m36/)
 * [Mailing List/Discussion Group](https://groups.google.com/d/forum/project-m36)
 * IRC Channel: chat.freenode.net #project-m36
+* [Hackage](https://hackage.haskell.org/package/project-m36-0.1)
 
 ## Documentation
 
@@ -69,7 +70,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 ## Development
 
-Project:M36 is developed in Haskell and compiled with GHC 7.8 or later.
+Project:M36 is developed in Haskell and compiled with GHC 7.10 or GHC 8.0.2 or later.
 
 ## Related Projects
 

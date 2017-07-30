@@ -8,6 +8,7 @@ type SessionId = UUID
 
 --the persistence of a session is as long as the life of the database (not serialized to disk)
 -- sessions are not associated with connections and have separate lifetimes
+-- | Represents a pointer into the database's transaction graph which the 'DatabaseContextExpr's can then modify subsequently be committed to extend the transaction graph. The session contains staged (uncommitted) database changes as well as the means to switch between isomorphic schemas.
 data Session = Session DisconnectedTransaction SchemaName
 
 defaultSchemaName :: SchemaName

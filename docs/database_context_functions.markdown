@@ -33,7 +33,7 @@ Returning a ```DatabaseContextFunctionError``` from the function ensures that an
 Use ```adddatabasecontextfunction``` to compile and name a new database context function:
 
 ```
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight (evalState (evalRelationalExpr (RelationVariable "person" ())) (mkRelationalExprState ctx)) then pure (execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx) else pure (execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"""   
+adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight (executeRelationalExpr (RelationVariable "person" ()) ctx) then executeDatabaseContextExpr (Insert "person" newrel) ctx else executeDatabaseContextExpr (Assign "person" newrel) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"""   
 ```
 
 This function is quite dense, so let's examine its components.
@@ -50,10 +50,10 @@ The meat of the function is obviously the Haskell, so let's lay it out:
 
 ```haskell
 (\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in
-  if isRight (evalState (evalRelationalExpr (RelationVariable "person" ())) (mkRelationalExprState ctx)) then
-    pure (execState (evalDatabaseContextExpr (Insert "person" newrel)) ctx)
+  if isRight (executeRelationalExpr (RelationVariable "person" ()) ctx) then
+     executeDatabaseContextExpr (Insert "person" newrel) ctx
   else
-    pure (execState (evalDatabaseContextExpr (Assign "person" newrel)) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+    executeDatabaseContextExpr (Assign "person" newrel) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 ```
 
 Line 1 sets up a new relation created from the function's arguments. In this case, we create a relation to represent a new person in our database.
