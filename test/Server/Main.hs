@@ -152,7 +152,7 @@ testTransactionGraphAsRelation sessionId conn = TestCase $ do
 testHeadTransactionId :: SessionId -> Connection -> Test    
 testHeadTransactionId sessionId conn = TestCase $ do
   uuid <- headTransactionId sessionId conn
-  assertBool "invalid head transaction uuid" (isJust uuid)
+  assertBool "invalid head transaction uuid" (isRight uuid)
   pure ()
   
 testHeadName :: SessionId -> Connection -> Test
@@ -174,10 +174,10 @@ testSession _ conn = TestCase $ do
   case eSessionId1 of
     Left _ -> assertFailure "invalid session" 
     Right sessionId1 -> do
-      mHeadId <- headTransactionId sessionId1 conn
-      case mHeadId of
-        Nothing -> assertFailure "invalid head id"
-        Just headId -> do
+      eHeadId <- headTransactionId sessionId1 conn
+      case eHeadId of
+        Left err -> assertFailure "invalid head id"
+        Right headId -> do
           eSessionId2 <- createSessionAtCommit headId conn
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
           closeSession sessionId1 conn

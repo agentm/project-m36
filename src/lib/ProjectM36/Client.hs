@@ -855,14 +855,14 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
-headTransactionId :: SessionId -> Connection -> IO (Maybe TransactionId)
+headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)
 headTransactionId sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf  
   atomically $ do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
-      Left _ -> pure Nothing
-      Right session -> pure $ Just (Sess.parentId session)
+      Left err -> pure (Left err)
+      Right session -> pure $ Right (Sess.parentId session)
 headTransactionId sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveHeadTransactionId sessionId)
     
 headNameSTM_ :: SessionId -> Sessions -> TVar TransactionGraph -> STM (Either RelationalError HeadName)  

@@ -87,7 +87,7 @@ handleRetrieveTransactionGraph ti sessionId conn = do
   ret <- timeoutOrDie ti (transactionGraphAsRelation sessionId conn)
   reply ret conn
   
-handleRetrieveHeadTransactionId :: Timeout -> SessionId -> Connection -> Reply (Maybe TransactionId)
+handleRetrieveHeadTransactionId :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError TransactionId)
 handleRetrieveHeadTransactionId ti sessionId conn = do
   ret <- timeoutOrDie ti (headTransactionId sessionId conn)
   reply ret conn

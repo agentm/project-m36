@@ -108,7 +108,7 @@ testADT5 = TestCase $ do
   assertEqual "record-based ADT" example (fromAtom (toAtom example))  
   
 checkExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO ()
-checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= maybe (pure ()) (\err -> assertFailure (show err))
+checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= either (\err -> assertFailure (show err)) (const (pure ()))
 
 testListInstance :: Test
 testListInstance = TestCase $ do
