@@ -16,7 +16,7 @@ dateExamplesConnection callback = do
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do
-      eSessionId <- createSessionAtHead "master" conn
+      eSessionId <- createSessionAtHead conn "master"
       case eSessionId of
         Left err -> error (show err)
         Right sessionId -> do

@@ -19,6 +19,11 @@ import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
 import Data.Monoid
 
+import Debug.Trace
+import Control.Monad.Reader
+import ProjectM36.RelationalExpression
+import qualified ProjectM36.DisconnectedTransaction as D
+
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
                            TransactionIdHeadNameLookup HeadName [TransactionIdHeadBacktrack]
@@ -381,13 +386,15 @@ mergeTransactions newId parentId mergeStrategy (headNameA, headNameB) graph = do
   subGraph' <- filterSubGraph subGraph subHeads
   case createMergeTransaction newId mergeStrategy subGraph' (transA, transB) of
     Left err -> Left (MergeTransactionError err)
-    Right mergedTrans -> case headNameForTransaction disconParent graph of
-      Nothing -> Left (TransactionIsNotAHeadError parentId)
-      Just headName -> do 
-        (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
-        let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
-            newDiscon = DisconnectedTransaction newId (schemas newTrans) False
-        pure (newDiscon, newGraph')
+    Right mergedTrans -> case checkConstraints (concreteDatabaseContext mergedTrans) of
+      Just err -> Left err
+      Nothing -> case headNameForTransaction disconParent graph of
+        Nothing -> Left (TransactionIsNotAHeadError parentId)
+        Just headName -> do
+          (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
+          let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
+              newDiscon = DisconnectedTransaction newId (schemas newTrans) False
+          pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
 showTransactionStructureX :: Transaction -> TransactionGraph -> String
@@ -480,13 +487,24 @@ backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
     
 -- | Create a temporary branch for commit, merge the result to head, delete the temporary branch. This is useful to atomically commit a transaction, avoiding a TransactionIsNotHeadError but trading it for a potential MergeError.
 --this is not a GraphOp because it combines multiple graph operations
-autoMergeToHead :: (TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
-autoMergeToHead (tempTransId, newCommitTransId) discon mergeToHeadName strat graph = do
-  let tempBranchName = "mergebranch_" <> U.toText tempTransId
+autoMergeToHead :: (TransactionId, TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
+autoMergeToHead (tempBranchTransId, tempCommitTransId, mergeTransId) discon mergeToHeadName strat graph = do
+  let tempBranchName = "mergebranch_" <> U.toText tempBranchTransId
   --create the temp branch
-  (discon', graph') <- evalGraphOp tempTransId discon graph (Branch tempBranchName)
+  (discon', graph') <- evalGraphOp tempBranchTransId discon graph (Branch tempBranchName)
+  
+  --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
+  (discon'', graph'') <- evalGraphOp tempCommitTransId discon' graph' Commit
+  
   --create the merge
-  (discon'', graph'') <- evalGraphOp newCommitTransId discon' graph' (MergeTransactions strat tempBranchName mergeToHeadName)
+  (discon''', graph''') <- evalGraphOp mergeTransId discon'' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
+
   --delete the temp branch
-  evalGraphOp newCommitTransId discon'' graph'' (DeleteBranch tempBranchName)
+  (discon'''', graph'''') <- evalGraphOp tempBranchTransId discon''' graph''' (DeleteBranch tempBranchName)
+  
+  let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
+  traceShowM rel
+  pure (discon'''', graph'''')
+
+
   

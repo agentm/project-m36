@@ -97,9 +97,9 @@ handleCreateSessionAtCommit ti commitId conn = do
   ret <- timeoutOrDie ti (createSessionAtCommit commitId conn)
   reply ret conn
   
-handleCreateSessionAtHead :: Timeout -> HeadName -> Connection -> Reply (Either RelationalError SessionId)
-handleCreateSessionAtHead ti headn conn = do
-  ret <- timeoutOrDie ti (createSessionAtHead headn conn)
+handleCreateSessionAtHead :: Timeout -> Connection -> HeadName -> Reply (Either RelationalError SessionId)
+handleCreateSessionAtHead ti conn headn = do
+  ret <- timeoutOrDie ti (createSessionAtHead conn headn)
   reply ret conn
   
 handleCloseSession :: Timeout -> SessionId -> Connection -> Reply ()   

@@ -45,6 +45,7 @@ module ProjectM36.Client
        DatabaseContextExpr(..),
        DatabaseContextIOExpr(..),
        Attribute(..),
+       MergeStrategy(..),
        attributesFromList,
        createNodeId,
        createSessionAtCommit,
@@ -392,8 +393,8 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
 createSessionAtCommit_ _ _ (RemoteProcessConnection _) = error "createSessionAtCommit_ called on remote connection"
   
 -- | Call 'createSessionAtHead' with a transaction graph's head's name to create a new session pinned to that head. This function returns a 'SessionId' which can be used in other function calls to reference the point in the transaction graph.
-createSessionAtHead :: HeadName -> Connection -> IO (Either RelationalError SessionId)
-createSessionAtHead headn conn@(InProcessConnection conf) = do
+createSessionAtHead :: Connection -> HeadName -> IO (Either RelationalError SessionId)
+createSessionAtHead conn@(InProcessConnection conf) headn = do
     let graphTvar = ipTransactionGraph conf
     newSessionId <- nextRandom
     atomically $ do
@@ -401,7 +402,7 @@ createSessionAtHead headn conn@(InProcessConnection conf) = do
         case transactionForHead headn graph of
             Nothing -> pure $ Left (NoSuchHeadNameError headn)
             Just trans -> createSessionAtCommit_ (transactionId trans) newSessionId conn
-createSessionAtHead headn conn@(RemoteProcessConnection _) = remoteCall conn (CreateSessionAtHead headn)
+createSessionAtHead conn@(RemoteProcessConnection _) headn = remoteCall conn (CreateSessionAtHead headn)
 
 -- | Used internally for server connections to keep track of remote nodes for the purpose of sending notifications later.
 addClientNode :: Connection -> ProcessId -> IO ()
@@ -571,12 +572,13 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   let sessions = ipSessions conf
   id1 <- nextRandom
   id2 <- nextRandom
+  id3 <- nextRandom
   commitLock_ sessionId conf $ \graph -> do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
       Right session -> do
-        case Graph.autoMergeToHead (id1, id2) (Sess.disconnectedTransaction session) headName' strat graph of
+        case Graph.autoMergeToHead (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
           Left err -> pure (Left err)
           Right (discon', graph') -> pure (Right (discon', graph', True))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')

@@ -91,7 +91,7 @@ main = do
       errDie ("Failed to create database connection: " ++ show err)
     Right conn -> do
       let connHeadName = headNameForConfig interpreterConfig
-      eSessionId <- createSessionAtHead connHeadName conn
+      eSessionId <- createSessionAtHead conn connHeadName
       case eSessionId of 
           Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
           Right sessionId -> do
