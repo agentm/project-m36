@@ -72,7 +72,7 @@ testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let dbdir = tempdir </> "dbdir"
       connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
   Right conn <- connectProjectM36 connInfo
-  Right sess <- createSessionAtHead "master" conn
+  Right sess <- createSessionAtHead conn "master"
   let intTCons = PrimitiveTypeConstructor "Int" IntAtomType
       addfunc = AddAtomFunction "testdisk" [
         intTCons, 
@@ -83,7 +83,7 @@ testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   close conn
   --re-open the connection to reload the graph
   Right conn2 <- connectProjectM36 connInfo
-  Right sess2 <- createSessionAtHead "master" conn2
+  Right sess2 <- createSessionAtHead conn2 "master"
   
   res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]

@@ -19,13 +19,6 @@ assertIOEither x = do
     Left err -> assertFailure (show err) >> undefined
     Right val -> pure val
   
-assertIONothing :: (Show a) => IO (Maybe a) -> IO ()
-assertIONothing x = do
-  ret <- x
-  case ret of
-    Nothing -> pure ()
-    Just err -> assertFailure (show err)
-  
 testList :: Test
 testList = TestList [testMultipleProcessAccess]
 
@@ -38,8 +31,8 @@ testMultipleProcessAccess = TestCase $ do
         dbdir = tmpdir </> "db"
     conn1 <- assertIOEither $ connectProjectM36 connInfo
     conn2 <- assertIOEither $ connectProjectM36 connInfo
-    session1 <- assertIOEither (createSessionAtHead master conn1)
-    session2 <- assertIOEither (createSessionAtHead master conn2)
+    session1 <- assertIOEither (createSessionAtHead conn1 master)
+    session2 <- assertIOEither (createSessionAtHead conn2 master)
     --add a commit on conn1 which conn2 doesn't know about
     assertIOEither $ executeDatabaseContextExpr session1 conn1 dudExpr
     assertIOEither $ commit session1 conn1

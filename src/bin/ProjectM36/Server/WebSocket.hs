@@ -32,7 +32,7 @@ websocketProxyServer port host pending = do
           case eDBconn of
             Left err -> sendError conn err
             Right dbconn -> do
-                eSessionId <- createSessionAtHead "master" dbconn
+                eSessionId <- createSessionAtHead dbconn "master"
                 case eSessionId of
                   Left err -> sendError conn err
                   Right sessionId -> do

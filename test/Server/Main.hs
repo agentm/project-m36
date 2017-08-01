@@ -72,7 +72,7 @@ testConnection serverAddress mvar = do
   case eConn of 
     Left err -> pure $ Left err
     Right conn -> do
-      eSessionId <- createSessionAtHead defaultHeadName conn
+      eSessionId <- createSessionAtHead conn defaultHeadName
       case eSessionId of
         Left _ -> error "failed to create session"
         Right sessionId -> pure $ Right (sessionId, conn)
@@ -169,7 +169,7 @@ testRelationVariableSummary sessionId conn = TestCase $ do
 testSession :: SessionId -> Connection -> Test
 testSession _ conn = TestCase $ do
   -- create and close a new session using AtHead and AtCommit
-  eSessionId1 <- createSessionAtHead defaultHeadName conn
+  eSessionId1 <- createSessionAtHead conn defaultHeadName
   case eSessionId1 of
     Left _ -> assertFailure "invalid session" 
     Right sessionId1 -> do
@@ -177,7 +177,7 @@ testSession _ conn = TestCase $ do
       case eHeadId of
         Left err -> assertFailure ("invalid head id: " ++ show err)
         Right headId -> do
-          eSessionId2 <- createSessionAtCommit headId conn
+          eSessionId2 <- createSessionAtCommit conn headId
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
           closeSession sessionId1 conn
 

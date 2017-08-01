@@ -6,15 +6,18 @@ import ProjectM36.Relation
 import ProjectM36.Transaction
 import ProjectM36.TransactionGraph
 import ProjectM36.Error
+import ProjectM36.Key
+import qualified ProjectM36.DisconnectedTransaction as Discon
+import qualified ProjectM36.DatabaseContext as DBC
+import ProjectM36.RelationalExpression
+
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
 import Data.Word
-import ProjectM36.RelationalExpression
-import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
-import qualified ProjectM36.DatabaseContext as DBC
+
 import Control.Monad.State hiding (join)
 
 main :: IO ()           
@@ -29,7 +32,8 @@ testList = TestList [
   testSubGraphToFirstAncestorMoreTransactions,
   testSelectedBranchMerge,
   testUnionMergeStrategy,
-  testUnionPreferMergeStrategy
+  testUnionPreferMergeStrategy,
+  testUnionMergeIncDepViolation
   ]
 
 -- | Create a transaction graph with two branches and no changes between them.
@@ -44,7 +48,7 @@ createTrans tid info ctx = Transaction tid info (Schemas ctx M.empty)
 
 basicTransactionGraph :: IO TransactionGraph
 basicTransactionGraph = do
-  let bsGraph = bootstrapTransactionGraph uuidRoot DBC.empty --dateExamples
+  let bsGraph = bootstrapTransactionGraph uuidRoot DBC.basicDatabaseContext
       rootTrans = case transactionForHead "master" bsGraph of
         Just trans -> trans
         Nothing -> error "bonk"
@@ -221,3 +225,38 @@ testUnionMergeStrategy = TestCase $ do
       case failingMerge of
         Right _ -> assertFailure "expected merge failure"
         Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError)
+
+-- test that a merge will fail if a constraint is violated
+testUnionMergeIncDepViolation :: Test
+testUnionMergeIncDepViolation = TestCase $ do
+  graph <- basicTransactionGraph
+  assertGraph graph
+  
+  branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
+  branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"
+    
+  --add relvar and key constraint to both branches
+  let eRel val = mkRelationFromList (attributesFromList [Attribute "x" IntAtomType, Attribute "y" IntAtomType]) [[IntAtom 1, IntAtom val]] 
+      rvName = "x"
+      Right branchArv = eRel 2
+      Right branchBrv = eRel 3
+      branchAContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.singleton rvName branchArv}
+      branchBContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.singleton rvName branchBrv, 
+                                                               inclusionDependencies = M.singleton incDepName incDep}      
+      incDepName = "x_key"
+      incDep = inclusionDependencyForKey (AttributeNames (S.singleton "x")) (RelationVariable "x" ())
+
+
+   --add the rv in new commits to both branches
+  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty) branchBContext) graph
+                  
+  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans) S.empty) branchAContext) graph'
+  
+  --check that the union merge fails due to a violated constraint
+  let eMerge = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
+  case eMerge of
+    Left (InclusionDependencyCheckError incDepName) -> pure ()
+    Left err -> assertFailure ("other error: " ++ show err)
+    Right trans -> do
+      assertFailure "constraint violation missing"
+

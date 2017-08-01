@@ -6,6 +6,7 @@ import ProjectM36.Transaction
 import ProjectM36.Relation
 import ProjectM36.TupleSet
 import ProjectM36.Tuple
+import ProjectM36.RelationalExpression
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import qualified Data.UUID as U
@@ -19,10 +20,11 @@ import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
 import Data.Monoid
 
+{-
 import Debug.Trace
 import Control.Monad.Reader
-import ProjectM36.RelationalExpression
 import qualified ProjectM36.DisconnectedTransaction as D
+-}
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -501,9 +503,10 @@ autoMergeToHead (tempBranchTransId, tempCommitTransId, mergeTransId) discon merg
 
   --delete the temp branch
   (discon'''', graph'''') <- evalGraphOp tempBranchTransId discon''' graph''' (DeleteBranch tempBranchName)
-  
+  {-
   let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
   traceShowM rel
+-}
   pure (discon'''', graph'''')
 
 

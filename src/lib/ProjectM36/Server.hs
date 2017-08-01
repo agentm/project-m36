@@ -34,7 +34,7 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph ti sessionId conn),
      handleCall (\conn (Login procId) -> handleLogin ti conn procId),
      handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead ti conn headn),
-     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit ti commitId conn),
+     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit ti conn commitId),
      handleCall (\conn (CloseSession sessionId) -> handleCloseSession ti sessionId conn),
      handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
      handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),

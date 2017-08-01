@@ -368,12 +368,12 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
           pure (Right conn)
           
 -- | Create a new session at the transaction id and return the session's Id.
-createSessionAtCommit :: TransactionId -> Connection -> IO (Either RelationalError SessionId)
-createSessionAtCommit commitId conn@(InProcessConnection _) = do
+createSessionAtCommit :: Connection -> TransactionId -> IO (Either RelationalError SessionId)
+createSessionAtCommit conn@(InProcessConnection _) commitId = do
    newSessionId <- nextRandom
    atomically $ do
       createSessionAtCommit_ commitId newSessionId conn
-createSessionAtCommit uuid conn@(RemoteProcessConnection _) = remoteCall conn (CreateSessionAtCommit uuid)
+createSessionAtCommit conn@(RemoteProcessConnection _) uuid = remoteCall conn (CreateSessionAtCommit uuid)
 
 createSessionAtCommit_ :: TransactionId -> SessionId -> Connection -> STM (Either RelationalError SessionId)
 createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do

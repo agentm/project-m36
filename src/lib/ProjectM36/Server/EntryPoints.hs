@@ -92,9 +92,9 @@ handleRetrieveHeadTransactionId ti sessionId conn = do
   ret <- timeoutOrDie ti (headTransactionId sessionId conn)
   reply ret conn
   
-handleCreateSessionAtCommit :: Timeout -> TransactionId -> Connection -> Reply (Either RelationalError SessionId)
-handleCreateSessionAtCommit ti commitId conn = do
-  ret <- timeoutOrDie ti (createSessionAtCommit commitId conn)
+handleCreateSessionAtCommit :: Timeout -> Connection -> TransactionId -> Reply (Either RelationalError SessionId)
+handleCreateSessionAtCommit ti conn commitId = do
+  ret <- timeoutOrDie ti (createSessionAtCommit conn commitId)
   reply ret conn
   
 handleCreateSessionAtHead :: Timeout -> Connection -> HeadName -> Reply (Either RelationalError SessionId)
