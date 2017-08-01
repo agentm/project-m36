@@ -1,3 +1,13 @@
+# 2017-08-01
+
+## autoMergeToHead
+
+In preparation for the simpler monad client API, ProjectM36.Client now includes a server-side merge for new transactions called "[automerge](https://github.com/agentm/project-m36/issues/33)". This feature should reduce head contention in cases where new transactions can be simply merged to the head without additional processing. The trade-off is reduced ```TransactionIsNotAHeadError```s but an increased chance of merge errors. The feature operates similarly to a server-side git rebase.
+
+## critical bug in merging
+
+Successfully merged transactions did not have their constraints validated. Fixed.
+
 # 2017-06-12
 
 ## add file locking
