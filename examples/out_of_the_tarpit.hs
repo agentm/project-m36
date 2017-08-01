@@ -3,7 +3,7 @@
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
 import qualified Data.Map as M
-import Data.Maybe
+import Data.Either
 import Control.Monad
 import GHC.Generics
 import Data.Binary
@@ -57,7 +57,7 @@ main = do
   let conn = check eConn
   
   --create a database session at the default branch of the fresh database
-  eSessionId <- createSessionAtHead "master" conn  
+  eSessionId <- createSessionAtHead conn "master"
   let sessionId = check eSessionId
 
   createSchema sessionId conn
@@ -141,10 +141,10 @@ createSchema sessionId conn = do
                    createScriptedAtomFunction "datesToSpeedBand" [dayTypeConstructor, dayTypeConstructor] (ADTypeConstructor "SpeedBand" []) speedBandScript
                   ]
   --gather up and execute all database updates
-  mErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
-  let errs = catMaybes mErrs
+  eErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
+  let errs = lefts eErrs
   when (length errs > 0) (error (show errs))    
   
-  mErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
-  let errs' = catMaybes mErrs'
+  eErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
+  let errs' = lefts eErrs'
   when (length errs' > 0) (error (show errs'))

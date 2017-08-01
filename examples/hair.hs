@@ -23,17 +23,14 @@ main = do
   conn <- eCheck $ connectProjectM36 connInfo
 
   --create a database session at the default branch of the fresh database
-  sessionId <- eCheck $ createSessionAtHead "master" conn  
+  sessionId <- eCheck $ createSessionAtHead conn "master"
   
-  let mCheck v = v >>= \x -> case x of 
-                                  Just err -> error (show err)
-                                  Nothing -> pure ()
   --create the data type in the database context
-  mCheck $ executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
+  eCheck $ executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
 
   --create a relation with the new Hair AtomType
   let blond = NakedAtomExpr (toAtom Blond)
-  mCheck $ executeDatabaseContextExpr sessionId conn (Assign "people" (MakeRelationFromExprs Nothing [
+  eCheck $ executeDatabaseContextExpr sessionId conn (Assign "people" (MakeRelationFromExprs Nothing [
             TupleExpr (M.fromList [("hair", blond), ("name", NakedAtomExpr (TextAtom "Colin"))])]))
 
   let restrictionPredicate = AttributeEqualityPredicate "hair" blond

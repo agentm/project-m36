@@ -12,7 +12,7 @@ main = do
     Left err -> putStrLn (show err)
     Right conn -> do
       --3. create a session on the "master" branch
-      eSessionId <- createSessionAtHead "master" conn
+      eSessionId <- createSessionAtHead conn "master"
       case eSessionId of
         Left err -> putStrLn (show err)
         Right sessionId -> do
