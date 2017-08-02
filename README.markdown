@@ -4,6 +4,7 @@
 [![Public Domain](https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg)](http://unlicense.org)
 [![Hackage](https://img.shields.io/hackage/v/project-m36.svg)](http://hackage.haskell.org/package/project-m36)
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
+[![Build status](https://travis-ci.org/agentm/project-m36.svg?branch=master)](https://travis-ci.org/agentm/project-m36)
 
 *Software can always be made faster, but rarely can it be made more correct.*
 
