@@ -1,5 +1,10 @@
 # Ξ Project:M36 Relational Algebra Engine
 
+[![Haskell Programming Language](https://img.shields.io/badge/language-Haskell-blue.svg)](https://www.haskell.org)
+[![Public Domain](https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg)](http://unlicense.org)
+[![Hackage](https://img.shields.io/hackage/v/project-m36.svg)](http://hackage.haskell.org/package/project-m36)
+[![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
+
 *Software can always be made faster, but rarely can it be made more correct.*
 
 ## Introduction
