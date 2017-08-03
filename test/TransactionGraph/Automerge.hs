@@ -7,9 +7,6 @@ import TutorialD.Interpreter.TestBase
 
 import System.Exit
 
-import ProjectM36.Relation.Show.Term
-import Data.Text
-
 main :: IO ()           
 main = do 
   tcounts <- runTestTT testList
@@ -66,7 +63,7 @@ testAutomergeFailure = TestCase $ do
   --should fail
   mergeRes <- autoMergeToHead sessionPastId conn UnionMergeStrategy headn
   
-  p <- checkEither $ executeRelationalExpr sessionPastId conn (RelationVariable "s" ())
+  _ <- checkEither $ executeRelationalExpr sessionPastId conn (RelationVariable "s" ())
   
   assertEqual "merge failure" (Left (InclusionDependencyCheckError "s_pkey")) mergeRes
   

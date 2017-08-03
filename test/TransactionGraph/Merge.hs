@@ -255,8 +255,7 @@ testUnionMergeIncDepViolation = TestCase $ do
   --check that the union merge fails due to a violated constraint
   let eMerge = mergeTransactions (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
   case eMerge of
-    Left (InclusionDependencyCheckError incDepName) -> pure ()
+    Left (InclusionDependencyCheckError incDepName') -> assertEqual "incdep violation name" incDepName incDepName'
     Left err -> assertFailure ("other error: " ++ show err)
-    Right trans -> do
-      assertFailure "constraint violation missing"
+    Right _ -> assertFailure "constraint violation missing"
 
