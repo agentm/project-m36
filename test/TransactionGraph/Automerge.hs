@@ -68,8 +68,6 @@ testAutomergeFailure = TestCase $ do
   
   p <- checkEither $ executeRelationalExpr sessionPastId conn (RelationVariable "s" ())
   
-  putStrLn (unpack (showRelation p))
-  
   assertEqual "merge failure" (Left (InclusionDependencyCheckError "s_pkey")) mergeRes
   
   
