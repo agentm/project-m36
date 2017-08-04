@@ -9,7 +9,7 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 
 import Text.Megaparsec
-import Text.Megaparsec.Text
+import Text.Megaparsec.Char
 
 import qualified Data.Text as T
 

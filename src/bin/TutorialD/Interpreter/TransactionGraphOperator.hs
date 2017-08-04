@@ -1,7 +1,6 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
-import Text.Megaparsec.Text
 import Text.Megaparsec
 import ProjectM36.TransactionGraph
 import ProjectM36.Client

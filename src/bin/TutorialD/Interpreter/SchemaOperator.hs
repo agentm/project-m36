@@ -1,6 +1,5 @@
 module TutorialD.Interpreter.SchemaOperator where
 import Text.Megaparsec
-import Text.Megaparsec.Text
 
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema

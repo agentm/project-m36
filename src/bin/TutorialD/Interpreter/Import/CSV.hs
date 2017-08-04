@@ -5,7 +5,6 @@ import ProjectM36.Error
 import ProjectM36.Relation.Parse.CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as T
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import Control.Exception
 

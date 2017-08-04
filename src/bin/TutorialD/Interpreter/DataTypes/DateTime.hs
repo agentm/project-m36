@@ -1,10 +1,10 @@
 module TutorialD.Interpreter.DataTypes.DateTime where
-import Text.Parsec
+import Text.Megaparsec
 import ProjectM36.Base
-import Text.Parsec.String
 import TutorialD.Interpreter.Base
 import Data.Time.Clock
 import Data.Time.Format
+import qualified Data.Text as T
 
 dateTimeAtomP :: Parser Atom
 dateTimeAtomP = do
@@ -12,11 +12,11 @@ dateTimeAtomP = do
     dateTime <- dateTimeStringP
     reserved "::datetime"
     return dateTime 
-  return $ Atom dateTime'
+  return $ DateTimeAtom dateTime'
 
 dateTimeStringP :: Parser UTCTime
 dateTimeStringP = do
   dateTimeString <- quotedString
-  case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" dateTimeString of
+  case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack dateTimeString) of
     Just utctime -> return $ (utctime :: UTCTime)
-    Nothing -> fail $ "Failed to parse datetime from " ++ dateTimeString
+    Nothing -> fail $ "Failed to parse datetime from " ++ T.unpack dateTimeString

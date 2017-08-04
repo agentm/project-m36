@@ -5,7 +5,6 @@ import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import Text.Megaparsec
-import Text.Megaparsec.Text
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
 addAtomFunctionExprP = do

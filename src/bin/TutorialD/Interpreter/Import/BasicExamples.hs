@@ -4,7 +4,6 @@ import ProjectM36.DateExamples
 import ProjectM36.Base
 import ProjectM36.DatabaseContext
 import TutorialD.Interpreter.Base
-import Text.Megaparsec.Text
 
 data ImportBasicExampleOperator = ImportBasicDateExampleOperator
                                 deriving (Show)

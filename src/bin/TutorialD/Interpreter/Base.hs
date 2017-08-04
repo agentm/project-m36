@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric, CPP #-}
 module TutorialD.Interpreter.Base where
 import Text.Megaparsec
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as Lex
+import qualified Text.Megaparsec.Char.Lexer as Lex
+import Text.Megaparsec.Char
 import ProjectM36.Base
 import ProjectM36.AtomType
 import Data.Text hiding (count)
@@ -15,11 +15,13 @@ import System.IO
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
 import Data.Monoid
-import Control.Monad (void)
 import qualified Data.UUID as U
 import ProjectM36.Relation
 import Control.Monad.Random
 import Data.List.NonEmpty as NE
+import Data.Void
+
+type Parser = Parsec Void Text
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -44,10 +46,10 @@ spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipB
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
 
-reserved :: String -> Parser ()
+reserved :: Text -> Parser ()
 reserved word = try (string word *> notFollowedBy opChar *> spaceConsumer)
 
-reservedOp :: String -> Parser ()
+reservedOp :: Text -> Parser ()
 reservedOp op = try (string op *> notFollowedBy opChar *> spaceConsumer)
 
 parens :: Parser a -> Parser a
@@ -63,8 +65,8 @@ identifier = do
   spaceConsumer
   pure (pack (istart:irest))
 
-symbol :: String -> Parser Text
-symbol sym = pack <$> Lex.symbol spaceConsumer sym 
+symbol :: Text -> Parser Text
+symbol sym = Lex.symbol spaceConsumer sym 
 
 comma :: Parser Text
 comma = symbol ","
@@ -90,7 +92,7 @@ whiteSpace = Token.whiteSpace lexer
 -}
 
 integer :: Parser Integer
-integer = Lex.integer
+integer = Lex.decimal
 
 float :: Parser Double
 float = Lex.float
@@ -120,7 +122,7 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
                                DisplayErrorResult StringType |
-                               DisplayParseErrorResult Int (ParseError Char Dec) | -- Int refers to length of prompt text
+                               DisplayParseErrorResult Int (ParseError Char Void) | -- Int refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
                                

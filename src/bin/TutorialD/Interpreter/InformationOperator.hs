@@ -2,7 +2,6 @@
 module TutorialD.Interpreter.InformationOperator where
 import Data.Text
 import Text.Megaparsec
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 
 -- this module provides information about the current interpreter

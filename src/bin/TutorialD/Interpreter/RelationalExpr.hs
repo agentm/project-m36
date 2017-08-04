@@ -1,10 +1,11 @@
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
 import Text.Megaparsec.Expr
+import Text.Megaparsec.Char
 import ProjectM36.Base
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
+import TutorialD.Interpreter.DataTypes.DateTime
 import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -215,9 +216,10 @@ constructedAtomExprP consume = do
 -- used only for primitive type parsing ?
 atomP :: Parser Atom
 atomP = stringAtomP <|> 
-        doubleAtomP <|> 
-        intAtomP <|> 
-        boolAtomP
+        intAtomP <|>
+        doubleAtomP <|>
+        boolAtomP <|>
+        dateTimeAtomP
         
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP = do
@@ -233,11 +235,11 @@ stringAtomP :: Parser Atom
 stringAtomP = liftA TextAtom quotedString
 
 doubleAtomP :: Parser Atom    
-doubleAtomP = DoubleAtom <$> (try float)
+doubleAtomP = DoubleAtom <$> float
 
 intAtomP :: Parser Atom
 intAtomP = do
-  i <- integer
+  i <- try (integer <* notFollowedBy (char '.'))
   return $ IntAtom (fromIntegral i)
 
 boolAtomP :: Parser Atom
