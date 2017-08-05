@@ -482,7 +482,7 @@ Test-Suite test-multiprocess-access
     Hs-Source-Dirs: ./src/bin, ., test/
     CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
-Test-Suite test-automerge
+Test-Suite test-transactiongraph-automerge
     Default-Language: Haskell2010
     type: exitcode-stdio-1.0
     main-is: test/TransactionGraph/Automerge.hs

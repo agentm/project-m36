@@ -6,6 +6,9 @@ import qualified Data.Set as S
 import TutorialD.Interpreter.TestBase
 
 import System.Exit
+import System.IO.Temp
+import System.FilePath
+import Control.Exception.Base
 
 main :: IO ()           
 main = do 
@@ -14,7 +17,8 @@ main = do
   
 testList :: Test
 testList = TestList [testAutomergeSuccess,
-                     testAutomergeFailure]
+                     testAutomergeFailure,
+                     testAutomergeReconnect]
            
 checkEither :: IO (Either RelationalError a) -> IO a
 checkEither io = do
@@ -66,6 +70,22 @@ testAutomergeFailure = TestCase $ do
   _ <- checkEither $ executeRelationalExpr sessionPastId conn (RelationVariable "s" ())
   
   assertEqual "merge failure" (Left (InclusionDependencyCheckError "s_pkey")) mergeRes
+  
+--reported as #128
+testAutomergeReconnect :: Test
+testAutomergeReconnect = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
+  let repro = do
+          conn <- unsafeLeftCrash =<< connectProjectM36 (InProcessConnectionInfo (CrashSafePersistence (tempdir </> "test.db")) emptyNotificationCallback [])
+          sess <- unsafeLeftCrash =<< createSessionAtHead conn "master"
+          autoMergeToHead sess conn UnionMergeStrategy "master"
+        -- commit sess conn
+                  
+      unsafeLeftCrash :: Show e => Either e a -> IO a
+      unsafeLeftCrash = either (throwIO . userError . show) pure
+  _ <- repro 
+  _ <- repro
+  pure ()
+    
   
   
   

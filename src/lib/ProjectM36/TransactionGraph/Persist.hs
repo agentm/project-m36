@@ -70,7 +70,8 @@ bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Handle, 
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   lockFileH <- openLockFile dbdir
-  digest  <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (transactionGraphPersist sync dbdir bootstrapGraph)
+  let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
+  digest  <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
   pure (lockFileH, digest)
   
 openLockFile :: FilePath -> IO (Handle)  
@@ -85,19 +86,25 @@ incrementally updates an existing database directory
 -assume that all non-head transactions have already been written because this is an incremental (and concurrent!) write method
 --store the head names with a symlink to the transaction under "heads"
 -}
-transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
-transactionGraphPersist sync destDirectory graph = do
-  transactionHeadTransactionsPersist sync destDirectory graph
+transactionGraphPersist :: DiskSync -> FilePath -> [TransactionId] -> TransactionGraph -> IO LockFileHash
+transactionGraphPersist sync destDirectory transIds graph = do
+  transactionsPersist sync transIds destDirectory graph
   --write graph file
   newDigest <- writeGraphTransactionIdFile sync destDirectory graph
   --write heads file
   transactionGraphHeadsPersist sync destDirectory graph
   pure newDigest
   
--- | The incremental writer which only writes from the set of heads. New heads must be written on every commit. Most heads will already be written on every commit.
-transactionHeadTransactionsPersist :: DiskSync -> FilePath -> TransactionGraph -> IO ()
-transactionHeadTransactionsPersist sync destDirectory graphIn = mapM_ (writeTransaction sync destDirectory) $ M.elems (transactionHeadsForGraph graphIn)
-  
+-- | The incremental writer writes the transactions ids specified by the second argument.
+
+-- There was a bug here via #128 because automerge added multiple transactions to the graph but this function used to only write the head transactions from the graph. Automerge creates multiple transactions, so these are now passed in as the second argument.
+transactionsPersist :: DiskSync -> [TransactionId] -> FilePath -> TransactionGraph -> IO ()
+transactionsPersist sync transIds destDirectory graphIn = mapM_ writeTrans transIds
+  where writeTrans tid = do
+          case transactionForId tid graphIn of 
+            Left err -> error ("writeTransaction: " ++ show err)
+            Right trans -> writeTransaction sync destDirectory trans
+
 {- 
 write graph heads to a file which can be atomically swapped
 -}

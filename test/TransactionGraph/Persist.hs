@@ -57,7 +57,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
                 Left err -> assertFailure (show err)
                 Right (_, graph') -> do
                   --persist the new graph
-                  _ <- transactionGraphPersist NoDiskSync dbdir graph'
+                  _ <- transactionGraphPersist NoDiskSync dbdir [freshId'] graph'
                   --reload the graph from the filesystem and confirm that the transaction is present
                   graphErr <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
                   let mapEq graphArg = S.map transactionId (transactionsForGraph graphArg)

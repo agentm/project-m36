@@ -128,6 +128,7 @@ import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Control.Distributed.Process (NodeId(..), reconnect)
 
+import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
 import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
@@ -580,7 +581,8 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
       Right session -> do
         case Graph.autoMergeToHead (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
           Left err -> pure (Left err)
-          Right (discon', graph') -> pure (Right (discon', graph', True))
+          Right (discon', graph') -> do
+            pure (Right (discon', graph', [id1, id2, id3]))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
@@ -645,7 +647,13 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
         let discon = Sess.disconnectedTransaction session
         case evalGraphOp freshId discon updatedGraph graphExpr of
           Left err -> pure (Left err)
-          Right (discon', graph') -> pure (Right (discon', graph', isCommit graphExpr))
+          Right (discon', graph') -> do
+            --if freshId appears in the graph, then we need to pass it on
+            let transIds = if isRight (transactionForId freshId graph') then
+                             [freshId]
+                           else
+                             []
+            pure (Right (discon', graph', transIds))
 {-
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let strat = ipPersistenceStrategy conf
@@ -768,10 +776,10 @@ rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId con
 rollback sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
-processTransactionGraphPersistence :: PersistenceStrategy -> TransactionGraph -> IO ()
-processTransactionGraphPersistence NoPersistence _ = pure ()
-processTransactionGraphPersistence (MinimalPersistence dbdir) graph = transactionGraphPersist NoDiskSync dbdir graph >> pure ()
-processTransactionGraphPersistence (CrashSafePersistence dbdir) graph = transactionGraphPersist FsyncDiskSync dbdir graph >> pure ()
+processTransactionGraphPersistence :: PersistenceStrategy -> [TransactionId] -> TransactionGraph -> IO ()
+processTransactionGraphPersistence NoPersistence _ _ = pure ()
+processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = transactionGraphPersist NoDiskSync dbdir transIds graph >> pure ()
+processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = transactionGraphPersist FsyncDiskSync dbdir transIds graph >> pure ()
 
 readGraphTransactionIdDigest :: PersistenceStrategy -> IO (LockFileHash)
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
@@ -947,13 +955,11 @@ disconnectedTransaction_ sessionId (InProcessConnection conf) = do
     Just (Sess.Session discon _) -> pure discon
 disconnectedTransaction_ _ _= error "remote connection used"
 
-type ProcessCommit = Bool
-
 -- wrap a graph evaluation in file locking
 commitLock_ :: SessionId -> 
                InProcessConnectionConf -> 
                (TransactionGraph -> 
-                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph, ProcessCommit))) -> 
+                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph, [TransactionId]))) -> 
                IO (Either RelationalError ())
 commitLock_ sessionId conf stmBlock = do
   let sessions = ipSessions conf
@@ -998,25 +1004,25 @@ commitLock_ sessionId conf stmBlock = do
             eGraph <- stmBlock refreshedGraph
             case eGraph of
               Left err -> pure (Left err)
-              Right (discon', graph', processCommit) -> do
+              Right (discon', graph', transactionIdsToPersist) -> do
                 writeTVar graphTvar graph'
                 let newSession = Session discon' (Sess.schemaName session)
                 STMMap.insert newSession sessionId sessions
                 case transactionForId (Sess.parentId session) oldGraph of
                   Left err -> pure $ Left err
                   Right previousTrans -> do
-                    if processCommit then do
+                    if not (Prelude.null transactionIdsToPersist) then do
                       (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
                       nodesToNotify <- toList (STMSet.stream nodes)
-                      pure $ Right (evaldNots, nodesToNotify, graph')
-                    else pure (Right (M.empty, [], graph'))
+                      pure $ Right (evaldNots, nodesToNotify, graph', transactionIdsToPersist)
+                    else pure (Right (M.empty, [], graph', []))
 
       --handle notification firing                
   case manip of 
     Left err -> pure (Left err)
-    Right (notsToFire, nodesToNotify, newGraph) -> do
+    Right (notsToFire, nodesToNotify, newGraph, transactionIdsToPersist) -> do
       --update filesystem database, if necessary
-      processTransactionGraphPersistence strat newGraph
+      processTransactionGraphPersistence strat transactionIdsToPersist newGraph
       sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
       pure (Right ())
 {-

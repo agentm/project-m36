@@ -83,3 +83,8 @@ unionMergeTypeConstructorMapping prefer typesA typesB = do
                                                PreferNeither -> Left StrategyViolatesTypeConstructorMergeError
             ) [] (S.toList allFuncNames)
 
+unionMergeDatabaseContextFunctions :: MergePreference -> DatabaseContextFunctions -> DatabaseContextFunctions -> Either MergeError DatabaseContextFunctions
+unionMergeDatabaseContextFunctions prefer funcsA funcsB = case prefer of
+  PreferFirst -> pure $ HS.union funcsA funcsB
+  PreferSecond -> pure $ HS.union funcsB funcsA
+  PreferNeither -> pure $ HS.union funcsA funcsB

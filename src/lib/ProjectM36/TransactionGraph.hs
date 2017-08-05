@@ -440,12 +440,13 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
   atomFuncs <- unionMergeAtomFunctions preference (atomFunctions contextA) (atomFunctions contextB)
   notifs <- unionMergeMaps preference (notifications contextA) (notifications contextB)
   types <- unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
+  dbcFuncs <- unionMergeDatabaseContextFunctions preference (dbcFunctions contextA) (dbcFunctions contextB)
   -- TODO: add merge of subschemas
   let newContext = DatabaseContext {
         inclusionDependencies = incDeps, 
         relationVariables = relVars, 
         atomFunctions = atomFuncs, 
-        dbcFunctions = undefined,
+        dbcFunctions = dbcFuncs,
         notifications = notifs,
         typeConstructorMapping = types
         }
@@ -507,6 +508,7 @@ autoMergeToHead (tempBranchTransId, tempCommitTransId, mergeTransId) discon merg
   let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
   traceShowM rel
 -}
+  
   pure (discon'''', graph'''')
 
 
