@@ -143,8 +143,8 @@ createSchema sessionId conn = do
   --gather up and execute all database updates
   eErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   let errs = lefts eErrs
-  when (length errs > 0) (error (show errs))    
+  unless (null errs) (error (show errs))    
   
   eErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
   let errs' = lefts eErrs'
-  when (length errs' > 0) (error (show errs'))
+  unless (null errs') (error (show errs'))

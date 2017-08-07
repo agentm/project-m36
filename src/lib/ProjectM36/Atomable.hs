@@ -1,4 +1,4 @@
-{-# LANGUAGE DefaultSignatures, TypeFamilies, TypeOperators, PolyKinds, FlexibleInstances, ScopedTypeVariables, FlexibleContexts, DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DefaultSignatures, TypeFamilies, TypeOperators, PolyKinds, FlexibleInstances, ScopedTypeVariables, FlexibleContexts #-}
 module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
@@ -15,6 +15,7 @@ import Control.Applicative
 import Data.Time.Calendar
 import Data.ByteString (ByteString)
 import Data.Time.Clock
+import Data.Maybe
 
 --also add haskell scripting atomable support
 --rename this module to Atomable along with test
@@ -54,35 +55,35 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toDatabaseContextExpr v = toDatabaseContextExprG (from v) (toAtomType v)
   
 instance Atomable Int where  
-  toAtom i = IntAtom i
+  toAtom = IntAtom
   fromAtom (IntAtom i) = i
   fromAtom e = error ("improper fromAtom" ++ show e)
   toAtomType _ = IntAtomType
   toDatabaseContextExpr _ = NoOperation
 
 instance Atomable Double where
-  toAtom d = DoubleAtom d
+  toAtom = DoubleAtom
   fromAtom (DoubleAtom d) = d
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DoubleAtomType
   toDatabaseContextExpr _ = NoOperation
 
 instance Atomable T.Text where
-  toAtom t = TextAtom t
+  toAtom = TextAtom
   fromAtom (TextAtom t) = t
   fromAtom _ = error "improper fromAtom"  
   toAtomType _ = TextAtomType
   toDatabaseContextExpr _ = NoOperation
 
 instance Atomable Day where
-  toAtom d = DayAtom d
+  toAtom = DayAtom
   fromAtom (DayAtom d) = d
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DayAtomType
   toDatabaseContextExpr _ = NoOperation
 
 instance Atomable UTCTime where
-  toAtom t = DateTimeAtom t
+  toAtom = DateTimeAtom
   fromAtom (DateTimeAtom t) = t
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DateTimeAtomType
@@ -135,7 +136,7 @@ class AtomableG g where
   
 --data type metadata
 instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where  
-  toAtomG (M1 v) t = toAtomG v t
+  toAtomG (M1 v) = toAtomG v
   fromAtomG atom args = M1 <$> fromAtomG atom args
   toAtomsG = undefined
   toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
@@ -196,9 +197,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
     where
       tCons = PrimitiveTypeConstructor primitiveATypeName primitiveAType
       primitiveAType = toAtomType v
-      primitiveATypeName = case foldr (\((PrimitiveTypeConstructorDef name typ), _) _ -> if typ == primitiveAType then Just name else Nothing) Nothing primitiveTypeConstructorMapping of
-        Just x -> x
-        Nothing -> error ("primitive type missing: " ++ show primitiveAType)
+      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) _ -> if typ == primitiveAType then Just name else Nothing) Nothing primitiveTypeConstructorMapping)
         
 instance AtomableG U1 where
   toAtomG = undefined
@@ -212,7 +211,7 @@ instance AtomableG U1 where
 -- product types
 instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
   toAtomG = undefined
-  fromAtomG atom args = (:*:) <$> (fromAtomG atom [headatom args]) <*> (fromAtomG atom (tailatoms args))
+  fromAtomG atom args = (:*:) <$> fromAtomG atom [headatom args] <*> fromAtomG atom (tailatoms args)
     where headatom (x:_) = x
           headatom [] = error "no more atoms in head for product!"
           tailatoms (_:xs) = xs

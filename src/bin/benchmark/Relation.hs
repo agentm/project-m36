@@ -12,7 +12,7 @@ matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
-      tuples = map (\c -> tuple c) [0 .. tupleCount]
+      tuples = map tuple [0 .. tupleCount]
   mkRelationDeferVerify attrs (RelationTupleSet tuples)
 
 main :: IO ()

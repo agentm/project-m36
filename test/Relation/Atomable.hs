@@ -13,6 +13,7 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Text
 import qualified Data.Map as M
 
+{-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 data Test1T = Test1C Int
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
                     
@@ -108,7 +109,7 @@ testADT5 = TestCase $ do
   assertEqual "record-based ADT" example (fromAtom (toAtom example))  
   
 checkExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO ()
-checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= either (\err -> assertFailure (show err)) (const (pure ()))
+checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= either (assertFailure . show) (const (pure ()))
 
 testListInstance :: Test
 testListInstance = TestCase $ do

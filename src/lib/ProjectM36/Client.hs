@@ -126,12 +126,10 @@ import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPo
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
-import Control.Distributed.Process (NodeId(..), reconnect)
-
 import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match)
+import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match, NodeId(..), reconnect)
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
@@ -179,7 +177,7 @@ data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCa
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
 -- | Used for callbacks from the server when monitored changes have been made.
-data NotificationMessage = NotificationMessage EvaluatedNotifications
+newtype NotificationMessage = NotificationMessage EvaluatedNotifications
                            deriving (Binary, Eq, Show, Generic)
 
 -- | When a notification is fired, the 'reportExpr' is evaluated in the commit's context, so that is returned along with the original notification.
@@ -259,9 +257,9 @@ notificationListener :: NotificationCallback -> Process ()
 notificationListener callback = do
   --pid <- getSelfPid
   --liftIO $ putStrLn $ "LISTENER THREAD START " ++ show pid
-  _ <- forever $ do  
+  _ <- forever $
     receiveWait [
-      match (\(NotificationMessage eNots) -> do
+      match (\(NotificationMessage eNots) ->
             --say $ "NOTIFICATION: " ++ show eNots
             -- when notifications are thrown, they are not adjusted for the current schema which could be problematic, but we don't have access to the current session here
             liftIO $ mapM_ (uncurry callback) (M.toList eNots)
@@ -270,14 +268,14 @@ notificationListener callback = do
   --say "LISTENER THREAD EXIT"
   pure ()
   
-startNotificationListener :: LocalNode -> NotificationCallback -> IO (ProcessId)
+startNotificationListener :: LocalNode -> NotificationCallback -> IO ProcessId
 startNotificationListener localNode callback = forkProcess localNode (notificationListener callback)
   
 createScriptSession :: [String] -> IO (Maybe ScriptSession)  
 createScriptSession ghcPkgPaths = do
   eScriptSession <- initScriptSession ghcPkgPaths
   case eScriptSession of
-    Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ (show err)) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
+    Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
@@ -297,7 +295,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         notificationPid <- startNotificationListener localNode notificationCallback
         mScriptSession <- createScriptSession ghcPkgPaths
         
-        let conn = InProcessConnection (InProcessConnectionConf {
+        let conn = InProcessConnection InProcessConnectionConf {
                                            ipPersistenceStrategy = strat, 
                                            ipClientNodes = clientNodes, 
                                            ipSessions = sessions, 
@@ -305,7 +303,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                                            ipScriptSession = mScriptSession,
                                            ipLocalNode = localNode,
                                            ipTransport = transport, 
-                                           ipLocks = Nothing})
+                                           ipLocks = Nothing}
         addClientNode conn notificationPid
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -326,8 +324,8 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
         loginConfirmation <- safeLogin (Login notificationListenerPid) serverProcessId
         if not loginConfirmation then
           liftIO $ putMVar connStatus (Left LoginError)
-          else do
-          liftIO $ putMVar connStatus (Right $ RemoteProcessConnection (RemoteProcessConnectionConf {rLocalNode = localNode, rProcessId = serverProcessId, rTransport = transport}))
+          else
+          liftIO $ putMVar connStatus (Right $ RemoteProcessConnection RemoteProcessConnectionConf {rLocalNode = localNode, rProcessId = serverProcessId, rTransport = transport})
   status <- takeMVar connStatus
   pure status
 
@@ -353,7 +351,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
           clientNodes <- STMSet.newIO
           (localNode, transport) <- createLocalNode
           lockMVar <- newMVar digest
-          let conn = InProcessConnection (InProcessConnectionConf {
+          let conn = InProcessConnection InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
                                              ipSessions = sessions,
@@ -362,7 +360,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipLocalNode = localNode,
                                              ipTransport = transport,
                                              ipLocks = Just (lockFileH, lockMVar)
-                                             })
+                                             }
 
           notificationPid <- startNotificationListener localNode notificationCallback 
           addClientNode conn notificationPid
@@ -372,8 +370,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
 createSessionAtCommit :: Connection -> TransactionId -> IO (Either RelationalError SessionId)
 createSessionAtCommit conn@(InProcessConnection _) commitId = do
    newSessionId <- nextRandom
-   atomically $ do
-      createSessionAtCommit_ commitId newSessionId conn
+   atomically $ createSessionAtCommit_ commitId newSessionId conn
 createSessionAtCommit conn@(RemoteProcessConnection _) uuid = remoteCall conn (CreateSessionAtCommit uuid)
 
 createSessionAtCommit_ :: TransactionId -> SessionId -> Connection -> STM (Either RelationalError SessionId)
@@ -412,7 +409,7 @@ addClientNode (InProcessConnection conf) newProcessId = atomically (STMSet.inser
 
 -- | Discards a session, eliminating any uncommitted changes present in the session.
 closeSession :: SessionId -> Connection -> IO ()
-closeSession sessionId (InProcessConnection conf) = do
+closeSession sessionId (InProcessConnection conf) = 
     atomically $ STMMap.delete sessionId (ipSessions conf)
 closeSession sessionId conn@(RemoteProcessConnection _) = remoteCall conn (CloseSession sessionId)       
 -- | 'close' cleans up the database access connection and closes any relevant sockets.
@@ -426,7 +423,7 @@ close (InProcessConnection conf) = do
   closeTransport (ipTransport conf)
 
 close conn@(RemoteProcessConnection conf) = do
-  _ <- (remoteCall conn Logout) :: IO Bool
+  _ <- remoteCall conn Logout :: IO Bool
   closeLocalNode (rLocalNode conf)
   closeTransport (rTransport conf)
 
@@ -440,7 +437,7 @@ closeRemote_ (RemoteProcessConnection conf) = runProcess (rLocalNode conf) (reco
 --exceptions should generally *NOT* be thrown from any Project:M36 code paths, but third-party code such as AtomFunction scripts could conceivably throw undefined, etc.
 
 excEither :: IO (Either RelationalError a) -> IO (Either RelationalError a)
-excEither m = handle handler m
+excEither = handle handler
   where
     handler exc | Just (_ :: AsyncException) <- fromException exc = throwIO exc
                 | otherwise = pure (Left (UnhandledExceptionError (show exc)))
@@ -453,7 +450,7 @@ runProcessResult localNode proc = do
     liftIO $ putMVar ret val
   takeMVar ret
 
-safeLogin :: Login -> ProcessId -> Process (Bool)
+safeLogin :: Login -> ProcessId -> Process Bool
 safeLogin login procId = do 
   ret <- call procId login
   case ret of
@@ -578,10 +575,10 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
-      Right session -> do
+      Right session ->
         case Graph.autoMergeToHead (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
           Left err -> pure (Left err)
-          Right (discon', graph') -> do
+          Right (discon', graph') ->
             pure (Right (discon', graph', [id1, id2, id3]))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
@@ -649,10 +646,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
           Left err -> pure (Left err)
           Right (discon', graph') -> do
             --if freshId appears in the graph, then we need to pass it on
-            let transIds = if isRight (transactionForId freshId graph') then
-                             [freshId]
-                           else
-                             []
+            let transIds = [freshId | isRight (transactionForId freshId graph')]
             pure (Right (discon', graph', transIds))
 {-
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
@@ -767,8 +761,8 @@ commit sessionId conn@(RemoteProcessConnection _) = remoteCall conn (ExecuteGrap
 sendNotifications :: [ProcessId] -> LocalNode -> EvaluatedNotifications -> IO ()
 sendNotifications pids localNode nots = mapM_ sendNots pids
   where
-    sendNots remoteClientPid = do
-      when (not (M.null nots)) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
+    sendNots remoteClientPid =
+      unless (M.null nots) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
           
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
@@ -781,7 +775,7 @@ processTransactionGraphPersistence NoPersistence _ _ = pure ()
 processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = transactionGraphPersist NoDiskSync dbdir transIds graph >> pure ()
 processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = transactionGraphPersist FsyncDiskSync dbdir transIds graph >> pure ()
 
-readGraphTransactionIdDigest :: PersistenceStrategy -> IO (LockFileHash)
+readGraphTransactionIdDigest :: PersistenceStrategy -> IO LockFileHash
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
 readGraphTransactionIdDigest (MinimalPersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
 readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
@@ -917,7 +911,7 @@ atomTypesAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right session -> do
+      Right session ->
         case typesAsRelation (typeConstructorMapping (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
@@ -930,7 +924,7 @@ disconnectedTransactionIsDirty sessionId (InProcessConnection conf) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right session -> do
+      Right session ->
         pure (Right (isDirty session))
 disconnectedTransactionIsDirty sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveSessionIsDirty sessionId)
         
@@ -948,8 +942,7 @@ transactionGraph_ _ = error "remote connection used"
 disconnectedTransaction_ :: SessionId -> Connection -> IO DisconnectedTransaction
 disconnectedTransaction_ sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
-  mSession <- atomically $ do
-    STMMap.lookup sessionId sessions
+  mSession <- atomically $ STMMap.lookup sessionId sessions
   case mSession of
     Nothing -> error "No such session"
     Just (Sess.Session discon _) -> pure discon
@@ -1010,7 +1003,7 @@ commitLock_ sessionId conf stmBlock = do
                 STMMap.insert newSession sessionId sessions
                 case transactionForId (Sess.parentId session) oldGraph of
                   Left err -> pure $ Left err
-                  Right previousTrans -> do
+                  Right previousTrans ->
                     if not (Prelude.null transactionIdsToPersist) then do
                       (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
                       nodesToNotify <- toList (STMSet.stream nodes)

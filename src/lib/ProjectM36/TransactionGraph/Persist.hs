@@ -18,12 +18,13 @@ import qualified Data.Text as T
 import Data.Text.Encoding
 import Control.Monad (foldM)
 import Data.Either (isRight)
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Control.Exception.Base
 import qualified Data.Text.IO as TIO
 import Data.ByteString (ByteString)
 import Data.Monoid
 import qualified Crypto.Hash.SHA256 as SHA256
+import Control.Arrow
 
 type LockFileHash = ByteString
 
@@ -74,7 +75,7 @@ bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   digest  <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
   pure (lockFileH, digest)
   
-openLockFile :: FilePath -> IO (Handle)  
+openLockFile :: FilePath -> IO Handle
 openLockFile dbdir = do
   lockFileH <- openFile (lockFilePath dbdir) WriteMode
   pure lockFileH
@@ -100,7 +101,7 @@ transactionGraphPersist sync destDirectory transIds graph = do
 -- There was a bug here via #128 because automerge added multiple transactions to the graph but this function used to only write the head transactions from the graph. Automerge creates multiple transactions, so these are now passed in as the second argument.
 transactionsPersist :: DiskSync -> [TransactionId] -> FilePath -> TransactionGraph -> IO ()
 transactionsPersist sync transIds destDirectory graphIn = mapM_ writeTrans transIds
-  where writeTrans tid = do
+  where writeTrans tid =
           case transactionForId tid graphIn of 
             Left err -> error ("writeTransaction: " ++ show err)
             Right trans -> writeTransaction sync destDirectory trans
@@ -122,10 +123,10 @@ transactionGraphHeadsPersist sync dbdir graph = do
 transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,TransactionId)]
 transactionGraphHeadsLoad dbdir = do
   headsData <- readFile (headsPath dbdir)
-  let headsAssocs = map (\l -> let headName:uuidStr:[] = words l in
+  let headsAssocs = map (\l -> let [headName, uuidStr] = words l in
                           (headName,uuidStr)
                           ) (lines headsData)
-  return [(T.pack headName, uuid) | (headName, Just uuid) <- map (\(h,u) -> (h, U.fromString u)) headsAssocs]
+  return [(T.pack headName, uuid) | (headName, Just uuid) <- map (second U.fromString) headsAssocs]
   
 {-  
 load any transactions which are not already part of the incoming transaction graph
@@ -140,7 +141,7 @@ transactionGraphLoad dbdir graphIn mScriptSession = do
   case uuidInfo of
     Left err -> return $ Left err
     Right info -> do  
-      let folder = \eitherGraph transId -> case eitherGraph of
+      let folder eitherGraph transId = case eitherGraph of
             Left err -> return $ Left err
             Right graph -> readTransactionIfNecessary dbdir transId mScriptSession graph
       loadedGraph <- foldM folder (Right graphIn) (map fst info)
@@ -155,7 +156,7 @@ transactionGraphLoad dbdir graphIn mScriptSession = do
 if the transaction with the TransactionId argument is not yet part of the graph, then read the transaction and add it - this does not update the heads
 -}
 readTransactionIfNecessary :: FilePath -> TransactionId -> Maybe ScriptSession -> TransactionGraph -> IO (Either PersistenceError TransactionGraph)  
-readTransactionIfNecessary dbdir transId mScriptSession graphIn = do
+readTransactionIfNecessary dbdir transId mScriptSession graphIn =
   if isRight $ transactionForId transId graphIn then
     --the transaction is already known and loaded- done
     return $ Right graphIn
@@ -182,7 +183,7 @@ readGraphTransactionIdFileDigest dbdir = do
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tids = catMaybes (map U.fromText (T.words line)) in
+  let grapher line = let tids = mapMaybe U.fromText (T.words line) in
         (head tids, tail tids)
   --warning: uses lazy IO
   graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)

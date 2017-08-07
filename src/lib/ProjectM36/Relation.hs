@@ -44,7 +44,7 @@ emptyRelationWithAttrs :: Attributes -> Relation
 emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelation attrs tupleSet = do
+mkRelation attrs tupleSet = 
   --check that all tuples have the same keys
   --check that all tuples have keys (1-N) where N is the attribute count
   case verifyTupleSet attrs tupleSet of
@@ -85,7 +85,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   else
     Right $ Relation attrs1 newtuples
   where
-    newtuples = RelationTupleSet $ HS.toList . HS.fromList $ (asList tupSet1) ++ (map (reorderTuple attrs1) (asList tupSet2))
+    newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
 
 project :: AttributeNames -> Relation -> Either RelationalError Relation
 project projectionAttrNames rel =
@@ -95,22 +95,19 @@ project projectionAttrNames rel =
   where
     folder newAttrs tupleToProject acc = case acc of
       Left err -> Left err
-      Right acc2 -> union acc2 (Relation newAttrs (RelationTupleSet [tupleProject (A.attributeNameSet newAttrs) tupleToProject]))
+      Right acc2 -> acc2 `union` Relation newAttrs (RelationTupleSet [tupleProject (A.attributeNameSet newAttrs) tupleToProject])
 
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
-rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) =
-  if not attributeValid
-       then Left $ AttributeNamesMismatchError (S.singleton oldAttrName)
-  else if newAttributeInUse
-       then Left $ AttributeNameInUseError newAttrName
-  else
-    mkRelation newAttrs newTupSet
+rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) 
+  | not attributeValid = Left $ AttributeNamesMismatchError (S.singleton oldAttrName)
+  | newAttributeInUse = Left $ AttributeNameInUseError newAttrName
+  | otherwise = mkRelation newAttrs newTupSet
   where
     newAttributeInUse = A.attributeNamesContained (S.singleton newAttrName) (attributeNames rel)
     attributeValid = A.attributeNamesContained (S.singleton oldAttrName) (attributeNames rel)
     newAttrs = A.renameAttributes oldAttrName newAttrName oldAttrs
     newTupSet = RelationTupleSet $ map tupsetmapper (asList oldTupSet)
-    tupsetmapper tuple = tupleRenameAttribute oldAttrName newAttrName tuple
+    tupsetmapper = tupleRenameAttribute oldAttrName newAttrName
 
 --the algebra should return a relation of one attribute and one row with the arity
 arity :: Relation -> Int
@@ -163,7 +160,7 @@ group groupAttrNames newAttrName rel = do
 --help restriction function
 --returns a subrelation of
 restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
-restrictEq tuple rel = restrict rfilter rel
+restrictEq tuple = restrict rfilter
   where
     rfilter :: RelationTuple -> Either RelationalError Bool
     rfilter tupleIn = pure (tupleIntersection tuple tupleIn == tuple)
@@ -182,7 +179,7 @@ ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
         Left err -> Left err
         Right accRel -> do
                         ungrouped <- tupleUngroup relvalAttrName newAttrs tupleIn
-                        union accRel ungrouped
+                        accRel `union` ungrouped
 
 --take an relval attribute name and a tuple and ungroup the relval
 tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either RelationalError Relation
@@ -237,7 +234,7 @@ difference relA relB =
       
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> Either RelationalError RelationTuple) -> Relation -> Either RelationalError Relation
-relMap mapper (Relation attrs tupleSet) = do
+relMap mapper (Relation attrs tupleSet) = 
   case forM (asList tupleSet) typeMapCheck of
     Right remappedTupleSet -> mkRelation attrs (RelationTupleSet remappedTupleSet)
     Left err -> Left err
@@ -291,7 +288,7 @@ typesAsRelation types = mkRelationFromTuples attrs tuples
     
     mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
     
-    mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " ((DCD.name dCons):(map (T.pack . show) (DCD.fields dCons))))) dConsList of
+    mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " (DCD.name dCons:map (T.pack . show) (DCD.fields dCons)))) dConsList of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> RelationAtom rel
 

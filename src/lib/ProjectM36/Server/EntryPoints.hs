@@ -13,7 +13,7 @@ import Data.Map
 import Control.Concurrent (threadDelay)
 
 timeoutOrDie :: Serializable a => Timeout -> IO a -> Process (Either ServerError a)
-timeoutOrDie micros act = do
+timeoutOrDie micros act = 
   if micros == 0 then
     liftIO act >>= \x -> pure (Right x)
     else do
@@ -131,9 +131,9 @@ handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
   reply ret conn
   
 handleLogout :: Timeout -> Connection -> Reply Bool
-handleLogout _ conn = do
+handleLogout _ = 
   --liftIO $ closeRemote_ conn
-  reply (pure True) conn
+  reply (pure True)
     
 handleTestTimeout :: Timeout -> SessionId -> Connection -> Reply Bool  
 handleTestTimeout ti _ conn = do

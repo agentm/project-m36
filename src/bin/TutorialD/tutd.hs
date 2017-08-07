@@ -87,7 +87,7 @@ main = do
   let connInfo = connectionInfoForConfig interpreterConfig
   dbconn <- connectProjectM36 connInfo
   case dbconn of 
-    Left err -> do
+    Left err -> 
       errDie ("Failed to create database connection: " ++ show err)
     Right conn -> do
       let connHeadName = headNameForConfig interpreterConfig

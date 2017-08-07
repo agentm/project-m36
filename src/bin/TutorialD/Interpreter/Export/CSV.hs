@@ -17,7 +17,7 @@ exportCSVP = do
   return $ RelVarDataExportOperator exportExpr (T.unpack path) exportRelationCSV 
                                
 exportRelationCSV :: RelVarDataExportOperator -> Relation -> IO (Maybe RelationalError)
-exportRelationCSV (RelVarDataExportOperator _  pathOut _) rel = do
+exportRelationCSV (RelVarDataExportOperator _  pathOut _) rel =
   case relationAsCSV rel of
     Left err -> return $ Just err
     Right csvData -> do

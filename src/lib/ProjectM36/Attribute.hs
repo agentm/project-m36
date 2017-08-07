@@ -27,7 +27,7 @@ atomType :: Attribute -> AtomType
 atomType (Attribute _ atype) = atype
 
 atomTypes :: Attributes -> V.Vector AtomType
-atomTypes attrs = V.map atomType attrs
+atomTypes = V.map atomType
 
 --hm- no error-checking here
 addAttribute :: Attribute -> Attributes -> Attributes
@@ -35,17 +35,14 @@ addAttribute attr attrs = attrs `V.snoc` attr
 
 --if some attribute names overlap but the types do not, then spit back an error
 joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
-joinAttributes attrs1 attrs2 = if V.length uniqueOverlappingAttributes /= V.length overlappingAttributes then
-                                 Left (TupleAttributeTypeMismatchError overlappingAttributes)
-                               else if V.length overlappingAttrsDifferentTypes > 0 then
-                                      Left (TupleAttributeTypeMismatchError overlappingAttrsDifferentTypes)
-                                    else
-                                      Right $ vectorUniqueify (attrs1 V.++ attrs2)
+joinAttributes attrs1 attrs2 | V.length uniqueOverlappingAttributes /= V.length overlappingAttributes = Left (TupleAttributeTypeMismatchError overlappingAttributes)
+                             | V.length overlappingAttrsDifferentTypes > 0 = Left (TupleAttributeTypeMismatchError overlappingAttrsDifferentTypes)
+                             | otherwise = Right $ vectorUniqueify (attrs1 V.++ attrs2)
   where
     overlappingAttrsDifferentTypes = V.filter (\attr -> V.elem (attributeName attr) attrNames2 && V.notElem attr attrs2) attrs1
     attrNames2 = V.map attributeName attrs2
     uniqueOverlappingAttributes = vectorUniqueify overlappingAttributes
-    overlappingAttributes = V.filter (\attr -> V.elem attr attrs2) attrs1
+    overlappingAttributes = V.filter (`V.elem` attrs2) attrs1
 
 addAttributes :: Attributes -> Attributes -> Attributes
 addAttributes = (V.++)
@@ -57,7 +54,7 @@ renameAttribute :: AttributeName -> Attribute -> Attribute
 renameAttribute newAttrName (Attribute _ typeo) = Attribute newAttrName typeo
 
 renameAttributes :: AttributeName -> AttributeName -> Attributes -> Attributes
-renameAttributes oldAttrName newAttrName attrs = V.map renamer attrs
+renameAttributes oldAttrName newAttrName = V.map renamer
   where
     renamer attr = if attributeName attr == oldAttrName then
                      renameAttribute newAttrName attr
@@ -75,7 +72,7 @@ attributeForName attrName attrs = case V.find (\attr -> attributeName attr == at
   Just attr -> Right attr
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
-attributesForNames attrNameSet attrs = V.filter filt attrs
+attributesForNames attrNameSet = V.filter filt
   where
     filt attr = S.member (attributeName attr) attrNameSet
 
@@ -90,7 +87,7 @@ attributesContained :: Attributes -> Attributes -> Bool
 attributesContained attrs1 attrs2 = attributeNamesContained (attributeNameSet attrs1) (attributeNameSet attrs2)
 
 attributeNamesContained :: S.Set AttributeName -> S.Set AttributeName -> Bool
-attributeNamesContained attrs1 attrs2 = S.isSubsetOf attrs1 attrs2
+attributeNamesContained = S.isSubsetOf
 
 --returns the disjunction of the AttributeNameSets
 nonMatchingAttributeNameSet :: S.Set AttributeName -> S.Set AttributeName -> S.Set AttributeName
@@ -100,7 +97,7 @@ matchingAttributeNameSet :: S.Set AttributeName -> S.Set AttributeName -> S.Set 
 matchingAttributeNameSet = S.intersection
 
 attributeNamesNotContained :: S.Set AttributeName -> S.Set AttributeName -> S.Set AttributeName
-attributeNamesNotContained subset superset = S.filter (flip S.notMember superset) subset
+attributeNamesNotContained subset superset = S.filter (`S.notMember` superset) subset
 
 -- this is sorted so the tuples know in which order to output- the ordering is arbitrary
 sortedAttributeNameList :: S.Set AttributeName -> [AttributeName]

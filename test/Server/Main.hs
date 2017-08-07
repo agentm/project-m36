@@ -50,7 +50,7 @@ main = do
   notificationTestMVar <- newEmptyMVar 
   eTestConn <- testConnection serverAddress notificationTestMVar
   case eTestConn of
-    Left err -> putStrLn (show err) >> exitFailure
+    Left err -> print err >> exitFailure
     Right (session, testConn) -> do
       tcounts <- runTestTT (testList session testConn notificationTestMVar)
       if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
@@ -121,8 +121,7 @@ testDatabaseContextExpr sessionId conn = TestCase $ do
     Right rel -> assertEqual "dbcontext definition failed" expected (Right rel)
         
 testGraphExpr :: SessionId -> Connection -> Test        
-testGraphExpr sessionId conn = TestCase $ do
-  executeGraphExpr sessionId conn (JumpToHead "master") >>= eitherFail
+testGraphExpr sessionId conn = TestCase (executeGraphExpr sessionId conn (JumpToHead "master") >>= eitherFail)
     
 testTypeForRelationalExpr :: SessionId -> Connection -> Test
 testTypeForRelationalExpr sessionId conn = TestCase $ do

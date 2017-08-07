@@ -34,9 +34,7 @@ databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
 databaseContextExprDetailsFunc CountUpdatedTuples _ relIn = Relation attrs newTups
   where
     attrs = A.attributesFromList [Attribute "count" IntAtomType]
-    existingTuple = case singletonTuple relIn of
-      Just t -> t
-      Nothing -> error "impossible counting error in singletonTuple"
+    existingTuple = fromMaybe (error "impossible counting error in singletonTuple") (singletonTuple relIn)
     existingCount = case V.head (tupleAtoms existingTuple) of
       IntAtom v -> v
       _ -> error "impossible counting error in tupleAtoms"
@@ -59,7 +57,7 @@ instance Show RelationalExprStateElems where
   show (RelationalExprStateElems _) = "RelationalExprStateElems"
                                 
 mkRelationalExprState :: DatabaseContext -> RelationalExprStateElems
-mkRelationalExprState ctx = RelationalExprStateElems ctx
+mkRelationalExprState = RelationalExprStateElems
 
 mergeTuplesIntoRelationalExprState :: RelationTuple -> RelationalExprStateElems -> RelationalExprStateElems
 mergeTuplesIntoRelationalExprState tupIn (RelationalExprStateElems ctx) = RelationalExprStateTupleElems ctx tupIn
@@ -84,7 +82,7 @@ type DatabaseStateElems = (DatabaseContext, M.Map ResultAccumName ResultAccum, D
 
 type DatabaseState a = State DatabaseStateElems a
 
-getStateContext :: DatabaseState (DatabaseContext)
+getStateContext :: DatabaseState DatabaseContext
 getStateContext = do
   (ctx,_, _) <- get
   pure ctx
@@ -109,7 +107,7 @@ setStateElemsContext (RelationalExprStateAttrsElems _ attrs) ctx = RelationalExp
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> RelationalExprState (Either RelationalError Relation)
 evalRelationalExpr (RelationVariable name _) = do
-  relvarTable <- liftM (relationVariables . stateElemsContext) ask
+  relvarTable <- fmap (relationVariables . stateElemsContext) ask
   return $ case M.lookup name relvarTable of
     Just res -> Right res
     Nothing -> Left $ RelVarNotDefinedError name
@@ -147,24 +145,24 @@ evalRelationalExpr (Difference exprA exprB) = do
       Left err -> return $ Left err
       Right relB2 -> return $ difference relA2 relB2
       
-evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
+evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) = 
   case mkRelation attributeSet tupleSet of
     Right rel -> return $ Right rel
     Left err -> return $ Left err
     
 evalRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
-  currentContext <- liftM stateElemsContext ask
+  currentContext <- fmap stateElemsContext ask
   let tConss = typeConstructorMapping currentContext
   -- if the mAttrExprs is Nothing, then we should attempt to infer the tuple attributes from the first tuple itself- note that this is not always possible
   runExceptT $ do
     mAttrs <- case mAttrExprs of
       Just _ -> do 
-        attrs <- mapM (\expr -> either throwE pure (evalAttrExpr tConss expr)) (fromMaybe [] mAttrExprs)
+        attrs <- mapM (either throwE pure . evalAttrExpr tConss) (fromMaybe [] mAttrExprs)
         pure (Just (A.attributesFromList attrs))
       Nothing -> pure Nothing
-    tuples <- mapM (\expr -> liftE (evalTupleExpr mAttrs expr)) tupleExprs
+    tuples <- mapM (liftE . evalTupleExpr mAttrs) tupleExprs
     let attrs = fromMaybe firstTupleAttrs mAttrs
-        firstTupleAttrs = if length tuples == 0 then A.emptyAttributes else tupleAttributes (head tuples)
+        firstTupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
     either throwE pure (mkRelation attrs (RelationTupleSet tuples))
   
 evalRelationalExpr (ExistingRelation rel) = pure (Right rel)
@@ -195,7 +193,7 @@ evalRelationalExpr (Restrict predicateExpr relExpr) = do
       eFilterFunc <- predicateRestrictionFilter (attributes rel) predicateExpr
       case eFilterFunc of
         Left err -> return $ Left err
-        Right filterfunc -> do
+        Right filterfunc -> 
           pure (restrict filterfunc rel)
 
 evalRelationalExpr (Equals relExprA relExprB) = do
@@ -259,8 +257,8 @@ evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe Relationa
 evalDatabaseContextExpr NoOperation = pure Nothing
   
 evalDatabaseContextExpr (Define relVarName attrExprs) = do
-  relvars <- liftM relationVariables getStateContext
-  tConss <- liftM typeConstructorMapping getStateContext
+  relvars <- fmap relationVariables getStateContext
+  tConss <- fmap typeConstructorMapping getStateContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
   case lefts eAttrs of
     err:_ -> pure (Just err)
@@ -271,8 +269,7 @@ evalDatabaseContextExpr (Define relVarName attrExprs) = do
           attrs = A.attributesFromList (rights eAttrs)
           emptyRelation = Relation attrs emptyTupleSet
 
-evalDatabaseContextExpr (Undefine relVarName) = do
-  deleteRelVar relVarName
+evalDatabaseContextExpr (Undefine relVarName) = deleteRelVar relVarName
 
 evalDatabaseContextExpr (Assign relVarName expr) = do
   -- in the future, it would be nice to get types from the RelationalExpr instead of needing to evaluate it
@@ -326,7 +323,7 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
   let relVarTable = relationVariables context
   case M.lookup relVarName relVarTable of
     Nothing -> return $ Just (RelVarNotDefinedError relVarName)
-    Just rel -> do
+    Just rel -> 
       case runReader (predicateRestrictionFilter (attributes rel) restrictionPredicateExpr) (RelationalExprStateElems context) of
         Left err -> return $ Just err
         Right predicateFunc -> do
@@ -335,9 +332,9 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
                 if cardinality restrictedPortion == Finite 0 then 
                   pure Nothing
                   else do
-                  unrestrictedPortion <- restrict (\tup -> predicateFunc tup >>= pure . not) rel
+                  unrestrictedPortion <- restrict (predicateFunc >=> (pure . not)) rel
                   updatedPortion <- relMap (updateTupleWithAtomExprs atomExprMap context) restrictedPortion
-                  updatedRel <- union updatedPortion unrestrictedPortion
+                  updatedRel <- updatedPortion `union` unrestrictedPortion
                   pure (Just updatedRel)
           case ret of 
             Left err -> pure (Just err)
@@ -400,21 +397,18 @@ evalDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   -- validate that the constructor's types exist
   case validateTypeConstructorDef tConsDef dConsDefList of
     errs@(_:_) -> pure $ Just (someErrors errs)
-    [] -> do
-      if T.length tConsName < 1 || not (isUpper (T.head tConsName)) then
-        pure $ Just (InvalidAtomTypeName tConsName)
-        else if isJust (findTypeConstructor tConsName oldTypes) then
-               pure $ Just (AtomTypeNameInUseError tConsName)
-             else do
-               let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
-               putStateContext $ currentContext { typeConstructorMapping = newTypes }
-               pure Nothing
+    [] | T.null tConsName || not (isUpper (T.head tConsName)) -> pure $ Just (InvalidAtomTypeName tConsName)
+       | isJust (findTypeConstructor tConsName oldTypes) -> pure $ Just (AtomTypeNameInUseError tConsName)
+       | otherwise -> do              
+      let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
+      putStateContext $ currentContext { typeConstructorMapping = newTypes }
+      pure Nothing
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
   currentContext <- getStateContext
   let oldTypes = typeConstructorMapping currentContext
-  if findTypeConstructor tConsName oldTypes == Nothing then
+  if isNothing (findTypeConstructor tConsName oldTypes) then
     pure $ Just (AtomTypeNameNotInUseError tConsName)
     else do
       let newTypes = filter (\(tCons, _) -> TCD.name tCons /= tConsName) oldTypes
@@ -426,8 +420,8 @@ evalDatabaseContextExpr (MultipleExpr exprs) = do
   evald <- forM exprs evalDatabaseContextExpr
   --some lifting magic needed here
   case catMaybes evald of
-    [] -> return $ Nothing
-    err:_ -> return $ Just err
+    [] -> pure Nothing
+    err:_ -> pure (Just err)
              
 evalDatabaseContextExpr (RemoveAtomFunction funcName) = do
   currentContext <- getStateContext
@@ -467,7 +461,7 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
             actualArgCount = length atomArgExprs
         if expectedArgCount /= actualArgCount then
           pure (Just (FunctionArgumentCountMismatch expectedArgCount actualArgCount))
-          else do
+          else 
           --check that the atom types are valid
           case lefts eAtomTypes of
             _:_ -> pure (Just (someErrors (lefts eAtomTypes)))
@@ -480,15 +474,15 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
                   eAtomArgs = map (\arg -> runReader (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
               if length (lefts eAtomArgs) > 1 then
                 pure (Just (someErrors (lefts eAtomArgs)))
-                else if length typeErrors > 0 then
+                else if not (null typeErrors) then
                      pure (Just (someErrors typeErrors))                   
-                   else do
+                   else
                      case evalDatabaseContextFunction func (rights eAtomArgs) context of
                        Left err -> pure (Just err)
                        Right newContext -> putStateContext newContext >> pure Nothing
       
 evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
-evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = do
+evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = 
   case mScriptSession of
     Nothing -> pure (Left (ScriptError ScriptCompilationDisabledError))
     Just scriptSession -> do
@@ -512,7 +506,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
                -- check if the name is already in use
                 if HS.member funcName (HS.map atomFuncName atomFuncs) then
                   Left (FunctionNameInUseError funcName)
-                  else do
+                  else 
                   Right newContext
       case res of
         Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
@@ -520,7 +514,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
           Left err -> pure (Left err)
           Right context' -> pure (Right context')
           
-evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunction funcName funcType script) = do
+evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunction funcName funcType script) = 
   case mScriptSession of
     Nothing -> pure (Left (ScriptError ScriptCompilationDisabledError))
     Just scriptSession -> do
@@ -552,7 +546,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
                 -- check if the name is already in use                                              
               if HS.member funcName (HS.map dbcFuncName dbcFuncs) then
                 Left (FunctionNameInUseError funcName)
-                else do
+                else 
                 Right newContext
         case res of
           Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
@@ -561,7 +555,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
             Right context' -> pure (Right context')
               
     
-updateTupleWithAtomExprs :: (M.Map AttributeName AtomExpr) -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
+updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do
   --resolve all atom exprs
   atomsAssoc <- mapM (\(attrName, atomExpr) -> do
@@ -616,7 +610,7 @@ liftE v = do
 
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
 predicateRestrictionFilter :: Attributes -> RestrictionPredicateExpr -> RelationalExprState (Either RelationalError RestrictionFilter)
-predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = do
+predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = 
   runExceptT $ do
     expr1v <- liftE (predicateRestrictionFilter attrs expr1)
     expr2v <- liftE (predicateRestrictionFilter attrs expr2)
@@ -625,7 +619,7 @@ predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = do
                 ev2 <- expr2v x
                 pure (ev1 && ev2))
 
-predicateRestrictionFilter attrs (OrPredicate expr1 expr2) = do
+predicateRestrictionFilter attrs (OrPredicate expr1 expr2) =
   runExceptT $ do
     expr1v <- liftE (predicateRestrictionFilter attrs expr1)
     expr2v <- liftE (predicateRestrictionFilter attrs expr2)
@@ -636,7 +630,7 @@ predicateRestrictionFilter attrs (OrPredicate expr1 expr2) = do
 
 predicateRestrictionFilter _ TruePredicate = pure (Right (\_ -> pure True))
 
-predicateRestrictionFilter attrs (NotPredicate expr) = do
+predicateRestrictionFilter attrs (NotPredicate expr) = 
   runExceptT $ do
     exprv <- liftE (predicateRestrictionFilter attrs expr)
     pure (\x -> do
@@ -691,7 +685,7 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
     if aType /= BoolAtomType then
       throwE (AtomTypeMismatchError aType BoolAtomType)
       else
-      pure (\tupleIn -> do
+      pure (\tupleIn ->
                 pure $ case runReader (evalAtomExpr tupleIn atomExpr) rstate of
                   Left _ -> False
                   Right boolAtomValue -> boolAtomValue == BoolAtom True)
@@ -713,7 +707,7 @@ extendTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrName atomE
       atomExprType' <- liftE (verifyAtomExprTypes relIn atomExpr atomExprType)
       let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType']
           newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
-      pure $ (newAndOldAttrs, \tup -> let substate = mergeTuplesIntoRelationalExprState tup rstate in case runReader (evalAtomExpr tup atomExpr) substate of
+      pure (newAndOldAttrs, \tup -> let substate = mergeTuplesIntoRelationalExprState tup rstate in case runReader (evalAtomExpr tup atomExpr) substate of
                  Left err -> Left err
                  Right atom -> Right (tupleAtomExtend newAttrName atom tup)
                )
@@ -731,7 +725,7 @@ evalAtomExpr tupIn (AttributeAtomExpr attrName) = case atomForAttributeName attr
 evalAtomExpr _ (NakedAtomExpr atom) = pure (Right atom)
 evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
   argTypes <- mapM (typeFromAtomExpr (tupleAttributes tupIn)) arguments
-  context <- liftM stateElemsContext ask
+  context <- fmap stateElemsContext ask
   runExceptT $ do
     let functions = atomFunctions context
     func <- either throwE pure (atomFunctionForName funcName functions)
@@ -744,7 +738,7 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
       throwE (FunctionArgumentCountMismatch expectedArgCount actualArgCount)
       else do
       _ <- mapM (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
-      evaldArgs <- mapM (\arg -> liftE (evalAtomExpr tupIn arg)) arguments
+      evaldArgs <- mapM (liftE . evalAtomExpr tupIn) arguments
       case evalAtomFunction func evaldArgs of
         Left err -> throwE (AtomFunctionUserError err)
         Right result -> pure result
@@ -778,13 +772,13 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
     Left err -> pure (error "GONK" $ Left err)
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
 typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
-  context <- liftM stateElemsContext ask
+  context <- fmap stateElemsContext ask
   let funcs = atomFunctions context
   case atomFunctionForName funcName funcs of
     Left err -> pure (Left err)
     Right func -> do
       let funcRetType = last (atomFuncType func)
-          funcArgTypes = reverse (tail (reverse (atomFuncType func)))
+          funcArgTypes = init (atomFuncType func)
       eArgTypes <- mapM (typeFromAtomExpr attrs) atomArgs
       case lefts eArgTypes of                   
         errs@(_:_) -> pure (Left (someErrors errs))
@@ -801,8 +795,8 @@ typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
 -- grab the type of the data constructor, then validate that the args match the expected types
 typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) = 
   runExceptT $ do
-    argsTypes <- mapM (\arg -> liftE (typeFromAtomExpr attrs arg)) dConsArgs  
-    context <- liftM stateElemsContext (lift ask)
+    argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs  
+    context <- fmap stateElemsContext (lift ask)
     aType <- either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
     pure aType
 
@@ -829,18 +823,18 @@ verifyAtomExprTypes relIn (FunctionAtomExpr funcName funcArgExprs _) expectedTyp
     let expectedArgTypes = atomFuncType func
     funcArgTypes <- mapM (\(atomExpr,expectedType2,argCount) -> case runReader (verifyAtomExprTypes relIn atomExpr expectedType2) rstate of
                            Left (AtomTypeMismatchError expSubType actSubType) -> throwE (AtomFunctionTypeError funcName argCount expSubType actSubType)
-                           Left err -> throwE (err)
+                           Left err -> throwE err
                            Right x -> pure x
                            ) $ zip3 funcArgExprs expectedArgTypes [1..]
     if length funcArgTypes /= length expectedArgTypes - 1 then
       throwE (AtomTypeCountError funcArgTypes expectedArgTypes)
-      else do
+      else 
       either throwE pure (atomTypeVerify expectedType (last expectedArgTypes))
 verifyAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType = runExceptT $ do
   rstate <- lift ask
   relType <- either throwE pure (runReader (typeForRelationalExpr relationExpr) (mergeAttributesIntoRelationalExprState (attributes relIn) rstate))
   either throwE pure (atomTypeVerify expectedType (RelationAtomType (attributes relType)))
-verifyAtomExprTypes rel cons@(ConstructedAtomExpr _ _ _) expectedType = runExceptT $ do
+verifyAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = runExceptT $ do
   cType <- liftE (typeFromAtomExpr (attributes rel) cons)
   either throwE pure (atomTypeVerify expectedType cType)
 
@@ -854,7 +848,7 @@ evalAttrExpr _ (NakedAttributeExpr attr) = Right attr
   
 evalTupleExpr :: Maybe Attributes -> TupleExpr -> RelationalExprState (Either RelationalError RelationTuple)
 evalTupleExpr attrs (TupleExpr tupMap) = do
-  context <- liftM stateElemsContext ask
+  context <- fmap stateElemsContext ask
   runExceptT $ do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
   -- I could adjust this logic so that when the attributes are not specified (Nothing), then I can attempt to extract the attributes from the tuple- the type resolution will blow up if an ambiguous data constructor is used (Left 4) and this should allow simple cases to "relation{tuple{a 4}}" to be processed

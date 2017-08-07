@@ -10,7 +10,7 @@ graphAsDot (TransactionGraph heads transSet) = "digraph {" ++ dot ++ headInfo ++
   where
     dot = S.foldr transactionAsDot "" transSet
     transactionAsDot trans acc = acc ++ childArrows trans ++ parentArrows trans
-    arrows trans idSet = S.foldr (\c acc' -> acc' ++ oneArrow trans c) "" idSet
+    arrows trans = S.foldr (\c acc' -> acc' ++ oneArrow trans c) ""
     childArrows trans = arrows trans (transactionChildIds trans)
     parentArrows trans = arrows trans (transactionParentIds trans)
     transLabel t = tidLabel (transactionId t)

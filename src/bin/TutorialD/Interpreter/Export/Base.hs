@@ -9,5 +9,5 @@ instance Show RelVarDataExportOperator where
   show (RelVarDataExportOperator expr path _) = "RelVarDataExportOperator " <> show expr <> " " <>  path
 
 evalRelVarDataExportOperator :: RelVarDataExportOperator -> Relation -> IO (Maybe RelationalError)
-evalRelVarDataExportOperator op@(RelVarDataExportOperator _ _ exportFunc) rel = exportFunc op rel
+evalRelVarDataExportOperator op@(RelVarDataExportOperator _ _ exportFunc) = exportFunc op
 

@@ -97,7 +97,7 @@ evalRODatabaseContextOp sessionId conn (PlotRelation expr) = do
     Left err -> DisplayErrorResult $ T.pack (show err)
     Right rel -> DisplayIOResult $ do
       err <- plotRelation rel
-      when (isJust err) $ putStrLn (show err)
+      when (isJust err) $ print err
 
 evalRODatabaseContextOp sessionId conn (ShowConstraint name) = do
   eIncDeps <- C.inclusionDependencies sessionId conn
@@ -130,7 +130,7 @@ evalRODatabaseContextOp sessionId conn ShowRelationVariables = do
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
   
-evalRODatabaseContextOp _ _ (Quit) = pure QuitResult
+evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
 interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
 interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of

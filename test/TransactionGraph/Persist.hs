@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
@@ -45,7 +44,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
-    Just headTrans -> do
+    Just headTrans -> 
           case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do

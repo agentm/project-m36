@@ -44,8 +44,9 @@ renameSync sync srcPath dstPath = do
   syncDirectory sync dstPath
 
 -- System.Directory's renameFile/renameDirectory almost do exactly what we want except that it needlessly differentiates between directories and files
+{-# ANN atomicRename ("HLint: ignore Eta reduce" :: String) #-}
 atomicRename :: FilePath -> FilePath -> IO ()
-atomicRename srcPath dstPath = do
+atomicRename srcPath dstPath = 
 #if defined(mingw32_HOST_OS)
   Win32.moveFileEx srcPath dstPath Win32.mOVEFILE_REPLACE_EXISTING
 #else
@@ -53,7 +54,7 @@ atomicRename srcPath dstPath = do
 #endif
 
 syncHandle :: DiskSync -> Handle -> IO ()
-syncHandle FsyncDiskSync handle = do
+syncHandle FsyncDiskSync handle =
 #if defined(mingw32_HOST_OS)
   withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
 #elif defined(linux_HOST_OS)
@@ -69,7 +70,7 @@ syncDirectory FsyncDiskSync path = directoryFsync path
 syncDirectory NoDiskSync _ = pure ()
 
 writeBSFileSync :: DiskSync -> FilePath -> BS.ByteString -> IO ()
-writeBSFileSync sync path bstring = do
+writeBSFileSync sync path bstring =
   withFile path WriteMode $ \handle -> do
     BS.hPut handle bstring
     syncHandle sync handle

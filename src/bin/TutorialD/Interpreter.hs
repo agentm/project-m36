@@ -25,7 +25,6 @@ import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
 import Text.Megaparsec
-import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
@@ -55,21 +54,21 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
 
 interpreterParserP :: Parser ParsedOperation
 interpreterParserP = safeInterpreterParserP <|>
-                     liftM ImportRelVarOp (importCSVP <* eof) <|>
-                     liftM ImportDBContextOp (tutdImportP <* eof) <|>
-                     liftM RelVarExportOp (exportCSVP <* eof) <|>
-                     liftM DatabaseContextIOExprOp (dbContextIOExprP <* eof)
+                     fmap ImportRelVarOp (importCSVP <* eof) <|>
+                     fmap ImportDBContextOp (tutdImportP <* eof) <|>
+                     fmap RelVarExportOp (exportCSVP <* eof) <|>
+                     fmap DatabaseContextIOExprOp (dbContextIOExprP <* eof)
                      
 -- the safe interpreter never reads or writes the file system
 safeInterpreterParserP :: Parser ParsedOperation
-safeInterpreterParserP = liftM RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
-                         liftM InfoOp (infoOpP <* eof) <|>
-                         liftM GraphOp (transactionGraphOpP <* eof) <|>
-                         liftM ROGraphOp (roTransactionGraphOpP <* eof) <|>
-                         liftM DatabaseContextExprOp (databaseExprOpP <* eof) <|>
-                         liftM ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
-                         liftM TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
-                         liftM SchemaOp (schemaOperatorP <* eof)
+safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
+                         fmap InfoOp (infoOpP <* eof) <|>
+                         fmap GraphOp (transactionGraphOpP <* eof) <|>
+                         fmap ROGraphOp (roTransactionGraphOpP <* eof) <|>
+                         fmap DatabaseContextExprOp (databaseExprOpP <* eof) <|>
+                         fmap ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
+                         fmap TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
+                         fmap SchemaOp (schemaOperatorP <* eof)
 
 promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
 promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
@@ -77,32 +76,32 @@ promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
     transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
           
 parseTutorialD :: T.Text -> Either (ParseError Char Void) ParsedOperation
-parseTutorialD inputString = parse interpreterParserP "" inputString
+parseTutorialD = parse interpreterParserP ""
 
 --only parse tutoriald which doesn't result in file I/O
 safeParseTutorialD :: T.Text -> Either (ParseError Char Void) ParsedOperation
-safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
+safeParseTutorialD = parse safeInterpreterParserP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
 
 --execute the operation and display result
-evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO (TutorialDOperatorResult)
+evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO TutorialDOperatorResult
 evalTutorialD sessionId conn safe expr = case expr of
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
-  (RODatabaseContextOp execOp) -> do
+  (RODatabaseContextOp execOp) -> 
     evalRODatabaseContextOp sessionId conn execOp
     
-  (DatabaseContextExprOp execOp) -> do 
+  (DatabaseContextExprOp execOp) -> 
     eHandler $ C.executeDatabaseContextExpr sessionId conn execOp 
       
-  (DatabaseContextIOExprOp execOp) -> do
+  (DatabaseContextIOExprOp execOp) -> 
     if needsSafe then
       unsafeError
-      else do
+      else
       eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
     
-  (GraphOp execOp) -> do
+  (GraphOp execOp) -> 
     eHandler $ C.executeGraphExpr sessionId conn execOp
 
   (ROGraphOp execOp) -> do
@@ -111,10 +110,10 @@ evalTutorialD sessionId conn safe expr = case expr of
       Left err -> barf err
       Right rel -> pure (DisplayRelationResult rel)
       
-  (SchemaOp execOp) -> do
+  (SchemaOp execOp) ->
     eHandler $ evalSchemaOperator sessionId conn execOp
       
-  (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> do
+  (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> 
     if needsSafe then
       unsafeError
       else do
@@ -129,7 +128,7 @@ evalTutorialD sessionId conn safe expr = case expr of
             Left err -> barf err
             Right dbexpr -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexpr)
   
-  (ImportDBContextOp execOp) -> do
+  (ImportDBContextOp execOp) -> 
     if needsSafe then
       unsafeError
       else do
@@ -138,7 +137,7 @@ evalTutorialD sessionId conn safe expr = case expr of
         Left err -> barf err
         Right dbexprs -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexprs)
       
-  (InfoOp execOp) -> do
+  (InfoOp execOp) -> 
     if needsSafe then
       unsafeError
       else
@@ -146,7 +145,7 @@ evalTutorialD sessionId conn safe expr = case expr of
         Left err -> pure (DisplayErrorResult err)
         Right info -> pure (DisplayResult info)
       
-  (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) -> do
+  (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) ->
     --eval relexpr to relation and pass to export function
     if needsSafe then
       unsafeError
@@ -162,7 +161,7 @@ evalTutorialD sessionId conn safe expr = case expr of
   (ImportBasicExampleOp execOp) -> do
     let dbcontextexpr = evalImportBasicExampleOperator execOp
     evalTutorialD sessionId conn safe (DatabaseContextExprOp dbcontextexpr)
-  (TransGraphRelationalOp execOp) -> do
+  (TransGraphRelationalOp execOp) ->
     evalTransGraphRelationalOp sessionId conn execOp
   where
     needsSafe = safe == SafeEvaluation
@@ -200,9 +199,9 @@ reprLoop config sessionId conn = do
     Nothing -> return ()
     Just line -> do
       case parseTutorialD (T.pack line) of
-        Left err -> do
+        Left err -> 
           displayOpResult $ DisplayParseErrorResult (T.length prompt) err
-        Right parsed -> do 
+        Right parsed ->
           catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
             evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
             displayOpResult evald)

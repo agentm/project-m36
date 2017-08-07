@@ -38,12 +38,12 @@ commitTransactionP = do
 rollbackTransactionP :: Parser TransactionGraphOperator
 rollbackTransactionP = do
   reservedOp ":rollback"
-  return $ Rollback
+  return Rollback
 
 showGraphP :: Parser ROTransactionGraphOperator
 showGraphP = do
   reservedOp ":showgraph"
-  return $ ShowGraph
+  return ShowGraph
   
 mergeTransactionStrategyP :: Parser MergeStrategy
 mergeTransactionStrategyP = (reserved "union" *> pure UnionMergeStrategy) <|>
@@ -65,7 +65,7 @@ mergeTransactionsP = do
   pure (MergeTransactions strategy headA headB)
 
 transactionGraphOpP :: Parser TransactionGraphOperator
-transactionGraphOpP = do
+transactionGraphOpP = 
   jumpToHeadP
   <|> jumpToTransactionP
   <|> branchTransactionP

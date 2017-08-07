@@ -15,6 +15,7 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Attoparsec.ByteString.Lazy
 import ProjectM36.Atom
+import Control.Arrow
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -27,7 +28,7 @@ csvDecodeOptions = DecodeOptions {decDelimiter = fromIntegral (ord ',')}
 --special case from Text- outer quotes are *not* required in CSV, so we have to add them to make it parseable
 makeAtomFromCSVText :: AttributeName -> AtomType -> T.Text -> Either RelationalError Atom
 makeAtomFromCSVText attrName aType textIn = makeAtomFromText attrName aType $ if aType == TextAtomType then
-                                                                                ("\"" `T.append` textIn `T.append` "\"")
+                                                                                "\"" `T.append` textIn `T.append` "\""
                                                                               else
                                                                                 textIn
 
@@ -37,17 +38,17 @@ csvAsRelation inString attrs = case parse (csvWithHeader csvDecodeOptions) inStr
   Done _ (headerRaw,vecMapsRaw) -> do
     let strHeader = V.map decodeUtf8 headerRaw
         strMapRecords = V.map convertMap vecMapsRaw
-        convertMap hmap = HM.fromList $ L.map (\(k,v) -> (decodeUtf8 k, (T.unpack . decodeUtf8) v)) (HM.toList hmap)
+        convertMap hmap = HM.fromList $ L.map (decodeUtf8 *** (T.unpack . decodeUtf8)) (HM.toList hmap)
         attrNames = V.map A.attributeName attrs
         attrNameSet = S.fromList (V.toList attrNames)
         headerSet = S.fromList (V.toList strHeader)
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
-        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromCSVText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! (A.attributeName attr))) attrs
-    case attrNameSet == headerSet of
-      False -> Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
-      True -> do
-        tupleList <- mapM sequence $ V.toList (V.map makeTupleList strMapRecords)
-        case mkRelationFromList attrs tupleList of
-          Left err -> Left (AttributeMappingError err)
-          Right rel -> Right rel
+        makeTupleList tupMap = V.toList $ V.map (\attr -> either (Left . AttributeMappingError) Right $ makeAtomFromCSVText (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! A.attributeName attr)) attrs
+    if attrNameSet == headerSet then do
+      tupleList <- mapM sequence $ V.toList (V.map makeTupleList strMapRecords)
+      case mkRelationFromList attrs tupleList of
+        Left err -> Left (AttributeMappingError err)
+        Right rel -> Right rel
+      else
+      Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
 

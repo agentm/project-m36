@@ -10,7 +10,6 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (sort)
-import Control.Applicative (liftA)
 import ProjectM36.MiscUtils
 
 class RelationalMarkerExpr a where
@@ -30,7 +29,7 @@ attributeListP = do
 makeRelationP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 makeRelationP = do
   reserved "relation"
-  attrExprs <- try (liftA Just makeAttributeExprsP) <|> pure Nothing
+  attrExprs <- try (fmap Just makeAttributeExprsP) <|> pure Nothing
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs
 
@@ -55,7 +54,7 @@ tupleExprP = do
   attrAssocs <- braces (sepBy tupleAtomExprP comma)
   --detect duplicate attribute names
   let dupAttrNames = dupes (sort (map fst attrAssocs))
-  if length dupAttrNames /= 0 then                    
+  if not (null dupAttrNames) then                    
     fail ("Attribute names duplicated: " ++ show dupAttrNames)
     else
     pure (TupleExpr (M.fromList attrAssocs))
@@ -64,7 +63,7 @@ tupleAtomExprP :: RelationalMarkerExpr a => Parser (AttributeName, AtomExprBase 
 tupleAtomExprP = do
   attributeName <- identifier
   atomExpr <- atomExprP
-  pure $ (attributeName, atomExpr)
+  pure (attributeName, atomExpr)
   
 projectP :: Parser (RelationalExprBase a  -> RelationalExprBase a)
 projectP = do
@@ -76,7 +75,7 @@ renameClauseP = do
   oldAttr <- identifier
   reservedOp "as"
   newAttr <- identifier
-  pure $ (oldAttr, newAttr)
+  pure (oldAttr, newAttr)
 
 renameP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 renameP = do
@@ -84,7 +83,7 @@ renameP = do
   renameList <- braces (sepBy renameClauseP comma)
   case renameList of
     [] -> pure (Restrict TruePredicate) --no-op when rename list is empty
-    renames -> do
+    renames -> 
       pure $ \expr -> foldl (\acc (oldAttr, newAttr) -> Rename oldAttr newAttr acc) expr renames
 
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
@@ -95,7 +94,7 @@ groupClauseP = do
   attrs <- braces attributeListP
   reservedOp "as"
   newAttrName <- identifier
-  return $ (attrs, newAttrName)
+  pure (attrs, newAttrName)
 
 groupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 groupP = do
@@ -232,7 +231,7 @@ relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationalAtomExprP = RelationAtomExpr <$> relExprP
 
 stringAtomP :: Parser Atom
-stringAtomP = liftA TextAtom quotedString
+stringAtomP = TextAtom <$> quotedString
 
 doubleAtomP :: Parser Atom    
 doubleAtomP = DoubleAtom <$> float

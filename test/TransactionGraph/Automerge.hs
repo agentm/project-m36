@@ -10,6 +10,7 @@ import System.IO.Temp
 import System.FilePath
 import Control.Exception.Base
 
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 main :: IO ()           
 main = do 
   tcounts <- runTestTT testList
@@ -42,7 +43,7 @@ testAutomergeSuccess = TestCase $ do
   
   --validate that both tuples are now in the head transaction
   
-  let predi key = eqAttr key
+  let predi = eqAttr
       eqAttr key = AttributeEqualityPredicate "s#" (NakedAtomExpr (TextAtom key))
   result <- checkEither $ executeRelationalExpr sessionPastId conn (Project (AttributeNames S.empty) (Restrict (predi "S6") (RelationVariable "s" ())))
   assertEqual "new S6" relationTrue result

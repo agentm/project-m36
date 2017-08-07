@@ -1,5 +1,4 @@
 -- test the websocket server
-
 import Test.HUnit
 import qualified Network.WebSockets as WS
 import ProjectM36.Server.WebSocket
@@ -46,14 +45,14 @@ data TestException = WaitForSocketListenException
 instance Exception TestException                            
 
 waitForListenSocket :: Int -> PortNumber -> IO ()  
-waitForListenSocket secondsToTry port = do
+waitForListenSocket secondsToTry port = 
   if secondsToTry <= 0 then
     throw WaitForSocketListenException
     else do
     hostaddr <- inet_addr "127.0.0.1"
     sock <- socket AF_INET Stream defaultProtocol
     let handler :: IOException -> IO ()
-        handler = \_ -> do
+        handler _ = do
           threadDelay 1000000
           waitForListenSocket (secondsToTry - 1) port
     catch (connect sock (SockAddrInet port hostaddr)) handler
@@ -69,11 +68,11 @@ testList port dbName = TestList $ map (\f -> f port dbName) [testBasicConnection
                                                              testTutorialD]
                           
 basicConnection :: PortNumber -> WS.ClientApp () -> IO ()
-basicConnection port block = WS.runClient "127.0.0.1" (fromIntegral port) "/" block
+basicConnection port = WS.runClient "127.0.0.1" (fromIntegral port) "/"
 
 basicConnectionWithDatabase :: PortNumber -> DatabaseName -> WS.ClientApp () -> IO ()
 basicConnectionWithDatabase port dbname block = basicConnection port (\conn -> do
-                                                                WS.sendTextData conn ("connectdb:" `append` (pack dbname))
+                                                                WS.sendTextData conn ("connectdb:" `append` pack dbname)
                                                                 block conn)
     
 testBasicConnection :: PortNumber -> DatabaseName -> Test

@@ -18,5 +18,5 @@ dateTimeStringP :: Parser UTCTime
 dateTimeStringP = do
   dateTimeString <- quotedString
   case parseTimeM False defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack dateTimeString) of
-    Just utctime -> return $ (utctime :: UTCTime)
+    Just utctime -> pure (utctime :: UTCTime)
     Nothing -> fail $ "Failed to parse datetime from " ++ T.unpack dateTimeString

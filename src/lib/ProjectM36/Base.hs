@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,BangPatterns,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
@@ -106,7 +106,7 @@ attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
     attrsAsSet = HS.fromList . V.toList
     
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
-sortedAttributesIndices attrs = L.sortBy (\(_, (Attribute name1 _)) (_,(Attribute name2 _)) -> compare name1 name2) $ V.toList (V.indexed attrs)
+sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
 -- | The relation's tuple set is the body of the relation.
 newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
@@ -130,7 +130,7 @@ instance Hashable RelationTuple where
                                                    else
                                                      salt `hashWithSalt` 
                                                      sortedAttrs `hashWithSalt`
-                                                     (V.toList sortedTupVec)
+                                                     V.toList sortedTupVec
     where
       sortedAttrsIndices = sortedAttributesIndices attrs
       sortedAttrs = map snd sortedAttrsIndices
@@ -264,7 +264,7 @@ data Schemas = Schemas DatabaseContext Subschemas
 
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 -- I spent some time thinking about whether the VirtualDatabaseContext/Schema and DatabaseContext data constructors should be the same constructor, but that would allow relation variables to be created in a "virtual" context which would appear to defeat the isomorphisms of the contexts. It should be possible to switch to an alternative schema to view the same equivalent information without information loss. However, allowing all contexts to reference another context while maintaining its own relation variables, new types, etc. could be interesting from a security perspective. For example, if a user creates a new relvar in a virtual context, then does it necessarily appear in all linked contexts? After deliberation, I think the relvar should appear in *all* linked contexts to retain the isomorphic properties, even when the isomorphism is for a subset of the context. This hints that the IsoMorphs should allow for "fall-through"; that is, when a relvar is not defined in the virtual context (for morphing), then the lookup should fall through to the underlying context.
-data Schema = Schema SchemaIsomorphs
+newtype Schema = Schema SchemaIsomorphs
               deriving (Generic, Binary)
                               
 data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarName, RelVarName) | 
@@ -440,7 +440,7 @@ data AtomFunction = AtomFunction {
   } deriving (Generic, NFData)
                           
 instance Hashable AtomFunction where
-  hashWithSalt salt func = salt `hashWithSalt` (atomFuncName func)
+  hashWithSalt salt func = salt `hashWithSalt` atomFuncName func
                            
 instance Eq AtomFunction where                           
   f1 == f2 = atomFuncName f1 == atomFuncName f2 
@@ -449,7 +449,7 @@ instance Show AtomFunction where
   show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes ++ "; " ++ body
    where
      body = show (atomFuncBody aFunc)
-     showArgTypes = concat (L.intersperse "->" $ map show (atomFuncType aFunc))
+     showArgTypes = L.intercalate "->" (map show (atomFuncType aFunc))
      
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
 data AttributeNames = AttributeNames (S.Set AttributeName) |
@@ -472,7 +472,7 @@ data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructo
                          deriving (Eq, Show, Generic, Binary, NFData)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
-data TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
+newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Generic, NFData)
                           
 instance Binary TupleExpr                          
@@ -508,7 +508,7 @@ data DatabaseContextFunction = DatabaseContextFunction {
 type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
 
 instance Hashable DatabaseContextFunction where
-  hashWithSalt salt func = salt `hashWithSalt` (dbcFuncName func)
+  hashWithSalt salt func = salt `hashWithSalt` dbcFuncName func
                            
 instance Eq DatabaseContextFunction where                           
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 

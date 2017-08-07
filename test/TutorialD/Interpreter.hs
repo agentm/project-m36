@@ -44,7 +44,7 @@ main = do
                       ("x:=relation{a Int}{}", mkRelation simpleAAttributes emptyTupleSet),
                       ("x:=relation{c Int}{} rename {c as d}", mkRelation simpleBAttributes emptyTupleSet),
                       ("y:=relation{b Int, c Int}{}; x:=y{c}", mkRelation simpleProjectionAttributes emptyTupleSet),
-                      ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [(RelationTuple simpleCAttributes) (V.fromList [TextAtom "spam", IntAtom 5])]),
+                      ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntAtom 5])]),
                       ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc"),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
                       ("x:=relation{}{}", Right relationFalse),
@@ -87,7 +87,7 @@ main = do
                                    statusAtom <- atomForAttributeName "status" tuple
                                    cityAtom <- atomForAttributeName "city" tuple
                                    if cityAtom == TextAtom "Paris" then
-                                     Right $ updateTupleWithAtoms (M.singleton "status" (IntAtom ((castInt statusAtom) + 10))) tuple
+                                     Right $ updateTupleWithAtoms (M.singleton "status" (IntAtom (castInt statusAtom + 10))) tuple
                                      else Right tuple) suppliersRel
     dateExampleRelTests = [("x:=s where true", Right suppliersRel),
                            ("x:=s where city = \"London\"", restrict (\tuple -> pure $ atomForAttributeName "city" tuple == (Right $ TextAtom "London")) suppliersRel),
@@ -113,10 +113,10 @@ main = do
                            ("x:=s where ^sum(@status)", Left $ AtomTypeMismatchError IntAtomType BoolAtomType),
                            ("x:=s where ^not(gte(@status,20))", mkRelationFromList (attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntAtom 10, TextAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
-                           ("x:=s{all but s#} = s{city,sname,status}", Right $ relationTrue),
+                           ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
                            --test key syntax
                            ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint")),
-                           ("y:=s; key testconstraint {s#} y; insert y relation{tuple{city \"London\", s# \"S6\", sname \"gonk\", status 50}}; x:=y{s#} = s{s#} union relation{tuple{s# \"S6\"}}", Right $ relationTrue),
+                           ("y:=s; key testconstraint {s#} y; insert y relation{tuple{city \"London\", s# \"S6\", sname \"gonk\", status 50}}; x:=y{s#} = s{s#} union relation{tuple{s# \"S6\"}}", Right relationTrue),
                            --test binary bytestring data type
                            ("x:=relation{tuple{y makeByteString(\"dGVzdGRhdGE=\")}}", mkRelationFromList byteStringAttributes [[ByteStringAtom (TE.encodeUtf8 "testdata")]]),
                            --test Maybe Text
@@ -194,7 +194,7 @@ transactionJumpTest = TestCase $ do
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  mapM_ (\x -> x >>= eitherFail) [executeGraphExpr sessionId dbconn (Branch "test"),
+  mapM_ (>>= eitherFail) [executeGraphExpr sessionId dbconn (Branch "test"),
                                   executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ())),
                                   commit sessionId dbconn,
                                   executeGraphExpr sessionId dbconn (JumpToHead "master"),
@@ -244,7 +244,7 @@ inclusionDependencies _ = error "remote connection used"
 testNotification :: Test
 testNotification = TestCase $ do
   notifmvar <- newEmptyMVar
-  let notifCallback mvar = \_ _ -> putMVar mvar ()
+  let notifCallback mvar _ _ = putMVar mvar ()
       relvarx = RelationVariable "x" ()
   (sess, conn) <- dateExamplesConnection (notifCallback notifmvar)
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
@@ -381,9 +381,9 @@ testRelationalExprStateTupleElems = TestCase $ do
   --check subexpression evaluation in restriction predicate
   -- "rv1 where ((rv2 where val=@test) {})"
   let correctSubexpr = Restrict (AttributeEqualityPredicate "val" (AttributeAtomExpr "test")) (RelationVariable "rv2" ())
-      mainExpr subexpr = (Restrict 
-                          (RelationalExprPredicate
-                           (Project AN.empty subexpr)) (RelationVariable "rv1" ()))
+      mainExpr subexpr = Restrict 
+                         (RelationalExprPredicate
+                          (Project AN.empty subexpr)) (RelationVariable "rv1" ())
   eRv2 <- executeRelationalExpr sessionId dbconn (mainExpr correctSubexpr)
   let expectedRel2 = mkRelationFromList (attributesFromList [Attribute "test" IntAtomType]) [[IntAtom 1]]
   assertEqual "validate sub-expression attribute" expectedRel2 eRv2

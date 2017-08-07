@@ -39,21 +39,16 @@ isomorphs (Schema i) = i
 -- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
 --TODO: add relvar must appear exactly once constraint
 validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
-validateSchema potentialSchema baseContext = do
-  if not (S.null rvDiff) then
-    Just (RelVarReferencesMissing rvDiff)
-    else if not (null outDupes) then 
-           Just (RelVarOutReferencedMoreThanOnce (head outDupes))
-         else if not (null inDupes) then
-           Just (RelVarInReferencedMoreThanOnce (head inDupes))                
-         else
-           Nothing
+validateSchema potentialSchema baseContext | not (S.null rvDiff) = Just (RelVarReferencesMissing rvDiff)
+                                           | not (null outDupes) = Just (RelVarOutReferencedMoreThanOnce (head outDupes))
+                                           | not (null inDupes) = Just (RelVarInReferencedMoreThanOnce (head inDupes))                
+                                           | otherwise = Nothing
   where
     --check that the predicate for IsoUnion and IsoRestrict holds right now
     outDupes = duplicateNames (namesList isomorphOutRelVarNames)
     inDupes = duplicateNames (namesList isomorphInRelVarNames)
     duplicateNames = dupes . L.sort
-    namesList isoFunc = concat (map isoFunc (isomorphs potentialSchema))
+    namesList isoFunc = concatMap isoFunc (isomorphs potentialSchema)
     expectedRelVars = M.keysSet (relationVariables baseContext)
     schemaRelVars = isomorphsOutRelVarNames (isomorphs potentialSchema)
     rvDiff = S.difference expectedRelVars schemaRelVars
@@ -116,15 +111,15 @@ processDatabaseContextExprSchemaUpdate :: Schema -> DatabaseContextExpr -> Schem
 processDatabaseContextExprSchemaUpdate schema@(Schema morphs) expr = case expr of
   Define rv _ | S.notMember rv validSchemaName -> passthru rv
   Assign rv _ | S.notMember rv validSchemaName -> passthru rv
-  Undefine rv | S.member rv validSchemaName -> Schema (filter (\morph -> elem rv (isomorphInRelVarNames morph)) morphs)
-  MultipleExpr exprs -> foldr (\expr' schema' -> processDatabaseContextExprSchemaUpdate schema' expr') schema exprs
+  Undefine rv | S.member rv validSchemaName -> Schema (filter (elem rv . isomorphInRelVarNames) morphs)
+  MultipleExpr exprs -> foldr (flip processDatabaseContextExprSchemaUpdate) schema exprs
   _ -> schema
   where
     validSchemaName = isomorphsInRelVarNames morphs
     passthru rvname = Schema (morphs ++ [IsoRename rvname rvname])
     
 processDatabaseContextExprSchemasUpdate :: Subschemas -> DatabaseContextExpr -> Subschemas    
-processDatabaseContextExprSchemasUpdate subschemas expr = M.map (\schema -> processDatabaseContextExprSchemaUpdate schema expr) subschemas
+processDatabaseContextExprSchemasUpdate subschemas expr = M.map (`processDatabaseContextExprSchemaUpdate` expr) subschemas
   
 -- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema! 
 -- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.
@@ -318,7 +313,7 @@ createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
 evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
-evalSchemaExpr (AddSubschema sname morphs) context sschemas = do
+evalSchemaExpr (AddSubschema sname morphs) context sschemas =
   if M.member sname sschemas then
     Left (SubschemaNameInUseError sname)
     else case valid of

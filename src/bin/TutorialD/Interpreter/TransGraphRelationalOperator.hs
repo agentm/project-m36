@@ -16,8 +16,8 @@ import qualified Data.Text as T
 instance RelationalMarkerExpr TransactionIdLookup where
   parseMarkerP = string "@" *> transactionIdLookupP
     
-data TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelationalExpr
-                                  deriving Show
+newtype TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelationalExpr
+                                     deriving Show
 
 transactionIdLookupP :: Parser TransactionIdLookup
 transactionIdLookupP =  (TransactionIdLookup <$> uuidP) <|>

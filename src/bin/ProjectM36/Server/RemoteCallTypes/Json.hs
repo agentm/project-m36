@@ -10,7 +10,6 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 
-import Control.Monad
 import Data.Aeson
 import Data.UUID.Aeson ()
 import Data.ByteString.Base64 as B64
@@ -72,9 +71,8 @@ instance ToJSON Atom where
                                         "val" .= i ]
   toJSON atom@(TextAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
-  toJSON atom@(DayAtom i) = do
-    object [ "type" .= atomTypeForAtom atom,
-             "val" .= toGregorian i ]
+  toJSON atom@(DayAtom i) = object [ "type" .= atomTypeForAtom atom,
+                                     "val" .= toGregorian i ]
   toJSON atom@(DateTimeAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
   toJSON atom@(ByteStringAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -106,7 +104,7 @@ instance FromJSON Atom where
         pure (DayAtom (fromGregorian y m d))
       DateTimeAtomType -> DateTimeAtom <$> o .: "val"
       ByteStringAtomType -> do
-        b64bs <- liftM encodeUtf8 (o .: "val")
+        b64bs <- fmap encodeUtf8 (o .: "val")
         case B64.decode b64bs of
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)

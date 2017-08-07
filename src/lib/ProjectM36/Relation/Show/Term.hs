@@ -5,10 +5,11 @@ import ProjectM36.Atom
 import ProjectM36.AtomType
 import ProjectM36.Tuple
 import ProjectM36.Relation
-import ProjectM36.Attribute
+import ProjectM36.Attribute hiding (null)
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Vector as V
+import Control.Arrow hiding (left)
 
 boxV :: StringType
 boxV = "│"
@@ -60,10 +61,10 @@ cellLocations tab@(header, _) = (maxWidths, maxHeights)
   where
     cellSizeMatrix = cellSizes tab
     maxWidths = foldl mergeMax (baseSize (length header)) (map fst cellSizeMatrix)
-    baseSize num = take num (repeat 0)
+    baseSize num = replicate num 0
     rowHeights = map snd cellSizeMatrix
-    maxHeights = map (\l -> if length l == 0 then 0 else L.maximumBy compare l) rowHeights
-    mergeMax a b = map (\(c,d) -> max c d) (zip a b)
+    maxHeights = map (\l -> if null l then 0 else L.maximum l) rowHeights
+    mergeMax = zipWith max
 
 --the normal "lines" function returns an empty list for an empty string which is not what we want
 breakLines :: StringType -> [StringType]
@@ -71,14 +72,14 @@ breakLines "" = [""]
 breakLines x = T.lines x
 
 cellSizes :: Table -> [([Int], [Int])]
-cellSizes (header, body) = map (\row -> (map maxRowWidth row, map (length . breakLines) row)) allRows
+cellSizes (header, body) = map (map maxRowWidth &&& map (length . breakLines)) allRows
   where
-    maxRowWidth row = if length (lengths row) == 0 then
+    maxRowWidth row = if null (lengths row) then
                          0
                       else
-                        L.maximumBy compare (lengths row)
+                        L.maximum (lengths row)
     lengths row = map T.length (breakLines row)
-    allRows = [header] ++ body
+    allRows = header : body
     
 relationAsTable :: Relation -> Table
 relationAsTable rel@(Relation _ tupleSet) = (header, body)
@@ -101,7 +102,7 @@ showParens predicate f = if predicate then
 
 showAtom :: Int -> Atom -> StringType
 showAtom _ (RelationAtom rel) = renderTable $ relationAsTable rel
-showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && length atoms >= 1) $ T.concat (L.intersperse " " (dConsName : (map (showAtom 1) atoms)))
+showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && not (null atoms)) $ T.concat (L.intersperse " " (dConsName : map (showAtom 1) atoms))
 showAtom _ atom = atomToText atom
 
 renderTable :: Table -> StringType
@@ -112,13 +113,13 @@ renderTable table = renderHeader table (fst cellLocs) `T.append` renderBody (snd
 renderHeader :: Table -> [Int] -> StringType
 renderHeader (header, body) columnLocations = renderTopBar `T.append` renderHeaderNames `T.append` renderBottomBar
   where
-    renderTopBar = boxTL `T.append` T.concat (L.intersperse boxTB (map (\x -> repeatString x boxH) columnLocations)) `T.append` boxTR `T.append` "\n"
+    renderTopBar = boxTL `T.append` T.concat (L.intersperse boxTB (map (`repeatString` boxH) columnLocations)) `T.append` boxTR `T.append` "\n"
     renderHeaderNames = renderRow header columnLocations 1 boxV
-    renderBottomBar = if length body == 0 then ""
+    renderBottomBar = if null body then ""
                       else renderHBar boxLB boxC boxRB columnLocations `T.append` "\n"
 
 renderHBar :: StringType -> StringType -> StringType -> [Int] -> StringType
-renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (\x -> repeatString x boxH) columnLocations)) `T.append` end
+renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (`repeatString` boxH) columnLocations)) `T.append` end
 
 leftPaddedString :: Int -> Int -> StringType -> StringType
 leftPaddedString lineNum size str = if lineNum > length paddedLines -1 then
@@ -131,7 +132,7 @@ leftPaddedString lineNum size str = if lineNum > length paddedLines -1 then
 renderRow :: [Cell] -> [Int] -> Int -> StringType -> StringType
 renderRow cells columnLocations rowHeight interspersed = T.unlines $ map renderOneLine [0..rowHeight-1]
   where
-    renderOneLine lineNum = boxV `T.append` T.concat (L.intersperse interspersed (map (\(size, value) -> leftPaddedString lineNum size value) (zip columnLocations cells))) `T.append` boxV
+    renderOneLine lineNum = boxV `T.append` T.concat (L.intersperse interspersed (zipWith (leftPaddedString lineNum) columnLocations cells)) `T.append` boxV
 
 renderBody :: [[Cell]] -> ([Int],[Int]) -> StringType
 renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
@@ -149,7 +150,7 @@ orderedAttributeNames :: Relation -> [AttributeName]
 orderedAttributeNames rel = map attributeName (orderedAttributes rel)
 
 repeatString :: Int -> StringType -> StringType
-repeatString c s = T.concat (take c (repeat s))
+repeatString c s = T.concat (replicate c s)
 
 showRelation :: Relation -> StringType
 showRelation rel = renderTable (relationAsTable rel)

@@ -16,7 +16,7 @@ importTutorialD pathIn = do
   tutdData <- try (TIO.readFile pathIn) :: IO (Either IOError T.Text)
   case tutdData of 
     Left err -> return $ Left (ImportError $ T.pack (show err))
-    Right tutdData' -> do 
+    Right tutdData' ->
       case parse multipleDatabaseContextExprP "import" tutdData' of
         --parseErrorPretty is new in megaparsec 5
         Left err -> pure (Left (PM36E.ParseError (T.pack (show err))))

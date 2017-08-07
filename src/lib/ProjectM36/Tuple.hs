@@ -11,6 +11,8 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 import Data.Either (rights)
 import Control.Monad
+import Control.Arrow
+import Data.Maybe
 
 emptyTuple :: RelationTuple
 emptyTuple = RelationTuple V.empty V.empty
@@ -25,7 +27,7 @@ tupleAttributes :: RelationTuple -> Attributes
 tupleAttributes (RelationTuple tupAttrs _) = tupAttrs
 
 tupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
-tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (\(k,v) -> (attributeName k, v)) (V.zip attrVec tupVec)
+tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
 
 -- return atoms in some arbitrary but consistent key order
 tupleAtoms :: RelationTuple -> V.Vector Atom
@@ -56,10 +58,9 @@ vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNa
                                                    else
                                                      Right $ V.map mapper attrNameVec
   where
-    unknownAttrNames = V.filter ((flip V.notElem) (attributeNames attrs)) attrNameVec
-    mapper attrName = case V.elemIndex attrName (V.map attributeName attrs) of
-      Nothing -> error "logic failure in vectorIndicesForAttributeNames"
-      Just index -> index
+    unknownAttrNames = V.filter (`V.notElem` attributeNames attrs) attrNameVec
+    mapper attrName = fromMaybe (error "logic failure in vectorIndicesForAttributeNames") (V.elemIndex attrName (V.map attributeName attrs))
+
 
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
 relationForAttributeName attrName tuple = do
@@ -77,10 +78,10 @@ tupleRenameAttribute oldattr newattr (RelationTuple tupAttrs tupVec) = RelationT
     newAttrs = renameAttributes oldattr newattr tupAttrs
 
 mkRelationTuple :: Attributes -> V.Vector Atom -> RelationTuple
-mkRelationTuple attrs atoms = RelationTuple attrs atoms
+mkRelationTuple = RelationTuple 
 
 mkRelationTuples :: Attributes -> [V.Vector Atom] -> [RelationTuple]
-mkRelationTuples attrs atomsVec = map mapper atomsVec
+mkRelationTuples attrs = map mapper
   where
     mapper = mkRelationTuple attrs
     
@@ -92,7 +93,7 @@ mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (\attrName -> attrMa
 
 --return error if attribute names match but their types do not
 singleTupleSetJoin :: Attributes -> RelationTuple -> RelationTupleSet -> Either RelationalError [RelationTuple]
-singleTupleSetJoin joinAttrs tup tupSet = do
+singleTupleSetJoin joinAttrs tup tupSet = 
     foldM tupleJoiner [] (asList tupSet) 
   where
     tupleJoiner :: [RelationTuple] -> RelationTuple -> Either RelationalError [RelationTuple]
@@ -114,12 +115,12 @@ singleTupleJoin :: Attributes -> RelationTuple -> RelationTuple -> Either Relati
 singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = if
   V.null keysIntersection || atomsForAttributeNames keysIntersection tup1 /= atomsForAttributeNames keysIntersection tup2
   then
-    return $ Nothing
+    return Nothing
   else
     return $ Just $ RelationTuple joinedAttrs newVec
   where
     keysIntersection = V.map attributeName attrsIntersection
-    attrsIntersection = V.filter (flip V.elem $ tupAttrs1) tupAttrs2
+    attrsIntersection = V.filter (`V.elem` tupAttrs1) tupAttrs2
     newVec = V.map (findAtomForAttributeName . attributeName) joinedAttrs
     --search both tuples for the attribute
     findAtomForAttributeName attrName = head $ rights $ fmap (atomForAttributeName attrName) [tup1, tup2]
@@ -174,15 +175,15 @@ tupleIntersection tuple1 tuple2 = RelationTuple newAttrs newTupVec
     newTupVec = indexFilter (tupleAtoms tuple1)
 
 -- | An optimized form of tuple update which updates vectors efficiently.
-updateTupleWithAtoms :: (M.Map AttributeName Atom) -> RelationTuple -> RelationTuple
+updateTupleWithAtoms :: M.Map AttributeName Atom -> RelationTuple -> RelationTuple
 updateTupleWithAtoms updateMap (RelationTuple attrs tupVec) = RelationTuple attrs newVec
   where
     updateKeysSet = M.keysSet updateMap
     updateKeysIVec = V.filter (\(_,attr) -> S.member (attributeName attr) updateKeysSet) (V.indexed attrs)
     newVec = V.update tupVec updateVec
-    updateVec = V.map (\(index, attr) -> (index, updateMap M.! (attributeName attr))) updateKeysIVec
+    updateVec = V.map (\(index, attr) -> (index, updateMap M.! attributeName attr)) updateKeysIVec
 
-tupleToMap :: RelationTuple -> (M.Map AttributeName Atom)
+tupleToMap :: RelationTuple -> M.Map AttributeName Atom
 tupleToMap (RelationTuple attrs tupVec) = M.fromList assocList
   where
     assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed attrs)
@@ -201,7 +202,7 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
 reorderTuple :: Attributes -> RelationTuple -> RelationTuple
 reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
                              tupIn
-                           else do
+                           else
                              RelationTuple attrs (V.map mapper attrs)
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of

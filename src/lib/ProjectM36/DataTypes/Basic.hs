@@ -8,10 +8,10 @@ import ProjectM36.DataTypes.List
 import ProjectM36.Base
 
 basicTypeConstructorMapping :: TypeConstructorMapping
-basicTypeConstructorMapping = (primitiveTypeConstructorMapping ++ 
-                               maybeTypeConstructorMapping ++ 
-                               eitherTypeConstructorMapping ++ 
-                               listTypeConstructorMapping ++
-                               dayTypeConstructorMapping
-                              )
+basicTypeConstructorMapping = primitiveTypeConstructorMapping ++ 
+                              maybeTypeConstructorMapping ++ 
+                              eitherTypeConstructorMapping ++ 
+                              listTypeConstructorMapping ++
+                              dayTypeConstructorMapping
+                              
 
