@@ -200,7 +200,6 @@ Executable tutd
                    TutorialD.Interpreter.RODatabaseContextOperator,
                    TutorialD.Interpreter.TransactionGraphOperator,
                    TutorialD.Interpreter.DataTypes.Interval,
-                   TutorialD.Interpreter.DataTypes.DateTime,
                    TutorialD.Interpreter.Import.BasicExamples,
                    TutorialD.Interpreter.InformationOperator,
                    TutorialD.Interpreter.Export.Base,
