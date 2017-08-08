@@ -5,6 +5,7 @@ import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Base
 import ProjectM36.Base
 import ProjectM36.Error
+import Text.Megaparsec.Text
 import qualified Data.ByteString.Lazy as BS
 import Control.Exception (try)
 import qualified Data.Text as T

@@ -25,6 +25,7 @@ import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
 import Text.Megaparsec
+import Text.Megaparsec.Text
 import Control.Monad.State
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
@@ -32,7 +33,6 @@ import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
 import Data.Monoid
 import Control.Exception
-import Data.Void
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -76,11 +76,11 @@ promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
     transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
           
-parseTutorialD :: T.Text -> Either (ParseError Char Void) ParsedOperation
+parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 parseTutorialD inputString = parse interpreterParserP "" inputString
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: T.Text -> Either (ParseError Char Void) ParsedOperation
+safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
 safeParseTutorialD inputString = parse safeInterpreterParserP "" inputString
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)

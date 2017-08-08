@@ -3,6 +3,7 @@ import ProjectM36.Base
 import TutorialD.Interpreter.Import.Base
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.DatabaseContextExpr
+import Text.Megaparsec.Text
 import Text.Megaparsec hiding (try)
 import ProjectM36.Error
 import qualified ProjectM36.Error as PM36E

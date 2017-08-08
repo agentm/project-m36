@@ -1,6 +1,6 @@
 module TutorialD.Interpreter.DatabaseContextExpr where
 import Text.Megaparsec
-import Text.Megaparsec.Char
+import Text.Megaparsec.Text
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
