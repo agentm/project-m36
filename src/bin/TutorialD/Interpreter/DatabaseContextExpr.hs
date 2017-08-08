@@ -91,7 +91,7 @@ updateP = do
   reservedOp "update"
   relVarName <- identifier
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaceConsumer)
-  attributeAssignments <- liftM M.fromList $ parens (sepBy attributeAssignmentP comma)
+  attributeAssignments <- M.fromList <$> parens (sepBy attributeAssignmentP comma)
   return $ Update relVarName attributeAssignments predicate
 
 data IncDepOp = SubsetOp | EqualityOp
@@ -146,7 +146,7 @@ attributeAssignmentP = do
   attrName <- identifier
   reservedOp ":="
   atomExpr <- atomExprP
-  pure $ (attrName, atomExpr)
+  pure (attrName, atomExpr)
   
 addNotificationP :: Parser DatabaseContextExpr
 addNotificationP = do

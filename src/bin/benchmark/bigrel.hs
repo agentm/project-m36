@@ -26,7 +26,7 @@ import Data.Monoid
 
 dumpcsv :: Relation -> IO ()
 dumpcsv rel = case relationAsCSV rel of
-  Left err -> hPutStrLn stderr (show err)
+  Left err -> hPrint stderr err
   Right bsData -> BS.putStrLn bsData
 
 data BigrelArgs = BigrelArgs Int Int Text
@@ -52,9 +52,9 @@ main = do
     --intmapMatrixRun
 
 matrixRun :: BigrelArgs -> IO ()
-matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
+matrixRun (BigrelArgs attributeCount tupleCount tutd) =
   case matrixRelation attributeCount tupleCount of
-    Left err -> putStrLn (show err)
+    Left err -> print err
     Right rel -> if tutd == "" then
                    putStrLn "Done."
                  else do
@@ -64,14 +64,14 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) = do
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
                    case interpreted of
-                     Right context' -> TIO.putStrLn $ relationAsHTML ((relationVariables context') M.! "x")
-                     Left err -> hPutStrLn stderr (show err)
+                     Right context' -> TIO.putStrLn $ relationAsHTML (relationVariables context' M.! "x")
+                     Left err -> hPrint stderr err
 
 
 intmapMatrixRun :: IO ()
 intmapMatrixRun = do
   let matrix = intmapMatrixRelation 100 100000
-  putStrLn (show matrix)
+  print matrix
 
 --compare IntMap speed and size
 --this is about 3 times faster (9 minutes) for 10x100000 and uses 800 MB
@@ -86,7 +86,7 @@ instance Hash.Hashable (IM.IntMap Atom) where
 vectorMatrixRun :: IO ()
 vectorMatrixRun = do
   let matrix = vectorMatrixRelation 100 100000
-  putStrLn (show matrix)
+  print matrix
 
 -- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
 --with IntAtom wrapper: 1m12s 90 MB
@@ -104,6 +104,6 @@ matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) IntAtomType) [0 .. attributeCount-1]
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
-      tuples = map (\c -> tuple c) [0 .. tupleCount]
+      tuples = map tuple [0 .. tupleCount]
   mkRelationDeferVerify attrs (RelationTupleSet tuples)
 

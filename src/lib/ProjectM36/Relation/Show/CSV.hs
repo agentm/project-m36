@@ -13,12 +13,15 @@ import ProjectM36.Atom
 
 --spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
 relationAsCSV :: Relation -> Either RelationalError BS.ByteString
-relationAsCSV (Relation attrs tupleSet) = if relValAttrs /= [] then --check for relvalued attributes
-                                            Left $ RelationValuedAttributesNotSupportedError (map attributeName relValAttrs)
-                                            else if V.length attrs == 0 then --check that there is at least one attribute
-                                                   Left $ TupleAttributeCountMismatchError 0
-                                                 else
-                                                   Right $ encodeByName bsAttrNames $ map RecordRelationTuple (asList tupleSet)
+relationAsCSV (Relation attrs tupleSet)  
+ --check for relvalued attributes
+  | relValAttrs /= [] = 
+    Left $ RelationValuedAttributesNotSupportedError (map attributeName relValAttrs)
+ --check that there is at least one attribute    
+  | V.null attrs =
+      Left $ TupleAttributeCountMismatchError 0
+  | otherwise = 
+    Right $ encodeByName bsAttrNames $ map RecordRelationTuple (asList tupleSet)
   where
     relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) attrs
     bsAttrNames = V.map (TE.encodeUtf8 . attributeName) attrs
@@ -31,7 +34,7 @@ instance ToRecord RelationTuple where
 newtype RecordRelationTuple = RecordRelationTuple {unTuple :: RelationTuple}
 
 instance ToNamedRecord RecordRelationTuple where  
-  toNamedRecord rTuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= (RecordAtom v)) (tupleAssocs $ unTuple rTuple)
+  toNamedRecord rTuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= RecordAtom v) (tupleAssocs $ unTuple rTuple)
   
 instance DefaultOrdered RecordRelationTuple where  
   headerOrder (RecordRelationTuple tuple) = V.map (TE.encodeUtf8 . attributeName) (tupleAttributes tuple)

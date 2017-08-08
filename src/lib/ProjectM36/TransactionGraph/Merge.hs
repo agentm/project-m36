@@ -19,11 +19,11 @@ unionMergeMaps prefer mapA mapB = case prefer of
   PreferNeither -> if M.intersection mapA mapB == M.intersection mapA mapB then
                      pure $ M.union mapA mapB
                    else
-                     Left $ StrategyViolatesComponentMergeError
+                     Left StrategyViolatesComponentMergeError
                      
 -- perform the merge even if the attributes are different- is this what we want? Obviously, we need finer-grained merge options.
 unionMergeRelation :: MergePreference -> Relation -> Relation -> Either MergeError Relation
-unionMergeRelation prefer relA relB = case union relA relB of
+unionMergeRelation prefer relA relB = case relA `union` relB of
     Right unionRel -> pure unionRel
     Left (AttributeNamesMismatchError _) -> preferredRelVar
     Left _ -> Left StrategyViolatesRelationVariableMergeError
@@ -43,7 +43,7 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> do
+                (Just relA, Just relB) -> 
                   unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 
@@ -65,7 +65,7 @@ unionMergeTypeConstructorMapping prefer typesA typesB = do
   foldM (\acc name -> do
             let findType tcm = case filter (\(t,_) -> TCD.name t == name) tcm of
                   [] -> Nothing
-                  x:[] -> Just x
+                  [x] -> Just x
                   _ -> error "multiple names matching in TypeConstructorMapping"
                 lookupA = findType typesA
                 lookupB = findType typesB

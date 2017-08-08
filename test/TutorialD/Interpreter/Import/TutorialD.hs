@@ -12,7 +12,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testTutdImport :: Test
-testTutdImport = TestCase $ do
+testTutdImport = TestCase $ 
   withSystemTempFile "m.tutd" $ \tempPath handle -> do
     hPutStrLn handle "x:=relation{tuple{a 5,b \"spam\"}}"
     hClose handle

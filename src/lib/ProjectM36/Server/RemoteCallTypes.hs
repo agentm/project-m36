@@ -9,6 +9,7 @@ import GHC.Generics
 import Data.Binary
 import Control.Distributed.Process (ProcessId)
 
+{-# ANN module ("HLint: ignore Use newtype instead of data" :: String) #-}
 -- | The initial login message. The argument should be the process id of the initiating client. This ProcessId will receive notification callbacks.
 data Login = Login ProcessId
            deriving (Binary, Generic)

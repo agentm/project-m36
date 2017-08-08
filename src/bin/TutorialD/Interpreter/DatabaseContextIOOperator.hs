@@ -6,26 +6,25 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import Text.Megaparsec
 import Text.Megaparsec.Text
+import Data.Text
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
-addAtomFunctionExprP = do
-  reserved "addatomfunction"
+addAtomFunctionExprP = dbioexprP "addatomfunction" AddAtomFunction
+  
+addDatabaseContextFunctionExprP :: Parser DatabaseContextIOExpr
+addDatabaseContextFunctionExprP = dbioexprP "adddatabasecontextfunction" AddDatabaseContextFunction
+  
+dbioexprP :: String -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
+dbioexprP res adt = do
+  reserved res
   funcName <- quotedString
   funcType <- atomTypeSignatureP
   funcScript <- quotedString
-  pure $ AddAtomFunction funcName funcType funcScript
+  pure $ adt funcName funcType funcScript
 
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
 
-addDatabaseContextFunctionExprP :: Parser DatabaseContextIOExpr
-addDatabaseContextFunctionExprP = do
-  reserved "adddatabasecontextfunction"
-  funcName <- quotedString
-  funcType <- atomTypeSignatureP
-  funcScript <- quotedString
-  pure $ AddDatabaseContextFunction funcName funcType funcScript
-  
 dbContextIOExprP :: Parser DatabaseContextIOExpr
 dbContextIOExprP = addAtomFunctionExprP <|> addDatabaseContextFunctionExprP
   

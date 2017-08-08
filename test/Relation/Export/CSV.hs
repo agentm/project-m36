@@ -22,11 +22,11 @@ testCSVExport = TestCase $ do
         [TextAtom "S9", TextAtom "Perry", IntAtom 170, TextAtom "Londonderry"],
         [TextAtom "S8", TextAtom "Mike", IntAtom 150, TextAtom "Boston"]]
   case relOrErr of 
-    Left err -> assertFailure $ "export relation creation failure: " ++ (show err)
-    Right rel -> do
+    Left err -> assertFailure $ "export relation creation failure: " ++ show err
+    Right rel -> 
       case relationAsCSV rel of
-        Left err -> assertFailure $ "export failed: " ++ (show err)
+        Left err -> assertFailure $ "export failed: " ++ show err
         Right csvData -> case csvAsRelation csvData attrs of -- import csv data back to relation
-          Left err -> assertFailure $ "re-import failed: " ++ (show err)
+          Left err -> assertFailure $ "re-import failed: " ++ show err
           Right rel' -> assertEqual "relation CSV comparison" rel rel'
 

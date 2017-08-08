@@ -28,15 +28,16 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
   relType <- typeForRelationalExpr expr
   case relType of
     Left err -> return $ Left err
-    Right relType2 -> if AS.all == attrNameSet then
-                        applyStaticRelationalOptimization expr
-                      else if AttributeNames (attributeNames relType2) == attrNameSet then
-                       applyStaticRelationalOptimization expr
-                       else do
-                         optimizedSubExpression <- applyStaticRelationalOptimization expr 
-                         case optimizedSubExpression of
-                           Left err -> return $ Left err
-                           Right optSubExpr -> return $ Right $ Project attrNameSet optSubExpr
+    Right relType2 
+      | AS.all == attrNameSet ->                
+        applyStaticRelationalOptimization expr
+      | AttributeNames (attributeNames relType2) == attrNameSet ->
+        applyStaticRelationalOptimization expr
+      | otherwise -> do
+        optimizedSubExpression <- applyStaticRelationalOptimization expr 
+        case optimizedSubExpression of
+          Left err -> pure $ Left err
+          Right optSubExpr -> pure $ Right $ Project attrNameSet optSubExpr
                            
 applyStaticRelationalOptimization (Union exprA exprB) = do
   optExprA <- applyStaticRelationalOptimization exprA
@@ -77,12 +78,12 @@ applyStaticRelationalOptimization (Difference exprA exprB) = do
                          else
                            return $ Right (Difference optExprA2 optExprB2)
                            
-applyStaticRelationalOptimization e@(Rename _ _ _) = return $ Right e
+applyStaticRelationalOptimization e@Rename{} = return $ Right e
 
-applyStaticRelationalOptimization (Group oldAttrNames newAttrName expr) = do 
+applyStaticRelationalOptimization (Group oldAttrNames newAttrName expr) =
   return $ Right $ Group oldAttrNames newAttrName expr
   
-applyStaticRelationalOptimization (Ungroup attrName expr) = do 
+applyStaticRelationalOptimization (Ungroup attrName expr) =
   return $ Right $ Ungroup attrName expr
   
 --remove restriction of nothing
@@ -90,18 +91,18 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
   optimizedPredicate <- applyStaticPredicateOptimization predicate
   case optimizedPredicate of
     Left err -> return $ Left err
-    Right optimizedPredicate2 -> if optimizedPredicate2 == TruePredicate then
-                                  applyStaticRelationalOptimization expr
-                                  else if optimizedPredicate2 == NotPredicate TruePredicate then do
-                                    attributesRel <- typeForRelationalExpr expr
-                                    case attributesRel of 
-                                      Left err -> return $ Left err
-                                      Right attributesRelA -> return $ Right $ MakeStaticRelation (attributes attributesRelA) emptyTupleSet
-                                      else do
-                                      optimizedSubExpression <- applyStaticRelationalOptimization expr
-                                      case optimizedSubExpression of
-                                        Left err -> return $ Left err
-                                        Right optSubExpr -> return $ Right $ Restrict optimizedPredicate2 optSubExpr
+    Right optimizedPredicate2 
+      | optimizedPredicate2 == TruePredicate -> applyStaticRelationalOptimization expr
+      | optimizedPredicate2 == NotPredicate TruePredicate -> do
+        attributesRel <- typeForRelationalExpr expr
+        case attributesRel of 
+          Left err -> return $ Left err
+          Right attributesRelA -> return $ Right $ MakeStaticRelation (attributes attributesRelA) emptyTupleSet
+      | otherwise -> do
+        optimizedSubExpression <- applyStaticRelationalOptimization expr
+        case optimizedSubExpression of
+          Left err -> return $ Left err
+          Right optSubExpr -> return $ Right $ Restrict optimizedPredicate2 optSubExpr
   
 applyStaticRelationalOptimization e@(Equals _ _) = return $ Right e 
 
@@ -172,9 +173,9 @@ applyStaticDatabaseOptimization c@(ExecuteDatabaseContextFunction _ _) = pure (R
 --for multiple expressions, we must evaluate
 applyStaticDatabaseOptimization (MultipleExpr exprs) = do
   context <- getStateContext
-  let optExprs = evalState substateRunner ((contextWithEmptyTupleSets context), M.empty, False)
+  let optExprs = evalState substateRunner (contextWithEmptyTupleSets context, M.empty, False)
   let errors = lefts optExprs
-  if length errors > 0 then
+  if not (null errors) then
     return $ Left (head errors)
     else
       return $ Right $ MultipleExpr (rights optExprs)

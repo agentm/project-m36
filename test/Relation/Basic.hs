@@ -50,7 +50,7 @@ validateAttrNamesMatchTupleAttrNames rel@(Relation _ tupSet)
     
 validateAttrTypesMatchTupleAttrTypes :: Relation -> Either RelationalError Relation
 validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple acc -> 
-                                                                              if (tupleAttributes tuple) == attrs && tupleAtomCheck tuple then 
+                                                                              if tupleAttributes tuple == attrs && tupleAtomCheck tuple then 
                                                                                 acc 
                                                                               else
                                                                                 Left $ TupleAttributeTypeMismatchError A.emptyAttributes

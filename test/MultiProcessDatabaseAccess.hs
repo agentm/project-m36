@@ -23,7 +23,7 @@ testList :: Test
 testList = TestList [testMultipleProcessAccess]
 
 testMultipleProcessAccess :: Test
-testMultipleProcessAccess = TestCase $ do
+testMultipleProcessAccess = TestCase $ 
   withSystemTempDirectory "pm36" $ \tmpdir -> do
     let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
         master = "master"

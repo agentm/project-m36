@@ -42,11 +42,12 @@ extractAtomFunctionType typeIn = do
       --expected atom ret value - used to make funcType
       lastArg = take 1 (reverse typeIn)
   case lastArg of
-    (ADTypeConstructor "Either" 
-      ((ADTypeConstructor "AtomFunctionError" []):
-      atomRetArg:[])):[] -> do
+    [ADTypeConstructor "Either" 
+     [ADTypeConstructor "AtomFunctionError" [],
+      atomRetArg]] ->
       pure (atomArgs ++ [atomRetArg])
-    otherType -> Left (ScriptError (TypeCheckCompilationError "function returning \"Either AtomFunctionError a\"" (show otherType)))
+    otherType -> 
+      Left (ScriptError (TypeCheckCompilationError "function returning \"Either AtomFunctionError a\"" (show otherType)))
     
 isScriptedAtomFunction :: AtomFunction -> Bool    
 isScriptedAtomFunction func = case atomFuncBody func of
@@ -59,8 +60,8 @@ atomFunctionScript func = case atomFuncBody func of
   
 -- | Create a 'DatabaseContextIOExpr' which can be used to load a new atom function written in Haskell and loaded at runtime.
 createScriptedAtomFunction :: AtomFunctionName -> [TypeConstructor] -> TypeConstructor -> AtomFunctionBodyScript -> DatabaseContextIOExpr
-createScriptedAtomFunction funcName argsType retType script = AddAtomFunction funcName (
+createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName (
   argsType ++ [ADTypeConstructor "Either" [
                 ADTypeConstructor "AtomFunctionError" [],                     
-                retType]]) script
+                retType]])
                                                      

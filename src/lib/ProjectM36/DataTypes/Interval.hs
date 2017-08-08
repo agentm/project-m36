@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.DataTypes.Interval where
 import Data.Interval
@@ -32,6 +31,5 @@ intervalFunctions = [AtomFunction { atomFuncName = "interval_dt_member",
                                     atomFuncType = [dateTimeAtomType,
                                                     atomTypeForProxy (Proxy :: Proxy (Interval UTCTime)), 
                                                     boolAtomType],
-                                    atomFunc = (\(dt:dtinterval:_) -> Atom $ member ((unsafeCast dt)::UTCTime) ((unsafeCast dtinterval)::(Interval UTCTime)))}
-  
+                                    atomFunc = \(dt:dtinterval:_) -> Atom $ member (unsafeCast dt ::UTCTime) (unsafeCast dtinterval :: Interval UTCTime)}
   ]

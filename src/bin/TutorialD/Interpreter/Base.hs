@@ -64,7 +64,7 @@ identifier = do
   pure (pack (istart:irest))
 
 symbol :: String -> Parser Text
-symbol sym = pack <$> Lex.symbol spaceConsumer sym 
+symbol sym = pack <$> Lex.symbol spaceConsumer sym
 
 comma :: Parser Text
 comma = symbol ","
@@ -98,6 +98,10 @@ float = Lex.float
 capitalizedIdentifier :: Parser Text
 capitalizedIdentifier = do
   fletter <- upperChar
+  restOfIdentifier_ fletter
+  
+restOfIdentifier_ :: Char -> Parser Text  
+restOfIdentifier_ fletter = do
   rest <- option "" identifier 
   spaceConsumer
   pure (T.cons fletter rest)
@@ -105,9 +109,7 @@ capitalizedIdentifier = do
 uncapitalizedIdentifier :: Parser Text
 uncapitalizedIdentifier = do
   fletter <- lowerChar
-  rest <- option "" identifier
-  spaceConsumer
-  pure (T.cons fletter rest)
+  restOfIdentifier_ fletter  
 
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"

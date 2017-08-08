@@ -25,7 +25,7 @@ failFastMaybe :: (Show a) => Maybe a -> IO ()
 failFastMaybe (Just err) = error (show err)
 failFastMaybe Nothing = return ()
 
-failFastEither :: (Show a) => Either a b -> IO (b)
+failFastEither :: Show a => Either a b -> IO b
 failFastEither (Left err) = error (show err)
 failFastEither (Right val) = return val
 
@@ -53,11 +53,11 @@ runExample = do
     Nothing -> error "not a singleton relation!"
     Just tuple -> do
       (Atom age_value_out) <- failFastEither $ atomForAttributeName "age" tuple
-      putStrLn (show age_value_in)
-      putStrLn (show age_value_out)
+      print age_value_in
+      print age_value_out
       case cast age_value_out of
         Nothing -> error "wrong datatype"
-        Just age_value_out' -> do
-          putStrLn (show (age_value_in == age_value_out'))
+        Just age_value_out' -> 
+          print (age_value_in == age_value_out')
       
             

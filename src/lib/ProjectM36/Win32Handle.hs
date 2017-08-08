@@ -41,7 +41,7 @@ withHandleToHANDLE haskell_handle action =
         
         -- Get the FD from the algebraic data type
 #if __GLASGOW_HASKELL__ < 612
-        fd <- fmap haFD $ readMVar write_handle_mvar
+        fd <- haFD <$> readMVar write_handle_mvar
 #else
         --readMVar write_handle_mvar >>= \(Handle__ { haDevice = dev }) -> print (typeOf dev)
         Just fd <- fmap (\(Handle__ { haDevice = dev }) -> fmap fdFD (cast dev)) $ readMVar write_handle_mvar

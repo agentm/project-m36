@@ -9,30 +9,30 @@ main = do
   -- 2. conncted to the remote database
   eConn <- connectProjectM36 connInfo
   case eConn of
-    Left err -> putStrLn (show err)
+    Left err -> print err
     Right conn -> do
       --3. create a session on the "master" branch
       eSessionId <- createSessionAtHead conn "master"
       case eSessionId of
-        Left err -> putStrLn (show err)
+        Left err -> print err
         Right sessionId -> do
           --4. define a new relation variable with a DatabaseContext expression
           let attrList = [Attribute "name" TextAtomType,
                           Attribute "age" IntAtomType]
               attrs = attributesFromList attrList
           mErr1 <- executeDatabaseContextExpr sessionId conn (Define "person" (map NakedAttributeExpr attrList))
-          putStrLn (show mErr1)
+          print mErr1
           --5. add a tuple to the relation referenced by the relation variable
           let (Right tupSet) = mkTupleSetFromList attrs [[TextAtom "Bob", IntAtom 45]]
           mErr2 <- executeDatabaseContextExpr sessionId conn (Insert "person" (MakeStaticRelation attrs tupSet))
-          putStrLn (show mErr2)
+          print mErr2
       
           --6. execute a relational algebra query
           let restrictionPredicate = AttributeEqualityPredicate "name" (NakedAtomExpr (TextAtom "Steve"))
           eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person" ()))
           case eRel of
-            Left err -> putStrLn (show err)
-            Right rel -> putStrLn (show $ showRelation rel)
+            Left err -> print err
+            Right rel -> print (showRelation rel)
       
           --7. close the connection
           close conn

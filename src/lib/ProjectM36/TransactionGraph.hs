@@ -19,6 +19,8 @@ import Data.Binary
 import ProjectM36.TransactionGraph.Merge
 import Data.Either (lefts, rights, isRight)
 import Data.Monoid
+import Control.Arrow
+import Data.Maybe
 
 {-
 import Debug.Trace
@@ -69,7 +71,7 @@ transactionForHead :: HeadName -> TransactionGraph -> Maybe Transaction
 transactionForHead headName graph = M.lookup headName (transactionHeadsForGraph graph)
 
 headList :: TransactionGraph -> [(HeadName, TransactionId)]
-headList graph = map (\(k,v) -> (k, transactionId v)) (M.assocs (transactionHeadsForGraph graph))
+headList graph = map (second transactionId) (M.assocs (transactionHeadsForGraph graph))
 
 headNameForTransaction :: Transaction -> TransactionGraph -> Maybe HeadName
 headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchingTrans then
@@ -80,23 +82,24 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
     matchingTrans = M.filter (transaction ==) heads
 
 transactionForId :: TransactionId -> TransactionGraph -> Either RelationalError Transaction
-transactionForId tid graph = if tid == U.nil then
-                                  Left RootTransactionTraversalError
-                                else if S.null matchingTrans then
-                                  Left $ NoSuchTransactionError tid
-                                else
-                                  Right $ head (S.toList matchingTrans)
+transactionForId tid graph 
+  | tid == U.nil =
+    Left RootTransactionTraversalError
+  | S.null matchingTrans =
+    Left $ NoSuchTransactionError tid
+  | otherwise =
+    Right $ head (S.toList matchingTrans)
   where
     matchingTrans = S.filter (\(Transaction idMatch _ _) -> idMatch == tid) (transactionsForGraph graph)
 
 transactionsForIds :: S.Set TransactionId -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 transactionsForIds idSet graph = do
-  transList <- forM (S.toList idSet) ((flip transactionForId) graph)
+  transList <- forM (S.toList idSet) (`transactionForId` graph)
   return (S.fromList transList)
 
 isRootTransaction :: Transaction -> TransactionGraph -> Bool
 isRootTransaction (Transaction _ (TransactionInfo pId _) _) _ = U.null pId
-isRootTransaction (Transaction _ (MergeTransactionInfo _ _ _) _) _  = False
+isRootTransaction (Transaction _ MergeTransactionInfo{} _) _  = False
 
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
@@ -121,7 +124,7 @@ addBranch newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction newId headName (DisconnectedTransaction parentId schemas' _) graph = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId S.empty) schemas') graph
+addDisconnectedTransaction newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId S.empty) schemas')
 
 
 addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
@@ -129,7 +132,7 @@ addTransactionToGraph headName newTrans graph = do
   let parentIds = transactionParentIds newTrans
       childIds = transactionChildIds newTrans
       newId = transactionId newTrans
-      validateIds ids = mapM (\i -> transactionForId i graph) (S.toList ids)
+      validateIds ids = mapM (`transactionForId` graph) (S.toList ids)
       addChildTransaction trans = transactionSetChildren trans (S.insert newId (transactionChildIds trans))
   --validate that the parent transactions are in the graph
   _ <- validateIds parentIds
@@ -139,15 +142,15 @@ addTransactionToGraph headName newTrans graph = do
     Nothing -> pure () -- any headName is OK 
     Just trans -> when (S.notMember (transactionId trans) parentIds) (Left (HeadNameSwitchingHeadProhibitedError headName))
   --validate that the transaction has no children
-  when (not (S.null childIds)) (Left $ NewTransactionMayNotHaveChildrenError newId)
+  unless (S.null childIds) (Left $ NewTransactionMayNotHaveChildrenError newId)
   --validate that the trasaction's id is unique
   when (isRight (transactionForId newId graph)) (Left (TransactionIdInUseError newId))
   --update the parent transactions to point to the new transaction
-  parents <- mapM (\tid -> transactionForId tid graph) (S.toList parentIds)
+  parents <- mapM (`transactionForId` graph) (S.toList parentIds)
   let updatedParents = S.map addChildTransaction (S.fromList parents)
       updatedTransSet = S.insert newTrans (S.union updatedParents (transactionsForGraph graph))
       updatedHeads = M.insert headName newTrans (transactionHeadsForGraph graph)
-  pure (newTrans, (TransactionGraph updatedHeads updatedTransSet))
+  pure (newTrans, TransactionGraph updatedHeads updatedTransSet)
 
 validateGraph :: TransactionGraph -> Maybe [RelationalError]
 validateGraph graph@(TransactionGraph _ transSet) = do
@@ -276,14 +279,12 @@ graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _
       Right parentTransRel -> Right [TextAtom $ T.pack $ show (transactionId transaction),
                                      RelationAtom parentTransRel,
                                      BoolAtom $ parentId == transactionId transaction,
-                                     TextAtom $ case headNameForTransaction transaction graph of
-                                       Just headName -> headName
-                                       Nothing -> ""
+                                     TextAtom $ fromMaybe "" (headNameForTransaction transaction graph)
                                       ]
 
 transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
-transactionParentsRelation trans graph = do
-  if isRootTransaction trans graph then do
+transactionParentsRelation trans graph = 
+  if isRootTransaction trans graph then    
     mkRelation attrs emptyTupleSet
     else do
       parentTransSet <- parentTransactions trans graph
@@ -315,7 +316,7 @@ createMergeTransaction newId strat@(UnionPreferMergeStrategy _) graph t2 = creat
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
 validateHeadName :: HeadName -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
-validateHeadName headName graph (t1, t2) = do
+validateHeadName headName graph (t1, t2) =
   case transactionForHead headName graph of
     Nothing -> Left SelectedHeadMismatchMergeError
     Just trans -> if trans /= t1 && trans /= t2 then 
@@ -332,21 +333,21 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
     Right (TransactionGraph resultHeads traverseSet) -- add filter
     --catch root transaction to improve error?
     else do
-    currentTransChildren <- liftM S.fromList $ mapM (flip transactionForId origGraph) (S.toList (transactionChildIds currentTrans))            
+    currentTransChildren <- S.fromList <$> mapM (`transactionForId` origGraph) (S.toList (transactionChildIds currentTrans))            
     let searchChildren = S.difference (S.insert currentTrans traverseSet) currentTransChildren
         searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans traverseSet)
         childSearches = map searchChild (S.toList searchChildren)
         errors = lefts childSearches
         pathsFound = rights childSearches
-        realErrors = filter (/= (FailedToFindTransactionError goalid)) errors
+        realErrors = filter (/= FailedToFindTransactionError goalid) errors
     -- report any non-search-related errors        
-    when (not (null realErrors)) (Left (head realErrors))
+    unless (null realErrors) (Left (head realErrors))
     -- if no paths found, search the parent
     if null pathsFound then
       case oneParent currentTrans of
         Left RootTransactionTraversalError -> Left (NoCommonTransactionAncestorError currentid goalid)
         Left err -> Left err
-        Right currentTransParent -> do      
+        Right currentTransParent ->
           subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans traverseSet)
       else -- we found a path
       Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
@@ -358,19 +359,19 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
 pathToTransaction :: TransactionGraph -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError (S.Set Transaction)
 pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
   let targetId = transactionId targetTransaction
-  if transactionId targetTransaction == transactionId currentTransaction then do
+  if transactionId targetTransaction == transactionId currentTransaction then
     Right accumTransSet
     else do
-    currentTransChildren <- mapM (flip transactionForId graph) (S.toList (transactionChildIds currentTransaction))        
-    if length currentTransChildren == 0 then
+    currentTransChildren <- mapM (`transactionForId` graph) (S.toList (transactionChildIds currentTransaction))        
+    if null currentTransChildren then
       Left (FailedToFindTransactionError targetId)
       else do
       let searches = map (\t -> pathToTransaction graph t targetTransaction (S.insert t accumTransSet)) currentTransChildren
       let realErrors = filter (/= FailedToFindTransactionError targetId) (lefts searches)
           paths = rights searches
-      if length realErrors > 0 then -- found some real errors
+      if not (null realErrors) then -- found some real errors
         Left (head realErrors)
-      else if length paths == 0 then -- failed to find transaction in all children
+      else if null paths then -- failed to find transaction in all children
              Left (FailedToFindTransactionError targetId)
            else --we have some paths!
              Right (S.unions paths)
@@ -429,7 +430,7 @@ createUnionMergeTransaction newId strategy graph (t1,t2) = do
   
   preference <- case strategy of 
     UnionMergeStrategy -> pure PreferNeither
-    UnionPreferMergeStrategy preferBranch -> do
+    UnionPreferMergeStrategy preferBranch ->
       case transactionForHead preferBranch graph of
         Nothing -> Left (PreferredHeadMissingMergeError preferBranch)
         Just preferredTrans -> pure $ if t1 == preferredTrans then PreferFirst else PreferSecond
@@ -462,7 +463,7 @@ lookupTransaction graph (TransactionIdHeadNameLookup headName backtracks) = case
     transactionForId traversedId graph
     
 traverseGraph :: TransactionGraph -> TransactionId -> [TransactionIdHeadBacktrack] -> Either RelationalError TransactionId
-traverseGraph graph currentTid backtrackSteps = foldM (backtrackGraph graph) currentTid backtrackSteps
+traverseGraph graph = foldM (backtrackGraph graph)
              
 backtrackGraph :: TransactionGraph -> TransactionId -> TransactionIdHeadBacktrack -> Either RelationalError TransactionId
 -- tilde, step back one parent link- if a choice must be made, choose the "first" link arbitrarily
@@ -473,7 +474,7 @@ backtrackGraph graph currentTid (TransactionIdHeadParentBacktrack steps) = do
     Left RootTransactionTraversalError
     else do
     parentTrans <- transactionForId (head parents) graph
-    if steps == 1 then do
+    if steps == 1 then
       pure (transactionId parentTrans)
       else
       backtrackGraph graph (transactionId parentTrans) (TransactionIdHeadParentBacktrack (steps - 1))

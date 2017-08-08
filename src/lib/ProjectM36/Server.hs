@@ -75,7 +75,7 @@ loggingNotificationCallback :: NotificationCallback
 loggingNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received \"" ++ show notName ++ "\": " ++ show evaldNot
 
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
-launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO (Bool)
+launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO Bool
 launchServer daemonConfig mAddressMVar = do  
   econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
   case econn of 
@@ -98,7 +98,7 @@ launchServer daemonConfig mAddressMVar = do
               runProcess localTCPNode $ do
                 let testBool = testMode daemonConfig
                     reqTimeout = perRequestTimeout daemonConfig
-                serve (conn, databaseName daemonConfig, mAddressMVar, (address endpoint)) initServer (serverDefinition testBool reqTimeout)
+                serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
               liftIO $ putStrLn "serve returned"
               pure True
   

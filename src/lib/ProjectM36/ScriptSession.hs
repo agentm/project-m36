@@ -30,7 +30,7 @@ data ScriptSession = ScriptSession {
   dbcFunctionBodyType :: Type
   }
                      
-data ScriptSessionError = ScriptSessionLoadError GhcException
+newtype ScriptSessionError = ScriptSessionLoadError GhcException
                           deriving (Show)
 
 -- | Configure a GHC environment/session which we will use for all script compilation.
@@ -44,7 +44,7 @@ initScriptSession ghcPkgPaths = do
     dflags <- getSessionDynFlags
     let ghcVersion = projectVersion dflags
 
-    sandboxPkgPaths <- liftIO $ liftM concat $ mapM glob [
+    sandboxPkgPaths <- liftIO $ concat <$> mapM glob [
       "./dist-newstyle/packagedb/ghc-" ++ ghcVersion,
       ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d", 
       homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
@@ -61,7 +61,7 @@ initScriptSession ghcPkgPaths = do
 #if __GLASGOW_HASKELL__ >= 800                           
                            trustFlags = map TrustPackage required_packages,
 #endif                                        
-                           packageFlags = (packageFlags dflags) ++ packages,
+                           packageFlags = packageFlags dflags ++ packages,
                            extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
                          }
         applyGopts flags = foldl gopt_set flags gopts
@@ -100,7 +100,7 @@ initScriptSession ghcPkgPaths = do
           ideclSource    = False,
           ideclSafe      = True,
           ideclImplicit  = False,
-          ideclQualified = (isJust mQual),
+          ideclQualified = isJust mQual,
           ideclAs        = mQual,
           ideclHiding    = Nothing
           }
@@ -139,7 +139,7 @@ mkTypeForName name = do
   case lBodyName of
     [] -> error ("failed to parse " ++ name)
     _:_:_ -> error "too many name matches"
-    bodyName:[] -> do
+    [bodyName] -> do
       mThing <- lookupName bodyName
       case mThing of
         Nothing -> error ("failed to find " ++ name)

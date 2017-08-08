@@ -59,7 +59,7 @@ readTransaction dbdir transId mScriptSession = do
     return $ Left $ MissingTransactionError transId
     else do
     relvars <- readRelVars transDir
-    transInfo <- liftM B.decode $ BS.readFile (transactionInfoPath transDir)
+    transInfo <- B.decode <$> BS.readFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
     sschemas <- readSubschemas transDir
@@ -80,7 +80,7 @@ writeTransaction sync dbdir trans = do
       finalTransDir = transactionDir dbdir (transactionId trans)
       context = concreteDatabaseContext trans
   transDirExists <- doesDirectoryExist finalTransDir
-  if not transDirExists then do
+  unless transDirExists $ do
     --create sub directories
     mapM_ createDirectory [tempTransDir, relvarsDir tempTransDir, incDepsDir tempTransDir, atomFuncsDir tempTransDir, dbcFuncsDir tempTransDir]
     writeRelVars sync tempTransDir (relationVariables context)
@@ -92,15 +92,14 @@ writeTransaction sync dbdir trans = do
     BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
-    else
-      return ()
+  pure ()
   
 writeRelVar :: DiskSync -> FilePath -> (RelVarName, Relation) -> IO ()
 writeRelVar sync transDir (relvarName, rel) = do
   let relvarPath = relvarsDir transDir </> T.unpack relvarName
   writeBSFileSync sync relvarPath (B.encode rel)
   
-writeRelVars :: DiskSync -> FilePath -> (M.Map RelVarName Relation) -> IO ()
+writeRelVars :: DiskSync -> FilePath -> M.Map RelVarName Relation -> IO ()
 writeRelVars sync transDir relvars = mapM_ (writeRelVar sync transDir) $ M.toList relvars
     
 readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
@@ -108,7 +107,7 @@ readRelVars transDir = do
   let relvarsPath = relvarsDir transDir
   relvarNames <- getDirectoryNames relvarsPath
   relvars <- mapM (\name -> do
-                      rel <- liftM B.decode $ BS.readFile (relvarsPath </> name)
+                      rel <- B.decode <$> BS.readFile (relvarsPath </> name)
                       return (T.pack name, rel)) relvarNames
   return $ M.fromList relvars
 
@@ -121,7 +120,7 @@ readAtomFuncs transDir mScriptSession = do
   funcNames <- getDirectoryNames (atomFuncsDir transDir)
   --only Haskell script functions can be serialized
   --we always return the pre-compiled functions
-  funcs <- mapM (\name -> readAtomFunc transDir name mScriptSession precompiledAtomFunctions) (map T.pack funcNames)
+  funcs <- mapM ((\name -> readAtomFunc transDir name mScriptSession precompiledAtomFunctions) . T.pack) funcNames
   pure (HS.union precompiledAtomFunctions (HS.fromList funcs))
   
 --to write the atom functions, we really some bytecode to write (GHCi bytecode?)
@@ -131,10 +130,10 @@ writeAtomFunc sync transDir func = do
   writeBSFileSync sync atomFuncPath (B.encode (atomFuncType func, atomFunctionScript func))
   
 --if the script session is enabled, compile the script, otherwise, hard error!  
-readAtomFunc :: FilePath -> AtomFunctionName -> Maybe ScriptSession -> AtomFunctions -> IO (AtomFunction)
+readAtomFunc :: FilePath -> AtomFunctionName -> Maybe ScriptSession -> AtomFunctions -> IO AtomFunction
 readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsDir transDir </> T.unpack funcName  
-  (funcType, mFuncScript) <- liftM B.decode (BS.readFile atomFuncPath)
+  (funcType, mFuncScript) <- B.decode <$> BS.readFile atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName precompiledFuncs of
@@ -142,7 +141,7 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
       Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
       Right realFunc -> pure realFunc
     --handle a real Haskell scripted function- compile and load
-    Just funcScript -> do
+    Just funcScript -> 
       case mScriptSession of
         Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
         Just scriptSession -> do
@@ -152,9 +151,9 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
             compileScript (atomFunctionBodyType scriptSession) funcScript
           case eCompiledScript of
             Left err -> throwIO err
-            Right compiledScript -> pure (AtomFunction { atomFuncName = funcName,
+            Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
                                                          atomFuncType = funcType,
-                                                         atomFuncBody = AtomFunctionBody (Just funcScript) compiledScript })
+                                                         atomFuncBody = AtomFunctionBody (Just funcScript) compiledScript }
 
 writeDBCFuncs :: DiskSync -> FilePath -> DatabaseContextFunctions -> IO ()
 writeDBCFuncs sync transDir funcs = mapM_ (writeDBCFunc sync transDir) (HS.toList funcs)
@@ -169,18 +168,18 @@ readDBCFuncs transDir mScriptSession = do
   funcNames <- getDirectoryNames (dbcFuncsDir transDir)
   --only Haskell script functions can be serialized
   --we always return the pre-compiled functions
-  funcs <- mapM (\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) (map T.pack funcNames)
+  funcs <- mapM ((\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) . T.pack) funcNames
   return $ HS.union basicDatabaseContextFunctions (HS.fromList funcs)
   
 readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction  
 readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName
-  (funcType, mFuncScript) <- liftM B.decode (BS.readFile dbcFuncPath)
+  (funcType, mFuncScript) <- B.decode <$> BS.readFile dbcFuncPath
   case mFuncScript of
     Nothing -> case databaseContextFunctionForName funcName precompiledFuncs of
       Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName)
       Right realFunc -> pure realFunc --return precompiled function
-    Just funcScript -> do
+    Just funcScript -> 
       case mScriptSession of
         Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
         Just scriptSession -> do
@@ -189,12 +188,12 @@ readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
             compileScript (dbcFunctionBodyType scriptSession) funcScript
           case eCompiledScript of
             Left err -> throwIO err
-            Right compiledScript -> pure (DatabaseContextFunction { dbcFuncName = funcName,
+            Right compiledScript -> pure DatabaseContextFunction { dbcFuncName = funcName,
                                                                     dbcFuncType = funcType,
-                                                                    dbcFuncBody = DatabaseContextFunctionBody (Just funcScript) compiledScript})
+                                                                    dbcFuncBody = DatabaseContextFunctionBody (Just funcScript) compiledScript}
 
 writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
-writeIncDep sync transDir (incDepName, incDep) = do
+writeIncDep sync transDir (incDepName, incDep) = 
   writeBSFileSync sync (incDepsDir transDir </> T.unpack incDepName) $ B.encode incDep
   
 writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
@@ -204,13 +203,13 @@ readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
 readIncDep transDir incdepName = do
   let incDepPath = incDepsDir transDir </> T.unpack incdepName
   incDepData <- BS.readFile incDepPath
-  return $ (incdepName, B.decode incDepData)
+  pure (incdepName, B.decode incDepData)
   
 readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)  
 readIncDeps transDir = do
   let incDepsPath = incDepsDir transDir
   incDepNames <- getDirectoryNames incDepsPath
-  incDeps <- mapM (readIncDep transDir) (map T.pack incDepNames)
+  incDeps <- mapM (readIncDep transDir . T.pack) incDepNames
   return $ M.fromList incDeps
   
 readSubschemas :: FilePath -> IO Subschemas  
@@ -228,9 +227,9 @@ writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping ->
 writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
   writeBSFileSync sync atPath $ B.encode types
 
-readTypeConstructorMapping :: FilePath -> IO (TypeConstructorMapping)
+readTypeConstructorMapping :: FilePath -> IO TypeConstructorMapping
 readTypeConstructorMapping path = do
   let atPath = typeConsPath path
-  liftM B.decode (BS.readFile atPath)
+  B.decode <$> BS.readFile atPath
   
   

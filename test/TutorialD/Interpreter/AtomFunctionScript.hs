@@ -8,6 +8,7 @@ import ProjectM36.DataTypes.Maybe
 import qualified Data.Vector as V
 import qualified Data.Map as M
 
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList [testBasicAtomFunction,

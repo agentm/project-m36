@@ -21,7 +21,7 @@ databaseContextAsDatabaseContextExpr context = MultipleExpr $ relVarsExprs ++ in
   where
     relVarsExprs = map (\(name, rel) -> Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
     incDepsExprs :: [DatabaseContextExpr]
-    incDepsExprs = map (\(name, dep) -> AddInclusionDependency name dep) (M.toList (inclusionDependencies context))
+    incDepsExprs = map (uncurry AddInclusionDependency) (M.toList (inclusionDependencies context))
     funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet
 
 basicDatabaseContext :: DatabaseContext

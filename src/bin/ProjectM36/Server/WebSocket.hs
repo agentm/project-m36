@@ -20,7 +20,7 @@ websocketProxyServer port host pending = do
   conn <- WS.acceptRequest pending
   let unexpectedMsg = WS.sendTextData conn ("messagenotexpected" :: T.Text)
   --phase 1- accept database name for connection
-  dbmsg <- (WS.receiveData conn) :: IO T.Text
+  dbmsg <- WS.receiveData conn :: IO T.Text
   let connectdbmsg = "connectdb:"
   if not (connectdbmsg `T.isPrefixOf` dbmsg) then unexpectedMsg >> WS.sendClose conn ("" :: T.Text)
     else do
@@ -28,7 +28,7 @@ websocketProxyServer port host pending = do
         bracket (createConnection conn dbname port host) 
           (\eDBconn -> case eDBconn of
                             Right dbconn -> close dbconn
-                            Left _ -> pure ()) $ \eDBconn -> do
+                            Left _ -> pure ()) $ \eDBconn -> 
           case eDBconn of
             Left err -> sendError conn err
             Right dbconn -> do
@@ -42,7 +42,7 @@ websocketProxyServer port host pending = do
                       --figure out why sending three times during startup is necessary
                       sendPromptInfo pInfo conn                
                       sendPromptInfo pInfo conn
-                      msg <- (WS.receiveData conn) :: IO T.Text
+                      msg <- WS.receiveData conn :: IO T.Text
                       let tutdprefix = "executetutd:"
                       case msg of
                         _ | tutdprefix `T.isPrefixOf` msg -> do
@@ -50,7 +50,7 @@ websocketProxyServer port host pending = do
                           case parseTutorialD tutdString of
                             Left err -> handleOpResult conn dbconn (DisplayErrorResult ("parse error: " `T.append` T.pack (show err)))
                             Right parsed -> do
-                              let timeoutFilter = \exc -> if exc == RequestTimeoutException 
+                              let timeoutFilter exc = if exc == RequestTimeoutException 
                                                           then Just exc 
                                                           else Nothing
                                   responseHandler = do

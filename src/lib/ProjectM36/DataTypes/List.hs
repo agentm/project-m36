@@ -26,7 +26,7 @@ listMaybeHead :: Atom -> Either AtomFunctionError Atom
 listMaybeHead (ConstructedAtom "Cons" _ (val:_)) = pure (ConstructedAtom "Just" aType [val])
   where
     aType = maybeAtomType (atomTypeForAtom val)
-listMaybeHead (ConstructedAtom "Empty" (ConstructedAtomType _ tvMap) _) = do
+listMaybeHead (ConstructedAtom "Empty" (ConstructedAtomType _ tvMap) _) =
   case M.lookup "a" tvMap of
     Nothing -> Left AtomFunctionTypeMismatchError
     Just aType -> pure (ConstructedAtom "Nothing" aType [])

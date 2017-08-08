@@ -65,8 +65,8 @@ testIsoRestrict :: Test
 testIsoRestrict = TestCase $ do
   -- create a emp relation which is restricted into two boss, nonboss rel vars
   -- the virtual schema has an employee
-  let empattrs = (A.attributesFromList [Attribute "name" TextAtomType,
-                                        Attribute "boss" TextAtomType])
+  let empattrs = A.attributesFromList [Attribute "name" TextAtomType,
+                                        Attribute "boss" TextAtomType]
   emprel <- assertEither $ mkRelationFromList empattrs
             [[TextAtom "Steve", TextAtom ""],
              [TextAtom "Cindy", TextAtom "Steve"],

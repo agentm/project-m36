@@ -17,8 +17,11 @@ import Data.Word
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
+import Data.Maybe
 
 import Control.Monad.State hiding (join)
+
+{-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
 main :: IO ()           
 main = do 
@@ -49,9 +52,7 @@ createTrans tid info ctx = Transaction tid info (Schemas ctx M.empty)
 basicTransactionGraph :: IO TransactionGraph
 basicTransactionGraph = do
   let bsGraph = bootstrapTransactionGraph uuidRoot DBC.basicDatabaseContext
-      rootTrans = case transactionForHead "master" bsGraph of
-        Just trans -> trans
-        Nothing -> error "bonk"
+      rootTrans = fromMaybe (error "bonk") (transactionForHead "master" bsGraph)
       uuidA = fakeUUID 10
       uuidB = fakeUUID 11
       uuidRoot = fakeUUID 1
@@ -66,9 +67,7 @@ addTransaction headName transaction graph = case addTransactionToGraph headName 
   Right (t,g) -> pure (t,g)
               
 fakeUUID :: Word8 -> TransactionId
-fakeUUID x = case U.fromByteString (BS.concat (replicate 4 w32)) of
-  Nothing -> error "impossible uuid"
-  Just u -> u
+fakeUUID x = fromMaybe (error "impossible uuid") (U.fromByteString (BS.concat (replicate 4 w32)))
   where w32 = BS.pack (replicate 4 x)
   
 assertEither :: (Show a) => Either a b -> IO b
@@ -131,7 +130,7 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   assertEqual "branchA id 4" (fakeUUID 4) (transactionId branchATrans')
                                               
   --retrieve subgraph                                            
-  let subGraphHeads = M.filter (\t -> elem (transactionId t) [fakeUUID 3, fakeUUID 4]) (transactionHeadsForGraph graph'')
+  let subGraphHeads = M.filter (\t -> transactionId t `elem` [fakeUUID 3, fakeUUID 4]) (transactionHeadsForGraph graph'')
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph'' subGraphHeads branchATrans' branchBTrans' S.empty
   --verify that the subgraph includes both the heads and the common ancestor
   let expectedTransSet = S.fromList (map fakeUUID [1,3,4])
@@ -181,7 +180,7 @@ testUnionPreferMergeStrategy = TestCase $ do
   let merged = mergeTransactions (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB") graph''
   case merged of
     Left err -> assertFailure ("expected merge success: " ++ show err)
-    Right (discon, _) -> do
+    Right (discon, _) ->
       assertEqual "branchB relvar preferred in conflict" (Just branchBRelVar) (M.lookup conflictRelVarName (relationVariables (Discon.concreteDatabaseContext discon)))
   
 -- try various individual component conflicts and check for merge failure

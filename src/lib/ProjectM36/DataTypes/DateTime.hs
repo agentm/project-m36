@@ -8,7 +8,7 @@ dateTimeAtomFunctions :: AtomFunctions
 dateTimeAtomFunctions = HS.fromList [ AtomFunction {
                                      atomFuncName = "dateTimeFromEpochSeconds",
                                      atomFuncType = [IntAtomType, DateTimeAtomType],
-                                     atomFuncBody = compiledAtomFunctionBody $ \((IntAtom epoch):_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
+                                     atomFuncBody = compiledAtomFunctionBody $ \(IntAtom epoch:_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
                                                                                                        }]
 
                                                  
