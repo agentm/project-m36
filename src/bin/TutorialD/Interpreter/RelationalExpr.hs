@@ -232,7 +232,7 @@ stringAtomP :: Parser Atom
 stringAtomP = TextAtom <$> quotedString
 
 doubleAtomP :: Parser Atom    
-doubleAtomP = DoubleAtom <$> (try float)
+doubleAtomP = DoubleAtom <$> try float
 
 intAtomP :: Parser Atom
 intAtomP = do
