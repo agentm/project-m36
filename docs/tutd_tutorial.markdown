@@ -20,14 +20,18 @@ TutorialD is strongly-typed. The basic built-in types are:
 
 |Type Name|Explanation|Example|
 |---------|-----------|-------|
-|char|arbitrary text|"The Old Man and the Sea"|
+|text|arbitrary text|"The Old Man and the Sea"|
 |int|any integer|-4|
-|datetime|timestamp UTC|"2015-02-02 04:05:02"::datetime|
+|datetime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
+|date|calendar date|fromGregorian(2017,05,30)|
 |double|floating point number|3.1459|
 |bool|boolean value|t|
-|bytestring|arbitrary-length string of bytes- input is base64-encoded|"dGVzdGRhdGE="::bytestring|
+|bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
+|interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
+
+The ```interval``` function last two arguments are boolean values indicating whether the interval is open at the start point and end point respectively.
 
 Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
 
