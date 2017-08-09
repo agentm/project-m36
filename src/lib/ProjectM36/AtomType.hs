@@ -234,6 +234,7 @@ atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
                                else
                                  atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip attrs1 attrs2)
   return x
+atomTypeVerify (IntervalAtomType typA) (IntervalAtomType typB) = atomTypeVerify typA typB  
 atomTypeVerify x y = if x == y then
                        Right x
                      else
@@ -250,6 +251,7 @@ prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append`
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
 prettyAtomType (TypeVariableType x) = "?TypeVariableType " <> x <> "?"
+prettyAtomType (IntervalAtomType tv) = "Interval (" <> prettyAtomType tv <> ")"
 prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
   where fullName = (T.pack . show) aType
 
@@ -273,6 +275,7 @@ resolveTypeVariables expectedArgTypes actualArgTypes = do
   
 resolveTypeVariable :: AtomType -> AtomType -> TypeVarMap
 resolveTypeVariable (TypeVariableType tv) typ = M.singleton tv typ
+resolveTypeVariable (IntervalAtomType ityp) typ = resolveTypeVariable ityp typ
 resolveTypeVariable (ConstructedAtomType _ _) (ConstructedAtomType _ actualTvMap) = actualTvMap
 resolveTypeVariable _ _ = M.empty
 
@@ -283,6 +286,7 @@ resolveFunctionReturnValue funcName tvMap (ConstructedAtomType tCons retMap) = d
     pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
     else
     Left (AtomFunctionTypeVariableResolutionError funcName (fst (head (M.toList diff))))
+resolveFunctionReturnValue funcName tvMap (IntervalAtomType tv) = IntervalAtomType <$> resolveFunctionReturnValue funcName tvMap tv
 resolveFunctionReturnValue funcName tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName tvName)
   Just typ -> pure typ

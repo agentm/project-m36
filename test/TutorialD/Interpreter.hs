@@ -34,7 +34,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems, testFunctionalDependencies, testEmptyCommits]
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests ++ [transactionGraphBasicTest, transactionGraphAddCommitTest, transactionRollbackTest, transactionJumpTest, transactionBranchTest, simpleJoinTest, testNotification, testTypeConstructors, testMergeTransactions, testComments, testTransGraphRelationalExpr, failJoinTest, testMultiAttributeRename, testSchemaExpr, testRelationalExprStateTupleElems, testFunctionalDependencies, testEmptyCommits,testIntervalAtom]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
@@ -428,4 +428,18 @@ testEmptyCommits = TestCase $ do
   dirty''' <- disconnectedTransactionIsDirty sessionId dbconn
   assertEqual "empty delete empty commit" (Right False) dirty'''
  
-  
+testIntervalAtom :: Test  
+testIntervalAtom = TestCase $ do  
+  --test interval creation
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,f,f), b interval(4,5,f,f)}, tuple{n 2,a interval(3,4,t,t), b interval(4,5,t,t)}}"
+  --test failed interval creation
+  let err1 = "AtomFunctionUserError InvalidIntervalOrdering"
+      err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportInterval \"Text\")"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,f,f)}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",f,f)}}"  
+
+  --test interval_overlaps
+  executeTutorialD sessionId dbconn "y:=x:{c:=interval_overlaps(@a,@b)}"
+  eRv <- executeRelationalExpr sessionId dbconn (Project (AttributeNames (S.fromList ["n","c"])) (RelationVariable "y" ()))
+  assertEqual "interval overlap check" (mkRelationFromList (attributesFromList [Attribute "c" BoolAtomType,Attribute "n" IntAtomType]) [[BoolAtom True, IntAtom 1], [BoolAtom False, IntAtom 2]]) eRv

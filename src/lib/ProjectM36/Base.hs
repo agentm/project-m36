@@ -34,9 +34,12 @@ data Atom = IntAtom Int |
             DateTimeAtom UTCTime |
             ByteStringAtom ByteString |
             BoolAtom Bool |
+            IntervalAtom Atom Atom OpenInterval OpenInterval |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
             deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+                     
+type OpenInterval = Bool                     
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -48,6 +51,7 @@ instance Hashable Atom where
   hashWithSalt salt (DateTimeAtom dt) = salt `hashWithSalt` dt
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
+  hashWithSalt salt (IntervalAtom a1 a2 bo be) = salt `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` bo `hashWithSalt` be
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
 
 instance Binary UTCTime where
@@ -71,6 +75,7 @@ data AtomType = IntAtomType |
                 DateTimeAtomType |
                 ByteStringAtomType |
                 BoolAtomType |
+                IntervalAtomType AtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 TypeVariableType TypeVarName

@@ -102,7 +102,7 @@ instance Atomable Bool where
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = BoolAtomType
   toDatabaseContextExpr _ = NoOperation
-
+  
 instance Atomable Relation where
   toAtom = RelationAtom
   fromAtom (RelationAtom r) = r
