@@ -5,6 +5,7 @@ import ProjectM36.DataTypes.Day
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.Interval
+import ProjectM36.DataTypes.ByteString
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.AtomFunction
 import ProjectM36.DataTypes.List
@@ -18,6 +19,7 @@ basicAtomFunctions = HS.unions [primitiveAtomFunctions,
                                 eitherAtomFunctions,
                                 maybeAtomFunctions,
                                 listAtomFunctions,
+                                bytestringAtomFunctions,
                                 intervalAtomFunctions]
 
 --these special atom functions aren't scripted so they can't be serialized normally. Instead, the body remains in the binary and the serialization/deserialization happens by name only.

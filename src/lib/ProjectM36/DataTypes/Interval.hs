@@ -7,8 +7,6 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunctionError
 import qualified Data.HashSet as HS
 
-import Debug.Trace
-
 -- in lieu of typeclass support, we just hard-code the types which can be part of an interval
 supportsInterval :: AtomType -> Bool
 supportsInterval typ = case typ of
