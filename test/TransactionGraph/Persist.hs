@@ -16,6 +16,7 @@ import TutorialD.Interpreter.DatabaseContextExpr
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Time.Clock
+import Data.Time.Calendar
 
 main :: IO ()           
 main = do 
@@ -27,12 +28,15 @@ testList = TestList [testBootstrapDB,
                      testDBSimplePersistence, 
                      testFunctionPersistence]
 
+stamp :: UTCTime
+stamp = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
+
 {- bootstrap a database, ensure that it can be read -}
 testBootstrapDB :: Test
 testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
-  stamp <- getCurrentTime
+
   _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp freshId dateExamples)
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
@@ -42,7 +46,7 @@ testDBSimplePersistence :: Test
 testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
-  stamp <- getCurrentTime
+
   let graph = bootstrapTransactionGraph stamp freshId dateExamples
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
