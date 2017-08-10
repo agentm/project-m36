@@ -96,8 +96,8 @@ intervalOverlaps :: Atom -> Atom -> Either AtomFunctionError Bool
 intervalOverlaps (IntervalAtom i1start i1end i1startopen i1endopen) (IntervalAtom i2start i2end i2startopen i2endopen) = do
       cmp1 <- atomCompare i1start i2end
       cmp2 <- atomCompare i2start i1end
-      let startcmp = if i1startopen then oplt else oplte
-          endcmp = if i2startopen then oplt else oplte
+      let startcmp = if i1startopen || i2endopen then oplt else oplte
+          endcmp = if i2startopen || i1endopen then oplt else oplte
           oplte op = op == LT || op == EQ
           oplt op = op == LT
       pure (startcmp cmp1 && endcmp cmp2)
