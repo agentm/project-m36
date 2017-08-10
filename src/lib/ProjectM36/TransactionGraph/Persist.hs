@@ -11,6 +11,7 @@ import System.Directory
 import System.FilePath
 import System.IO.Temp
 import System.IO
+import Data.Time.Clock.POSIX
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -18,13 +19,15 @@ import qualified Data.Text as T
 import Data.Text.Encoding
 import Control.Monad (foldM)
 import Data.Either (isRight)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (fromMaybe)
 import Control.Exception.Base
 import qualified Data.Text.IO as TIO
 import Data.ByteString (ByteString)
 import Data.Monoid
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
+import Data.Time.Clock
+import Data.Text.Read
 
 type LockFileHash = ByteString
 
@@ -144,7 +147,7 @@ transactionGraphLoad dbdir graphIn mScriptSession = do
       let folder eitherGraph transId = case eitherGraph of
             Left err -> return $ Left err
             Right graph -> readTransactionIfNecessary dbdir transId mScriptSession graph
-      loadedGraph <- foldM folder (Right graphIn) (map fst info)
+      loadedGraph <- foldM folder (Right graphIn) (map (\(tid,_,_) -> tid) info)
       case loadedGraph of 
         Left err -> return $ Left err
         Right freshGraph -> do
@@ -173,18 +176,25 @@ writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = w
     uuidInfo = T.intercalate "\n" graphLines
     digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 
-    graphLine trans = U.toText (transactionId trans) <> " " <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
+    epochTime = realToFrac . utcTimeToPOSIXSeconds . transactionTimestamp :: Transaction -> Double
+    graphLine trans = U.toText (transactionId trans) 
+                      <> " " 
+                      <> T.pack (show (epochTime trans))
+                      <> " "
+                      <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
     
 readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
   graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
   pure (SHA256.hash (encodeUtf8 graphTransactionIdData))
     
-readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, [TransactionId])])
+readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tids = mapMaybe U.fromText (T.words line) in
-        (head tids, tail tids)
+  let grapher line = let tid:epochText:parentIds = T.words line in
+        (readUUID tid, readEpoch epochText, map readUUID parentIds)
+      readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
+      readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
   --warning: uses lazy IO
   graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
   return $ Right (map grapher $ T.lines graphTransactionIdData)

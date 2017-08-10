@@ -15,6 +15,7 @@ import System.FilePath
 import TutorialD.Interpreter.DatabaseContextExpr
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Time.Clock
 
 main :: IO ()           
 main = do 
@@ -31,7 +32,8 @@ testBootstrapDB :: Test
 testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
-  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph freshId dateExamples)
+  stamp <- getCurrentTime
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp freshId dateExamples)
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
@@ -40,7 +42,8 @@ testDBSimplePersistence :: Test
 testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
-  let graph = bootstrapTransactionGraph freshId dateExamples
+  stamp <- getCurrentTime
+  let graph = bootstrapTransactionGraph stamp freshId dateExamples
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
@@ -50,7 +53,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
             Right context' -> do
               freshId' <- nextRandom
               let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) True
-                  addTrans = addDisconnectedTransaction freshId' "master" newdiscon graph
+                  addTrans = addDisconnectedTransaction stamp freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of
                 Left err -> assertFailure (show err)

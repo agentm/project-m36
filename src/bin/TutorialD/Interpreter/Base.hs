@@ -1,10 +1,12 @@
 {-# LANGUAGE DeriveGeneric, CPP #-}
 module TutorialD.Interpreter.Base where
+import ProjectM36.Base
+import ProjectM36.AtomType
+import ProjectM36.Relation
+
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as Lex
-import ProjectM36.Base
-import ProjectM36.AtomType
 import Data.Text hiding (count)
 import System.Random
 import qualified Data.Text as T
@@ -17,9 +19,10 @@ import GHC.Generics
 import Data.Monoid
 import Control.Monad (void)
 import qualified Data.UUID as U
-import ProjectM36.Relation
 import Control.Monad.Random
 import Data.List.NonEmpty as NE
+import Data.Time.Clock
+import Data.Time.Format
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -155,3 +158,11 @@ uuidP = do
   case U.fromString uuidStr of
     Nothing -> fail "Invalid uuid string"
     Just uuid -> return uuid
+
+utcTimeP :: Parser UTCTime
+utcTimeP = do
+  timeStr <- quotedString
+  case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
+    Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
+    Just stamp -> pure stamp
+  

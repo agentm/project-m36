@@ -25,7 +25,8 @@ transactionIdLookupP =  (TransactionIdLookup <$> uuidP) <|>
                         
 transactionIdHeadBacktrackP :: Parser TransactionIdHeadBacktrack                        
 transactionIdHeadBacktrackP = (string "~" *> (TransactionIdHeadParentBacktrack <$> backtrackP)) <|>
-                              (string "^" *> (TransactionIdHeadBranchBacktrack <$> backtrackP))
+                              (string "^" *> (TransactionIdHeadBranchBacktrack <$> backtrackP)) <|>
+                              (string "@" *> (TransactionStampHeadBacktrack <$> utcTimeP))
                               
 backtrackP :: Parser Int
 backtrackP = do

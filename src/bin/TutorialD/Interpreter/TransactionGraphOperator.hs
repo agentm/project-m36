@@ -19,6 +19,11 @@ jumpToTransactionP = do
   reservedOp ":jump"
   uuid <- uuidP
   return $ JumpToTransaction uuid
+  
+walkBackToTimeP :: Parser TransactionGraphOperator  
+walkBackToTimeP = do
+  reservedOp ":walkbacktotime"
+  WalkBackToTime <$> utcTimeP
 
 branchTransactionP :: Parser TransactionGraphOperator
 branchTransactionP = do
@@ -69,6 +74,7 @@ transactionGraphOpP :: Parser TransactionGraphOperator
 transactionGraphOpP = 
   jumpToHeadP
   <|> jumpToTransactionP
+  <|> walkBackToTimeP
   <|> branchTransactionP
   <|> deleteBranchP
   <|> commitTransactionP

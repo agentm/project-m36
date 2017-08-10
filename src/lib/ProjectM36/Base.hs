@@ -362,8 +362,8 @@ transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
 transactionHeadsForGraph (TransactionGraph heads _) = heads
 
 -- | Every transaction has context-specific information attached to it.
-data TransactionInfo = TransactionInfo TransactionId (S.Set TransactionId) | -- 1 parent + n children
-                       MergeTransactionInfo TransactionId TransactionId (S.Set TransactionId) -- 2 parents, n children
+data TransactionInfo = TransactionInfo TransactionId (S.Set TransactionId) UTCTime | -- 1 parent + n children
+                       MergeTransactionInfo TransactionId TransactionId (S.Set TransactionId) UTCTime -- 2 parents, n children
                      deriving(Show, Generic)
                              
 instance Binary TransactionInfo                             

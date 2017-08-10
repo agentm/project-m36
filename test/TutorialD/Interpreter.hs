@@ -318,6 +318,13 @@ testTransGraphRelationalExpr = TestCase $ do
   let testBranchBacktrack = TransactionIdHeadNameLookup "testbranch" [TransactionIdHeadParentBacktrack 1]
   backtrackRel <- executeTransGraphRelationalExpr sessionId dbconn (Equals (RelationVariable "s" testBranchBacktrack) (RelationVariable "s" masterMarker))
   assertEqual "backtrack to master" (Right relationTrue) backtrackRel
+  
+  --test walkback to time (stay in current location)
+  now <- getCurrentTime
+  headId <- headTransactionId sessionId dbconn
+  _ <- executeGraphExpr sessionId dbconn (WalkBackToTime now)
+  headId' <- headTransactionId sessionId dbconn
+  assertEqual "transaction walk back stays in place" headId headId'
 
   --test branch deletion
   mapM_ (executeTutorialD sessionId dbconn) [
@@ -329,8 +336,7 @@ testTransGraphRelationalExpr = TestCase $ do
   case eEvald of
     DisplayErrorResult err -> assertEqual "testbranch deletion"  (show (NoSuchHeadNameError "testbranch")) (unpack err)
     _ -> assertFailure "failed to delete branch"
-                 
-  
+    
 testMultiAttributeRename :: Test
 testMultiAttributeRename = TestCase $ assertTutdEqual dateExamples renamedRel "x:=s rename {city as town, status as price} where false"
   where

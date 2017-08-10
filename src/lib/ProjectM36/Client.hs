@@ -144,6 +144,7 @@ import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
+import Data.Time.Clock
 
 type Hostname = String
 
@@ -283,8 +284,9 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
   freshId <- nextRandom
+  stamp <- getCurrentTime
   let bootstrapContext = basicDatabaseContext 
-      freshGraph = bootstrapTransactionGraph freshId bootstrapContext
+      freshGraph = bootstrapTransactionGraph stamp freshId bootstrapContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
@@ -571,12 +573,13 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   id1 <- nextRandom
   id2 <- nextRandom
   id3 <- nextRandom
+  stamp <- getCurrentTime
   commitLock_ sessionId conf $ \graph -> do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
       Right session ->
-        case Graph.autoMergeToHead (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
+        case Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
           Left err -> pure (Left err)
           Right (discon', graph') ->
             pure (Right (discon', graph', [id1, id2, id3]))
@@ -636,13 +639,14 @@ executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (E
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let sessions = ipSessions conf
   freshId <- nextRandom
+  stamp <- getCurrentTime
   commitLock_ sessionId conf $ \updatedGraph -> do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
       Right session -> do
         let discon = Sess.disconnectedTransaction session
-        case evalGraphOp freshId discon updatedGraph graphExpr of
+        case evalGraphOp stamp freshId discon updatedGraph graphExpr of
           Left err -> pure (Left err)
           Right (discon', graph') -> do
             --if freshId appears in the graph, then we need to pass it on

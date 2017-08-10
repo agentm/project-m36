@@ -56,19 +56,21 @@ In order to navigate the transaction graph, one must specify transaction UUIDs. 
 
 ```
 TutorialD (master/main): :showgraph
-┌───────┬──────┬────────────────────────────────────┬───────┐
-│current│head  │id                                  │parents│
-├───────┼──────┼────────────────────────────────────┼───────┤
+┌─────────────┬──────────┬──────────────────────────────────────┬────────────────────────────┬──────────────────────────────┐
+│current::Bool│head::Text│id::Text                              │parents::relation {id::Text}│stamp::DateTime               │
+├─────────────┼──────────┼──────────────────────────────────────┼────────────────────────────┼──────────────────────────────┤
+
 <big result elided>
 ```
 The "current" attribute is a boolean value. If true, the transaction is the parent of the current database context. Commits will be children of this transaction.
 
-The "head attribute is a boolean value indicating whether or not the transaction is a "head" node of its graph. Head nodes are nodes which have no children.
+The "head" attribute is a boolean value indicating whether or not the transaction is a "head" node of its graph. Head nodes are nodes which have no children.
 
 The "id" attribute is the UUID needed in order to navigate the graph.
 
 The "parents" attribute is a subrelation holding all parent transaction UUIDs for the given transaction.
 
+The "stamp" attribute marks the time when the transaction was opened.
 
 #### Branch
 
@@ -109,3 +111,37 @@ TutorialD (11b601c9-f46b-42b0-a2ce-cf18ced31b7f):
 ```
 
 Note that the ```tutd``` prompt now indicates that the mutable database context now refers to a specific transaction by UUID.
+
+#### Walk Back To Time
+
+Each transaction is committed along with a creation timestamp. From any point in the graph, one can "walk back" until the commit timestamp is past a given timestamp threshold.
+
+```
+TutorialD (master/main): x:=true
+TutorialD (master/main): :commit
+TutorialD (master/main): :showgraph
+┌─────────────┬──────────┬──────────────────────────────────────┬────────────────────────────────────────┬──────────────────────────────┐
+│current::Bool│head::Text│id::Text                              │parents::relation {id::Text}            │stamp::DateTime               │
+├─────────────┼──────────┼──────────────────────────────────────┼────────────────────────────────────────┼──────────────────────────────┤
+│True         │"master"  │"b4c3bd0a-c594-456f-8e1b-8e296c939df4"│┌──────────────────────────────────────┐│2017-08-10 16:45:34.635582 UTC│
+│             │          │                                      ││id::Text                              ││                              │
+│             │          │                                      │├──────────────────────────────────────┤│                              │
+│             │          │                                      ││"5e441752-f78d-4a0d-b7f6-b2716ab82a4d"││                              │
+│             │          │                                      │└──────────────────────────────────────┘│                              │
+│False        │""        │"5e441752-f78d-4a0d-b7f6-b2716ab82a4d"│┌────────┐                              │2017-08-10 16:43:59.160044 UTC│
+│             │          │                                      ││id::Text│                              │                              │
+│             │          │                                      │└────────┘                              │                              │
+└─────────────┴──────────┴──────────────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
+
+TutorialD (master/main): :walkbacktotime "2017-08-10 16:44:00"
+TutorialD (<unknown>/main): :showexpr x
+ERR: RelVarNotDefinedError "x"
+```
+
+In the above example, we start with a fresh database and commit relvar ```x```. Then, using the displayed graph, we walk back to a time before the stamp provided from the graph display and discover that, indeed, ```x``` was not defined in that point in time.
+
+Note that all timestamps are in UTC time.
+
+If you choose to walk back in time before the database existed, you will see a ```RootTransactionTraversalError```.
+
+Note that some transactions, specifically merge transactions, can have multiple parents. In such walk back scenarios, an arbitrary parent is chosen to continue the search. For more precise control, use the other search/jump strategies to set your current transaction behind the merge transaction and then walk back.
