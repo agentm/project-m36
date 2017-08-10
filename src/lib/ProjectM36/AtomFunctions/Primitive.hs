@@ -6,8 +6,6 @@ import ProjectM36.AtomFunctionError
 import ProjectM36.AtomFunction
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.Text.Encoding as TE
 import Control.Monad
 
 primitiveAtomFunctions :: AtomFunctions
@@ -45,12 +43,7 @@ primitiveAtomFunctions = HS.fromList [
                  atomFuncBody = body $ intAtomFuncLessThan True >=> boolAtomNot},
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [BoolAtomType, BoolAtomType],
-                 atomFuncBody = body $ \(b:_) -> boolAtomNot b },
-  AtomFunction { atomFuncName = "makeByteString",
-                 atomFuncType = [TextAtomType, ByteStringAtomType],
-                 atomFuncBody = body $ \(TextAtom textIn:_) -> case B64.decode (TE.encodeUtf8 textIn) of
-                   Left err -> Left (AtomFunctionBytesDecodingError err)
-                   Right bs -> pure (ByteStringAtom bs) }
+                 atomFuncBody = body $ \(b:_) -> boolAtomNot b }
   ]
   where
     body = AtomFunctionBody Nothing

@@ -33,5 +33,6 @@ atomTypeForAtom (DayAtom _) = DayAtomType
 atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
 atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
 atomTypeForAtom (BoolAtom _) = BoolAtomType
+atomTypeForAtom (IntervalAtom a _ _ _) = IntervalAtomType (atomTypeForAtom a)
 atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
 atomTypeForAtom (ConstructedAtom _ aType _) = aType

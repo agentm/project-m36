@@ -741,7 +741,10 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
       evaldArgs <- mapM (liftE . evalAtomExpr tupIn) arguments
       case evalAtomFunction func evaldArgs of
         Left err -> throwE (AtomFunctionUserError err)
-        Right result -> pure result
+        Right result -> do
+          --validate that the result matches the expected type
+          _ <- either throwE pure (atomTypeVerify (last (atomFuncType func)) (atomTypeForAtom result))
+          pure result
 evalAtomExpr tupIn (RelationAtomExpr relExpr) = do
   --merge existing state tuple context into new state tuple context to support an arbitrary number of levels, but new attributes trounce old attributes
   rstate <- ask
