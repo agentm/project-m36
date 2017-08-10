@@ -52,6 +52,9 @@ testAutomergeSuccess = TestCase $ do
   
   assertEqual "new S7" relationTrue result'
   
+  eHeadName <- headName sessionPastId conn
+  assertEqual "back on master" (Right "master") eHeadName
+  
 testAutomergeFailure :: Test  
 testAutomergeFailure = TestCase $ do
   --create two sessions, diverge from the head, but create a union merge strategy failure

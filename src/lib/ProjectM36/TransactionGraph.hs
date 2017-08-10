@@ -527,18 +527,20 @@ autoMergeToHead stamp (tempBranchTransId, tempCommitTransId, mergeTransId) disco
   
   --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
   (discon'', graph'') <- evalGraphOp stamp tempCommitTransId discon' graph' Commit
+ 
+  --jump to merge head
+  (discon''', graph''') <- evalGraphOp stamp tempBranchTransId discon'' graph'' (JumpToHead mergeToHeadName)
   
   --create the merge
-  (discon''', graph''') <- evalGraphOp stamp mergeTransId discon'' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
-
+  (discon'''', graph'''') <- evalGraphOp stamp mergeTransId discon''' graph''' (MergeTransactions strat tempBranchName mergeToHeadName)
+  
   --delete the temp branch
-  (discon'''', graph'''') <- evalGraphOp stamp tempBranchTransId discon''' graph''' (DeleteBranch tempBranchName)
+  (discon''''', graph''''') <- evalGraphOp stamp tempBranchTransId discon'''' graph'''' (DeleteBranch tempBranchName)
   {-
   let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
   traceShowM rel
 -}
   
-  pure (discon'''', graph'''')
-
+  pure (discon''''', graph''''')
 
   
