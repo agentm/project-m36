@@ -3,10 +3,21 @@ module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
 import Text.Megaparsec.Text
 import Text.Megaparsec
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph hiding (autoMergeToHead)
 import ProjectM36.Client
 import ProjectM36.Error
 import ProjectM36.Base
+
+data ConvenienceTransactionGraphOperator = AutoMergeToHead MergeStrategy HeadName
+                                         deriving (Show)
+
+convenienceTransactionGraphOpP :: Parser ConvenienceTransactionGraphOperator
+convenienceTransactionGraphOpP = autoMergeToHeadP
+
+autoMergeToHeadP :: Parser ConvenienceTransactionGraphOperator
+autoMergeToHeadP = do
+  reserved ":automergetohead"
+  AutoMergeToHead <$> mergeTransactionStrategyP <*> identifier
 
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
@@ -100,3 +111,6 @@ interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instri
 
 evalROGraphOp :: SessionId -> Connection -> ROTransactionGraphOperator -> IO (Either RelationalError Relation)
 evalROGraphOp sessionId conn ShowGraph = transactionGraphAsRelation sessionId conn
+
+evalConvenienceGraphOp :: SessionId -> Connection -> ConvenienceTransactionGraphOperator -> IO (Either RelationalError ())
+evalConvenienceGraphOp sessionId conn (AutoMergeToHead strat head') = autoMergeToHead sessionId conn strat head'

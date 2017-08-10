@@ -43,6 +43,7 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseContextIOExprOp DatabaseContextIOExpr |
                        InfoOp InformationOperator |
                        GraphOp TransactionGraphOperator |
+                       ConvenienceGraphOp ConvenienceTransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
                        ImportDBContextOp DatabaseContextDataImportOperator |
@@ -64,6 +65,7 @@ safeInterpreterParserP :: Parser ParsedOperation
 safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
                          fmap InfoOp (infoOpP <* eof) <|>
                          fmap GraphOp (transactionGraphOpP <* eof) <|>
+                         fmap ConvenienceGraphOp (convenienceTransactionGraphOpP <* eof) <|>
                          fmap ROGraphOp (roTransactionGraphOpP <* eof) <|>
                          fmap DatabaseContextExprOp (databaseExprOpP <* eof) <|>
                          fmap ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
@@ -103,6 +105,9 @@ evalTutorialD sessionId conn safe expr = case expr of
     
   (GraphOp execOp) -> 
     eHandler $ C.executeGraphExpr sessionId conn execOp
+    
+  (ConvenienceGraphOp execOp) ->
+    eHandler $ evalConvenienceGraphOp sessionId conn execOp
 
   (ROGraphOp execOp) -> do
     opResult <- evalROGraphOp sessionId conn execOp
