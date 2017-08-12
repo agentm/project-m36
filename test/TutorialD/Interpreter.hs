@@ -28,6 +28,7 @@ import qualified Data.Set as S
 import Data.Text hiding (map)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX
+import Data.Time.Clock
 
 main :: IO ()
 main = do
