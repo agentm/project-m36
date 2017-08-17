@@ -32,11 +32,11 @@ testSimpleCommitSuccess = TestCase $
         relExpr = Union (RelationVariable "x" ()) (RelationVariable "y" ())
     
     Right _ <- withDBConnection connInfo $ do
-      Right _ <- withTransaction (MultipleExpr [
+      Right _ <- withTransaction [
                           Assign "x" (ExistingRelation relationTrue),
                           Assign "y" (ExistingRelation relationFalse)
-                          ])
-      executeRelationalExpr relExpr
+                          ]
+      query relExpr
   
   -- re-open with standard API and validate that the relvars are available
     conn <- assertEither $ C.connectProjectM36 connInfo
@@ -51,9 +51,9 @@ testSimpleCommitFailure = TestCase $ do
   err <- withSystemTempDirectory "m36tempdb" $ \tempdir -> do
     let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback []
     withDBConnection connInfo $ do
-      Right _ <- withTransaction (Assign "x" (ExistingRelation relationTrue))
+      Right _ <- withTransaction [Assign "x" (ExistingRelation relationTrue)]
       --cause error
-      withTransaction (Assign "x" (MakeStaticRelation failAttrs emptyTupleSet))
+      withTransaction [Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)]
   let expectedErr = Left (RelError (RelVarAssignmentTypeMismatchError V.empty failAttrs))
   assertEqual "dbc error" expectedErr err
   

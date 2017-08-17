@@ -2,15 +2,16 @@
 module ProjectM36.Client.Simple (
   withDBConnection,
   withTransaction,
-  executeDatabaseContextExpr,
-  executeRelationalExpr,
+  execute,
+  query,
+  rollback,
   Atom(..),
   AtomType(..),
   DBError(..),
   Attribute(..),
   C.ConnectionInfo(..),
   C.PersistenceStrategy(..),
-  C.NotificationCallback(..),
+  C.NotificationCallback,
   C.emptyNotificationCallback,
   C.DatabaseContextExpr(..),
   C.RelationalExprBase(..)  
@@ -28,12 +29,12 @@ data DBError = ConnError C.ConnectionError |
                deriving (Eq, Show)
 
 newtype DB a = DB {runDB :: ReaderT (C.SessionId, C.Connection) IO a}
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad)
 
 -- | Opens a connection in the 'DB' monad and closes it after running the monad.
 withDBConnection :: C.ConnectionInfo -> DB (Either DBError a) -> IO (Either DBError a)
 withDBConnection connInfo block = bracket (C.connectProjectM36 connInfo) (\eConn -> case eConn of
-                                                                             Left err -> pure (Right ())
+                                                                             Left _ -> pure (Right ())
                                                                              Right conn -> C.close conn >> pure (Right ())) $ \eConn -> do
   case eConn of
     Left err -> pure (Left (ConnError err))
@@ -52,28 +53,34 @@ wrapClientIO func = DB $ do
     Left err -> pure (Left (RelError err))
     Right val -> pure (Right val)
            
--- | Atomically commits the result of the database context expression to disk on the server or restores the initial state.
-withTransaction :: C.DatabaseContextExpr -> DB (Either DBError ())           
-withTransaction expr = do
-  ret <- executeDatabaseContextExpr expr
+-- | Atomically commits the result of the database context expressions to disk on the server or restores the initial state.
+withTransaction :: [C.DatabaseContextExpr] -> DB (Either DBError ())           
+withTransaction exprs = do
+  ret <- execute (MultipleExpr exprs)
   case ret of 
     Left err -> pure (Left err)
     Right _ -> do
       eCurrentHead <- wrapClientIO C.headName
       case eCurrentHead of
         Left err -> pure (Left err)
-        Right currentHead ->
-          wrapClientIO (\sess conn -> C.autoMergeToHead sess conn C.UnionMergeStrategy currentHead)
+        Right currentHead -> do
+          --only add a commit if something actually changed
+          eIsDirty <- wrapClientIO C.disconnectedTransactionIsDirty
+          case eIsDirty of
+            Left err -> pure (Left err)
+            Right isDirty -> 
+              if isDirty then
+                wrapClientIO (\sess conn -> C.autoMergeToHead sess conn C.UnionMergeStrategy currentHead)
+              else
+                pure (Right ())
            
 -- | Execute a 'DatabaseContextExpr' in the 'DB' monad. Database context expressions manipulate the state of the database.
-executeDatabaseContextExpr :: C.DatabaseContextExpr -> DB (Either DBError ())
-executeDatabaseContextExpr expr = DB $ do
-  (sess, conn) <- ask
-  eErr <- liftIO $ C.executeDatabaseContextExpr sess conn expr
-  case eErr of
-    Left err -> pure (Left (RelError err))
-    Right () -> pure (Right ())
+execute :: C.DatabaseContextExpr -> DB (Either DBError ())
+execute expr = wrapClientIO (\sess conn -> C.executeDatabaseContextExpr sess conn expr)
     
--- | Execute a 'RelationalExpr' in the 'DB' monad. Relational expressions perform read-only queries against the current database state.
-executeRelationalExpr :: C.RelationalExpr -> DB (Either DBError Relation)    
-executeRelationalExpr expr = wrapClientIO (\sess conn -> C.executeRelationalExpr sess conn expr)
+-- | Run a 'RelationalExpr' query in the 'DB' monad. Relational expressions perform read-only queries against the current database state.
+query :: C.RelationalExpr -> DB (Either DBError Relation)    
+query expr = wrapClientIO (\sess conn -> C.executeRelationalExpr sess conn expr)
+
+rollback :: DB (Either DBError ())
+rollback = wrapClientIO C.rollback
