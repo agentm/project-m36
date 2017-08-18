@@ -119,6 +119,7 @@ Library
                      ProjectM36.AtomFunctions.Basic,
                      ProjectM36.AtomFunctions.Primitive,
                      ProjectM36.Atomable,
+                     ProjectM36.Tupleable,
                      ProjectM36.DataConstructorDef,
                      ProjectM36.DataTypes.Basic,
                      ProjectM36.DataTypes.Day,
