@@ -2,50 +2,35 @@
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
-import qualified Data.Map as M
+import ProjectM36.Tupleable
 import Data.Either
 import Control.Monad
 import GHC.Generics
 import Data.Binary
 import Control.DeepSeq
+import qualified Data.Text as T
+import Data.Time.Calendar (Day)
+import qualified Data.Vector as V
 
 --create various database value (atom) types
-addressAtomType :: AtomType
-addressAtomType = TextAtomType
+type Price = Double
 
-nameAtomType :: AtomType
-nameAtomType = TextAtomType
+type Name = T.Text
 
-priceAtomType :: AtomType
-priceAtomType = DoubleAtomType
+type Address = T.Text
 
-fileNameAtomType :: AtomType
-fileNameAtomType = TextAtomType
-
-data Room = Kitchen | Bathroom | LivingRoom
+data RoomType = Kitchen | Bathroom | LivingRoom
           deriving (Generic, Atomable, Eq, Show, Binary, NFData)
-                   
-roomAtomType :: AtomType                   
-roomAtomType = toAtomType (undefined :: Room)
                    
 data PriceBand = Low | Medium | High | Premium
                deriving (Generic, Atomable, Eq, Show, Binary, NFData)
                         
-priceBandAtomType :: AtomType
-priceBandAtomType = toAtomType (undefined :: PriceBand)
-
 data AreaCode = City | Suburban | Rural
               deriving (Generic, Atomable, Eq, Show, Binary, NFData)
-
-areaCodeAtomType :: AtomType
-areaCodeAtomType = ConstructedAtomType "AreaCode" M.empty
 
 data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand 
                deriving (Generic, Atomable, Eq, Show, Binary, NFData)
 
-speedBandAtomType :: AtomType
-speedBandAtomType = ConstructedAtomType "SpeedBand" M.empty
-  
 main :: IO ()
 main = do
   --connect to the database
@@ -62,38 +47,82 @@ main = do
 
   createSchema sessionId conn
   
+data Test = Test {  
+  dateo :: Int,
+  date2o :: Int
+  }
+          deriving (Generic, Eq)
+                   
+instance Tupleable Test                   
+  
+data Property = Property {  
+  address :: T.Text,
+  price :: Price,
+  photo :: T.Text,
+  dateRegistered :: Day
+  }
+              deriving (Generic, Eq)
+                       
+instance Tupleable Property                       
+
+data Offer = Offer {
+  offerAddress :: Address,
+  offerPrice :: Price,
+  offerDate :: Day,
+  bidderName :: Name,
+  bidderAddress :: Address,
+  decisionDate :: Day,
+  accepted :: Bool
+  }
+           deriving (Generic, Eq)
+                    
+instance Tupleable Offer                    
+                    
+data Decision = Decision {                    
+  dec_address :: Address,
+  dec_offerDate :: Day, --the dec_ prefix is needed until OverloadedRecordFields is available
+  dec_bidderName :: Name,
+  dec_bidderAddress :: Address,
+  dec_decisionDate :: Day,
+  dec_accepted :: Bool
+  }
+  deriving (Generic, Eq)
+           
+instance Tupleable Decision           
+                       
+data Room = Room {
+  room_address :: Address,
+  roomName :: Name,
+  width :: Double,
+  breadth :: Double,
+  roomType :: RoomType
+  }
+  deriving (Generic, Eq)
+                         
+instance Tupleable Room
+
+data Floor = Floor {
+  floor_address :: Address,
+  floor_roomName :: Name,
+  floor :: Int
+  }
+  deriving (Generic, Eq)
+           
+instance Tupleable Floor
+
+data Commission = Commission {
+  priceBand :: PriceBand,
+  areaCode :: AreaCode,
+  saleSpeed :: SpeedBand,
+  commission :: Price
+  } deriving (Generic, Eq)
+             
+instance Tupleable Commission              
+
 createSchema :: SessionId -> Connection -> IO ()  
 createSchema sessionId conn = do
   --create attributes for relvars
-  let propertyAttrs = [Attribute "address" addressAtomType,
-                       Attribute "price" priceAtomType,
-                       Attribute "photo" fileNameAtomType,
-                       Attribute "dateRegistered" DayAtomType]
-      offerAttrs = [Attribute "address" addressAtomType,
-                    Attribute "offerPrice" priceAtomType,
-                    Attribute "offerDate" DayAtomType,
-                    Attribute "bidderName" nameAtomType,
-                    Attribute "bidderAddress" addressAtomType,
-                    Attribute "decisionDate" DayAtomType,
-                    Attribute "accepted" BoolAtomType]
-      decisionAttrs = [Attribute "address" addressAtomType,             
-                       Attribute "offerDate" DayAtomType,
-                       Attribute "bidderName" nameAtomType,
-                       Attribute "bidderAddress" addressAtomType,
-                       Attribute "decisionDate" DayAtomType,
-                       Attribute "accepted" BoolAtomType]
-      roomAttrs = [Attribute "address" addressAtomType, 
-                   Attribute "roomName" TextAtomType,
-                   Attribute "width" DoubleAtomType,
-                   Attribute "breadth" DoubleAtomType,
-                   Attribute "type" roomAtomType]
-      floorAttrs = [Attribute "address" addressAtomType,
-                    Attribute "roomName" TextAtomType,
-                    Attribute "floor" IntAtomType]
-      commissionAttrs = [Attribute "priceBand" priceBandAtomType,
-                    Attribute "areaCode" areaCodeAtomType,
-                    Attribute "saleSpeed" speedBandAtomType,
-                    Attribute "commission" DoubleAtomType]
+  let 
       --create uniqueness constraints                     
       incDepKeys = map (uncurry databaseContextExprForUniqueKey)
                 [("property", ["address"]),
@@ -120,15 +149,15 @@ createSchema sessionId conn = do
                     ]
       incDepForeignKeys = map (\(n, a, b) -> databaseContextExprForForeignKey n a b) foreignKeys
       --define the relvars
-      relvarMap = [("property", propertyAttrs),
-                   ("offer", offerAttrs),
-                   ("decision", decisionAttrs),
-                   ("room", roomAttrs),
-                   ("floor", floorAttrs),
-                   ("commission", commissionAttrs)]
-      rvDefs = map (\(name, attrs) -> Define name (map NakedAttributeExpr attrs)) relvarMap     
+      relvarMap = [("property", toAttributes (undefined :: Property)),
+                   ("offer", toAttributes (undefined :: Offer)),
+                   ("decision", toAttributes (undefined :: Decision)),
+                   ("room", toAttributes (undefined :: Room)),
+                   ("floor", toAttributes (undefined :: Floor)),
+                   ("commission", toAttributes (undefined :: Commission))]
+      rvDefs = map (\(name, typ) -> Define name (map NakedAttributeExpr (V.toList typ))) relvarMap     
       --create the new algebraic data types
-      new_adts = [toDatabaseContextExpr (undefined :: Room),
+      new_adts = [toDatabaseContextExpr (undefined :: RoomType),
                   toDatabaseContextExpr (undefined :: PriceBand),
                   toDatabaseContextExpr (undefined :: AreaCode),
                   toDatabaseContextExpr (undefined :: SpeedBand)]
@@ -143,8 +172,8 @@ createSchema sessionId conn = do
   --gather up and execute all database updates
   eErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   let errs = lefts eErrs
-  unless (null errs) (error (show errs))    
+  unless (null errs) (putStrLn (show errs))    
   
   eErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
   let errs' = lefts eErrs'
-  unless (null errs') (error (show errs'))
+  unless (null errs') (putStrLn (show errs'))
