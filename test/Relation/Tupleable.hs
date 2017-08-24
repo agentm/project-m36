@@ -2,6 +2,7 @@
 import Test.HUnit
 import ProjectM36.Tupleable
 import ProjectM36.Atomable
+import ProjectM36.Attribute
 import Data.Binary
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
@@ -76,9 +77,14 @@ testADT1 = TestCase $ assertEqual "one record constructor" example (fromTuple (t
 
 
 testADT2 :: Test
-testADT2 = TestCase $ assertEqual "two record constructor" example (fromTuple (toTuple example))
-  where
-    example = Test2C { attrB = 4, attrC = 6 }
+testADT2 = TestCase $ do
+  let example = Test2C { attrB = 4, attrC = 6 }
+  assertEqual "two record constructor" example (fromTuple (toTuple example))
+  --this was a tricky case that was throwing the undefined exception because of insufficient laziness in the :*: matching- see ProjectM36.Tupleable
+  let expectedAttributes = attributesFromList [Attribute "attrB" IntAtomType,
+                                               Attribute "attrC" IntAtomType]
+  assertEqual "two record constructor toAttributes" expectedAttributes (toAttributes (undefined :: Test2T))
+  
     
 testADT3 :: Test
 testADT3 = TestCase $ assertEqual "one arg constructor" example (fromTuple (toTuple example))

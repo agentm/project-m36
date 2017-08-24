@@ -1,14 +1,19 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, FlexibleInstances, FlexibleContexts, TypeOperators, UndecidableInstances, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, TypeOperators, UndecidableInstances, ScopedTypeVariables, DefaultSignatures #-}
 module ProjectM36.Tupleable where
 import ProjectM36.Base
+import ProjectM36.Error
 import ProjectM36.Tuple
+import ProjectM36.TupleSet
 import ProjectM36.Atomable
 import ProjectM36.Attribute hiding (null)
 import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import Data.Monoid
-              
+import Data.Foldable
+import Data.Maybe
+
+{-
 data Test1T = Test1C {
   attrA :: Int
   }
@@ -28,6 +33,15 @@ data TestUnnamed1 = TestUnnamed1 Int Double T.Text
                     deriving (Show,Eq, Generic)
                              
 instance Tupleable TestUnnamed1          
+-}
+
+-- | Convert a 'Traverseable' of 'Tupleable's to an 'Insert' 'DatabaseContextExpr'. This is useful for converting, for example, a list of data values to a set of Insert expressions which can be used to add the values to the database.
+toInsertExpr :: (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
+toInsertExpr vals rvName = do
+  let attrs = toAttributes (head (toList vals))
+  tuples <- mkTupleSet attrs $ toList (fmap toTuple vals)
+  let rel = MakeStaticRelation attrs tuples   
+  pure (Insert rvName rel)
 
 class Tupleable a where
   toTuple :: a -> RelationTuple
@@ -73,7 +87,7 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
 -- product types
 instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
   toTupleG = error "toTupleG"
-  toAttributesG (x :*: y) = toAttributesG x V.++ toAttributesG y
+  toAttributesG ~(x :*: y) = toAttributesG x V.++ toAttributesG y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
   fromTupleG tup = fromTupleG tup :*: fromTupleG (trimTuple 1 tup)
 
 --selector/record
@@ -90,9 +104,7 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
     Left _ -> error ("no such record name: " ++ name)
     Right atom -> M1 (atomv atom)
    where
-     atomv atom = case fromAtomG atom [atom] of
-       Nothing -> error "no such atom conversion"
-       Just v -> v
+     atomv atom = fromMaybe (error "no such atom conversion") (fromAtomG atom [atom])
      name = selName (undefined :: M1 S c a x)
 
 --constructors with no arguments  
