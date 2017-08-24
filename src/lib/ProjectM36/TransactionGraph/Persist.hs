@@ -20,6 +20,7 @@ import Data.Text.Encoding
 import Control.Monad (foldM)
 import Data.Either (isRight)
 import Data.Maybe (fromMaybe)
+import qualified Data.List as L
 import Control.Exception.Base
 import qualified Data.Text.IO as TIO
 import Data.ByteString (ByteString)
@@ -28,18 +29,25 @@ import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock
 import Data.Text.Read
+import System.FilePath.Glob
 
 type LockFileHash = ByteString
 
 {-
-The "m36v1" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
+The "m36vX" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
 Each Transaction is written to it own directory named by its transaction id. Partially written transactions ids are prefixed with a "." to indicate incompleteness in the graph.
 
 Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
 
+expectedVersion :: Int
+expectedVersion = 2
+
+transactionLogFileName :: FilePath 
+transactionLogFileName = "m36v" ++ show expectedVersion
+
 transactionLogPath :: FilePath -> FilePath
-transactionLogPath dbdir = dbdir </> "m36v1"
+transactionLogPath dbdir = dbdir </> transactionLogFileName
 
 headsPath :: FilePath -> FilePath
 headsPath dbdir = dbdir </> "heads"
@@ -53,18 +61,32 @@ verify that the database directory is valid or bootstrap it
 - return error or lock file handle which is already locked with a read lock
 -}
 
+checkForOtherVersions :: FilePath -> IO (Either PersistenceError ())
+checkForOtherVersions dbdir = do
+  versionMatches <- globDir1 (compile "m36v*") dbdir
+  let otherVersions = L.delete transactionLogFileName (map takeFileName versionMatches)
+  if not (null otherVersions) then
+     pure (Left (WrongDatabaseFormatVersionError transactionLogFileName (head otherVersions)))
+     else
+     pure (Right ())
+ 
+
 setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (Handle, LockFileHash))
 setupDatabaseDir sync dbdir bootstrapGraph = do
   dbdirExists <- doesDirectoryExist dbdir
-  m36exists <- doesFileExist (transactionLogPath dbdir)  
-  if dbdirExists && m36exists then do
-      --no directories to write, just 
-      lockFileH <- openLockFile dbdir
-      gDigest <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (readGraphTransactionIdFileDigest dbdir)
-      pure (Right (lockFileH, gDigest))
-    else if not m36exists then do
-    locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
-    pure (Right locks)
+  eWrongVersion <- checkForOtherVersions dbdir
+  case eWrongVersion of
+    Left err -> pure (Left err)
+    Right () -> do
+      m36exists <- doesFileExist (transactionLogPath dbdir)  
+      if dbdirExists && m36exists then do
+        --no directories to write, just 
+        lockFileH <- openLockFile dbdir
+        gDigest <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (readGraphTransactionIdFileDigest dbdir)
+        pure (Right (lockFileH, gDigest))
+      else if not m36exists then do
+        locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
+        pure (Right locks)
          else
            pure (Left (InvalidDirectoryError dbdir))
 {- 
@@ -172,7 +194,7 @@ readTransactionIfNecessary dbdir transId mScriptSession graphIn =
 writeGraphTransactionIdFile :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
 writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = writeFileSync sync graphFile uuidInfo >> pure digest
   where
-    graphFile = destDirectory </> "m36v1"
+    graphFile = transactionLogPath destDirectory
     uuidInfo = T.intercalate "\n" graphLines
     digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 

@@ -17,7 +17,6 @@ import System.IO
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
 import Data.Monoid
-import Control.Monad (void)
 import qualified Data.UUID as U
 import Control.Monad.Random
 import Data.List.NonEmpty as NE

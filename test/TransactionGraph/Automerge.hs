@@ -25,7 +25,7 @@ checkEither :: IO (Either RelationalError a) -> IO a
 checkEither io = do
   ret <- io
   case ret of
-    Left err -> assertFailure (show err)
+    Left err -> assertFailure (show err) >> undefined
     Right a -> pure a
 
 testAutomergeSuccess :: Test
