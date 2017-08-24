@@ -73,7 +73,7 @@ testList :: Test
 testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8]
 
 testADT1 :: Test
-testADT1 = TestCase $ assertEqual "one record constructor" example (fromTuple (toTuple example))
+testADT1 = TestCase $ assertEqual "one record constructor" (Right example) (fromTuple (toTuple example))
   where 
     example = Test1C {attrA = 3}
 
@@ -81,7 +81,7 @@ testADT1 = TestCase $ assertEqual "one record constructor" example (fromTuple (t
 testADT2 :: Test
 testADT2 = TestCase $ do
   let example = Test2C { attrB = 4, attrC = 6 }
-  assertEqual "two record constructor" example (fromTuple (toTuple example))
+  assertEqual "two record constructor" (Right example) (fromTuple (toTuple example))
   --this was a tricky case that was throwing the undefined exception because of insufficient laziness in the :*: matching- see ProjectM36.Tupleable
   let expectedAttributes = attributesFromList [Attribute "attrB" IntAtomType,
                                                Attribute "attrC" IntAtomType]
@@ -89,30 +89,30 @@ testADT2 = TestCase $ do
   
     
 testADT3 :: Test
-testADT3 = TestCase $ assertEqual "one arg constructor" example (fromTuple (toTuple example))
+testADT3 = TestCase $ assertEqual "one arg constructor" (Right example) (fromTuple (toTuple example))
   where
     example = Test3C 4
     
 testADT4 :: Test    
-testADT4 = TestCase $ assertEqual "zero arg constructor" example (fromTuple (toTuple example))
+testADT4 = TestCase $ assertEqual "zero arg constructor" (Right example) (fromTuple (toTuple example))
   where
     example = Test4C 
     
 --testADT5 should not compile    
     
 testADT6 :: Test    
-testADT6 = TestCase $ assertEqual "mixed types" example (fromTuple (toTuple example))
+testADT6 = TestCase $ assertEqual "mixed types" (Right example) (fromTuple (toTuple example))
   where
     example = Test6C "testo" 3 4.0
     
 testADT7 :: Test    
 testADT7 = TestCase $ do
   let example = Test7C (Test7AC 3)
-  assertEqual "atom type" example (fromTuple (toTuple example))
+  assertEqual "atom type" (Right example) (fromTuple (toTuple example))
   let expectedAttrs = V.singleton (Attribute "" (ConstructedAtomType "Test7A" M.empty))
   assertEqual "adt atomtype" expectedAttrs (toAttributes (undefined :: Test7T))
     
 testADT8 :: Test    
-testADT8 = TestCase $ assertEqual "single value" example (fromTuple (toTuple example))
+testADT8 = TestCase $ assertEqual "single value" (Right example) (fromTuple (toTuple example))
   where
     example = Test8C    
