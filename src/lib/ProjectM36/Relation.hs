@@ -253,6 +253,13 @@ relMogrify mapper newAttributes (Relation _ tupSet) = do
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
 relFold folder acc (Relation _ tupleSet) = foldr folder acc (asList tupleSet)
 
+-- | Generate a randomly-ordered list of tuples from the relation.
+toList :: Relation -> IO [RelationTuple]
+toList rel = do 
+  gen <- newStdGen
+  let rel' = evalRand (randomizeTupleOrder rel) gen
+  pure (relFold (\tup l -> tup : l) [] rel')
+
 --image relation as defined by CJ Date
 --given tupleA and relationB, return restricted relation where tuple attributes are not the attribues in tupleA but are attributes in relationB and match the tuple's value
 

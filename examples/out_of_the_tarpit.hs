@@ -3,6 +3,7 @@
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Tupleable
+import ProjectM36.Relation
 import ProjectM36.Error
 import Data.Either
 import GHC.Generics
@@ -53,7 +54,7 @@ data Property = Property {
   photo :: T.Text,
   dateRegistered :: Day
   }
-              deriving (Generic, Eq)
+              deriving (Generic, Eq, Show)
                        
 instance Tupleable Property                       
 
@@ -168,6 +169,7 @@ createSchema sessionId conn = do
   putStrLn "load atom functions"
   _ <- handleIOErrors $ mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
   
+  --insert a bunch of records
   putStrLn "load data"
   let properties = [Property { address = "123 Main St.",
                                price = 200000,
@@ -227,6 +229,13 @@ createSchema sessionId conn = do
                                   commission = 10000 }]
   insertCommissionsExpr <- handleError $ toInsertExpr commissions "commission"                    
   handleIOError $ executeDatabaseContextExpr sessionId conn insertCommissionsExpr
+  
+  --query some records, marshal them back to Haskell
+
+  properties' <- handleIOError $ executeRelationalExpr sessionId conn (RelationVariable "property" ())
+  
+  props <- toList properties' >>= mapM (handleError . fromTuple) :: IO [Property]
+  print props
 
 handleError :: Either RelationalError a -> IO a
 handleError eErr = case eErr of

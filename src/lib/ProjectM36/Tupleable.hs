@@ -1,17 +1,18 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, TypeOperators, UndecidableInstances, ScopedTypeVariables, DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.Tupleable where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Atomable
+import ProjectM36.DataTypes.Primitive
 import ProjectM36.Attribute hiding (null)
 import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import Data.Monoid
 import Data.Foldable
-import Data.Maybe
 
 {-
 data Test1T = Test1C {
@@ -46,15 +47,15 @@ toInsertExpr vals rvName = do
 class Tupleable a where
   toTuple :: a -> RelationTuple
   
-  fromTuple :: RelationTuple -> a
+  fromTuple :: RelationTuple -> Either RelationalError a
   
   toAttributes :: a -> Attributes
 
   default toTuple :: (Generic a, TupleableG (Rep a)) => a -> RelationTuple
   toTuple v = toTupleG (from v)
   
-  default fromTuple :: (Generic a, TupleableG (Rep a)) => RelationTuple -> a
-  fromTuple tup = to (fromTupleG tup)
+  default fromTuple :: (Generic a, TupleableG (Rep a)) => RelationTuple -> Either RelationalError a
+  fromTuple tup = to <$> fromTupleG tup
     
   default toAttributes :: (Generic a, TupleableG (Rep a)) => a -> Attributes
   toAttributes v = toAttributesG (from v)
@@ -62,13 +63,13 @@ class Tupleable a where
 class TupleableG g where  
   toTupleG :: g a -> RelationTuple
   toAttributesG :: g a -> Attributes
-  fromTupleG :: RelationTuple -> g a
+  fromTupleG :: RelationTuple -> Either RelationalError (g a)
   
 --data type metadata
 instance (Datatype c, TupleableG a) => TupleableG (M1 D c a) where
   toTupleG (M1 v) = toTupleG v
   toAttributesG (M1 v) = toAttributesG v
-  fromTupleG v = M1 (fromTupleG v)
+  fromTupleG v = M1 <$> fromTupleG v
 
 --constructor metadata
 instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) where
@@ -82,13 +83,13 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
                                                              attr) counter attrsToCheck 
       atoms = V.fromList (toAtomsG v)
   toAttributesG (M1 v) = toAttributesG v
-  fromTupleG tup = M1 (fromTupleG tup)
+  fromTupleG tup = M1 <$> fromTupleG tup
   
 -- product types
 instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
   toTupleG = error "toTupleG"
   toAttributesG ~(x :*: y) = toAttributesG x V.++ toAttributesG y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
-  fromTupleG tup = fromTupleG tup :*: fromTupleG (trimTuple 1 tup)
+  fromTupleG tup = (:*:) <$> fromTupleG tup <*> fromTupleG (trimTuple 1 tup)
 
 --selector/record
 instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
@@ -98,13 +99,17 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
      name = T.pack (selName m)
      aType = toAtomTypeG v
   fromTupleG tup = if null name then -- non-record type, just pull off the first tuple item
-                     M1 (atomv (V.head (tupleAtoms tup)))
-                   else
-                     case atomForAttributeName (T.pack name) tup of
-    Left _ -> error ("no such record name: " ++ name)
-    Right atom -> M1 (atomv atom)
+                     M1 <$> atomv (V.head (tupleAtoms tup))
+                   else do
+                     atom <- atomForAttributeName (T.pack name) tup
+                     val <- atomv atom
+                     pure (M1 val)
    where
-     atomv atom = fromMaybe (error "no such atom conversion") (fromAtomG atom [atom])
+     expectedAtomType = atomType (V.head (toAttributesG (undefined :: M1 S c a x)))
+     atomv atom = maybe (Left (AtomTypeMismatchError  
+                               expectedAtomType
+                               (atomTypeForAtom atom)
+                              )) Right (fromAtomG atom [atom])
      name = selName (undefined :: M1 S c a x)
 
 --constructors with no arguments  
@@ -112,6 +117,6 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
 instance TupleableG U1 where
   toTupleG _= emptyTuple
   toAttributesG _ = emptyAttributes
-  fromTupleG _ = U1
+  fromTupleG _ = pure U1
   
   
