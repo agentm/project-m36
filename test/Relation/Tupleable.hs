@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures, FlexibleInstances, FlexibleContexts, TypeOperators, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, FlexibleInstances, FlexibleContexts, TypeOperators, DeriveAnyClass #-}
 import Test.HUnit
 import ProjectM36.Tupleable
 import ProjectM36.Atomable
@@ -11,6 +11,8 @@ import qualified Data.Vector as V
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.Exit
+
+{-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 
 data Test1T = Test1C {
   attrA :: Int
