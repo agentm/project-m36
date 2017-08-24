@@ -3,13 +3,13 @@
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Tupleable
+import ProjectM36.Error
 import Data.Either
-import Control.Monad
 import GHC.Generics
 import Data.Binary
 import Control.DeepSeq
 import qualified Data.Text as T
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar
 import qualified Data.Vector as V
 
 --create various database value (atom) types
@@ -47,14 +47,6 @@ main = do
 
   createSchema sessionId conn
   
-data Test = Test {  
-  dateo :: Int,
-  date2o :: Int
-  }
-          deriving (Generic, Eq)
-                   
-instance Tupleable Test                   
-  
 data Property = Property {  
   address :: T.Text,
   price :: Price,
@@ -79,19 +71,19 @@ data Offer = Offer {
 instance Tupleable Offer                    
                     
 data Decision = Decision {                    
-  dec_address :: Address,
-  dec_offerDate :: Day, --the dec_ prefix is needed until OverloadedRecordFields is available
-  dec_bidderName :: Name,
-  dec_bidderAddress :: Address,
-  dec_decisionDate :: Day,
-  dec_accepted :: Bool
+  decAddress :: Address,
+  decOfferDate :: Day, --the dec prefix is needed until OverloadedRecordFields is available
+  decBidderName :: Name,
+  decBidderAddress :: Address,
+  decDecisionDate :: Day,
+  decAccepted :: Bool
   }
   deriving (Generic, Eq)
            
 instance Tupleable Decision           
                        
 data Room = Room {
-  room_address :: Address,
+  roomAddress :: Address,
   roomName :: Name,
   width :: Double,
   breadth :: Double,
@@ -102,9 +94,9 @@ data Room = Room {
 instance Tupleable Room
 
 data Floor = Floor {
-  floor_address :: Address,
-  floor_roomName :: Name,
-  floor :: Int
+  floorAddress :: Address,
+  floorRoomName :: Name,
+  floorNum :: Int
   }
   deriving (Generic, Eq)
            
@@ -126,25 +118,25 @@ createSchema sessionId conn = do
       --create uniqueness constraints                     
       incDepKeys = map (uncurry databaseContextExprForUniqueKey)
                 [("property", ["address"]),
-                 ("offer", ["address", "offerDate", "bidderName", "bidderAddress"]),
-                 ("decision", ["address", "offerDate", "bidderName", "bidderAddress"]),
-                 ("room", ["address", "roomName"]),
-                 ("floor", ["address", "roomName"]),
+                 ("offer", ["offerAddress", "offerDate", "bidderName", "bidderAddress"]),
+                 ("decision", ["decAddress", "decOfferDate", "decBidderName", "decBidderAddress"]),
+                 ("room", ["roomAddress", "roomName"]),
+                 ("floor", ["floorAddress", "floorRoomName"]),
                  --"commision" misspelled in OotT
                  ("commission", ["priceBand", "areaCode", "saleSpeed"])
                  ]
       --create foreign key constraints
       foreignKeys = [("offer_property_fk", 
-                      ("offer", ["address"]), 
+                      ("offer", ["offerAddress"]), 
                       ("property", ["address"])),
                      ("decision_offer_fk",
-                      ("decision", ["address", "offerDate", "bidderName", "bidderAddress"]),
-                      ("offer", ["address", "offerDate", "bidderName", "bidderAddress"])),
+                      ("decision", ["decAddress", "decOfferDate", "decBidderName", "decBidderAddress"]),
+                      ("offer", ["offerAddress", "offerDate", "bidderName", "bidderAddress"])),
                      ("room_property_fk",
-                      ("room", ["address"]),
+                      ("room", ["roomAddress"]),
                       ("property", ["address"])),
                      ("floor_property_fk",
-                      ("floor", ["address"]),
+                      ("floor", ["floorAddress"]),
                       ("property", ["address"]))
                     ]
       incDepForeignKeys = map (\(n, a, b) -> databaseContextExprForForeignKey n a b) foreignKeys
@@ -170,10 +162,87 @@ createSchema sessionId conn = do
                    createScriptedAtomFunction "datesToSpeedBand" [dayTypeConstructor, dayTypeConstructor] (ADTypeConstructor "SpeedBand" []) speedBandScript
                   ]
   --gather up and execute all database updates
-  eErrs <- mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
-  let errs = lefts eErrs
-  unless (null errs) (putStrLn (show errs))    
+  putStrLn "load relvars"
+  _ <- handleIOErrors $ mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
   
-  eErrs' <- mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
-  let errs' = lefts eErrs'
-  unless (null errs') (putStrLn (show errs'))
+  putStrLn "load atom functions"
+  _ <- handleIOErrors $ mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
+  
+  putStrLn "load data"
+  let properties = [Property { address = "123 Main St.",
+                               price = 200000,
+                               photo = "123_main.jpg",
+                               dateRegistered = fromGregorian 2016 4 3},
+                    Property { address = "456 Main St.",
+                               price = 150000,
+                               photo = "456_main.jpg",
+                               dateRegistered = fromGregorian 2016 5 6}]
+  insertPropertiesExpr <- handleError $ toInsertExpr properties "property"
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertPropertiesExpr
+  
+  let offers = [Offer { offerAddress = "123 Main St.",
+                        offerPrice = 180000,
+                        offerDate = fromGregorian 2017 1 2,
+                        bidderName = "Steve",
+                        bidderAddress = "789 Main St.",
+                        decisionDate = fromGregorian 2017 2 2,
+                        accepted = False }]
+  
+  insertOffersExpr <- handleError $ toInsertExpr offers "offer"
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertOffersExpr
+  
+  let rooms = [Room { roomAddress = "123 Main St.",
+                      roomName = "Fabulous Kitchen",
+                      width = 10,
+                      breadth = 10,
+                      roomType = Kitchen },
+               Room { roomAddress = "123 Main St.",
+                      roomName = "Clean Bathroom",
+                      width = 7,
+                      breadth = 5,
+                      roomType = Bathroom }]
+              
+  insertRoomsExpr <- handleError $ toInsertExpr rooms "room"             
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertRoomsExpr
+  
+  let decisions = [Decision { decAddress = "123 Main St.",
+                              decOfferDate = fromGregorian 2017 1 2,
+                              decBidderName = "Steve",
+                              decBidderAddress = "789 Main St.",
+                              decDecisionDate = fromGregorian 2017 05 04,
+                              decAccepted = False }]
+  insertDecisionsExpr <- handleError $ toInsertExpr decisions "decision"                  
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertDecisionsExpr
+  
+  let floors = [Floor { floorAddress = "123 Main St.",
+                        floorRoomName = "Bathroom",
+                        floorNum = 1
+                      }]
+  insertFloorsExpr <- handleError $ toInsertExpr floors "floor"               
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertFloorsExpr
+  
+  let commissions = [Commission { priceBand = Medium,
+                                  areaCode = City,
+                                  saleSpeed = MediumBand,
+                                  commission = 10000 }]
+  insertCommissionsExpr <- handleError $ toInsertExpr commissions "commission"                    
+  handleIOError $ executeDatabaseContextExpr sessionId conn insertCommissionsExpr
+
+handleError :: Either RelationalError a -> IO a
+handleError eErr = case eErr of
+    Left err -> print err >> error "Died due to errors."
+    Right v -> pure v
+    
+handleIOError :: IO (Either RelationalError a) -> IO a
+handleIOError m = do
+  e <- m
+  handleError e
+
+handleIOErrors :: IO [Either RelationalError a] -> IO [a]
+handleIOErrors m = do
+  eErrs <- m
+  case lefts eErrs of
+    [] -> pure (rights eErrs)    
+    errs -> handleError (Left (someErrors errs))
+
+  
