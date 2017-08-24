@@ -1,5 +1,5 @@
 Name: project-m36
-Version: 0.1
+Version: 0.2
 License: PublicDomain
 Build-Type: Simple
 Homepage: https://github.com/agentm/project-m36
@@ -216,7 +216,6 @@ Executable tutd
                    TutorialD.Interpreter.TransGraphRelationalOperator,
                    TutorialD.Interpreter.SchemaOperator
     main-is: TutorialD/tutd.hs
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
     CC-Options: -fPIC
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin
@@ -262,7 +261,6 @@ Executable project-m36-server
                    list-t,
                    base64-bytestring
     Main-Is: ./src/bin/ProjectM36/Server/project-m36-server.hs
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
     GHC-Options: -Wall -threaded -rtsopts
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
@@ -279,7 +277,6 @@ Executable bigrel
                    TutorialD.Interpreter.Types
     main-is: benchmark/bigrel.hs
     GHC-Options: -Wall -threaded -rtsopts
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
@@ -293,7 +290,6 @@ Test-Suite test-tutoriald
     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-tutoriald-atomfunctionscript
     Default-Language: Haskell2010
@@ -304,7 +300,6 @@ Test-Suite test-tutoriald-atomfunctionscript
     Build-Depends: base, HUnit, project-m36, uuid, containers, megaparsec, text, vector, directory, bytestring, mtl, haskeline, random, MonadRandom, semigroups, time
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ./test, .
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-tutoriald-databasecontextfunctionscript
     Default-Language: Haskell2010
@@ -315,7 +310,6 @@ Test-Suite test-tutoriald-databasecontextfunctionscript
     Build-Depends: base, HUnit, project-m36, uuid, containers, megaparsec, text, vector, directory, bytestring, mtl, haskeline, random, MonadRandom, semigroups, time
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ./test, .
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-relation
     Default-Language: Haskell2010
@@ -332,7 +326,6 @@ Test-Suite test-static-optimizer
     main-is: test/Relation/StaticOptimizer.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, project-m36, transformers
     GHC-Options: -Wall
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-transactiongraph-persist
     Default-Language: Haskell2010
@@ -351,7 +344,6 @@ Test-Suite test-relation-import-csv
     main-is: test/Relation/Import/CSV.hs
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, project-m36
     GHC-Options: -Wall
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-tutoriald-import-tutoriald
     Default-Language: Haskell2010
@@ -410,7 +402,6 @@ Executable Example-OutOfTheTarpit
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36
     Main-Is: examples/out_of_the_tarpit.hs
     GHC-Options: -Wall
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Executable Example-Hair
     Default-Language: Haskell2010
@@ -418,7 +409,6 @@ Executable Example-Hair
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36
     Main-Is: examples/hair.hs
     GHC-Options: -Wall
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-scripts
     Default-Language: Haskell2010
@@ -436,7 +426,6 @@ Executable project-m36-websocket-server
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator
     GHC-Options: -Wall
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
     Hs-Source-Dirs: ./src/bin
     Default-Extensions: OverloadedStrings
 
@@ -449,7 +438,6 @@ Test-Suite test-websocket-server
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, .
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-isomorphic-schemas
     Default-Language: Haskell2010
@@ -459,7 +447,6 @@ Test-Suite test-isomorphic-schemas
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, .
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-atomable
     Default-Language: Haskell2010
@@ -470,7 +457,6 @@ Test-Suite test-atomable
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test/
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-multiprocess-access
     Default-Language: Haskell2010
@@ -480,7 +466,6 @@ Test-Suite test-multiprocess-access
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test/
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-transactiongraph-automerge
     Default-Language: Haskell2010
@@ -490,7 +475,6 @@ Test-Suite test-transactiongraph-automerge
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test/
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"
 
 Test-Suite test-tupleable
     Default-Language: Haskell2010
@@ -500,4 +484,3 @@ Test-Suite test-tupleable
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test/
-    CPP-Options: -DPROJECTM36_VERSION="v0.1"

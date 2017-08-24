@@ -71,12 +71,12 @@ ghcPkgPathsForConfig _ = error "Clients cannot configure remote ghc package path
 errDie :: String -> IO ()                                                           
 errDie err = hPutStrLn stderr err >> exitFailure
 
-#ifndef PROJECTM36_VERSION
-#error PROJECTM36_VERSION is not defined
+#ifndef VERSION_project_m36
+#error VERSION_project_m36 is not defined
 #endif
 printWelcome :: IO ()
 printWelcome = do
-  putStrLn $ "Project:M36 TutorialD Interpreter " ++ PROJECTM36_VERSION
+  putStrLn $ "Project:M36 TutorialD Interpreter " ++ VERSION_project_m36
   putStrLn "Type \":help\" for more information."
   putStrLn "A full tutorial is available at:"
   putStrLn "https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown"

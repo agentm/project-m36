@@ -21,7 +21,7 @@ getVersionP :: Parser InformationOperator
 getVersionP = reserved ":version" >> pure GetVersionOperator
 
 evalInformationOperator :: InformationOperator -> Either Text Text
-evalInformationOperator GetVersionOperator = Right ("tutd " `append` PROJECTM36_VERSION)
+evalInformationOperator GetVersionOperator = Right ("tutd " `append` VERSION_project_m36)
 -- display generic help
 evalInformationOperator HelpOperator = Right $ intercalate "\n" help
   where
