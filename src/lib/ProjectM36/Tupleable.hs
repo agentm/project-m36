@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, TypeOperators, UndecidableInstances, ScopedTypeVariables, DefaultSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.Tupleable where
 import ProjectM36.Base
 import ProjectM36.Error
