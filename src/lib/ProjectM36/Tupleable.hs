@@ -42,6 +42,14 @@ toInsertExpr vals rvName = do
   tuples <- mkTupleSet attrs $ toList (fmap toTuple vals)
   let rel = MakeStaticRelation attrs tuples   
   pure (Insert rvName rel)
+  
+-- | Convert a 'Tupleable' to a create a 'Define' expression which can be used to create an empty relation variable. Use 'toInsertExpr' to insert the actual tuple data. This function is typically used with 'undefined'.
+toDefineExpr :: Tupleable a => a -> RelVarName -> DatabaseContextExpr
+toDefineExpr val rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
+  where 
+    attrs = toAttributes val
+
+  
 
 class Tupleable a where
   toTuple :: a -> RelationTuple
