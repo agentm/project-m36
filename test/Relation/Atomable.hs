@@ -61,7 +61,7 @@ testHaskell2DB :: Test
 testHaskell2DB = TestCase $ do
   --validate generated database context expression
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  let test1TExpr = toDatabaseContextExpr (undefined :: Test1T)
+  let test1TExpr = toAddTypeExpr (undefined :: Test1T)
       expectedTest1TExpr = AddTypeConstructor (ADTypeConstructorDef "Test1T" []) [DataConstructorDef "Test1C" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" IntAtomType)]]
   assertEqual "simple ADT1" expectedTest1TExpr test1TExpr
   checkExecuteDatabaseContextExpr sessionId dbconn test1TExpr

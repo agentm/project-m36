@@ -61,7 +61,7 @@ Note that the ```Atomable``` instance can also be derived.
 After setting up the connection (which we elide here), the database context is loaded with the expression to define the data type.
 
 ```haskell
-executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
+executeDatabaseContextExpr sessionId conn (toAddTypeExpr (undefined :: Hair))
 ```
 
 Using a ```Proxy``` would also be acceptable, but the result would be the same.
@@ -104,7 +104,7 @@ The essential ```Atomable``` typeclass functions are:
 | ```toAtom :: a -> Atom``` | convert a Haskell data type to a database atom |
 | ```fromAtom :: Atom -> a``` | convert a database atom to a Haskell data type |
 | ```toAtomType :: a -> AtomType``` | generate a database AtomType for a Haskell datatype |
-| ```toDatabaseContextExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
+| ```toAddTypeExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
 
 In addition, basic Haskell data types like ```Int```, ```Double```, ```Text```, ```Day```, ```Bool```, ```UTCTime```, and l```ByteString``` already have Atomable instances ready-to-go. In addition, an ```Atomable``` instance is available for lists: ```Atomable a => [a]```, though one should be very careful not to use this in a common anti-pattern. Typically, it makes more sense to store one-to-many relationships as discrete relation variables; when storing them as lists, one gives up the various query capabilities and optimizations of the relational algebra.
 

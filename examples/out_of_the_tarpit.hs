@@ -11,7 +11,6 @@ import Data.Binary
 import Control.DeepSeq
 import qualified Data.Text as T
 import Data.Time.Calendar
-import qualified Data.Vector as V
 
 --create various database value (atom) types
 type Price = Double
@@ -47,6 +46,7 @@ main = do
   let sessionId = check eSessionId
 
   createSchema sessionId conn
+  insertSampleData sessionId conn
   
 data Property = Property {  
   address :: T.Text,
@@ -142,18 +142,17 @@ createSchema sessionId conn = do
                     ]
       incDepForeignKeys = map (\(n, a, b) -> databaseContextExprForForeignKey n a b) foreignKeys
       --define the relvars
-      relvarMap = [("property", toAttributes (undefined :: Property)),
-                   ("offer", toAttributes (undefined :: Offer)),
-                   ("decision", toAttributes (undefined :: Decision)),
-                   ("room", toAttributes (undefined :: Room)),
-                   ("floor", toAttributes (undefined :: Floor)),
-                   ("commission", toAttributes (undefined :: Commission))]
-      rvDefs = map (\(name, typ) -> Define name (map NakedAttributeExpr (V.toList typ))) relvarMap     
+      rvExprs = [toDefineExpr (undefined :: Property) "property",
+                 toDefineExpr (undefined :: Offer) "offer",
+                 toDefineExpr (undefined :: Decision) "decision",
+                 toDefineExpr (undefined :: Room) "room",
+                 toDefineExpr (undefined :: Floor) "floor",
+                 toDefineExpr (undefined :: Commission) "commission"]
       --create the new algebraic data types
-      new_adts = [toDatabaseContextExpr (undefined :: RoomType),
-                  toDatabaseContextExpr (undefined :: PriceBand),
-                  toDatabaseContextExpr (undefined :: AreaCode),
-                  toDatabaseContextExpr (undefined :: SpeedBand)]
+      new_adts = [toAddTypeExpr (undefined :: RoomType),
+                  toAddTypeExpr (undefined :: PriceBand),
+                  toAddTypeExpr (undefined :: AreaCode),
+                  toAddTypeExpr (undefined :: SpeedBand)]
       --create the stored atom functions
       priceBandScript = "(\\(DoubleAtom price:_) -> do\n let band = if price < 10000.0 then \"Low\" else if price < 20000.0 then \"Medium\" else if price < 30000.0 then \"High\" else \"Premium\"\n let aType = ConstructedAtomType \"PriceBand\" empty\n pure (ConstructedAtom band aType [])) :: [Atom] -> Either AtomFunctionError Atom"
       areaCodeScript = "(\\(TextAtom address:_) -> let aType = ConstructedAtomType \"AreaCode\" empty in if address == \"90210\" then pure (ConstructedAtom \"City\" aType []) else pure (ConstructedAtom \"Rural\" aType [])) :: [Atom] -> Either AtomFunctionError Atom"
@@ -164,11 +163,14 @@ createSchema sessionId conn = do
                   ]
   --gather up and execute all database updates
   putStrLn "load relvars"
-  _ <- handleIOErrors $ mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvDefs ++ incDepKeys ++ incDepForeignKeys)
+  _ <- handleIOErrors $ mapM (executeDatabaseContextExpr sessionId conn) (new_adts ++ rvExprs ++ incDepKeys ++ incDepForeignKeys)
   
   putStrLn "load atom functions"
   _ <- handleIOErrors $ mapM (executeDatabaseContextIOExpr sessionId conn) atomFuncs
-  
+  pure ()
+   
+insertSampleData :: SessionId -> Connection ->  IO ()
+insertSampleData sessionId conn = do                    
   --insert a bunch of records
   putStrLn "load data"
   let properties = [Property { address = "123 Main St.",
