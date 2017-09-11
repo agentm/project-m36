@@ -1,17 +1,16 @@
 --create a bunch of orphan instances for use with the websocket server
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Server.RemoteCallTypes.Json where
-import ProjectM36.Server.RemoteCallTypes
-import ProjectM36.Base
-import ProjectM36.Error
-import ProjectM36.DataTypes.Primitive
-import ProjectM36.IsomorphicSchema
-import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
+import ProjectM36.Base
+import ProjectM36.DatabaseContextFunctionError
+import ProjectM36.DataTypes.Primitive
+import ProjectM36.Error
+import ProjectM36.IsomorphicSchema
+import ProjectM36.Server.RemoteCallTypes
 
 import Data.Aeson
-import Data.UUID.Aeson ()
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding
 import Data.Time.Calendar
@@ -64,7 +63,7 @@ instance FromJSON SchemaExpr
 instance ToJSON SchemaIsomorph
 instance FromJSON SchemaIsomorph
 
-instance ToJSON Atom where                   
+instance ToJSON Atom where
   toJSON atom@(IntAtom i) = object [ "type" .= atomTypeForAtom atom,
                                      "val" .= i ]
   toJSON atom@(DoubleAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -79,9 +78,9 @@ instance ToJSON Atom where
                                             "val" .= decodeUtf8 (B64.encode i) ]
   toJSON atom@(BoolAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
-                             
+
   toJSON atom@(IntervalAtom b e i1 i2) = object [ "type" .= atomTypeForAtom atom,
-                                                  "val" .= object [ 
+                                                  "val" .= object [
                                                     "begin" .= toJSON b,
                                                     "end" .= toJSON e,
                                                     "beginopen" .= i1,
@@ -95,16 +94,16 @@ instance ToJSON Atom where
     "type" .= toJSON atomtype,
     "atomlist" .= toJSON atomlist
     ]
-    
+
 instance FromJSON Atom where
   parseJSON = withObject "atom" $ \o -> do
-    atype <- o .: "type" 
+    atype <- o .: "type"
     case atype of
       TypeVariableType _ -> fail "cannot pass TypeVariableType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
       RelationAtomType _ -> do
         rel <- o .: "val"
-        pure $ RelationAtom rel      
+        pure $ RelationAtom rel
       IntAtomType -> IntAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"
       TextAtomType -> TextAtom <$> o .: "val"
@@ -118,12 +117,12 @@ instance FromJSON Atom where
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)
       BoolAtomType -> BoolAtom <$> o .: "val"
-      IntervalAtomType _ -> IntervalAtom <$> 
+      IntervalAtomType _ -> IntervalAtom <$>
                               ((o .: "val") >>= (.: "begin")) <*>
                               ((o .: "val") >>= (.: "end")) <*>
                               ((o .: "val") >>= (.: "beginopen")) <*>
                               ((o .: "val") >>= (.: "endopen"))
-                              
+
 
 instance ToJSON Notification
 instance FromJSON Notification
