@@ -52,6 +52,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [TutorialD Tutorial](docs/tutd_tutorial.markdown)
 1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Developer's Change Log](Changelog.markdown)
+1. [Simple Client API](docs/simple_api.markdown)
 
 ### Database Comparisons
 
