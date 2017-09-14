@@ -31,13 +31,14 @@ testSimpleCommitSuccess = TestCase $
     let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback []
         relExpr = Union (RelationVariable "x" ()) (RelationVariable "y" ())
     
-    Right _ <- withDBConnection connInfo $ do
-      Right _ <- withTransaction [
-                          Assign "x" (ExistingRelation relationTrue),
-                          Assign "y" (ExistingRelation relationFalse)
-                          ]
+    dbconn <- assertEither (simpleConnectProjectM36 connInfo)
+    Right rel <- withTransaction dbconn $ do
+      
+      execute (Assign "x" (ExistingRelation relationTrue))
+      execute (Assign "y" (ExistingRelation relationFalse))
       query relExpr
   
+    assertEqual "true/false simple" relationTrue rel
   -- re-open with standard API and validate that the relvars are available
     conn <- assertEither $ C.connectProjectM36 connInfo
     
@@ -50,10 +51,11 @@ testSimpleCommitFailure = TestCase $ do
   let failAttrs = attributesFromList [Attribute "fail" IntAtomType]
   err <- withSystemTempDirectory "m36tempdb" $ \tempdir -> do
     let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback []
-    withDBConnection connInfo $ do
-      Right _ <- withTransaction [Assign "x" (ExistingRelation relationTrue)]
+    dbconn <- assertEither (simpleConnectProjectM36 connInfo)
+    withTransaction dbconn $ do
+      execute $ Assign "x" (ExistingRelation relationTrue)
       --cause error
-      withTransaction [Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)]
+      execute $ Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)
   let expectedErr = Left (RelError (RelVarAssignmentTypeMismatchError V.empty failAttrs))
   assertEqual "dbc error" expectedErr err
   

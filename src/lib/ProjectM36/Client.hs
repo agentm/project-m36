@@ -89,7 +89,8 @@ module ProjectM36.Client
        Atomable(..),
        TupleExprBase(..),
        AtomExprBase(..),
-       RestrictionPredicateExprBase(..)
+       RestrictionPredicateExprBase(..),
+       withTransaction
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -1029,3 +1030,27 @@ writeDisconAndGraph_ graphTvar sessionId session sessions discon graph = do
   let newSession = Session discon (Sess.schemaName session)
   STMMap.insert newSession sessionId sessions
 -}
+
+-- | Runs an IO monad, commits the result when the monad returns no errors, otherwise, rolls back the changes and the error.
+withTransaction :: SessionId -> Connection -> IO (Either RelationalError a) -> IO (Either RelationalError ()) -> IO (Either RelationalError a)
+withTransaction sessionId conn io successFunc = bracketOnError (pure ()) (const do_rollback) block
+  where
+    do_rollback = rollback sessionId conn
+    block _ = do
+      eErr <- io
+      case eErr of 
+        Left err -> do
+          _ <- do_rollback
+          pure (Left err)
+        Right val -> do
+            eIsDirty <- disconnectedTransactionIsDirty sessionId conn
+            case eIsDirty of
+              Left err -> pure (Left err)
+              Right dirty -> do
+                if dirty then do
+                  res <- successFunc
+                  case res of
+                    Left err -> pure (Left err)
+                    Right _ -> pure (Right val)
+                  else -- no updates executed, so don't create a commit
+                  pure (Right val)
