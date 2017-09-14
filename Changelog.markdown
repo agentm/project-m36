@@ -1,3 +1,14 @@
+# 2017-09-16 (v0.2)
+
+* a new [simple client API](https://github.com/agentm/project-m36/blob/master/docs/simple_api.markdown) with a monadic transaction manager
+* complete hlint compliance
+* the generics-based [Tupleable typeclass](	https://github.com/agentm/project-m36/blob/master/docs/tupleable.markdown
+) which makes it easy to marshal Haskell data types to-and-from the database
+* timestamps attached to transactions to allow specific point-in-time travel
+* autoMergeToHead, a variant of commit which attempts to merge and commit to the latest head transaction to reduce incidents of TransactionNotAHeadErrors
+* interval data types
+* transaction dirtiness detection which allows the client to determine if an update expression actually changed the database state
+
 # 2017-08-01
 
 ## autoMergeToHead
