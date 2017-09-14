@@ -50,58 +50,58 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtomType v = toAtomTypeG (from v)
                       
   -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
-  toDatabaseContextExpr :: a -> DatabaseContextExpr
-  default toDatabaseContextExpr :: (Generic a, AtomableG (Rep a)) => a -> DatabaseContextExpr
-  toDatabaseContextExpr v = toDatabaseContextExprG (from v) (toAtomType v)
+  toAddTypeExpr :: a -> DatabaseContextExpr
+  default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => a -> DatabaseContextExpr
+  toAddTypeExpr v = toAddTypeExprG (from v) (toAtomType v)
   
 instance Atomable Int where  
   toAtom = IntAtom
   fromAtom (IntAtom i) = i
   fromAtom e = error ("improper fromAtom" ++ show e)
   toAtomType _ = IntAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable Double where
   toAtom = DoubleAtom
   fromAtom (DoubleAtom d) = d
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DoubleAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable T.Text where
   toAtom = TextAtom
   fromAtom (TextAtom t) = t
   fromAtom _ = error "improper fromAtom"  
   toAtomType _ = TextAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable Day where
   toAtom = DayAtom
   fromAtom (DayAtom d) = d
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DayAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable UTCTime where
   toAtom = DateTimeAtom
   fromAtom (DateTimeAtom t) = t
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = DateTimeAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable ByteString where
   toAtom = ByteStringAtom
   fromAtom (ByteStringAtom b) = b
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = ByteStringAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 instance Atomable Bool where
   toAtom = BoolAtom
   fromAtom (BoolAtom b) = b
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = BoolAtomType
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
   
 instance Atomable Relation where
   toAtom = RelationAtom
@@ -109,7 +109,7 @@ instance Atomable Relation where
   fromAtom _ = error "improper fromAtom"
   --warning: cannot be used with undefined "Relation"
   toAtomType rel = RelationAtomType (attributes rel) 
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
   
 --convert to ADT list  
 instance Atomable a => Atomable [a] where
@@ -121,7 +121,7 @@ instance Atomable a => Atomable [a] where
   fromAtom _ = error "improper fromAtom [a]"
   
   toAtomType _ = ConstructedAtomType "List" (M.singleton "a" (toAtomType (undefined :: a)))
-  toDatabaseContextExpr _ = NoOperation
+  toAddTypeExpr _ = NoOperation
 
 -- Generics
 class AtomableG g where
@@ -130,7 +130,7 @@ class AtomableG g where
   fromAtomG :: Atom -> [Atom] -> Maybe (g a)
   toAtomTypeG :: g a -> AtomType --overall ConstructedAtomType
   toAtomsG :: g a -> [Atom]
-  toDatabaseContextExprG :: g a -> AtomType -> DatabaseContextExpr
+  toAddTypeExprG :: g a -> AtomType -> DatabaseContextExpr
   getConstructorsG :: g a -> [DataConstructorDef]
   getConstructorArgsG :: g a -> [DataConstructorDefArg]
   
@@ -142,11 +142,11 @@ instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where
   toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
     where
       typeName = datatypeName (undefined :: M1 D c a x)
-  toDatabaseContextExprG (M1 v) (ConstructedAtomType tcName _) = AddTypeConstructor tcDef dataConstructors
+  toAddTypeExprG (M1 v) (ConstructedAtomType tcName _) = AddTypeConstructor tcDef dataConstructors
     where
       tcDef = ADTypeConstructorDef tcName []
       dataConstructors = getConstructorsG v
-  toDatabaseContextExprG _ _ = NoOperation      
+  toAddTypeExprG _ _ = NoOperation      
   getConstructorsG (M1 v) = getConstructorsG v
   getConstructorArgsG = undefined
   
@@ -166,7 +166,7 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
   fromAtomG _ _ = error "unsupported generic traversal"
   toAtomsG = undefined
   toAtomTypeG = undefined
-  toDatabaseContextExprG = undefined  
+  toAddTypeExprG = undefined  
   getConstructorsG (M1 v) = [DataConstructorDef (T.pack dName) dArgs]
     where
       dName = conName (undefined :: M1 C c a x)
@@ -179,7 +179,7 @@ instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
   fromAtomG atom args = M1 <$> fromAtomG atom args
   toAtomsG (M1 v) = toAtomsG v
   toAtomTypeG (M1 v) = toAtomTypeG v
-  toDatabaseContextExprG _ _ = undefined  
+  toAddTypeExprG _ _ = undefined  
   getConstructorsG = undefined
   getConstructorArgsG (M1 v) = getConstructorArgsG v
 
@@ -191,7 +191,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
                            headatom [] = error "no more atoms for constructor!"
   toAtomsG (K1 v) = [toAtom v]
   toAtomTypeG _ = toAtomType (undefined :: a)
-  toDatabaseContextExprG _ _ = undefined    
+  toAddTypeExprG _ _ = undefined    
   getConstructorsG = undefined
   getConstructorArgsG (K1 v) = [DataConstructorDefTypeConstructorArg tCons]
     where
@@ -204,7 +204,7 @@ instance AtomableG U1 where
   fromAtomG _ _ = pure U1
   toAtomsG _ = []
   toAtomTypeG = undefined
-  toDatabaseContextExprG = undefined
+  toAddTypeExprG = undefined
   getConstructorsG = undefined
   getConstructorArgsG _ = []
   
@@ -218,7 +218,7 @@ instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
           tailatoms [] = error "no more atoms in tail for product!"
   toAtomTypeG = undefined
   toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
-  toDatabaseContextExprG _ _ = undefined    
+  toAddTypeExprG _ _ = undefined    
   getConstructorsG = undefined
   getConstructorArgsG (x :*: y) = getConstructorArgsG x ++ getConstructorArgsG y
 
@@ -230,7 +230,7 @@ instance (AtomableG a, AtomableG b) => AtomableG (a :+: b) where
   toAtomTypeG = undefined
   toAtomsG (L1 x) = toAtomsG x
   toAtomsG (R1 x) = toAtomsG x
-  toDatabaseContextExprG _ _ = undefined
+  toAddTypeExprG _ _ = undefined
   getConstructorsG _ = getConstructorsG (undefined :: a x) ++ getConstructorsG (undefined :: b x)
   getConstructorArgsG = undefined  
   

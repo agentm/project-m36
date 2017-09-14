@@ -26,7 +26,7 @@ main = do
   sessionId <- eCheck $ createSessionAtHead conn "master"
   
   --create the data type in the database context
-  eCheck $ executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
+  eCheck $ executeDatabaseContextExpr sessionId conn (toAddTypeExpr (undefined :: Hair))
 
   --create a relation with the new Hair AtomType
   let blond = NakedAtomExpr (toAtom Blond)

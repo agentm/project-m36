@@ -27,7 +27,8 @@ import Control.Concurrent
 import qualified Data.Set as S
 import Data.Text hiding (map)
 import qualified Data.Text as T
-import Data.Time.Clock.POSIX
+import Data.Time.Clock.POSIX hiding (getCurrentTime)
+import Data.Time.Clock (getCurrentTime)
 
 main :: IO ()
 main = do

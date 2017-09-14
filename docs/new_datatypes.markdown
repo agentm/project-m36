@@ -8,6 +8,8 @@ In addition, the Project:M36 runtime supports algebraic data types in the same v
 
 Project:M36 makes it easy to add any Haskell data type to the database. Any type which includes instances for a set of typeclasses can be supported.
 
+For storing Haskell record types as database tuples, see "[Converting data types to tuples](/docs/tupleable.markdown)."
+
 ## Support for Runtime Types
 
 Use the ```tutd``` interpreter to create new type and data constructors with essentially the same syntax as in Haskell:
@@ -59,7 +61,7 @@ Note that the ```Atomable``` instance can also be derived.
 After setting up the connection (which we elide here), the database context is loaded with the expression to define the data type.
 
 ```haskell
-executeDatabaseContextExpr sessionId conn (toDatabaseContextExpr (undefined :: Hair))
+executeDatabaseContextExpr sessionId conn (toAddTypeExpr (undefined :: Hair))
 ```
 
 Using a ```Proxy``` would also be acceptable, but the result would be the same.
@@ -102,8 +104,8 @@ The essential ```Atomable``` typeclass functions are:
 | ```toAtom :: a -> Atom``` | convert a Haskell data type to a database atom |
 | ```fromAtom :: Atom -> a``` | convert a database atom to a Haskell data type |
 | ```toAtomType :: a -> AtomType``` | generate a database AtomType for a Haskell datatype |
-| ```toDatabaseContextExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
+| ```toAddTypeExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
 
-In addition, basic Haskell data types like ```Int```, ```Double```, ```Text```, ```Day```, ```Bool```, ```UTCTime```, and ```ByteString``` already have Atomable instances ready-to-go. In addition, an ```Atomable``` instance is available for lists: ```Atomable a => [a]```, though one should be very careful not to use this in a common anti-pattern. Typically, it makes more sense to store one-to-many relationships as discrete relation variables; when storing them as lists, one gives up the various query capabilities and optimizations of the relational algebra.
+In addition, basic Haskell data types like ```Int```, ```Double```, ```Text```, ```Day```, ```Bool```, ```UTCTime```, and l```ByteString``` already have Atomable instances ready-to-go. In addition, an ```Atomable``` instance is available for lists: ```Atomable a => [a]```, though one should be very careful not to use this in a common anti-pattern. Typically, it makes more sense to store one-to-many relationships as discrete relation variables; when storing them as lists, one gives up the various query capabilities and optimizations of the relational algebra.
 
 To be clear, these data types are not black boxes once stored in the database. These new types can be scanned and manipulated by Haskell scripts which can be created at runtime. For more information, read about [```AtomFunction```s](/docs/atomfunctions.markdown).

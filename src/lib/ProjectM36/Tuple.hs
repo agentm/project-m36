@@ -209,3 +209,6 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
       Left _ -> error "logic failure in reorderTuple"
       Right atom -> atom
 
+--used in Generics derivation for ADTs without named attributes
+trimTuple :: Int -> RelationTuple -> RelationTuple
+trimTuple index (RelationTuple attrs vals) = RelationTuple (V.drop index attrs) (V.drop index vals)

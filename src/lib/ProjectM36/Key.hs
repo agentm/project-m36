@@ -39,6 +39,16 @@ databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvNam
 
 -- | Create a foreign key constraint from the first relation variable and attributes to the second.
 databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
-databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) = AddInclusionDependency fkName $ InclusionDependency (Project (attrsL attrsA) (RelationVariable rvA ())) (Project (attrsL attrsB) (RelationVariable rvB ()))
+databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) = 
+  AddInclusionDependency fkName (InclusionDependency 
+                                 (renameIfNecessary attrsB attrsA (Project (attrsL attrsA)
+                                  (RelationVariable rvA ())))
+                                 (Project (attrsL attrsB) 
+                                  (RelationVariable rvB ())))
   where
     attrsL = AttributeNames . S.fromList    
+    renameIfNecessary attrsExpected attrsExisting expr = foldr folder expr (zip attrsExpected attrsExisting)
+    folder (attrExpected, attrExisting) expr = if attrExpected == attrExisting then
+                                                   expr
+                                                 else
+                                                   Rename attrExisting attrExpected expr
