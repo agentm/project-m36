@@ -1046,7 +1046,7 @@ withTransaction sessionId conn io successFunc = bracketOnError (pure ()) (const 
             eIsDirty <- disconnectedTransactionIsDirty sessionId conn
             case eIsDirty of
               Left err -> pure (Left err)
-              Right dirty -> do
+              Right dirty -> 
                 if dirty then do
                   res <- successFunc
                   case res of
