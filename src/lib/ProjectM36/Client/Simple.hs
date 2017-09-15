@@ -8,6 +8,8 @@ module ProjectM36.Client.Simple (
   executeOrErr,
   query,
   queryOrErr,
+  cancelTransaction,
+  orCancelTransaction,
   rollback,
   close,
   Atom(..),
@@ -16,6 +18,7 @@ module ProjectM36.Client.Simple (
   DbConn,
   DbError(..),
   Attribute(..),
+  C.Atomable(toAtom, fromAtom),
   C.ConnectionInfo(..),
   C.PersistenceStrategy(..),
   C.NotificationCallback,
@@ -24,7 +27,9 @@ module ProjectM36.Client.Simple (
   C.RelationalExprBase(..)
   ) where
 -- | A simplified client interface for Project:M36 database access.
+
 import Control.Exception.Base
+import Control.Monad ((<=<))
 import Control.Monad.Reader
 import ProjectM36.Base
 import qualified ProjectM36.Client as C
@@ -89,19 +94,11 @@ data DbError = ConnError C.ConnectionError |
 
 -- | Execute a 'DatabaseContextExpr' in the 'DB' monad. Database context expressions manipulate the state of the database. In case of an error, the transaction is terminated and the connection's session is rolled back.
 execute :: C.DatabaseContextExpr -> Db ()
-execute expr = do
-  ret <- executeOrErr expr
-  case ret of
-    Left err -> liftIO $ cancelTransaction (RelError err)
-    Right _  -> pure ()
+execute = orCancelTransaction <=< executeOrErr
 
 -- | Run a 'RelationalExpr' query in the 'DB' monad. Relational expressions perform read-only queries against the current database state.
 query :: C.RelationalExpr -> Db Relation
-query expr = do
-  ret <- queryOrErr expr
-  case ret of
-    Left err  -> liftIO $ cancelTransaction (RelError err)
-    Right rel -> pure rel
+query = orCancelTransaction <=< queryOrErr
 
 -- | Run a 'DatabaseContextExpr' update expression. If there is an error, just return it without cancelling the current transaction.
 executeOrErr :: C.DatabaseContextExpr -> Db (Either RelationalError ())
@@ -117,7 +114,12 @@ queryOrErr expr = Db $ do
 
 -- | Unconditionally roll back the current transaction and throw an exception to terminate the execution of the Db monad.
 rollback :: Db ()
-rollback = Db $ lift $ cancelTransaction TransactionRolledBack
+rollback = cancelTransaction TransactionRolledBack
 
-cancelTransaction :: DbError -> IO a
-cancelTransaction err = throwIO (TransactionCancelled err)
+-- | Cancel a transaction and carry some error information with it.
+cancelTransaction :: DbError -> Db a
+cancelTransaction err = liftIO $ throwIO (TransactionCancelled err)
+
+-- | Converts the 'Either' result from a 'Db' action into an immediate cancel in the case of error.
+orCancelTransaction :: Either RelationalError a -> Db a
+orCancelTransaction = either (cancelTransaction . RelError) pure
