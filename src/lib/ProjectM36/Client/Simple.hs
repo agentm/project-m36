@@ -40,6 +40,8 @@ type DbConn = (C.SessionId, C.Connection)
 newtype Db a = Db {runDb :: ReaderT DbConn IO a}
   deriving (Functor, Applicative, Monad, MonadIO)
 
+-- This exception type should never be observable by the API users.
+-- It merely carries errors which end up as RelError at the end of a transaction.
 newtype TransactionCancelled = TransactionCancelled DbError deriving Show
 instance Exception TransactionCancelled
 
