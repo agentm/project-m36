@@ -2,6 +2,8 @@
 
 The Project:M36 client library is the preferred method for interacting with Project:M36 databases. It supports all features of the DBMS while other interfaces may not.
 
+**Note:** A less featureful but more convenient client API also is available: see [documentation](simple_api.markdown).
+
 The client supports both in-process and remote Project:M36 access.
 
 ## Setup
@@ -10,7 +12,7 @@ The client supports both in-process and remote Project:M36 access.
 ```haskell
 import ProjectM36.Client
 ```
-2. Create a Connection with a ConnectionInfo in the Either monad
+2. Create a Connection with a `ConnectionInfo` in the Either monad
 ```haskell
 conn <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
 ```
