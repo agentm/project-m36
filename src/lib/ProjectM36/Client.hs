@@ -83,6 +83,7 @@ module ProjectM36.Client
        IncDepName,
        InclusionDependency(..),
        AttributeName,
+       RelationalError(..),
        RequestTimeoutException(..),
        RemoteProcessDiedException(..),
        AtomType(..),
