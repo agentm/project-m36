@@ -27,7 +27,7 @@ import Data.ByteString (ByteString)
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
-data Atom = IntAtom Int |
+data Atom = IntAtom Integer |
             DoubleAtom Double |
             TextAtom Text |
             DayAtom Day |

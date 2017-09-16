@@ -8,7 +8,7 @@ dayAtomFunctions :: AtomFunctions
 dayAtomFunctions = HS.fromList [
   AtomFunction { atomFuncName = "fromGregorian",
                  atomFuncType = [IntAtomType, IntAtomType, IntAtomType, DayAtomType],
-                 atomFuncBody = compiledAtomFunctionBody $ \(IntAtom year:IntAtom month:IntAtom day:_) -> pure $ DayAtom (fromGregorian (fromIntegral year) month day)
+                 atomFuncBody = compiledAtomFunctionBody $ \(IntAtom year:IntAtom month:IntAtom day:_) -> pure $ DayAtom (fromGregorian (fromIntegral year) (fromIntegral month) (fromIntegral day))
                  },
   AtomFunction { atomFuncName = "dayEarlierThan",
                  atomFuncType = [DayAtomType, DayAtomType, BoolAtomType],

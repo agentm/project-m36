@@ -39,7 +39,7 @@ listAtomFunctions = HS.fromList [
      atomFuncType = [listAtomType (TypeVariableType "a"), IntAtomType],
      atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) -> do
                                                  c <- listLength listAtom
-                                                 pure (IntAtom c))
+                                                 pure (IntAtom (fromIntegral c)))
      },
   AtomFunction {
     atomFuncName = "maybeHead",

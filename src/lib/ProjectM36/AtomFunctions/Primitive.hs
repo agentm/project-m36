@@ -1,6 +1,6 @@
 module ProjectM36.AtomFunctions.Primitive where
 import ProjectM36.Base
-import ProjectM36.Relation (relFold)
+import ProjectM36.Relation (relFold, oneTuple)
 import ProjectM36.Tuple
 import ProjectM36.AtomFunctionError
 import ProjectM36.AtomFunction
@@ -43,7 +43,7 @@ primitiveAtomFunctions = HS.fromList [
                  atomFuncBody = body $ intAtomFuncLessThan True >=> boolAtomNot},
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [BoolAtomType, BoolAtomType],
-                 atomFuncBody = body $ \(b:_) -> boolAtomNot b }
+                 atomFuncBody = body $ \(b:_) -> boolAtomNot b }  
   ]
   where
     body = AtomFunctionBody Nothing
@@ -63,22 +63,26 @@ relationSum :: Relation -> Either AtomFunctionError Atom
 relationSum relIn = pure (IntAtom (relFold (\tupIn acc -> acc + newVal tupIn) 0 relIn))
   where
     --extract Int from Atom
-    newVal :: RelationTuple -> Int
+    newVal :: RelationTuple -> Integer
     newVal tupIn = castInt (tupleAtoms tupIn V.! 0)
     
 relationCount :: Relation -> Either AtomFunctionError Atom
-relationCount relIn = pure (IntAtom (relFold (\_ acc -> acc + 1) (0::Int) relIn))
+relationCount relIn = pure (IntAtom (relFold (\_ acc -> acc + 1) (0::Integer) relIn))
 
 relationMax :: Relation -> Either AtomFunctionError Atom
-relationMax relIn = pure (IntAtom (relFold (\tupIn acc -> max acc (newVal tupIn)) minBound relIn))
+relationMax relIn = case oneTuple relIn of
+    Nothing -> Left AtomFunctionEmptyRelationError
+    Just oneTup -> pure (IntAtom (relFold (\tupIn acc -> max acc (newVal tupIn)) (newVal oneTup) relIn))
   where
     newVal tupIn = castInt (tupleAtoms tupIn V.! 0)
 
 relationMin :: Relation -> Either AtomFunctionError Atom
-relationMin relIn = pure (IntAtom (relFold (\tupIn acc -> min acc (newVal tupIn)) maxBound relIn))
+relationMin relIn = case oneTuple relIn of 
+  Nothing -> Left AtomFunctionEmptyRelationError
+  Just oneTup -> pure (IntAtom (relFold (\tupIn acc -> min acc (newVal tupIn)) (newVal oneTup) relIn))
   where
     newVal tupIn = castInt (tupleAtoms tupIn V.! 0)
 
-castInt :: Atom -> Int
+castInt :: Atom -> Integer
 castInt (IntAtom i) = i
 castInt _ = error "attempted to cast non-IntAtom to Int"

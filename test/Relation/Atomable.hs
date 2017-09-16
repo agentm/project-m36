@@ -14,31 +14,31 @@ import Data.Text
 import qualified Data.Map as M
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
-data Test1T = Test1C Int
+data Test1T = Test1C Integer
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
                     
 data Test2T x = Test2C x
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
-data Test3T = Test3C Int Int                        
+data Test3T = Test3C Integer Integer                        
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
-data Test4T = Test4Ca Int |                       
-              Test4Cb Int 
+data Test4T = Test4Ca Integer |                       
+              Test4Cb Integer 
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
-data TestListT = TestListC [Int]
+data TestListT = TestListC [Integer]
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
 data Test5T = Test5C {
-  con1 :: Int,
-  con2 :: Int
+  con1 :: Integer,
+  con2 :: Integer
   } deriving (Show, Generic, Eq, Binary, NFData, Atomable)
              
-data Test6T = Test6C (Maybe Int)             
+data Test6T = Test6C (Maybe Integer)             
             deriving (Show, Generic, Eq, Binary, NFData, Atomable)
 
-data Test7T = Test7C (Either Int Int)
+data Test7T = Test7C (Either Integer Integer)
             deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
 main :: IO ()
@@ -52,8 +52,8 @@ testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, tes
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
 testBasicMarshaling = TestCase $ do
-    assertEqual "to IntAtom" (IntAtom 5) (toAtom (5 :: Int))
-    assertEqual "from IntAtom" (5 :: Int) (fromAtom (IntAtom 5))
+    assertEqual "to IntAtom" (IntAtom 5) (toAtom (5 :: Integer))
+    assertEqual "from IntAtom" (5 :: Integer) (fromAtom (IntAtom 5))
 
     assertEqual "to BoolAtom" (BoolAtom False) (toAtom False)
     assertEqual "from BoolAtom" False (fromAtom (BoolAtom False))

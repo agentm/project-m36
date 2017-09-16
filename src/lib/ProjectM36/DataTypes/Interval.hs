@@ -39,7 +39,7 @@ supportsOrdering typ = case typ of
 atomCompare :: Atom -> Atom -> Either AtomFunctionError Ordering
 atomCompare a1 a2 = let aType = atomTypeForAtom a1 
                         go a b = Right (compare a b)
-                        typError = Left (AtomTypeDoesNotSupportOrdering (prettyAtomType aType)) in
+                        typError = Left (AtomTypeDoesNotSupportOrderingError (prettyAtomType aType)) in
                     if atomTypeForAtom a1 /= atomTypeForAtom a2 then
                       Left AtomFunctionTypeMismatchError
                     else if not (supportsOrdering aType) then
@@ -58,9 +58,9 @@ createInterval :: Atom -> Atom -> OpenInterval -> OpenInterval -> Either AtomFun
 createInterval atom1 atom2 bopen eopen = do
   cmp <- atomCompare atom1 atom2
   case cmp of
-    GT -> Left InvalidIntervalOrdering
+    GT -> Left InvalidIntervalOrderingError
     EQ -> if bopen || eopen then
-            Left InvalidIntervalBoundaries
+            Left InvalidIntervalBoundariesError
           else 
             Right valid
     LT -> Right valid
@@ -79,7 +79,7 @@ intervalAtomFunctions = HS.fromList [
                    if supportsInterval aType then
                      createInterval atom1 atom2 bopen eopen
                      else
-                     Left (AtomTypeDoesNotSupportInterval (prettyAtomType aType))
+                     Left (AtomTypeDoesNotSupportIntervalError (prettyAtomType aType))
                },
   AtomFunction {
     atomFuncName = "interval_overlaps",

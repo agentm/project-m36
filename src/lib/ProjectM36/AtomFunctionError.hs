@@ -7,10 +7,11 @@ import Data.Text
 
 data AtomFunctionError = AtomFunctionUserError String |
                          AtomFunctionTypeMismatchError |
-                         InvalidIntervalOrdering |
-                         InvalidIntervalBoundaries |
-                         AtomTypeDoesNotSupportOrdering Text |
-                         AtomTypeDoesNotSupportInterval Text |
+                         InvalidIntervalOrderingError |
+                         InvalidIntervalBoundariesError |
+                         AtomFunctionEmptyRelationError |
+                         AtomTypeDoesNotSupportOrderingError Text |
+                         AtomTypeDoesNotSupportIntervalError Text |
                          AtomFunctionBytesDecodingError String
                        deriving(Generic, Eq, Show, Binary, NFData)
 

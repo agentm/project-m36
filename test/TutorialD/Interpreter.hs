@@ -441,8 +441,8 @@ testIntervalAtom = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
   executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,f,f), b interval(4,5,f,f)}, tuple{n 2,a interval(3,4,t,t), b interval(4,5,t,t)}}"
   --test failed interval creation
-  let err1 = "AtomFunctionUserError InvalidIntervalOrdering"
-      err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportInterval \"Text\")"
+  let err1 = "AtomFunctionUserError InvalidIntervalOrderingError"
+      err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportIntervalError \"Text\")"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,f,f)}}"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",f,f)}}"  
 

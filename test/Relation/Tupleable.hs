@@ -15,30 +15,30 @@ import System.Exit
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 
 data Test1T = Test1C {
-  attrA :: Int
+  attrA :: Integer
   }
   deriving (Generic, Eq, Show)
            
 data Test2T = Test2C {
-  attrB :: Int,
-  attrC :: Int
+  attrB :: Integer,
+  attrC :: Integer
   }
   deriving (Generic, Eq, Show)
            
-data Test3T = Test3C Int            
+data Test3T = Test3C Integer            
             deriving (Generic, Eq, Show)
                      
 data Test4T = Test4C                     
               deriving (Generic, Eq, Show)
                        
-data Test5T = Test5C1 Int |                       
-              Test5C2 Int
+data Test5T = Test5C1 Integer |                       
+              Test5C2 Integer
               deriving (Generic, Eq, Show)
                        
-data Test6T = Test6C T.Text Int Double
+data Test6T = Test6C T.Text Integer Double
               deriving (Generic, Eq, Show)
                        
-data Test7A = Test7AC Int
+data Test7A = Test7AC Integer
             deriving (Generic, Show, Eq, Binary, NFData, Atomable)
                        
                        

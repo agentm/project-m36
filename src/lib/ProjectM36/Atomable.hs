@@ -56,7 +56,7 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => a -> DatabaseContextExpr
   toAddTypeExpr v = toAddTypeExprG (from v) (toAtomType v)
   
-instance Atomable Int where  
+instance Atomable Integer where  
   toAtom = IntAtom
   fromAtom (IntAtom i) = i
   fromAtom e = error ("improper fromAtom" ++ show e)

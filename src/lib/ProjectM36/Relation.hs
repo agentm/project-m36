@@ -319,3 +319,7 @@ randomizeTupleOrder (Relation attrs tupSet) = do
   newTupSet <- shuffleM (asList tupSet)
   pure (Relation attrs (RelationTupleSet newTupSet))
 
+-- returns a tuple from the tupleset- this is useful for priming folds over the tuples
+oneTuple :: Relation -> Maybe RelationTuple
+oneTuple (Relation _ (RelationTupleSet [])) = Nothing
+oneTuple (Relation _ (RelationTupleSet (x:_))) = Just x

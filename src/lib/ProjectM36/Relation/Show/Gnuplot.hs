@@ -23,8 +23,8 @@ data PlotError = InvalidAttributeCountError |
 
 --plotRelation :: Relation -> Either PlotError
 
-intFromAtomIndex :: Int -> RelationTuple -> Int
-intFromAtomIndex index tup = castInt $ tupleAtoms tup V.! index
+intFromAtomIndex :: Int -> RelationTuple -> Int --warning- clips or overflows Integer -> Int
+intFromAtomIndex index tup = fromIntegral $ castInt $ tupleAtoms tup V.! index
 
 graph1DRelation :: Relation -> Plot2D.T Int Int
 graph1DRelation rel = Plot2D.list Graph2D.listPoints $ points1DRelation rel
