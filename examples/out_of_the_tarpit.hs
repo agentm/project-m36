@@ -97,7 +97,7 @@ instance Tupleable Room
 data Floor = Floor {
   floorAddress :: Address,
   floorRoomName :: Name,
-  floorNum :: Int
+  floorNum :: Integer
   }
   deriving (Generic, Eq)
            

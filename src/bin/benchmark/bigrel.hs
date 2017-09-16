@@ -78,7 +78,7 @@ intmapMatrixRun = do
 intmapMatrixRelation :: Int -> Int -> HS.HashSet (IM.IntMap Atom)
 intmapMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
-    mapper tupCount = IM.fromList $ map (\c-> (c, IntAtom tupCount)) [0..attributeCount]
+    mapper tupCount = IM.fromList $ map (\c-> (c, IntAtom (fromIntegral tupCount))) [0..attributeCount]
 
 instance Hash.Hashable (IM.IntMap Atom) where
   hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
@@ -93,7 +93,7 @@ vectorMatrixRun = do
 vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
-    mapper tupCount = V.replicate attributeCount (IntAtom tupCount)
+    mapper tupCount = V.replicate attributeCount (IntAtom (fromIntegral tupCount))
 
 instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)
@@ -103,7 +103,7 @@ instance Hash.Hashable (V.Vector Atom) where
 matrixRelation :: Int -> Int -> Either RelationalError Relation
 matrixRelation attributeCount tupleCount = do
   let attrs = A.attributesFromList $ map (\c-> Attribute (T.pack $ "a" ++ show c) IntAtomType) [0 .. attributeCount-1]
-      tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom tupleX))
+      tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom (fromIntegral tupleX)))
       tuples = map tuple [0 .. tupleCount]
   mkRelationDeferVerify attrs (RelationTupleSet tuples)
 
