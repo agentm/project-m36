@@ -3,7 +3,6 @@ import System.Exit
 import Test.HUnit
 import ProjectM36.Client
 import ProjectM36.Relation
-import ProjectM36.Error
 import ProjectM36.DataTypes.Maybe
 import qualified Data.Vector as V
 import qualified Data.Map as M
