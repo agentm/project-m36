@@ -1,7 +1,6 @@
 import Test.HUnit
 import ProjectM36.Client
 import ProjectM36.Relation
-import ProjectM36.Error
 import qualified Data.Set as S
 import TutorialD.Interpreter.TestBase
 

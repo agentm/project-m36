@@ -1,7 +1,6 @@
 --tests which cover multi-process access to the same database directory
 import Test.HUnit
 import ProjectM36.Client
-import ProjectM36.Error
 
 import System.IO.Temp
 import System.Exit

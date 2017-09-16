@@ -7,7 +7,6 @@ import System.IO.Temp
 import System.FilePath
 import ProjectM36.TupleSet
 import ProjectM36.Attribute
-import ProjectM36.Error
 import qualified Data.Vector as V
 
 main :: IO ()           
