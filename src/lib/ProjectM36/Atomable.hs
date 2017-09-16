@@ -6,6 +6,8 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.List
+import ProjectM36.DataTypes.Maybe
+import ProjectM36.DataTypes.Either
 import GHC.Generics
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -110,6 +112,27 @@ instance Atomable Relation where
   --warning: cannot be used with undefined "Relation"
   toAtomType rel = RelationAtomType (attributes rel) 
   toAddTypeExpr _ = NoOperation
+  
+instance Atomable a => Atomable (Maybe a) where
+  toAtom (Just v) = ConstructedAtom "Just" (maybeAtomType (toAtomType v)) [toAtom v]
+  toAtom Nothing = ConstructedAtom "Nothing" (maybeAtomType (toAtomType (undefined :: a))) []
+  
+  fromAtom (ConstructedAtom "Just" _ [val]) = Just (fromAtom val)
+  fromAtom (ConstructedAtom "Nothing" _ []) = Nothing
+  fromAtom _ = error "improper fromAtom (Maybe a)"
+  
+  toAtomType _ = ConstructedAtomType "Maybe" (M.singleton "a" (toAtomType (undefined :: a)))
+  toAddTypeExpr _ = NoOperation
+  
+instance (Atomable a, Atomable b) => Atomable (Either a b) where
+  toAtom (Left l) = ConstructedAtom "Left" (eitherAtomType (toAtomType (undefined :: a)) 
+                                            (toAtomType (undefined :: b))) [toAtom l]
+  toAtom (Right r) = ConstructedAtom "Right" (eitherAtomType (toAtomType (undefined :: a)) 
+                                              (toAtomType (undefined :: b))) [toAtom r]
+  
+  fromAtom (ConstructedAtom "Left" _ [val]) = Left (fromAtom val)
+  fromAtom (ConstructedAtom "Right" _ [val]) = Right (fromAtom val)
+  fromAtom _ = error "improper fromAtom (Either a b)"
   
 --convert to ADT list  
 instance Atomable a => Atomable [a] where

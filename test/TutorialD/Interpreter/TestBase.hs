@@ -1,6 +1,5 @@
 module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
-import ProjectM36.Error
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import qualified ProjectM36.Base as Base

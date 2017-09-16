@@ -34,6 +34,12 @@ data Test5T = Test5C {
   con1 :: Int,
   con2 :: Int
   } deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+             
+data Test6T = Test6C (Maybe Int)             
+            deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+
+data Test7T = Test7C (Either Int Int)
+            deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
 main :: IO ()
 main = do
@@ -41,7 +47,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testADT6Maybe, testADT7Either]
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -107,6 +113,16 @@ testADT5 :: Test
 testADT5 = TestCase $ do
   let example = Test5C {con1=3, con2=4}
   assertEqual "record-based ADT" example (fromAtom (toAtom example))  
+  
+testADT6Maybe :: Test  
+testADT6Maybe = TestCase $ do
+  let example = Test6C (Just 4)
+  assertEqual "maybe type" example (fromAtom (toAtom example))
+  
+testADT7Either :: Test 
+testADT7Either = TestCase $ do
+  let example = Test7C (Right 10)
+  assertEqual "either type" example (fromAtom (toAtom example))
   
 checkExecuteDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO ()
 checkExecuteDatabaseContextExpr sessionId dbconn expr = executeDatabaseContextExpr sessionId dbconn expr >>= either (assertFailure . show) (const (pure ()))
