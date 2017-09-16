@@ -6,7 +6,6 @@ import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Session
 import ProjectM36.Client
-import ProjectM36.Error
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Base
 
