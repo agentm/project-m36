@@ -17,6 +17,7 @@ module ProjectM36.Client.Simple (
   Db,
   DbConn,
   DbError(..),
+  RelationalError(..),
   Attribute(..),
   C.Atomable(toAtom, fromAtom),
   C.ConnectionInfo(..),
