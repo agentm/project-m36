@@ -57,6 +57,13 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAddTypeExpr v = toAddTypeExprG (from v) (toAtomType v)
   
 instance Atomable Integer where  
+  toAtom = IntegerAtom
+  fromAtom (IntegerAtom i) = i
+  fromAtom e = error ("improper fromAtom" ++ show e)
+  toAtomType _ = IntegerAtomType
+  toAddTypeExpr _ = NoOperation
+  
+instance Atomable Int where  
   toAtom = IntAtom
   fromAtom (IntAtom i) = i
   fromAtom e = error ("improper fromAtom" ++ show e)

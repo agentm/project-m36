@@ -35,14 +35,14 @@ suppliersRel = case mkRelationFromList attrs atomMatrix of
   where
     attrs = A.attributesFromList [Attribute "s#" TextAtomType,
                                   Attribute "sname" TextAtomType,
-                                  Attribute "status" IntAtomType,
+                                  Attribute "status" IntegerAtomType,
                                   Attribute "city" TextAtomType]
     atomMatrix = [
-      [TextAtom "S1", TextAtom "Smith", IntAtom 20, TextAtom "London"],
-      [TextAtom "S2", TextAtom "Jones", IntAtom 10, TextAtom "Paris"],
-      [TextAtom "S3", TextAtom "Blake", IntAtom 30, TextAtom "Paris"],
-      [TextAtom "S4", TextAtom "Clark", IntAtom 20, TextAtom "London"],
-      [TextAtom "S5", TextAtom "Adams", IntAtom 30, TextAtom "Athens"]]
+      [TextAtom "S1", TextAtom "Smith", IntegerAtom 20, TextAtom "London"],
+      [TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"],
+      [TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
+      [TextAtom "S4", TextAtom "Clark", IntegerAtom 20, TextAtom "London"],
+      [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]
 
 supplierProductsRel :: Relation
 supplierProductsRel = case mkRelationFromList attrs matrix of
@@ -51,20 +51,20 @@ supplierProductsRel = case mkRelationFromList attrs matrix of
   where
     attrs = A.attributesFromList [Attribute "s#" TextAtomType,
                                   Attribute "p#" TextAtomType,
-                                  Attribute "qty" IntAtomType]
+                                  Attribute "qty" IntegerAtomType]
     matrix = [
-      [TextAtom "S1", TextAtom "P1", IntAtom 300],
-      [TextAtom "S1", TextAtom "P2", IntAtom 200],
-      [TextAtom "S1", TextAtom "P3", IntAtom 400],
-      [TextAtom "S1", TextAtom "P4", IntAtom 200],
-      [TextAtom "S1", TextAtom "P5", IntAtom 100],
-      [TextAtom "S1", TextAtom "P6", IntAtom 100],
-      [TextAtom "S2", TextAtom "P1", IntAtom 300],
-      [TextAtom "S2", TextAtom "P2", IntAtom 400],
-      [TextAtom "S3", TextAtom "P2", IntAtom 200],
-      [TextAtom "S4", TextAtom "P2", IntAtom 200],
-      [TextAtom "S4", TextAtom "P4", IntAtom 300],
-      [TextAtom "S4", TextAtom "P5", IntAtom 400]
+      [TextAtom "S1", TextAtom "P1", IntegerAtom 300],
+      [TextAtom "S1", TextAtom "P2", IntegerAtom 200],
+      [TextAtom "S1", TextAtom "P3", IntegerAtom 400],
+      [TextAtom "S1", TextAtom "P4", IntegerAtom 200],
+      [TextAtom "S1", TextAtom "P5", IntegerAtom 100],
+      [TextAtom "S1", TextAtom "P6", IntegerAtom 100],
+      [TextAtom "S2", TextAtom "P1", IntegerAtom 300],
+      [TextAtom "S2", TextAtom "P2", IntegerAtom 400],
+      [TextAtom "S3", TextAtom "P2", IntegerAtom 200],
+      [TextAtom "S4", TextAtom "P2", IntegerAtom 200],
+      [TextAtom "S4", TextAtom "P4", IntegerAtom 300],
+      [TextAtom "S4", TextAtom "P5", IntegerAtom 400]
       ]
 
 productsRel :: Relation
@@ -75,13 +75,13 @@ productsRel = case mkRelationFromList attrs matrix of
     attrs = A.attributesFromList [Attribute "p#" TextAtomType,
                                   Attribute "pname" TextAtomType,
                                   Attribute "color" TextAtomType,
-                                  Attribute "weight" IntAtomType,
+                                  Attribute "weight" IntegerAtomType,
                                   Attribute "city" TextAtomType]
     matrix = [
-      [TextAtom "P1", TextAtom "Nut", TextAtom "Red", IntAtom 12, TextAtom "London"],
-      [TextAtom "P2", TextAtom "Bolt", TextAtom "Green", IntAtom 17, TextAtom "Paris"],
-      [TextAtom "P3", TextAtom "Screw", TextAtom "Blue", IntAtom 17, TextAtom "Oslo"],
-      [TextAtom "P4", TextAtom "Screw", TextAtom "Red", IntAtom 14, TextAtom "London"],
-      [TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntAtom 12, TextAtom "Paris"],
-      [TextAtom "P6", TextAtom "Cog", TextAtom "Red", IntAtom 19, TextAtom "London"]
+      [TextAtom "P1", TextAtom "Nut", TextAtom "Red", IntegerAtom 12, TextAtom "London"],
+      [TextAtom "P2", TextAtom "Bolt", TextAtom "Green", IntegerAtom 17, TextAtom "Paris"],
+      [TextAtom "P3", TextAtom "Screw", TextAtom "Blue", IntegerAtom 17, TextAtom "Oslo"],
+      [TextAtom "P4", TextAtom "Screw", TextAtom "Red", IntegerAtom 14, TextAtom "London"],
+      [TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"],
+      [TextAtom "P6", TextAtom "Cog", TextAtom "Red", IntegerAtom 19, TextAtom "London"]
       ]

@@ -23,6 +23,7 @@ makeAtomFromText _ BoolAtomType textIn = maybe ((Left . ParseError) textIn) (Rig
 makeAtomFromText attrName _ _ = Left $ AtomTypeNotSupported attrName
 
 atomToText :: Atom -> T.Text
+atomToText (IntegerAtom i) = (T.pack . show) i
 atomToText (IntAtom i) = (T.pack . show) i
 atomToText (DoubleAtom i) = (T.pack . show) i
 atomToText (TextAtom i) = (T.pack . show) i --does this break quoting in CSV export?

@@ -83,8 +83,8 @@ testADT2 = TestCase $ do
   let example = Test2C { attrB = 4, attrC = 6 }
   assertEqual "two record constructor" (Right example) (fromTuple (toTuple example))
   --this was a tricky case that was throwing the undefined exception because of insufficient laziness in the :*: matching- see ProjectM36.Tupleable
-  let expectedAttributes = attributesFromList [Attribute "attrB" IntAtomType,
-                                               Attribute "attrC" IntAtomType]
+  let expectedAttributes = attributesFromList [Attribute "attrB" IntegerAtomType,
+                                               Attribute "attrC" IntegerAtomType]
   assertEqual "two record constructor toAttributes" expectedAttributes (toAttributes (undefined :: Test2T))
   
     

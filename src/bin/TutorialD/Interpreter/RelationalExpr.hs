@@ -215,7 +215,7 @@ constructedAtomExprP consume = do
 atomP :: Parser Atom
 atomP = stringAtomP <|> 
         doubleAtomP <|> 
-        intAtomP <|> 
+        integerAtomP <|> 
         boolAtomP
         
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
@@ -234,10 +234,8 @@ stringAtomP = TextAtom <$> quotedString
 doubleAtomP :: Parser Atom    
 doubleAtomP = DoubleAtom <$> try float
 
-intAtomP :: Parser Atom
-intAtomP = do
-  i <- integer
-  return $ IntAtom (fromIntegral i)
+integerAtomP :: Parser Atom
+integerAtomP = IntegerAtom <$> integer
 
 boolAtomP :: Parser Atom
 boolAtomP = do

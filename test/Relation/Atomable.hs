@@ -52,8 +52,8 @@ testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, tes
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
 testBasicMarshaling = TestCase $ do
-    assertEqual "to IntAtom" (IntAtom 5) (toAtom (5 :: Integer))
-    assertEqual "from IntAtom" (5 :: Integer) (fromAtom (IntAtom 5))
+    assertEqual "to IntAtom" (IntegerAtom 5) (toAtom (5 :: Integer))
+    assertEqual "from IntAtom" (5 :: Integer) (fromAtom (IntegerAtom 5))
 
     assertEqual "to BoolAtom" (BoolAtom False) (toAtom False)
     assertEqual "from BoolAtom" False (fromAtom (BoolAtom False))
@@ -68,7 +68,7 @@ testHaskell2DB = TestCase $ do
   --validate generated database context expression
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   let test1TExpr = toAddTypeExpr (undefined :: Test1T)
-      expectedTest1TExpr = AddTypeConstructor (ADTypeConstructorDef "Test1T" []) [DataConstructorDef "Test1C" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Int" IntAtomType)]]
+      expectedTest1TExpr = AddTypeConstructor (ADTypeConstructorDef "Test1T" []) [DataConstructorDef "Test1C" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Integer" IntegerAtomType)]]
   assertEqual "simple ADT1" expectedTest1TExpr test1TExpr
   checkExecuteDatabaseContextExpr sessionId dbconn test1TExpr
   --execute some expressions involving Atomable data types

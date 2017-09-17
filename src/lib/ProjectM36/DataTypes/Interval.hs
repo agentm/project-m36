@@ -11,6 +11,7 @@ import qualified Data.HashSet as HS
 supportsInterval :: AtomType -> Bool
 supportsInterval typ = case typ of
   IntAtomType -> True
+  IntegerAtomType -> True
   DoubleAtomType -> True
   TextAtomType -> False -- just because it supports ordering, doesn't mean it makes sense in an interval
   DayAtomType -> True               
@@ -25,6 +26,7 @@ supportsInterval typ = case typ of
 supportsOrdering :: AtomType -> Bool  
 supportsOrdering typ = case typ of
   IntAtomType -> True
+  IntegerAtomType -> True  
   DoubleAtomType -> True
   TextAtomType -> True
   DayAtomType -> True               
@@ -46,6 +48,7 @@ atomCompare a1 a2 = let aType = atomTypeForAtom a1
                            typError
                          else
                            case (a1, a2) of
+                             (IntegerAtom a, IntegerAtom b) -> go a b
                              (IntAtom a, IntAtom b) -> go a b
                              (DoubleAtom a, DoubleAtom b) -> go a b
                              (TextAtom a, TextAtom b) -> go a b

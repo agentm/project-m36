@@ -7,8 +7,8 @@ import Data.Time.Clock.POSIX
 dateTimeAtomFunctions :: AtomFunctions
 dateTimeAtomFunctions = HS.fromList [ AtomFunction {
                                      atomFuncName = "dateTimeFromEpochSeconds",
-                                     atomFuncType = [IntAtomType, DateTimeAtomType],
-                                     atomFuncBody = compiledAtomFunctionBody $ \(IntAtom epoch:_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
+                                     atomFuncType = [IntegerAtomType, DateTimeAtomType],
+                                     atomFuncBody = compiledAtomFunctionBody $ \(IntegerAtom epoch:_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
                                                                                                        }]
 
                                                  

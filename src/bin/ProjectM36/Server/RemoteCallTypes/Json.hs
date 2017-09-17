@@ -64,6 +64,8 @@ instance ToJSON SchemaIsomorph
 instance FromJSON SchemaIsomorph
 
 instance ToJSON Atom where
+  toJSON atom@(IntegerAtom i) = object [ "type" .= atomTypeForAtom atom,
+                                     "val" .= i ]  
   toJSON atom@(IntAtom i) = object [ "type" .= atomTypeForAtom atom,
                                      "val" .= i ]
   toJSON atom@(DoubleAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -105,6 +107,7 @@ instance FromJSON Atom where
         rel <- o .: "val"
         pure $ RelationAtom rel
       IntAtomType -> IntAtom <$> o .: "val"
+      IntegerAtomType -> IntegerAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"
       TextAtomType -> TextAtom <$> o .: "val"
       DayAtomType -> do

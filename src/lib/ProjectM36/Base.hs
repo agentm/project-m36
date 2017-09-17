@@ -27,7 +27,8 @@ import Data.ByteString (ByteString)
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
-data Atom = IntAtom Integer |
+data Atom = IntegerAtom Integer |
+            IntAtom Int |
             DoubleAtom Double |
             TextAtom Text |
             DayAtom Day |
@@ -45,6 +46,7 @@ instance Hashable Atom where
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
                                                           `hashWithSalt` dConsName --AtomType is not hashable
   hashWithSalt salt (IntAtom i) = salt `hashWithSalt` i
+  hashWithSalt salt (IntegerAtom i) = salt `hashWithSalt` i  
   hashWithSalt salt (DoubleAtom d) = salt `hashWithSalt` d
   hashWithSalt salt (TextAtom t) = salt `hashWithSalt` t
   hashWithSalt salt (DayAtom d) = salt `hashWithSalt` d
@@ -68,7 +70,8 @@ instance Binary Day where
 
 -- I suspect the definition of ConstructedAtomType with its name alone is insufficient to disambiguate the cases; for example, one could create a type named X, remove a type named X, and re-add it using different constructors. However, as long as requests are served from only one DatabaseContext at-a-time, the type name is unambiguous. This will become a problem for time-travel, however.
 -- | The AtomType uniquely identifies the type of a atom.
-data AtomType = IntAtomType |                
+data AtomType = IntAtomType |
+                IntegerAtomType |
                 DoubleAtomType |
                 TextAtomType |
                 DayAtomType |

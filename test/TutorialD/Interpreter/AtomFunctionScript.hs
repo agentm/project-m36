@@ -24,11 +24,11 @@ main = do
 testBasicAtomFunction :: Test
 testBasicAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Either AtomFunctionError Int \"(\\\\(IntAtom x:xs) -> pure (IntAtom x)) :: [Atom] -> Either AtomFunctionError Atom\""
-  let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
+  executeTutorialD sess conn "addatomfunction \"mkTest\" Integer -> Either AtomFunctionError Integer \"(\\\\(IntegerAtom x:xs) -> pure (IntegerAtom x)) :: [Atom] -> Either AtomFunctionError Atom\""
+  let attrs = [Attribute "x" IntegerAtomType]
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntegerAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
-      expectedResult = mkRelationFromList (V.fromList attrs) [[IntAtom 3]]
+      expectedResult = mkRelationFromList (V.fromList attrs) [[IntegerAtom 3]]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
 
   assertEqual "simple atom function equality" expectedResult result
@@ -37,9 +37,9 @@ testBasicAtomFunction = TestCase $ do
 testExceptionAtomFunction :: Test
 testExceptionAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Either AtomFunctionError Int \"\"\"(\\(IntAtom x:xs) -> (error (show 1))) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
-  let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
+  executeTutorialD sess conn "addatomfunction \"mkTest\" Integer -> Either AtomFunctionError Integer \"\"\"(\\(IntegerAtom x:xs) -> (error (show 1))) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
+  let attrs = [Attribute "x" IntegerAtomType]
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntegerAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
   assertBool "catch error exception from script" (case result of
@@ -49,27 +49,27 @@ testExceptionAtomFunction = TestCase $ do
 testErrorAtomFunction :: Test    
 testErrorAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"errorAtom\" Int -> Either AtomFunctionError Int \"\"\"(\\(IntAtom x:xs) -> Left (AtomFunctionUserError \"user\")) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
+  executeTutorialD sess conn "addatomfunction \"errorAtom\" Integer -> Either AtomFunctionError Integer \"\"\"(\\(IntegerAtom x:xs) -> Left (AtomFunctionUserError \"user\")) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
   
 testNoArgumentAtomFunction :: Test
 testNoArgumentAtomFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"mkTest\" Either AtomFunctionError Int \"\"\"(\\x -> pure (IntAtom 5)) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
-  let attrs = [Attribute "x" IntAtomType]
+  executeTutorialD sess conn "addatomfunction \"mkTest\" Either AtomFunctionError Integer \"\"\"(\\x -> pure (IntegerAtom 5)) :: [Atom] -> Either AtomFunctionError Atom\"\"\""
+  let attrs = [Attribute "x" IntegerAtomType]
       funcAtomExpr = FunctionAtomExpr  "mkTest" [] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
-      expectedResult = mkRelationFromList (V.fromList attrs) [[IntAtom 5]]
+      expectedResult = mkRelationFromList (V.fromList attrs) [[IntegerAtom 5]]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
   assertEqual "no argument scripted function" expectedResult result
   
 testArgumentTypeMismatch :: Test
 testArgumentTypeMismatch = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sess conn "addatomfunction \"mkTest\" Int -> Either AtomFunctionError Int \"\"\"(\\(IntAtom x:_) -> pure $ TextAtom \"wrong type\") :: [Atom] -> Either AtomFunctionError Atom\"\"\""
+  executeTutorialD sess conn "addatomfunction \"mkTest\" Integer -> Either AtomFunctionError Integer \"\"\"(\\(IntegerAtom x:_) -> pure $ TextAtom \"wrong type\") :: [Atom] -> Either AtomFunctionError Atom\"\"\""
   let tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
-      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntAtom 3)] ()
-      attrs = [Attribute "x" IntAtomType]
-      expectedResult = Left (AtomTypeMismatchError IntAtomType TextAtomType)
+      funcAtomExpr = FunctionAtomExpr  "mkTest" [NakedAtomExpr (IntegerAtom 3)] ()
+      attrs = [Attribute "x" IntegerAtomType]
+      expectedResult = Left (AtomTypeMismatchError IntegerAtomType TextAtomType)
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
   assertEqual "type mismatch not detected" expectedResult result
   
@@ -77,26 +77,26 @@ testPolymorphicReturnType :: Test
 testPolymorphicReturnType = TestCase $ do
   --test that polymorphic function return type resolves to concrete type using fromMaybe builtin atom function
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback  
-  let funcAtomExpr = FunctionAtomExpr "fromMaybe" [NakedAtomExpr (IntAtom 5),
+  let funcAtomExpr = FunctionAtomExpr "fromMaybe" [NakedAtomExpr (IntegerAtom 5),
                                                    NakedAtomExpr maybeAtom] ()
-      maybeAtom = ConstructedAtom "Just" (maybeAtomType IntAtomType) [IntAtom 3]
+      maybeAtom = ConstructedAtom "Just" (maybeAtomType IntegerAtomType) [IntegerAtom 3]
       relExpr = MakeRelationFromExprs Nothing [TupleExpr (M.singleton "x" funcAtomExpr)]
   mRelType <- typeForRelationalExpr sess conn relExpr
   case mRelType of
     Left err -> assertFailure (show err)
     Right relType -> do
-      let expectedRetAttrs = V.fromList [Attribute "x" IntAtomType]
+      let expectedRetAttrs = V.fromList [Attribute "x" IntegerAtomType]
       assertEqual "fromMaybe type" expectedRetAttrs (attributes relType)
       mRes <- executeRelationalExpr sess conn relExpr
-      let expectedRel = mkRelationFromList (V.fromList [Attribute "x" IntAtomType]) [[IntAtom 3]]
+      let expectedRel = mkRelationFromList (V.fromList [Attribute "x" IntegerAtomType]) [[IntegerAtom 3]]
       assertEqual "fromMaybe result" expectedRel mRes
   --test that type mismatch occurs for different types appearing in same type variable
-  let failFuncAtomExpr = FunctionAtomExpr "fromMaybe" [NakedAtomExpr (IntAtom 5),
+  let failFuncAtomExpr = FunctionAtomExpr "fromMaybe" [NakedAtomExpr (IntegerAtom 5),
                                                        NakedAtomExpr mismatchAtom] ()
       mismatchAtom = ConstructedAtom "Just" (maybeAtomType TextAtomType) [TextAtom "fail"]
       failRelExpr = MakeRelationFromExprs Nothing [TupleExpr (M.singleton "x" failFuncAtomExpr)]
   mFailRes <- executeRelationalExpr sess conn failRelExpr
-  let expectedErr = Left (AtomFunctionTypeVariableMismatch "a" IntAtomType TextAtomType)
+  let expectedErr = Left (AtomFunctionTypeVariableMismatch "a" IntegerAtomType TextAtomType)
   assertEqual "expected type variable mismatch" expectedErr mFailRes
                                                        
 --test that a user can create a function with a type variable argument
@@ -104,10 +104,10 @@ testScriptedTypeVariable :: Test
 testScriptedTypeVariable = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sess conn "addatomfunction \"idTest\" a -> Either AtomFunctionError a \"(\\\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom\""
-  let attrs = [Attribute "x" IntAtomType]
-      funcAtomExpr = FunctionAtomExpr  "idTest" [NakedAtomExpr (IntAtom 3)] ()
+  let attrs = [Attribute "x" IntegerAtomType]
+      funcAtomExpr = FunctionAtomExpr  "idTest" [NakedAtomExpr (IntegerAtom 3)] ()
       tupleExprs = [TupleExpr (M.singleton "x" funcAtomExpr)]
-      expectedResult = mkRelationFromList (V.fromList attrs) [[IntAtom 3]]
+      expectedResult = mkRelationFromList (V.fromList attrs) [[IntegerAtom 3]]
   result <- executeRelationalExpr sess conn (MakeRelationFromExprs (Just (map NakedAttributeExpr attrs)) tupleExprs)
 
   assertEqual "id function equality" expectedResult result

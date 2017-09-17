@@ -50,13 +50,13 @@ testDBCFunctionWithAtomArguments :: Test
 testDBCFunctionWithAtomArguments = TestCase $ do
   --test function with creation of a relvar with some arguments
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> executeDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])])) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Integer -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> executeDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])])) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute multiArgFunc(30,\"Steve\")"
   result <- executeRelationalExpr sess conn (RelationVariable "person" ())
   let expectedPerson = mkRelationFromList (attributesFromList [Attribute "name" TextAtomType,
-                                                               Attribute "age" IntAtomType]) [
-        [TextAtom "Steve", IntAtom 30]]
+                                                               Attribute "age" IntegerAtomType]) [
+        [TextAtom "Steve", IntegerAtom 30]]
   assertEqual "person relation" expectedPerson result
   expectTutorialDErr sess conn (T.isPrefixOf "AtomTypeMismatchError") "execute multiArgFunc(\"fail\", \"fail\")"
 
