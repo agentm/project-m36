@@ -504,3 +504,13 @@ Test-Suite test-client-simple
     GHC-Options: -Wall
     Hs-Source-Dirs: ./src/bin, ., test/
 
+-- test for file handle leaks
+Executable handles
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups
+    main-is: benchmark/Handles.hs
+    GHC-Options: -Wall -threaded -rtsopts
+    HS-Source-Dirs: ./src/bin
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
