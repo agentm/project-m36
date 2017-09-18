@@ -10,7 +10,6 @@ import ProjectM36.FileLock
 import System.Directory
 import System.FilePath
 import System.IO.Temp
-import System.IO
 import Data.Time.Clock.POSIX
 import qualified Data.UUID as U
 import qualified Data.Set as S
@@ -71,7 +70,7 @@ checkForOtherVersions dbdir = do
      pure (Right ())
  
 
-setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (Handle, LockFileHash))
+setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (LockFile, LockFileHash))
 setupDatabaseDir sync dbdir bootstrapGraph = do
   dbdirExists <- doesDirectoryExist dbdir
   eWrongVersion <- checkForOtherVersions dbdir
@@ -81,9 +80,9 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
       m36exists <- doesFileExist (transactionLogPath dbdir)  
       if dbdirExists && m36exists then do
         --no directories to write, just 
-        lockFileH <- openLockFile dbdir
-        gDigest <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (readGraphTransactionIdFileDigest dbdir)
-        pure (Right (lockFileH, gDigest))
+        locker <- openLockFile (lockFilePath dbdir)
+        gDigest <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (readGraphTransactionIdFileDigest dbdir)
+        pure (Right (locker, gDigest))
       else if not m36exists then do
         locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
         pure (Right locks)
@@ -92,19 +91,14 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
 {- 
 initialize a database directory with the graph from which to bootstrap- return lock file handle
 -}
-bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Handle, LockFileHash)
+bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (LockFile, LockFileHash)
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
-  lockFileH <- openLockFile dbdir
+  locker <- openLockFile (lockFilePath dbdir)
   let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
-  digest  <- bracket_ (lockFile lockFileH WriteLock) (unlockFile lockFileH) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
-  pure (lockFileH, digest)
+  digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
+  pure (locker, digest)
   
-openLockFile :: FilePath -> IO Handle
-openLockFile dbdir = do
-  lockFileH <- openFile (lockFilePath dbdir) WriteMode
-  pure lockFileH
-
 {- 
 incrementally updates an existing database directory
 --algorithm: 

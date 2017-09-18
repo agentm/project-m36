@@ -9,6 +9,7 @@ import Text.Megaparsec hiding (option)
 import Data.Monoid
 import qualified Data.Map as M
 import System.Directory
+import Control.Monad
 
 type OpenCloseCount = Int 
 
@@ -33,7 +34,7 @@ parseDbDir = strOption (short 'd' <> long "dbdir")
 main :: IO ()
 main = do
   (HandlesArgs ocCount tCount dbdir) <- execParser $ info (helper <*> parseArgs) fullDesc
-  sequence_ $ replicate ocCount (runOpenClose tCount dbdir)
+  replicateM_ ocCount (runOpenClose tCount dbdir)
   
 runOpenClose :: TransactionCount -> DbDir -> IO ()  
 runOpenClose tCount dbdir = do
@@ -51,7 +52,7 @@ runOpenClose tCount dbdir = do
           case eErr of
             Left err -> error (show err)
             Right _ -> do
-              sequence_ $ replicate tCount (runTransaction session conn)
+              replicateM_ tCount (runTransaction session conn)
               close conn
               printFdCount
   
