@@ -24,6 +24,16 @@ foreign import WINDOWS_CCONV "LockFileEx" c_lockFileEx :: HANDLE -> DWORD -> DWO
 
 foreign import WINDOWS_CCONV "UnlockFileEx" c_unlockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> LPOVERLAPPED -> IO BOOL
 
+type LockFile = Handle
+
+openLockFile :: FilePath -> IO LockFile
+openLockFile path = openFile path ReadMode
+
+closeLockFile :: LockFile -> IO ()
+closeLockFile file = do
+   unlockFile file
+   hClose file
+
 --swiped from System.FileLock package
 lockFile :: Handle -> LockType -> IO ()
 lockFile handle lock = withHandleToHANDLE handle $ \winHandle -> do
