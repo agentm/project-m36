@@ -214,8 +214,6 @@ defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (c
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
 type ClientNodes = STMSet.Set ProcessId
 
-type TransactionGraphLockHandle = Handle
-  
 -- internal structure specific to in-process connections
 data InProcessConnectionConf = InProcessConnectionConf {
   ipPersistenceStrategy :: PersistenceStrategy, 
@@ -225,7 +223,7 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipScriptSession :: Maybe ScriptSession,
   ipLocalNode :: LocalNode,
   ipTransport :: Transport, -- we hold onto this so that we can close it gracefully
-  ipLocks :: Maybe (TransactionGraphLockHandle, MVar LockFileHash) -- nothing when NoPersistence
+  ipLocks :: Maybe (LockFile, MVar LockFileHash) -- nothing when NoPersistence
   }
 
 data RemoteProcessConnectionConf = RemoteProcessConnectionConf {
@@ -416,6 +414,7 @@ closeSession :: SessionId -> Connection -> IO ()
 closeSession sessionId (InProcessConnection conf) = 
     atomically $ STMMap.delete sessionId (ipSessions conf)
 closeSession sessionId conn@(RemoteProcessConnection _) = remoteCall conn (CloseSession sessionId)       
+
 -- | 'close' cleans up the database access connection and closes any relevant sockets.
 close :: Connection -> IO ()
 close (InProcessConnection conf) = do
@@ -425,6 +424,10 @@ close (InProcessConnection conf) = do
     pure ()
   closeLocalNode (ipLocalNode conf)
   closeTransport (ipTransport conf)
+  let mLocks = ipLocks conf
+  case mLocks of
+    Nothing -> pure ()
+    Just (lockFileH, _) -> closeLockFile lockFileH
 
 close conn@(RemoteProcessConnection conf) = do
   _ <- remoteCall conn Logout :: IO Bool

@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, NamedFieldPuns #-}
 --cross-platform file locking utilizing POSIX file locking on Unix/Linux and Windows file locking
 --hackage's System.FileLock doesn't support POSIX advisory locks nor locking file based on file descriptors, hence this needless rewrite
 module ProjectM36.FileLock where
@@ -23,6 +23,16 @@ import Data.Bits
 foreign import WINDOWS_CCONV "LockFileEx" c_lockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> DWORD -> LPOVERLAPPED -> IO BOOL
 
 foreign import WINDOWS_CCONV "UnlockFileEx" c_unlockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> LPOVERLAPPED -> IO BOOL
+
+type LockFile = Handle
+
+openLockFile :: FilePath -> IO LockFile
+openLockFile path = openFile path ReadMode
+
+closeLockFile :: LockFile -> IO ()
+closeLockFile file = do
+   unlockFile file
+   hClose file
 
 --swiped from System.FileLock package
 lockFile :: Handle -> LockType -> IO ()
@@ -53,33 +63,39 @@ unlockFile handle = withHandleToHANDLE handle $ \winHandle -> do
       error ("failed to unlock database lock: " ++ show res)
 
 #else
+--all of this complicated nonsense is fixed if we switch to GHC 8.2 which includes native flock support on handles
 import qualified System.Posix.IO as P
+import System.Posix.Types
+import System.Posix.Files
 
 lockStruct :: P.LockRequest -> P.FileLock
 lockStruct req = (req, AbsoluteSeek, 0, 0)
 
+newtype LockFile = LockFile Fd
+
+--we cannot use openFile from System.IO because it implements complicated locking which prevents opening the same file twice in write mode in the same process with no way to bypass the check.
+openLockFile :: FilePath -> IO LockFile
+openLockFile path =
+  LockFile <$> P.createFile path ownerWriteMode
+  
+closeLockFile :: LockFile -> IO ()
+closeLockFile l@(LockFile fd) = do
+  unlockFile l
+  P.closeFd fd
+  
 --blocks on lock, if necessary
-lockFile :: Handle -> LockType -> IO ()    
-lockFile file lock = do
-  fd <- P.handleToFd file
+lockFile :: LockFile -> LockType -> IO ()    
+lockFile (LockFile fd) lock = do
   let lockt = case lock of
         WriteLock -> P.WriteLock
         ReadLock -> P.ReadLock
   P.waitToSetLock fd (lockStruct lockt)
   
-unlockFile :: Handle -> IO ()  
-unlockFile file = do 
-  fd <- P.handleToFd file
+unlockFile :: LockFile -> IO ()  
+unlockFile (LockFile fd) = 
   P.waitToSetLock fd (lockStruct P.Unlock)
 #endif
 
 data LockType = ReadLock | WriteLock
 
-{-
-lockFileSTM :: Handle -> LockType -> STM ()
-lockFileSTM file lock = unsafeIOToSTM $ onException (lockFile file lock) (unlockFile file)
-
-unlockFileSTM :: Handle -> STM ()
-unlockFileSTM file = unsafeIOToSTM $ unlockFile file
--}
   

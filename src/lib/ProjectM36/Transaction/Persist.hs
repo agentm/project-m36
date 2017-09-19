@@ -8,7 +8,7 @@ import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Binary as B
-import qualified Data.ByteString.Lazy as BS
+--import qualified Data.ByteString as BS
 import System.FilePath
 import System.Directory
 import qualified Data.Text as T
@@ -59,7 +59,7 @@ readTransaction dbdir transId mScriptSession = do
     return $ Left $ MissingTransactionError transId
     else do
     relvars <- readRelVars transDir
-    transInfo <- B.decode <$> BS.readFile (transactionInfoPath transDir)
+    transInfo <- B.decodeFile (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
     sschemas <- readSubschemas transDir
@@ -89,7 +89,7 @@ writeTransaction sync dbdir trans = do
     writeDBCFuncs sync tempTransDir (dbcFunctions context)
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     writeSubschemas sync tempTransDir (subschemas trans)
-    BS.writeFile (transactionInfoPath tempTransDir) (B.encode $ transactionInfo trans)
+    B.encodeFile (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
   pure ()
@@ -101,13 +101,13 @@ writeRelVar sync transDir (relvarName, rel) = do
   
 writeRelVars :: DiskSync -> FilePath -> M.Map RelVarName Relation -> IO ()
 writeRelVars sync transDir relvars = mapM_ (writeRelVar sync transDir) $ M.toList relvars
-    
+
 readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
 readRelVars transDir = do
   let relvarsPath = relvarsDir transDir
   relvarNames <- getDirectoryNames relvarsPath
   relvars <- mapM (\name -> do
-                      rel <- B.decode <$> BS.readFile (relvarsPath </> name)
+                      rel <- B.decodeFile (relvarsPath </> name)
                       return (T.pack name, rel)) relvarNames
   return $ M.fromList relvars
 
@@ -133,7 +133,7 @@ writeAtomFunc sync transDir func = do
 readAtomFunc :: FilePath -> AtomFunctionName -> Maybe ScriptSession -> AtomFunctions -> IO AtomFunction
 readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsDir transDir </> T.unpack funcName  
-  (funcType, mFuncScript) <- B.decode <$> BS.readFile atomFuncPath
+  (funcType, mFuncScript) <- B.decodeFile atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName precompiledFuncs of
@@ -174,7 +174,7 @@ readDBCFuncs transDir mScriptSession = do
 readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction  
 readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName
-  (funcType, mFuncScript) <- B.decode <$> BS.readFile dbcFuncPath
+  (funcType, mFuncScript) <- B.decodeFile dbcFuncPath
   case mFuncScript of
     Nothing -> case databaseContextFunctionForName funcName precompiledFuncs of
       Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName)
@@ -202,8 +202,8 @@ writeIncDeps sync transDir incdeps = mapM_ (writeIncDep sync transDir) $ M.toLis
 readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
 readIncDep transDir incdepName = do
   let incDepPath = incDepsDir transDir </> T.unpack incdepName
-  incDepData <- BS.readFile incDepPath
-  pure (incdepName, B.decode incDepData)
+  incDepData <- B.decodeFile incDepPath
+  pure (incdepName, incDepData)
   
 readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)  
 readIncDeps transDir = do
@@ -215,8 +215,7 @@ readIncDeps transDir = do
 readSubschemas :: FilePath -> IO Subschemas  
 readSubschemas transDir = do
   let sschemasPath = subschemasPath transDir
-  bytes <- BS.readFile sschemasPath
-  pure (B.decode bytes)
+  B.decodeFile sschemasPath
   
 writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
 writeSubschemas sync transDir sschemas = do
@@ -230,6 +229,6 @@ writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
 readTypeConstructorMapping :: FilePath -> IO TypeConstructorMapping
 readTypeConstructorMapping path = do
   let atPath = typeConsPath path
-  B.decode <$> BS.readFile atPath
+  B.decodeFile atPath
   
   
