@@ -65,7 +65,7 @@ newtype LockFile = LockFile Fd
 
 --we cannot use openFile from System.IO because it implements complicated locking which prevents opening the same file twice in write mode in the same process with no way to bypass the check.
 openLockFile :: FilePath -> IO LockFile
-openLockFile path = do
+openLockFile path =
   LockFile <$> P.createFile path ownerWriteMode
   
 closeLockFile :: LockFile -> IO ()
