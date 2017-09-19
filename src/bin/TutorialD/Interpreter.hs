@@ -209,7 +209,7 @@ reprLoop config sessionId conn = do
       reprLoop config sessionId conn
 
 runTutorialD :: C.SessionId -> C.Connection -> T.Text -> IO ()
-runTutorialD sessionId conn tutd = do
+runTutorialD sessionId conn tutd = 
   case parseTutorialD tutd of
     Left err -> 
       displayOpResult $ DisplayParseErrorResult 0 err

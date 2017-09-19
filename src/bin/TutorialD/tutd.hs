@@ -106,12 +106,12 @@ main = do
       eSessionId <- createSessionAtHead conn connHeadName
       case eSessionId of 
           Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
-          Right sessionId -> do
+          Right sessionId -> 
             case execTutDForConfig interpreterConfig of
               Nothing -> do
                 printWelcome
                 _ <- reprLoop interpreterConfig sessionId conn
                 pure ()
-              Just tutdStr -> do
+              Just tutdStr -> 
                 runTutorialD sessionId conn (T.pack tutdStr)
 
