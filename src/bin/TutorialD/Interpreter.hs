@@ -181,8 +181,10 @@ evalTutorialD sessionId conn safe expr = case expr of
         Right () -> return QuietSuccessResult
       
 type GhcPkgPath = String  
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName [GhcPkgPath] |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName
+type TutorialDExec = String
+  
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] |
+                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec)
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ show (reportExpr (C.notification evaldNot)) ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -203,12 +205,16 @@ reprLoop config sessionId conn = do
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-      case parseTutorialD (T.pack line) of
-        Left err -> 
-          displayOpResult $ DisplayParseErrorResult (T.length prompt) err
-        Right parsed ->
-          catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
-            evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
-            displayOpResult evald)
-            (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))
+      runTutorialD sessionId conn (T.pack line)
       reprLoop config sessionId conn
+
+runTutorialD :: C.SessionId -> C.Connection -> T.Text -> IO ()
+runTutorialD sessionId conn tutd = do
+  case parseTutorialD tutd of
+    Left err -> 
+      displayOpResult $ DisplayParseErrorResult 0 err
+    Right parsed ->
+      catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
+        evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
+        displayOpResult evald)
+        (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))

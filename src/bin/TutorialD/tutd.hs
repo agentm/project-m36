@@ -6,10 +6,11 @@ import System.IO
 import Options.Applicative
 import System.Exit
 import Data.Monoid
+import qualified Data.Text as T
 
 parseArgs :: Parser InterpreterConfig
-parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseGhcPkgPaths <|>
-            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> parseGhcPkgPaths <|>
+            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec
 
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -47,6 +48,13 @@ parseNodeId = createNodeId <$>
                       help "Remote port" <>
                       value defaultServerPort)
               
+--just execute some tutd and exit
+parseTutDExec :: Parser (Maybe TutorialDExec)
+parseTutDExec = optional $ strOption (long "exec-tutd" <>
+                           short 'e' <>
+                           help "Execute TutorialD expression and exit"
+                           )
+              
 parseGhcPkgPaths :: Parser [GhcPkgPath]              
 parseGhcPkgPaths = many (strOption (long "ghc-pkg-dir" <>
                                     metavar "GHC_PACKAGE_DIRECTORY"))
@@ -55,12 +63,16 @@ opts :: ParserInfo InterpreterConfig
 opts = info parseArgs idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _ ghcPkgPaths) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
+connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _ _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
-headNameForConfig (LocalInterpreterConfig _ headn _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ headn) = headn
+headNameForConfig (LocalInterpreterConfig _ headn _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ headn _) = headn
+
+execTutDForConfig :: InterpreterConfig -> Maybe String
+execTutDForConfig (LocalInterpreterConfig _ _ t _) = t
+execTutDForConfig (RemoteInterpreterConfig _ _ _ t) = t
 
 {-
 ghcPkgPathsForConfig :: InterpreterConfig -> [GhcPkgPath]
@@ -95,7 +107,11 @@ main = do
       case eSessionId of 
           Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
           Right sessionId -> do
-            printWelcome
-            _ <- reprLoop interpreterConfig sessionId conn
-            pure ()
+            case execTutDForConfig interpreterConfig of
+              Nothing -> do
+                printWelcome
+                _ <- reprLoop interpreterConfig sessionId conn
+                pure ()
+              Just tutdStr -> do
+                runTutorialD sessionId conn (T.pack tutdStr)
 
