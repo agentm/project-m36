@@ -63,7 +63,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | FunctionNameInUseError AtomFunctionName
                      | FunctionNameNotInUseError AtomFunctionName
                      | EmptyCommitError
-                     | FunctionArgumentCountMismatch Int Int
+                     | FunctionArgumentCountMismatchError Int Int
+                     | ConstructedAtomArgumentCountMismatchError Int Int
                      | NoSuchDataConstructorError DataConstructorName
                      | NoSuchTypeConstructorError TypeConstructorName
                      | InvalidAtomTypeName AtomTypeName

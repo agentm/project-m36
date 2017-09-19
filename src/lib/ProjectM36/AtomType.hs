@@ -72,18 +72,23 @@ atomTypeForDataConstructor tConss dConsName atomArgTypes =
       
 -- | Walks the data and type constructors to extract the type variable map.
 resolveDataConstructorTypeVars :: DataConstructorDef -> [AtomType] -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveDataConstructorTypeVars dCons aTypeArgs tConss = do
-  maps <- mapM (\(dCons',aTypeArg) -> resolveDataConstructorArgTypeVars dCons' aTypeArg tConss) (zip (DCD.fields dCons) aTypeArgs)
+resolveDataConstructorTypeVars dCons@(DataConstructorDef _ defArgs) aTypeArgs tConss = do
+  let defCount = length defArgs
+      argCount = length aTypeArgs
+  if defCount /= argCount then
+    Left (ConstructedAtomArgumentCountMismatchError defCount argCount)
+    else do
+    maps <- mapM (\(dCons',aTypeArg) -> resolveDataConstructorArgTypeVars dCons' aTypeArg tConss) (zip (DCD.fields dCons) aTypeArgs)
   --if any two maps have the same key and different values, this indicates a type arg mismatch
-  let typeVarMapFolder valMap acc = case acc of
-        Left err -> Left err
-        Right accMap -> if accMap `M.isSubmapOf` valMap then
-                          Right (M.union accMap valMap)
-                        else
-                          Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
-  case foldr typeVarMapFolder (Right M.empty) maps of
-    Left err -> Left err
-    Right typeVarMaps -> pure typeVarMaps
+    let typeVarMapFolder valMap acc = case acc of
+          Left err -> Left err
+          Right accMap -> if accMap `M.isSubmapOf` valMap then
+                            Right (M.union accMap valMap)
+                          else
+                            Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
+    case foldr typeVarMapFolder (Right M.empty) maps of
+      Left err -> Left err
+      Right typeVarMaps -> pure typeVarMaps
   --if the data constructor cannot complete a type constructor variables (ex. "Nothing" could be Maybe Int or Maybe Text, etc.), then fill that space with TypeVar which is resolved when the relation is constructed- the relation must contain all resolved atom types.
 
 
@@ -111,8 +116,8 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
           Right pVarMap' 
         else
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
-resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)          
-resolveTypeConstructorTypeVars x y _ = error $ "Unhandled type vars:"  ++ show x ++ show y                             
+resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
+resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
     
 -- check that type vars on the right also appear on the left
 -- check that the data constructor names are unique      

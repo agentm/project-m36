@@ -460,7 +460,7 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
         let expectedArgCount = length (dbcFuncType func)
             actualArgCount = length atomArgExprs
         if expectedArgCount /= actualArgCount then
-          pure (Just (FunctionArgumentCountMismatch expectedArgCount actualArgCount))
+          pure (Just (FunctionArgumentCountMismatchError expectedArgCount actualArgCount))
           else 
           --check that the atom types are valid
           case lefts eAtomTypes of
@@ -735,7 +735,7 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
         safeInit [] = [] -- different behavior from normal init
         safeInit (_:xs) = safeInit xs
     if expectedArgCount /= actualArgCount then
-      throwE (FunctionArgumentCountMismatch expectedArgCount actualArgCount)
+      throwE (FunctionArgumentCountMismatchError expectedArgCount actualArgCount)
       else do
       _ <- mapM (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
       evaldArgs <- mapM (liftE . evalAtomExpr tupIn) arguments
@@ -772,7 +772,7 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
         RelationalExprStateTupleElems _ tup -> case atomForAttributeName attrName tup of
           Left err' -> pure (error "STAMP" $ Left err')
           Right atom -> pure (Right (atomTypeForAtom atom))
-    Left err -> pure (error "GONK" $ Left err)
+    Left err -> pure (Left err)
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
 typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
   context <- fmap stateElemsContext ask

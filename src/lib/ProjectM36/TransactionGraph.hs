@@ -26,7 +26,7 @@ import Control.Arrow
 import Data.Maybe
 
 {-
-import Debug.Trace
+--import Debug.Trace
 import Control.Monad.Reader
 import qualified ProjectM36.DisconnectedTransaction as D
 -}

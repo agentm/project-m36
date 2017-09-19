@@ -53,7 +53,8 @@ main = do
       testRelationalExprStateTupleElems, 
       testFunctionalDependencies, 
       testEmptyCommits,
-      testIntervalAtom
+      testIntervalAtom,
+      testListConstructedAtom      
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -469,3 +470,12 @@ testIntervalAtom = TestCase $ do
   executeTutorialD sessionId dbconn "y:=x:{c:=interval_overlaps(@a,@b)}"
   eRv <- executeRelationalExpr sessionId dbconn (Project (AttributeNames (S.fromList ["n","c"])) (RelationVariable "y" ()))
   assertEqual "interval overlap check" (mkRelationFromList (attributesFromList [Attribute "c" BoolAtomType,Attribute "n" IntegerAtomType]) [[BoolAtom True, IntegerAtom 1], [BoolAtom False, IntegerAtom 2]]) eRv
+
+testListConstructedAtom :: Test
+testListConstructedAtom = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=relation{tuple{l Cons 4 (Cons 5 Empty)}}"
+  let err1 = "ConstructedAtomArgumentCountMismatchError 2 1"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{l Cons 4}}"
+  let err2 = "TypeConstructorAtomTypeMismatch \"List\" IntegerAtomType"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{l Cons 4 5}}"
