@@ -146,14 +146,12 @@ quotedString = do
   APT.skip (== '"')
   (_, s) <- APT.runScanner [] (\prevl nextChar -> case prevl of
                              [] -> Just [nextChar]
-                             chars -> if last chars == '\\' then
+                             chars | last chars == '\\' ->
                                         case lookup nextChar escapeMap of 
                                           Nothing -> Just (chars ++ [nextChar]) --there is no escape sequence, so leave backslash + char
-                                          Just escapeVal -> Just ((init chars) ++ [escapeVal]) -- nuke the backslash and add the escapeVal
-                                      else if nextChar == '"' then
-                                              Nothing
-                                           else
-                                             Just (chars ++ [nextChar]))
+                                          Just escapeVal -> Just (init chars ++ [escapeVal]) -- nuke the backslash and add the escapeVal
+                                   | nextChar == '"' -> Nothing
+                                   | otherwise -> Just (chars ++ [nextChar]))
   APT.skip (== '"')
   pure (T.pack s)
   
