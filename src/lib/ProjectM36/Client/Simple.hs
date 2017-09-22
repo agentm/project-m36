@@ -29,7 +29,6 @@ module ProjectM36.Client.Simple (
   C.RelationalExprBase(..)
   ) where
 
-
 import Control.Exception.Base
 import Control.Monad ((<=<))
 import Control.Monad.Reader
