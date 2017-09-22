@@ -12,7 +12,7 @@ import Data.Char (ord, isUpper, isSpace)
 import qualified Data.ByteString.Lazy as BS
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Set as S
-import Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Attoparsec.ByteString.Lazy as APBL
@@ -60,9 +60,9 @@ parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Pars
 parseCSVAtomP _ _ IntegerAtomType = (Right . IntegerAtom) <$> APT.decimal
 parseCSVAtomP _ _ IntAtomType = Right . IntAtom <$> APT.decimal
 parseCSVAtomP _ _ DoubleAtomType = Right . DoubleAtom <$> APT.double
-parseCSVAtomP _ _ TextAtomType = Right . TextAtom <$> 
-                                 (quotedString <|>
-                                 takeToEndOfData)
+parseCSVAtomP _ _ TextAtomType = do 
+  s <- quotedString <|> takeToEndOfData
+  pure (Right (TextAtom s))
 parseCSVAtomP _ _ DayAtomType = do
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
@@ -142,14 +142,18 @@ parens p = do
   
 quotedString :: APT.Parser T.Text
 quotedString = do
+  let escapeMap = [('"','"'), ('n', '\n'), ('r', '\r')]
   APT.skip (== '"')
-  v <- APT.scan False (\prevEscape nextChar -> if nextChar == '"' && not prevEscape then
-                                             Nothing
-                                           else if nextChar == '\\' then
-                                                  Just True
-                                                else
-                                                  Just False
-                                             )
+  (_, s) <- APT.runScanner [] (\prevl nextChar -> case prevl of
+                             [] -> Just [nextChar]
+                             chars -> if last chars == '\\' then
+                                        case lookup nextChar escapeMap of 
+                                          Nothing -> Just (chars ++ [nextChar]) --there is no escape sequence, so leave backslash + char
+                                          Just escapeVal -> Just ((init chars) ++ [escapeVal]) -- nuke the backslash and add the escapeVal
+                                      else if nextChar == '"' then
+                                              Nothing
+                                           else
+                                             Just (chars ++ [nextChar]))
   APT.skip (== '"')
-  pure v
+  pure (T.pack s)
   

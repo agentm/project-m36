@@ -12,9 +12,12 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Monoid
 
---import qualified Data.Text.Lazy as TL
---import qualified Data.Text.Lazy.Encoding as TE
---import ProjectM36.Relation.Show.Term
+{-
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TE
+import ProjectM36.Relation.Show.Term
+import qualified Data.ByteString.Lazy as BS
+-}
 
 main :: IO ()           
 main = do 
@@ -52,7 +55,7 @@ testCSVExport = TestCase $ do
                                     Attribute "dayattr" DayAtomType,
                                     Attribute "datetimeattr" DateTimeAtomType,
                                     Attribute "listintegerattr" (listAtomType IntegerAtomType),
-                                    Attribute "textintegerattr" (listAtomType TextAtomType),
+                                    Attribute "listtextattr" (listAtomType TextAtomType),
                                     Attribute "intervalattr" (IntervalAtomType DateTimeAtomType)
                                    ]
       relOrErr = mkRelationFromList attrs [
@@ -69,7 +72,7 @@ testCSVExport = TestCase $ do
          DayAtom (fromGregorian 1001 6 28),
          DateTimeAtom (addUTCTime 360 now),
          listCons IntegerAtomType [IntegerAtom 10, IntegerAtom 11, IntegerAtom 12],
-         listCons TextAtomType [TextAtom "text5", TextAtom "text6"],
+         listCons TextAtomType [TextAtom "text5\"", TextAtom "text6\r\n"],
          testInterval
         ]]
         
@@ -79,6 +82,7 @@ testCSVExport = TestCase $ do
       case relationAsCSV rel of
         Left err -> assertFailure $ "export failed: " ++ show err
         Right csvData -> 
+          --BS.writeFile "/tmp/csv" csvData
           --putStrLn (TL.unpack (TE.decodeUtf8 csvData))
           case csvAsRelation attrs basicTypeConstructorMapping csvData of -- import csv data back to relation
             Left err -> assertFailure $ "re-import failed: " ++ show err
