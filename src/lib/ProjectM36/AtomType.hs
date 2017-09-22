@@ -41,7 +41,7 @@ atomTypeForDataConstructorName dConsName atomTypesIn tConsList =
       typeVars <- resolveDataConstructorTypeVars dCons atomTypesIn tConsList
       pure (ConstructedAtomType (TCD.name tCons) typeVars)
         
-atomTypeForDataConstructorDefArg :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping -> Either RelationalError AtomType
+atomTypeForDataConstructorDefArg :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping ->  Either RelationalError AtomType
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aType tConss = 
   case isValidAtomTypeForTypeConstructor aType tCons tConss of
     Just err -> Left err
@@ -134,13 +134,15 @@ validateTypeConstructorDef tConsDef dConsList = execWriter $ do
 
 -- | Create an atom type iff all type variables are provided.
 -- Either Int Text -> ConstructedAtomType "Either" {Int , Text}
-atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> Either RelationalError AtomType
-atomTypeForTypeConstructor (PrimitiveTypeConstructor _ aType) _ = Right aType
-atomTypeForTypeConstructor (TypeVariable tvname) _ = Right (TypeVariableType tvname)
-atomTypeForTypeConstructor tCons tConss = case findTypeConstructor (TC.name tCons) tConss of
+atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
+atomTypeForTypeConstructor (PrimitiveTypeConstructor _ aType) _ _ = Right aType
+atomTypeForTypeConstructor (TypeVariable tvname) _ tvMap = case M.lookup tvname tvMap of
+  Nothing -> Right (TypeVariableType tvname)
+  Just typ -> Right typ
+atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
   Just (tConsDef, _) -> do
-      tConsArgTypes <- mapM (`atomTypeForTypeConstructor` tConss) (TC.arguments tCons)    
+      tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructor tConsArg tConss tvMap) (TC.arguments tCons)    
       let pVarNames = TCD.typeVars tConsDef
           tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
       Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
@@ -245,7 +247,7 @@ atomTypeVerify x y = if x == y then
                      else
                        Left $ AtomTypeMismatchError x y
 
--- | Determine if two typeVar
+-- | Determine if two typeVars are logically compatible.
 typeVarMapsVerify :: TypeVarMap -> TypeVarMap -> Bool
 typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) (map (\((_,v1),(_,v2)) -> atomTypeVerify v1 v2) (zip (M.toAscList a) (M.toAscList b))) == M.size a
 
@@ -296,3 +298,13 @@ resolveFunctionReturnValue funcName tvMap (TypeVariableType tvName) = case M.loo
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName tvName)
   Just typ -> pure typ
 resolveFunctionReturnValue _ _ typ = pure typ
+
+-- convert a typevarmap and data constructor definition into a list of atomtypes which represent the arguments-- no type variables are allowed to remain
+resolvedAtomTypesForDataConstructorDefArgs :: TypeConstructorMapping -> TypeVarMap -> DataConstructorDef -> Either RelationalError [AtomType] 
+resolvedAtomTypesForDataConstructorDefArgs tConsMap tvMap (DataConstructorDef _ args) = mapM (resolvedAtomTypeForDataConstructorDefArg tConsMap tvMap) args
+
+resolvedAtomTypeForDataConstructorDefArg :: TypeConstructorMapping -> TypeVarMap -> DataConstructorDefArg -> Either RelationalError AtomType
+resolvedAtomTypeForDataConstructorDefArg tConsMap tvMap (DataConstructorDefTypeConstructorArg typCons) = atomTypeForTypeConstructor typCons tConsMap tvMap
+resolvedAtomTypeForDataConstructorDefArg _ tvMap (DataConstructorDefTypeVarNameArg tvName) = case M.lookup tvName tvMap of
+  Nothing -> Left (DataConstructorUsesUndeclaredTypeVariable tvName)
+  Just typ -> Right typ

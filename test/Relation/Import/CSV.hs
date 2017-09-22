@@ -3,6 +3,8 @@ import ProjectM36.Base
 import ProjectM36.Relation.Parse.CSV
 import ProjectM36.Relation
 import qualified ProjectM36.Attribute as A
+import ProjectM36.DataTypes.Basic
+
 import System.Exit
 import qualified Data.Text.Lazy as T
 import Data.Text.Lazy.Encoding
@@ -23,7 +25,7 @@ testCSVSuccess = TestCase $ do
       expectedRel = mkRelationFromList expectedAttrs [
         [TextAtom "S9", TextAtom "Perry", IntAtom 170, TextAtom "Londonderry"],
         [TextAtom "S8", TextAtom "Mike", IntAtom 150, TextAtom "Boston"]]
-  case csvAsRelation sampleCSV expectedAttrs of
+  case csvAsRelation expectedAttrs basicTypeConstructorMapping sampleCSV of
     Left err -> assertFailure $ show err
     Right csvRel -> assertEqual "csv->relation" expectedRel (Right csvRel)
 

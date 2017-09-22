@@ -55,6 +55,7 @@ Library
                    ,time
                    ,hashable-time
                    ,old-locale
+                   --used for CSV parsing
                    ,attoparsec
                    ,either
                    ,base64-bytestring

@@ -8,7 +8,6 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import ProjectM36.Error
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text as T
 import ProjectM36.Atom
 
 --spit out error for relations without attributes (since relTrue and relFalse cannot be distinguished then as CSV) and for relations with relation-valued attributes
@@ -42,7 +41,6 @@ instance DefaultOrdered RecordRelationTuple where
 newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
-  toField (RecordAtom (ConstructedAtom dConsName _ atomList)) = TE.encodeUtf8 $ dConsName `T.append` T.intercalate " " (map atomToText atomList)
   toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --squelch extraneous quotes for text type- the CSV library will add them if necessary
   toField (RecordAtom atomVal) = (TE.encodeUtf8 . atomToText) atomVal
 

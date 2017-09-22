@@ -149,6 +149,6 @@ evalTransGraphExtendTupleExpr (AttributeExtendTupleExpr attrName expr) graph = d
 evalTransGraphAttributeExpr :: TransactionGraph -> TransGraphAttributeExpr -> Either RelationalError AttributeExpr
 evalTransGraphAttributeExpr graph (AttributeAndTypeNameExpr attrName tCons tLookup) = do
   trans <- lookupTransaction graph tLookup
-  aType <- atomTypeForTypeConstructor tCons (typeConstructorMapping (concreteDatabaseContext trans))
+  aType <- atomTypeForTypeConstructor tCons (typeConstructorMapping (concreteDatabaseContext trans)) M.empty
   pure (NakedAttributeExpr (Attribute attrName aType))
 evalTransGraphAttributeExpr _ (NakedAttributeExpr attr) = pure (NakedAttributeExpr attr)  

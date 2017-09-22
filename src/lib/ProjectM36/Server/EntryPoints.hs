@@ -1,7 +1,7 @@
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
-import ProjectM36.Client
+import ProjectM36.Client as C
 import ProjectM36.Error
 import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
@@ -150,5 +150,8 @@ handleExecuteAutoMergeToHead ti sessionId conn strat headName' = do
   ret <- timeoutOrDie ti (autoMergeToHead sessionId conn strat headName')
   reply ret conn
 
-  
+handleRetrieveTypeConstructorMapping :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError TypeConstructorMapping)  
+handleRetrieveTypeConstructorMapping ti sessionId conn = do
+  ret <- timeoutOrDie ti (C.typeConstructorMapping sessionId conn)
+  reply ret conn
  

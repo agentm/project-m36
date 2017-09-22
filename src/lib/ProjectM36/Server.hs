@@ -42,6 +42,7 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr),
      handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),
      handleCall (\conn (ExecuteAutoMergeToHead sessionId strat headName') -> handleExecuteAutoMergeToHead ti sessionId conn strat headName'),
+     handleCall (\conn (RetrieveTypeConstructorMapping sessionId) -> handleRetrieveTypeConstructorMapping ti sessionId conn),
      handleCall (\conn Logout -> handleLogout ti conn)
      ] ++ testModeHandlers,
   unhandledMessagePolicy = Terminate
