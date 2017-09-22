@@ -8,7 +8,7 @@ import qualified ProjectM36.Attribute as A
 
 import Data.Csv.Parser
 import qualified Data.Vector as V
-import Data.Char (ord)
+import Data.Char (ord, isUpper, isSpace)
 import qualified Data.ByteString.Lazy as BS
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Set as S
@@ -21,7 +21,6 @@ import Control.Arrow
 import Text.Read hiding (parens)
 import Control.Applicative
 import Data.Either
-import Data.Char
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -104,7 +103,7 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) = do
   -- grab the data constructor
   case findDataConstructor dConsName tConsMap of
     Nothing -> pure (Left (NoSuchDataConstructorError dConsName))
-    Just (_, dConsDef) -> do
+    Just (_, dConsDef) -> 
       -- identify the data constructor's expected atom type args
       case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
         Left err -> pure (Left err)
@@ -112,7 +111,7 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) = do
               atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
                                  case argTyp of
                                    ConstructedAtomType _ _ -> 
-                                     (parens parseNextAtom) <|>
+                                     parens parseNextAtom <|>
                                      parseNextAtom
                                    _ -> parseNextAtom
                                ) argAtomTypes

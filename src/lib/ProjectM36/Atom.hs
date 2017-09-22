@@ -30,7 +30,7 @@ atomToText (RelationAtom i) = (T.pack . show) i
 atomToText (ConstructedAtom dConsName _ atoms) = dConsName <> dConsArgs
   where
     parensAtomToText a@(ConstructedAtom _ _ []) = atomToText a
-    parensAtomToText a@(ConstructedAtom _ _ _) = "(" <> atomToText a <> ")"
+    parensAtomToText a@ConstructedAtom{} = "(" <> atomToText a <> ")"
     parensAtomToText a = atomToText a
     
     dConsArgs = case atoms of
