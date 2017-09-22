@@ -54,5 +54,5 @@ script:
  - cabal new-build -w ${HC} -j1
  - cabal new-test -w ${HC}
  - curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
-
+ - cabal haddock
 # EOF

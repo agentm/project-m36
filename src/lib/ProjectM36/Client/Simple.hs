@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- | A simplified client interface for Project:M36 database access.
 module ProjectM36.Client.Simple (
   simpleConnectProjectM36,
   simpleConnectProjectM36At,
@@ -27,7 +28,7 @@ module ProjectM36.Client.Simple (
   C.DatabaseContextExpr(..),
   C.RelationalExprBase(..)
   ) where
--- | A simplified client interface for Project:M36 database access.
+
 
 import Control.Exception.Base
 import Control.Monad ((<=<))
