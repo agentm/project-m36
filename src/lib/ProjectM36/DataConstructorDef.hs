@@ -18,3 +18,4 @@ typeVars (DataConstructorDef _ tConsArgs) = S.unions $ map typeVarsInDefArg tCon
 typeVarsInDefArg :: DataConstructorDefArg -> S.Set TypeVarName
 typeVarsInDefArg (DataConstructorDefTypeConstructorArg tCons) = TC.typeVars tCons
 typeVarsInDefArg (DataConstructorDefTypeVarNameArg pVarName) = S.singleton pVarName
+

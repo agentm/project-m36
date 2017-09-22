@@ -47,3 +47,8 @@ listAtomFunctions = HS.fromList [
     atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) -> listMaybeHead listAtom)
     }
   ]
+                    
+--just a private utility function
+listCons :: AtomType -> [Atom] -> Atom
+listCons typ [] = ConstructedAtom "Empty" (listAtomType typ) []
+listCons typ (a:as) = ConstructedAtom "Cons" (listAtomType typ) [a, listCons typ as]

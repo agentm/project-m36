@@ -497,7 +497,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
             pure $ case eCompiledFunc of
               Left err -> Left (ScriptError err)
               Right compiledFunc -> do
-                funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) adjustedAtomTypeCons
+                funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext) M.empty) adjustedAtomTypeCons
                 let updatedFuncs = HS.insert newAtomFunc atomFuncs
                     newContext = currentContext { atomFunctions = updatedFuncs }
                     newAtomFunc = AtomFunction { atomFuncName = funcName,
@@ -534,7 +534,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
             Left err -> Left (ScriptError err)
             Right compiledFunc -> do
               --if we are here, we have validated that the written function type is X -> DatabaseContext -> DatabaseContext, so we need to munge the first elements into an array
-              funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext)) atomArgs
+              funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext) M.empty) atomArgs
               let updatedDBCFuncs = HS.insert newDBCFunc (dbcFunctions currentContext)
                   newContext = currentContext { dbcFunctions = updatedDBCFuncs }
                   dbcFuncs = dbcFunctions currentContext
@@ -844,7 +844,7 @@ verifyAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = runExceptT $ d
 -- | Look up the type's name and create a new attribute.
 evalAttrExpr :: TypeConstructorMapping -> AttributeExpr -> Either RelationalError Attribute
 evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons ()) = do
-  aType <- atomTypeForTypeConstructor tCons aTypes
+  aType <- atomTypeForTypeConstructor tCons aTypes M.empty
   Right (Attribute attrName aType)
   
 evalAttrExpr _ (NakedAttributeExpr attr) = Right attr

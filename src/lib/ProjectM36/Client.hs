@@ -24,6 +24,7 @@ module ProjectM36.Client
        rollback,
        typeForRelationalExpr,
        inclusionDependencies,
+       ProjectM36.Client.typeConstructorMapping,
        planForDatabaseContextExpr,
        currentSchemaName,
        SchemaName,
@@ -828,6 +829,17 @@ inclusionDependencies sessionId (InProcessConnection conf) = do
 
 inclusionDependencies sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
+typeConstructorMapping :: SessionId -> Connection -> IO (Either RelationalError TypeConstructorMapping)
+typeConstructorMapping sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err 
+      Right (session, _) -> --warning, no schema support for typeconstructors
+        pure (Right (B.typeConstructorMapping (Sess.concreteDatabaseContext session)))
+typeConstructorMapping sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTypeConstructorMapping sessionId)
+
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
@@ -921,7 +933,7 @@ atomTypesAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right session ->
-        case typesAsRelation (typeConstructorMapping (Sess.concreteDatabaseContext session)) of
+        case typesAsRelation (B.typeConstructorMapping (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)

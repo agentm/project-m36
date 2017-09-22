@@ -128,10 +128,14 @@ evalTutorialD sessionId conn safe expr = case expr of
       case eImportType of
         Left err -> barf err
         Right importType -> do
-          exprErr <- evalRelVarDataImportOperator execOp (attributes importType)
-          case exprErr of
+          eTConsMap <- C.typeConstructorMapping sessionId conn
+          case eTConsMap of
             Left err -> barf err
-            Right dbexpr -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexpr)
+            Right tConsMap -> do
+              exprErr <- evalRelVarDataImportOperator execOp tConsMap (attributes importType)
+              case exprErr of
+                Left err -> barf err
+                Right dbexpr -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexpr)
   
   (ImportDBContextOp execOp) -> 
     if needsSafe then

@@ -4,7 +4,7 @@ import ProjectM36.Error
 import Data.Monoid
 
 -- | import data into a relation variable
-data RelVarDataImportOperator = RelVarDataImportOperator RelVarName FilePath (RelVarName -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr))
+data RelVarDataImportOperator = RelVarDataImportOperator RelVarName FilePath (RelVarName -> TypeConstructorMapping -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr))
 
 instance Show RelVarDataImportOperator where
   show (RelVarDataImportOperator rv path _) = "RelVarDataImportOperator " <> show rv <> " " <> path
@@ -17,8 +17,8 @@ instance Show DatabaseContextDataImportOperator where
 
 -- perhaps create a structure to import a whole transaction graph section in the future
 
-evalRelVarDataImportOperator :: RelVarDataImportOperator -> Attributes -> IO (Either RelationalError DatabaseContextExpr)
-evalRelVarDataImportOperator (RelVarDataImportOperator relVarName path importFunc) attrs = importFunc relVarName attrs path 
+evalRelVarDataImportOperator :: RelVarDataImportOperator -> TypeConstructorMapping -> Attributes -> IO (Either RelationalError DatabaseContextExpr)
+evalRelVarDataImportOperator (RelVarDataImportOperator relVarName path importFunc) tConsMap attrs = importFunc relVarName tConsMap attrs path 
         
 evalDatabaseContextDataImportOperator :: DatabaseContextDataImportOperator -> IO (Either RelationalError DatabaseContextExpr)        
 evalDatabaseContextDataImportOperator (DatabaseContextDataImportOperator path importFunc) = importFunc path

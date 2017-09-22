@@ -60,3 +60,5 @@ data RetrieveSessionIsDirty = RetrieveSessionIsDirty SessionId
                             deriving (Binary, Generic)
 data ExecuteAutoMergeToHead = ExecuteAutoMergeToHead SessionId MergeStrategy HeadName
                               deriving (Binary, Generic)
+data RetrieveTypeConstructorMapping = RetrieveTypeConstructorMapping SessionId 
+                                      deriving (Binary, Generic)
