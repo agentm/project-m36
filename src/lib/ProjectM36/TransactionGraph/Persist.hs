@@ -40,7 +40,7 @@ Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
 
 expectedVersion :: Int
-expectedVersion = 4
+expectedVersion = 5
 
 transactionLogFileName :: FilePath 
 transactionLogFileName = "m36v" ++ show expectedVersion

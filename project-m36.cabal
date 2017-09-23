@@ -48,6 +48,7 @@ Library
                    ,gnuplot
                    ,binary
                    ,filepath
+                   ,zlib
                    ,directory
                    ,vector-binary-instances
                    ,temporary
