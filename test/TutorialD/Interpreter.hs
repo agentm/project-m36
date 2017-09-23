@@ -54,7 +54,8 @@ main = do
       testFunctionalDependencies, 
       testEmptyCommits,
       testIntervalAtom,
-      testListConstructedAtom      
+      testListConstructedAtom,
+      testTypeChecker
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -479,3 +480,10 @@ testListConstructedAtom = TestCase $ do
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{l Cons 4}}"
   let err2 = "TypeConstructorAtomTypeMismatch \"List\" IntegerAtomType"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{l Cons 4 5}}"
+  
+testTypeChecker :: Test  
+testTypeChecker = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  let err1 = "AtomFunctionTypeError \"max\" 1 (RelationAtomType [Attribute \"_\" IntegerAtomType]) IntegerAtomType"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 0}}:{b:=max(@a)}"
+  
