@@ -55,7 +55,7 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
       eSess <- createSessionAtHead conn "master"
       case eSess of
         Left err -> error (show err)
-        Right session -> do
+        Right session -> 
           --database setup
           case parseTutorialD tutdSetup' of
             Left err -> error (show err)
@@ -70,7 +70,7 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
                   printFdCount
   
 runTransaction :: T.Text -> SessionId -> Connection -> IO ()
-runTransaction tutdIterate' sess conn = do
+runTransaction tutdIterate' sess conn = 
   --run tutd on every iteration
   case parseTutorialD tutdIterate' of
     Left err -> error (show err)
