@@ -7,38 +7,47 @@ import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import Text.Megaparsec hiding (option)
 import Data.Monoid
-import qualified Data.Map as M
 import System.Directory
 import Control.Monad
 
-type OpenCloseCount = Int 
-
-type TransactionCount = Int
-
-type DbDir = String
-
-data HandlesArgs = HandlesArgs OpenCloseCount TransactionCount DbDir
+data HandlesArgs = HandlesArgs {
+  openCloseCount :: Int,
+  transactionCount :: Int,
+  dbdir :: FilePath, 
+  tutdSetup :: String,
+  tutdIterate :: String
+  }
 
 parseArgs :: Parser HandlesArgs
-parseArgs = HandlesArgs <$> parseOpenAndCloseCount <*> parseTransactionCount <*> parseDbDir
+parseArgs = HandlesArgs <$> parseOpenAndCloseCount <*> parseTransactionCount <*> parseDbDir <*> parseTutdSetup <*> parseTutdIterate
 
-parseOpenAndCloseCount :: Parser OpenCloseCount
+parseOpenAndCloseCount :: Parser Int
 parseOpenAndCloseCount = option auto (short 'o' <> long "open-close-count")
 
-parseTransactionCount :: Parser TransactionCount
+parseTransactionCount :: Parser Int
 parseTransactionCount = option auto (short 't' <> long "transaction-count")
 
-parseDbDir :: Parser DbDir
+parseDbDir :: Parser FilePath
 parseDbDir = strOption (short 'd' <> long "dbdir")
+
+parseTutdSetup :: Parser String
+parseTutdSetup = strOption (short 's' <> long "setup-tutd" <> value "x:=relation{tuple{v t}}")
+
+parseTutdIterate :: Parser String
+parseTutdIterate = strOption (short 'i' <> long "iterate-tutd" <> value "update x (v:=not(@v))")
 
 main :: IO ()
 main = do
-  (HandlesArgs ocCount tCount dbdir) <- execParser $ info (helper <*> parseArgs) fullDesc
-  replicateM_ ocCount (runOpenClose tCount dbdir)
+  args <- execParser $ info (helper <*> parseArgs) fullDesc
+  replicateM_ (openCloseCount args) (runOpenClose 
+                                     (T.pack (tutdSetup args))
+                                     (T.pack (tutdIterate args))
+                                     (transactionCount args) 
+                                     (dbdir args))
   
-runOpenClose :: TransactionCount -> DbDir -> IO ()  
-runOpenClose tCount dbdir = do
-  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
+runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()  
+runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
+  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback []
   eConn <- connectProjectM36 connInfo
   case eConn of
     Left err -> error (show err)
@@ -48,19 +57,22 @@ runOpenClose tCount dbdir = do
         Left err -> error (show err)
         Right session -> do
           --database setup
-          eErr <- executeDatabaseContextExpr session conn (Assign "x" (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "v" (NakedAtomExpr (BoolAtom True)))]))
-          case eErr of
+          case parseTutorialD tutdSetup' of
             Left err -> error (show err)
-            Right _ -> do
-              replicateM_ tCount (runTransaction session conn)
-              close conn
-              printFdCount
+            Right parsed -> do
+              res <- evalTutorialD session conn UnsafeEvaluation parsed
+              case res of
+                DisplayErrorResult err -> error (T.unpack err)
+                DisplayParseErrorResult _ err -> error (parseErrorPretty err)
+                _ -> do 
+                  replicateM_ tCount (runTransaction tutdIterate' session conn)
+                  close conn
+                  printFdCount
   
-runTransaction :: SessionId -> Connection -> IO ()
-runTransaction sess conn = do
+runTransaction :: T.Text -> SessionId -> Connection -> IO ()
+runTransaction tutdIterate' sess conn = do
   --run tutd on every iteration
-  let tutd = "update x (v:=not(@v))"
-  case parseTutorialD tutd of
+  case parseTutorialD tutdIterate' of
     Left err -> error (show err)
     Right parsed -> do
       res <- evalTutorialD sess conn UnsafeEvaluation parsed
