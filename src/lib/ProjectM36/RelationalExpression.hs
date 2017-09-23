@@ -399,7 +399,7 @@ evalDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
     errs@(_:_) -> pure $ Just (someErrors errs)
     [] | T.null tConsName || not (isUpper (T.head tConsName)) -> pure $ Just (InvalidAtomTypeName tConsName)
        | isJust (findTypeConstructor tConsName oldTypes) -> pure $ Just (AtomTypeNameInUseError tConsName)
-       | otherwise -> do              
+       | otherwise -> do
       let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
       putStateContext $ currentContext { typeConstructorMapping = newTypes }
       pure Nothing
@@ -766,11 +766,11 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
     Right aType -> pure (Right aType)
     Left err@(NoSuchAttributeNamesError _) -> case rstate of
         RelationalExprStateAttrsElems _ attrs' -> case A.attributeForName attrName attrs' of
-          Left err' -> pure (error "SPAMMO2" $ Left err')
+          Left err' -> pure (Left err')
           Right attr -> pure (Right (A.atomType attr))
-        RelationalExprStateElems _ -> pure (error (show attrs) $ Left err)
+        RelationalExprStateElems _ -> pure (Left err)
         RelationalExprStateTupleElems _ tup -> case atomForAttributeName attrName tup of
-          Left err' -> pure (error "STAMP" $ Left err')
+          Left err' -> pure (Left err')
           Right atom -> pure (Right (atomTypeForAtom atom))
     Left err -> pure (Left err)
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
@@ -808,12 +808,12 @@ verifyAtomExprTypes :: Relation -> AtomExpr -> AtomType -> RelationalExprState (
 verifyAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = runExceptT $ do
   rstate <- lift ask
   case A.atomTypeForAttributeName attrName (attributes relIn) of
-    Right aType -> pure aType
+    Right aType -> either throwE pure (atomTypeVerify expectedType aType)
     (Left err@(NoSuchAttributeNamesError _)) -> case rstate of
       RelationalExprStateTupleElems _ _ -> throwE err
       RelationalExprStateElems _ -> throwE err
       RelationalExprStateAttrsElems _ attrs -> case A.attributeForName attrName attrs of
-        Left err' -> throwE (error "GONK" err')
+        Left err' -> throwE err'
         Right attrType -> either throwE pure (atomTypeVerify expectedType (A.atomType attrType))
     Left err -> throwE err
 verifyAtomExprTypes _ (NakedAtomExpr atom) expectedType = pure (atomTypeVerify expectedType (atomTypeForAtom atom))
