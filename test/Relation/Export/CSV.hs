@@ -1,6 +1,4 @@
-import Test.HUnit
 import ProjectM36.Base
-import System.Exit
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Parse.CSV
 import qualified ProjectM36.Attribute as A
@@ -8,10 +6,12 @@ import ProjectM36.Relation
 import ProjectM36.DataTypes.Basic
 import ProjectM36.DataTypes.List
 import ProjectM36.DataTypes.Interval
+
+import System.Exit
+import Test.HUnit
 import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Monoid
-
 {-
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TE
@@ -54,15 +54,18 @@ testCSVExport = TestCase $ do
                                     Attribute "integerattr" IntegerAtomType,
                                     Attribute "dayattr" DayAtomType,
                                     Attribute "datetimeattr" DateTimeAtomType,
+                                    Attribute "bytestringattr" ByteStringAtomType,
                                     Attribute "listintegerattr" (listAtomType IntegerAtomType),
                                     Attribute "listtextattr" (listAtomType TextAtomType),
                                     Attribute "intervalattr" (IntervalAtomType DateTimeAtomType)
                                    ]
+      sampleByteString = "\1\0\244\34\150"
       relOrErr = mkRelationFromList attrs [
         [TextAtom "text atom with \"quote\"", 
          IntegerAtom 123, 
          DayAtom (fromGregorian 2017 4 10),
          DateTimeAtom now,
+         ByteStringAtom sampleByteString,
          listCons IntegerAtomType [IntegerAtom 5, IntegerAtom 6, IntegerAtom 7],
          listCons TextAtomType [TextAtom "text1", TextAtom "text2"],
          testInterval
@@ -71,6 +74,7 @@ testCSVExport = TestCase $ do
          IntegerAtom 314, 
          DayAtom (fromGregorian 1001 6 28),
          DateTimeAtom (addUTCTime 360 now),
+         ByteStringAtom sampleByteString,         
          listCons IntegerAtomType [IntegerAtom 10, IntegerAtom 11, IntegerAtom 12],
          listCons TextAtomType [TextAtom "text5\"", TextAtom "text6\r\n"],
          testInterval
