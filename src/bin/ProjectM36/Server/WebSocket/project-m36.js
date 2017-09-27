@@ -10,7 +10,7 @@
 * @param {promptCallback} promptCallback - A function called whenever prompt information such as the current schema name and current branch name (if any).
 * @param {closeCallback} closeCallback - A function called once the connection is closed.
 */
-var ProjectM36Connection = function (protocol, host, port, path, dbname, openCallback, errorCallback, statusCallback, promptCallback, closeCallback) {
+var ProjectM36Connection = function (protocol, host, port, path, dbname, openCallback, errorCallback, statusCallback, promptCallback, notificationCallback, closeCallback) {
     this.protocol = protocol;
     this.host = host;
     this.port = port;
@@ -44,6 +44,7 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     };
     this.statuscallback = statusCallback;
     this.promptcallback = promptCallback;
+    this.notificationcallback = notificationCallback;
     this.socket = socket;
 }
 
@@ -77,6 +78,7 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     var acknowledged = message["acknowledged"];
     var error = message["displayerror"];
     var prompt = message["promptInfo"];
+    var notification = message["notificationname"]
 
     if(relation)
     {
@@ -100,6 +102,12 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     if(prompt)
     {
 	this.promptcallback(prompt["headname"], prompt["schemaname"]);
+    }
+
+    if(notification)
+    {
+	var evaldnotif = message.evaldnotification;
+	this.notificationcallback(message.notificationname, evaldnotif);
     }
 }
 

@@ -49,6 +49,48 @@ function promptUpdate(headName, schemaName)
     document.getElementById("promptinfo").textContent = "Current Branch: (" + headName + ") Schema: (" + schemaName + ")";
 }
 
+function relationErrorAsString(errObj)
+{
+    return errObj.tag + " " + errObj.contents;
+}
+
+function notificationUpdate(notificationName, evaldNotif)
+{
+    //generate two tables for display
+    var notifDiv = document.createElement('div');
+    var oldInfo = document.createElement('div');
+    oldInfo.textContent = "Pre-change info: ";
+    var newInfo = document.createElement('div');
+    newInfo.textContent = "Post-change info: ";
+    var status = "Notification received: " + notificationName;
+
+    if(evaldNotif.reportOldRelation.Left)
+    {
+	var errOld = evaldNotif.reportOldRelation.Left;
+	oldInfo.textContent += relationErrorAsString(errOld);
+    }
+    else if(evaldNotif.reportOldRelation.Right)
+    {
+	oldInfo.appendChild(conn.generateRelation(evaldNotif.reportOldRelation.Right));
+    }
+
+    if(evaldNotif.reportNewRelation.Left)
+    {
+	var errNew = evaldNotif.reportNewRelation.Left;
+	newInfo.textContent += relationErrorAsString(errNew);
+    }
+    else if(evaldNotif.reportNewRelation.Right)
+    {
+	newInfo.appendChild(conn.generateRelation(evaldNotif.reportNewRelation.Right));
+    }
+
+    notifDiv.appendChild(oldInfo);
+    notifDiv.appendChild(document.createElement('br'));
+    notifDiv.appendChild(newInfo);
+    appendResult(status,notifDiv);
+    mungeEmptyRows();
+}
+
 var conn;
 
 function connectOrDisconnect(form)
@@ -82,6 +124,7 @@ function connectOrDisconnect(form)
 					       connectionError,
 					       updateStatus,
 					       promptUpdate,
+					       notificationUpdate,
 					       connectionClosed);
 	toggleConnectionFields(form, false, "Connecting...");
     }
