@@ -123,7 +123,7 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
         cancel <- runInputT settings $ do
           let promptDiscardChanges = do
                 isatty <- haveTerminalUI
-                if isatty && interactive then do
+                if isatty && interactive && execOp /= Rollback && execOp /= Commit then do
                   mYesOrNo <- getInputLine "The current transaction has uncommitted changes. If you continue, the changes will be lost. Continue? (Y/n): "
                   case mYesOrNo of
                     Nothing -> promptDiscardChanges
