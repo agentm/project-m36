@@ -31,6 +31,7 @@ import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
 import Data.Monoid
+import Data.List (isPrefixOf)
 import Control.Exception
 
 {-
@@ -86,9 +87,14 @@ safeParseTutorialD = parse safeInterpreterParserP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
 
---execute the operation and display result
+type InteractiveConsole = Bool
+
 evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO TutorialDOperatorResult
-evalTutorialD sessionId conn safe expr = case expr of
+evalTutorialD sessionId conn safe = evalTutorialDInteractive sessionId conn safe False
+
+--execute the operation and display result
+evalTutorialDInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> ParsedOperation -> IO TutorialDOperatorResult
+evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
   (RODatabaseContextOp execOp) -> 
@@ -103,8 +109,33 @@ evalTutorialD sessionId conn safe expr = case expr of
       else
       eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
     
-  (GraphOp execOp) -> 
-    eHandler $ C.executeGraphExpr sessionId conn execOp
+  (GraphOp execOp) -> do
+    -- warn if the graph op could cause uncommited changes to be discarded
+    eIsDirty <- C.disconnectedTransactionIsDirty sessionId conn
+    let runGraphOp = eHandler $ C.executeGraphExpr sessionId conn execOp    
+        settings = Settings {complete = noCompletion,
+                             historyFile = Nothing,
+                             autoAddHistory = False}
+    case eIsDirty of
+      Left err -> barf err
+      Right False -> runGraphOp
+      Right True -> do
+        cancel <- runInputT settings $ do
+          let promptDiscardChanges = do
+                isatty <- haveTerminalUI
+                if isatty && interactive then do
+                  mYesOrNo <- getInputLine "The current transaction has uncommitted changes. If you continue, the changes will be lost. Continue? (Y/n): "
+                  case mYesOrNo of
+                    Nothing -> promptDiscardChanges
+                    Just "" -> promptDiscardChanges
+                    Just yesOrNo -> pure (not ("Y" `isPrefixOf` yesOrNo))
+                  else
+                  pure False
+          promptDiscardChanges
+        if cancel then
+          pure (DisplayErrorResult "Graph operation cancelled.")
+          else
+          runGraphOp
     
   (ConvenienceGraphOp execOp) ->
     eHandler $ evalConvenienceGraphOp sessionId conn execOp
@@ -219,6 +250,6 @@ runTutorialD sessionId conn tutd =
       displayOpResult $ DisplayParseErrorResult 0 err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
-        evald <- evalTutorialD sessionId conn UnsafeEvaluation parsed
+        evald <- evalTutorialDInteractive sessionId conn UnsafeEvaluation True parsed
         displayOpResult evald)
         (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))
