@@ -366,7 +366,7 @@ evalDatabaseContextExpr (RemoveInclusionDependency depName) = do
     return Nothing
     
 -- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
-evalDatabaseContextExpr (AddNotification notName triggerExpr resultExpr) = do
+evalDatabaseContextExpr (AddNotification notName triggerExpr resultOldExpr resultNewExpr) = do
   currentContext <- getStateContext
   let nots = notifications currentContext
   if M.member notName nots then
@@ -374,7 +374,8 @@ evalDatabaseContextExpr (AddNotification notName triggerExpr resultExpr) = do
     else do
       let newNotifications = M.insert notName newNotification nots
           newNotification = Notification { changeExpr = triggerExpr,
-                                           reportExpr = resultExpr }
+                                           reportOldExpr = resultOldExpr, 
+                                           reportNewExpr = resultNewExpr}
       putStateContext $ currentContext { notifications = newNotifications }
       return Nothing
   

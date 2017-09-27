@@ -153,8 +153,9 @@ addNotificationP = do
   reserved "notify"
   notName <- identifier
   triggerExpr <- relExprP 
-  resultExpr <- relExprP
-  pure $ AddNotification notName triggerExpr resultExpr
+  resultOldExpr <- relExprP
+  resultNewExpr <- relExprP
+  pure $ AddNotification notName triggerExpr resultOldExpr resultNewExpr
   
 removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do

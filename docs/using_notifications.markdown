@@ -9,8 +9,9 @@ As an example, consider an email application. Users of the applications will wan
 A Project:M36 notification is comprised of three user-selected parts:
 
 1. an arbitrary notification name: used to uniquely identify the notification in the server and client
-2. a trigger relational expression: when the outcome of this relational expression changes between two transactions, the notification is fired
-3. a report relational expression: when the notification fires, the expression is evaluated and passed along
+1. a trigger relational expression: when the outcome of this relational expression changes between two transactions, the notification is fired
+1. a report relational expression for the pre-change context: when the notification fires, the expression is evaluated in the old context and passed along
+1. a report relational expression for the post-change context: when the notification fires, the expression is evaluated in the new context and passed along
 
 By separating the "trigger" and "report" expressions, database users control what kind of reporting they receive when the outcome of a relational expression changes.
 
@@ -21,7 +22,7 @@ Currently, notifications are sent to all connected clients and not only to the c
 Notifications can be created in the ```tutd``` TutorialD interpreter with the following syntax:
 
 ```
-notify <notification name> <trigger relational expression> <report relational expression>
+notify <notification name> <trigger relational expression> <report relational expression (pre-change)> <report relational expression (post-change)>
 ```
 
 ## Deleting a Notification
@@ -39,20 +40,22 @@ Consider the following ```person``` relation variable where "name" is a key:
 ```
 TutorialD (master/main): person:=relation{tuple{name "Steve",address "Main St."},tuple{name "John", address "Elm St."}}
 TutorialD (master/main): :showexpr person
-┌────────┬─────┐
-│address │name │
-├────────┼─────┤
-│Elm St. │John │
-│Main St.│Steve│
-└────────┴─────┘
+┌─────────────┬──────────┐
+│address::Text│name::Text│
+├─────────────┼──────────┤
+│"Main St."   │"Steve"   │
+│"Elm St."    │"John"    │
+└─────────────┴──────────┘
 ```
 
 If a remote application is currently the address in the tuple for "Steve", then it would install a notification for that tuple's key:
 
 ```
-TutorialD (master/main): notify steve_change person where name="Steve" (person where name="Steve"){address}
+TutorialD (master/main): notify steve_change person where name="Steve" true (person where name="Steve"){address}
 TutorialD (master/main): :commit
 ```
+
+In this case, we pass `true` as the old context report expression because we plan to ignore the result.
 
 Then, when any client including the initiating client updates the "Steve" tuple, an asynchronous notification is fired:
 
@@ -62,16 +65,17 @@ TutorialD (master/main): :commit
 TutorialD (master/main): Notification received "steve_change": ...
 ```
 
-The asynchronously-received notification contains the result from the evaluated report relational expression. The expression, in this case, is the result of the report expression evaluated against the parent transactoin
+The asynchronously-received notification contains the result from the evaluated report relational expression. The expression, in this case, is the result of the report expression evaluated against the new transaction:
 
 ```
 TutorialD (master/main): Notification received "steve_change":
 Project (AttributeNames (fromList ["address"])) (Restrict (AttributeEqualityPredicate "name" (NakedAtomExpr Atom "Steve")) (RelationVariable "person"))
-┌────────┐
-│address │
-├────────┤
-│Main St.│
-└────────┘
+┌─────────────┐
+│address::Text│
+├─────────────┤
+│"Grove St."  │
+└─────────────┘
+
 ```
 
 ## Notifications with ProjectM36.Client
@@ -80,10 +84,10 @@ First, implement a ```NotificationCallback``` function to perform an IO action w
 
 Each ProjectM36 Connection can only have one callback and it cannot be changed after Connection creation.
 
-Then, create a DatabaseExpr using the AddNotification constructor:
+Then, create a DatabaseContextExpr using the AddNotification constructor:
 
 ```
-AddNotification <notification name::Text> <change expression::RelationalExpr> <report expression::RelationalExpr>
+AddNotification <notification name::Text> <change expression::RelationalExpr> <report old context expression::RelationalExpr> <report new context expression::RelationalExpr>
 ```
 
 and execute it using ```executeDatabaseContextExpr```. In order for a notification to take effect, it must be committed as well.

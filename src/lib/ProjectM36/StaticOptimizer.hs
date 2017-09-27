@@ -148,16 +148,13 @@ applyStaticDatabaseOptimization dep@(AddInclusionDependency _ _) = return $ Righ
 
 applyStaticDatabaseOptimization (RemoveInclusionDependency name) = return $ Right (RemoveInclusionDependency name)
 
-applyStaticDatabaseOptimization (AddNotification name triggerExpr resultExpr) = do
+applyStaticDatabaseOptimization (AddNotification name triggerExpr resultOldExpr resultNewExpr) = do
   context <- getStateContext
   let eTriggerExprOpt = runReader (applyStaticRelationalOptimization triggerExpr) (RelationalExprStateElems context)
   case eTriggerExprOpt of
          Left err -> pure $ Left err
-         Right triggerExprOpt -> do
-           let eResultExprOpt = runReader (applyStaticRelationalOptimization resultExpr) (RelationalExprStateElems context)
-           case eResultExprOpt of
-                  Left err -> pure $ Left err
-                  Right resultExprOpt -> pure (Right (AddNotification name triggerExprOpt resultExprOpt))
+         Right triggerExprOpt -> --it doesn't make sense to optimize queries when we don't have their proper contexts
+           pure (Right (AddNotification name triggerExprOpt resultOldExpr resultNewExpr))
 
 applyStaticDatabaseOptimization notif@(RemoveNotification _) = pure (Right notif)
 

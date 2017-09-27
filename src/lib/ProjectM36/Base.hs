@@ -227,7 +227,8 @@ type Notifications = M.Map NotificationName Notification
 -- | When the changeExpr returns a different result in the database context, then the reportExpr is triggered and sent asynchronously to all clients.
 data Notification = Notification {
   changeExpr :: RelationalExpr,
-  reportExpr :: RelationalExpr
+  reportOldExpr :: RelationalExpr, --run the expression in the pre-change context
+  reportNewExpr :: RelationalExpr --run the expression in the post-change context
   }
   deriving (Show, Eq, Binary, Generic, NFData)
 
@@ -317,7 +318,7 @@ data DatabaseContextExpr =
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |
   
-  AddNotification NotificationName RelationalExpr RelationalExpr |
+  AddNotification NotificationName RelationalExpr RelationalExpr RelationalExpr |
   RemoveNotification NotificationName |
 
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
