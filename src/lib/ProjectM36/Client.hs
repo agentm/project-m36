@@ -184,10 +184,11 @@ type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 newtype NotificationMessage = NotificationMessage EvaluatedNotifications
                            deriving (Binary, Eq, Show, Generic)
 
--- | When a notification is fired, the 'reportExpr' is evaluated in the commit's context, so that is returned along with the original notification.
+-- | When a notification is fired, the 'reportOldExpr' is evaluated in the commit's pre-change context while the 'reportNewExpr' is evaluated in the post-change context and they are returned along with the original notification.
 data EvaluatedNotification = EvaluatedNotification {
   notification :: Notification,
-  reportRelation :: Either RelationalError Relation
+  reportOldRelation :: Either RelationalError Relation,
+  reportNewRelation :: Either RelationalError Relation
   }
                            deriving(Binary, Eq, Show, Generic)
                       
@@ -632,8 +633,10 @@ executeCommitExprSTM_ oldContext newContext nodes = do
   let nots = notifications oldContext
       fireNots = notificationChanges nots oldContext newContext 
       evaldNots = M.map mkEvaldNot fireNots
+      evalInContext expr ctx = runReader (RE.evalRelationalExpr expr) (RE.mkRelationalExprState ctx)
       mkEvaldNot notif = EvaluatedNotification { notification = notif, 
-                                                 reportRelation = runReader (RE.evalRelationalExpr (reportExpr notif)) (RE.mkRelationalExprState oldContext) }
+                                                 reportOldRelation = evalInContext (reportOldExpr notif) oldContext,
+                                                 reportNewRelation = evalInContext (reportNewExpr notif) newContext}
   pure (evaldNots, nodes)
   
 -- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators modify the transaction graph state.

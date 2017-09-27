@@ -123,7 +123,7 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
         cancel <- runInputT settings $ do
           let promptDiscardChanges = do
                 isatty <- haveTerminalUI
-                if isatty && interactive && execOp /= Rollback && execOp /= Commit then do
+                if isatty && interactive && execOp /= Commit && execOp /= Rollback then do
                   mYesOrNo <- getInputLine "The current transaction has uncommitted changes. If you continue, the changes will be lost. Continue? (Y/n): "
                   case mYesOrNo of
                     Nothing -> promptDiscardChanges
@@ -222,12 +222,13 @@ data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Ma
                          RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec)
 
 outputNotificationCallback :: C.NotificationCallback
-outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ show (reportExpr (C.notification evaldNot)) ++ "\n" ++ prettyEvaluatedNotification evaldNot
+outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
 
 prettyEvaluatedNotification :: C.EvaluatedNotification -> String
-prettyEvaluatedNotification eNotif = case C.reportRelation eNotif of
-  Left err -> show err
-  Right reportRel -> T.unpack (showRelation reportRel)
+prettyEvaluatedNotification eNotif = let eRelShow eRel = case eRel of
+                                           Left err -> show err
+                                           Right reportRel -> T.unpack (showRelation reportRel) in
+  eRelShow (C.reportOldRelation eNotif) <> "\n" <> eRelShow (C.reportNewRelation eNotif)
 
 reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
 reprLoop config sessionId conn = do

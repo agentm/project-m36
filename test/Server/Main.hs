@@ -188,7 +188,7 @@ testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
   let relvarx = RelationVariable "x" ()
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
-  executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx) >>= eitherFail
+  executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx relvarx) >>= eitherFail
   commit sess conn >>= eitherFail
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail

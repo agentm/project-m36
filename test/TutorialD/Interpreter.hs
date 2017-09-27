@@ -270,7 +270,7 @@ testNotification = TestCase $ do
       relvarx = RelationVariable "x" ()
   (sess, conn) <- dateExamplesConnection (notifCallback notifmvar)
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
-  executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx) >>= eitherFail
+  executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx relvarx) >>= eitherFail
   commit sess conn >>= eitherFail
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail
