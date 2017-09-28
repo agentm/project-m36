@@ -33,6 +33,7 @@ import System.IO (hPutStrLn, stderr)
 import Data.Monoid
 import Data.List (isPrefixOf)
 import Control.Exception
+import System.Exit
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -97,8 +98,14 @@ evalTutorialDInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag ->
 evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
-  (RODatabaseContextOp execOp) -> 
-    evalRODatabaseContextOp sessionId conn execOp
+  (RODatabaseContextOp execOp) -> do
+    res <- evalRODatabaseContextOp sessionId conn execOp
+    case res of
+      QuitResult -> if safe == UnsafeEvaluation && interactive then
+                      putStrLn "Goodbye." >> exitSuccess
+                    else
+                      pure res
+      _ -> pure res
     
   (DatabaseContextExprOp execOp) -> 
     eHandler $ C.executeDatabaseContextExpr sessionId conn execOp 
@@ -237,12 +244,18 @@ reprLoop config sessionId conn = do
   eHeadName <- C.headName sessionId conn
   eSchemaName <- C.currentSchemaName sessionId conn
   let prompt = promptText eHeadName eSchemaName
-  maybeLine <- runInputT settings $ getInputLine (T.unpack prompt)
+      catchInterrupt = handleJust (\exc -> case exc of
+                                      UserInterrupt -> Just Nothing
+                                      _ -> Nothing) (\_ -> do
+                                                        hPutStrLn stderr "Statement cancelled. Use \":quit\" to exit tutd."
+                                                        pure (Just ""))
+  maybeLine <- catchInterrupt $ runInputT settings $ getInputLine (T.unpack prompt)
   case maybeLine of
     Nothing -> return ()
     Just line -> do
       runTutorialD sessionId conn (T.pack line)
       reprLoop config sessionId conn
+      
 
 runTutorialD :: C.SessionId -> C.Connection -> T.Text -> IO ()
 runTutorialD sessionId conn tutd = 
