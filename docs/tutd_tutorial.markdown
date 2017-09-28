@@ -282,6 +282,8 @@ The unary group operator groups the argument attributes into subrelations for ea
 
 Grouping is useful for aggregate operations (see below) or for summarizing data against a set of attributes; for example, "display all employees grouped by boss name".
 
+The group operator can also be used to emulate functionality similar to SQL's OUTER JOIN but without relying on overloading the meaning of NULL.
+
 ```
 TutorialD (master/main): :showexpr s group ({sname,status,s#} as subrel)
 ┌──────┬─────────────────┐
