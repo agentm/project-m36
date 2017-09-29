@@ -103,9 +103,9 @@ The essential ```Atomable``` typeclass functions are:
 | -------- | ------- |
 | ```toAtom :: a -> Atom``` | convert a Haskell data type to a database atom |
 | ```fromAtom :: Atom -> a``` | convert a database atom to a Haskell data type |
-| ```toAtomType :: a -> AtomType``` | generate a database AtomType for a Haskell datatype |
-| ```toAddTypeExpr :: a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
+| ```toAtomType :: Proxy a -> AtomType``` | generate a database AtomType for a Haskell datatype |
+| ```toAddTypeExpr :: Proxy a -> DatabaseContextExpr``` | generate a ```DatabaseContextExpr``` which can be executed against a database context in order to add the new type |
 
-In addition, basic Haskell data types like ```Int```, ```Double```, ```Text```, ```Day```, ```Bool```, ```UTCTime```, and l```ByteString``` already have Atomable instances ready-to-go. In addition, an ```Atomable``` instance is available for lists: ```Atomable a => [a]```, though one should be very careful not to use this in a common anti-pattern. Typically, it makes more sense to store one-to-many relationships as discrete relation variables; when storing them as lists, one gives up the various query capabilities and optimizations of the relational algebra.
+In addition, basic Haskell data types like ```Int```, ```Double```, ```Text```, ```Day```, ```Bool```, ```UTCTime```, and l```ByteString``` already have `Atomable` instances ready-to-go. In addition, an ```Atomable``` instance is available for lists: ```Atomable a => [a]```, though one should be very careful not to use this in a common anti-pattern. Typically, it makes more sense to store one-to-many relationships as discrete relation variables; when storing them as lists, one gives up the various query capabilities and optimizations of the relational algebra.
 
 To be clear, these data types are not black boxes once stored in the database. These new types can be scanned and manipulated by Haskell scripts which can be created at runtime. For more information, read about [```AtomFunction```s](/docs/atomfunctions.markdown).
