@@ -7,6 +7,7 @@ import Data.Binary
 import Control.DeepSeq
 import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
+import Data.Proxy
 
 data Hair = Bald | Brown | Blond | OtherColor Text
    deriving (Generic, Show, Eq, Binary, NFData, Atomable)
@@ -26,7 +27,7 @@ main = do
   sessionId <- eCheck $ createSessionAtHead conn "master"
   
   --create the data type in the database context
-  eCheck $ executeDatabaseContextExpr sessionId conn (toAddTypeExpr (undefined :: Hair))
+  eCheck $ executeDatabaseContextExpr sessionId conn (toAddTypeExpr (Proxy :: Proxy Hair))
 
   --create a relation with the new Hair AtomType
   let blond = NakedAtomExpr (toAtom Blond)

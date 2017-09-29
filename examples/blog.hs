@@ -12,6 +12,7 @@ import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
+import Data.Proxy
 
 --define your data types
 data Blog = Blog {
@@ -69,9 +70,9 @@ main = do
 createSchema :: SessionId -> Connection -> IO ()  
 createSchema sessionId conn = do
   _ <- handleIOErrors $ mapM (executeDatabaseContextExpr sessionId conn) [
-    toAddTypeExpr (undefined :: Category),
-    toDefineExpr (undefined :: Blog) "blog",
-    toDefineExpr (undefined :: Comment) "comment",
+    toAddTypeExpr (Proxy :: Proxy Category),
+    toDefineExpr (Proxy :: Proxy Blog) "blog",
+    toDefineExpr (Proxy :: Proxy Comment) "comment",
     databaseContextExprForForeignKey "blog_comment" ("comment", ["blogTitle"]) ("blog", ["title"]) ]
   pure ()
 
