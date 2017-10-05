@@ -29,7 +29,7 @@ The ```Tupleable``` module includes the following functions:
 
  * ```toInsertExpr :: forall a t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr```
      * creates an ```Insert``` expression which can be used to insert a set of ```Tupleable``` values into the relation variable named by the ```RelVarName```
- * ```toAttributes :: Proxy a -> Attributes```
+ * ```toAttributes :: proxy a -> Attributes```
      * generates ```Attributes``` from a ```Tupleable``` value- can be used with ```undefined```, so an actual value is not necessary
  * ```toTuple :: a -> RelationTuple```
      * converts a ```Tupleable``` value to a tuple for use in queries

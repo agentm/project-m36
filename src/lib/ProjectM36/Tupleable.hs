@@ -57,18 +57,16 @@ toInsertExpr vals rvName = do
   
 -- | Convert a 'Tupleable' to a create a 'Define' expression which can be used to create an empty relation variable. Use 'toInsertExpr' to insert the actual tuple data. This function is typically used with 'Data.Proxy'.
 toDefineExpr :: Tupleable a => Proxy a -> RelVarName -> DatabaseContextExpr
-toDefineExpr val rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
+toDefineExpr prox rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
   where 
-    attrs = toAttributes val
-
-  
+    attrs = toAttributes prox
 
 class Tupleable a where
   toTuple :: a -> RelationTuple
   
   fromTuple :: RelationTuple -> Either RelationalError a
   
-  toAttributes :: Proxy a -> Attributes
+  toAttributes :: proxy a -> Attributes
 
   default toTuple :: (Generic a, TupleableG (Rep a)) => a -> RelationTuple
   toTuple v = toTupleG (from v)
@@ -76,7 +74,7 @@ class Tupleable a where
   default fromTuple :: (Generic a, TupleableG (Rep a)) => RelationTuple -> Either RelationalError a
   fromTuple tup = to <$> fromTupleG tup
     
-  default toAttributes :: (Generic a, TupleableG (Rep a)) => Proxy a -> Attributes
+  default toAttributes :: (Generic a, TupleableG (Rep a)) => proxy a -> Attributes
   toAttributes _ = toAttributesG (from (undefined :: a))
   
 class TupleableG g where  

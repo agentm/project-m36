@@ -47,14 +47,14 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
     Nothing -> error "no fromAtomG for Atom found"
     Just x -> to x
     
-  toAtomType :: Proxy a -> AtomType
-  default toAtomType :: (Generic a, AtomableG (Rep a)) => Proxy a -> AtomType
+  toAtomType :: proxy a -> AtomType
+  default toAtomType :: (Generic a, AtomableG (Rep a)) => proxy a -> AtomType
   toAtomType _ = toAtomTypeG (from (undefined :: a))
                       
   -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
   toAddTypeExpr :: Proxy a -> DatabaseContextExpr
-  default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => Proxy a -> DatabaseContextExpr
-  toAddTypeExpr p = toAddTypeExprG (from (undefined ::a)) (toAtomType p)
+  default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => proxy a -> DatabaseContextExpr
+  toAddTypeExpr _ = toAddTypeExprG (from (undefined :: a)) (toAtomType (Proxy :: Proxy a))
   
 instance Atomable Integer where  
   toAtom = IntegerAtom
