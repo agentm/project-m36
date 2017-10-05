@@ -48,7 +48,7 @@ instance Tupleable Test7T
 -}
 
 -- | Convert a 'Traverseable' of 'Tupleable's to an 'Insert' 'DatabaseContextExpr'. This is useful for converting, for example, a list of data values to a set of Insert expressions which can be used to add the values to the database.
-toInsertExpr :: forall a. forall t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
+toInsertExpr :: forall a t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
 toInsertExpr vals rvName = do
   let attrs = toAttributes (Proxy :: Proxy a)
   tuples <- mkTupleSet attrs $ toList (fmap toTuple vals)
