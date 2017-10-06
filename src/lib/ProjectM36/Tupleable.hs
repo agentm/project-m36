@@ -2,8 +2,8 @@
 module ProjectM36.Tupleable where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Tuple
 import ProjectM36.TupleSet
+import ProjectM36.Tuple
 import ProjectM36.Atomable
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Attribute hiding (null)
@@ -11,9 +11,12 @@ import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import Data.Monoid
+import Data.Proxy
 import Data.Foldable
 
-{-
+{-import Data.Binary
+import Control.DeepSeq
+
 data Test1T = Test1C {
   attrA :: Int
   }
@@ -32,31 +35,38 @@ instance Tupleable Test1T
 data TestUnnamed1 = TestUnnamed1 Int Double T.Text
                     deriving (Show,Eq, Generic)
                              
-instance Tupleable TestUnnamed1          
+instance Tupleable TestUnnamed1 
+
+data Test7A = Test7AC Integer
+            deriving (Generic, Show, Eq, Atomable, NFData, Binary)
+                       
+                       
+data Test7T = Test7C Test7A                       
+              deriving (Generic, Show, Eq)
+
+instance Tupleable Test7T
 -}
 
 -- | Convert a 'Traverseable' of 'Tupleable's to an 'Insert' 'DatabaseContextExpr'. This is useful for converting, for example, a list of data values to a set of Insert expressions which can be used to add the values to the database.
-toInsertExpr :: (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
+toInsertExpr :: forall a t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
 toInsertExpr vals rvName = do
-  let attrs = toAttributes (head (toList vals))
+  let attrs = toAttributes (Proxy :: Proxy a)
   tuples <- mkTupleSet attrs $ toList (fmap toTuple vals)
   let rel = MakeStaticRelation attrs tuples   
   pure (Insert rvName rel)
   
--- | Convert a 'Tupleable' to a create a 'Define' expression which can be used to create an empty relation variable. Use 'toInsertExpr' to insert the actual tuple data. This function is typically used with 'undefined'.
-toDefineExpr :: Tupleable a => a -> RelVarName -> DatabaseContextExpr
-toDefineExpr val rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
+-- | Convert a 'Tupleable' to a create a 'Define' expression which can be used to create an empty relation variable. Use 'toInsertExpr' to insert the actual tuple data. This function is typically used with 'Data.Proxy'.
+toDefineExpr :: forall a proxy. Tupleable a => proxy a -> RelVarName -> DatabaseContextExpr
+toDefineExpr _ rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
   where 
-    attrs = toAttributes val
-
-  
+    attrs = toAttributes (Proxy :: Proxy a)
 
 class Tupleable a where
   toTuple :: a -> RelationTuple
   
   fromTuple :: RelationTuple -> Either RelationalError a
   
-  toAttributes :: a -> Attributes
+  toAttributes :: proxy a -> Attributes
 
   default toTuple :: (Generic a, TupleableG (Rep a)) => a -> RelationTuple
   toTuple v = toTupleG (from v)
@@ -64,8 +74,8 @@ class Tupleable a where
   default fromTuple :: (Generic a, TupleableG (Rep a)) => RelationTuple -> Either RelationalError a
   fromTuple tup = to <$> fromTupleG tup
     
-  default toAttributes :: (Generic a, TupleableG (Rep a)) => a -> Attributes
-  toAttributes v = toAttributesG (from v)
+  default toAttributes :: (Generic a, TupleableG (Rep a)) => proxy a -> Attributes
+  toAttributes _ = toAttributesG (from (undefined :: a))
   
 class TupleableG g where  
   toTupleG :: g a -> RelationTuple

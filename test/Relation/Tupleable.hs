@@ -11,6 +11,7 @@ import qualified Data.Vector as V
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.Exit
+import Data.Proxy
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 
@@ -85,7 +86,7 @@ testADT2 = TestCase $ do
   --this was a tricky case that was throwing the undefined exception because of insufficient laziness in the :*: matching- see ProjectM36.Tupleable
   let expectedAttributes = attributesFromList [Attribute "attrB" IntegerAtomType,
                                                Attribute "attrC" IntegerAtomType]
-  assertEqual "two record constructor toAttributes" expectedAttributes (toAttributes (undefined :: Test2T))
+  assertEqual "two record constructor toAttributes" expectedAttributes (toAttributes (Proxy :: Proxy Test2T))
   
     
 testADT3 :: Test
@@ -110,7 +111,7 @@ testADT7 = TestCase $ do
   let example = Test7C (Test7AC 3)
   assertEqual "atom type" (Right example) (fromTuple (toTuple example))
   let expectedAttrs = V.singleton (Attribute "" (ConstructedAtomType "Test7A" M.empty))
-  assertEqual "adt atomtype" expectedAttrs (toAttributes (undefined :: Test7T))
+  assertEqual "adt atomtype" expectedAttrs (toAttributes (Proxy :: Proxy Test7T))
     
 testADT8 :: Test    
 testADT8 = TestCase $ assertEqual "single value" (Right example) (fromTuple (toTuple example))

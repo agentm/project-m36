@@ -12,6 +12,7 @@ import ProjectM36.Base
 import Data.Time.Calendar (fromGregorian)
 import Data.Text
 import qualified Data.Map as M
+import Data.Proxy
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 data Test1T = Test1C Integer
@@ -67,7 +68,7 @@ testHaskell2DB :: Test
 testHaskell2DB = TestCase $ do
   --validate generated database context expression
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  let test1TExpr = toAddTypeExpr (undefined :: Test1T)
+  let test1TExpr = toAddTypeExpr (Proxy :: Proxy Test1T)
       expectedTest1TExpr = AddTypeConstructor (ADTypeConstructorDef "Test1T" []) [DataConstructorDef "Test1C" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Integer" IntegerAtomType)]]
   assertEqual "simple ADT1" expectedTest1TExpr test1TExpr
   checkExecuteDatabaseContextExpr sessionId dbconn test1TExpr
@@ -83,7 +84,7 @@ testHaskell2DB = TestCase $ do
   
   let retrieveValExpr = Restrict (AttributeEqualityPredicate "a1" (NakedAtomExpr atomVal)) (RelationVariable "x" ())
   ret <- executeRelationalExpr sessionId dbconn retrieveValExpr
-  let expectedRel = mkRelationFromList (attributesFromList [Attribute "a1" (toAtomType exampleVal)]) [[atomVal]]
+  let expectedRel = mkRelationFromList (attributesFromList [Attribute "a1" (toAtomType (Proxy :: Proxy Test1T))]) [[atomVal]]
   assertEqual "retrieve atomable atom" expectedRel ret
   
 testADT1 :: Test

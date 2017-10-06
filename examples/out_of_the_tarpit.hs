@@ -11,6 +11,7 @@ import Data.Binary
 import Control.DeepSeq
 import qualified Data.Text as T
 import Data.Time.Calendar
+import Data.Proxy
 
 --create various database value (atom) types
 type Price = Double
@@ -142,17 +143,17 @@ createSchema sessionId conn = do
                     ]
       incDepForeignKeys = map (\(n, a, b) -> databaseContextExprForForeignKey n a b) foreignKeys
       --define the relvars
-      rvExprs = [toDefineExpr (undefined :: Property) "property",
-                 toDefineExpr (undefined :: Offer) "offer",
-                 toDefineExpr (undefined :: Decision) "decision",
-                 toDefineExpr (undefined :: Room) "room",
-                 toDefineExpr (undefined :: Floor) "floor",
-                 toDefineExpr (undefined :: Commission) "commission"]
+      rvExprs = [toDefineExpr (Proxy :: Proxy Property) "property",
+                 toDefineExpr (Proxy :: Proxy Offer) "offer",
+                 toDefineExpr (Proxy :: Proxy Decision) "decision",
+                 toDefineExpr (Proxy :: Proxy Room) "room",
+                 toDefineExpr (Proxy :: Proxy Floor) "floor",
+                 toDefineExpr (Proxy :: Proxy Commission) "commission"]
       --create the new algebraic data types
-      new_adts = [toAddTypeExpr (undefined :: RoomType),
-                  toAddTypeExpr (undefined :: PriceBand),
-                  toAddTypeExpr (undefined :: AreaCode),
-                  toAddTypeExpr (undefined :: SpeedBand)]
+      new_adts = [toAddTypeExpr (Proxy :: Proxy RoomType),
+                  toAddTypeExpr (Proxy :: Proxy PriceBand),
+                  toAddTypeExpr (Proxy :: Proxy AreaCode),
+                  toAddTypeExpr (Proxy :: Proxy SpeedBand)]
       --create the stored atom functions
       priceBandScript = "(\\(DoubleAtom price:_) -> do\n let band = if price < 10000.0 then \"Low\" else if price < 20000.0 then \"Medium\" else if price < 30000.0 then \"High\" else \"Premium\"\n let aType = ConstructedAtomType \"PriceBand\" empty\n pure (ConstructedAtom band aType [])) :: [Atom] -> Either AtomFunctionError Atom"
       areaCodeScript = "(\\(TextAtom address:_) -> let aType = ConstructedAtomType \"AreaCode\" empty in if address == \"90210\" then pure (ConstructedAtom \"City\" aType []) else pure (ConstructedAtom \"Rural\" aType [])) :: [Atom] -> Either AtomFunctionError Atom"
