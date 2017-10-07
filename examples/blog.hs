@@ -80,7 +80,7 @@ main = do
 
   createSchema sessionId conn  
   insertSampleData sessionId conn
-  --executeSampleQueries sessionId conn
+  --create the web routes
   scotty 3000 $ do
     S.get "/" (listBlogs sessionId conn)
     S.get "/blog/:blogid" (showBlogEntry sessionId conn)
@@ -121,20 +121,12 @@ insertSampleData sessionId conn = do
   insertCommentsExpr <- handleError $ toInsertExpr comments "comment"
   handleIOError $ executeDatabaseContextExpr sessionId conn insertCommentsExpr
   
---issue a query and marshal the data back to the original data value  
-{-  
-executeSampleQueries :: SessionId -> Connection -> IO ()  
-executeSampleQueries sessionId conn = do
-  commentsRelation <- handleIOError $ executeRelationalExpr sessionId conn (RelationVariable "comment" ())
-  
-  comments <- toList commentsRelation >>= mapM (handleError . fromTuple) :: IO [Comment]
-  print comments
--}
-
+-- handle relational errors with scotty
 handleWebError :: Either RelationalError a -> ActionM a 
 handleWebError (Left err) = render500 (H.toHtml (show err)) >> pure (error "bad")
 handleWebError (Right v) = pure v
 
+-- show a page with all the blog entries
 listBlogs :: SessionId -> Connection -> ActionM ()
 listBlogs sessionId conn = do
   eRel <- liftIO $ executeRelationalExpr sessionId conn (RelationVariable "blog" ())
@@ -142,9 +134,10 @@ listBlogs sessionId conn = do
     Left err -> render500 (H.toHtml (show err))
     Right blogRel -> do
       blogs <- liftIO (toList blogRel) >>= mapM (handleWebError . fromTuple) :: ActionM [Blog]
+      let sortedBlogs = sortBy (\b1 b2 -> stamp b1 `compare` stamp b2) blogs
       html . renderHtml $ do
         H.h1 "Blog Posts"
-        mapM_ (\blog -> H.a H.! A.href (H.toValue $ "/blog/" <> title blog) $ H.h2 (H.toHtml (title blog))) blogs
+        mapM_ (\blog -> H.a H.! A.href (H.toValue $ "/blog/" <> title blog) $ H.h2 (H.toHtml (title blog))) sortedBlogs
 
 render500 :: H.Html -> ActionM ()
 render500 msg = do 
@@ -153,6 +146,7 @@ render500 msg = do
     H.p msg
   status internalServerError500
   
+--display one blog post along with its comments
 showBlogEntry :: SessionId -> Connection -> ActionM ()
 showBlogEntry sessionId conn = do
   blogid <- param "blogid"
@@ -184,15 +178,17 @@ showBlogEntry sessionId conn = do
           comments <- liftIO (toList commentsRel) >>= mapM (handleWebError . fromTuple) :: ActionM [Comment]
           let commentsSorted = sortBy (\c1 c2 -> commentTime c1 `compare` commentTime c2) comments
           render $ do
+            --show blog details
             H.h1 (H.toHtml (title blog))
             H.p (H.toHtml ("Posted at " <> formatStamp (stamp blog)))
             H.p (H.toHtml (entry blog))
             H.hr
             H.h3 "Comments"
+            --list the comments
             mapM_ (\comment -> do
                     H.p (H.toHtml ("Commented at " <> formatStamp (commentTime comment)))
                     H.p (H.toHtml (contents comment))) commentsSorted
-            when (length comments == 0) (H.p "No comments.")
+            when (null comments) (H.p "No comments.")
             --add a comment form
             H.h3 "Add a Comment"
             H.form H.! A.method "POST" H.! A.action "/comment" $ do
@@ -200,6 +196,7 @@ showBlogEntry sessionId conn = do
               H.textarea H.! A.name "contents" $ ""
               H.input H.! A.type_ "submit"
             
+--add a comment to a blog post
 addComment :: SessionId -> Connection -> ActionM ()            
 addComment sessionId conn = do
   blogid <- param "blogid"
