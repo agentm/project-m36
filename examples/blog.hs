@@ -205,13 +205,13 @@ addComment sessionId conn = do
   blogid <- param "blogid"
   commentText <- param "contents"
   now <- liftIO getCurrentTime
-  let commentAttrs = toAttributes (Proxy :: Proxy Comment)
-  case mkRelationFromList commentAttrs [[TextAtom blogid, 
-                                         DateTimeAtom now, 
-                                         TextAtom commentText]] of
+  
+  case toInsertExpr [Comment {blogTitle = blogid,
+                              commentTime = now,
+                              contents = commentText }] "comment" of
     Left err -> handleWebError (Left err)
-    Right newCommentRel -> do
-      eRet <- liftIO (withTransaction sessionId conn (executeDatabaseContextExpr sessionId conn (Insert "comment" (ExistingRelation newCommentRel))) (commit sessionId conn))
+    Right insertExpr -> do      
+      eRet <- liftIO (withTransaction sessionId conn (executeDatabaseContextExpr sessionId conn insertExpr) (commit sessionId conn))
       case eRet of
         Left err -> handleWebError (Left err)
         Right _ ->
