@@ -19,11 +19,11 @@ import Control.DeepSeq
 import Data.Proxy
 import Data.Monoid
 import Data.List
-import Control.Monad (when)
+import Control.Monad (when, forM_)
 
 import Web.Scotty as S
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
+import Text.Blaze.Html5 (h1, h2, h3, p, form, input, (!), toHtml, Html, a, toValue, hr, textarea)
+import Text.Blaze.Html5.Attributes (name, href, type_, method, action, value)
 import Text.Blaze.Html.Renderer.Text
 import Control.Monad.IO.Class (liftIO)
 import Network.HTTP.Types.Status
@@ -123,7 +123,7 @@ insertSampleData sessionId conn = do
   
 -- handle relational errors with scotty
 handleWebError :: Either RelationalError a -> ActionM a 
-handleWebError (Left err) = render500 (H.toHtml (show err)) >> pure (error "bad")
+handleWebError (Left err) = render500 (toHtml (show err)) >> pure (error "bad")
 handleWebError (Right v) = pure v
 
 -- show a page with all the blog entries
@@ -131,19 +131,19 @@ listBlogs :: SessionId -> Connection -> ActionM ()
 listBlogs sessionId conn = do
   eRel <- liftIO $ executeRelationalExpr sessionId conn (RelationVariable "blog" ())
   case eRel of
-    Left err -> render500 (H.toHtml (show err))
+    Left err -> render500 (toHtml (show err))
     Right blogRel -> do
       blogs <- liftIO (toList blogRel) >>= mapM (handleWebError . fromTuple) :: ActionM [Blog]
       let sortedBlogs = sortBy (\b1 b2 -> stamp b1 `compare` stamp b2) blogs
       html . renderHtml $ do
-        H.h1 "Blog Posts"
-        mapM_ (\blog -> H.a H.! A.href (H.toValue $ "/blog/" <> title blog) $ H.h2 (H.toHtml (title blog))) sortedBlogs
+        h1 "Blog Posts"
+        forM_ sortedBlogs $ \blog -> a ! href (toValue $ "/blog/" <> title blog) $ h2 (toHtml (title blog))
 
-render500 :: H.Html -> ActionM ()
+render500 :: Html -> ActionM ()
 render500 msg = do 
   html . renderHtml $ do
-    H.h1 "Internal Server Error"  
-    H.p msg
+    h1 "Internal Server Error"  
+    p msg
   status internalServerError500
   
 --display one blog post along with its comments
@@ -163,14 +163,14 @@ showBlogEntry sessionId conn = do
   let render = html . renderHtml
       formatStamp = formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S"))
   case eRel of 
-    Left err -> render500 (H.toHtml (show err))
+    Left err -> render500 (toHtml (show err))
     --handle successful query execution
     Right rel -> case singletonTuple rel of
       Nothing -> do --no results for this blog id
-        render (H.h1 "No such blog post")
+        render (h1 "No such blog post")
         status status404
       Just blogTuple -> case fromTuple blogTuple of --just one blog post found- it's a match!
-        Left err -> render500 (H.toHtml (show err))
+        Left err -> render500 (toHtml (show err))
         Right blog -> do
           --extract comments for the blog
           commentsAtom <- handleWebError (atomForAttributeName "comments" blogTuple)
@@ -179,22 +179,22 @@ showBlogEntry sessionId conn = do
           let commentsSorted = sortBy (\c1 c2 -> commentTime c1 `compare` commentTime c2) comments
           render $ do
             --show blog details
-            H.h1 (H.toHtml (title blog))
-            H.p (H.toHtml ("Posted at " <> formatStamp (stamp blog)))
-            H.p (H.toHtml (entry blog))
-            H.hr
-            H.h3 "Comments"
+            h1 (toHtml (title blog))
+            p (toHtml ("Posted at " <> formatStamp (stamp blog)))
+            p (toHtml (entry blog))
+            hr
+            h3 "Comments"
             --list the comments
-            mapM_ (\comment -> do
-                    H.p (H.toHtml ("Commented at " <> formatStamp (commentTime comment)))
-                    H.p (H.toHtml (contents comment))) commentsSorted
-            when (null comments) (H.p "No comments.")
+            forM_ commentsSorted $ \comment -> do
+              p (toHtml ("Commented at " <> formatStamp (commentTime comment)))
+              p (toHtml (contents comment))
+            when (null comments) (p "No comments.")
             --add a comment form
-            H.h3 "Add a Comment"
-            H.form H.! A.method "POST" H.! A.action "/comment" $ do
-              H.input H.! A.type_ "hidden" H.! A.name "blogid" H.! A.value (H.toValue blogid)
-              H.textarea H.! A.name "contents" $ ""
-              H.input H.! A.type_ "submit"
+            h3 "Add a Comment"
+            form ! method "POST" ! action "/comment" $ do
+              input ! type_ "hidden" ! name "blogid" ! value (toValue blogid)
+              textarea ! name "contents" $ ""
+              input ! type_ "submit"
             
 --add a comment to a blog post
 addComment :: SessionId -> Connection -> ActionM ()            
