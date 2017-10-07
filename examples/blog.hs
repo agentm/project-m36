@@ -12,6 +12,7 @@ import Data.Either
 import GHC.Generics
 import Data.Binary
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
@@ -83,6 +84,7 @@ main = do
   scotty 3000 $ do
     S.get "/" (listBlogs sessionId conn)
     S.get "/blog/:blogid" (showBlogEntry sessionId conn)
+    S.post "/comment" (addComment sessionId conn)
   
 --define the schema with the new Category atom (data) type, blog relvar, a comment relvar, and a foreign key relationship between them
 createSchema :: SessionId -> Connection -> IO ()  
@@ -191,4 +193,27 @@ showBlogEntry sessionId conn = do
                     H.p (H.toHtml ("Commented at " <> formatStamp (commentTime comment)))
                     H.p (H.toHtml (contents comment))) commentsSorted
             when (length comments == 0) (H.p "No comments.")
+            --add a comment form
+            H.h3 "Add a Comment"
+            H.form H.! A.method "POST" H.! A.action "/comment" $ do
+              H.input H.! A.type_ "hidden" H.! A.name "blogid" H.! A.value (H.toValue blogid)
+              H.textarea H.! A.name "contents" $ ""
+              H.input H.! A.type_ "submit"
+            
+addComment :: SessionId -> Connection -> ActionM ()            
+addComment sessionId conn = do
+  blogid <- param "blogid"
+  commentText <- param "contents"
+  now <- liftIO getCurrentTime
+  let commentAttrs = toAttributes (Proxy :: Proxy Comment)
+  case mkRelationFromList commentAttrs [[TextAtom blogid, 
+                                         DateTimeAtom now, 
+                                         TextAtom commentText]] of
+    Left err -> handleWebError (Left err)
+    Right newCommentRel -> do
+      eRet <- liftIO (withTransaction sessionId conn (executeDatabaseContextExpr sessionId conn (Insert "comment" (ExistingRelation newCommentRel))) (commit sessionId conn))
+      case eRet of
+        Left err -> handleWebError (Left err)
+        Right _ ->
+          redirect (TL.fromStrict ("/blog/" <> blogid))
       
