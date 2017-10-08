@@ -93,7 +93,9 @@ createSchema sessionId conn = do
     toAddTypeExpr (Proxy :: Proxy Category),
     toDefineExpr (Proxy :: Proxy Blog) "blog",
     toDefineExpr (Proxy :: Proxy Comment) "comment",
-    databaseContextExprForForeignKey "blog_comment" ("comment", ["blogTitle"]) ("blog", ["title"]) ]
+    databaseContextExprForForeignKey "blog_comment" ("comment", ["blogTitle"]) ("blog", ["title"]),
+    databaseContextExprForUniqueKey "blog" ["title"]
+    ]
   pure ()
 
 --create some sample values and insert them into the database's relation variables
