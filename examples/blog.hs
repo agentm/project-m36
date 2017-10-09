@@ -182,7 +182,7 @@ showBlogEntry sessionId conn = do
           render $ do
             --show blog details
             h1 (toHtml (title blog))
-            p (toHtml ("Posted at " <> formatStamp (stamp blog)))
+            p (toHtml ("Posted at " <> formatStamp (stamp blog) <> " under " <> show (category blog)))
             p (toHtml (entry blog))
             hr
             h3 "Comments"
