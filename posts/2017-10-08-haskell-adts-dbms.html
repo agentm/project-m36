@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Project:M36 Blog - Persisting Haskell ADTs The Relational Way</title>
+        <link rel="stylesheet" href="../css/brooklyn.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">Project:M36 Blog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    Posted on October  8, 2017
+    
+        by AgentM
+    
+</div>
+
+<h1 id="persisting-haskell-adts-the-relational-way">Persisting Haskell ADTs The Relational Way</h1>
+<p>Typical DBMSes suffer from a data type impedance mismatch with Haskell data types. Using such DBMSes in Haskell is especially painful because Haskell has a very powerful typing system which the database promptly discards or “downsamples” due to lack of real type support.</p>
+<p>Project:M36 is a DBMS which offers support for algebraic data types (ADTs) as first-class database-side values and support for record types to be marshaled from-and-to database tuples without any loss of type enforcement. Furthermore, database-side ADTs can be manipulated with database-side stored functions written in Haskell. Types can further be preserved with constraints which can also be written in Haskell.</p>
+<p>Let’s take a closer look at the common <a href="https://github.com/agentm/project-m36/blob/master/examples/blog.hs">blog post schema example</a> for an example of how these features all fit together.</p>
+<h1 id="models">Models</h1>
+<p>Let’s start out by defining our model.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">data</span> <span class="dt">Blog</span> <span class="fu">=</span> <span class="dt">Blog</span> {
+<span class="ot">  title ::</span> <span class="dt">T.Text</span>,
+<span class="ot">  entry ::</span> <span class="dt">T.Text</span>,
+<span class="ot">  stamp ::</span> <span class="dt">UTCTime</span>,
+<span class="ot">  category ::</span> <span class="dt">Category</span> <span class="co">--note that this type is an algebraic data type</span>
+  }
+          <span class="kw">deriving</span> (<span class="dt">Generic</span>, <span class="dt">Show</span>) <span class="co">--derive Generic so that Tupleable can use default instances</span>
+
+<span class="kw">instance</span> <span class="dt">Tupleable</span> <span class="dt">Blog</span>
+
+<span class="kw">data</span> <span class="dt">Comment</span> <span class="fu">=</span> <span class="dt">Comment</span> {
+<span class="ot">  blogTitle ::</span> <span class="dt">T.Text</span>,
+<span class="ot">  commentTime ::</span> <span class="dt">UTCTime</span>,
+<span class="ot">  contents ::</span> <span class="dt">T.Text</span>
+  } <span class="kw">deriving</span> (<span class="dt">Generic</span>, <span class="dt">Show</span>)
+
+<span class="kw">instance</span> <span class="dt">Tupleable</span> <span class="dt">Comment</span>             
+
+<span class="kw">data</span> <span class="dt">Category</span> <span class="fu">=</span> <span class="dt">Food</span> <span class="fu">|</span> <span class="dt">Cats</span> <span class="fu">|</span> <span class="dt">Photos</span> <span class="fu">|</span> <span class="dt">Other</span> <span class="dt">T.Text</span>
+  <span class="kw">deriving</span> (<span class="dt">Atomable</span>, <span class="dt">Eq</span>, <span class="dt">Show</span>, <span class="dt">NFData</span>, <span class="dt">Binary</span>, <span class="dt">Generic</span>)</code></pre></div>
+<p>Note that the only database-specific requirements are that the record-based models are instances of <code>Tupleable</code>, a type which can be derived from <code>Generic</code> types to marshal the Haskell values to-and-from database values. No database-specific type decorations (such as specifying SQL types) is needed. The database types are Haskell types with no type-level enforcement lost. Each record becomes a tuple in the database with the Haskell attributes directly mapped to tuple attributes.</p>
+<p>The blog’s <code>Category</code> is an ADT which can be represented as a database value or <code>Atom</code>. Because the <code>Category</code> derives <code>Generic</code>, we can also derive <code>Atomable</code>. <code>Category</code> values are stored as ADTs in the database- no trickery is involved.</p>
+<p>Note that an SQL enumeration would not be able to emulate an ADT directly as a database value. In Project:M36, the ADT is also represented in the database as a value of the same type. The type impedance mismatch is resolved and no database-specific changes to the model are necessary.</p>
+<p>Next, let’s create our database and add some data.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">main ::</span> <span class="dt">IO</span> ()                       
+main <span class="fu">=</span> <span class="kw">do</span>
+  <span class="co">--connect to the database</span>
+  <span class="kw">let</span> connInfo <span class="fu">=</span> <span class="dt">InProcessConnectionInfo</span> <span class="dt">NoPersistence</span> emptyNotificationCallback []
+  conn <span class="ot">&lt;-</span> handleIOError <span class="fu">$</span> connectProjectM36 connInfo
+
+  sessionId <span class="ot">&lt;-</span> handleIOError <span class="fu">$</span> createSessionAtHead conn <span class="st">&quot;master&quot;</span>
+
+<span class="fu">...</span>
+
+<span class="ot">createSchema ::</span> <span class="dt">SessionId</span> <span class="ot">-&gt;</span> <span class="dt">Connection</span> <span class="ot">-&gt;</span> <span class="dt">IO</span> ()  
+createSchema sessionId conn <span class="fu">=</span> <span class="kw">do</span>
+  _ <span class="ot">&lt;-</span> handleIOErrors <span class="fu">$</span> mapM (executeDatabaseContextExpr sessionId conn) [
+    toAddTypeExpr (<span class="dt">Proxy</span><span class="ot"> ::</span> <span class="dt">Proxy</span> <span class="dt">Category</span>),
+    toDefineExpr (<span class="dt">Proxy</span><span class="ot"> ::</span> <span class="dt">Proxy</span> <span class="dt">Blog</span>) <span class="st">&quot;blog&quot;</span>,
+    toDefineExpr (<span class="dt">Proxy</span><span class="ot"> ::</span> <span class="dt">Proxy</span> <span class="dt">Comment</span>) <span class="st">&quot;comment&quot;</span>,
+    databaseContextExprForForeignKey <span class="st">&quot;blog_comment&quot;</span> (<span class="st">&quot;comment&quot;</span>, [<span class="st">&quot;blogTitle&quot;</span>]) (<span class="st">&quot;blog&quot;</span>, [<span class="st">&quot;title&quot;</span>]),
+    databaseContextExprForUniqueKey <span class="st">&quot;blog&quot;</span> [<span class="st">&quot;title&quot;</span>]
+    ]
+  pure ()</code></pre></div>
+<p>Here we create an in-memory database (just for testing purposes) and use the <code>Tupleable</code> function <code>toDefineExpr</code> and <code>Atomable</code> function <code>toAddTypeExpr</code> to create expressions which we will execute against our database. A foreign key constraint between blogs and comments ensures that each blog can have zero or more comments. Finally, we add a uniqueness constraint on the blogs’ titles.</p>
+<p>Naturally, if we wanted to store the database on disk or connect to a Project:M36 database server, we could configure that here.</p>
+<h1 id="controllers-and-views">Controllers and Views</h1>
+<p>We will use <code>scotty</code>, a lightweight web framework to present a user interface to display a list of blog posts and individual blog posts along with their blog-specific comments.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell">scotty <span class="dv">3000</span> <span class="fu">$</span> <span class="kw">do</span>
+  S.get <span class="st">&quot;/&quot;</span> (listBlogs sessionId conn)
+  S.get <span class="st">&quot;/blog/:blogid&quot;</span> (showBlogEntry sessionId conn)
+  S.post <span class="st">&quot;/comment&quot;</span> (addComment sessionId conn)</code></pre></div>
+<p>Next, we set up our action handlers.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">listBlogs ::</span> <span class="dt">SessionId</span> <span class="ot">-&gt;</span> <span class="dt">Connection</span> <span class="ot">-&gt;</span> <span class="dt">ActionM</span> ()
+listBlogs sessionId conn <span class="fu">=</span> <span class="kw">do</span>
+  eRel <span class="ot">&lt;-</span> liftIO <span class="fu">$</span> executeRelationalExpr sessionId conn (<span class="dt">RelationVariable</span> <span class="st">&quot;blog&quot;</span> ())
+  <span class="kw">case</span> eRel <span class="kw">of</span>
+    <span class="dt">Left</span> err <span class="ot">-&gt;</span> render500 (toHtml (show err))
+    <span class="dt">Right</span> blogRel <span class="ot">-&gt;</span> <span class="kw">do</span>
+      blogs <span class="ot">&lt;-</span> liftIO (toList blogRel) <span class="fu">&gt;&gt;=</span> mapM (handleWebError <span class="fu">.</span> fromTuple)<span class="ot"> ::</span> <span class="dt">ActionM</span> [<span class="dt">Blog</span>]
+      <span class="kw">let</span> sortedBlogs <span class="fu">=</span> sortBy (\b1 b2 <span class="ot">-&gt;</span> stamp b1 <span class="ot">`compare`</span> stamp b2) blogs
+      html <span class="fu">.</span> renderHtml <span class="fu">$</span> <span class="kw">do</span>
+        h1 <span class="st">&quot;Blog Posts&quot;</span>
+        forM_ sortedBlogs <span class="fu">$</span> \blog <span class="ot">-&gt;</span> a <span class="fu">!</span> href (toValue <span class="fu">$</span> <span class="st">&quot;/blog/&quot;</span> <span class="fu">&lt;&gt;</span> title blog) <span class="fu">$</span> h2 (toHtml (title blog))</code></pre></div>
+<p>First, we list all blog entries by querying the database for the relation variable “blog”. Then, we convert from database tuples to our <code>Blog</code> values using <code>Tupleable</code>’s <code>fromTuple</code> function. Then, we sort them by date and insert them into our <code>blaze-html</code> template.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">showBlogEntry ::</span> <span class="dt">SessionId</span> <span class="ot">-&gt;</span> <span class="dt">Connection</span> <span class="ot">-&gt;</span> <span class="dt">ActionM</span> ()
+showBlogEntry sessionId conn <span class="fu">=</span> <span class="kw">do</span>
+  blogid <span class="ot">&lt;-</span> param <span class="st">&quot;blogid&quot;</span>
+  <span class="co">--query the database to return the blog entry with a relation-valued attribute of the associated comments</span>
+  <span class="kw">let</span> blogRestrictionExpr <span class="fu">=</span> <span class="dt">AttributeEqualityPredicate</span> <span class="st">&quot;title&quot;</span> (<span class="dt">NakedAtomExpr</span> (<span class="dt">TextAtom</span> blogid))
+      extendExpr <span class="fu">=</span> <span class="dt">AttributeExtendTupleExpr</span> <span class="st">&quot;comments&quot;</span> (<span class="dt">RelationAtomExpr</span> commentsRestriction)
+      commentsRestriction <span class="fu">=</span> <span class="dt">Restrict</span>
+                           (<span class="dt">AttributeEqualityPredicate</span> <span class="st">&quot;blogTitle&quot;</span> (<span class="dt">AttributeAtomExpr</span> <span class="st">&quot;title&quot;</span>))
+                           (<span class="dt">RelationVariable</span> <span class="st">&quot;comment&quot;</span> ())
+  eRel <span class="ot">&lt;-</span> liftIO <span class="fu">$</span> executeRelationalExpr sessionId conn (<span class="dt">Extend</span> extendExpr
+                                                         (<span class="dt">Restrict</span>
+                                                          blogRestrictionExpr
+                                                          (<span class="dt">RelationVariable</span> <span class="st">&quot;blog&quot;</span> ())))</code></pre></div>
+<p>Here, we create a query that might look a little unusual by SQL standards. This is because SQL does not support relation-valued attributes whereas Project:M36 does. In this case, alongside collecting the blog information, we collect all the comments alongside the blog tuple as a nested relation containing a set of all comments for this blog post. With SQL, we would need one query per model or duplicate data with a join whereas we can consolidate our queries into one with Project:M36.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">let</span> render <span class="fu">=</span> html <span class="fu">.</span> renderHtml
+    formatStamp <span class="fu">=</span> formatTime defaultTimeLocale (iso8601DateFormat (<span class="dt">Just</span> <span class="st">&quot;%H:%M:%S&quot;</span>))
+<span class="kw">case</span> eRel <span class="kw">of</span>
+  <span class="dt">Left</span> err <span class="ot">-&gt;</span> render500 (toHtml (show err))
+  <span class="co">--handle successful query execution</span>
+  <span class="dt">Right</span> rel <span class="ot">-&gt;</span> <span class="kw">case</span> singletonTuple rel <span class="kw">of</span>
+    <span class="dt">Nothing</span> <span class="ot">-&gt;</span> <span class="kw">do</span> <span class="co">--no results for this blog id</span>
+      render (h1 <span class="st">&quot;No such blog post&quot;</span>)
+      status status404
+    <span class="dt">Just</span> blogTuple <span class="ot">-&gt;</span> <span class="kw">case</span> fromTuple blogTuple <span class="kw">of</span> <span class="co">--just one blog post found- it's a match!</span>
+      <span class="dt">Left</span> err <span class="ot">-&gt;</span> render500 (toHtml (show err))
+      <span class="dt">Right</span> blog <span class="ot">-&gt;</span> <span class="kw">do</span>
+        <span class="co">--extract comments for the blog</span>
+        commentsAtom <span class="ot">&lt;-</span> handleWebError (atomForAttributeName <span class="st">&quot;comments&quot;</span> blogTuple)
+        commentsRel <span class="ot">&lt;-</span> handleWebError (relationForAtom commentsAtom)
+        comments <span class="ot">&lt;-</span> liftIO (toList commentsRel) <span class="fu">&gt;&gt;=</span> mapM (handleWebError <span class="fu">.</span> fromTuple)<span class="ot"> ::</span> <span class="dt">ActionM</span> [<span class="dt">Comment</span>]
+        <span class="kw">let</span> commentsSorted <span class="fu">=</span> sortBy (\c1 c2 <span class="ot">-&gt;</span> commentTime c1 <span class="ot">`compare`</span> commentTime c2) comments
+        render <span class="fu">$</span> <span class="kw">do</span>
+          <span class="fu">...</span></code></pre></div>
+<p>After retrieving all the data we need for the page in one query, we extract the singleton blog post, if available, and then extract the comments from the relation-valued attribute as well as sort them by timestamp. Finally, we render the blog info, comments, and a comment form where users can add new comments (elided for brevity).</p>
+<p>Our final action adds a comment submitted from the previously-rendered form.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="ot">addComment ::</span> <span class="dt">SessionId</span> <span class="ot">-&gt;</span> <span class="dt">Connection</span> <span class="ot">-&gt;</span> <span class="dt">ActionM</span> ()            
+addComment sessionId conn <span class="fu">=</span> <span class="kw">do</span>
+  blogid <span class="ot">&lt;-</span> param <span class="st">&quot;blogid&quot;</span>
+  commentText <span class="ot">&lt;-</span> param <span class="st">&quot;contents&quot;</span>
+  now <span class="ot">&lt;-</span> liftIO getCurrentTime
+
+  <span class="kw">case</span> toInsertExpr [<span class="dt">Comment</span> {blogTitle <span class="fu">=</span> blogid,
+                              commentTime <span class="fu">=</span> now,
+                              contents <span class="fu">=</span> commentText }] <span class="st">&quot;comment&quot;</span> <span class="kw">of</span>
+    <span class="dt">Left</span> err <span class="ot">-&gt;</span> handleWebError (<span class="dt">Left</span> err)
+    <span class="dt">Right</span> insertExpr <span class="ot">-&gt;</span> <span class="kw">do</span>      
+      eRet <span class="ot">&lt;-</span> liftIO (withTransaction sessionId conn (executeDatabaseContextExpr sessionId conn insertExpr) (commit sessionId conn))
+      <span class="kw">case</span> eRet <span class="kw">of</span>
+        <span class="dt">Left</span> err <span class="ot">-&gt;</span> handleWebError (<span class="dt">Left</span> err)
+        <span class="dt">Right</span> _ <span class="ot">-&gt;</span>
+          redirect (TL.fromStrict (<span class="st">&quot;/blog/&quot;</span> <span class="fu">&lt;&gt;</span> blogid))</code></pre></div>
+<p>We use <code>Tupleable</code>’s <code>toInsertExpr</code> to create a new <code>Comment</code> and insert it into the database. The <code>withTransaction</code> line commits our new comment to the database, if no other errors are raised (such as a constraint or type violation). Finally, we redirect to the blog post page where the user will see his comment added.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>Project:M36 offers some unique features for Haskell developers which makes persistence and querying a snap including:</p>
+<ul>
+<li>full algebraic data type support with normal Haskell data types</li>
+<li>easy marshaling between database tuples and Haskell values</li>
+<li>relation-valued attributes</li>
+<li>a mathematically-sound relational model</li>
+<li>an EDSL for relational queries</li>
+<li>database-server-side Haskell (not shown in this example)</li>
+</ul>
+<p>If you would like to learn more about Project:M36, please check out our <a href="http://hackage.haskell.org/package/project-m36">Hackage docs</a> or our <a href="https://github.com/agentm/project-m36#documentation">documentation</a>.</p>
+<p>You can also reach us with questions on <code>irc.freenode.net#project-m36</code>.</p>
+
+        </div>
+
+        <div id="footer">
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
