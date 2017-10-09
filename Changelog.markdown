@@ -1,3 +1,13 @@
+# 2017-10-08 (v0.3)
+
+* replaced overuse of `undefined` with `Proxy` in `Tupleable` and `Atomable` typeclasses
+* allow notifications to return query results from before *and* after the commit which triggered the notification
+* alert users in `tutd` console before a transaction graph expression is evaluated which would throw out their changes
+* drastically-improved CSV import/export now supports all possible types except `RelationAtom`
+* fix serious file handle leaks when using on-disk persistence
+* fix case where invalid number of arguments to `ConstructedAtom` did not result in an error
+* add support for `IntegerAtom` (previously, only `IntAtom` was supported)
+
 # 2017-09-16 (v0.2)
 
 * a new [simple client API](https://github.com/agentm/project-m36/blob/master/docs/simple_api.markdown) with a monadic transaction manager
