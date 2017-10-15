@@ -224,9 +224,10 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
       
 type GhcPkgPath = String  
 type TutorialDExec = String
+type CheckFS = Bool
   
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec)
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] CheckFS |
+                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot

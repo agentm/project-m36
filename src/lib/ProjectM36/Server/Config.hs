@@ -1,7 +1,8 @@
 module ProjectM36.Server.Config where
 import ProjectM36.Client
 
-data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy, 
+data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
+                                   checkFS :: Bool,
                                    databaseName :: DatabaseName,
                                    bindHost :: Hostname,
                                    bindPort :: Port,
@@ -13,6 +14,7 @@ data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
 
 defaultServerConfig :: ServerConfig
 defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
+                                     checkFS = True,
                                      databaseName = "base", 
                                      bindHost = "127.0.0.1",
                                      bindPort = 6543,

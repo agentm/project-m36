@@ -8,10 +8,11 @@ import Data.Monoid
 parseArgsWithDefaults :: ServerConfig -> Parser ServerConfig
 parseArgsWithDefaults defaults = ServerConfig <$> 
                      parsePersistenceStrategy <*> 
+                     parseCheckFS <*>
                      parseDatabaseName <*> 
                      parseHostname (bindHost defaults) <*> 
                      parsePort (bindPort defaults) <*> 
-                     many parseGhcPkgPaths <*> 
+                     many parseGhcPkgPath <*> 
                      parseTimeout (perRequestTimeout defaults) <*> 
                      pure False
                      
@@ -28,6 +29,10 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
     fsyncOpt = switch (short 'f' <>
                     long "fsync" <>
                     help "Fsync all new transactions.")
+               
+parseCheckFS :: Parser Bool               
+parseCheckFS = flag True False (long "disable-fscheck" <>
+                                help "Disable filesystem check for journaling.")
                
 parseDatabaseName :: Parser DatabaseName
 parseDatabaseName = strOption (short 'n' <>
@@ -46,8 +51,8 @@ parsePort defPort = option auto (short 'p' <>
                          metavar "PORT_NUMBER" <>
                          value defPort)
             
-parseGhcPkgPaths :: Parser String
-parseGhcPkgPaths = strOption (long "ghc-pkg-dir" <>
+parseGhcPkgPath :: Parser String
+parseGhcPkgPath = strOption (long "ghc-pkg-dir" <>
                               metavar "GHC_PACKAGE_DIRECTORY")
                    
 parseTimeout :: Int -> Parser Int              

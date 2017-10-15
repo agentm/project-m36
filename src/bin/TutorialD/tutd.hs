@@ -2,41 +2,25 @@
 import TutorialD.Interpreter
 import ProjectM36.Base
 import ProjectM36.Client
+import ProjectM36.Server.ParseArgs
+import ProjectM36.Server
 import System.IO
 import Options.Applicative
 import System.Exit
 import Data.Monoid
+import Data.Maybe
 import qualified Data.Text as T
 
 parseArgs :: Parser InterpreterConfig
-parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> parseGhcPkgPaths <|>
-            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> many parseGhcPkgPath <*> parseCheckFS <|>
+            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS
 
-parsePersistenceStrategy :: Parser PersistenceStrategy
-parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
-                           MinimalPersistence <$> dbdirOpt <|>
-                           pure NoPersistence
-  where 
-    dbdirOpt = strOption (short 'd' <> 
-                          long "database-directory" <> 
-                          metavar "DIRECTORY" <>
-                          showDefaultWith show
-                         )
-    fsyncOpt = switch (short 'f' <>
-                    long "fsync" <>
-                    help "Fsync all new transactions.")
-               
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
                              help "Start session at head name." <>
                              value "master"
                             )
-               
-parseDatabaseName :: Parser DatabaseName               
-parseDatabaseName = strOption (long "database" <>
-                               short 'n' <>
-                               help "Remote database name")
-               
+
 parseNodeId :: Parser NodeId
 parseNodeId = createNodeId <$> 
               strOption (long "host" <> 
@@ -54,31 +38,29 @@ parseTutDExec = optional $ strOption (long "exec-tutd" <>
                            short 'e' <>
                            help "Execute TutorialD expression and exit"
                            )
-              
-parseGhcPkgPaths :: Parser [GhcPkgPath]              
-parseGhcPkgPaths = many (strOption (long "ghc-pkg-dir" <>
-                                    metavar "GHC_PACKAGE_DIRECTORY"))
 
 opts :: ParserInfo InterpreterConfig            
 opts = info parseArgs idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _ _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
+connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _ _ _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
-headNameForConfig (LocalInterpreterConfig _ headn _ _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ headn _) = headn
+headNameForConfig (LocalInterpreterConfig _ headn _ _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ headn _ _) = headn
 
 execTutDForConfig :: InterpreterConfig -> Maybe String
-execTutDForConfig (LocalInterpreterConfig _ _ t _) = t
-execTutDForConfig (RemoteInterpreterConfig _ _ _ t) = t
+execTutDForConfig (LocalInterpreterConfig _ _ t _ _) = t
+execTutDForConfig (RemoteInterpreterConfig _ _ _ t _) = t
 
-{-
-ghcPkgPathsForConfig :: InterpreterConfig -> [GhcPkgPath]
-ghcPkgPathsForConfig (LocalInterpreterConfig _ _ paths) = paths
-ghcPkgPathsForConfig _ = error "Clients cannot configure remote ghc package paths."
--}
+checkFSForConfig :: InterpreterConfig -> Bool
+checkFSForConfig (LocalInterpreterConfig _ _ _ _ c) = c
+checkFSForConfig (RemoteInterpreterConfig _ _ _ _ c) = c
+
+persistenceStrategyForConfig :: InterpreterConfig -> Maybe PersistenceStrategy
+persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _) = Just strat
+persistenceStrategyForConfig RemoteInterpreterConfig{} = Nothing
                          
 errDie :: String -> IO ()                                                           
 errDie err = hPutStrLn stderr err >> exitFailure
@@ -97,21 +79,25 @@ main :: IO ()
 main = do
   interpreterConfig <- execParser opts
   let connInfo = connectionInfoForConfig interpreterConfig
-  dbconn <- connectProjectM36 connInfo
-  case dbconn of 
-    Left err -> 
-      errDie ("Failed to create database connection: " ++ show err)
-    Right conn -> do
-      let connHeadName = headNameForConfig interpreterConfig
-      eSessionId <- createSessionAtHead conn connHeadName
-      case eSessionId of 
-          Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
-          Right sessionId -> 
-            case execTutDForConfig interpreterConfig of
-              Nothing -> do
-                printWelcome
-                _ <- reprLoop interpreterConfig sessionId conn
-                pure ()
-              Just tutdStr -> 
-                runTutorialD sessionId conn (T.pack tutdStr)
+  fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))
+  if not fscheck then
+    errDie checkFSErrorMsg
+    else do
+    dbconn <- connectProjectM36 connInfo
+    case dbconn of 
+      Left err -> 
+        errDie ("Failed to create database connection: " ++ show err)
+      Right conn -> do
+        let connHeadName = headNameForConfig interpreterConfig
+        eSessionId <- createSessionAtHead conn connHeadName
+        case eSessionId of 
+            Left err -> errDie ("Failed to create database session at \"" ++ show connHeadName ++ "\": " ++ show err)
+            Right sessionId -> 
+              case execTutDForConfig interpreterConfig of
+                Nothing -> do
+                  printWelcome
+                  _ <- reprLoop interpreterConfig sessionId conn
+                  pure ()
+                Just tutdStr -> 
+                  runTutorialD sessionId conn (T.pack tutdStr)
 

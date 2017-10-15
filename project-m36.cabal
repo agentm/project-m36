@@ -147,7 +147,8 @@ Library
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
-                     ProjectM36.FileLock
+                     ProjectM36.FileLock,
+                     ProjectM36.FSType
     GHC-Options: -Wall
     if os(windows)
       Build-Depends: Win32 >= 2.3
