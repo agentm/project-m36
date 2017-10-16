@@ -154,7 +154,7 @@ Library
       Build-Depends: Win32 >= 2.3
       Other-Modules: ProjectM36.Win32Handle
     else
-      C-sources: cbits/DirectoryFsync.c
+      C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
     CC-Options: -fPIC
     Hs-Source-Dirs: ./src/lib
@@ -534,3 +534,5 @@ Executable handles
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+  
+  

@@ -16,7 +16,8 @@ import Control.Distributed.Process (Process, register, getSelfPid)
 import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
 import Control.Concurrent.MVar (putMVar, MVar)
 import System.IO (stderr, hPutStrLn)
-
+import System.FilePath (takeDirectory)
+import System.Directory (doesDirectoryExist)
 
 -- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
 --trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
@@ -83,8 +84,14 @@ checkFSType performCheck strat =
     NoPersistence -> pure True
     MinimalPersistence _ -> pure True
     CrashSafePersistence path -> 
-      if performCheck then
-        fsTypeSupportsJournaling path
+      if performCheck then do
+        -- if the path does not (yet) exist, then walk back a step- the db directory may not yet have been created
+        fullpathexists <- doesDirectoryExist path
+        let fscheckpath = if fullpathexists then
+                            path
+                          else
+                            takeDirectory path
+        fsTypeSupportsJournaling fscheckpath
       else
         pure True
         
