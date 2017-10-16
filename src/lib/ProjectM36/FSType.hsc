@@ -2,7 +2,6 @@
 -- use statfs on Linux and macOS and GetVolumeInformation on Windows
 -- this could still be fooled with symlinks or by disabling journaling on filesystems that support that
 module ProjectM36.FSType where
-import Foreign
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.C.Error
@@ -50,25 +49,19 @@ fsTypeSupportJournaling path = do
 
 #elif darwin_HOST_OS
 --Darwin reports journaling directly in the fs flags
-import Data.Bits
-#include <sys/param.h>
-#include <sys/mount.h>
-type CStatFS = ()
-foreign import ccall unsafe "sys/mount.h statfs" 
-  c_statfs :: CString -> Ptr CStatFS -> IO CInt
 
-type CFSFlags = #{type long}
+type CStatFS = ()
+foreign import ccall unsafe "cDarwinFSJournaled" 
+  c_DarwinFSJournaled :: CString -> IO CInt
 
 fsTypeSupportsJournaling :: FilePath -> IO Bool
-fsTypeSupportsJournaling path = do
-  struct_statfs <- mallocForeignPtrBytes #{size statfs}
+fsTypeSupportsJournaling path = 
   withCString path $ \c_path -> do
-    withForeignPtr struct_statfs $ \ptr_statfs -> do
-      throwErrnoIfMinus1_ "statfs" (c_statfs c_path ptr_statfs)
-      cfsflags <- peekByteOff ptr_statfs #{offset statfs, f_flags} :: IO CFSFlags
-      pure (MNT_JOURNALED .&. cfsflags)
+    ret <- throwErrnoIfMinus1 "statfs" (c_DarwinFSJournaled c_path)
+    pure (ret > (0 :: CInt))
       
 #elif linux_HOST_OS
+import Foreign
 --Linux cannot report journaling, so we just check the filesystem type as a proxy
 #include <sys/vfs.h>
 #include <linux/magic.h>
