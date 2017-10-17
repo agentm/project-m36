@@ -17,7 +17,7 @@ import System.Exit
 
 import Control.Concurrent
 import Network.Transport (EndPointAddress)
-import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
+import Network.Transport.TCP.Internal (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
 import Control.Exception
 --import Control.Monad.IO.Class

@@ -4,7 +4,7 @@ import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import Control.Concurrent
 import qualified Network.WebSockets as WS
-import Network.Transport.TCP (decodeEndPointAddress)
+import Network.Transport.TCP.Internal (decodeEndPointAddress)
 import Control.Exception
 
 main :: IO ()

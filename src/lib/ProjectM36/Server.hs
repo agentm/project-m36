@@ -86,7 +86,7 @@ launchServer daemonConfig mAddressMVar = do
     Right conn -> do
       let hostname = bindHost daemonConfig
           port = bindPort daemonConfig
-      etransport <- createTransport hostname (show port) defaultTCPParameters
+      etransport <- createTransport hostname (show port) (\sn -> (hostname, sn)) defaultTCPParameters
       case etransport of
         Left err -> error ("failed to create transport: " ++ show err)
         Right transport -> do

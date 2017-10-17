@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns, PackageImports #-}
 {-|
 Module: ProjectM36.Client
 
@@ -125,7 +125,8 @@ import Control.Exception.Base
 import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
-import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
+import Network.Transport.TCP.Internal (encodeEndPointAddress)
+import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
@@ -142,7 +143,7 @@ import qualified STMContainers.Set as STMSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
-import ListT
+import "list-t" ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
@@ -249,7 +250,7 @@ remoteDBLookupName = (++) "db-"
 
 createLocalNode :: IO (LocalNode, Transport)
 createLocalNode = do
-  eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
+  eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1",sn)) defaultTCPParameters
   case eLocalTransport of
     Left err -> error ("failed to create transport: " ++ show err)
     Right localTransport -> do

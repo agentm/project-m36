@@ -1,7 +1,8 @@
+{-# LANGUAGE PackageImports #-}
 module ProjectM36.Sessions where
 import Control.Concurrent.STM
 import qualified STMContainers.Map as STMMap
-import ListT
+import "list-t" ListT
 import ProjectM36.Attribute
 import ProjectM36.Base
 import ProjectM36.Session

@@ -16,7 +16,7 @@ import ProjectM36.Base
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
-import Network.Transport.TCP (decodeEndPointAddress)
+import Network.Transport.TCP.Internal (decodeEndPointAddress)
 
 --start the websocket server
 -- run some tutoriald against it

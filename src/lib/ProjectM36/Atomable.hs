@@ -52,7 +52,7 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtomType _ = toAtomTypeG (from (undefined :: a))
                       
   -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
-  toAddTypeExpr :: Proxy a -> DatabaseContextExpr
+  toAddTypeExpr :: proxy a -> DatabaseContextExpr
   default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => proxy a -> DatabaseContextExpr
   toAddTypeExpr _ = toAddTypeExprG (from (undefined :: a)) (toAtomType (Proxy :: Proxy a))
   
