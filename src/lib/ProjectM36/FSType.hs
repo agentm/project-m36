@@ -63,13 +63,15 @@ fsTypeSupportsJournaling path =
 #elif linux_HOST_OS
 import Foreign
 --Linux cannot report journaling, so we just check the filesystem type as a proxy
-#include <sys/vfs.h>
-#include <linux/magic.h>
 type CStatFS = ()
 foreign import ccall unsafe "sys/vfs.h statfs" 
   c_statfs :: CString -> Ptr CStatFS -> IO CInt
   
-type CFSType = #{type __SWORD_TYPE}
+#if sizeof(int) == 8
+type CFSType = Word64
+#else
+type CFSType = Word32
+#endif
 
 fsTypeSupportsJournaling :: FilePath -> IO Bool
 fsTypeSupportsJournaling path = do
@@ -78,16 +80,12 @@ fsTypeSupportsJournaling path = do
     withForeignPtr struct_statfs $ \ptr_statfs -> do
       throwErrnoIfMinus1_ "statfs" (c_statfs c_path ptr_statfs)
       cfstype <- peekByteOff ptr_statfs 0 :: IO CFSType
-      let journaledFS = [#{const EXT3_SUPER_MAGIC},
-                         #{const EXT4_SUPER_MAGIC},
-                         #{ifdef NTFS_SB_MAGIC 
-                           NTFS_SB_MAGIC,
-                           #endif}
-                         #{const REISERFS_SUPER_MAGIC},
-                         #{ifdef XFS_SUPER_MAGIC
-                          XFS_SUPER_MAGIC,
-                          #endif}
-                         0]
+      let journaledFS = [0xEF53, --EXT3+4
+                         0x5346544e, --NTFS
+                         0x52654973, --REISERFS
+                         0x58465342, --XFS
+                         0x3153464a --JFS
+                         ]
       pure (elem cfstype journaledFS)
 #endif
 
