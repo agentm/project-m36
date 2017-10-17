@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- confirm that the filesystem type is a journaled FS type expected by Project:M36
 -- use statfs on Linux and macOS and GetVolumeInformation on Windows
 -- this could still be fooled with symlinks or by disabling journaling on filesystems that support that
@@ -62,20 +63,26 @@ fsTypeSupportsJournaling path =
       
 #elif linux_HOST_OS
 import Foreign
+#include "MachDeps.h"
 --Linux cannot report journaling, so we just check the filesystem type as a proxy
 type CStatFS = ()
 foreign import ccall unsafe "sys/vfs.h statfs" 
   c_statfs :: CString -> Ptr CStatFS -> IO CInt
   
-#if sizeof(int) == 8
+#if WORD_SIZE_IN_BITS == 64
 type CFSType = Word64
+sizeofStructStatFS :: Int
+sizeofStructStatFS = 120
 #else
+#error 32-bit not supported due to sizeof struct statfs missing
 type CFSType = Word32
+sizeofStructStatFS :: Int
+sizeofStructStatFS = undefined
 #endif
 
 fsTypeSupportsJournaling :: FilePath -> IO Bool
 fsTypeSupportsJournaling path = do
-  struct_statfs <- mallocForeignPtrBytes #{size statfs}
+  struct_statfs <- mallocForeignPtrBytes sizeofStructStatFS
   withCString path $ \c_path -> do
     withForeignPtr struct_statfs $ \ptr_statfs -> do
       throwErrnoIfMinus1_ "statfs" (c_statfs c_path ptr_statfs)
