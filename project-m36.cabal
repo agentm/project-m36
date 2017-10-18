@@ -226,13 +226,6 @@ Executable tutd
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
---    if os(windows)
---      Build-Depends: Win32 >= 2.3 && < 2.4
---      Other-Modules: ProjectM36.Win32Handle
---    else
---      C-sources: ProjectM36/DirectoryFsync.c
---      Build-Depends: unix
-
 
 Executable project-m36-server
     Build-Depends: base,

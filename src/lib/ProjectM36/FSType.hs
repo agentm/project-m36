@@ -3,50 +3,46 @@
 -- use statfs on Linux and macOS and GetVolumeInformation on Windows
 -- this could still be fooled with symlinks or by disabling journaling on filesystems that support that
 module ProjectM36.FSType where
-import Foreign.C.Types
-import Foreign.C.String
-import Foreign.C.Error
 
-#ifdef mingw32_HOST_OS
-import System.Win32.String 
-import System.Win32.File
+#if defined(mingw32_HOST_OS)
+# if defined(i386_HOST_ARCH)
+#  define WINDOWS_CCONV stdcall
+# elif defined(x86_64_HOST_ARCH)
+#  define WINDOWS_CCONV ccall
+# endif
+import System.Win32.Types
+import Foreign.ForeignPtr
+import Data.Word
+import Data.Bits
+import Foreign.Storable
 
+foreign import WINDOWS_CCONV unsafe "windows.h GetVolumePathNameW"
+  c_GetVolumePathName :: LPCTSTR -> LPTSTR -> DWORD -> IO BOOL
+  
 foreign import WINDOWS_CCONV unsafe "windows.h GetVolumeInformationW"
   c_GetVolumeInformation :: LPCTSTR -> LPTSTR -> DWORD -> LPDWORD -> LPDWORD -> LPDWORD -> LPTSTR -> DWORD -> IO BOOL
 
-data VolumeInformation = VolumeInformation
-                         { volumeName         :: String
-                         , volumeSerialNumber :: DWORD
-                         , maximumComponentLength :: DWORD
-                         , fileSystemFlags    :: DWORD
-                         , fileSystemName     :: String
-                         } deriving Show
+#define FILE_SUPPORTS_USN_JOURNAL 0x02000000
 
--- from https://github.com/haskell/win32/blob/master/System/Win32/HardLink.hs
-getVolumeInformation :: Maybe String -> IO VolumeInformation
-getVolumeInformation mPath =
-   maybeWith withTString mPath $ \c_path ->
-   withTStringBufferLen 256    $ \(vnBuf, vnLen) ->
-   alloca $ \serialNum ->
-   alloca $ \maxLen ->
-   alloca $ \fsFlags ->
-   withTStringBufferLen 256 $ \(fsBuf, fsLen) -> do
-       failIfFalse_ (unwords ["GetVolumeInformationW", c_path]) $
-         c_GetVolumeInformation c_path vnBuf (fromIntegral vnLen)
-                                serialNum maxLen fsFlags
-                                fsBuf (fromIntegral fsLen)
-       return VolumeInformation
-         <*> peekTString vnBuf
-         <*> peek serialNum
-         <*> peek maxLen
-         <*> peek fsFlags
-         <*> peekTString fsBuf
+getVolumePathName :: FilePath -> IO String
+getVolumePathName path = do
+  let maxpathlen = 260 --ANSI MAX_PATH- we only care about the drive name anyway
+  withTString path $ \c_path -> do
+    fp_pathout <- mallocForeignPtrBytes maxpathlen
+    withForeignPtr fp_pathout $ \pathout -> do
+      failIfFalse_ ("GetVolumePathNameW " ++ path) (c_GetVolumePathName c_path pathout (fromIntegral maxpathlen))
+      peekTString pathout
 
 fsTypeSupportsJournaling :: FilePath -> IO Bool
-fsTypeSupportJournaling path = do
-  info <- getVolumeInformation
-#define FILE_SUPPORTS_USN_JOURNAL 0x02000000
-  pure (fileSystemFlags info .&. FILE_SUPPORTS_USN_JOURNAL)
+fsTypeSupportsJournaling path = do
+    -- get the drive path of the incoming path
+    drive <- getVolumePathName path
+    withTString drive $ \c_drive -> do
+        foreign_flags <- mallocForeignPtrBytes 8
+        withForeignPtr foreign_flags $ \ptr_fsFlags -> do
+            failIfFalse_ (unwords ["GetVolumeInformationW", path]) (c_GetVolumeInformation c_drive nullPtr 0 nullPtr nullPtr ptr_fsFlags nullPtr 0)
+            fsFlags <- peekByteOff ptr_fsFlags 0 :: IO Word64
+            pure (fsFlags .&. FILE_SUPPORTS_USN_JOURNAL /= 0)
 
 #elif darwin_HOST_OS
 --Darwin reports journaling directly in the fs flags
@@ -63,6 +59,10 @@ fsTypeSupportsJournaling path =
       
 #elif linux_HOST_OS
 import Foreign
+import Foreign.C.Error
+import Foreign.C.String
+import Foreign.C.Types
+
 #include "MachDeps.h"
 --Linux cannot report journaling, so we just check the filesystem type as a proxy
 type CStatFS = ()
