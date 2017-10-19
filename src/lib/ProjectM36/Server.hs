@@ -86,11 +86,11 @@ checkFSType performCheck strat =
     CrashSafePersistence path -> 
       if performCheck then do
         -- if the path does not (yet) exist, then walk back a step- the db directory may not yet have been created
-	fullpathexists <- doesDirectoryExist path
-	let fscheckpath = if fullpathexists then
-			    path
-			  else
-                            takeDirectory path
+        fullpathexists <- doesDirectoryExist path
+        let fscheckpath = if fullpathexists then
+                           path
+                          else
+                           takeDirectory path
         fsTypeSupportsJournaling fscheckpath
       else
         pure True

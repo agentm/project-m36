@@ -77,22 +77,28 @@ testFunctionPersistence :: Test
 testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
       connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
-  Right conn <- connectProjectM36 connInfo
-  Right sess <- createSessionAtHead conn "master"
+  conn <- assertIOEither $ connectProjectM36 connInfo
+  sess <- assertIOEither $ createSessionAtHead conn "master"
   let intTCons = PrimitiveTypeConstructor "Int" IntAtomType
       addfunc = AddAtomFunction "testdisk" [
         intTCons, 
         ADTypeConstructor "Either" [ADTypeConstructor "AtomFunctionError" [],
                                     intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
-  Right () <- executeDatabaseContextIOExpr sess conn addfunc
-  Right () <- commit sess conn
+  _ <- assertIOEither $ executeDatabaseContextIOExpr sess conn addfunc
+
+  _ <- assertIOEither $ commit sess conn
   close conn
   --re-open the connection to reload the graph
-  Right conn2 <- connectProjectM36 connInfo
-  Right sess2 <- createSessionAtHead conn2 "master"
+  conn2 <- assertIOEither $ connectProjectM36 connInfo
+  sess2 <- assertIOEither $ createSessionAtHead conn2 "master"
   
   res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
     
-                                                                                       
+assertIOEither :: (Show a) => IO (Either a b) -> IO b
+assertIOEither x = do
+  ret <- x
+  case ret of
+    Left err -> assertFailure (show err) >> undefined
+    Right val -> pure val

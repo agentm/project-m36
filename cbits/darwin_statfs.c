@@ -4,7 +4,7 @@
 
 #ifndef _PROJECT_M36_STATFS_
 #define _PROJECT_M36_STATFS_
-
+#ifdef __APPLE__
 int cDarwinFSJournaled(const char* path)
 {
   struct statfs s = {0};
@@ -19,4 +19,5 @@ int cDarwinFSJournaled(const char* path)
       return s.f_flags & MNT_JOURNALED;
     }
 }
+#endif
 #endif
