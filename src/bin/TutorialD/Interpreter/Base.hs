@@ -34,11 +34,12 @@ displayOpResult (DisplayRelationResult rel) = do
   gen <- newStdGen
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
-displayOpResult (DisplayParseErrorResult promptLength err) = TIO.putStrLn pointyString >> TIO.putStr ("ERR:" <> errString)
-  where
-    errString = T.pack (parseErrorPretty err)
-    errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
-    pointyString = T.justifyRight (promptLength + fromIntegral errorIndent) '_' "^"
+displayOpResult (DisplayParseErrorResult mPromptLength err) = do
+  let errString = T.pack (parseErrorPretty err)
+      errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+      pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
+  maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
+  TIO.putStr ("ERR:" <> errString)
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
@@ -119,12 +120,14 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
     showAttribute (Attribute name atomType) = name <> " " <> prettyAtomType atomType
     attrsL = V.toList attrs
 
+type PromptLength = Int 
+
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
                                DisplayErrorResult StringType |
-                               DisplayParseErrorResult Int (ParseError Char Dec) | -- Int refers to length of prompt text
+                               DisplayParseErrorResult (Maybe PromptLength) (ParseError Char Dec) | -- Int refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
                                

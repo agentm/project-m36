@@ -99,5 +99,5 @@ main = do
                   _ <- reprLoop interpreterConfig sessionId conn
                   pure ()
                 Just tutdStr -> 
-                  runTutorialD sessionId conn (T.pack tutdStr)
+                  runTutorialD sessionId conn Nothing (T.pack tutdStr)
 

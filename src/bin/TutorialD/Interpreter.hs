@@ -254,15 +254,15 @@ reprLoop config sessionId conn = do
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-      runTutorialD sessionId conn (T.pack line)
+      runTutorialD sessionId conn (Just (T.length prompt)) (T.pack line)
       reprLoop config sessionId conn
       
 
-runTutorialD :: C.SessionId -> C.Connection -> T.Text -> IO ()
-runTutorialD sessionId conn tutd = 
+runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
+runTutorialD sessionId conn mPromptLength tutd = 
   case parseTutorialD tutd of
     Left err -> 
-      displayOpResult $ DisplayParseErrorResult 0 err
+      displayOpResult $ DisplayParseErrorResult mPromptLength err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
         evald <- evalTutorialDInteractive sessionId conn UnsafeEvaluation True parsed
