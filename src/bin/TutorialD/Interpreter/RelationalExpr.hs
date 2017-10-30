@@ -150,8 +150,7 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
     predicateTerm = try (parens restrictionPredicateP)
                     <|> try restrictionAtomExprP
                     <|> try restrictionAttributeEqualityP
-                    <|> try relationalBooleanExprP
-
+                    <|> relationalBooleanExprP
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 relationalBooleanExprP = do
@@ -169,7 +168,7 @@ restrictionAttributeEqualityP = do
 restrictionAtomExprP :: RelationalMarkerExpr a=> Parser (RestrictionPredicateExprBase a) --atoms which are of type "boolean"
 restrictionAtomExprP = do
   _ <- char '^' -- not ideal, but allows me to continue to use a context-free grammar
-  AtomExprPredicate <$> atomExprP
+  (try (char 't') >> pure TruePredicate) <|> (try (char 'f') >> pure (NotPredicate TruePredicate)) <|> AtomExprPredicate <$> atomExprP
 
 multiTupleExpressionP :: RelationalMarkerExpr a => Parser [ExtendTupleExprBase a]
 multiTupleExpressionP = sepBy extendTupleExpressionP comma
