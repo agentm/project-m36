@@ -55,7 +55,8 @@ main = do
       testEmptyCommits,
       testIntervalAtom,
       testListConstructedAtom,
-      testTypeChecker
+      testTypeChecker,
+      testRestrictionPredicateExprs
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -76,6 +77,8 @@ main = do
                       ("x:=true where true or false", Right relationTrue),
                       ("x:=true where false or false", Right relationFalse),
                       ("x:=true where true and false", Right relationFalse),
+                      ("x:=true where false and true", Right relationFalse),                      
+                      ("x:=true where ^t and ^f", Right relationFalse),
                       ("x:=true where true and true", Right relationTrue),
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
@@ -487,3 +490,18 @@ testTypeChecker = TestCase $ do
   let err1 = "AtomFunctionTypeError \"max\" 1 (RelationAtomType [Attribute \"_\" IntegerAtomType]) IntegerAtomType"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 0}}:{b:=max(@a)}"
   
+--exercise expression parser
+testRestrictionPredicateExprs :: Test
+testRestrictionPredicateExprs = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  -- or
+  executeTutorialD sessionId dbconn "x:=s where status=20 or status=10"
+  eRvOr <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expectedRelOr = restrict (\tuple -> 
+                               pure (elem (atomForAttributeName "status" tuple) [Right (IntegerAtom 10), Right (IntegerAtom 20)])) suppliersRel
+  assertEqual "status 20 or 10" expectedRelOr eRvOr
+  -- and
+  executeTutorialD sessionId dbconn "x:=s where status=20 and status=10"
+  eRvAnd <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expectedRelAnd = Right (emptyRelationWithAttrs (attributes suppliersRel))
+  assertEqual "status 20 and 10" expectedRelAnd eRvAnd

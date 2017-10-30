@@ -51,7 +51,7 @@ reserved :: String -> Parser ()
 reserved word = try (string word *> notFollowedBy opChar *> spaceConsumer)
 
 reservedOp :: String -> Parser ()
-reservedOp op = try (string op *> notFollowedBy opChar *> spaceConsumer)
+reservedOp op = try (spaceConsumer *> string op *> notFollowedBy opChar *> spaceConsumer)
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
