@@ -31,6 +31,7 @@ foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO
 
 data DiskSync = NoDiskSync | FsyncDiskSync
 
+--using withFile here is OK because we use a WORM strategy- the file is written but not read until after the handle is synced, closed, and unhidden (moved from ".X" to "X") at the top level in the transaction directory 
 writeFileSync :: DiskSync -> FilePath -> Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
