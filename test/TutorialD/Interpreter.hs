@@ -498,7 +498,7 @@ testRestrictionPredicateExprs = TestCase $ do
   executeTutorialD sessionId dbconn "x:=s where status=20 or status=10"
   eRvOr <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
   let expectedRelOr = restrict (\tuple -> 
-                               pure (elem (atomForAttributeName "status" tuple) [Right (IntegerAtom 10), Right (IntegerAtom 20)])) suppliersRel
+                               pure (atomForAttributeName "status" tuple `elem` [Right (IntegerAtom 10), Right (IntegerAtom 20)])) suppliersRel
   assertEqual "status 20 or 10" expectedRelOr eRvOr
   -- and
   executeTutorialD sessionId dbconn "x:=s where status=20 and status=10"
