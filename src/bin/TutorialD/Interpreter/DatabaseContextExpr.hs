@@ -201,14 +201,15 @@ evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Eit
 evalDatabaseContextExpr useOptimizer context expr = do
     optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) (RE.freshDatabaseState context)
     case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) (RE.freshDatabaseState context) of
-        (Nothing, (context',_, _)) -> Right context'
-        (Just err, _) -> Left err
+        (Right (), (context',_, _)) -> Right context'
+        (Left err, _) -> Left err
 
 
 interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
                                     Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> evalDatabaseContextExpr True context parsed
+                                    Right parsed -> 
+                                      evalDatabaseContextExpr True context parsed
 
 {-
 --no optimization

@@ -542,7 +542,12 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case runReader (RE.evalRelationalExpr expr'') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
+        Right expr'' -> case runReader (do
+                                           eOptExpr <- applyStaticRelationalOptimization expr''
+                                           case eOptExpr of
+                                             Left err -> pure (Left err)
+                                             Right optExpr ->
+                                               RE.evalRelationalExpr optExpr) (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
           Left err -> pure (Left err)
           Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
@@ -561,10 +566,15 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Left err)
-        Right expr'' -> case runState (RE.evalDatabaseContextExpr expr'') (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
-          (Just err,_) -> pure (Left err)
-          (Nothing, (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
-          (Nothing, (!context',_,True)) -> do
+        Right expr'' -> case runState (do
+                                          eOptExpr <- applyStaticDatabaseOptimization expr''
+                                          case eOptExpr of
+                                            Left err -> pure (Left err)
+                                            Right optExpr ->
+                                              RE.evalDatabaseContextExpr optExpr) (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
+          (Left err,_) -> pure (Left err)
+          (Right (), (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
+          (Right (), (!context',_,True)) -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas

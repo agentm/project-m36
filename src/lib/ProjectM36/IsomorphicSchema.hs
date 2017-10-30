@@ -324,8 +324,8 @@ evalSchemaExpr (AddSubschema sname morphs) context sschemas =
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
       in
       case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
-        (Just err, _) -> Left err
-        (Nothing, (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
+        (Left err, _) -> Left err
+        (Right (), (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
   where
     newSchema = Schema morphs
     valid = validateSchema newSchema context

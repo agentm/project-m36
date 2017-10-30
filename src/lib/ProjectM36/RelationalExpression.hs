@@ -228,43 +228,43 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
         Right (newAttrs, tupProc') -> pure $ relMogrify tupProc' newAttrs rel
 
 --helper function to process relation variable creation/assignment
-setRelVar :: RelVarName -> Relation -> DatabaseState (Maybe RelationalError)
+setRelVar :: RelVarName -> Relation -> DatabaseState (Either RelationalError ())
 setRelVar relVarName rel = do
   currentContext <- getStateContext
   let newRelVars = M.insert relVarName rel $ relationVariables currentContext
       potentialContext = currentContext { relationVariables = newRelVars }
                         
   case checkConstraints potentialContext of
-    Just err -> return $ Just err
+    Just err -> pure (Left err)
     Nothing -> do
       putStateContext potentialContext
-      return Nothing
+      return (Right ())
 
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
-deleteRelVar :: RelVarName -> DatabaseState (Maybe RelationalError)
+deleteRelVar :: RelVarName -> DatabaseState (Either RelationalError ())
 deleteRelVar relVarName = do
   currContext <- getStateContext
   let relVars = relationVariables currContext
   if M.notMember relVarName relVars then
-    pure Nothing
+    pure (Right ())
     else do
     let newRelVars = M.delete relVarName relVars
         newContext = currContext { relationVariables = newRelVars }
     putStateContext newContext
-    pure Nothing
+    pure (Right ())
 
-evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Maybe RelationalError)
-evalDatabaseContextExpr NoOperation = pure Nothing
+evalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseState (Either RelationalError ())
+evalDatabaseContextExpr NoOperation = pure (Right ())
   
 evalDatabaseContextExpr (Define relVarName attrExprs) = do
   relvars <- fmap relationVariables getStateContext
   tConss <- fmap typeConstructorMapping getStateContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
   case lefts eAttrs of
-    err:_ -> pure (Just err)
+    err:_ -> pure (Left err)
     [] -> case M.member relVarName relvars of
-      True -> return (Just (RelVarAlreadyDefinedError relVarName))
-      False -> setRelVar relVarName emptyRelation >> pure Nothing
+      True -> pure (Left (RelVarAlreadyDefinedError relVarName))
+      False -> setRelVar relVarName emptyRelation >> pure (Right ())
         where
           attrs = A.attributesFromList (rights eAttrs)
           emptyRelation = Relation attrs emptyTupleSet
@@ -278,7 +278,7 @@ evalDatabaseContextExpr (Assign relVarName expr) = do
       relVarTable = relationVariables context
       value = runReader (evalRelationalExpr expr) (RelationalExprStateElems context)
   case value of
-    Left err -> return $ Just err
+    Left err -> pure (Left err)
     Right rel -> case existingRelVar of
       Nothing -> setRelVar relVarName rel
       Just existingRel -> let expectedAttributes = attributes existingRel
@@ -286,7 +286,7 @@ evalDatabaseContextExpr (Assign relVarName expr) = do
                           if A.attributesEqual expectedAttributes foundAttributes then
                             setRelVar relVarName rel
                           else
-                            return $ Just (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes)
+                            pure (Left (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes))
 
 evalDatabaseContextExpr (Insert relVarName relExpr) = do
   context <- getStateContext
@@ -295,11 +295,11 @@ evalDatabaseContextExpr (Insert relVarName relExpr) = do
       unioned = runReader (evalRelationalExpr unionexp) (RelationalExprStateElems context)
       origRel = runReader (evalRelationalExpr rv) (RelationalExprStateElems context)
   case unioned of
-    Left err -> pure (Just err)
+    Left err -> pure (Left err)
     Right unioned' -> case origRel of
-      Left err -> pure (Just err)
+      Left err -> pure (Left err)
       Right origRel' -> if cardinality unioned' == cardinality origRel' then --no tuples actually inserted
-                          pure Nothing
+                          pure (Right ())
                         else
                           evalDatabaseContextExpr $ Assign relVarName (ExistingRelation unioned')
 
@@ -309,11 +309,11 @@ evalDatabaseContextExpr (Delete relVarName predicate) = do
   let updatedRel = runReader (evalRelationalExpr (Restrict (NotPredicate predicate) rv)) (RelationalExprStateElems context)
       origRel = runReader (evalRelationalExpr rv) (RelationalExprStateElems context)
   case updatedRel of
-    Left err -> pure (Just err)
+    Left err -> pure (Left err)
     Right updatedRel' -> case origRel of
-                      Left err -> pure (Just err)
+                      Left err -> pure (Left err)
                       Right origRel' -> if cardinality origRel' == cardinality updatedRel' then
-                                          pure Nothing
+                                          pure (Right ())
                                         else
                                           setRelVar relVarName updatedRel'
 
@@ -322,10 +322,10 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
   context <- getStateContext
   let relVarTable = relationVariables context
   case M.lookup relVarName relVarTable of
-    Nothing -> return $ Just (RelVarNotDefinedError relVarName)
+    Nothing -> pure (Left (RelVarNotDefinedError relVarName))
     Just rel -> 
       case runReader (predicateRestrictionFilter (attributes rel) restrictionPredicateExpr) (RelationalExprStateElems context) of
-        Left err -> return $ Just err
+        Left err -> pure (Left err)
         Right predicateFunc -> do
           let ret = do
                 restrictedPortion <- restrict predicateFunc rel
@@ -337,8 +337,8 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
                   updatedRel <- updatedPortion `union` unrestrictedPortion
                   pure (Just updatedRel)
           case ret of 
-            Left err -> pure (Just err)
-            Right Nothing -> pure Nothing
+            Left err -> pure (Left err)
+            Right Nothing -> pure (Right ())
             Right (Just updatedRel) -> setRelVar relVarName updatedRel
 
 evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
@@ -346,48 +346,48 @@ evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
   let currDeps = inclusionDependencies currContext
       newDeps = M.insert newDepName newDep currDeps
   if M.member newDepName currDeps then
-    return $ Just (InclusionDependencyNameInUseError newDepName)
+    pure (Left (InclusionDependencyNameInUseError newDepName))
     else do
       let potentialContext = currContext { inclusionDependencies = newDeps }
       case checkConstraints potentialContext of
-        Just err -> return $ Just err
+        Just err -> pure (Left err)
         Nothing -> do
           putStateContext potentialContext
-          return Nothing
+          return (Right ())
 
 evalDatabaseContextExpr (RemoveInclusionDependency depName) = do
   currContext <- getStateContext
   let currDeps = inclusionDependencies currContext
       newDeps = M.delete depName currDeps
   if M.notMember depName currDeps then
-    return $ Just (InclusionDependencyNameNotInUseError depName)
+    pure (Left (InclusionDependencyNameNotInUseError depName))
     else do
     putStateContext $ currContext {inclusionDependencies = newDeps }
-    return Nothing
+    return (Right ())
     
 -- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
 evalDatabaseContextExpr (AddNotification notName triggerExpr resultOldExpr resultNewExpr) = do
   currentContext <- getStateContext
   let nots = notifications currentContext
   if M.member notName nots then
-    return $ Just (NotificationNameInUseError notName)
+    pure (Left (NotificationNameInUseError notName))
     else do
       let newNotifications = M.insert notName newNotification nots
           newNotification = Notification { changeExpr = triggerExpr,
                                            reportOldExpr = resultOldExpr, 
                                            reportNewExpr = resultNewExpr}
       putStateContext $ currentContext { notifications = newNotifications }
-      return Nothing
+      return (Right ())
   
 evalDatabaseContextExpr (RemoveNotification notName) = do
   currentContext <- getStateContext
   let nots = notifications currentContext
   if M.notMember notName nots then
-    return $ Just (NotificationNameNotInUseError notName)
+    pure (Left (NotificationNameNotInUseError notName))
     else do
     let newNotifications = M.delete notName nots
     putStateContext $ currentContext { notifications = newNotifications }
-    return Nothing
+    pure (Right ())
 
 -- | Adds type and data constructors to the database context.
 -- validate that the type *and* constructor names are unique! not yet implemented!
@@ -397,57 +397,56 @@ evalDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
       tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
   case validateTypeConstructorDef tConsDef dConsDefList of
-    errs@(_:_) -> pure $ Just (someErrors errs)
-    [] | T.null tConsName || not (isUpper (T.head tConsName)) -> pure $ Just (InvalidAtomTypeName tConsName)
-       | isJust (findTypeConstructor tConsName oldTypes) -> pure $ Just (AtomTypeNameInUseError tConsName)
+    errs@(_:_) -> pure (Left (someErrors errs))
+    [] | T.null tConsName || not (isUpper (T.head tConsName)) -> pure (Left (InvalidAtomTypeName tConsName))
+       | isJust (findTypeConstructor tConsName oldTypes) -> pure (Left (AtomTypeNameInUseError tConsName))
        | otherwise -> do
       let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
       putStateContext $ currentContext { typeConstructorMapping = newTypes }
-      pure Nothing
+      pure (Right ())
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
   currentContext <- getStateContext
   let oldTypes = typeConstructorMapping currentContext
   if isNothing (findTypeConstructor tConsName oldTypes) then
-    pure $ Just (AtomTypeNameNotInUseError tConsName)
+    pure (Left (AtomTypeNameNotInUseError tConsName))
     else do
       let newTypes = filter (\(tCons, _) -> TCD.name tCons /= tConsName) oldTypes
       putStateContext $ currentContext { typeConstructorMapping = newTypes }
-      pure Nothing
+      pure (Right ())
 
 evalDatabaseContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context
   evald <- forM exprs evalDatabaseContextExpr
   --some lifting magic needed here
-  case catMaybes evald of
-    [] -> pure Nothing
-    err:_ -> pure (Just err)
+  case lefts evald of
+    [] -> pure (Right ())
+    errs -> pure (Left (someErrors errs))
              
 evalDatabaseContextExpr (RemoveAtomFunction funcName) = do
   currentContext <- getStateContext
   let atomFuncs = atomFunctions currentContext
   case atomFunctionForName funcName atomFuncs of
-    Left err -> pure (Just err)
+    Left err -> pure (Left err)
     Right realFunc -> if isScriptedAtomFunction realFunc then do
       let updatedFuncs = HS.delete realFunc atomFuncs
       putStateContext (currentContext {atomFunctions = updatedFuncs })
-      pure Nothing
+      pure (Right ())
                       else
-                        pure (Just (PrecompiledFunctionRemoveError funcName))
-
+                        pure (Left (PrecompiledFunctionRemoveError funcName))
       
 evalDatabaseContextExpr (RemoveDatabaseContextFunction funcName) = do      
   context <- getStateContext
   let dbcFuncs = dbcFunctions context
   case databaseContextFunctionForName funcName dbcFuncs of
-    Left err -> pure (Just err)
+    Left err -> pure (Left err)
     Right realFunc -> if isScriptedDatabaseContextFunction realFunc then do
       let updatedFuncs = HS.delete realFunc dbcFuncs
       putStateContext (context { dbcFunctions = updatedFuncs })
-      pure Nothing
+      pure (Right ())
                       else
-                        pure (Just (PrecompiledFunctionRemoveError funcName))
+                        pure (Left (PrecompiledFunctionRemoveError funcName))
       
 evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) = do
   context <- getStateContext
@@ -456,16 +455,16 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
       eAtomTypes = map (\atomExpr -> runReader (typeFromAtomExpr emptyAttributes atomExpr) relExprState) atomArgExprs
       eFunc = databaseContextFunctionForName funcName (dbcFunctions context)
   case eFunc of
-      Left err -> pure (Just err)
+      Left err -> pure (Left err)
       Right func -> do
         let expectedArgCount = length (dbcFuncType func)
             actualArgCount = length atomArgExprs
         if expectedArgCount /= actualArgCount then
-          pure (Just (FunctionArgumentCountMismatchError expectedArgCount actualArgCount))
+          pure (Left (FunctionArgumentCountMismatchError expectedArgCount actualArgCount))
           else 
           --check that the atom types are valid
           case lefts eAtomTypes of
-            _:_ -> pure (Just (someErrors (lefts eAtomTypes)))
+            _:_ -> pure (Left (someErrors (lefts eAtomTypes)))
             [] -> do
               let atomTypes = rights eAtomTypes
               let mValidTypes = map (\(expType, actType) -> case atomTypeVerify expType actType of 
@@ -474,13 +473,13 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
                   typeErrors = catMaybes mValidTypes 
                   eAtomArgs = map (\arg -> runReader (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
               if length (lefts eAtomArgs) > 1 then
-                pure (Just (someErrors (lefts eAtomArgs)))
+                pure (Left (someErrors (lefts eAtomArgs)))
                 else if not (null typeErrors) then
-                     pure (Just (someErrors typeErrors))                   
+                     pure (Left (someErrors typeErrors))                   
                    else
                      case evalDatabaseContextFunction func (rights eAtomArgs) context of
-                       Left err -> pure (Just err)
-                       Right newContext -> putStateContext newContext >> pure Nothing
+                       Left err -> pure (Left err)
+                       Right newContext -> putStateContext newContext >> pure (Right ())
       
 evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
 evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = 
