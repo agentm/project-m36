@@ -101,8 +101,8 @@ applyStaticRelationalOptimization (Restrict predicate expr) = do
   case optimizedPredicate of
     Left err -> pure $ Left err
     Right optimizedPredicate2 
-      | optimizedPredicate2 == TruePredicate -> applyStaticRelationalOptimization expr -- remove predicate entirely
-      | optimizedPredicate2 == NotPredicate TruePredicate -> do -- replace where false predicate with empty relation with attributes from relexpr
+      | isTrueExpr optimizedPredicate2 -> applyStaticRelationalOptimization expr -- remove predicate entirely
+      | isFalseExpr optimizedPredicate2 -> do -- replace where false predicate with empty relation with attributes from relexpr
         attributesRel <- typeForRelationalExpr expr
         case attributesRel of 
           Left err -> pure $ Left err
@@ -212,7 +212,7 @@ applyStaticPredicateOptimization predi = do
           eOptPred2 <- applyStaticPredicateOptimization pred2
           case eOptPred2 of
             Left err -> pure (Left err)
-            Right optPred2 -> do
+            Right optPred2 ->
               if optPred1 == optPred2 then
                 pure (Right optPred1)
                 else
@@ -226,15 +226,10 @@ applyStaticPredicateOptimization predi = do
           eOptPred2 <- applyStaticPredicateOptimization pred2
           case eOptPred2 of
             Left err -> pure (Left err)
-            Right optPred2 -> 
-              if optPred1 == optPred2 then
-                pure (Right optPred1)
-              else if optPred1 == TruePredicate then -- True or x -> True
-                     pure (Right optPred1)
-                   else if optPred2 == TruePredicate then
-                          pure (Right optPred2)
-                        else
-                          pure (Right (OrPredicate optPred1 optPred2))
+            Right optPred2 | optPred1 == optPred2 -> pure (Right optPred1)
+                           | isTrueExpr optPred1 -> pure (Right optPred1)  -- True or x -> True
+                           | isTrueExpr optPred2 -> pure (Right optPred2)
+                           | otherwise -> pure (Right (OrPredicate optPred1 optPred2))
     AttributeEqualityPredicate attrNameA (AttributeAtomExpr attrNameB) ->
       if attrNameA == attrNameB then
         pure (Right TruePredicate)
@@ -250,6 +245,18 @@ applyStaticPredicateOptimization predi = do
     Right optPred -> 
       let attrMap = findStaticRestrictionPredicates optPred in
       pure (Right (replaceStaticAtomExprs optPred attrMap))
+
+--determines if an atom expression is tautologically true
+isTrueExpr :: RestrictionPredicateExpr -> Bool
+isTrueExpr TruePredicate = True
+isTrueExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom True))) = True
+isTrueExpr _ = False
+
+--determines if an atom expression is tautologically false
+isFalseExpr :: RestrictionPredicateExpr -> Bool
+isFalseExpr (NotPredicate expr) = isTrueExpr expr
+isFalseExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom False))) = True
+isFalseExpr _ = False
 
 -- determine if the created relation can statically be determined to be empty
 isEmptyRelationExpr :: RelationalExpr -> Bool    
