@@ -4,6 +4,8 @@ from websocket import create_connection
 import time
 import select
 import json
+import socket
+import errno
 
 class ITutorialDKernel(Kernel):
     implementation = 'ITutorialD'
@@ -24,24 +26,27 @@ class ITutorialDKernel(Kernel):
     def runtutd(self, tutd):
         #setup server
         port = 63000
-        dbname = 'spam'
-        '''
+        dbname = 'jupyter'
         if not self.dbserver:
             self.dbserver = subprocess.Popen(['project-m36-websocket-server',
-                                              '--database', 'itutd',
+                                              '--database', dbname,
                                               '--port', str(port)], 
                                          )
-                                         '''
         if not self.ws:
             attempts = 0
             while 1:
-                ws = create_connection('ws://127.0.0.1:{}'.format(port))
-                if ws:
+                try:
+                    ws = create_connection('ws://127.0.0.1:{}'.format(port))
+                except socket.error as err:
+                    if err.errno in (errno.ECONNREFUSED, ):
+                        time.sleep(0.3)
+                        attempts += 1
+                        if attempts > 10:
+                            assert False, "websocket timeout"
+                    else:
+                        raise
+                else:
                     break
-                time.sleep(0.3)
-                attempt += 1
-                if attempt > 10:
-                    assert False, "timeout"
             self.ws = ws
             self.ws.send('connectdb:{}'.format(dbname))
             #receive and discard prompt info
@@ -97,6 +102,7 @@ class ITutorialDKernel(Kernel):
     def do_shutdown(self, restart):
         if self.dbserver:
             self.dbserver.terminate()
+            self.dbserver.kill()
 
 if __name__ == '__main__':
     from ipykernel.kernelapp import IPKernelApp
