@@ -70,11 +70,15 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
 1. [Using Notifications](docs/using_notifications.markdown)
 1. [Merge Transactions](docs/merge_transactions.markdown)
-1. [WebSocket Server](docs/websocket_server.markdown)
 1. [Atom (Value) Functions](docs/atomfunctions.markdown)
 1. [Trans-Graph Relational Expressions](docs/transgraphrelationalexpr.markdown)
 1. [Isomorphic Schemas](docs/isomorphic_schemas.markdown)
 1. [Replication](docs/replication.markdown)
+
+### Integrations
+
+1. [WebSocket Server](docs/websocket_server.markdown)
+1. [Jupyter Notebook Kernel](docs/jupypter_kernel.markdown)
 
 ## Development
 
