@@ -84,7 +84,7 @@ withTransactionUsing (sess, conn) strat dbm = do
           handler :: TransactionCancelled -> IO (Either DbError a)
           handler (TransactionCancelled err) = pure (Left err)
       handle handler $ do
-        ret <- C.withTransaction sess conn (block >>= pure . Right) successFunc
+        ret <- C.withTransaction sess conn (Right <$> block) successFunc
         case ret of
           Left err  -> pure (Left (RelError err))
           Right val -> pure (Right val)

@@ -15,6 +15,7 @@ import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
 import Data.Monoid
+import Data.Functor
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseContextExprP :: Parser DatabaseContextExpr
@@ -101,7 +102,7 @@ addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
   subset <- relExprP
-  op <- (reservedOp "in" *> pure SubsetOp) <|> (reservedOp "equals" *> pure EqualityOp)
+  op <- (reservedOp "in" $> SubsetOp) <|> (reservedOp "equals" $> EqualityOp)
   superset <- relExprP
   let subsetA = incDepSet constraintName subset superset
       subsetB = incDepSet (constraintName <> "_eqInvert") superset subset --inverted args for equality constraint

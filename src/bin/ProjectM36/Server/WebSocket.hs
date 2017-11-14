@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module ProjectM36.Server.WebSocket where
 -- while the tutd client performs TutorialD parsing on the client, the websocket server will pass tutd to be parsed and executed on the server- otherwise I have to pull in ghcjs as a dependency to allow client-side parsing- that's not appealing because then the frontend is not language-agnostic, but this could change in the future, perhaps by sending different messages over the websocket
 -- ideally, the wire protocol should not be exposed to a straight string-based API ala SQL, so we could make perhaps a javascript DSL which compiles to the necessary JSON- anaylyze tradeoffs
@@ -19,6 +20,7 @@ import Control.Exception
 import Data.Attoparsec.Text
 import Control.Applicative
 import Text.Megaparsec.Error
+import Data.Functor
 
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
@@ -31,10 +33,9 @@ websocketProxyServer port host pending = do
     else do
         let dbname = T.unpack $ T.drop (T.length connectdbmsg) dbmsg
         bracket (createConnection conn dbname port host) 
-          (\eDBconn -> case eDBconn of
-                            Right dbconn -> close dbconn
-                            Left _ -> pure ()) $ \eDBconn -> 
-          case eDBconn of
+          (\case
+              Right dbconn -> close dbconn
+              Left _ -> pure ()) $ \case 
             Left err -> sendError conn err
             Right dbconn -> do
                 eSessionId <- createSessionAtHead dbconn "master"
@@ -114,9 +115,9 @@ data PresentationFlag = JSONFlag | TextFlag | HTMLFlag
 parseExecuteMessage :: Parser (Presentation, T.Text)
 parseExecuteMessage = do
   _ <- string "executetutd/"
-  flags <- sepBy ((string "json" *> pure JSONFlag) <|>
-                  (string "text" *> pure TextFlag) <|>
-                  (string "html" *> pure HTMLFlag)) "+"
+  flags <- sepBy ((string "json" $> JSONFlag) <|>
+                  (string "text" $> TextFlag) <|>
+                  (string "html" $> HTMLFlag)) "+"
   let presentation = foldr (\flag acc -> case flag of 
                                JSONFlag -> acc {jsonPresentation = True}
                                TextFlag -> acc {textPresentation = True}

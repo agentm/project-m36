@@ -22,7 +22,7 @@ import Panic
 import Outputable --hiding ((<>))
 import PprTyThing
 import Unsafe.Coerce
-import Type hiding (pprTyThing)  
+import Type
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 

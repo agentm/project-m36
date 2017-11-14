@@ -5,7 +5,7 @@ import ProjectM36.Relation
 import ProjectM36.Error
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
-import Control.Monad.State hiding (join)
+import Control.Monad.State
 import Data.Either (rights, lefts)
 import Control.Monad.Trans.Reader
 import qualified Data.Map as M

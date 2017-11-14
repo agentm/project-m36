@@ -21,7 +21,7 @@ import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
 
-import Control.Monad.State hiding (join)
+import Control.Monad.State
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
