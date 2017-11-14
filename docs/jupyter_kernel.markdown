@@ -4,6 +4,8 @@
 
 [The Jupyter Notebook](https://jupyter-notebook.readthedocs.io/en/stable/notebook.html) is web-based tool for experimenting with various languages. Project:M36 offers a Jupyter kernel for the TutorialD interpreter.
 
+The kernel automatically starts and stops its own websocket-server-based database and offers no filesystem persistence, which is similar to other jupyter kernels.
+
 ## Installation
 
 To install the `tutd` kernel:
@@ -29,6 +31,16 @@ Available kernels:
   python2    ...
   tutd       ...
 ```
+
+* add `project-m36-server` to `PATH` environment variable
+
+```
+$ export PATH=$PATH:<path/to/project-m36-websocket-server>
+$ which project-m36-websocket-server
+/path/to/project-m36-websocket-server
+```
+
+From within this python virtual environment, you can now start jupyter with TutorialD support.
 
 ## Usage
 
