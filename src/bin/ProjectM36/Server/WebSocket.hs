@@ -50,7 +50,7 @@ websocketProxyServer port host pending = do
                       msg <- WS.receiveData conn :: IO T.Text
                       case parseOnly parseExecuteMessage msg of
                         Left _ -> unexpectedMsg
-                        Right (presentation, tutdString) -> do
+                        Right (presentation, tutdString) ->
                           case parseTutorialD tutdString of
                             Left err -> handleOpResult conn dbconn presentation (DisplayErrorResult ("parse error: " `T.append` T.pack (parseErrorPretty err)))
                             Right parsed -> do
@@ -82,25 +82,16 @@ handleOpResult conn db _ QuitResult = WS.sendClose conn ("close" :: T.Text) >> c
 handleOpResult conn  _ _ (DisplayResult out) = WS.sendTextData conn (encode (object ["display" .= out]))
 handleOpResult _ _ _ (DisplayIOResult ioout) = ioout
 handleOpResult conn _ presentation (DisplayErrorResult err) = do
-  let jsono = if jsonPresentation presentation then
-                ["json" .= err] else []
-      texto = if textPresentation presentation then
-                ["text" .= err] else []
-      htmlo = if textPresentation presentation then
-                ["html" .= err] else []
+  let jsono = ["json" .= err | jsonPresentation presentation]
+      texto = ["text" .= err | textPresentation presentation]
+      htmlo = ["html" .= err | htmlPresentation presentation]
   WS.sendTextData conn (encode (object ["displayerror" .= object (jsono ++ texto ++ htmlo)]))
 handleOpResult conn _ _ (DisplayParseErrorResult _ err) = WS.sendTextData conn (encode (object ["displayparseerrorresult" .= show err]))
 handleOpResult conn _ _ QuietSuccessResult = WS.sendTextData conn (encode (object ["acknowledged" .= True]))
 handleOpResult conn _ presentation (DisplayRelationResult rel) = do
-  let jsono = if jsonPresentation presentation then 
-               ["json" .= rel]
-               else []
-      texto = if textPresentation presentation then
-               ["text" .= showRelation rel]
-               else []
-      htmlo = if htmlPresentation presentation then
-               ["html" .= relationAsHTML rel]
-               else []
+  let jsono = ["json" .= rel | jsonPresentation presentation]
+      texto = ["text" .= showRelation rel | textPresentation presentation]
+      htmlo = ["html" .= relationAsHTML rel | htmlPresentation presentation]
   WS.sendTextData conn (encode (object ["displayrelation" .= object (jsono ++ texto ++ htmlo)]))
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
