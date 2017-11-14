@@ -5,6 +5,8 @@ import ProjectM36.Server.WebSocket
 import ProjectM36.Server.Config
 import ProjectM36.Server
 import ProjectM36.Client
+import ProjectM36.Base
+
 import Network.Socket
 import Control.Exception
 import Control.Concurrent
@@ -12,7 +14,6 @@ import System.Exit
 import Data.Typeable
 import Data.Text hiding (map)
 import Data.Aeson
-import ProjectM36.Base
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
@@ -90,14 +91,16 @@ testTutorialD port dbname = TestCase $ basicConnectionWithDatabase port dbname t
       
     testtutd conn = do
       discardPromptInfo conn
-      WS.sendTextData conn ("executetutd:" `append` ":showexpr true")
+      WS.sendTextData conn ("executetutd/json:" `append` ":showexpr true")
       discardPromptInfo conn
       discardPromptInfo conn
       
       --receive relation response
       response <- WS.receiveData conn :: IO BS.ByteString      
-      let decoded = decode response :: Maybe (M.Map Text Relation)
-      
-      case decoded of
-        Just val -> assertEqual "round-trip true relation" (M.lookup "displayrelation" val) (Just relationTrue) >> WS.sendClose conn ("test close"::Text)
-        Nothing -> assertFailure ("failed to decode relation from: " ++ show response)
+      let decoded = decode response :: Maybe (M.Map Text (M.Map Text Relation))
+      case decoded of 
+        Nothing -> assertFailure "failed to decode"
+        Just decoded' -> do
+            assertEqual "round-trip true relation" ((decoded' M.! "displayrelation") M.! "json") relationTrue 
+            WS.sendClose conn ("test close" :: Text)
+
