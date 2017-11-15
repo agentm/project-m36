@@ -28,10 +28,16 @@ class ITutorialDKernel(Kernel):
         port = 63000
         dbname = 'jupyter'
         if not self.dbserver:
-            self.dbserver = subprocess.Popen(['project-m36-websocket-server',
-                                              '--database', dbname,
-                                              '--port', str(port)], 
-                                         )
+            try:
+                self.dbserver = subprocess.Popen(['project-m36-websocket-server',
+                                                  '--database', dbname,
+                                                  '--port', str(port)], 
+                                                 )
+            except OSError as err:
+                if err.errno == errno.ENOENT:
+                    return ({'displayerror':{'html':'"project-m36-websocket-server" is not in the PATH environment variable and could not be started.'}}, None)
+                else:
+                    raise
         if not self.ws:
             attempts = 0
             while 1:
@@ -72,6 +78,13 @@ class ITutorialDKernel(Kernel):
                 if 'promptInfo' not in msg:
                     return msg
 
+    def send_error(self, msg):
+        stream_content = {'ename':'TutorialDError',
+                          'traceback':[msg],
+                          'evalue':''}
+        self.send_response(self.iopub_socket, 'error', stream_content)
+        
+
     def do_execute(self, code, silent, 
                    store_history=True,
                    user_expressions=False,
@@ -80,11 +93,7 @@ class ITutorialDKernel(Kernel):
         if not silent:
             if err:
                 status = 'error'
-                stream_content = {'ename':'TutorialDError',
-                                  'traceback':[err['displayerror']['html']],
-                                  'ename':'TutorialDError',
-                                  'evalue':''}
-                self.send_response(self.iopub_socket, 'error', stream_content)
+                self.send_error(err['displayerror']['html'])
             else:
                 status = 'ok'
                 display_content = {
