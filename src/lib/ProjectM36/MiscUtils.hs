@@ -7,3 +7,9 @@ dupes [_] = []
 dupes [x,y] = [x | x == y]
 dupes (x:y:xs) = dupes(x:[y]) ++ dupes(y : xs)
 
+--Data.Vector.indexed but for lists
+indexed :: [a] -> [(Int, a)]
+indexed ls = go 0 ls
+  where
+    go _ [] = []
+    go i (v:ys) = (i,v):(go (i+1) ys)
