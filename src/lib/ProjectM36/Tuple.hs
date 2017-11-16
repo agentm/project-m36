@@ -29,6 +29,14 @@ tupleAttributes (RelationTuple tupAttrs _) = tupAttrs
 tupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
 tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
 
+orderedTupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
+orderedTupleAssocs tup@(RelationTuple attrVec _) = map (\attr -> (attributeName attr, atomForAttr (attributeName attr))) oAttrs
+  where
+    oAttrs = orderedAttributes attrVec
+    atomForAttr nam = case atomForAttributeName nam tup of
+      Left _ -> TextAtom "<?>"
+      Right val -> val
+
 -- return atoms in some arbitrary but consistent key order
 tupleAtoms :: RelationTuple -> V.Vector Atom
 tupleAtoms (RelationTuple _ tupVec) = tupVec
@@ -145,10 +153,6 @@ tupleAtomExtend :: AttributeName -> Atom -> RelationTuple -> RelationTuple
 tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
   where
     newTup = RelationTuple (V.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
-
-{- sort the associative list to match the header sorting -}
-tupleSortedAssocs :: RelationTuple -> [(AttributeName, Atom)]
-tupleSortedAssocs (RelationTuple tupAttrs tupVec) = V.toList $ V.map (\(index,attr) -> (attributeName attr, tupVec V.! index)) $ V.indexed tupAttrs
 
 --this could be cheaper- it may not be wortwhile to update all the tuples for projection, but then the attribute management must be slightly different- perhaps the attributes should be a vector of association tuples [(name, index)]
 tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple

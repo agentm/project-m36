@@ -15,3 +15,7 @@ nextsteps
 view-system-notes
 persistence-notes
 *.pyc
+jupyter/itutd.egg-info
+jupyter/build
+juyter/dist
+.ipynb_checkpoints
