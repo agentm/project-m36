@@ -13,7 +13,7 @@ To install the `tutd` kernel:
 * install the `itutd` module into your jupyter virtual environment:
 ```
 $ cd project-m36/jupyter/itutd
-$ python setup.py install    
+$ pip install .
 ```
 
 * install `kernel.json`:
