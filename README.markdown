@@ -50,7 +50,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 1. [Installation and Introduction to Project:M36](docs/introduction_to_projectm36.markdown)
 1. [Introduction to the Relational Algebra](docs/introduction_to_the_relational_algebra.markdown)
-1. [TutorialD via Jupyter Notebook Walkthrough](jupyter/TutorialD Notebook Walkthrough.markdown)
+1. [TutorialD via Jupyter Notebook Walkthrough](jupyter/TutorialD%20Notebook%20Walkthrough.markdown)
 1. [TutorialD Tutorial](docs/tutd_tutorial.markdown)
 1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Developer's Change Log](Changelog.markdown)
