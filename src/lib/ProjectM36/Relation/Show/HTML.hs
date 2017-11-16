@@ -30,7 +30,9 @@ writeRel = writeHTML . relationAsHTML
 tupleAsHTML :: RelationTuple -> Text
 tupleAsHTML tuple = "<tr>" `append` T.concat (L.map tupleFrag (tupleAssocs tuple)) `append` "</tr>"
   where
-    tupleFrag tup = "<td>" `append` atomToText (snd tup) `append` "</td>"
+    tupleFrag tup = "<td>" `append` atomAsHTML (snd tup) `append` "</td>"
+    atomAsHTML (RelationAtom rel) = relationAsHTML rel
+    atomAsHTML atom = atomToText atom
 
 tupleSetAsHTML :: RelationTupleSet -> Text
 tupleSetAsHTML tupSet = foldr folder "" (asList tupSet)
