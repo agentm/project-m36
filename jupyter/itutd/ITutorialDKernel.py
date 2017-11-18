@@ -1,6 +1,6 @@
 from ipykernel.kernelbase import Kernel
 import subprocess
-from websocket import create_connection, WebSocketConnectionClosedException
+from websocket import create_connection, WebSocketConnectionClosedException, WebSocketBadStatusException
 import time
 import select
 import json
@@ -42,7 +42,7 @@ class ITutorialDKernel(Kernel):
                     raise
             res = self.connect_ws('ws://127.0.0.1:63000', dbname, retries=10)
             if res:
-                return ('Connection attempt failed.', None)
+                return ('Connection failed: {}'.format(res), None)
 
         self.ws.send('executetutd/html+text:' + tutd)
         try:
@@ -70,6 +70,8 @@ class ITutorialDKernel(Kernel):
                     retries -= 1
                 else:
                     raise
+            except WebSocketBadStatusException:
+                return 'Failed to negotiate websocket connection.'
             else:
                 break
         self.ws = ws
