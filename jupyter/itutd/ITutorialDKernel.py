@@ -64,7 +64,7 @@ class ITutorialDKernel(Kernel):
                 ws = create_connection(url)
             except socket.error as err:
                 if err.errno in (errno.ECONNREFUSED, ):
-                    time.sleep(0.3)
+                    time.sleep(1.0)
                     if retries == 0:
                         return 'Failed to connect to websocket.'
                     retries -= 1
@@ -141,10 +141,13 @@ class ITutorialDKernel(Kernel):
                     'transient':{}
                     }
                 self.send_response(self.iopub_socket, 'display_data', display_content)
-            return {'status': status,
+            ret ={'status': status,
                         'execution_count': self.execution_count,
                         'payload':[payload],
                         'user_expressions':{}}
+            if payload:
+                ret['payload'] = [payload]
+            return ret
 
     def do_shutdown(self, restart):
         if self.dbserver:
