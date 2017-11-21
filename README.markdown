@@ -94,6 +94,6 @@ Project:M36 is developed in Haskell and compiled with GHC 7.10 or GHC 8.0.2 or l
 
 ## Suggested Reading
 
-* [Out of the Tarpit](http://shaffner.us/cs/papers/tarpit.pdf): a proposed software architecture which minimizes state and complexity. Project:M36 implements the requirements of this paper.
+* [Out of the Tarpit](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf): a proposed software architecture which minimizes state and complexity. Project:M36 implements the requirements of this paper.
 * [Database Design & Relational Theory: Normal Forms and All That Jazz](http://shop.oreilly.com/product/0636920025276.do): mathematical foundations for the principles of the relational algebra
 * [Database Explorations: Essays on the Third Manifesto and Related Topics](http://bookstore.trafford.com/Products/SKU-000177853/Database-Explorations.aspx): additional essays and debates on practical approaches to relational algebra engine design
