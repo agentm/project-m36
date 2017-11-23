@@ -12,6 +12,7 @@ import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
+import ProjectM36.MiscUtils
 --import qualified Control.Parallel.Strategies as P
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
@@ -19,6 +20,7 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
+import Data.List (sort)
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -44,12 +46,17 @@ emptyRelationWithAttrs :: Attributes -> Relation
 emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelation attrs tupleSet = 
-  --check that all tuples have the same keys
-  --check that all tuples have keys (1-N) where N is the attribute count
-  case verifyTupleSet attrs tupleSet of
-    Left err -> Left err
-    Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
+mkRelation attrs tupleSet =
+  --check that all attributes are unique- this cannot be done when creating attributes because the check can become expensive
+  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList attrs))) in
+  if not (null duplicateAttrNames) then
+    Left (DuplicateAttributeNamesError (S.fromList duplicateAttrNames))
+    else
+    --check that all tuples have the same keys
+    --check that all tuples have keys (1-N) where N is the attribute count
+    case verifyTupleSet attrs tupleSet of
+      Left err -> Left err
+      Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
     
 --less safe version of mkRelation skips verifyTupleSet
 --useful for infinite or thunked tuple sets
