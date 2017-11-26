@@ -2,11 +2,11 @@
 
 ## Introduction
 
-[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) written in the Haskell programming language whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](http://shaffner.us/cs/papers/tarpit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper.
+[Project:M36](https://github.com/agentm/project-m36) is a relational algebra database management system (RDBMS) written in the Haskell programming language whose purpose is to implement the foundation for functional relational programming as described in the excellent paper ["Out of the Tarpit"](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf). This document describes how Project:M36 meets the design goals laid out in the paper.
 
 ## Why is "Out of the Tarpit" Important?
 
-The "Out of the Tarpit" paper, written in 2006, consolidates decades of software development research and experience to explain why software written today is chock-full of software bugs. The paper categorizes sources of complexity and then proceeds to propose a software architecture which promises to reduce unnecessary software complexity so that the resultant software is maximally focused on actual business rules. It is recommended to read [the paper](http://shaffner.us/cs/papers/tarpit.pdf) before reading the remainder of this document.
+The "Out of the Tarpit" paper, written in 2006, consolidates decades of software development research and experience to explain why software written today is chock-full of software bugs. The paper categorizes sources of complexity and then proceeds to propose a software architecture which promises to reduce unnecessary software complexity so that the resultant software is maximally focused on actual business rules. It is recommended to read [the paper](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf) before reading the remainder of this document.
 
 ## Laying the Foundations for Reduced Complexity
 
@@ -21,14 +21,14 @@ The central software component of functional-relational programming is a relatio
 * **declarative**: thus removing accidental complexity (such as accidental ordering)
 * **restricted**: removing mistaken features; if a programming language allows a programmer to do something less-than-savory, then that misfeature will be used
 
-and provides ([p.37](http://shaffner.us/cs/papers/tarpit.pdf)):
+and provides ([p.37](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf)):
 
 * **structure**: a closed world system whereby all data is represented by relations
 * **manipulation**: a means to simulate mutation of the application state over time
 * **data integrity**: constraints which prevent illogical data constructions
 * **data independence**: logical and physical representations of state which are clearly separated
 
-The relational model is a mathematical model for storing and manipulating "essential state" ([p.25](http://shaffner.us/cs/papers/tarpit.pdf)). As a mathematical model, it not beholden to any specific implementation or quirks.
+The relational model is a mathematical model for storing and manipulating "essential state" ([p.25](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf)). As a mathematical model, it not beholden to any specific implementation or quirks.
 
 Unfortunately, due to the quirks of legacy implementations, much of what developers learn about the relational model is [wrong](/docs/on_null.markdown). Project:M36 aims to rectify this situation by providing a mathematically coherent implementation of the relational model. Contrast the mathematical approach to existing databases which sacrifice or elide a mathematical model in lieu of "performance". Refer to [Knuth on premature optimization](https://en.wikiquote.org/wiki/Donald_Knuth) for additional details.
 
@@ -70,7 +70,7 @@ TutorialD (master/main): :showexpr p
 
 ### Infrastructure Requirements
 
-Project:M36 meets or exceeds the enumerated "Infrastructure" ([p.47](http://shaffner.us/cs/papers/tarpit.pdf)) requirements (except one):
+Project:M36 meets or exceeds the enumerated "Infrastructure" ([p.47](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf)) requirements (except one):
 
 * **Infrastructure for Essential State**: relation variable manipulation, storage, and data types
 * **Infrastructure for Essential Logic**: relational expression evaluation, functions to operate on values, a language (TutorialD or Haskell), type inference, and constraints
@@ -82,7 +82,7 @@ Derived relations, as described in the paper, are not supported in Project:M36 b
 
 ### Feeders and Observers
 
-The "Out of the Tarpit" paper distinguishes between pushing data to the database and pulling data out of the database ([p.46](http://shaffner.us/cs/papers/tarpit.pdf)): "feeders" continually update the state of the database to best reflect reality and "observers" request notifications on relational state changes and take action on them.
+The "Out of the Tarpit" paper distinguishes between pushing data to the database and pulling data out of the database ([p.46](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf)): "feeders" continually update the state of the database to best reflect reality and "observers" request notifications on relational state changes and take action on them.
 
 SQL developers are already intimately familiar with "feeders"- these are merely INSERT and UPDATE statements issued to the database via some middleware.
 

@@ -99,9 +99,12 @@ matchingAttributeNameSet = S.intersection
 attributeNamesNotContained :: S.Set AttributeName -> S.Set AttributeName -> S.Set AttributeName
 attributeNamesNotContained subset superset = S.filter (`S.notMember` superset) subset
 
--- this is sorted so the tuples know in which order to output- the ordering is arbitrary
-sortedAttributeNameList :: S.Set AttributeName -> [AttributeName]
-sortedAttributeNameList attrNameSet= L.sort $ S.toList attrNameSet
+-- useful for display
+orderedAttributes :: Attributes -> [Attribute]
+orderedAttributes attrs = L.sortBy (\a b -> attributeName a `compare` attributeName b) (V.toList attrs)
+
+orderedAttributeNames :: Attributes -> [AttributeName]
+orderedAttributeNames attrs = map attributeName (orderedAttributes attrs)
 
 -- take two attribute sets and return an attribute set with the attributes which do not match
 attributesDifference :: Attributes -> Attributes -> Attributes

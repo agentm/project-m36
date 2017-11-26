@@ -82,7 +82,7 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 
     if(relation)
     {
-        this.statuscallback(new ProjectM36Status(relation, null, null));
+        this.statuscallback(new ProjectM36Status(relation['json'], null, null));
     }
     
     if(acknowledged)
@@ -96,7 +96,7 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 	{
 	    error=error.tag; // for error objects
 	}
-	this.statuscallback(new ProjectM36Status(null, null, error));
+	this.statuscallback(new ProjectM36Status(null, null, error['json']));
     }
 
     if(prompt)
@@ -117,7 +117,7 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 */
 ProjectM36Connection.prototype.executeTutorialD = function(tutd)
 {
-    this.socket.send("executetutd:" + tutd);
+    this.socket.send("executetutd/json:" + tutd);
 }
 
 /**

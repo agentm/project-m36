@@ -14,6 +14,7 @@ import Control.Exception
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
+                     | DuplicateAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNamesMismatchError (S.Set AttributeName)

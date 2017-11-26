@@ -6,6 +6,7 @@ import Text.Megaparsec
 import ProjectM36.TransactionGraph hiding (autoMergeToHead)
 import ProjectM36.Client
 import ProjectM36.Base
+import Data.Functor
 
 data ConvenienceTransactionGraphOperator = AutoMergeToHead MergeStrategy HeadName
                                          deriving (Show)
@@ -62,7 +63,7 @@ showGraphP = do
   return ShowGraph
   
 mergeTransactionStrategyP :: Parser MergeStrategy
-mergeTransactionStrategyP = (reserved "union" *> pure UnionMergeStrategy) <|>
+mergeTransactionStrategyP = (reserved "union" $> UnionMergeStrategy) <|>
                             (do
                                 reserved "selectedbranch"
                                 branch <- identifier

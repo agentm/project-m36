@@ -737,7 +737,7 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
     if expectedArgCount /= actualArgCount then
       throwE (FunctionArgumentCountMismatchError expectedArgCount actualArgCount)
       else do
-      _ <- mapM (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
+      mapM_ (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
       evaldArgs <- mapM (liftE . evalAtomExpr tupIn) arguments
       case evalAtomFunction func evaldArgs of
         Left err -> throwE (AtomFunctionUserError err)

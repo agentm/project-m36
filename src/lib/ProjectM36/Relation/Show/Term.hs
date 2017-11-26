@@ -8,7 +8,6 @@ import ProjectM36.Relation
 import ProjectM36.Attribute hiding (null)
 import qualified Data.List as L
 import qualified Data.Text as T
-import qualified Data.Vector as V
 import Control.Arrow hiding (left)
 
 boxV :: StringType
@@ -84,8 +83,8 @@ cellSizes (header, body) = map (map maxRowWidth &&& map (length . breakLines)) a
 relationAsTable :: Relation -> Table
 relationAsTable rel@(Relation _ tupleSet) = (header, body)
   where
-    oAttrs = orderedAttributes rel
-    oAttrNames = orderedAttributeNames rel
+    oAttrs = orderedAttributes (attributes rel)
+    oAttrNames = orderedAttributeNames (attributes rel)
     header = map prettyAttribute oAttrs
     body :: [[Cell]]
     body = L.foldl' tupleFolder [] (asList tupleSet)
@@ -142,12 +141,6 @@ renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
     renderRows = T.concat (map (\(row, rowHeight)-> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
     rowHeightMatrix = zip cellMatrix (tail rowLocations)
     renderBottomBar = renderHBar boxBL boxBB boxBR columnLocations
-
-orderedAttributes :: Relation -> [Attribute]
-orderedAttributes rel = L.sortBy (\a b -> attributeName a `compare` attributeName b) (V.toList (attributes rel))
-
-orderedAttributeNames :: Relation -> [AttributeName]
-orderedAttributeNames rel = map attributeName (orderedAttributes rel)
 
 repeatString :: Int -> StringType -> StringType
 repeatString c s = T.concat (replicate c s)

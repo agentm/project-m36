@@ -110,7 +110,7 @@ import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
-import ProjectM36.Attribute hiding (atomTypes)
+import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock

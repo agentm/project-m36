@@ -164,7 +164,7 @@ validateGraph graph@(TransactionGraph _ transSet) = do
   --uuids = map transactionId transSet
   --check that all heads appear in the transSet
   --check that all forward and backward links are in place
-  _ <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
+  mapM_ (walkParentTransactions S.empty graph) (S.toList transSet)
   mapM (walkChildTransactions S.empty graph) (S.toList transSet)
 
 --verify that all parent links exist and that all children exist

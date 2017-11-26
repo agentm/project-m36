@@ -2,11 +2,9 @@
 --cross-platform file locking utilizing POSIX file locking on Unix/Linux and Windows file locking
 --hackage's System.FileLock doesn't support POSIX advisory locks nor locking file based on file descriptors, hence this needless rewrite
 module ProjectM36.FileLock where
-import System.IO
 
 
 #if defined(mingw32_HOST_OS)
-import ProjectM36.Win32Handle
 import System.Win32.Types
 import Foreign.Marshal.Alloc
 import System.Win32.File
@@ -30,10 +28,10 @@ openLockFile :: FilePath -> IO LockFile
 openLockFile path = createFile path 
                     (gENERIC_READ .|. gENERIC_WRITE)
                     (fILE_SHARE_READ .|. fILE_SHARE_WRITE)
-                    nullPtr
+                    Nothing
                     oPEN_ALWAYS
                     fILE_ATTRIBUTE_NORMAL
-                    nullPtr
+                    Nothing
 
 closeLockFile :: LockFile -> IO ()
 closeLockFile file = do
@@ -73,6 +71,7 @@ unlockFile winHandle = do
 import qualified System.Posix.IO as P
 import System.Posix.Types
 import System.Posix.Files
+import System.IO
 
 lockStruct :: P.LockRequest -> P.FileLock
 lockStruct req = (req, AbsoluteSeek, 0, 0)

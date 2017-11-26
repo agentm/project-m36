@@ -3,6 +3,8 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
+import ProjectM36.TupleSet
+import ProjectM36.Attribute hiding (null, attributeNames)
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.Tuple
@@ -22,7 +24,9 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "suppliers" suppliersRel,
                      testRelation "products" productsRel,
                      testRelation "supplierProducts" supplierProductsRel,
-                     testMkRelationFromExprsBadAttrs]
+                     testMkRelationFromExprsBadAttrs,
+                     testDuplicateAttributes
+                    ]
 
 main :: IO ()           
 main = do 
@@ -93,3 +97,10 @@ testMkRelationFromExprsBadAttrs = TestCase $ do
   case runReader (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"
+
+--creating an empty relation with duplicate attribute names should fail
+testDuplicateAttributes :: Test
+testDuplicateAttributes = TestCase $ do
+  let eRel = mkRelation attrs emptyTupleSet
+      attrs = attributesFromList [Attribute "a" IntAtomType, Attribute "a" TextAtomType]
+  assertEqual "duplicate attribute names" (Left (DuplicateAttributeNamesError (S.singleton "a"))) eRel

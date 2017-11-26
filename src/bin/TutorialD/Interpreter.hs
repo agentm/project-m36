@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, LambdaCase #-}
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
@@ -245,7 +245,7 @@ reprLoop config sessionId conn = do
   eHeadName <- C.headName sessionId conn
   eSchemaName <- C.currentSchemaName sessionId conn
   let prompt = promptText eHeadName eSchemaName
-      catchInterrupt = handleJust (\exc -> case exc of
+      catchInterrupt = handleJust (\case
                                       UserInterrupt -> Just Nothing
                                       _ -> Nothing) (\_ -> do
                                                         hPutStrLn stderr "Statement cancelled. Use \":quit\" to exit tutd."
