@@ -3,12 +3,14 @@ import ProjectM36.Base
 import ProjectM36.RelationalExpression
 import ProjectM36.Relation
 import ProjectM36.Error
+import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import Control.Monad.State hiding (join)
 import Data.Either (rights, lefts)
 import Control.Monad.Trans.Reader
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 -- apply optimizations which merely remove steps to become no-ops: example: projection of a relation across all of its attributes => original relation
@@ -22,7 +24,7 @@ applyStaticRelationalOptimization e@(MakeRelationFromExprs _ _) = pure $ Right e
 applyStaticRelationalOptimization e@(ExistingRelation _) = pure $ Right e
 
 applyStaticRelationalOptimization e@(RelationVariable _ _) = pure $ Right e
-
+  
 --remove project of attributes which removes no attributes
 applyStaticRelationalOptimization (Project attrNameSet expr) = do
   relType <- typeForRelationalExpr expr
@@ -37,7 +39,7 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
         optimizedSubExpression <- applyStaticRelationalOptimization expr 
         case optimizedSubExpression of
           Left err -> pure $ Left err
-          Right optSubExpr -> pure $ Right $ Project attrNameSet optSubExpr
+          Right optSubExpr -> applyStaticJoinElimination (Project attrNameSet optSubExpr)
                            
 applyStaticRelationalOptimization (Union exprA exprB) = do
   eOptExprA <- applyStaticRelationalOptimization exprA
@@ -301,3 +303,54 @@ isStaticAtomExpr ConstructedAtomExpr{} = True
 isStaticAtomExpr AttributeAtomExpr{} = False
 isStaticAtomExpr FunctionAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
+
+--if the projection of a join only uses the attributes from one of the expressions and there is a foreign key relationship between the expressions, we know that the join is inconsequential and can be removed
+applyStaticJoinElimination :: RelationalExpr -> RelationalExprState (Either RelationalError RelationalExpr)
+applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
+  eProjType <- typeForRelationalExpr expr
+  eTypeA <- typeForRelationalExpr exprA
+  eTypeB <- typeForRelationalExpr exprB
+  case eProjType of
+    Left err -> pure (Left err)
+    Right projType -> 
+      case eTypeA of 
+        Left err -> pure (Left err)
+        Right typeA -> 
+          case eTypeB of
+            Left err -> pure (Left err)
+            Right typeB -> do
+              let matchesProjectionAttributes = if attrNames projType `S.isSubsetOf` attrNames typeA then
+                                                  Just ((exprA, typeA), (exprB, typeB))
+                                                else if attrNames projType `S.isSubsetOf` attrNames typeB then
+                                                       Just ((exprB, typeB), (exprA, typeA))
+                                                     else 
+                                                       Nothing
+                  attrNames = A.attributeNameSet . attributes
+              case matchesProjectionAttributes of
+                Nothing ->  -- this optimization does not apply
+                  pure (Right expr)
+                Just ((joinedExpr, joinedType), (unjoinedExpr, _)) -> do
+                  --scan inclusion dependencies for a foreign key relationship
+                  incDeps <- inclusionDependencies . stateElemsContext <$> ask
+                  let fkConstraint = foldM isFkConstraint False incDeps
+                      --search for matching fk constraint
+                      isFkConstraint acc (InclusionDependency (Project subattrNames subrv) (Project _ superrv)) = 
+                        case AS.projectionAttributesForAttributeNames (attributes projType) subattrNames of
+                          Left _ -> pure acc
+                          Right subAttrs -> 
+                            pure (acc || (joinedExpr == subrv &&
+                                          unjoinedExpr == superrv && 
+                                          -- the fk attribute is one of the projection attributes
+                                          A.attributesContained subAttrs (attributes joinedType)
+                                ))
+                      isFkConstraint acc _ = pure acc
+                  case fkConstraint of
+                    Right True -> --join elimination optimization applies
+                      applyStaticRelationalOptimization (Project attrNameSet joinedExpr)
+                    Right False -> --join elimination optimization does not apply
+                      pure (Right expr)
+                    Left err -> 
+                      pure (Left err)
+          
+applyStaticJoinElimination expr = pure (Right expr)      
+                                                                              

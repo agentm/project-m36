@@ -39,12 +39,15 @@ databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvNam
 
 -- | Create a foreign key constraint from the first relation variable and attributes to the second.
 databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
-databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) = 
-  AddInclusionDependency fkName (InclusionDependency 
-                                 (renameIfNecessary attrsB attrsA (Project (attrsL attrsA)
-                                  (RelationVariable rvA ())))
-                                 (Project (attrsL attrsB) 
-                                  (RelationVariable rvB ())))
+databaseContextExprForForeignKey fkName infoA infoB =
+  AddInclusionDependency fkName (inclusionDependencyForForeignKey infoA infoB)
+  
+inclusionDependencyForForeignKey :: (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> InclusionDependency
+inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
+  InclusionDependency (
+    renameIfNecessary attrsB attrsA (Project (attrsL attrsA)
+                                     (RelationVariable rvA ()))) (
+    Project (attrsL attrsB) (RelationVariable rvB ()))
   where
     attrsL = AttributeNames . S.fromList    
     renameIfNecessary attrsExpected attrsExisting expr = foldr folder expr (zip attrsExpected attrsExisting)
@@ -52,3 +55,13 @@ databaseContextExprForForeignKey fkName (rvA, attrsA) (rvB, attrsB) =
                                                    expr
                                                  else
                                                    Rename attrExisting attrExpected expr
+
+-- if the constraint is a foreign key constraint, then return the relations and attributes involved - this only detects foreign keys created with `databaseContextExprForForeignKey`
+isForeignKeyFor :: InclusionDependency -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> Bool
+isForeignKeyFor incDep infoA infoB = incDep == checkIncDep
+  where
+    checkIncDep = inclusionDependencyForForeignKey infoA infoB
+
+
+
+
