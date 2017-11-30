@@ -13,6 +13,19 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
+optimizeRelationalExpr :: DatabaseContext -> RelationalExpr -> Either RelationalError RelationalExpr
+optimizeRelationalExpr context expr = runReader (optimizeRelationalExprReader expr) (mkRelationalExprState context)
+              
+optimizeRelationalExprReader :: RelationalExpr -> RelationalExprState (Either RelationalError RelationalExpr)              
+optimizeRelationalExprReader expr = do
+  eOptExpr <- applyStaticRelationalOptimization expr
+  case eOptExpr of
+    Left err -> pure (Left err)
+    Right optExpr -> do
+      applyStaticJoinElimination (applyStaticRestrictionPushdown (applyStaticRestrictionCollapse optExpr))
+
+optimizeDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
+optimizeDatabaseContextExpr context dbExpr = evalState (applyStaticDatabaseOptimization dbExpr) (freshDatabaseState context)
 -- apply optimizations which merely remove steps to become no-ops: example: projection of a relation across all of its attributes => original relation
 
 --should optimizations offer the possibility to pure errors? If they perform the up-front type-checking, maybe so
@@ -39,7 +52,7 @@ applyStaticRelationalOptimization (Project attrNameSet expr) = do
         optimizedSubExpression <- applyStaticRelationalOptimization expr 
         case optimizedSubExpression of
           Left err -> pure $ Left err
-          Right optSubExpr -> applyStaticJoinElimination (Project attrNameSet optSubExpr)
+          Right optSubExpr -> pure (Right (Project attrNameSet optSubExpr))
                            
 applyStaticRelationalOptimization (Union exprA exprB) = do
   eOptExprA <- applyStaticRelationalOptimization exprA
@@ -129,14 +142,14 @@ applyStaticDatabaseOptimization x@(Undefine _) = pure $ Right x
 
 applyStaticDatabaseOptimization (Assign name expr) = do
   context <- getStateContext
-  let optimizedExpr = runReader (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
+  let optimizedExpr = optimizeRelationalExpr context expr
   case optimizedExpr of
     Left err -> pure $ Left err
     Right optimizedExpr2 -> pure $ Right (Assign name optimizedExpr2)
     
 applyStaticDatabaseOptimization (Insert targetName expr) = do
   context <- getStateContext
-  let optimizedExpr = runReader (applyStaticRelationalOptimization expr) (RelationalExprStateElems context)
+  let optimizedExpr = optimizeRelationalExpr context expr
   case optimizedExpr of
     Left err -> pure $ Left err
     Right optimizedExpr2 -> if isEmptyRelationExpr optimizedExpr2 then -- if we are trying to insert an empty relation, do nothing
@@ -168,7 +181,7 @@ applyStaticDatabaseOptimization (RemoveInclusionDependency name) = pure $ Right 
 
 applyStaticDatabaseOptimization (AddNotification name triggerExpr resultOldExpr resultNewExpr) = do
   context <- getStateContext
-  let eTriggerExprOpt = runReader (applyStaticRelationalOptimization triggerExpr) (RelationalExprStateElems context)
+  let eTriggerExprOpt = optimizeRelationalExpr context triggerExpr
   case eTriggerExprOpt of
          Left err -> pure $ Left err
          Right triggerExprOpt -> --it doesn't make sense to optimize queries when we don't have their proper contexts
@@ -319,12 +332,13 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
           case eTypeB of
             Left err -> pure (Left err)
             Right typeB -> do
-              let matchesProjectionAttributes = if attrNames projType `S.isSubsetOf` attrNames typeA then
-                                                  Just ((exprA, typeA), (exprB, typeB))
-                                                else if attrNames projType `S.isSubsetOf` attrNames typeB then
-                                                       Just ((exprB, typeB), (exprA, typeA))
-                                                     else 
-                                                       Nothing
+              let matchesProjectionAttributes 
+                    | attrNames projType `S.isSubsetOf` attrNames typeA =
+                      Just ((exprA, typeA), (exprB, typeB))
+                    | attrNames projType `S.isSubsetOf` attrNames typeB =
+                        Just ((exprB, typeB), (exprA, typeA))
+                    | otherwise =
+                      Nothing
                   attrNames = A.attributeNameSet . attributes
               case matchesProjectionAttributes of
                 Nothing ->  -- this optimization does not apply
@@ -354,3 +368,85 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
           
 applyStaticJoinElimination expr = pure (Right expr)      
                                                                               
+--restriction collapse converts chained restrictions into (Restrict (And pred1 pred2 pred3...))
+  --this optimization should be fairly uncontroversial- performing a tuple scan once is cheaper than twice- parallelization can still take place
+applyStaticRestrictionCollapse :: RelationalExpr -> RelationalExpr
+applyStaticRestrictionCollapse expr = 
+  case expr of
+    MakeRelationFromExprs _ _ -> expr
+    MakeStaticRelation _ _ -> expr
+    ExistingRelation _ -> expr
+    RelationVariable _ _ -> expr
+    Project attrs subexpr -> 
+      Project attrs (applyStaticRestrictionCollapse subexpr)
+    Union sub1 sub2 ->
+      Union (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)    
+    Join sub1 sub2 ->
+      Join (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
+    Rename n1 n2 sub -> 
+      Rename n1 n2 (applyStaticRestrictionCollapse sub)
+    Difference sub1 sub2 -> 
+      Difference (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
+    Group n1 n2 sub ->
+      Group n1 n2 (applyStaticRestrictionCollapse sub)
+    Ungroup n1 sub ->
+      Ungroup n1 (applyStaticRestrictionCollapse sub)
+    Equals sub1 sub2 -> 
+      Equals (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
+    NotEquals sub1 sub2 ->
+      NotEquals (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
+    Extend n sub ->
+      Extend n (applyStaticRestrictionCollapse sub)
+    Restrict firstPred _ ->
+      let restrictions = sequentialRestrictions expr
+          finalExpr = last restrictions
+          optFinalExpr = case finalExpr of
+                              Restrict _ subexpr -> applyStaticRestrictionCollapse subexpr
+                              otherExpr -> otherExpr
+          andPreds = foldr (\(Restrict subpred _) acc -> AndPredicate acc subpred) firstPred (tail restrictions) in
+      Restrict andPreds optFinalExpr
+      
+sequentialRestrictions :: RelationalExpr -> [RelationalExpr]
+sequentialRestrictions expr@(Restrict _ subexpr) = expr:sequentialRestrictions subexpr
+sequentialRestrictions _ = []
+
+--restriction pushdown only really makes sense for tuple-oriented storage schemes where performing a restriction before projection can cut down on the intermediate storage needed to store the data before the projection
+-- x{proj} where c1 -> (x where c1){proj} #project on fewer tuples
+-- (x union y) where c -> (x where c) union (y where c) #with a selective restriction, fewer tuples will need to be joined
+applyStaticRestrictionPushdown :: RelationalExpr -> RelationalExpr
+applyStaticRestrictionPushdown expr = case expr of
+  MakeRelationFromExprs _ _ -> expr
+  MakeStaticRelation _ _ -> expr
+  ExistingRelation _ -> expr
+  RelationVariable _ _ -> expr
+  Project _ _ -> expr
+  --this transformation cannot be inverted because the projection attributes might not exist in the inverted version
+  Restrict restrictAttrs (Project projAttrs subexpr) -> 
+    Project projAttrs (Restrict restrictAttrs (applyStaticRestrictionPushdown subexpr))
+  Restrict restrictAttrs (Union subexpr1 subexpr2) ->
+    let optSub1 = applyStaticRestrictionPushdown subexpr1
+        optSub2 = applyStaticRestrictionPushdown subexpr2 in
+    Union (Restrict restrictAttrs optSub1) (Restrict restrictAttrs optSub2)
+  Restrict attrs subexpr -> 
+    Restrict attrs (applyStaticRestrictionPushdown subexpr)
+    
+  Union sub1 sub2 -> 
+    Union (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  Join sub1 sub2 ->
+    Join (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  Rename n1 n2 sub ->
+    Rename n1 n2 (applyStaticRestrictionPushdown sub)
+  Difference sub1 sub2 -> 
+    Difference (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  Group n1 n2 sub ->
+    Group n1 n2 (applyStaticRestrictionPushdown sub)
+  Ungroup n1 sub ->
+    Ungroup n1 (applyStaticRestrictionPushdown sub)
+  Equals sub1 sub2 -> 
+    Equals (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  NotEquals sub1 sub2 ->
+    NotEquals (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  Extend n sub ->
+    Extend n (applyStaticRestrictionPushdown sub)
+    
+  

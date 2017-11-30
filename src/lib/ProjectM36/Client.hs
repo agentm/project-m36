@@ -542,14 +542,13 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case runReader (do
-                                           eOptExpr <- applyStaticRelationalOptimization expr''
-                                           case eOptExpr of
-                                             Left err -> pure (Left err)
-                                             Right optExpr ->
-                                               RE.evalRelationalExpr optExpr) (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
+        Right expr'' -> case optimizeRelationalExpr (Sess.concreteDatabaseContext session) expr'' of
           Left err -> pure (Left err)
-          Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+          Right optExpr -> do
+            let evald = runReader (RE.evalRelationalExpr optExpr) (RE.mkRelationalExprState (Sess.concreteDatabaseContext session))
+            case evald of
+              Left err -> pure (Left err)
+              Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
@@ -852,7 +851,7 @@ typeConstructorMapping sessionId (InProcessConnection conf) = do
       Right (session, _) -> --warning, no schema support for typeconstructors
         pure (Right (B.typeConstructorMapping (Sess.concreteDatabaseContext session)))
 typeConstructorMapping sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTypeConstructorMapping sessionId)
-
+  
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
