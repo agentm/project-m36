@@ -21,7 +21,7 @@ optimizeRelationalExprReader expr = do
   eOptExpr <- applyStaticRelationalOptimization expr
   case eOptExpr of
     Left err -> pure (Left err)
-    Right optExpr -> do
+    Right optExpr ->
       applyStaticJoinElimination (applyStaticRestrictionPushdown (applyStaticRestrictionCollapse optExpr))
 
 optimizeDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
