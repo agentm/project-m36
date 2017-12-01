@@ -1,0 +1,11 @@
+/.cabal-sandbox/
+/dist-newstyle/
+/dist/
+/dist-build/
+/.stack-work/
+/src/
+/jupyter/
+/RelatedPapers/
+/examples/
+/docs/
+/test/
