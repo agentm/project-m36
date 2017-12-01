@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Project:M36 Blog - 10 Cool Static Relational Algebra Optimizations in Project:M36</title>
+        <link rel="stylesheet" href="../css/brooklyn.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">Project:M36 Blog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    Posted on November 30, 2017
+    
+        by AgentM
+    
+</div>
+
+<h1 id="cool-static-relational-algebra-optimizations-in-projectm36">10 Cool Static Relational Algebra Optimizations in Project:M36</h1>
+<p>A few months ago, a jooq blog entry was posted called <a href="https://blog.jooq.org/2017/09/28/10-cool-sql-optimisations-that-do-not-depend-on-the-cost-model/#top3">10 Cool SQL Optimisations That do not Depend on the Cost Model</a> which covered some SQL query rewrite optimizations which can unconditionally run faster than the original query. Because these query rewrites do not require inspecting the database state (the “cost model”), the optimizations the rewrites provide are implementation independent. They are often called “static optimizations”.</p>
+<p>In this blog entry, we will cover how the same optimizations apply to the Project:M36 relational algebra engine and why adherence to the mathematical underpinnings of the relational algebra make the optimizations more obvious, easier-to-understand, and ultimately, more performant in execution.</p>
+<p>“Cost-model independent” optimizations are query rewrites which eliminate extraneous processing, implying that doing nothing is unconditionally “cheaper” (in a computation sense) than doing something. For example, in the TutorialD query <code>s where true</code>, it’s obvious that the restriction cannot actually filter out any tuples, so executing the restriction is extraneous.</p>
+<p>Let’s examine the same optimizations that the jooq blog post covered.</p>
+<h2 id="transitive-closure">1. Transitive Closure</h2>
+<p>If the relational restriction predicate <code>A</code> is identical to predicate <code>B</code>, and predicate <code>B</code> is identical to <code>C</code>, then <code>A</code> can be replaced with <code>C</code> (or vice versa). This is called the “transitive property” and can be used to replace obviously more expensive restriction predicates with cheaper versions.</p>
+<p>In general, replacing a predicate with a static value (such as a text or integer value) is cheaper than looking up a value in a tuple or executing a function. For example:</p>
+<pre><code>s where a=@b and b=300</code></pre>
+<p>is optimized to:</p>
+<pre><code>s where a=300 and b=300</code></pre>
+<p>and the Haskell code to implement this is straightforward:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">let</span> attrMap <span class="fu">=</span> findStaticRestrictionPredicates optPred <span class="kw">in</span>
+pure (<span class="dt">Right</span> (replaceStaticAtomExprs optPred attrMap))</code></pre></div>
+<p>The <a href="https://github.com/agentm/project-m36/blob/master/src/lib/ProjectM36/StaticOptimizer.hs#L297">algebraic data type manipulation</a> is elided for brevity, but it is entirely mechanical.</p>
+<h2 id="impossible-predicates">2. Impossible Predicates</h2>
+<p>When predicates are demonstrably and unconditionally false the restriction can be eliminated and replaced with an empty relation. For example, <code>s where false</code> returns the empty relation (no tuples) with the attributes of <code>s</code>.</p>
+<p>Note that this optimization is more effective in the real relational algebra when compared to SQL. In Project:M36, there is no three-valued logic involving NULL, so <code>where true</code> and <code>where false</code> are inverses and the predicate is boolean-valued.</p>
+<p>Project:M36 does not support predicates of the form “0 = 1” because such expression don’t target the relational state, so the examples in the sister blog post cannot be represented.</p>
+<p>The <a href="https://github.com/agentm/project-m36/blob/master/src/lib/ProjectM36/StaticOptimizer.hs#L118">implementation</a> is simple.</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell">    <span class="fu">|</span> isFalseExpr optimizedPredicate2 <span class="ot">-&gt;</span> <span class="kw">do</span> <span class="co">-- replace where false predicate with empty with attributes from relexpr</span>
+    attributesRel <span class="ot">&lt;-</span> typeForRelationalExpr expr
+      <span class="kw">case</span> attributesRel <span class="kw">of</span>
+        <span class="dt">Left</span> err <span class="ot">-&gt;</span> pure <span class="fu">$</span> <span class="dt">Left</span> err
+        <span class="dt">Right</span> attributesRelA <span class="ot">-&gt;</span> pure <span class="fu">$</span> <span class="dt">Right</span> <span class="fu">$</span> <span class="dt">MakeStaticRelation</span> (attributes attributesRelA) emptyTupleSet
+<span class="fu">...</span></code></pre></div>
+<h2 id="join-elimination">3. Join Elimination</h2>
+<p>If there is a foreign key constraint between a join condition and a projection on the resultant join includes the foreign key and not any attributes from the secondary relation variable, then the join can be elided. For example (from the C.J. Date relation variable examples):</p>
+<pre><code>(s join sp){s#,sname}</code></pre>
+<p>can be rewritten as</p>
+<pre><code>s{s#,sname}</code></pre>
+<p>This rewrite is valid because a foreign key constraint proves that there cannot be <code>s#</code> values in <code>sp</code> which do not already appear in <code>s</code>.</p>
+<p>The <a href="https://github.com/agentm/project-m36/blob/master/src/lib/ProjectM36/StaticOptimizer.hs#L322">implementation</a> is complicated here only because we need to confirm a specific foreign key constraint.</p>
+<h2 id="removing-silly-predicates">4. Removing Silly Predicates</h2>
+<p>In section 2, we covered <code>s where false</code>, but <code>s where true</code> is equally valid to remove. <code>s where true</code> is equivalent to <code>s</code> because the restriction is guaranteed to filter out any tuples.</p>
+<p>The <a href="https://github.com/agentm/project-m36/blob/master/src/lib/ProjectM36/StaticOptimizer.hs#L122">implementation</a> is almost trivial:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="fu">|</span> isTrueExpr optimizedPredicate2 <span class="ot">-&gt;</span> applyStaticRelationalOptimization expr <span class="co">-- remove predicate entirely</span></code></pre></div>
+<h2 id="projections-in-exists-subqueries">5. Projections in Exists Subqueries</h2>
+<p>Project:M36 doesn’t really have a notion of “subqueries” because we simply build up an algebraic data type representing the query, so it’s obvious that relational expressions can be nested, but, in the special case of existence, Project:M36 already requires a projection on empty attributes:</p>
+<pre><code>(s rename {s# as sno}) where ((sp where ^gte(@qty,400) and sno=@s#){})</code></pre>
+<p>A projection on empty attributes must either result in <code>true</code> which is the relation with no attributes and one tuple or <code>false</code> which is the relation with no attributes and zero tuples.</p>
+<p>A further optimization here could be to stop the restriction scan as soon as one tuple is found since the existence is then proven.</p>
+<h2 id="predicate-merging">6. Predicate Merging</h2>
+<p>Simple predicate merging such <code>s where true and true</code> is supported, but more complicated merges such as those shown in the sister blog post are not yet supported.</p>
+<p>The implementation is hardly worth mentioning:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">if</span> optPred1 <span class="fu">==</span> optPred2 <span class="kw">then</span>
+  pure (<span class="dt">Right</span> optPred1)
+  <span class="kw">else</span>
+  pure (<span class="dt">Right</span> (<span class="dt">AndPredicate</span> optPred1 optPred2))</code></pre></div>
+<p>A similar boolean short-circuit optimization is offered for <code>or</code> predicates.</p>
+<h2 id="provably-empty-sets">7. Provably Empty Sets</h2>
+<p>This set of optimizations uses constraints to determine if a restriction is universally true or false in order to eliminate the restriction. For example, if a constraint ensures that all values of <code>qty</code> &gt; 3, then <code>sp where @qty = 1</code> must return an empty result relation.</p>
+<p>Project:M36 does not introspect constraints for this type of optimization, but it would be fairly straightforward to implement. There are many forms of this type of optimization, so the implementation would be quite involved to be comprehensive. Project:M36 needs more work in this area.</p>
+<h2 id="check-constraints">8. CHECK constraints</h2>
+<p>Project:M36 supports a comprehensive method of constraints called “inclusion dependencies” which encompass every possible database constraint including cross-relation-variable constraints (GLOBAL constraints in SQL parlance). In addition, Project:M36 supports algebraic data types (ADTs) as values, so simulating enumerations with CHECK constraints is obviated (and antiquated).</p>
+<p>Translating the film rating example from the sister blog entry, we get:</p>
+<pre><code>data FilmRating = G | PG | PG_13 | R | NC_17
+:showexpr relation{tuple{name &quot;The Smurfs&quot;, rating G}}
+┌────────────┬──────────────────┐
+│name::Text  │rating::FilmRating│
+├────────────┼──────────────────┤
+│&quot;The Smurfs&quot;│G                 │
+└────────────┴──────────────────┘</code></pre>
+<p>This is an improvement over the SQL’s CHECK constraints example because type safety enforced by the ADT guarantees that a <code>FilmRating</code> not defined by the data type cannot even be represented, much less optimized, so the error is caught sooner.</p>
+<h2 id="unneeded-self-join">9. Unneeded Self Join</h2>
+<p>Unlike in SQL, <code>x join x</code> in Project:M36 is unconditionally <code>x</code> because Project:M36 does not use three-valued logic. More generally, <code>x</code> need not be merely a relation variable’s name but could be an entire relational expression. Thus, <code>join</code> can be used in lieu of the equality operator for relational expressions and we can safely remove it when both sides of the join are identical.</p>
+<p>Furthermore, even when the <code>join</code> conditions are not equal but reference the same relation variable, we can collapse the join plus restriction into a single restriction:</p>
+<pre><code>(x where c1) join (x where c2)</code></pre>
+<p>is equivalent to:</p>
+<pre><code>x where c1 and c2</code></pre>
+<p>Again, the Haskell implementation is completely obvious:</p>
+<div class="sourceCode"><pre class="sourceCode haskell"><code class="sourceCode haskell"><span class="kw">case</span> (optExprA, optExprB) <span class="kw">of</span>
+        (<span class="dt">Restrict</span> predA (<span class="dt">RelationVariable</span> nameA ()),
+         <span class="dt">Restrict</span> predB (<span class="dt">RelationVariable</span> nameB ())) <span class="fu">|</span> nameA <span class="fu">==</span> nameB <span class="ot">-&gt;</span> pure (<span class="dt">Right</span> (<span class="dt">Restrict</span> (<span class="dt">AndPredicate</span> predA predB) (<span class="dt">RelationVariable</span> nameA ())))
+        _ <span class="ot">-&gt;</span> <span class="kw">if</span> optExprA <span class="fu">==</span> optExprB <span class="kw">then</span> <span class="co">--A join A == A                                         </span>
+                         pure (<span class="dt">Right</span> optExprA)
+                       <span class="kw">else</span>
+                         pure (<span class="dt">Right</span> (<span class="dt">Join</span> optExprA optExprB))</code></pre></div>
+<h1 id="predicate-pushdown">10. Predicate Pushdown</h1>
+<p>This optimization is a bit more contentious, as the sister blog entry rightfully points out. In a tuple-oriented storage system, slicing tuples horizontally (restriction: <code>s where name</code>) is cheaper than slicing vertically (projection: <code>s{sname}</code>), so it makes sense to push restriction predicates “down” into projections in order to execute the restriction first.</p>
+<p>For example:</p>
+<pre><code>x{proj} where c1</code></pre>
+<p>becomes:</p>
+<pre><code>(x where c1){proj}</code></pre>
+<p>so that the projection is evaluated potentially on fewer tuples. The pushdown also works on <code>union</code>:</p>
+<pre><code>(x union y) where c</code></pre>
+<p>becomes:</p>
+<pre><code>(x where c) union (y where c)</code></pre>
+<p>so that the union can receive (maybe) fewer tuples.</p>
+<p>The implementation is almost trivial:</p>
+<pre><code>Restrict restrictAttrs (Project projAttrs subexpr) -&gt;
+  Project projAttrs (Restrict restrictAttrs (applyStaticRestrictionPushdown subexpr))</code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>This blog post is merely a follow-up to the jooq post and is not meant to be an exhaustive list of Project:M36 static optimizations. Still, this list of optimizations is a fun way of showing how easy it can be to create static optimizations for Project:M36 which throws off the crustiness of SQL (such as three-valued logic) in preference to mathematical coherence (such as set theory). This flies in the face of common database implementations approaches which veer from mathematical correctness in deference to “optimizations”. Haskell makes it easy to match optimization forms using algebraic data types while the strong mathematical underpinnings make the optimizations straightforward. We have demonstrated that the same optimization techniques are of greater benefit when the relational algebra is strictly followed.</p>
+<p>Project:M36 would benefit from many more static optimizations and other exciting features. If you interested in learning more, please <a href="https://github.com/agentm/project-m36#community">join us</a>!</p>
+
+        </div>
+
+        <div id="footer">
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
