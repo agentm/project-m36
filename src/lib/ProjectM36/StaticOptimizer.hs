@@ -350,7 +350,7 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
                   let fkConstraint = foldM isFkConstraint False incDeps
                       --search for matching fk constraint
                       isFkConstraint acc (InclusionDependency (Project subattrNames subrv) (Project _ superrv)) = 
-                        case runReader (evalAttributeNames subattrNames subrv) relState of
+                        case runReader (evalAttributeNames subattrNames expr) relState of
                           Left _ -> pure acc
                           Right subAttrNameSet -> 
                             pure (acc || (joinedExpr == subrv &&
