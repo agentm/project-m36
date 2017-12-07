@@ -149,8 +149,8 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 --algorithm: self-join with image relation
 group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
-  let nonGroupAttrNames = A.attributeNamesNotContained groupAttrNames (S.fromList (V.toList (A.attributeNames (attributes rel))))
-  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel) 
+  let nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (S.fromList (V.toList (A.attributeNames (attributes rel))))
+  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel)
   groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
