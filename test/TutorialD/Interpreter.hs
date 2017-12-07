@@ -56,7 +56,10 @@ main = do
       testIntervalAtom,
       testListConstructedAtom,
       testTypeChecker,
-      testRestrictionPredicateExprs
+      testRestrictionPredicateExprs,
+      testRelationalAttributeNames,
+      testSemijoin,
+      testAntijoin
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -505,3 +508,32 @@ testRestrictionPredicateExprs = TestCase $ do
   eRvAnd <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
   let expectedRelAnd = Right (emptyRelationWithAttrs (attributes suppliersRel))
   assertEqual "status 20 and 10" expectedRelAnd eRvAnd
+  
+testRelationalAttributeNames :: Test
+testRelationalAttributeNames = TestCase $ do
+    (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+    executeTutorialD sessionId dbconn "x:=(s join sp){all from sp}"
+    eRv <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+    case eRv of
+      Left err -> assertFailure (show err)
+      Right rel -> 
+        assertEqual "attributes from sp" (attributes supplierProductsRel) (attributes rel)
+    
+testSemijoin :: Test
+testSemijoin = TestCase $ do
+    (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+    executeTutorialD sessionId dbconn "x:=s semijoin sp"
+    executeTutorialD sessionId dbconn "y:=s where not (sname = \"Adams\")"
+    eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+    eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+    assertEqual "semijoin missing Adams" eX eY
+
+testAntijoin :: Test
+testAntijoin = TestCase $ do
+    (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+    executeTutorialD sessionId dbconn "x:=s antijoin sp"
+    executeTutorialD sessionId dbconn "y:=s where sname = \"Adams\""
+    eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+    eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+    assertEqual "antijoin only Adams" eX eY
+  
