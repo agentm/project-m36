@@ -9,7 +9,6 @@ import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
-import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.MiscUtils
@@ -94,11 +93,10 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   where
     newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
 
-project :: AttributeNames -> Relation -> Either RelationalError Relation
-project projectionAttrNames rel =
-  case AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames of
-    Left err -> Left err
-    Right newAttrs -> relFold (folder newAttrs) (Right $ Relation newAttrs emptyTupleSet) rel
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
+project attrNames rel = do
+  newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)
+  relFold (folder newAttrs) (Right $ Relation newAttrs emptyTupleSet) rel
   where
     folder newAttrs tupleToProject acc = case acc of
       Left err -> Left err
@@ -149,11 +147,11 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 -}
 
 --algorithm: self-join with image relation
-group :: AttributeNames -> AttributeName -> Relation -> Either RelationalError Relation
+group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
-  let nonGroupAttrNames = AS.invertAttributeNames groupAttrNames
-  nonGroupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) nonGroupAttrNames
-  groupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames
+  let nonGroupAttrNames = A.attributeNamesNotContained groupAttrNames (S.fromList (V.toList (A.attributeNames (attributes rel))))
+  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel) 
+  groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
@@ -274,7 +272,7 @@ toList rel = do
 imageRelationFor ::  RelationTuple -> Relation -> Either RelationalError Relation
 imageRelationFor matchTuple rel = do
   restricted <- restrictEq matchTuple rel --restrict across matching tuples
-  let projectionAttrNames = AttributeNames $ A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)
+  let projectionAttrNames = A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)
   project projectionAttrNames restricted --project across attributes not in rel
 
 --returns a relation-valued attribute image relation for each tuple in rel1

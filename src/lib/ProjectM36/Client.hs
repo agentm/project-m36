@@ -79,7 +79,7 @@ module ProjectM36.Client
        TypeConstructor(..),
        TypeConstructorDef(..),
        DataConstructorDef(..),
-       AttributeNames(..),
+       AttributeNamesBase(..),
        RelVarName,
        IncDepName,
        InclusionDependency(..),

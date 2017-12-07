@@ -71,6 +71,16 @@ attributeForName attrName attrs = case V.find (\attr -> attributeName attr == at
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just attr -> Right attr
 
+--similar to attributesForNames, but returns error if some names are missing  
+projectionAttributesForNames :: S.Set AttributeName -> Attributes -> Either RelationalError Attributes
+projectionAttributesForNames names attrsIn = 
+  if not (S.null missingNames) then
+    Left (NoSuchAttributeNamesError missingNames)
+  else
+    Right (attributesForNames names attrsIn)
+  where
+    missingNames = attributeNamesNotContained names (S.fromList (V.toList (attributeNames attrsIn)))
+
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
 attributesForNames attrNameSet = V.filter filt
   where

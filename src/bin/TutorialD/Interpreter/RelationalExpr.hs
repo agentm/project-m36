@@ -18,12 +18,13 @@ instance RelationalMarkerExpr () where
   parseMarkerP = pure ()
 
 --used in projection
-attributeListP :: Parser AttributeNames
-attributeListP = do
-  but <- try (string "all but " <* spaceConsumer) <|> string ""
-  let constructor = if but == "" then AttributeNames else InvertedAttributeNames
-  attrs <- sepBy identifier comma
-  pure $ constructor (S.fromList attrs)
+attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
+attributeListP = 
+  (reservedOp "all but" >>
+   InvertedAttributeNames . S.fromList <$> sepBy identifier comma) <|>
+  (reservedOp "all from" >>
+   RelationalExprAttributeNames <$> relExprP) <|>
+  (AttributeNames . S.fromList <$> sepBy identifier comma)
 
 makeRelationP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 makeRelationP = do
@@ -64,7 +65,7 @@ tupleAtomExprP = do
   atomExpr <- atomExprP
   pure (attributeName, atomExpr)
   
-projectP :: Parser (RelationalExprBase a  -> RelationalExprBase a)
+projectP :: RelationalMarkerExpr a => Parser (RelationalExprBase a  -> RelationalExprBase a)
 projectP = do
   attrs <- braces attributeListP
   pure $ Project attrs
@@ -88,14 +89,14 @@ renameP = do
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 whereClauseP = reservedOp "where" *> (Restrict <$> restrictionPredicateP)
 
-groupClauseP :: Parser (AttributeNames, T.Text)
+groupClauseP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a, T.Text)
 groupClauseP = do
   attrs <- braces attributeListP
   reservedOp "as"
   newAttrName <- identifier
   pure (attrs, newAttrName)
 
-groupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
+groupP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClauseP
@@ -113,7 +114,20 @@ extendP = do
   reservedOp ":"
   tupleExpr <- braces extendTupleExpressionP
   return $ Extend tupleExpr
-
+  
+semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
+semijoinP = do
+  reservedOp "semijoin" <|> reservedOp "matching"
+  pure (\exprA exprB -> 
+         Project (RelationalExprAttributeNames exprA) (Join exprA exprB))
+    
+antijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)    
+antijoinP = do
+  reservedOp "not matching" <|> reservedOp "antijoin"
+  pure (\exprA exprB ->
+         Difference exprA (
+           Project (RelationalExprAttributeNames exprA) (Join exprA exprB)))
+  
 relOperators :: RelationalMarkerExpr a => [[Operator Parser (RelationalExprBase a)]]
 relOperators = [
   [Postfix projectP],
@@ -122,6 +136,8 @@ relOperators = [
   [Postfix groupP],
   [Postfix ungroupP],
   [InfixL (reservedOp "join" >> return Join)],
+  [InfixL semijoinP],
+  [InfixL antijoinP],
   [InfixL (reservedOp "union" >> return Union)],
   [InfixL (reservedOp "minus" >> return Difference)],
   [InfixN (reservedOp "=" >> return Equals)],

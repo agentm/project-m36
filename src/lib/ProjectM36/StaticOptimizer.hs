@@ -320,6 +320,7 @@ isStaticAtomExpr RelationAtomExpr{} = False
 --if the projection of a join only uses the attributes from one of the expressions and there is a foreign key relationship between the expressions, we know that the join is inconsequential and can be removed
 applyStaticJoinElimination :: RelationalExpr -> RelationalExprState (Either RelationalError RelationalExpr)
 applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
+  relState <- ask
   eProjType <- typeForRelationalExpr expr
   eTypeA <- typeForRelationalExpr exprA
   eTypeB <- typeForRelationalExpr exprB
@@ -349,13 +350,13 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
                   let fkConstraint = foldM isFkConstraint False incDeps
                       --search for matching fk constraint
                       isFkConstraint acc (InclusionDependency (Project subattrNames subrv) (Project _ superrv)) = 
-                        case AS.projectionAttributesForAttributeNames (attributes projType) subattrNames of
+                        case runReader (evalAttributeNames subattrNames subrv) relState of
                           Left _ -> pure acc
-                          Right subAttrs -> 
+                          Right subAttrNameSet -> 
                             pure (acc || (joinedExpr == subrv &&
                                           unjoinedExpr == superrv && 
                                           -- the fk attribute is one of the projection attributes
-                                          A.attributesContained subAttrs (attributes joinedType)
+                                          A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
                                 ))
                       isFkConstraint acc _ = pure acc
                   case fkConstraint of

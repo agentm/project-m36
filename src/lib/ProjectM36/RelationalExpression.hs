@@ -14,6 +14,7 @@ import ProjectM36.DatabaseContextFunction
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Control.Exception
 import Data.Maybe
@@ -113,10 +114,14 @@ evalRelationalExpr (RelationVariable name _) = do
     Nothing -> Left $ RelVarNotDefinedError name
 
 evalRelationalExpr (Project attrNames expr) = do
-    rel <- evalRelationalExpr expr
-    case rel of
-      Right rel2 -> return $ project attrNames rel2
-      Left err -> return $ Left err
+    eAttrNameSet <- evalAttributeNames attrNames expr
+    case eAttrNameSet of
+      Left err -> pure (Left err)
+      Right attrNameSet -> do
+        rel <- evalRelationalExpr expr
+        case rel of
+          Right rel2 -> pure $ project attrNameSet rel2
+          Left err -> pure $ Left err
 
 evalRelationalExpr (Union exprA exprB) = do
   relA <- evalRelationalExpr exprA
@@ -173,11 +178,15 @@ evalRelationalExpr (Rename oldAttrName newAttrName relExpr) = do
     Right rel -> return $ rename oldAttrName newAttrName rel
     Left err -> return $ Left err
 
-evalRelationalExpr (Group oldAttrNameSet newAttrName relExpr) = do
-  evald <- evalRelationalExpr relExpr
-  case evald of
-    Right rel -> return $ group oldAttrNameSet newAttrName rel
-    Left err -> return $ Left err
+evalRelationalExpr (Group oldAttrNames newAttrName relExpr) = do
+  eOldAttrNameSet <- evalAttributeNames oldAttrNames relExpr
+  case eOldAttrNameSet of
+    Left err -> pure (Left err)
+    Right oldAttrNameSet -> do
+      evald <- evalRelationalExpr relExpr
+      case evald of
+        Right rel -> return $ group oldAttrNameSet newAttrName rel
+        Left err -> return $ Left err
 
 evalRelationalExpr (Ungroup attrName relExpr) = do
   evald <- evalRelationalExpr relExpr
@@ -870,4 +879,53 @@ evalTupleExpr attrs (TupleExpr tupMap) = do
     tup' <- either throwE pure (resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup))
     _ <- either throwE pure (validateTuple tup' tConss)
     pure tup'
+
+evalAttributeNames :: AttributeNames -> RelationalExpr -> RelationalExprState (Either RelationalError (S.Set AttributeName))
+evalAttributeNames attrNames expr = do
+  eExprType <- typeForRelationalExpr expr
+  case eExprType of
+    Left err -> pure (Left err)
+    Right exprTyp -> do
+      let typeNameSet = S.fromList (V.toList (A.attributeNames (attributes exprTyp)))
+      case attrNames of
+        AttributeNames names ->
+          case A.projectionAttributesForNames names (attributes exprTyp) of
+            Left err -> pure (Left err)
+            Right attrs -> pure (Right (S.fromList (V.toList (A.attributeNames attrs))))
+          
+        InvertedAttributeNames names -> do
+          let nonExistentAttributeNames = A.attributeNamesNotContained names typeNameSet
+          if not (S.null nonExistentAttributeNames) then
+            pure (Left (AttributeNamesMismatchError nonExistentAttributeNames))
+            else
+            pure (Right (A.nonMatchingAttributeNameSet names typeNameSet))
+        
+        UnionAttributeNames namesA namesB -> do
+          eNameSetA <- evalAttributeNames namesA expr
+          case eNameSetA of
+            Left err -> pure (Left err)
+            Right nameSetA -> do
+              eNameSetB <- evalAttributeNames namesB expr
+              case eNameSetB of
+                Left err -> pure (Left err)
+                Right nameSetB ->           
+                  pure (Right (S.union nameSetA nameSetB))
+        
+        IntersectAttributeNames namesA namesB -> do
+          eNameSetA <- evalAttributeNames namesA expr
+          case eNameSetA of
+            Left err -> pure (Left err)
+            Right nameSetA -> do
+              eNameSetB <- evalAttributeNames namesB expr
+              case eNameSetB of
+                Left err -> pure (Left err)
+                Right nameSetB ->           
+                  pure (Right (S.intersection nameSetA nameSetB))
+        
+        RelationalExprAttributeNames attrExpr -> do
+          eAttrExprType <- typeForRelationalExpr attrExpr
+          case eAttrExprType of
+            Left err -> pure (Left err)
+            Right attrExprType -> pure (Right (A.attributeNameSet (attributes attrExprType)))
+              
 
