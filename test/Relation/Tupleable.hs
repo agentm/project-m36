@@ -48,6 +48,14 @@ data Test7T = Test7C Test7A
                        
 data Test8T = Test8C                       
               deriving (Generic, Show, Eq)
+                       
+data Test9T = Test9C 
+              {                      
+                attr9A :: Integer,
+                attr9B :: T.Text,
+                attr9C :: Double
+              }
+            deriving (Generic, Show, Eq)
            
 instance Tupleable Test1T
 
@@ -65,19 +73,20 @@ instance Tupleable Test7T
 
 instance Tupleable Test8T
 
+instance Tupleable Test9T
+
 main :: IO ()
 main = do
   tcounts <- runTestTT testList
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8]
+testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr]
 
 testADT1 :: Test
 testADT1 = TestCase $ assertEqual "one record constructor" (Right example) (fromTuple (toTuple example))
   where 
     example = Test1C {attrA = 3}
-
 
 testADT2 :: Test
 testADT2 = TestCase $ do
@@ -116,4 +125,76 @@ testADT7 = TestCase $ do
 testADT8 :: Test    
 testADT8 = TestCase $ assertEqual "single value" (Right example) (fromTuple (toTuple example))
   where
-    example = Test8C    
+    example = Test8C
+    
+testInsertExpr :: Test    
+testInsertExpr = TestCase $ assertEqual "insert expr" expected (toInsertExpr [Test9C {
+                                                                                 attr9A = 4, 
+                                                                                 attr9B = "a", 
+                                                                                 attr9C = 3.4}] "rv")
+  where expected = Right (Insert "rv" (MakeStaticRelation attrs tuples))
+        attrs = attributesFromList [Attribute "attr9A" IntegerAtomType,
+                                    Attribute "attr9B" TextAtomType,
+                                    Attribute "attr9C" DoubleAtomType]
+        tuples = RelationTupleSet [RelationTuple attrs (V.fromList [IntegerAtom 4,
+                                                                    TextAtom "a",
+                                                                    DoubleAtom 3.4])]
+                 
+testDefineExpr :: Test                 
+testDefineExpr = TestCase $ assertEqual "define expr" expected actual
+  where
+    expected = Define "rv" (map NakedAttributeExpr attrs)
+    attrs = [Attribute "attr9A" IntegerAtomType,
+             Attribute "attr9B" TextAtomType,
+             Attribute "attr9C" DoubleAtomType]
+    actual = toDefineExpr (Proxy :: Proxy Test9T) "rv"
+    
+testUpdateExpr :: Test    
+testUpdateExpr = TestCase $ do
+  let expected = Update "rv" updateMap restriction
+      updateMap = M.fromList [("attr9B", NakedAtomExpr (TextAtom "b")),
+                              ("attr9C", NakedAtomExpr (DoubleAtom 5.5))]
+      restriction = AttributeEqualityPredicate "attr9A" (NakedAtomExpr (IntegerAtom 5))
+      actual = toUpdateExpr "rv" ["attr9A"] (Test9C {attr9A = 5,
+                                                     attr9B = "b",
+                                                     attr9C = 5.5})
+                                                              
+  assertEqual "update expr1" expected actual
+  
+testUpdateExprEmptyAttrs :: Test  
+testUpdateExprEmptyAttrs = TestCase $ do
+  let expected = Update "rv" updateMap TruePredicate
+      updateMap = M.fromList [("attr9B", NakedAtomExpr (TextAtom "b")),
+                              ("attr9C", NakedAtomExpr (DoubleAtom 5.5)),
+                              ("attr9A", NakedAtomExpr (IntegerAtom 5))]
+      actual = toUpdateExpr "rv" [] (Test9C {attr9A = 5,
+                                             attr9B = "b",
+                                             attr9C = 5.5})
+  assertEqual "update with empty attrs" expected actual
+  
+testUpdateExprWrongAttr :: Test  
+testUpdateExprWrongAttr = TestCase $ do
+  --currently, passing in the wrong attribute replaces the whole relvar with a single tuple- is this what we want?
+  let expected = Update "rv" updateMap TruePredicate
+      updateMap = M.fromList [
+        ("attr9A", NakedAtomExpr (IntegerAtom 5)),
+        ("attr9B", NakedAtomExpr (TextAtom "b")),
+        ("attr9C", NakedAtomExpr (DoubleAtom 5.5))
+        ]
+      actual = toUpdateExpr "rv" ["nonexistentattr"] (Test9C {attr9A = 5,
+                                                              attr9B = "b",
+                                                              attr9C = 5.5})
+  assertEqual "update with wrong attr" expected actual               
+  
+testDeleteExpr :: Test  
+testDeleteExpr = TestCase $ do
+  let expected = Delete "rv" (AndPredicate (AttributeEqualityPredicate "attr9A" 
+                                            (NakedAtomExpr (IntegerAtom 5)))
+                                           (AttributeEqualityPredicate "attr9B"
+                                            (NakedAtomExpr (TextAtom "b"))))
+      actual = toDeleteExpr "rv" ["attr9A", "attr9B"] (Test9C {attr9A = 5,
+                                                               attr9B = "b",
+                                                               attr9C = 5.5})
+  assertEqual "delete expr" expected actual
+                              
+               
