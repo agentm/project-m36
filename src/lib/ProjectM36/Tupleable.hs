@@ -71,6 +71,7 @@ toDefineExpr _ rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
     attrs = toAttributes (Proxy :: Proxy a)
 
 tupleAssocsEqualityPredicate :: [(AttributeName, Atom)] -> RestrictionPredicateExpr
+tupleAssocsEqualityPredicate [] = TruePredicate
 tupleAssocsEqualityPredicate pairs =
   foldr1 AndPredicate $
   map
