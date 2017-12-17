@@ -124,15 +124,14 @@ testPushDownRestrictionPredicate :: Test
 testPushDownRestrictionPredicate = TestCase $ do
   -- (s union relation{tuple{city "Boston", s# "S6", sname "Stevens", status 50}}) where status = 30 == (s where status=30) union (relation{tuple{city "Boston", s# "S6", sname "Stevens", status 50}} where status=30)
   let rvs = RelationVariable "s" ()
-  stevens <- case mkRelationFromList (attributes suppliersRel) [
-          [TextAtom "S6", TextAtom "Stevens", IntegerAtom 50, TextAtom "Boston"]] of
-               Left err -> assertFailure ("stevens relation: " ++ show err) >> pure relationTrue
-               Right rel -> pure rel
-  let expr1 = Restrict status30 (Union rvs (ExistingRelation stevens))
-      status30 = AttributeEqualityPredicate "status" (NakedAtomExpr (IntAtom 30))
+      relationsOrError = do
+            stevens <- mkRelationFromList (attributes suppliersRel) [[TextAtom "S6", TextAtom "Stevens", IntegerAtom 50, TextAtom "Boston"]]
+            let expr1 = Restrict status30 (Union rvs (ExistingRelation stevens))
+                status30 = AttributeEqualityPredicate "status" (NakedAtomExpr (IntAtom 30))
 
-      expectedExpr1 = Union (Restrict status30 rvs) (Restrict status30 (ExistingRelation stevens))
-  assertEqual "union restriction pushdown" expectedExpr1 (applyStaticRestrictionPushdown expr1)
+                expectedExpr1 = Union (Restrict status30 rvs) (Restrict status30 (ExistingRelation stevens))
+            pure $ (expectedExpr1, (applyStaticRestrictionPushdown expr1))
+  either (assertFailure . (++) "stevens relation: " . show) (uncurry $ assertEqual "union restriction pushdown") relationsOrError
 
   -- s{sname,city} where city="London" == (s where city="London"){sname,city}
   let expr2 = Restrict whereLondon (Project projAttrs2 rvs)
