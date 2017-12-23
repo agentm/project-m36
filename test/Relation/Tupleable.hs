@@ -157,27 +157,27 @@ testUpdateExpr = TestCase $ do
       updateMap = M.fromList [("attr9B", NakedAtomExpr (TextAtom "b")),
                               ("attr9C", NakedAtomExpr (DoubleAtom 5.5))]
       restriction = AttributeEqualityPredicate "attr9A" (NakedAtomExpr (IntegerAtom 5))
-      actual = toUpdateExpr "rv" ["attr9A"] (Test9C {attr9A = 5,
+      actual = toUpdateExpr "rv" ["attr9A"] Test9C {attr9A = 5,
                                                      attr9B = "b",
-                                                     attr9C = 5.5})
+                                                     attr9C = 5.5}
                                                               
   assertEqual "update expr1" expected actual
   
 testUpdateExprEmptyAttrs :: Test  
 testUpdateExprEmptyAttrs = TestCase $ do
   let expected = Left EmptyAttributesError
-      actual = toUpdateExpr "rv" [] (Test9C {attr9A = 5,
+      actual = toUpdateExpr "rv" [] Test9C {attr9A = 5,
                                              attr9B = "b",
-                                             attr9C = 5.5})
+                                             attr9C = 5.5}
   assertEqual "update with empty attrs" expected actual
   
 testUpdateExprWrongAttr :: Test  
 testUpdateExprWrongAttr = TestCase $ do
   --currently, passing in the wrong attribute replaces the whole relvar with a single tuple- is this what we want?
   let expected = Left (NoSuchAttributeNamesError (S.singleton "nonexistentattr"))
-      actual = toUpdateExpr "rv" ["nonexistentattr"] (Test9C {attr9A = 5,
+      actual = toUpdateExpr "rv" ["nonexistentattr"] Test9C {attr9A = 5,
                                                               attr9B = "b",
-                                                              attr9C = 5.5})
+                                                              attr9C = 5.5}
   assertEqual "update with wrong attr" expected actual               
   
 testDeleteExpr :: Test  
@@ -186,9 +186,9 @@ testDeleteExpr = TestCase $ do
                                             (NakedAtomExpr (IntegerAtom 5)))
                                            (AttributeEqualityPredicate "attr9B"
                                             (NakedAtomExpr (TextAtom "b")))))
-      actual = toDeleteExpr "rv" ["attr9A", "attr9B"] (Test9C {attr9A = 5,
+      actual = toDeleteExpr "rv" ["attr9A", "attr9B"] Test9C {attr9A = 5,
                                                                attr9B = "b",
-                                                               attr9C = 5.5})
+                                                               attr9C = 5.5}
   assertEqual "delete expr" expected actual
                               
                

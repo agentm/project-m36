@@ -111,12 +111,10 @@ toDeleteExpr rvName keyAttrs val = validateAttributes (S.fromList keyAttrs) expe
     expectedAttrSet = attributeNameSet (toAttributes (Proxy :: Proxy a))
 
 validateAttributes :: S.Set AttributeName -> S.Set AttributeName -> a -> Either RelationalError a
-validateAttributes actualAttrs expectedAttrs val = if S.null actualAttrs then
-                                                      Left EmptyAttributesError
-                                                   else if not (S.null nonMatchingAttrs) then
-                                                      Left (NoSuchAttributeNamesError nonMatchingAttrs)
-                                                   else
-                                                      Right val
+validateAttributes actualAttrs expectedAttrs val
+   | S.null actualAttrs = Left EmptyAttributesError
+   | not (S.null nonMatchingAttrs) = Left (NoSuchAttributeNamesError nonMatchingAttrs)
+   | otherwise = Right val
   where
       nonMatchingAttrs = attributeNamesNotContained actualAttrs expectedAttrs
 
