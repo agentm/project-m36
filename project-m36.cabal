@@ -279,6 +279,16 @@ Executable bigrel
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
+Executable basic-benchmark
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    Build-Depends: base, criterion, project-m36
+    Main-Is: benchmark/Basic.hs
+    GHC-Options: -Wall -threaded -rtsopts
+    HS-Source-Dirs: ./src/bin
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+
 Test-Suite test-tutoriald
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
