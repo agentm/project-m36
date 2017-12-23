@@ -22,6 +22,7 @@ import           ProjectM36.DataTypes.Primitive
 import           ProjectM36.Error
 import           ProjectM36.Tuple
 import           ProjectM36.TupleSet
+import qualified Data.Set as S
 
 {-import Data.Binary
 import Control.DeepSeq
@@ -90,22 +91,35 @@ partitionByAttributes attrs =
 --   expression. This expression flushes the non-key attributes of the value to
 --   a tuple with the matching key attributes.
 toUpdateExpr ::
-     Tupleable a => RelVarName -> [AttributeName] -> a -> DatabaseContextExpr
-toUpdateExpr rvName keyAttrs a = Update rvName updateMap keyRestriction
+     forall a. Tupleable a => RelVarName -> [AttributeName] -> a -> Either RelationalError DatabaseContextExpr
+toUpdateExpr rvName keyAttrs a = validateAttributes (S.fromList keyAttrs) expectedAttrSet (Update rvName updateMap keyRestriction)
   where
     (keyPairs, updatePairs) = partitionByAttributes keyAttrs a
     updateMap = Map.fromList $ fmap NakedAtomExpr <$> updatePairs
     keyRestriction = tupleAssocsEqualityPredicate keyPairs
+    expectedAttrSet = attributeNameSet (toAttributes (Proxy :: Proxy a))
 
 -- | Convert a list of key attributes and a 'Tupleable' value to a 'Delete'
 --   expression. This expression deletes tuples matching the key attributes from
 --   the value.
 toDeleteExpr ::
-     Tupleable a => RelVarName -> [AttributeName] -> a -> DatabaseContextExpr
-toDeleteExpr rvName keyAttrs a = Delete rvName keyRestriction
+     forall a. Tupleable a => RelVarName -> [AttributeName] -> a -> Either RelationalError DatabaseContextExpr
+toDeleteExpr rvName keyAttrs val = validateAttributes (S.fromList keyAttrs) expectedAttrSet (Delete rvName keyRestriction)
   where
-    keyPairs = fst $ partitionByAttributes keyAttrs a
+    keyPairs = fst $ partitionByAttributes keyAttrs val
     keyRestriction = tupleAssocsEqualityPredicate keyPairs
+    expectedAttrSet = attributeNameSet (toAttributes (Proxy :: Proxy a))
+
+validateAttributes :: S.Set AttributeName -> S.Set AttributeName -> a -> Either RelationalError a
+validateAttributes actualAttrs expectedAttrs val = if S.null actualAttrs then
+                                                      Left EmptyAttributesError
+                                                   else if not (S.null nonMatchingAttrs) then
+                                                      Left (NoSuchAttributeNamesError nonMatchingAttrs)
+                                                   else
+                                                      Right val
+  where
+      nonMatchingAttrs = attributeNamesNotContained actualAttrs expectedAttrs
+
 
 class Tupleable a where
   toTuple :: a -> RelationTuple

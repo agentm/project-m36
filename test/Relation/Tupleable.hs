@@ -3,6 +3,7 @@ import Test.HUnit
 import ProjectM36.Tupleable
 import ProjectM36.Atomable
 import ProjectM36.Attribute
+import ProjectM36.Error
 import Data.Binary
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
@@ -10,6 +11,7 @@ import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Set as S
 import System.Exit
 import Data.Proxy
 
@@ -151,7 +153,7 @@ testDefineExpr = TestCase $ assertEqual "define expr" expected actual
     
 testUpdateExpr :: Test    
 testUpdateExpr = TestCase $ do
-  let expected = Update "rv" updateMap restriction
+  let expected = Right (Update "rv" updateMap restriction)
       updateMap = M.fromList [("attr9B", NakedAtomExpr (TextAtom "b")),
                               ("attr9C", NakedAtomExpr (DoubleAtom 5.5))]
       restriction = AttributeEqualityPredicate "attr9A" (NakedAtomExpr (IntegerAtom 5))
@@ -163,10 +165,7 @@ testUpdateExpr = TestCase $ do
   
 testUpdateExprEmptyAttrs :: Test  
 testUpdateExprEmptyAttrs = TestCase $ do
-  let expected = Update "rv" updateMap TruePredicate
-      updateMap = M.fromList [("attr9B", NakedAtomExpr (TextAtom "b")),
-                              ("attr9C", NakedAtomExpr (DoubleAtom 5.5)),
-                              ("attr9A", NakedAtomExpr (IntegerAtom 5))]
+  let expected = Left EmptyAttributesError
       actual = toUpdateExpr "rv" [] (Test9C {attr9A = 5,
                                              attr9B = "b",
                                              attr9C = 5.5})
@@ -175,12 +174,7 @@ testUpdateExprEmptyAttrs = TestCase $ do
 testUpdateExprWrongAttr :: Test  
 testUpdateExprWrongAttr = TestCase $ do
   --currently, passing in the wrong attribute replaces the whole relvar with a single tuple- is this what we want?
-  let expected = Update "rv" updateMap TruePredicate
-      updateMap = M.fromList [
-        ("attr9A", NakedAtomExpr (IntegerAtom 5)),
-        ("attr9B", NakedAtomExpr (TextAtom "b")),
-        ("attr9C", NakedAtomExpr (DoubleAtom 5.5))
-        ]
+  let expected = Left (NoSuchAttributeNamesError (S.singleton "nonexistentattr"))
       actual = toUpdateExpr "rv" ["nonexistentattr"] (Test9C {attr9A = 5,
                                                               attr9B = "b",
                                                               attr9C = 5.5})
@@ -188,10 +182,10 @@ testUpdateExprWrongAttr = TestCase $ do
   
 testDeleteExpr :: Test  
 testDeleteExpr = TestCase $ do
-  let expected = Delete "rv" (AndPredicate (AttributeEqualityPredicate "attr9A" 
+  let expected = Right (Delete "rv" (AndPredicate (AttributeEqualityPredicate "attr9A" 
                                             (NakedAtomExpr (IntegerAtom 5)))
                                            (AttributeEqualityPredicate "attr9B"
-                                            (NakedAtomExpr (TextAtom "b"))))
+                                            (NakedAtomExpr (TextAtom "b")))))
       actual = toDeleteExpr "rv" ["attr9A", "attr9B"] (Test9C {attr9A = 5,
                                                                attr9B = "b",
                                                                attr9C = 5.5})
