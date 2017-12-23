@@ -29,6 +29,10 @@ The ```Tupleable``` module includes the following functions:
 
  * ```toInsertExpr :: forall a t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr```
      * creates an ```Insert``` expression which can be used to insert a set of ```Tupleable``` values into the relation variable named by the ```RelVarName```
+ * ```toUpdateExpr :: forall a. Tupleable a => RelVarName -> [AttributeName] -> a -> Either RelationalError DatabaseContextExpr```
+     * create an `Update` expression which updates the tuples with the attribute values of the argument `Tupleable` using the list of attribute names as the key to the underlying relation variable
+ * ```toDeleteExpr :: forall a. Tupleable a => RelVarName -> [AttributeName] -> a -> Either RelationalError DatabaseContextExpr```
+    * create a `Delete` expression which will remove the tuples from the relation variable matching the values of the argument `Tupleable` using the attribute name list as the matching key
  * ```toAttributes :: proxy a -> Attributes```
      * generates ```Attributes``` from a ```Tupleable``` value- can be used with ```undefined```, so an actual value is not necessary
  * ```toTuple :: a -> RelationTuple```
