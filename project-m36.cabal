@@ -282,7 +282,7 @@ Executable bigrel
 Executable basic-benchmark
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, criterion, project-m36
+    Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath
     Main-Is: benchmark/Basic.hs
     GHC-Options: -Wall -threaded -rtsopts
     HS-Source-Dirs: ./src/bin
