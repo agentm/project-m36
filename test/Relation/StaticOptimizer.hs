@@ -126,7 +126,7 @@ testPushDownRestrictionPredicate = TestCase $ do
   let rvs = RelationVariable "s" ()
   stevens <- case mkRelationFromList (attributes suppliersRel) [
           [TextAtom "S6", TextAtom "Stevens", IntegerAtom 50, TextAtom "Boston"]] of
-               Left err -> assertFailure $ "stevens relation: " ++ show err
+               Left err -> (assertFailure ("stevens relation: " ++ show err)) >> pure relationTrue
                Right rel -> pure rel
   let expr1 = Restrict status30 (Union rvs (ExistingRelation stevens))
       status30 = AttributeEqualityPredicate "status" (NakedAtomExpr (IntAtom 30))
