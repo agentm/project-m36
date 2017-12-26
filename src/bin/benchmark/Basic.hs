@@ -58,7 +58,7 @@ projectRelationToAttributes attrNames rel = validate (runReader (evalRelationalE
   projection = Project attrNames (ExistingRelation rel)
 
 unionRelations :: Relation -> Relation -> Relation
-unionRelations relA relB = validate (union relA relB)
+unionRelations relA relB = validate (relA `union` relB)
 
 joinRelations :: Relation -> Relation -> Relation
 joinRelations relA relB = validate (join relA relB)

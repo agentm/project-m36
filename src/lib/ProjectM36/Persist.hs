@@ -75,6 +75,7 @@ syncHandle FsyncDiskSync handle =
 #if defined(mingw32_HOST_OS)
   withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
 #elif defined(linux_HOST_OS)
+ do
   --fdatasync doesn't exist on macOS
   fd <- handleToFd handle 
   fileSynchroniseDataOnly fd
@@ -106,13 +107,14 @@ directoryFsync path = throwErrnoIfMinus1Retry_ "directoryFsync" (withCString pat
 
 --prints out number of consumed file descriptors      
 printFdCount :: IO ()
-printFdCount = do
+printFdCount =
 #if FDCOUNTSUPPORTED
+ do
   fdc <- fdCount
   putStrLn ("Fd count: " ++ show fdc)
   --getLine >> pure ()
 #else
-printFdCount = putStrLn "Fd count not supported on this OS."
+  putStrLn "Fd count not supported on this OS."
 #endif
 
 

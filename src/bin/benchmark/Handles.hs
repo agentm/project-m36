@@ -8,7 +8,6 @@ import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import Text.Megaparsec hiding (option)
 import Data.Monoid
-import System.Directory
 import Control.Monad
 
 data HandlesArgs = HandlesArgs {
