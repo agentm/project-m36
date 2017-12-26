@@ -2,11 +2,27 @@
 --this module is related to persisting Project:M36 structures to disk and not related to the persistent library
 module ProjectM36.Persist (writeFileSync, 
                            writeBSFileSync,
-                           renameSync, 
+                           renameSync,
+                           printFdCount,
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
 import qualified Data.Text.IO as TIO
-import Data.Text
+import qualified Data.Text as T
+
+#if defined(linux_HOST_OS)
+# define FDCOUNTSUPPORTED 1
+# define FDDIR "/proc/self/fd"
+#elif defined(darwin_HOST_OS)
+# define FDCOUNTSUPPORTED 1
+# define FDDIR "/dev/fd"
+#else
+# define FDCOUNTSUPPORTED 0
+#endif
+
+#if FDCOUNTSUPPORTED
+import System.Directory
+#endif
+
 #if defined(mingw32_HOST_OS)
 import qualified System.Win32 as Win32
 #else
@@ -16,7 +32,7 @@ import System.Posix.Unistd (fileSynchroniseDataOnly)
 #else
 import System.Posix.Unistd (fileSynchronise)
 #endif
-import System.Posix.IO (handleToFd)
+import System.Posix.IO (handleToFd, closeFd)
 import Foreign.C
 #endif
 
@@ -32,7 +48,7 @@ foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO
 data DiskSync = NoDiskSync | FsyncDiskSync
 
 --using withFile here is OK because we use a WORM strategy- the file is written but not read until after the handle is synced, closed, and unhidden (moved from ".X" to "X") at the top level in the transaction directory 
-writeFileSync :: DiskSync -> FilePath -> Text -> IO()
+writeFileSync :: DiskSync -> FilePath -> T.Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
@@ -60,10 +76,15 @@ syncHandle FsyncDiskSync handle =
   withHandleToHANDLE handle (\h -> Win32.flushFileBuffers h)
 #elif defined(linux_HOST_OS)
   --fdatasync doesn't exist on macOS
-  handleToFd handle >>= fileSynchroniseDataOnly
-#else 
-  handleToFd handle >>= fileSynchronise
+  fd <- handleToFd handle 
+  fileSynchroniseDataOnly fd
+#else
+ do
+  fd <- handleToFd handle
+  fileSynchronise fd
 #endif
+  closeFd fd
+
 syncHandle NoDiskSync _ = pure ()
 
 syncDirectory :: DiskSync -> FilePath -> IO ()
@@ -83,3 +104,24 @@ directoryFsync _ = pure () -- on Windows directory metadata cannot be synchroniz
 directoryFsync path = throwErrnoIfMinus1Retry_ "directoryFsync" (withCString path $ \cpath -> cHSDirectoryFsync cpath)
 #endif
 
+--prints out number of consumed file descriptors      
+printFdCount :: IO ()
+printFdCount = do
+#if FDCOUNTSUPPORTED
+  fdc <- fdCount
+  putStrLn ("Fd count: " ++ show fdc)
+  --getLine >> pure ()
+#else
+printFdCount = putStrLn "Fd count not supported on this OS."
+#endif
+
+
+fdCount :: IO Int
+#if FDCOUNTSUPPORTED
+fdCount = do
+  fds <- getDirectoryContents FDDIR
+  pure ((length fds) - 2)
+#else 
+--not supported on non-linux
+fdCount = pure 0
+#endif
