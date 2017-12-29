@@ -22,7 +22,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | CouldNotInferAttributes
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
-                     | RelVarAssignmentTypeMismatchError Attributes Attributes --expected, found
+                     | RelationTypeMismatchError Attributes Attributes --expected, found
                      | InclusionDependencyCheckError IncDepName
                      | InclusionDependencyNameInUseError IncDepName
                      | InclusionDependencyNameNotInUseError IncDepName

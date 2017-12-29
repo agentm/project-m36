@@ -407,8 +407,8 @@ mergeTransactions stamp newId parentId mergeStrategy (headNameA, headNameB) grap
   case createMergeTransaction stamp newId mergeStrategy subGraph' (transA, transB) of
     Left err -> Left (MergeTransactionError err)
     Right mergedTrans -> case checkConstraints (concreteDatabaseContext mergedTrans) of
-      Just err -> Left err
-      Nothing -> case headNameForTransaction disconParent graph of
+      Left err -> Left err
+      Right _ -> case headNameForTransaction disconParent graph of
         Nothing -> Left (TransactionIsNotAHeadError parentId)
         Just headName -> do
           (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph

@@ -55,7 +55,7 @@ testSimpleCommitFailure = TestCase $ do
       execute $ Assign "x" (ExistingRelation relationTrue)
       --cause error
       execute $ Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)
-  let expectedErr = Left (RelError (RelVarAssignmentTypeMismatchError V.empty failAttrs))
+  let expectedErr = Left (RelError (RelationTypeMismatchError V.empty failAttrs))
   assertEqual "dbc error" expectedErr err
   
 
