@@ -526,7 +526,7 @@ Foreign keys are constraints which require that certain values appearing in one 
 TutorialD (master/main): foreign key s#_in_sp sp{s#} in s{s#}
 ```
 
-This expression ensure that any sp{s#} must also appear as a value in s{s#}.
+This expression ensure that any sp{s#} must also appear as a value in s{s#}. Note that the sub-expression (on the left of "in") and the super-expression (on the right) must be of the same relation type- the generated relation values' attribute names and types must be equal. Use `rename` to make attribute names identical. 
 
 #### Functional dependencies
 

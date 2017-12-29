@@ -244,8 +244,8 @@ setRelVar relVarName rel = do
       potentialContext = currentContext { relationVariables = newRelVars }
                         
   case checkConstraints potentialContext of
-    Just err -> pure (Left err)
-    Nothing -> do
+    Left err -> pure (Left err)
+    Right _ -> do
       putStateContext potentialContext
       return (Right ())
 
@@ -295,7 +295,7 @@ evalDatabaseContextExpr (Assign relVarName expr) = do
                           if A.attributesEqual expectedAttributes foundAttributes then
                             setRelVar relVarName rel
                           else
-                            pure (Left (RelVarAssignmentTypeMismatchError expectedAttributes foundAttributes))
+                            pure (Left (RelationTypeMismatchError expectedAttributes foundAttributes))
 
 evalDatabaseContextExpr (Insert relVarName relExpr) = do
   context <- getStateContext
@@ -359,8 +359,8 @@ evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
     else do
       let potentialContext = currContext { inclusionDependencies = newDeps }
       case checkConstraints potentialContext of
-        Just err -> pure (Left err)
-        Nothing -> do
+        Left err -> pure (Left err)
+        Right _ -> do
           putStateContext potentialContext
           return (Right ())
 
@@ -574,22 +574,26 @@ updateTupleWithAtomExprs exprMap context tupIn = do
   pure (updateTupleWithAtoms (M.fromList atomsAssoc) tupIn)
 
 --run verification on all constraints
-checkConstraints :: DatabaseContext -> Maybe RelationalError
-checkConstraints context = case failures of
-  [] -> Nothing
-  l:_ -> Just l
+checkConstraints :: DatabaseContext -> Either RelationalError ()
+checkConstraints context = do
+  mapM_ (uncurry checkIncDep) (M.toList deps) 
+  pure ()
   where
-    failures = M.elems $ M.mapMaybeWithKey checkIncDep deps
     deps = inclusionDependencies context
-    eval expr = runReader (evalRelationalExpr expr) (RelationalExprStateElems context)
+    eval expr = evalReader (evalRelationalExpr expr)
+    evalReader f = runReader f (RelationalExprStateElems context)
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
+      --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
+      typeSub <- evalReader (typeForRelationalExpr subsetExpr)
+      typeSuper <- evalReader (typeForRelationalExpr supersetExpr)
+      when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
       let checkExpr = Equals supersetExpr (Union subsetExpr supersetExpr)
       case eval checkExpr of
-        Left err -> Just err
+        Left err -> Left err
         Right resultRel -> if resultRel == relationTrue then
-                                   Nothing
+                                   pure ()
                                 else 
-                                  Just $ InclusionDependencyCheckError depName
+                                  Left (InclusionDependencyCheckError depName)
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
