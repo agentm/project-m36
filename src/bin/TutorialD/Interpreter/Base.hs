@@ -22,6 +22,7 @@ import Control.Monad.Random
 import Data.List.NonEmpty as NE
 import Data.Time.Clock
 import Data.Time.Format
+import Control.Monad (void)
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
