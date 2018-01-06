@@ -14,11 +14,13 @@ cache:
 
 matrix:
   include:
-    - env: CACHE_NAME=7.10.3 STACK_YAML=stack.ghc7.10.yaml
+    - env: CACHE_NAME=7.10.3 STACK_YAML=stack.ghc7.10.yaml GHC_VERSION=7.10.3
       compiler: ": #stack 7.10.3"
+      addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
 
-    - env: CACHE_NAME=8.0.2 STACK_YAML=stack.yaml
+    - env: CACHE_NAME=8.0.2 STACK_YAML=stack.yaml GHC_VERSION=8.0.2
       compiler: ": #stack 8.0.2"
+      addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
 
     - env: CACHE_NAME=osx-7.10.3 STACK_YAML=stack.ghc7.10.yaml
       os: osx
@@ -30,11 +32,9 @@ matrix:
 
 install:
  - unset CC
- - export PATH=$HOME/.local/bin:$PATH
+ - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
- - travis_wait travis_retry stack setup
- - travis_retry stack build --only-dependencies
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
@@ -43,7 +43,11 @@ script:
  - |
    set -ex
    # Run tests
-   stack --no-terminal test --ghc-options="$GHC_OPTIONS"
+   if [ "$(uname)" = "Darwin" ]; then
+    stack --install-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+   else
+    stack --no-install-ghc --system-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+   fi
    set +ex
 
 after_success:
