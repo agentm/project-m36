@@ -84,6 +84,7 @@ singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
                                        else
                                          Nothing
 
+-- this is still unncessarily expensive for (bigx union bigx) because each tuple is hashed and compared for equality (when the hashes match), but the major expense is attributesEqual, but we already know that all tuple attributes are equal (it's a precondition)
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   if not (A.attributesEqual attrs1 attrs2)
@@ -92,15 +93,13 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
     Right $ Relation attrs1 newtuples
   where
     newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
-
-project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
-project attrNames rel = do
-  newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)
-  relFold (folder newAttrs) (Right $ Relation newAttrs emptyTupleSet) rel
-  where
-    folder newAttrs tupleToProject acc = case acc of
-      Left err -> Left err
-      Right acc2 -> acc2 `union` Relation newAttrs (RelationTupleSet [tupleProject (A.attributeNameSet newAttrs) tupleToProject])
+      
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation      
+project attrNames rel@(Relation _ tupSet) = do
+  newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
+  let newAttrNameSet = A.attributeNameSet newAttrs
+      newTupleList = map (tupleProject newAttrNameSet) (asList tupSet)
+  pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) 
