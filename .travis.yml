@@ -50,7 +50,7 @@ install:
 script:
  - |
    # Run tests
-   if $IS_DARWIN then
+   if [[ $IS_DARWIN ]]; then
     stack --no-install-ghc --no-terminal test
    else
     stack --no-install-ghc --system-ghc --no-terminal test
