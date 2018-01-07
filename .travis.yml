@@ -41,20 +41,24 @@ install:
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - GHC_OPTIONS=""
- - |
-   set -ex
+ - | set -ex
    # Run tests
    if [ "$(uname)" = "Darwin" ]; then
-    stack --install-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+    stack --install-ghc --no-terminal setup
    else
-    stack --no-install-ghc --system-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+    echo Using pre-installed GHC on Linux.
    fi
-   set +ex
+ - |
+   if [ "$(uname)" = "Darwin" ]; then
+    #stack --install-ghc --no-terminal test #temporarily disable test to prime the cache
+   else
+    stack --no-install-ghc --system-ghc --no-terminal test
+   fi
+
 
 after_success:
  - |
    # Build and ship binary
-   ./.travis/attach-binary.sh
+   #./.travis/attach-binary.sh
 
 # EOF
