@@ -595,6 +595,8 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     case eSession of
       Left err -> pure (Left err)
       Right session ->
+        --attempt fast-forward commit, if possible
+        
         case Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
           Left err -> pure (Left err)
           Right (discon', graph') ->
