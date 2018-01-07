@@ -35,6 +35,7 @@ matrix:
 install:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
+ - export GHC_VERSION
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
  - ./.travis/install-ghc.sh
