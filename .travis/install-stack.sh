@@ -25,5 +25,3 @@ if [ "$(uname)" = "Darwin" ]; then
 else
   travis_retry fetch_stack_linux
 fi
-
-travis_retry stack --no-terminal setup;

@@ -1,5 +1,5 @@
 # For more information, see https://github.com/ChrisPenner/haskell-stack-travis-ci
-language: nix
+language: c
 sudo: false
 
 git:
@@ -15,45 +15,45 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: GHCVER=7.10.3 CACHE_NAME=7.10.3
+    - env: CACHE_NAME=7.10.3 STACK_YAML=stack.ghc7.10.yaml GHC_VERSION=7.10.3
       compiler: ": #stack 7.10.3"
       addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
 
-    - env: GHCVER=8.0.2 CACHE_NAME=8.0.2
+    - env: CACHE_NAME=8.0.2 STACK_YAML=stack.yaml GHC_VERSION=8.0.2
       compiler: ": #stack 8.0.2"
       addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
 
-    - env: GHCVER=8.2.1 CACHE_NAME=8.2.1 BUILD_BINARY=1
-      compiler: ": #stack 8.2.1"
-      addons: {apt: {packages: [ghc-8.2.1], sources: [hvr-ghc]}}
+    - env: CACHE_NAME=osx-7.10.3 STACK_YAML=stack.ghc7.10.yaml
+      os: osx
+      compiler: ": #stack 7.10.3"
 
-    - env: GHCVER=8.0.2 CACHE_NAME=8.0.2-osx BUILD_BINARY=1
+    - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
       compiler: ": #stack 8.0.2"
 
-
-#    - env: GHCVER=8.2.1 CACHE_NAME=8.2.1-osx BUILD_BINARY=1
-#      os: osx
-#      compiler: ": #stack 8.2.1"
-#      addons: {apt: {packages: [ghc-8.2.1], sources: [hvr-ghc]}}
-
 install:
  - unset CC
- - export PATH=$HOME/.local/bin:/opt/ghc/$GHCVER/bin:$PATH
+ - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
- - stack --no-terminal --system-ghc build 
- - stack --no-terminal --system-ghc test
- - stack --no-terminal --system-ghc haddock
+ - GHC_OPTIONS=""
+ - |
+   set -ex
+   # Run tests
+   if [ "$(uname)" = "Darwin" ]; then
+    stack --install-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+   else
+    stack --no-install-ghc --system-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+   fi
+   set +ex
 
-#after_success:
-# - |
-#   # Build and ship binary
-#   ./.travis/attach-binary.sh
+after_success:
+ - |
+   # Build and ship binary
+   ./.travis/attach-binary.sh
 
 # EOF

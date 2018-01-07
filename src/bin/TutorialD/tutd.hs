@@ -11,6 +11,11 @@ import Data.Monoid
 import Data.Maybe
 import qualified Data.Text as T
 
+#if !defined(VERSION_project_m36) 
+# warning Failed to discover proper version from cabal_macros.h
+# define VERSION_project_m36 "<unknown>"
+#endif
+
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> many parseGhcPkgPath <*> parseCheckFS <|>
             RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS

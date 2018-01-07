@@ -75,6 +75,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Trans-Graph Relational Expressions](docs/transgraphrelationalexpr.markdown)
 1. [Isomorphic Schemas](docs/isomorphic_schemas.markdown)
 1. [Replication](docs/replication.markdown)
+1. [Basic Operator Benchmarks](https://rawgit.com/agentm/project-m36/master/docs/basic_benchmarks.html)
 
 ### Integrations
 
