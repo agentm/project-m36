@@ -32,10 +32,6 @@ matrix:
       os: osx
       compiler: ": #stack 8.0.2"
 
-#workaround for broken ruby in travis on mac https://github.com/travis-ci/travis-ci/issues/6307
-before_install:
- - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then rvm get stable; fi
-
 install:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
