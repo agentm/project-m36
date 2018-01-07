@@ -41,7 +41,8 @@ install:
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - | set -ex
+ - | 
+   set -ex
    # Run tests
    if [ "$(uname)" = "Darwin" ]; then
     stack --install-ghc --no-terminal setup
