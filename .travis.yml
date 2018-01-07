@@ -39,24 +39,22 @@ before_install:
 install:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
- - export IS_DARWIN=$([ $(uname) = "Darwin" ]; echo $?)
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
  - GHC_VERSION=$GHC_VERSION ./.travis/install-ghc.sh
-
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - |
    # Run tests
-   if [[ $IS_DARWIN ]]; then
+   if [[ "$(uname)" -ne "Darwin" ]]; then
     stack --no-install-ghc --no-terminal test
    else
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
- - if [[ $IS_DARWIN = 0 ]]; then curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT; fi
- - if [[ $IS_DARWIN = 0 ]]; then stack --no-install-ghc haddock; fi
+ - if [[ "$(uname)" -ne "Darwin" ]]; then curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT; fi
+ - if [[ "$(uname)" -ne "Darwin" ]]; then stack --no-install-ghc haddock; fi
 
 after_success:
  - |
