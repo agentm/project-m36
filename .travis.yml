@@ -23,16 +23,11 @@ matrix:
       compiler: ": #stack 8.0.2"
       addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
 
-    - env: CACHE_NAME=osx-7.10.3 STACK_YAML=stack.ghc7.10.yaml
-      os: osx
-      osx_image: xcode6.4
-      compiler: ": #stack 7.10.3"
-
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
       compiler: ": #stack 8.0.2"
 
-install:
+before_script:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
@@ -44,12 +39,21 @@ install:
 script:
  - |
    # Run tests
-   if [ "$(uname)" = "Darwin" ]; then
-    stack --no-install-ghc --no-terminal test
-   else
+   if [[ "$(uname)" = "Linux" ]]; then
+    stack --no-install-ghc --no-terminal --system-ghc test 
+   else #Darwin
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
-
+ - |
+   #Run HLint
+   if [[ "$(uname)" = "Linux" ]]; then 
+    curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
+   fi
+ - |
+   #Run Haddock
+   if [[ "$(uname)" = "Linux" ]]; then 
+    stack --no-install-ghc --system-ghc --no-haddock-deps haddock 
+   fi
 
 after_success:
  - |

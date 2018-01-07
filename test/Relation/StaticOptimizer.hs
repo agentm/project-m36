@@ -130,7 +130,7 @@ testPushDownRestrictionPredicate = TestCase $ do
                Right rel -> pure rel
 
                 expectedExpr1 = Union (Restrict status30 rvs) (Restrict status30 (ExistingRelation stevens))
-            pure $ (expectedExpr1, (applyStaticRestrictionPushdown expr1))
+            pure (expectedExpr1, applyStaticRestrictionPushdown expr1)
   either (assertFailure . (++) "stevens relation: " . show) (uncurry $ assertEqual "union restriction pushdown") relationsOrError
 
   -- s{sname,city} where city="London" == (s where city="London"){sname,city}
