@@ -35,10 +35,9 @@ matrix:
 install:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
- - export GHC_VERSION
- - ./.travis/install-ghr.sh
+ -  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
- - ./.travis/install-ghc.sh
+ - GHC_VERSION=$GHC_VERSION ./.travis/install-ghc.sh
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
