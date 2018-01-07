@@ -37,20 +37,15 @@ install:
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
+ - ./.travis/install-ghc.sh
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - | 
+ - |
    # Run tests
    if [ "$(uname)" = "Darwin" ]; then
-    stack --install-ghc --no-terminal setup
-   else
-    echo Using pre-installed GHC on Linux.
-   fi
- - |
-   if [ "$(uname)" = "Darwin" ]; then
-    #stack --install-ghc --no-terminal test #temporarily disable test to prime the cache
+    echo Temporarily disabled on Darwin.
    else
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
