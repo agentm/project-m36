@@ -45,7 +45,7 @@ script:
  - |
    # Run tests
    if [ "$(uname)" = "Darwin" ]; then
-    echo Temporarily disabled on Darwin.
+    stack --no-install-ghc --no-terminal test
    else
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
