@@ -55,8 +55,8 @@ script:
    else
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
- - [[ $IS_DARWIN = 0 ]] || curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
- - [[ $IS_DARWIN = 0 ]] || stack --no-install-ghc haddock
+ - if [[ $IS_DARWIN = 0 ]]; then curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT; fi
+ - if [[ $IS_DARWIN = 0 ]]; then stack --no-install-ghc haddock; fi
 
 after_success:
  - |
