@@ -25,6 +25,7 @@ matrix:
 
     - env: CACHE_NAME=osx-7.10.3 STACK_YAML=stack.ghc7.10.yaml
       os: osx
+      osx_image: xcode6.4
       compiler: ": #stack 7.10.3"
 
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
