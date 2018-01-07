@@ -37,24 +37,23 @@ install:
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
+ - GHC_VERSION=$GHC_VERSION ./.travis/install-ghc.sh
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - GHC_OPTIONS=""
  - |
-   set -ex
    # Run tests
    if [ "$(uname)" = "Darwin" ]; then
-    stack --install-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+    stack --no-install-ghc --no-terminal test
    else
-    stack --no-install-ghc --system-ghc --no-terminal test --ghc-options="$GHC_OPTIONS"
+    stack --no-install-ghc --system-ghc --no-terminal test
    fi
-   set +ex
+
 
 after_success:
  - |
    # Build and ship binary
-   ./.travis/attach-binary.sh
+   #./.travis/attach-binary.sh
 
 # EOF
