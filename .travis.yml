@@ -27,7 +27,7 @@ matrix:
       os: osx
       compiler: ": #stack 8.0.2"
 
-install:
+before_script:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
@@ -40,9 +40,9 @@ script:
  - |
    # Run tests
    if [[ "$(uname)" -ne "Darwin" ]]; then
-    stack --no-install-ghc --no-terminal test
+    stack --no-install-ghc --no-terminal test 
    else
-    stack --no-install-ghc --system-ghc --no-terminal test
+    stack --no-install-ghc --system-ghc --no-terminal test project-m36:test:test-tutoriald
    fi
  - if [[ "$(uname)" -ne "Darwin" ]]; then curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT; fi
  - if [[ "$(uname)" -ne "Darwin" ]]; then stack --no-install-ghc haddock; fi
