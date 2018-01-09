@@ -582,7 +582,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
             pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
--- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing).
+-- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing). Alternatively, as an optimization, if a simple commit is possible (meaning that the head has not changed), then a fast-forward commit takes place instead.
 autoMergeToHead :: SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
 autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   let sessions = ipSessions conf
@@ -594,13 +594,21 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
-      Right session ->
-        --attempt fast-forward commit, if possible
-        
-        case Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
-          Left err -> pure (Left err)
-          Right (discon', graph') ->
-            pure (Right (discon', graph', [id1, id2, id3]))
+      Right session -> do
+        case Graph.transactionForHead headName' graph of
+          Nothing -> pure (Left (NoSuchHeadNameError headName'))
+          Just headTrans -> do
+            --attempt fast-forward commit, if possible
+            let graphInfo = if Sess.parentId session == transactionId headTrans then do
+                              ret <- Graph.evalGraphOp stamp id1 (Sess.disconnectedTransaction session) graph Commit
+                              pure (ret, [id1])
+                            else do
+                              ret <- Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph 
+                              pure (ret, [id1,id2,id3])
+            case graphInfo of
+              Left err -> pure (Left err)
+              Right ((discon', graph'), transactionIdsAdded) ->
+                pure (Right (discon', graph', transactionIdsAdded))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
