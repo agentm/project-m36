@@ -23,11 +23,6 @@ matrix:
       compiler: ": #stack 8.0.2"
       addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
 
-    - env: CACHE_NAME=osx-7.10.3 STACK_YAML=stack.ghc7.10.yaml
-      os: osx
-      osx_image: xcode7.3
-      compiler: ": #stack 7.10.3"
-
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
       compiler: ": #stack 8.0.2"
