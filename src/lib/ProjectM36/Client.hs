@@ -594,7 +594,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
-      Right session -> do
+      Right session -> 
         case Graph.transactionForHead headName' graph of
           Nothing -> pure (Left (NoSuchHeadNameError headName'))
           Just headTrans -> do

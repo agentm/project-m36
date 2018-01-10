@@ -67,7 +67,7 @@ testSimpleUpdate :: Test
 testSimpleUpdate = TestCase $ do
   let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
   dbconn <- assertEither (simpleConnectProjectM36 connInfo)
-  assertEither $ withTransaction dbconn $ do
+  assertEither $ withTransaction dbconn $ 
     execute $ databaseContextAsDatabaseContextExpr dateExamples
-  assertEither $ withTransaction dbconn $ do
+  assertEither $ withTransaction dbconn $ 
     execute $ Update "s" (M.singleton "sname" (C.NakedAtomExpr (C.TextAtom "Blakey"))) (C.AttributeEqualityPredicate "sname" (C.NakedAtomExpr (C.TextAtom "Blake")))
