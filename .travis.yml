@@ -26,6 +26,7 @@ matrix:
 
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
+      os_image: xcode7.3
       compiler: ": #stack 8.0.2"
 
 before_script:
