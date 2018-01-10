@@ -52,7 +52,7 @@ script:
  - |
    #Run Haddock
    if [[ "$(uname)" = "Linux" ]]; then 
-    stack --no-install-ghc --system-ghc haddock
+    stack --no-install-ghc --system-ghc --no-haddock-deps haddock 
    fi
 
 after_success:
