@@ -11,6 +11,7 @@ cache:
     - $HOME/.cabal
     - $HOME/.stack
     - .stack-work
+  timeout: 1000
 
 matrix:
   fast_finish: true
