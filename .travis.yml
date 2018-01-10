@@ -26,6 +26,7 @@ matrix:
 
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
+      os_image: xcode7.3
       compiler: ": #stack 8.0.2"
 
 before_script:
@@ -43,7 +44,7 @@ script:
    if [[ "$(uname)" = "Linux" ]]; then
     stack --no-install-ghc --no-terminal --system-ghc test 
    else #Darwin
-    stack --no-install-ghc --system-ghc --no-terminal test
+    stack --no-install-ghc --system-ghc --no-terminal test project-m36:test:test-tutoriald
    fi
  - |
    #Run HLint
