@@ -39,13 +39,17 @@ before_script:
 script:
  - |
    # Run tests
-   if [[ "$(uname)" -ne "Darwin" ]]; then
+   if [[ "$(uname)" = "Linux" ]]; then
     stack --no-install-ghc --no-terminal test 
-   else
+   else #Darwin
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
- - if [[ "$(uname)" -ne "Darwin" ]]; then curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT; fi
- - if [[ "$(uname)" -ne "Darwin" ]]; then stack --no-install-ghc haddock; fi
+ - if [[ "$(uname)" = "Linux" ]]; then 
+    curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
+   fi
+ - if [[ "$(uname)" = "Linux" ]]; then 
+    stack --no-install-ghc haddock
+   fi
 
 after_success:
  - |
