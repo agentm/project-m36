@@ -42,7 +42,7 @@ script:
    if [[ "$(uname)" = "Linux" ]]; then
     stack --no-install-ghc --no-terminal --system-ghc test 
    else #Darwin
-    stack --no-install-ghc --system-ghc --no-terminal test
+    stack --no-install-ghc --system-ghc --no-terminal build project-m36:exe:bigrel
    fi
  - |
    #Run HLint
@@ -52,7 +52,7 @@ script:
  - |
    #Run Haddock
    if [[ "$(uname)" = "Linux" ]]; then 
-    stack --no-install-ghc haddock
+    stack --no-install-ghc --system-ghc haddock
    fi
 
 after_success:
