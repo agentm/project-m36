@@ -40,7 +40,7 @@ script:
  - |
    # Run tests
    if [[ "$(uname)" = "Linux" ]]; then
-    stack --no-install-ghc --no-terminal test 
+    stack --no-install-ghc --no-terminal --system-ghc test 
    else #Darwin
     stack --no-install-ghc --system-ghc --no-terminal test
    fi
