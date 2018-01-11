@@ -34,18 +34,14 @@ before_script:
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
  - ./.travis/install-stack.sh
- - GHC_VERSION=$GHC_VERSION ./.travis/install-ghc.sh
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
+ - ./.travis/install-dependencies.sh
  - |
    # Run tests
-   if [[ "$(uname)" = "Linux" ]]; then
-    stack --no-install-ghc --no-terminal --system-ghc test 
-   else #Darwin
-    stack --no-install-ghc --system-ghc --no-terminal test project-m36:test:test-tutoriald
-   fi
+   stack --no-terminal --jobs=2 --install-ghc --system-ghc test
  - |
    #Run HLint
    if [[ "$(uname)" = "Linux" ]]; then 
