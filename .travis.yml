@@ -29,7 +29,7 @@ matrix:
       os_image: xcode7.3
       compiler: ": #stack 8.0.2"
 
-before_script:
+install:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH
  - ./.travis/install-ghr.sh
@@ -44,7 +44,7 @@ script:
    if [[ "$(uname)" = "Linux" ]]; then
     stack --no-install-ghc --no-terminal --system-ghc test 
    else #Darwin
-    stack --no-install-ghc --system-ghc --no-terminal test project-m36:test:test-tutoriald
+    stack --no-install-ghc --system-ghc --no-terminal build project-m36:lib
    fi
  - |
    #Run HLint
