@@ -16,13 +16,11 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: CACHE_NAME=7.10.3 STACK_YAML=stack.ghc7.10.yaml GHC_VERSION=7.10.3
+    - env: CACHE_NAME=7.10.3 STACK_YAML=stack.ghc7.10.yaml
       compiler: ": #stack 7.10.3"
-      addons: {apt: {packages: [ghc-7.10.3], sources: [hvr-ghc]}}
 
-    - env: CACHE_NAME=8.0.2 STACK_YAML=stack.yaml GHC_VERSION=8.0.2
+    - env: CACHE_NAME=8.0.2 STACK_YAML=stack.yaml
       compiler: ": #stack 8.0.2"
-      addons: {apt: {packages: [ghc-8.0.2], sources: [hvr-ghc]}}
 
     - env: CACHE_NAME=osx-8.0.2 STACK_YAML=stack.yaml
       os: osx
@@ -38,10 +36,11 @@ before_script:
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
- - ./.travis/install-dependencies.sh
  - |
    # Run tests
-   stack --no-terminal --jobs=2 --install-ghc --system-ghc test
+   set -e
+   ./.travis/install-dependencies.sh
+   stack --no-terminal --jobs=2 --system-ghc test
  - |
    #Run HLint
    if [[ "$(uname)" = "Linux" ]]; then 

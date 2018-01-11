@@ -1,11 +1,10 @@
 # Run tests
 if [[ "$(uname)" = "Darwin" ]]; then
-    brew update && brew install coreutils
     timeout_cmd="gtimeout"
 else
     timeout_cmd="timeout"
 fi
-$timeout_cmd 20m stack --no-terminal --jobs=2 --install-ghc --system-ghc build --only-dependencies
+$timeout_cmd 15m stack --no-terminal --jobs=2 --install-ghc --system-ghc build --only-dependencies --fast
 ret=$?
 case "$ret" in
     0)
