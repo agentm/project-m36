@@ -128,10 +128,11 @@ testPushDownRestrictionPredicate = TestCase $ do
           [TextAtom "S6", TextAtom "Stevens", IntegerAtom 50, TextAtom "Boston"]] of
                Left err -> assertFailure ("stevens relation: " ++ show err) >> pure relationTrue
                Right rel -> pure rel
+  let expr1 = Restrict status30 (Union rvs (ExistingRelation stevens))
+      status30 = AttributeEqualityPredicate "status" (NakedAtomExpr (IntAtom 30))
 
-                expectedExpr1 = Union (Restrict status30 rvs) (Restrict status30 (ExistingRelation stevens))
-            pure (expectedExpr1, applyStaticRestrictionPushdown expr1)
-  either (assertFailure . (++) "stevens relation: " . show) (uncurry $ assertEqual "union restriction pushdown") relationsOrError
+      expectedExpr1 = Union (Restrict status30 rvs) (Restrict status30 (ExistingRelation stevens))
+  assertEqual "union restriction pushdown" expectedExpr1 (applyStaticRestrictionPushdown expr1)
 
   -- s{sname,city} where city="London" == (s where city="London"){sname,city}
   let expr2 = Restrict whereLondon (Project projAttrs2 rvs)
