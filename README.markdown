@@ -5,6 +5,8 @@
 [![Hackage](https://img.shields.io/hackage/v/project-m36.svg)](http://hackage.haskell.org/package/project-m36)
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
 [![Build status](https://travis-ci.org/agentm/project-m36.svg?branch=master)](https://travis-ci.org/agentm/project-m36)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/q7jyddd6dy1ibqdo/branch/master?svg=true)
+
 
 *Software can always be made faster, but rarely can it be made more correct.*
 
