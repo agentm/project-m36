@@ -79,12 +79,13 @@ syncHandle FsyncDiskSync handle =
   --fdatasync doesn't exist on macOS
   fd <- handleToFd handle 
   fileSynchroniseDataOnly fd
+  closeFd fd  
 #else
  do
   fd <- handleToFd handle
   fileSynchronise fd
-#endif
   closeFd fd
+#endif
 
 syncHandle NoDiskSync _ = pure ()
 
