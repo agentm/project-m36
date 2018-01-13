@@ -48,6 +48,7 @@ initScriptSession ghcPkgPaths = do
       "./dist-newstyle/packagedb/ghc-" ++ ghcVersion,
       ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d",
       ".stack-work/install/*/*/" ++ ghcVersion ++ "/pkgdb",
+      ".stack-work/install/*/pkgdb", --appveyor stack build
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb",
       homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
