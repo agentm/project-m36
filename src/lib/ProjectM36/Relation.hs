@@ -37,9 +37,8 @@ atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
 
 mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
-mkRelationFromList attrs atomMatrix = do
-  tupSet <- mkTupleSetFromList attrs atomMatrix
-  return $ Relation attrs tupSet
+mkRelationFromList attrs atomMatrix =
+  Relation attrs <$> mkTupleSetFromList attrs atomMatrix
   
 emptyRelationWithAttrs :: Attributes -> Relation  
 emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
@@ -220,8 +219,7 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
         joinedTupSet <- singleTupleSetJoin newAttrs tuple1 tupSet2
         return $ joinedTupSet ++ accumulator
   newTupSetList <- foldM tupleSetJoiner [] (asList tupSet1)
-  newTupSet <- mkTupleSet newAttrs newTupSetList
-  return $ Relation newAttrs newTupSet
+  Relation newAttrs <$> mkTupleSet newAttrs newTupSetList
   
 -- | Difference takes two relations of the same type and returns a new relation which contains only tuples which appear in the first relation but not the second.
 difference :: Relation -> Relation -> Either RelationalError Relation  

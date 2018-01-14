@@ -77,15 +77,12 @@ defineP = do
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
-  relVarName <- identifier
-  return $ Undefine relVarName
+  Undefine <$> identifier
 
 deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
-  relVarName <- identifier
-  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
-  return $ Delete relVarName predicate
+  Delete <$> identifier <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
 
 updateP :: Parser DatabaseContextExpr
 updateP = do

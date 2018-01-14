@@ -22,14 +22,12 @@ autoMergeToHeadP = do
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
-  headid <- identifier
-  return $ JumpToHead headid
+  JumpToHead <$> identifier
 
 jumpToTransactionP :: Parser TransactionGraphOperator
 jumpToTransactionP = do
   reservedOp ":jump"
-  uuid <- uuidP
-  return $ JumpToTransaction uuid
+  JumpToTransaction <$> uuidP
   
 walkBackToTimeP :: Parser TransactionGraphOperator  
 walkBackToTimeP = do
@@ -39,8 +37,7 @@ walkBackToTimeP = do
 branchTransactionP :: Parser TransactionGraphOperator
 branchTransactionP = do
   reservedOp ":branch"
-  branchName <- identifier
-  return $ Branch branchName
+  Branch <$> identifier
 
 deleteBranchP :: Parser TransactionGraphOperator
 deleteBranchP = do

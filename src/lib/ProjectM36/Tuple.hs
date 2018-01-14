@@ -56,9 +56,8 @@ atomTypeForAttributeName attrName tup = do
 -}
 
 atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> Either RelationalError (V.Vector Atom)
-atomsForAttributeNames attrNames tuple = do
-  vindices <- vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)
-  return $ V.map (\index -> tupleAtoms tuple V.! index) vindices
+atomsForAttributeNames attrNames tuple = 
+  V.map (\index -> tupleAtoms tuple V.! index) <$> vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)
       
 vectorIndicesForAttributeNames :: V.Vector AttributeName -> Attributes -> Either RelationalError (V.Vector Int)
 vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNames then
