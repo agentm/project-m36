@@ -6,7 +6,7 @@ before_test:
 # http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
 - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
 
-- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-i386
+- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-x86_64
 - 7z x stack.zip stack.exe
 
 clone_folder: "c:\\project-m36"
