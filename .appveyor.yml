@@ -28,9 +28,6 @@ test_script:
 # descriptor
 - echo "" | stack --no-terminal test
 
-on_failure:
-  - dir pkgdb /b/s
-
 artifacts:
   - path: .stack-work\dist\*\build\*\*
     name: bin
