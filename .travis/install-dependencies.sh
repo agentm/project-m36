@@ -4,7 +4,7 @@ if [[ "$(uname)" = "Darwin" ]]; then
 else
     timeout_cmd="timeout"
 fi
-$timeout_cmd 15m stack --no-terminal --jobs=2 --install-ghc --system-ghc build --only-dependencies --fast
+$timeout_cmd 30m stack --no-terminal --jobs=2 --install-ghc --system-ghc build --only-dependencies --fast
 ret=$?
 case "$ret" in
     0)
@@ -13,7 +13,7 @@ case "$ret" in
     124)
         echo "Timed out while installing dependencies."
         echo "Try building again by pushing a new commit."
-        exit 1
+        exit 0
         ;;
     *)
         echo "Failed to install dependencies; stack exited with $ret"
