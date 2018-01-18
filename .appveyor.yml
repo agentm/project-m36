@@ -2,6 +2,8 @@ build: off
 
 version: 1.0.{build}-{branch}
 
+image: Visual Studio 2017
+
 before_test:
 # http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
 - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
