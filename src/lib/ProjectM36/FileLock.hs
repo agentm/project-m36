@@ -49,22 +49,14 @@ lockFile winHandle lock = do
 
   allocaBytes sizeof_OVERLAPPED $ \op -> do
     zeroMemory op $ fromIntegral sizeof_OVERLAPPED
-    res <- c_lockFileEx winHandle (exFlag .|. blockFlag) 0 1 0 op
-    if res then
-       pure ()
-    else
-       error "failed to wait for database lock"
+    failIfFalse_ "LockFileEx" $ c_lockFileEx winHandle (exFlag .|. blockFlag) 0 1 0 op
 
 unlockFile :: HANDLE -> IO ()
 unlockFile winHandle = do
   let sizeof_OVERLAPPED = 32
   allocaBytes sizeof_OVERLAPPED $ \op -> do
     zeroMemory op $ fromIntegral sizeof_OVERLAPPED
-    res <- c_unlockFileEx winHandle 0 1 0 op
-    if res then
-      pure ()
-    else
-      error ("failed to unlock database lock: " ++ show res)
+    failIfFalse_ "UnlockFileEx" $ c_unlockFileEx winHandle 0 1 0 op
 
 #else
 --all of this complicated nonsense is fixed if we switch to GHC 8.2 which includes native flock support on handles
