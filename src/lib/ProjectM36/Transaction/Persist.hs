@@ -23,9 +23,9 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 
 getDirectoryNames :: FilePath -> IO [FilePath]
-getDirectoryNames path = do
-  subpaths <- getDirectoryContents path
-  return $ filter (\n -> n `notElem` ["..", "."]) subpaths
+getDirectoryNames path =
+  filter (\ n -> n `notElem` ["..", "."]) <$> getDirectoryContents path
+
 
 tempTransactionDir :: FilePath -> TransactionId -> FilePath
 tempTransactionDir dbdir transId = dbdir </> "." ++ show transId
@@ -109,10 +109,10 @@ readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
 readRelVars transDir = do
   let relvarsPath = relvarsDir transDir
   relvarNames <- getDirectoryNames relvarsPath
-  relvars <- mapM (\name -> do
+  let relvars = mapM (\name -> do
                       rel <- B.decode . decompress . BSL.fromStrict <$> BS.readFile (relvarsPath </> name)
                       return (T.pack name, rel)) relvarNames
-  return $ M.fromList relvars
+  M.fromList <$> relvars
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
@@ -191,8 +191,8 @@ readDBCFuncs transDir mScriptSession = do
   funcNames <- getDirectoryNames (dbcFuncsDir transDir)
   --only Haskell script functions can be serialized
   --we always return the pre-compiled functions
-  funcs <- mapM ((\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) . T.pack) funcNames
-  return $ HS.union basicDatabaseContextFunctions (HS.fromList funcs)
+  let funcs = mapM ((\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) . T.pack) funcNames
+  HS.union basicDatabaseContextFunctions . HS.fromList <$> funcs
   
 readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction  
 readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
@@ -232,8 +232,7 @@ readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)
 readIncDeps transDir = do
   let incDepsPath = incDepsDir transDir
   incDepNames <- getDirectoryNames incDepsPath
-  incDeps <- mapM (readIncDep transDir . T.pack) incDepNames
-  return $ M.fromList incDeps
+  M.fromList <$> mapM (readIncDep transDir . T.pack) incDepNames
   
 readSubschemas :: FilePath -> IO Subschemas  
 readSubschemas transDir = do

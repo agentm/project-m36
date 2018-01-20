@@ -211,7 +211,5 @@ readGraphTransactionIdFile dbdir = do
         (readUUID tid, readEpoch epochText, map readUUID parentIds)
       readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
       readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
-  --warning: uses lazy IO
-  graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
-  return $ Right (map grapher $ T.lines graphTransactionIdData)
+  Right . map grapher . T.lines <$> TIO.readFile (transactionLogPath dbdir)
 

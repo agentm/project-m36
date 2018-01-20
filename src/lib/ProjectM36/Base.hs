@@ -58,9 +58,7 @@ instance Hashable Atom where
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
-  get = do 
-    r <- get :: Get Rational
-    return (posixSecondsToUTCTime (fromRational r))
+  get = posixSecondsToUTCTime . fromRational <$> (get :: Get Rational)
     
 instance Binary Day where    
   put day = put $ toGregorian day

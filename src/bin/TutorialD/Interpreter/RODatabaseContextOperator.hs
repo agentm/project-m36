@@ -30,20 +30,17 @@ data RODatabaseContextOperator where
 typeP :: Parser RODatabaseContextOperator
 typeP = do
   reservedOp ":type"
-  expr <- relExprP
-  return $ ShowRelationType expr
+  ShowRelationType <$> relExprP
 
 showRelP :: Parser RODatabaseContextOperator
 showRelP = do
   reservedOp ":showexpr"
-  expr <- relExprP
-  return $ ShowRelation expr
+  ShowRelation <$> relExprP
 
 showPlanP :: Parser RODatabaseContextOperator
 showPlanP = do
   reservedOp ":showplan"
-  expr <- databaseContextExprP
-  return $ ShowPlan expr
+  ShowPlan <$> databaseContextExprP
 
 showTypesP :: Parser RODatabaseContextOperator
 showTypesP = reserved ":showtypes" >> pure ShowTypes
@@ -59,14 +56,12 @@ quitP = do
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
   reservedOp ":constraints"
-  constraintName <- option "" identifier
-  return $ ShowConstraint constraintName
+  ShowConstraint <$> option "" identifier
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
   reserved ":plotexpr"
-  expr <- relExprP
-  return $ PlotRelation expr
+  PlotRelation <$> relExprP
 
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
 roDatabaseContextOperatorP = typeP

@@ -112,8 +112,7 @@ ungroupP = do
 extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 extendP = do
   reservedOp ":"
-  tupleExpr <- braces extendTupleExpressionP
-  return $ Extend tupleExpr
+  Extend <$> braces extendTupleExpressionP
   
 semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 semijoinP = do
@@ -169,17 +168,15 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
                     <|> relationalBooleanExprP
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
-relationalBooleanExprP = do
-  relexpr <- parens relExprP <|> relTerm
+relationalBooleanExprP = 
   --we can't actually detect if the type is relational boolean, so we just pass it to the next phase
-  return $ RelationalExprPredicate relexpr
+  RelationalExprPredicate <$> (parens relExprP <|> relTerm)
   
 restrictionAttributeEqualityP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionAttributeEqualityP = do
   attributeName <- identifier
   reservedOp "="
-  atomexpr <- atomExprP
-  return $ AttributeEqualityPredicate attributeName atomexpr
+  AttributeEqualityPredicate attributeName <$> atomExprP
 
 restrictionAtomExprP :: RelationalMarkerExpr a=> Parser (RestrictionPredicateExprBase a) --atoms which are of type "boolean"
 restrictionAtomExprP = do
@@ -196,8 +193,7 @@ attributeExtendTupleExpressionP :: RelationalMarkerExpr a => Parser (ExtendTuple
 attributeExtendTupleExpressionP = do
   newAttr <- identifier
   reservedOp ":="
-  atom <- atomExprP
-  return $ AttributeExtendTupleExpr newAttr atom
+  AttributeExtendTupleExpr newAttr <$> atomExprP
 
 atomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 atomExprP = consumeAtomExprP True
@@ -213,8 +209,7 @@ consumeAtomExprP consume = try functionAtomExprP <|>
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
   _ <- string "@"
-  attrName <- identifier
-  return $ AttributeAtomExpr attrName
+  AttributeAtomExpr <$> identifier
 
 nakedAtomExprP :: Parser (AtomExprBase a)
 nakedAtomExprP = NakedAtomExpr <$> atomP
@@ -234,11 +229,8 @@ atomP = stringAtomP <|>
         boolAtomP
         
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
-functionAtomExprP = do
-  funcName <- identifier
-  argList <- parens (sepBy atomExprP comma)
-  marker <- parseMarkerP
-  return $ FunctionAtomExpr funcName argList marker
+functionAtomExprP = 
+  FunctionAtomExpr <$> identifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationalAtomExprP = RelationAtomExpr <$> relExprP
