@@ -31,5 +31,5 @@ test_script:
 - echo "" | stack --no-terminal test
 
 artifacts:
-  - path: .stack-work\dist\*\build\*\*
+  - path: .stack-work\install\*\bin\*.exe
     name: bin
