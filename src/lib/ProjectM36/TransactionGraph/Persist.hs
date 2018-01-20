@@ -89,7 +89,7 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
          else
            pure (Left (InvalidDirectoryError dbdir))
 {- 
-initialize a database directory with the graph from which to bootstrap- return lock file handle
+initialize a database directory with the graph from which to bootstrap- return lock file handle which must be closed by the caller
 -}
 bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (LockFile, LockFileHash)
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do

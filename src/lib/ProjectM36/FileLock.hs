@@ -35,7 +35,6 @@ openLockFile path = createFile path
 
 closeLockFile :: LockFile -> IO ()
 closeLockFile file = do
-   unlockFile file
    closeHandle file
 
 --swiped from System.FileLock package
@@ -84,8 +83,7 @@ openLockFile path =
   LockFile <$> P.createFile path ownerWriteMode
   
 closeLockFile :: LockFile -> IO ()
-closeLockFile l@(LockFile fd) = do
-  unlockFile l
+closeLockFile (LockFile fd) = do
   P.closeFd fd
   
 --blocks on lock, if necessary
@@ -101,6 +99,6 @@ unlockFile (LockFile fd) =
   P.waitToSetLock fd (lockStruct P.Unlock)
 #endif
 
-data LockType = ReadLock | WriteLock
+data LockType = ReadLock | WriteLock deriving (Show)
 
   
