@@ -35,7 +35,6 @@ openLockFile path = createFile path
 
 closeLockFile :: LockFile -> IO ()
 closeLockFile file = do
-   unlockFile file
    closeHandle file
 
 --swiped from System.FileLock package
