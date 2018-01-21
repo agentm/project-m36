@@ -29,8 +29,6 @@ test_script:
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
  - echo "" | stack --no-terminal test
-
-on_success:
  - 7z.exe a project-36.zip .stack-work\install\*\bin\*.exe
 
 artifacts:
