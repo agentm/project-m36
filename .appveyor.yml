@@ -22,7 +22,7 @@ platform:
 
 cache:
  - "c:\\sr"
- - "%LocalAppData%\\stack"
+ - "%LocalAppData%\\Programs\\stack"
 
 test_script:
  - stack setup > nul
