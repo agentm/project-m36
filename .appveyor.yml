@@ -23,7 +23,7 @@ platform:
 cache:
  - "c:\\sr"
  - "%LocalAppData%\\Programs\\stack"
- - ".stack-work"
+# - ".stack-work" # send us over the 1 GB limit
 
 test_script:
  - stack setup > nul
