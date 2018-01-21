@@ -75,7 +75,7 @@ openLockFile path =
   LockFile <$> P.createFile path ownerWriteMode
   
 closeLockFile :: LockFile -> IO ()
-closeLockFile (LockFile fd) = do
+closeLockFile (LockFile fd) =
   P.closeFd fd
   
 --blocks on lock, if necessary
