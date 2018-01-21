@@ -508,7 +508,7 @@ backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
 backtrackGraph graph currentTid btrack@(TransactionStampHeadBacktrack stamp) = do           
   trans <- transactionForId currentTid graph
   let parents = transactionParentIds trans
-  if transactionTimestamp trans < stamp then
+  if transactionTimestamp trans <= stamp then
     pure currentTid
     else if S.null parents then
            Left RootTransactionTraversalError

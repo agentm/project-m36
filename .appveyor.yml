@@ -1,0 +1,36 @@
+build: off
+
+version: 1.0.{build}-{branch}
+
+image: Visual Studio 2017
+
+before_test:
+# http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
+- set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+
+- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-x86_64
+- 7z x stack.zip stack.exe
+
+clone_folder: "c:\\project-m36"
+clone_depth: 2
+environment:
+  global:
+    STACK_ROOT: "c:\\sr"
+
+platform:
+ - x64
+
+cache:
+ - "c:\\sr"
+ - "%LocalAppData%\\Programs\\stack"
+
+test_script:
+ - stack setup > nul
+# The ugly echo "" hack is to avoid complaints about 0 being an invalid file
+# descriptor
+ - echo "" | stack --no-terminal test
+# - 7z.exe a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on project-m36.7z .stack-work\install\*\bin\project-m36-server.exe .stack-work\install\*\bin\project-m36-websocket-server.exe .stack-work\install\*\bin\tutd.exe .stack-work\install\*\bin\project-m36-server.exe
+
+#artifacts:
+#  - path: project-m36.7z
+#    name: project-m36.7z
