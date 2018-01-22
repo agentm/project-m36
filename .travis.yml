@@ -40,7 +40,7 @@ script:
    # Run tests
    set -e
    ./.travis/install-dependencies.sh
-#   stack --no-terminal --jobs=2 --system-ghc test
+   stack --no-terminal --jobs=2 --system-ghc test
  - |
    #Run HLint
    if [[ "$(uname)" = "Linux" ]]; then 
