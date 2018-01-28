@@ -83,7 +83,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr]
+testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr, testReorderedTuple]
 
 testADT1 :: Test
 testADT1 = TestCase $ assertEqual "one record constructor" (Right example) (fromTuple (toTuple example))
@@ -191,4 +191,12 @@ testDeleteExpr = TestCase $ do
                                                                attr9C = 5.5}
   assertEqual "delete expr" expected actual
                               
-               
+--discovered in #184 by ruhatch    
+testReorderedTuple :: Test
+testReorderedTuple = TestCase $ do
+  let tupleRev :: RelationTuple -> RelationTuple
+      tupleRev (RelationTuple v1 v2) = RelationTuple (V.reverse v1) (V.reverse v2)
+      expected = Test2C {attrB = 3, 
+                         attrC = 4}
+      actual = fromTuple . tupleRev . toTuple $ expected
+  assertEqual "reordered tuple" (Right expected) actual

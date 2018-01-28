@@ -139,12 +139,14 @@ class TupleableG g where
   toTupleG :: g a -> RelationTuple
   toAttributesG :: g a -> Attributes
   fromTupleG :: RelationTuple -> Either RelationalError (g a)
+  isRecordTypeG :: g a -> Bool
 
 --data type metadata
 instance (Datatype c, TupleableG a) => TupleableG (M1 D c a) where
   toTupleG (M1 v) = toTupleG v
   toAttributesG (M1 v) = toAttributesG v
   fromTupleG v = M1 <$> fromTupleG v
+  isRecordTypeG (M1 v) = isRecordTypeG v
 
 --constructor metadata
 instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) where
@@ -159,12 +161,19 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
       atoms = V.fromList (toAtomsG v)
   toAttributesG (M1 v) = toAttributesG v
   fromTupleG tup = M1 <$> fromTupleG tup
+  isRecordTypeG (M1 v) = isRecordTypeG v
 
 -- product types
 instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
   toTupleG = error "toTupleG"
   toAttributesG ~(x :*: y) = toAttributesG x V.++ toAttributesG y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
-  fromTupleG tup = (:*:) <$> fromTupleG tup <*> fromTupleG (trimTuple 1 tup)
+  fromTupleG tup = (:*:) <$> fromTupleG tup <*> fromTupleG processedTuple
+    where
+      processedTuple = if isRecordTypeG (undefined :: a x) then
+                         tup
+                       else
+                         trimTuple 1 tup
+  isRecordTypeG ~(x :*: y) = isRecordTypeG x || isRecordTypeG y
 
 --selector/record
 instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
@@ -186,6 +195,7 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
                                (atomTypeForAtom atom)
                               )) Right (fromAtomG atom [atom])
      name = selName (undefined :: M1 S c a x)
+  isRecordTypeG _ = not (null (selName (undefined :: M1 S c a x)))
 
 --constructors with no arguments
 --basically useless but orthoganal to relationTrue
@@ -193,5 +203,5 @@ instance TupleableG U1 where
   toTupleG _= emptyTuple
   toAttributesG _ = emptyAttributes
   fromTupleG _ = pure U1
-
+  isRecordTypeG _ = False
 

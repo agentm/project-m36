@@ -209,7 +209,7 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
                              RelationTuple attrs (V.map mapper attrs)
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
-      Left _ -> error "logic failure in reorderTuple"
+      Left err -> error ("logic bug in reorderTuple: " ++ show err)
       Right atom -> atom
 
 --used in Generics derivation for ADTs without named attributes
