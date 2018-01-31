@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, LambdaCase #-}
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
@@ -224,9 +224,10 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
       
 type GhcPkgPath = String  
 type TutorialDExec = String
+type CheckFS = Bool
   
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec)
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] CheckFS |
+                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -244,7 +245,7 @@ reprLoop config sessionId conn = do
   eHeadName <- C.headName sessionId conn
   eSchemaName <- C.currentSchemaName sessionId conn
   let prompt = promptText eHeadName eSchemaName
-      catchInterrupt = handleJust (\exc -> case exc of
+      catchInterrupt = handleJust (\case
                                       UserInterrupt -> Just Nothing
                                       _ -> Nothing) (\_ -> do
                                                         hPutStrLn stderr "Statement cancelled. Use \":quit\" to exit tutd."
@@ -253,15 +254,15 @@ reprLoop config sessionId conn = do
   case maybeLine of
     Nothing -> return ()
     Just line -> do
-      runTutorialD sessionId conn (T.pack line)
+      runTutorialD sessionId conn (Just (T.length prompt)) (T.pack line)
       reprLoop config sessionId conn
       
 
-runTutorialD :: C.SessionId -> C.Connection -> T.Text -> IO ()
-runTutorialD sessionId conn tutd = 
+runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
+runTutorialD sessionId conn mPromptLength tutd = 
   case parseTutorialD tutd of
     Left err -> 
-      displayOpResult $ DisplayParseErrorResult 0 err
+      displayOpResult $ DisplayParseErrorResult mPromptLength err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
         evald <- evalTutorialDInteractive sessionId conn UnsafeEvaluation True parsed

@@ -4,6 +4,11 @@ import Data.Text
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
+-- older versions of stack fail to
+#if !defined(VERSION_project_m36) 
+# warning Failed to discover proper version from cabal_macros.h
+# define VERSION_project_m36 "<unknown>"
+#endif
 
 -- this module provides information about the current interpreter
 

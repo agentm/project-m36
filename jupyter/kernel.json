@@ -1,0 +1,5 @@
+{
+ "language":"TutorialD",
+ "display_name":"TutorialD (Project:M36)",
+ "argv":["python", "-m", "itutd.ITutorialDKernel", "-f", "{connection_file}"]
+}

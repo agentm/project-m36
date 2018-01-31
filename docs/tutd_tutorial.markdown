@@ -180,6 +180,37 @@ TutorialD (master/main): :showexpr p{color,city}
 └──────┴─────┘
 ```
 
+Projection attributes can also be inverted using `all but`:
+
+```
+TutorialD (master/main): :showexpr s{all but city}
+┌────────┬───────────┬───────────────┐
+│s#::Text│sname::Text│status::Integer│
+├────────┼───────────┼───────────────┤
+│"S2"    │"Jones"    │10             │
+│"S3"    │"Blake"    │30             │
+│"S1"    │"Smith"    │20             │
+│"S5"    │"Adams"    │30             │
+│"S4"    │"Clark"    │20             │
+└────────┴───────────┴───────────────┘
+```
+
+Projection attributes can also be derived from a relational expression using `all from`:
+
+```
+TutorialD (master/main): :showexpr (s join sp){all from s}
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"London"  │"S1"    │"Smith"    │20             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+└──────────┴────────┴───────────┴───────────────┘
+```
+
+Above, we join `s` and `sp` but project the result back onto the attributes of `s`.
+
 #### Restriction
 
 Restriction is applied using a "where" clause, much like in SQL.
@@ -206,7 +237,7 @@ TutorialD (master/main): :showexpr s where ^lt(@status,20)
 
 #### Join
 
-Joins are binary operators and are applied with the "join" keyword. The equivalent in SQL would be a "NATURAL JOIN". To join attributes which are not identically-named, use the rename operator
+Joins are binary operators and are applied with the "join" keyword. The equivalent in SQL would be a "NATURAL JOIN". To join attributes which are not identically-named, use the `rename` operator.
 
 ```
 TutorialD (master/main): :showexpr s join sp
@@ -226,6 +257,12 @@ TutorialD (master/main): :showexpr s join sp
 │London│P4│200│S1│Smith│20    │
 └──────┴──┴───┴──┴─────┴──────┘
 ```
+
+As a convenience, `tutd` also supports semijoin (`matching`) and antijoin (`not matching`) syntax.
+
+`s matching sp` or `s semijoin sp` is equivalent to `(s join sp){all from s}` which returns all tuples in `s` which appear in the join of `s` and `sp`.
+
+`s not matching sp` or `s antijoin sp` is equivalent to `s minus (s matching sp)` which returns all tuples in `s` which do not appear in the join of `s` and `sp`. Thus, semjoin and antijoin are inverses of each other.
 
 #### Union
 

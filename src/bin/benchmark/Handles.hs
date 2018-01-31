@@ -1,13 +1,13 @@
 {-# LANGUAGE CPP #-}
 --benchmark test for file handle leaks
 import ProjectM36.Client
+import ProjectM36.Persist
 import Options.Applicative
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import Text.Megaparsec hiding (option)
 import Data.Monoid
-import System.Directory
 import Control.Monad
 
 data HandlesArgs = HandlesArgs {
@@ -85,24 +85,3 @@ runTransaction tutdIterate' sess conn =
             Left err -> error (show err)
             Right _ -> printFdCount
       
---prints out number of consumed file descriptors      
-printFdCount :: IO ()
-#if defined(linux_HOST_OS)
-printFdCount = do
-  fdc <- fdCount
-  putStrLn ("Fd count: " ++ show fdc)
-  --getLine >> pure ()
-#else
-printFdCount = putStrLn "Fd count not supported on this OS."
-#endif
-
-
-fdCount :: IO Int
-#if defined(linux_HOST_OS)
-fdCount = do
-  fds <- getDirectoryContents "/proc/self/fd"
-  pure ((length fds) - 2)
-#else 
---not supported on non-linux
-fdCount = pure 0
-#endif

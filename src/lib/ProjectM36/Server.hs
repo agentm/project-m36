@@ -5,6 +5,7 @@ import ProjectM36.Client
 import ProjectM36.Server.EntryPoints 
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
+import ProjectM36.FSType
 
 import Control.Monad.IO.Class (liftIO)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
@@ -15,6 +16,8 @@ import Control.Distributed.Process (Process, register, getSelfPid)
 import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
 import Control.Concurrent.MVar (putMVar, MVar)
 import System.IO (stderr, hPutStrLn)
+import System.FilePath (takeDirectory)
+import System.Directory (doesDirectoryExist)
 
 -- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
 --trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
@@ -70,10 +73,30 @@ registerDB dbname = do
   let dbname' = remoteDBLookupName dbname  
   register dbname' self
   --liftIO $ putStrLn $ "registered " ++ (show self) ++ " " ++ dbname'
-
+  
 -- | A notification callback which logs the notification to stderr and does nothing else.
 loggingNotificationCallback :: NotificationCallback
 loggingNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received \"" ++ show notName ++ "\": " ++ show evaldNot
+
+checkFSType :: Bool -> PersistenceStrategy -> IO Bool  
+checkFSType performCheck strat = 
+  case strat of 
+    NoPersistence -> pure True
+    MinimalPersistence _ -> pure True
+    CrashSafePersistence path -> 
+      if performCheck then do
+        -- if the path does not (yet) exist, then walk back a step- the db directory may not yet have been created
+        fullpathexists <- doesDirectoryExist path
+        let fscheckpath = if fullpathexists then
+                           path
+                          else
+                           takeDirectory path
+        fsTypeSupportsJournaling fscheckpath
+      else
+        pure True
+        
+checkFSErrorMsg :: String        
+checkFSErrorMsg = "The filesystem does not support journaling so writes may not be crash-safe. Use --disable-fscheck to disable this fatal error."
 
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO Bool
@@ -102,4 +125,3 @@ launchServer daemonConfig mAddressMVar = do
                 serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
               liftIO $ putStrLn "serve returned"
               pure True
-  

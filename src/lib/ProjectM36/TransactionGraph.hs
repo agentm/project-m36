@@ -98,9 +98,8 @@ transactionForId tid graph
     matchingTrans = S.filter (\(Transaction idMatch _ _) -> idMatch == tid) (transactionsForGraph graph)
 
 transactionsForIds :: S.Set TransactionId -> TransactionGraph -> Either RelationalError (S.Set Transaction)
-transactionsForIds idSet graph = do
-  transList <- forM (S.toList idSet) (`transactionForId` graph)
-  return (S.fromList transList)
+transactionsForIds idSet graph =
+  S.fromList <$> forM (S.toList idSet) (`transactionForId` graph)
 
 isRootTransaction :: Transaction -> TransactionGraph -> Bool
 isRootTransaction (Transaction _ (TransactionInfo pId _ _) _) _ = U.null pId
@@ -108,9 +107,9 @@ isRootTransaction (Transaction _ MergeTransactionInfo{} _) _  = False
 
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
-parentTransactions (Transaction _ (TransactionInfo pId _ _) _) graph = do
-  trans <- transactionForId pId graph
-  return (S.singleton trans)
+parentTransactions (Transaction _ (TransactionInfo pId _ _) _) graph = 
+  S.singleton <$> transactionForId pId graph
+
 
 parentTransactions (Transaction _ (MergeTransactionInfo pId1 pId2 _ _) _ ) graph = transactionsForIds (S.fromList [pId1, pId2]) graph
 
@@ -164,7 +163,7 @@ validateGraph graph@(TransactionGraph _ transSet) = do
   --uuids = map transactionId transSet
   --check that all heads appear in the transSet
   --check that all forward and backward links are in place
-  _ <- mapM (walkParentTransactions S.empty graph) (S.toList transSet)
+  mapM_ (walkParentTransactions S.empty graph) (S.toList transSet)
   mapM (walkChildTransactions S.empty graph) (S.toList transSet)
 
 --verify that all parent links exist and that all children exist
@@ -509,7 +508,7 @@ backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
 backtrackGraph graph currentTid btrack@(TransactionStampHeadBacktrack stamp) = do           
   trans <- transactionForId currentTid graph
   let parents = transactionParentIds trans
-  if transactionTimestamp trans < stamp then
+  if transactionTimestamp trans <= stamp then
     pure currentTid
     else if S.null parents then
            Left RootTransactionTraversalError

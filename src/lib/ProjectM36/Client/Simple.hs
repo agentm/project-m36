@@ -72,7 +72,7 @@ close (_ , conn) = C.close conn
 withTransaction :: DbConn -> Db a -> IO (Either DbError a)
 withTransaction sessconn = withTransactionUsing sessconn UnionMergeStrategy
 
--- | Same a 'withTransaction' except that the merge strategy can be specified.
+-- | Same as 'withTransaction' except that the merge strategy can be specified.
 withTransactionUsing :: DbConn -> MergeStrategy -> Db a -> IO (Either DbError a)
 withTransactionUsing (sess, conn) strat dbm = do
   eHeadName <- C.headName sess conn
@@ -84,7 +84,7 @@ withTransactionUsing (sess, conn) strat dbm = do
           handler :: TransactionCancelled -> IO (Either DbError a)
           handler (TransactionCancelled err) = pure (Left err)
       handle handler $ do
-        ret <- C.withTransaction sess conn (block >>= pure . Right) successFunc
+        ret <- C.withTransaction sess conn (Right <$> block) successFunc
         case ret of
           Left err  -> pure (Left (RelError err))
           Right val -> pure (Right val)

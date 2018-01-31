@@ -9,9 +9,9 @@ import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
-import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import ProjectM36.Error
+import ProjectM36.MiscUtils
 --import qualified Control.Parallel.Strategies as P
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
@@ -19,6 +19,7 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
+import Data.List (sort)
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -36,20 +37,24 @@ atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
 
 mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
-mkRelationFromList attrs atomMatrix = do
-  tupSet <- mkTupleSetFromList attrs atomMatrix
-  return $ Relation attrs tupSet
+mkRelationFromList attrs atomMatrix =
+  Relation attrs <$> mkTupleSetFromList attrs atomMatrix
   
 emptyRelationWithAttrs :: Attributes -> Relation  
 emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelation attrs tupleSet = 
-  --check that all tuples have the same keys
-  --check that all tuples have keys (1-N) where N is the attribute count
-  case verifyTupleSet attrs tupleSet of
-    Left err -> Left err
-    Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
+mkRelation attrs tupleSet =
+  --check that all attributes are unique- this cannot be done when creating attributes because the check can become expensive
+  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList attrs))) in
+  if not (null duplicateAttrNames) then
+    Left (DuplicateAttributeNamesError (S.fromList duplicateAttrNames))
+    else
+    --check that all tuples have the same keys
+    --check that all tuples have keys (1-N) where N is the attribute count
+    case verifyTupleSet attrs tupleSet of
+      Left err -> Left err
+      Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
     
 --less safe version of mkRelation skips verifyTupleSet
 --useful for infinite or thunked tuple sets
@@ -78,6 +83,7 @@ singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
                                        else
                                          Nothing
 
+-- this is still unncessarily expensive for (bigx union bigx) because each tuple is hashed and compared for equality (when the hashes match), but the major expense is attributesEqual, but we already know that all tuple attributes are equal (it's a precondition)
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   if not (A.attributesEqual attrs1 attrs2)
@@ -86,16 +92,13 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
     Right $ Relation attrs1 newtuples
   where
     newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
-
-project :: AttributeNames -> Relation -> Either RelationalError Relation
-project projectionAttrNames rel =
-  case AS.projectionAttributesForAttributeNames (attributes rel) projectionAttrNames of
-    Left err -> Left err
-    Right newAttrs -> relFold (folder newAttrs) (Right $ Relation newAttrs emptyTupleSet) rel
-  where
-    folder newAttrs tupleToProject acc = case acc of
-      Left err -> Left err
-      Right acc2 -> acc2 `union` Relation newAttrs (RelationTupleSet [tupleProject (A.attributeNameSet newAttrs) tupleToProject])
+      
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation      
+project attrNames rel@(Relation _ tupSet) = do
+  newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
+  let newAttrNameSet = A.attributeNameSet newAttrs
+      newTupleList = map (tupleProject newAttrNameSet) (asList tupSet)
+  pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) 
@@ -142,11 +145,11 @@ group groupAttrNames newAttrName rel@(Relation oldAttrs tupleSet) = do
 -}
 
 --algorithm: self-join with image relation
-group :: AttributeNames -> AttributeName -> Relation -> Either RelationalError Relation
+group :: S.Set AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 group groupAttrNames newAttrName rel = do
-  let nonGroupAttrNames = AS.invertAttributeNames groupAttrNames
-  nonGroupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) nonGroupAttrNames
-  groupProjectionAttributes <- AS.projectionAttributesForAttributeNames (attributes rel) groupAttrNames
+  let nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (S.fromList (V.toList (A.attributeNames (attributes rel))))
+  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel)
+  groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
         Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
@@ -216,8 +219,7 @@ join (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = do
         joinedTupSet <- singleTupleSetJoin newAttrs tuple1 tupSet2
         return $ joinedTupSet ++ accumulator
   newTupSetList <- foldM tupleSetJoiner [] (asList tupSet1)
-  newTupSet <- mkTupleSet newAttrs newTupSetList
-  return $ Relation newAttrs newTupSet
+  Relation newAttrs <$> mkTupleSet newAttrs newTupSetList
   
 -- | Difference takes two relations of the same type and returns a new relation which contains only tuples which appear in the first relation but not the second.
 difference :: Relation -> Relation -> Either RelationalError Relation  
@@ -267,7 +269,7 @@ toList rel = do
 imageRelationFor ::  RelationTuple -> Relation -> Either RelationalError Relation
 imageRelationFor matchTuple rel = do
   restricted <- restrictEq matchTuple rel --restrict across matching tuples
-  let projectionAttrNames = AttributeNames $ A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)
+  let projectionAttrNames = A.nonMatchingAttributeNameSet (attributeNames rel) (tupleAttributeNameSet matchTuple)
   project projectionAttrNames restricted --project across attributes not in rel
 
 --returns a relation-valued attribute image relation for each tuple in rel1

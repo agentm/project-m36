@@ -79,7 +79,7 @@ module ProjectM36.Client
        TypeConstructor(..),
        TypeConstructorDef(..),
        DataConstructorDef(..),
-       AttributeNames(..),
+       AttributeNamesBase(..),
        RelVarName,
        IncDepName,
        InclusionDependency(..),
@@ -110,7 +110,7 @@ import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
-import ProjectM36.Attribute hiding (atomTypes)
+import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression (TransGraphRelationalExpr, evalTransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
@@ -543,9 +543,13 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case runReader (RE.evalRelationalExpr expr'') (RE.mkRelationalExprState (Sess.concreteDatabaseContext session)) of
+        Right expr'' -> case optimizeRelationalExpr (Sess.concreteDatabaseContext session) expr'' of
           Left err -> pure (Left err)
-          Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+          Right optExpr -> do
+            let evald = runReader (RE.evalRelationalExpr optExpr) (RE.mkRelationalExprState (Sess.concreteDatabaseContext session))
+            case evald of
+              Left err -> pure (Left err)
+              Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
@@ -562,10 +566,15 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Left err)
-        Right expr'' -> case runState (RE.evalDatabaseContextExpr expr'') (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
-          (Just err,_) -> pure (Left err)
-          (Nothing, (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
-          (Nothing, (!context',_,True)) -> do
+        Right expr'' -> case runState (do
+                                          eOptExpr <- applyStaticDatabaseOptimization expr''
+                                          case eOptExpr of
+                                            Left err -> pure (Left err)
+                                            Right optExpr ->
+                                              RE.evalDatabaseContextExpr optExpr) (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
+          (Left err,_) -> pure (Left err)
+          (Right (), (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
+          (Right (), (!context',_,True)) -> do
             let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas
@@ -574,7 +583,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
             pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
--- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing).
+-- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing). Alternatively, as an optimization, if a simple commit is possible (meaning that the head has not changed), then a fast-forward commit takes place instead.
 autoMergeToHead :: SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
 autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   let sessions = ipSessions conf
@@ -586,11 +595,21 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
       Left err -> pure (Left err)
-      Right session ->
-        case Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph of
-          Left err -> pure (Left err)
-          Right (discon', graph') ->
-            pure (Right (discon', graph', [id1, id2, id3]))
+      Right session -> 
+        case Graph.transactionForHead headName' graph of
+          Nothing -> pure (Left (NoSuchHeadNameError headName'))
+          Just headTrans -> do
+            --attempt fast-forward commit, if possible
+            let graphInfo = if Sess.parentId session == transactionId headTrans then do
+                              ret <- Graph.evalGraphOp stamp id1 (Sess.disconnectedTransaction session) graph Commit
+                              pure (ret, [id1])
+                            else do
+                              ret <- Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph 
+                              pure (ret, [id1,id2,id3])
+            case graphInfo of
+              Left err -> pure (Left err)
+              Right ((discon', graph'), transactionIdsAdded) ->
+                pure (Right (discon', graph', transactionIdsAdded))
 autoMergeToHead sessionId conn@(RemoteProcessConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
@@ -843,7 +862,7 @@ typeConstructorMapping sessionId (InProcessConnection conf) = do
       Right (session, _) -> --warning, no schema support for typeconstructors
         pure (Right (B.typeConstructorMapping (Sess.concreteDatabaseContext session)))
 typeConstructorMapping sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTypeConstructorMapping sessionId)
-
+  
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError DatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do

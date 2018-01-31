@@ -147,13 +147,14 @@ Library
                      ProjectM36.Transaction.Persist,
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
-                     ProjectM36.FileLock
+                     ProjectM36.FileLock,
+                     ProjectM36.FSType
     GHC-Options: -Wall
     if os(windows)
       Build-Depends: Win32 >= 2.3
       Other-Modules: ProjectM36.Win32Handle
     else
-      C-sources: cbits/DirectoryFsync.c
+      C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
     CC-Options: -fPIC
     Hs-Source-Dirs: ./src/lib
@@ -225,13 +226,6 @@ Executable tutd
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
---    if os(windows)
---      Build-Depends: Win32 >= 2.3 && < 2.4
---      Other-Modules: ProjectM36.Win32Handle
---    else
---      C-sources: ProjectM36/DirectoryFsync.c
---      Build-Depends: unix
-
 
 Executable project-m36-server
     Build-Depends: base,
@@ -280,6 +274,17 @@ Executable bigrel
                    TutorialD.Interpreter.RelationalExpr,
                    TutorialD.Interpreter.Types
     main-is: benchmark/bigrel.hs
+    GHC-Options: -Wall -threaded -rtsopts
+    HS-Source-Dirs: ./src/bin
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+
+Benchmark basic-benchmark
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath
+    Main-Is: benchmark/Basic.hs
+    Type: exitcode-stdio-1.0
     GHC-Options: -Wall -threaded -rtsopts
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
@@ -434,7 +439,7 @@ Test-Suite test-scripts
 
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
-    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, network-transport-tcp, semigroups
+    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, network-transport-tcp, semigroups, attoparsec
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator
     GHC-Options: -Wall
@@ -534,3 +539,5 @@ Executable handles
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+  
+  

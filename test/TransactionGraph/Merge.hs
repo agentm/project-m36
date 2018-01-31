@@ -21,7 +21,7 @@ import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
 
-import Control.Monad.State hiding (join)
+import Control.Monad.State
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
@@ -122,8 +122,8 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
 -- add another relvar to branchB
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
   (updatedBranchBContext,_,_) <- case runState (evalDatabaseContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (freshDatabaseState (concreteDatabaseContext branchBTrans)) of
-    (Just err, _) -> assertFailure (show err) >> undefined
-    (Nothing, context) -> pure context
+    (Left err, _) -> assertFailure (show err) >> undefined
+    (Right (), context) -> pure context
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty testTime) updatedBranchBContext) graph
   branchBTrans' <- assertMaybe (transactionForHead "branchB" graph') "failed to get branchB head"  
   assertEqual "branchB id 3" (fakeUUID 3) (transactionId branchBTrans')  
@@ -149,8 +149,8 @@ testSelectedBranchMerge = TestCase $ do
   -- add another relvar to branchB
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
   (updatedBranchBContext,_,_) <- case runState (evalDatabaseContextExpr (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) (freshDatabaseState (concreteDatabaseContext branchBTrans)) of
-    (Just err, _) -> assertFailure (show err) >> undefined
-    (Nothing, context) -> pure context
+    (Left err, _) -> assertFailure (show err) >> undefined
+    (Right (), context) -> pure context
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans) S.empty testTime) updatedBranchBContext) graph
   --create the merge transaction in the graph
   let eGraph' = mergeTransactions testTime (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'

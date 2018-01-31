@@ -22,10 +22,13 @@ dateExamples = empty { inclusionDependencies = dateIncDeps,
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel
-    dateIncDeps = M.fromList [("s_pkey", simplePKey ["s#"] "s"),
-                              ("p_pkey", simplePKey ["p#"] "p"),
-                              ("sp_pkey", simplePKey ["s#", "p#"] "sp")
-                              ]
+    dateIncDeps = M.fromList [
+      ("s_pkey", simplePKey ["s#"] "s"),
+      ("p_pkey", simplePKey ["p#"] "p"),
+      ("sp_pkey", simplePKey ["s#", "p#"] "sp"),
+      ("s_sp_fk", inclusionDependencyForForeignKey ("sp", ["s#"]) ("s", ["s#"])),
+      ("p_sp_fk", inclusionDependencyForForeignKey ("sp", ["p#"]) ("p", ["p#"]))
+      ]
     simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName ())
 
 suppliersRel :: Relation

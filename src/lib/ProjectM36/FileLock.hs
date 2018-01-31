@@ -2,11 +2,9 @@
 --cross-platform file locking utilizing POSIX file locking on Unix/Linux and Windows file locking
 --hackage's System.FileLock doesn't support POSIX advisory locks nor locking file based on file descriptors, hence this needless rewrite
 module ProjectM36.FileLock where
-import System.IO
 
 
 #if defined(mingw32_HOST_OS)
-import ProjectM36.Win32Handle
 import System.Win32.Types
 import Foreign.Marshal.Alloc
 import System.Win32.File
@@ -24,19 +22,24 @@ foreign import WINDOWS_CCONV "LockFileEx" c_lockFileEx :: HANDLE -> DWORD -> DWO
 
 foreign import WINDOWS_CCONV "UnlockFileEx" c_unlockFileEx :: HANDLE -> DWORD -> DWORD -> DWORD -> LPOVERLAPPED -> IO BOOL
 
-type LockFile = Handle
+type LockFile = HANDLE
 
 openLockFile :: FilePath -> IO LockFile
-openLockFile path = openFile path ReadMode
+openLockFile path = createFile path 
+                    (gENERIC_READ .|. gENERIC_WRITE)
+                    (fILE_SHARE_READ .|. fILE_SHARE_WRITE)
+                    Nothing
+                    oPEN_ALWAYS
+                    fILE_ATTRIBUTE_NORMAL
+                    Nothing
 
 closeLockFile :: LockFile -> IO ()
 closeLockFile file = do
-   unlockFile file
-   hClose file
+   closeHandle file
 
 --swiped from System.FileLock package
-lockFile :: Handle -> LockType -> IO ()
-lockFile handle lock = withHandleToHANDLE handle $ \winHandle -> do
+lockFile :: HANDLE -> LockType -> IO ()
+lockFile winHandle lock = do
   let exFlag = case lock of
                  WriteLock -> 2
                  ReadLock -> 0
@@ -45,28 +48,21 @@ lockFile handle lock = withHandleToHANDLE handle $ \winHandle -> do
 
   allocaBytes sizeof_OVERLAPPED $ \op -> do
     zeroMemory op $ fromIntegral sizeof_OVERLAPPED
-    res <- c_lockFileEx winHandle (exFlag .|. blockFlag) 0 1 0 op
-    if res then
-       pure ()
-    else
-       error "failed to wait for database lock"
+    failIfFalse_ "LockFileEx" $ c_lockFileEx winHandle (exFlag .|. blockFlag) 0 1 0 op
 
-unlockFile :: Handle -> IO ()
-unlockFile handle = withHandleToHANDLE handle $ \winHandle -> do
+unlockFile :: HANDLE -> IO ()
+unlockFile winHandle = do
   let sizeof_OVERLAPPED = 32
   allocaBytes sizeof_OVERLAPPED $ \op -> do
     zeroMemory op $ fromIntegral sizeof_OVERLAPPED
-    res <- c_unlockFileEx winHandle 0 1 0 op
-    if res then
-      pure ()
-    else
-      error ("failed to unlock database lock: " ++ show res)
+    failIfFalse_ "UnlockFileEx" $ c_unlockFileEx winHandle 0 1 0 op
 
 #else
 --all of this complicated nonsense is fixed if we switch to GHC 8.2 which includes native flock support on handles
 import qualified System.Posix.IO as P
 import System.Posix.Types
 import System.Posix.Files
+import System.IO
 
 lockStruct :: P.LockRequest -> P.FileLock
 lockStruct req = (req, AbsoluteSeek, 0, 0)
@@ -79,8 +75,7 @@ openLockFile path =
   LockFile <$> P.createFile path ownerWriteMode
   
 closeLockFile :: LockFile -> IO ()
-closeLockFile l@(LockFile fd) = do
-  unlockFile l
+closeLockFile (LockFile fd) =
   P.closeFd fd
   
 --blocks on lock, if necessary
@@ -96,6 +91,6 @@ unlockFile (LockFile fd) =
   P.waitToSetLock fd (lockStruct P.Unlock)
 #endif
 
-data LockType = ReadLock | WriteLock
+data LockType = ReadLock | WriteLock deriving (Show)
 
   

@@ -15,6 +15,7 @@ import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
 import Data.Monoid
+import Data.Functor
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseContextExprP :: Parser DatabaseContextExpr
@@ -76,15 +77,12 @@ defineP = do
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
-  relVarName <- identifier
-  return $ Undefine relVarName
+  Undefine <$> identifier
 
 deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
-  relVarName <- identifier
-  predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP)
-  return $ Delete relVarName predicate
+  Delete <$> identifier <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
 
 updateP :: Parser DatabaseContextExpr
 updateP = do
@@ -101,7 +99,7 @@ addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
   constraintName <- identifier
   subset <- relExprP
-  op <- (reservedOp "in" *> pure SubsetOp) <|> (reservedOp "equals" *> pure EqualityOp)
+  op <- (reservedOp "in" $> SubsetOp) <|> (reservedOp "equals" $> EqualityOp)
   superset <- relExprP
   let subsetA = incDepSet constraintName subset superset
       subsetB = incDepSet (constraintName <> "_eqInvert") superset subset --inverted args for equality constraint
@@ -201,14 +199,15 @@ evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Eit
 evalDatabaseContextExpr useOptimizer context expr = do
     optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) (RE.freshDatabaseState context)
     case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) (RE.freshDatabaseState context) of
-        (Nothing, (context',_, _)) -> Right context'
-        (Just err, _) -> Left err
+        (Right (), (context',_, _)) -> Right context'
+        (Left err, _) -> Left err
 
 
 interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
                                     Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> evalDatabaseContextExpr True context parsed
+                                    Right parsed -> 
+                                      evalDatabaseContextExpr True context parsed
 
 {-
 --no optimization

@@ -58,9 +58,7 @@ instance Hashable Atom where
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
-  get = do 
-    r <- get :: Get Rational
-    return (posixSecondsToUTCTime (fromRational r))
+  get = posixSecondsToUTCTime . fromRational <$> (get :: Get Rational)
     
 instance Binary Day where    
   put day = put $ toGregorian day
@@ -197,7 +195,7 @@ data RelationalExprBase a =
   --- | Reference a relation variable by its name.
   RelationVariable RelVarName a |
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
-  Project AttributeNames (RelationalExprBase a) |
+  Project (AttributeNamesBase a) (RelationalExprBase a) |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
   Union (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
@@ -207,7 +205,7 @@ data RelationalExprBase a =
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
   Difference (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>
-  Group AttributeNames AttributeName (RelationalExprBase a) |
+  Group (AttributeNamesBase a) AttributeName (RelationalExprBase a) |
   --- | Create an expression to unwrap a sub-relation contained within at an attribute's name. Note that this is not always an inverse of a group operation.
   Ungroup AttributeName (RelationalExprBase a) |
   --- | Filter the tuples of the relational expression to only retain the tuples which evaluate against the restriction predicate to true.
@@ -461,11 +459,15 @@ instance Show AtomFunction where
      showArgTypes = L.intercalate "->" (map show (atomFuncType aFunc))
      
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
-data AttributeNames = AttributeNames (S.Set AttributeName) |
-                      InvertedAttributeNames (S.Set AttributeName) |
-                      UnionAttributeNames AttributeNames AttributeNames |
-                      IntersectAttributeNames AttributeNames AttributeNames
-                      deriving (Eq, Show, Generic, Binary, NFData)
+data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
+                            InvertedAttributeNames (S.Set AttributeName) |
+                            UnionAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
+                            IntersectAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
+                            RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
+                      deriving (Eq, Show, Generic, NFData)
+                               
+type AttributeNames = AttributeNamesBase ()                               
+instance Binary AttributeNames
                                 
 -- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
 data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory-only database

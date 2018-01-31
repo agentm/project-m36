@@ -29,6 +29,14 @@ tupleAttributes (RelationTuple tupAttrs _) = tupAttrs
 tupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
 tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
 
+orderedTupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
+orderedTupleAssocs tup@(RelationTuple attrVec _) = map (\attr -> (attributeName attr, atomForAttr (attributeName attr))) oAttrs
+  where
+    oAttrs = orderedAttributes attrVec
+    atomForAttr nam = case atomForAttributeName nam tup of
+      Left _ -> TextAtom "<?>"
+      Right val -> val
+
 -- return atoms in some arbitrary but consistent key order
 tupleAtoms :: RelationTuple -> V.Vector Atom
 tupleAtoms (RelationTuple _ tupVec) = tupVec
@@ -48,9 +56,8 @@ atomTypeForAttributeName attrName tup = do
 -}
 
 atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> Either RelationalError (V.Vector Atom)
-atomsForAttributeNames attrNames tuple = do
-  vindices <- vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)
-  return $ V.map (\index -> tupleAtoms tuple V.! index) vindices
+atomsForAttributeNames attrNames tuple = 
+  V.map (\index -> tupleAtoms tuple V.! index) <$> vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)
       
 vectorIndicesForAttributeNames :: V.Vector AttributeName -> Attributes -> Either RelationalError (V.Vector Int)
 vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNames then
@@ -146,10 +153,6 @@ tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
   where
     newTup = RelationTuple (V.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
 
-{- sort the associative list to match the header sorting -}
-tupleSortedAssocs :: RelationTuple -> [(AttributeName, Atom)]
-tupleSortedAssocs (RelationTuple tupAttrs tupVec) = V.toList $ V.map (\(index,attr) -> (attributeName attr, tupVec V.! index)) $ V.indexed tupAttrs
-
 --this could be cheaper- it may not be wortwhile to update all the tuples for projection, but then the attribute management must be slightly different- perhaps the attributes should be a vector of association tuples [(name, index)]
 tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
 tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs newTupVec
@@ -206,7 +209,7 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
                              RelationTuple attrs (V.map mapper attrs)
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
-      Left _ -> error "logic failure in reorderTuple"
+      Left err -> error ("logic bug in reorderTuple: " ++ show err)
       Right atom -> atom
 
 --used in Generics derivation for ADTs without named attributes

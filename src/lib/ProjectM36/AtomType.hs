@@ -234,8 +234,8 @@ atomTypeVerify x@(ConstructedAtomType tConsNameA tVarMapA) (ConstructedAtomType 
   | otherwise = Right x
 
 atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
-  _ <- mapM (\(attr1,attr2) -> let name1 = A.attributeName attr1
-                                   name2 = A.attributeName attr2 in
+  mapM_ (\(attr1,attr2) -> let name1 = A.attributeName attr1
+                               name2 = A.attributeName attr2 in
                                if notElem "_" [name1, name2] && name1 /= name2 then 
                                  Left $ AtomTypeMismatchError x y
                                else

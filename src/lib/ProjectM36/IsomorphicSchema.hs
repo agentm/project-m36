@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, LambdaCase #-}
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -82,9 +82,9 @@ isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
 
 -- | Check that all mentioned relvars are actually present in the current schema.
 validateRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError ()
-validateRelationalExprInSchema schema relExprIn = relExprMogrify (\expr -> case expr of
-                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
-                     ex -> Right ex) relExprIn >> pure ()
+validateRelationalExprInSchema schema relExprIn = relExprMogrify (\case
+                                                                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
+                                                                     ex -> Right ex) relExprIn >> pure ()
   where
     validRelVarNames = isomorphsInRelVarNames (isomorphs schema)
   
@@ -133,16 +133,16 @@ applySchemaToInclusionDependencies (Schema morphs) incDeps =
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
 relExprMorph :: SchemaIsomorph -> (RelationalExpr -> Either RelationalError RelationalExpr)
-relExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \expr -> case expr of 
+relExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \case
   RelationVariable rv () | rv == relIn -> Right (Union (RelationVariable relOutTrue ()) (RelationVariable relOutFalse ()))
   orig -> Right orig
-relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \expr -> case expr of
+relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \case
   --only the true predicate portion appears in the virtual schema  
   RelationVariable rv () | rv == relInT -> Right (Restrict predi (RelationVariable relTarget ()))
 
   RelationVariable rv () | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget ()))
   orig -> Right orig
-relExprMorph (IsoRename relIn relOut) = \expr -> case expr of
+relExprMorph (IsoRename relIn relOut) = \case
   RelationVariable rv () | rv == relIn -> Right (RelationVariable relOut ())
   orig -> Right orig
   
@@ -254,7 +254,7 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
 -- also, it's inverse to IsoRestrict which adds two constraints at the base level
 -- for IsoRestrict, consider hiding the two, generated constraints since they can never be thrown in the isomorphic schema
 inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
-inclusionDependenciesInSchema schema incDeps = mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps) >>= pure . M.fromList
+inclusionDependenciesInSchema schema incDeps = M.fromList <$> mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps)
   
 relationVariablesInSchema :: Schema -> DatabaseContext -> Either RelationalError RelationVariables
 relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.empty morphs
@@ -324,8 +324,8 @@ evalSchemaExpr (AddSubschema sname morphs) context sschemas =
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
       in
       case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
-        (Just err, _) -> Left err
-        (Nothing, (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
+        (Left err, _) -> Left err
+        (Right (), (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
   where
     newSchema = Schema morphs
     valid = validateSchema newSchema context

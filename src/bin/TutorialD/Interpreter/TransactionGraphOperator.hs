@@ -6,6 +6,7 @@ import Text.Megaparsec
 import ProjectM36.TransactionGraph hiding (autoMergeToHead)
 import ProjectM36.Client
 import ProjectM36.Base
+import Data.Functor
 
 data ConvenienceTransactionGraphOperator = AutoMergeToHead MergeStrategy HeadName
                                          deriving (Show)
@@ -21,14 +22,12 @@ autoMergeToHeadP = do
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
-  headid <- identifier
-  return $ JumpToHead headid
+  JumpToHead <$> identifier
 
 jumpToTransactionP :: Parser TransactionGraphOperator
 jumpToTransactionP = do
   reservedOp ":jump"
-  uuid <- uuidP
-  return $ JumpToTransaction uuid
+  JumpToTransaction <$> uuidP
   
 walkBackToTimeP :: Parser TransactionGraphOperator  
 walkBackToTimeP = do
@@ -38,8 +37,7 @@ walkBackToTimeP = do
 branchTransactionP :: Parser TransactionGraphOperator
 branchTransactionP = do
   reservedOp ":branch"
-  branchName <- identifier
-  return $ Branch branchName
+  Branch <$> identifier
 
 deleteBranchP :: Parser TransactionGraphOperator
 deleteBranchP = do
@@ -62,7 +60,7 @@ showGraphP = do
   return ShowGraph
   
 mergeTransactionStrategyP :: Parser MergeStrategy
-mergeTransactionStrategyP = (reserved "union" *> pure UnionMergeStrategy) <|>
+mergeTransactionStrategyP = (reserved "union" $> UnionMergeStrategy) <|>
                             (do
                                 reserved "selectedbranch"
                                 branch <- identifier

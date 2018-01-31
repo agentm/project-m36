@@ -5,6 +5,8 @@
 [![Hackage](https://img.shields.io/hackage/v/project-m36.svg)](http://hackage.haskell.org/package/project-m36)
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
 [![Build status](https://travis-ci.org/agentm/project-m36.svg?branch=master)](https://travis-ci.org/agentm/project-m36)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/q7jyddd6dy1ibqdo/branch/master?svg=true)](https://ci.appveyor.com/project/agentm/project-m36)
+
 
 *Software can always be made faster, but rarely can it be made more correct.*
 
@@ -50,6 +52,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 1. [Installation and Introduction to Project:M36](docs/introduction_to_projectm36.markdown)
 1. [Introduction to the Relational Algebra](docs/introduction_to_the_relational_algebra.markdown)
+1. [TutorialD via Jupyter Notebook Walkthrough](jupyter/TutorialD%20Notebook%20Walkthrough.ipynb)
 1. [TutorialD Tutorial](docs/tutd_tutorial.markdown)
 1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Developer's Change Log](Changelog.markdown)
@@ -70,11 +73,16 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
 1. [Using Notifications](docs/using_notifications.markdown)
 1. [Merge Transactions](docs/merge_transactions.markdown)
-1. [WebSocket Server](docs/websocket_server.markdown)
 1. [Atom (Value) Functions](docs/atomfunctions.markdown)
 1. [Trans-Graph Relational Expressions](docs/transgraphrelationalexpr.markdown)
 1. [Isomorphic Schemas](docs/isomorphic_schemas.markdown)
 1. [Replication](docs/replication.markdown)
+1. [Basic Operator Benchmarks](https://rawgit.com/agentm/project-m36/master/docs/basic_benchmarks.html)
+
+### Integrations
+
+1. [WebSocket Server](docs/websocket_server.markdown)
+1. [Jupyter Notebook Kernel](docs/jupypter_kernel.markdown)
 
 ## Development
 
@@ -89,6 +97,6 @@ Project:M36 is developed in Haskell and compiled with GHC 7.10 or GHC 8.0.2 or l
 
 ## Suggested Reading
 
-* [Out of the Tarpit](http://shaffner.us/cs/papers/tarpit.pdf): a proposed software architecture which minimizes state and complexity. Project:M36 implements the requirements of this paper.
+* [Out of the Tarpit](https://github.com/papers-we-love/papers-we-love/blob/2eb8d21/design/out-of-the-tar-pit.pdf): a proposed software architecture which minimizes state and complexity. Project:M36 implements the requirements of this paper.
 * [Database Design & Relational Theory: Normal Forms and All That Jazz](http://shop.oreilly.com/product/0636920025276.do): mathematical foundations for the principles of the relational algebra
 * [Database Explorations: Essays on the Third Manifesto and Related Topics](http://bookstore.trafford.com/Products/SKU-000177853/Database-Explorations.aspx): additional essays and debates on practical approaches to relational algebra engine design

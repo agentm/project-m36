@@ -1,3 +1,9 @@
+# 2017-11-14
+
+* alter websocket server API to allow for multiple representations (JSON, text, or HTML) to be selected and returned simultaneously
+* add jupyter kernel for TutorialD interpreter
+* fix warnings suggested by new hlint 2.0.10	
+	
 # 2017-10-08 (v0.3)
 
 * replaced overuse of `undefined` with `Proxy` in `Tupleable` and `Atomable` typeclasses

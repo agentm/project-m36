@@ -18,12 +18,13 @@ instance RelationalMarkerExpr () where
   parseMarkerP = pure ()
 
 --used in projection
-attributeListP :: Parser AttributeNames
-attributeListP = do
-  but <- try (string "all but " <* spaceConsumer) <|> string ""
-  let constructor = if but == "" then AttributeNames else InvertedAttributeNames
-  attrs <- sepBy identifier comma
-  pure $ constructor (S.fromList attrs)
+attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
+attributeListP = 
+  (reservedOp "all but" >>
+   InvertedAttributeNames . S.fromList <$> sepBy identifier comma) <|>
+  (reservedOp "all from" >>
+   RelationalExprAttributeNames <$> relExprP) <|>
+  (AttributeNames . S.fromList <$> sepBy identifier comma)
 
 makeRelationP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 makeRelationP = do
@@ -64,7 +65,7 @@ tupleAtomExprP = do
   atomExpr <- atomExprP
   pure (attributeName, atomExpr)
   
-projectP :: Parser (RelationalExprBase a  -> RelationalExprBase a)
+projectP :: RelationalMarkerExpr a => Parser (RelationalExprBase a  -> RelationalExprBase a)
 projectP = do
   attrs <- braces attributeListP
   pure $ Project attrs
@@ -88,14 +89,14 @@ renameP = do
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 whereClauseP = reservedOp "where" *> (Restrict <$> restrictionPredicateP)
 
-groupClauseP :: Parser (AttributeNames, T.Text)
+groupClauseP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a, T.Text)
 groupClauseP = do
   attrs <- braces attributeListP
   reservedOp "as"
   newAttrName <- identifier
   pure (attrs, newAttrName)
 
-groupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
+groupP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 groupP = do
   reservedOp "group"
   (groupAttrList, groupAttrName) <- parens groupClauseP
@@ -111,9 +112,21 @@ ungroupP = do
 extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 extendP = do
   reservedOp ":"
-  tupleExpr <- braces extendTupleExpressionP
-  return $ Extend tupleExpr
-
+  Extend <$> braces extendTupleExpressionP
+  
+semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
+semijoinP = do
+  reservedOp "semijoin" <|> reservedOp "matching"
+  pure (\exprA exprB -> 
+         Project (RelationalExprAttributeNames exprA) (Join exprA exprB))
+    
+antijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)    
+antijoinP = do
+  reservedOp "not matching" <|> reservedOp "antijoin"
+  pure (\exprA exprB ->
+         Difference exprA (
+           Project (RelationalExprAttributeNames exprA) (Join exprA exprB)))
+  
 relOperators :: RelationalMarkerExpr a => [[Operator Parser (RelationalExprBase a)]]
 relOperators = [
   [Postfix projectP],
@@ -122,6 +135,8 @@ relOperators = [
   [Postfix groupP],
   [Postfix ungroupP],
   [InfixL (reservedOp "join" >> return Join)],
+  [InfixL semijoinP],
+  [InfixL antijoinP],
   [InfixL (reservedOp "union" >> return Union)],
   [InfixL (reservedOp "minus" >> return Difference)],
   [InfixN (reservedOp "=" >> return Equals)],
@@ -150,26 +165,23 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
     predicateTerm = try (parens restrictionPredicateP)
                     <|> try restrictionAtomExprP
                     <|> try restrictionAttributeEqualityP
-                    <|> try relationalBooleanExprP
-
+                    <|> relationalBooleanExprP
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
-relationalBooleanExprP = do
-  relexpr <- parens relExprP <|> relTerm
+relationalBooleanExprP = 
   --we can't actually detect if the type is relational boolean, so we just pass it to the next phase
-  return $ RelationalExprPredicate relexpr
+  RelationalExprPredicate <$> (parens relExprP <|> relTerm)
   
 restrictionAttributeEqualityP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionAttributeEqualityP = do
   attributeName <- identifier
   reservedOp "="
-  atomexpr <- atomExprP
-  return $ AttributeEqualityPredicate attributeName atomexpr
+  AttributeEqualityPredicate attributeName <$> atomExprP
 
 restrictionAtomExprP :: RelationalMarkerExpr a=> Parser (RestrictionPredicateExprBase a) --atoms which are of type "boolean"
 restrictionAtomExprP = do
   _ <- char '^' -- not ideal, but allows me to continue to use a context-free grammar
-  AtomExprPredicate <$> atomExprP
+  (try (char 't') >> pure TruePredicate) <|> (try (char 'f') >> pure (NotPredicate TruePredicate)) <|> AtomExprPredicate <$> atomExprP
 
 multiTupleExpressionP :: RelationalMarkerExpr a => Parser [ExtendTupleExprBase a]
 multiTupleExpressionP = sepBy extendTupleExpressionP comma
@@ -181,8 +193,7 @@ attributeExtendTupleExpressionP :: RelationalMarkerExpr a => Parser (ExtendTuple
 attributeExtendTupleExpressionP = do
   newAttr <- identifier
   reservedOp ":="
-  atom <- atomExprP
-  return $ AttributeExtendTupleExpr newAttr atom
+  AttributeExtendTupleExpr newAttr <$> atomExprP
 
 atomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 atomExprP = consumeAtomExprP True
@@ -198,8 +209,7 @@ consumeAtomExprP consume = try functionAtomExprP <|>
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
   _ <- string "@"
-  attrName <- identifier
-  return $ AttributeAtomExpr attrName
+  AttributeAtomExpr <$> identifier
 
 nakedAtomExprP :: Parser (AtomExprBase a)
 nakedAtomExprP = NakedAtomExpr <$> atomP
@@ -219,11 +229,8 @@ atomP = stringAtomP <|>
         boolAtomP
         
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
-functionAtomExprP = do
-  funcName <- identifier
-  argList <- parens (sepBy atomExprP comma)
-  marker <- parseMarkerP
-  return $ FunctionAtomExpr funcName argList marker
+functionAtomExprP = 
+  FunctionAtomExpr <$> identifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationalAtomExprP = RelationAtomExpr <$> relExprP

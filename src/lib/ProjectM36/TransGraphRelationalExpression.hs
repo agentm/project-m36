@@ -18,6 +18,10 @@ type TransGraphRelationalExpr = RelationalExprBase TransactionIdLookup
 
 instance Binary TransGraphRelationalExpr
 
+type TransGraphAttributeNames = AttributeNamesBase TransactionIdLookup
+
+instance Binary TransGraphAttributeNames
+
 type TransGraphExtendTupleExpr = ExtendTupleExprBase TransactionIdLookup
 
 instance Binary TransGraphExtendTupleExpr
@@ -51,13 +55,14 @@ evalTransGraphRelationalExpr (RelationVariable rvname transLookup) graph = do
   trans <- lookupTransaction graph transLookup
   rel <- runReader (evalRelationalExpr (RelationVariable rvname ())) (RelationalExprStateElems (concreteDatabaseContext trans))
   pure (ExistingRelation rel)
-evalTransGraphRelationalExpr (Project attrNames expr) graph = do
+evalTransGraphRelationalExpr (Project transAttrNames expr) graph = do
   expr' <- evalTransGraphRelationalExpr expr graph
+  attrNames <- evalTransAttributeNames transAttrNames graph
   pure (Project attrNames expr')
 evalTransGraphRelationalExpr (Union exprA exprB) graph = do
   exprA' <- evalTransGraphRelationalExpr exprA graph
   exprB' <- evalTransGraphRelationalExpr exprB graph
-  pure (Union exprA'  exprB')
+  pure (Union exprA' exprB')
 evalTransGraphRelationalExpr (Join exprA exprB) graph = do
   exprA' <- evalTransGraphRelationalExpr exprA graph
   exprB' <- evalTransGraphRelationalExpr exprB graph
@@ -69,8 +74,9 @@ evalTransGraphRelationalExpr (Difference exprA exprB) graph = do
   exprA' <- evalTransGraphRelationalExpr exprA graph
   exprB' <- evalTransGraphRelationalExpr exprB graph
   pure (Difference exprA' exprB')
-evalTransGraphRelationalExpr (Group attrNames attrName expr) graph = do  
+evalTransGraphRelationalExpr (Group transAttrNames attrName expr) graph = do  
   expr' <- evalTransGraphRelationalExpr expr graph
+  attrNames <- evalTransAttributeNames transAttrNames graph
   pure (Group attrNames attrName expr')
 evalTransGraphRelationalExpr (Ungroup attrName expr) graph = do  
   expr' <- evalTransGraphRelationalExpr expr graph    
@@ -152,3 +158,18 @@ evalTransGraphAttributeExpr graph (AttributeAndTypeNameExpr attrName tCons tLook
   aType <- atomTypeForTypeConstructor tCons (typeConstructorMapping (concreteDatabaseContext trans)) M.empty
   pure (NakedAttributeExpr (Attribute attrName aType))
 evalTransGraphAttributeExpr _ (NakedAttributeExpr attr) = pure (NakedAttributeExpr attr)  
+
+evalTransAttributeNames :: TransGraphAttributeNames -> TransactionGraph -> Either RelationalError AttributeNames
+evalTransAttributeNames (AttributeNames names) _ = Right (AttributeNames names)
+evalTransAttributeNames (InvertedAttributeNames names) _ = Right (InvertedAttributeNames names)
+evalTransAttributeNames (UnionAttributeNames namesA namesB) graph = do
+  nA <- evalTransAttributeNames namesA graph
+  nB <- evalTransAttributeNames namesB graph
+  Right (UnionAttributeNames nA nB)
+evalTransAttributeNames (IntersectAttributeNames namesA namesB) graph = do
+  nA <- evalTransAttributeNames namesA graph
+  nB <- evalTransAttributeNames namesB graph
+  Right (IntersectAttributeNames nA nB)
+evalTransAttributeNames (RelationalExprAttributeNames expr) graph = do
+  evaldExpr <- evalTransGraphRelationalExpr expr graph
+  Right (RelationalExprAttributeNames evaldExpr)
