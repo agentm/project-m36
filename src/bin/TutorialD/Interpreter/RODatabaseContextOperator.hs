@@ -4,8 +4,6 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr

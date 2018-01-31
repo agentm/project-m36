@@ -24,8 +24,6 @@ import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
@@ -79,11 +77,11 @@ promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
     transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
           
-parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+parseTutorialD :: T.Text -> Either ParserError ParsedOperation
 parseTutorialD = parse interpreterParserP ""
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+safeParseTutorialD :: T.Text -> Either ParserError ParsedOperation
 safeParseTutorialD = parse safeInterpreterParserP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)

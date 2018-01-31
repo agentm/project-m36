@@ -14,7 +14,7 @@ import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation.Show.HTML
 import Data.Aeson
 import TutorialD.Interpreter
-import TutorialD.Interpreter.Base
+import TutorialD.Interpreter.Base (TutorialDOperatorResult(..))
 import ProjectM36.Client
 import Control.Exception
 import Data.Attoparsec.Text

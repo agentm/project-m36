@@ -2,7 +2,6 @@ module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
 import Text.Megaparsec.Expr
 import ProjectM36.Base
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import qualified Data.Text as T

@@ -4,9 +4,8 @@ import ProjectM36.Client
 import ProjectM36.Persist
 import Options.Applicative
 import TutorialD.Interpreter
-import TutorialD.Interpreter.Base
+import TutorialD.Interpreter.Base hiding (Parser, option)
 import qualified Data.Text as T
-import Text.Megaparsec hiding (option)
 import Data.Monoid
 import Control.Monad
 

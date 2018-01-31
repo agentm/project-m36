@@ -71,9 +71,9 @@ Library
                    ,http-api-data
 --needed for remote access
                    ,distributed-process-client-server >= 0.2.3
-                   ,distributed-process >= 0.7.3
+                   ,distributed-process >= 0.7.2
                    ,distributed-process-extras >= 0.3.2
-                   ,distributed-process-async >= 0.2.4
+                   ,distributed-process-async >= 0.2.4.1
                    ,network-transport-tcp >= 0.6.0
                    ,network-transport
                    ,list-t
@@ -194,7 +194,7 @@ Executable tutd
                    directory,
                    filepath,
                    temporary,
-                   megaparsec >= 5.2.0 && < 5.4,
+                   megaparsec >= 5.2.0 && < 7,
                    haskeline,
                    random, MonadRandom,
                    base64-bytestring,
