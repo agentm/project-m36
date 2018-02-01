@@ -27,8 +27,9 @@ import PprTyThing
 import Unsafe.Coerce
 #if __GLASGOW_HASKELL__ >= 802
 import Type
-#else
+#elif __GLASGOW_HASKELL >= 710
 import Type hiding (pprTyThing)  
+#else
 #endif
 
 data ScriptSession = ScriptSession {
