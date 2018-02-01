@@ -27,7 +27,7 @@ import PprTyThing
 import Unsafe.Coerce
 #if __GLASGOW_HASKELL__ >= 802
 import Type
-#elif __GLASGOW_HASKELL >= 710
+#elif __GLASGOW_HASKELL__ >= 710
 import Type hiding (pprTyThing)  
 #else
 #endif
