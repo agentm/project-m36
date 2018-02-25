@@ -215,3 +215,6 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
 --used in Generics derivation for ADTs without named attributes
 trimTuple :: Int -> RelationTuple -> RelationTuple
 trimTuple index (RelationTuple attrs vals) = RelationTuple (V.drop index attrs) (V.drop index vals)
+
+--the following functions are useful for streaming since they operate on individual tuples
+

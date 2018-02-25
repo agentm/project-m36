@@ -129,7 +129,8 @@ data ScriptCompilationError = TypeCheckCompilationError String String | --expect
                               OtherScriptCompilationError String
                             deriving (Show, Eq, Generic, Binary, Typeable, NFData)
                                      
-instance Exception ScriptCompilationError                                     
+instance Exception ScriptCompilationError
+instance Exception RelationalError
                                                
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |
