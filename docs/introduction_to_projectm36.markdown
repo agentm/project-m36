@@ -1,7 +1,7 @@
 # Introduction to Project:M36
 
 ## What is Project:M36?
-Project:M36 is a relational-algebra-based database management system. It can be used a production-level database backend or for learning more about the relational algebra.
+Project:M36 is a relational-algebra-based database management system. It can be used as a production-level database backend or for learning more about the relational algebra.
 
 The principled mathematical approach to Project:M36's design sets it apart from competing DBMSs. Specifically, Project:M36 adheres strongly to the mathematics of the relational algebra and makes no compromises nor apologies in doing so. To that end, Project:M36 is implemented in the programming language "Haskell" which is itself based on the lambda calculus.
 
