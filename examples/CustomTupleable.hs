@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 --this example shows how to implement a non-generics-defined Tupleable instance which is required in scenarios where Haskell-side types are not supported server-side or where one wishes to represent a nested relation
 import ProjectM36.Client
 import ProjectM36.Tuple
