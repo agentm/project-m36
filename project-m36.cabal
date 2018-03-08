@@ -44,7 +44,6 @@ Library
                    ,vector
                    ,parallel
                    ,monad-parallel
-                   ,streamly
                    ,exceptions
                    ,transformers
                    ,gnuplot
