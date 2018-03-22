@@ -100,14 +100,17 @@ mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (\attrName -> attrMa
 
 --return error if attribute names match but their types do not
 singleTupleSetJoin :: Attributes -> RelationTuple -> RelationTupleSet -> Either RelationalError [RelationTuple]
-singleTupleSetJoin joinAttrs tup tupSet = 
-    foldM tupleJoiner [] (asList tupSet) 
+singleTupleSetJoin joinAttrs tup tupSet = singleTupleListJoin joinAttrs tup (asList tupSet)
+        
+singleTupleListJoin :: Attributes -> RelationTuple -> [RelationTuple] -> Either RelationalError [RelationTuple]        
+singleTupleListJoin joinAttrs tup tupList = foldM tupleJoiner [] tupList
   where
     tupleJoiner :: [RelationTuple] -> RelationTuple -> Either RelationalError [RelationTuple]
     tupleJoiner accumulator tuple2 = case singleTupleJoin joinAttrs tup tuple2 of
         Right Nothing -> Right accumulator
         Right (Just relTuple) -> Right $ relTuple : accumulator
         Left err -> Left err
+
             
 {-            
 singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet

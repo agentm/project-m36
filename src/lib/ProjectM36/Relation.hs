@@ -325,3 +325,5 @@ randomizeTupleOrder (Relation attrs tupSet) = do
 oneTuple :: Relation -> Maybe RelationTuple
 oneTuple (Relation _ (RelationTupleSet [])) = Nothing
 oneTuple (Relation _ (RelationTupleSet (x:_))) = Just x
+
+  
