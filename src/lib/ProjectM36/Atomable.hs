@@ -229,7 +229,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
     where
       tCons = PrimitiveTypeConstructor primitiveATypeName primitiveAType
       primitiveAType = toAtomType (Proxy :: Proxy a)
-      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) _ -> if typ == primitiveAType then Just name else Nothing) Nothing primitiveTypeConstructorMapping)
+      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) acc -> if typ == primitiveAType then Just name else acc) Nothing primitiveTypeConstructorMapping)
         
 instance AtomableG U1 where
   toAtomG = undefined
