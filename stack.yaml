@@ -19,6 +19,7 @@ extra-deps:
 - distributed-process-async-0.2.4
 - distributed-process-client-server-0.2.3
 - distributed-process-extras-0.3.2
+- streamly-0.1.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}
