@@ -29,6 +29,7 @@ int cDirectoryFsync(char *path)
 
   if(!S_ISDIR(fdstat.st_mode))
     {
+      close(fd);
       return ENOTDIR;
     }
   
@@ -43,6 +44,7 @@ int cDirectoryFsync(char *path)
     {
       return errno;
     }
+  close(fd);
   return 0;
 }
 #endif
