@@ -157,7 +157,8 @@ instance Eq RelationTuple where
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
+data Relation = Relation Attributes RelationTupleSet
+                deriving (Show, Generic,Typeable)
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
@@ -218,7 +219,7 @@ data RelationalExprBase a =
   deriving (Show, Eq, Generic, NFData)
            
 instance Binary RelationalExpr
-           
+
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
 
@@ -260,7 +261,7 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                            deriving (Show, Generic, Binary, Eq, NFData)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
-type RelationVariables = M.Map RelVarName Relation
+type RelationVariables = M.Map RelVarName Relation 
 
 type SchemaName = StringType                         
 

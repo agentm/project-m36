@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
-module ProjectM36.StreamingTuple where
+module ProjectM36.Streaming.Tuple where
 import ProjectM36.Base
 import ProjectM36.Error
 import qualified ProjectM36.Relation as Rel
@@ -14,7 +14,9 @@ import qualified Data.HashMap.Lazy as HM
 
 type RestrictionFilter = RelationTuple -> Either RelationalError Bool
 
-restrict :: MonadAsync m => RestrictionFilter -> StreamT m RelationTuple -> StreamT m RelationTuple
+type TupleStream m = StreamT m RelationTuple
+
+restrict :: MonadAsync m => RestrictionFilter -> TupleStream m -> StreamT m RelationTuple
 restrict func s = s >>= \tupIn -> case func tupIn of
   Left err -> throwM err
   Right filt -> if filt then pure tupIn else S.nil
