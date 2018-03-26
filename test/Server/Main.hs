@@ -20,7 +20,8 @@ import Network.Transport (EndPointAddress)
 import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
 import Control.Exception
---import Control.Monad.IO.Class
+import System.IO.Temp
+import System.FilePath
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
@@ -43,7 +44,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testNotification notificationTestMVar
       ] 
     serverTests = [testRequestTimeout, testFileDescriptorCount]
-           
+
 main :: IO ()
 main = do
   (serverAddress, _) <- launchTestServer 0
@@ -80,13 +81,17 @@ testConnection serverAddress mvar = do
 -- | A version of 'launchServer' which returns the port on which the server is listening on a secondary thread
 launchTestServer :: Timeout -> IO (EndPointAddress, ThreadId)
 launchTestServer ti = do
-  let config = defaultServerConfig { databaseName = testDatabaseName, 
-                                     perRequestTimeout = ti,
-                                     testMode = True,
-                                     bindPort = 0
-                                   }
   addressMVar <- newEmptyMVar
-  tid <- forkIO $ launchServer config (Just addressMVar) >> pure ()
+  tid <- forkIO $ 
+    withSystemTempDirectory "projectm36test" $ \tempdir -> do
+      let config = defaultServerConfig { databaseName = testDatabaseName, 
+                                         persistenceStrategy = CrashSafePersistence (tempdir </> "db"),
+                                         perRequestTimeout = ti,
+                                         testMode = True,
+                                         bindPort = 0
+                                       }
+    
+      launchServer config (Just addressMVar) >> pure ()
   endPointAddress <- takeMVar addressMVar
   --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
   pure (endPointAddress, tid)
@@ -212,19 +217,24 @@ testFileDescriptorCount :: Test
 --validate that creating a server, connecting a client, and then disconnecting doesn't leak file descriptors
 testFileDescriptorCount = TestCase $ do
   (serverAddress, serverTid) <- launchTestServer 1000
-  startCount <- fdCount
   unusedMVar <- newEmptyMVar
-  Right (_, testConn) <- testConnection serverAddress unusedMVar
+  startCount <- fdCount  
+  Right (sess, testConn) <- testConnection serverAddress unusedMVar
+  --add a test commit to trigger the fsync machinery
+  executeDatabaseContextExpr sess testConn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail  
+  commit sess testConn >>= eitherFail
   close testConn
   endCount <- fdCount
-  assertBool "fd leak" (endCount - startCount <= 1)
+  let fd_diff = endCount - startCount
+  assertBool ("fd leak: " ++ show fd_diff) (fd_diff <= 0)
   killThread serverTid
+
   
 -- returns the number of open file descriptors -- linux only /proc usage
 fdCount :: IO Int
 fdCount = do
   fds <- getDirectoryContents "/proc/self/fd"
-  pure ((length fds) - 2)
+  pure (length fds)
 #else 
 --pass on non-linux platforms
 testFileDescriptorCount = TestCase (pure ())
