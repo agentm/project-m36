@@ -24,6 +24,7 @@ int cDirectoryFsync(char *path)
   ret = fstat(fd,&fdstat);
   if(ret < 0)
     {
+      close(fd);
       return errno;
     }
 
@@ -40,11 +41,11 @@ int cDirectoryFsync(char *path)
 #else
   ret = fsync(fd);
 #endif
+  close(fd);
   if(ret < 0)
     {
       return errno;
     }
-  close(fd);
   return 0;
 }
 #endif
