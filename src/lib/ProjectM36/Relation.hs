@@ -317,9 +317,8 @@ relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
       
 -- | Randomly resort the tuples. This is useful for emphasizing that two relations are equal even when they are printed to the console in different orders.
 randomizeTupleOrder :: MonadRandom m => Relation -> m Relation
-randomizeTupleOrder (Relation attrs tupSet) = do
-  newTupSet <- shuffleM (asList tupSet)
-  pure (Relation attrs (RelationTupleSet newTupSet))
+randomizeTupleOrder (Relation attrs tupSet) = 
+  Relation attrs . RelationTupleSet <$> shuffleM (asList tupSet)
 
 -- returns a tuple from the tupleset- this is useful for priming folds over the tuples
 oneTuple :: Relation -> Maybe RelationTuple

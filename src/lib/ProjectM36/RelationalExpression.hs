@@ -161,9 +161,8 @@ evalRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
   -- if the mAttrExprs is Nothing, then we should attempt to infer the tuple attributes from the first tuple itself- note that this is not always possible
   runExceptT $ do
     mAttrs <- case mAttrExprs of
-      Just _ -> do 
-        attrs <- mapM (either throwE pure . evalAttrExpr tConss) (fromMaybe [] mAttrExprs)
-        pure (Just (A.attributesFromList attrs))
+      Just _ ->
+        Just . A.attributesFromList <$> mapM (either throwE pure . evalAttrExpr tConss) (fromMaybe [] mAttrExprs)
       Nothing -> pure Nothing
     tuples <- mapM (liftE . evalTupleExpr mAttrs) tupleExprs
     let attrs = fromMaybe firstTupleAttrs mAttrs
@@ -646,9 +645,7 @@ predicateRestrictionFilter _ TruePredicate = pure (Right (\_ -> pure True))
 predicateRestrictionFilter attrs (NotPredicate expr) = 
   runExceptT $ do
     exprv <- liftE (predicateRestrictionFilter attrs expr)
-    pure (\x -> do
-                ev <- exprv x
-                pure (not ev))
+    pure (fmap not . exprv)
 
 --optimization opportunity: if the subexpression does not reference attributes in the top-level expression, then it need only be evaluated once, statically, outside the tuple filter- see historical implementation here
 predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = do
@@ -813,8 +810,7 @@ typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) =
   runExceptT $ do
     argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs  
     context <- fmap stateElemsContext (lift ask)
-    aType <- either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
-    pure aType
+    either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
 
 -- | Validate that the type of the AtomExpr matches the expected type.
 verifyAtomExprTypes :: Relation -> AtomExpr -> AtomType -> RelationalExprState (Either RelationalError AtomType)

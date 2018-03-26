@@ -321,8 +321,8 @@ evalROGraphOp discon graph ShowGraph = do
 -- | Execute the merge strategy against the transactions, returning a new transaction which can be then added to the transaction graph
 createMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
 createMergeTransaction stamp newId (SelectedBranchMergeStrategy selectedBranch) graph t2@(trans1, trans2) = do
-  selectedTrans <- validateHeadName selectedBranch graph t2
-  pure $ Transaction newId (MergeTransactionInfo (transactionId trans1) (transactionId trans2) S.empty stamp) (schemas selectedTrans)
+  let selectedTrans = validateHeadName selectedBranch graph t2
+  Transaction newId (MergeTransactionInfo (transactionId trans1) (transactionId trans2) S.empty stamp) . schemas <$> selectedTrans
                        
 -- merge functions, relvars, individually
 createMergeTransaction stamp newId strat@UnionMergeStrategy graph t2 = createUnionMergeTransaction stamp newId strat graph t2

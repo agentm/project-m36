@@ -60,9 +60,8 @@ parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Pars
 parseCSVAtomP _ _ IntegerAtomType = Right . IntegerAtom <$> APT.decimal
 parseCSVAtomP _ _ IntAtomType = Right . IntAtom <$> APT.decimal
 parseCSVAtomP _ _ DoubleAtomType = Right . DoubleAtom <$> APT.double
-parseCSVAtomP _ _ TextAtomType = do 
-  s <- quotedString <|> takeToEndOfData
-  pure (Right (TextAtom s))
+parseCSVAtomP _ _ TextAtomType = 
+  Right . TextAtom <$> (quotedString <|> takeToEndOfData)
 parseCSVAtomP _ _ DayAtomType = do
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
@@ -94,8 +93,9 @@ parseCSVAtomP attrName tConsMap (IntervalAtomType iType) = do
       case eEndv of
         Left err -> pure (Left err)
         Right endv -> do
-          end <- (APT.char ']' >> pure False) <|> (APT.char ')' >> pure True)
-          pure (Right (IntervalAtom beginv endv begin end))
+          let end = (APT.char ']' >> pure False) <|> 
+                    (APT.char ')' >> pure True)
+          Right  . IntervalAtom beginv endv begin <$> end
 parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) = do
   dConsName <- capitalizedIdentifier
   APT.skipSpace

@@ -89,9 +89,8 @@ intervalAtomFunctions = HS.fromList [
     atomFuncType = [IntervalAtomType (TypeVariableType "a"),
                     IntervalAtomType (TypeVariableType "a"),
                     BoolAtomType],
-    atomFuncBody = compiledAtomFunctionBody $ \(i1@IntervalAtom{}:i2@IntervalAtom{}:_) -> do
-      res <- intervalOverlaps i1 i2
-      pure (BoolAtom res)
+    atomFuncBody = compiledAtomFunctionBody $ \(i1@IntervalAtom{}:i2@IntervalAtom{}:_) -> 
+      BoolAtom <$> intervalOverlaps i1 i2
     }]
 
 

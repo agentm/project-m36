@@ -37,9 +37,8 @@ atomTypeForDataConstructorName :: DataConstructorName -> [AtomType] -> TypeConst
 atomTypeForDataConstructorName dConsName atomTypesIn tConsList =
   case findDataConstructor dConsName tConsList of
     Nothing -> Left (NoSuchDataConstructorError dConsName)
-    Just (tCons, dCons) -> do
-      typeVars <- resolveDataConstructorTypeVars dCons atomTypesIn tConsList
-      pure (ConstructedAtomType (TCD.name tCons) typeVars)
+    Just (tCons, dCons) -> 
+      ConstructedAtomType (TCD.name tCons) <$> resolveDataConstructorTypeVars dCons atomTypesIn tConsList
         
 atomTypeForDataConstructorDefArg :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping ->  Either RelationalError AtomType
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aType tConss = 
@@ -65,10 +64,9 @@ atomTypeForDataConstructor tConss dConsName atomArgTypes =
   --lookup the data constructor
   case findDataConstructor dConsName tConss of
     Nothing -> Left (NoSuchDataConstructorError dConsName)
-    Just (tCons, dCons) -> do
+    Just (tCons, dCons) -> 
       --validate that the type constructor arguments are fulfilled in the data constructor
-      typeVars <- resolveDataConstructorTypeVars dCons atomArgTypes tConss
-      pure (ConstructedAtomType (TCD.name tCons) typeVars)
+      ConstructedAtomType (TCD.name tCons) <$> resolveDataConstructorTypeVars dCons atomArgTypes tConss
       
 -- | Walks the data and type constructors to extract the type variable map.
 resolveDataConstructorTypeVars :: DataConstructorDef -> [AtomType] -> TypeConstructorMapping -> Either RelationalError TypeVarMap
@@ -156,9 +154,8 @@ findTypeConstructor name = foldr tConsFolder Nothing
                                      accum
                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
-resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do  
-  tVarMap <- resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
-  pure (ConstructedAtomType tConsName tVarMap)
+resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) =
+  ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
 resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
                                                     Right typeFromRelation
                                                   else

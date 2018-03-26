@@ -330,8 +330,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
           liftIO $ putMVar connStatus (Left LoginError)
           else
           liftIO $ putMVar connStatus (Right $ RemoteProcessConnection RemoteProcessConnectionConf {rLocalNode = localNode, rProcessId = serverProcessId, rTransport = transport})
-  status <- takeMVar connStatus
-  pure status
+  takeMVar connStatus
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -481,9 +480,8 @@ remoteCall (RemoteProcessConnection conf) arg = runProcessResult localNode $ do
     serverProcessId = rProcessId conf
 
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
-sessionForSessionId sessionId sessions = do
-  maybeSession <- STMMap.lookup sessionId sessions
-  pure $ maybe (Left $ NoSuchSessionError sessionId) Right maybeSession
+sessionForSessionId sessionId sessions = 
+  maybe (Left $ NoSuchSessionError sessionId) Right <$> STMMap.lookup sessionId sessions
   
 schemaForSessionId :: Session -> STM (Either RelationalError Schema)  
 schemaForSessionId session = do
@@ -890,9 +888,8 @@ transactionGraphAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure $ Left err
-      Right session -> do
-        graph <- readTVar tvar
-        pure $ graphAsRelation (Sess.disconnectedTransaction session) graph
+      Right session ->
+        graphAsRelation (Sess.disconnectedTransaction session) <$> readTVar tvar
     
 transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 

@@ -66,9 +66,7 @@ tupleAtomExprP = do
   pure (attributeName, atomExpr)
   
 projectP :: RelationalMarkerExpr a => Parser (RelationalExprBase a  -> RelationalExprBase a)
-projectP = do
-  attrs <- braces attributeListP
-  pure $ Project attrs
+projectP = Project <$> braces attributeListP
 
 renameClauseP :: Parser (T.Text, T.Text)
 renameClauseP = do

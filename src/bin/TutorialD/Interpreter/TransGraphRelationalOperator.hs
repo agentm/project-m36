@@ -29,9 +29,7 @@ transactionIdHeadBacktrackP = (string "~" *> (TransactionIdHeadParentBacktrack <
                               (string "@" *> (TransactionStampHeadBacktrack <$> utcTimeP))
                               
 backtrackP :: Parser Int
-backtrackP = do
-  steps <- integer <|> pure 1
-  pure (fromIntegral steps)
+backtrackP = fromIntegral <$> integer <|> pure 1
   
 transGraphRelationalOpP :: Parser TransGraphRelationalOperator                     
 transGraphRelationalOpP = showTransGraphRelationalOpP

@@ -103,9 +103,7 @@ instance FromJSON Atom where
     case atype of
       TypeVariableType _ -> fail "cannot pass TypeVariableType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
-      RelationAtomType _ -> do
-        rel <- o .: "val"
-        pure $ RelationAtom rel
+      RelationAtomType _ -> RelationAtom <$> o .: "val"
       IntAtomType -> IntAtom <$> o .: "val"
       IntegerAtomType -> IntegerAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"

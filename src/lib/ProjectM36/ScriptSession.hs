@@ -158,12 +158,11 @@ compileScript funcType script = do
   mErr <- typeCheckScript funcType script
   case mErr of
     Just err -> pure (Left err)
-    Nothing -> do
+    Nothing -> 
       --catch exception here
       --we could potentially wrap the script with Atom pattern matching so that the script doesn't have to do it, but the change to an Atom ADT should make it easier. Still, it would be nice if the script didn't have to handle a list of arguments, for example.
       -- we can't use dynCompileExpr here because
-      func <- compileExpr sScript
-      pure $ Right (unsafeCoerce func)
+       Right . unsafeCoerce <$> compileExpr sScript
       
 typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)    
 typeCheckScript expectedType inp = do

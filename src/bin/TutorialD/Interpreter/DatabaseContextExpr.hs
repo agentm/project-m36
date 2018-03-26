@@ -54,9 +54,8 @@ multilineSep :: Parser T.Text
 multilineSep = newline >> pure "\n"
 
 multipleDatabaseContextExprP :: Parser DatabaseContextExpr
-multipleDatabaseContextExprP = do
-  exprs <- sepBy1 databaseContextExprP semi
-  pure $ MultipleExpr exprs
+multipleDatabaseContextExprP = 
+  MultipleExpr <$> sepBy1 databaseContextExprP semi
 
 insertP :: Parser DatabaseContextExpr
 insertP = do

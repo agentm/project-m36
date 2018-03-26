@@ -83,9 +83,8 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
         locker <- openLockFile (lockFilePath dbdir)
         gDigest <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (readGraphTransactionIdFileDigest dbdir)
         pure (Right (locker, gDigest))
-      else if not m36exists then do
-        locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
-        pure (Right locks)
+      else if not m36exists then 
+        Right <$> bootstrapDatabaseDir sync dbdir bootstrapGraph
          else
            pure (Left (InvalidDirectoryError dbdir))
 {- 
@@ -201,8 +200,8 @@ writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = w
     
 readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
-  graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
-  pure (SHA256.hash (encodeUtf8 graphTransactionIdData))
+  let graphTransactionIdData = TIO.readFile (transactionLogPath dbdir)
+  SHA256.hash . encodeUtf8 <$> graphTransactionIdData
     
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
 readGraphTransactionIdFile dbdir = do

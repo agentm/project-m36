@@ -68,8 +68,8 @@ evalTransGraphRelationalExpr (Join exprA exprB) graph = do
   exprB' <- evalTransGraphRelationalExpr exprB graph
   pure (Join exprA' exprB')
 evalTransGraphRelationalExpr (Rename attrName1 attrName2 expr) graph = do
-  expr' <- evalTransGraphRelationalExpr expr graph  
-  pure (Rename attrName1 attrName2 expr')
+  let expr' = evalTransGraphRelationalExpr expr graph  
+  Rename attrName1 attrName2 <$> expr'
 evalTransGraphRelationalExpr (Difference exprA exprB) graph = do  
   exprA' <- evalTransGraphRelationalExpr exprA graph
   exprB' <- evalTransGraphRelationalExpr exprB graph
@@ -79,8 +79,8 @@ evalTransGraphRelationalExpr (Group transAttrNames attrName expr) graph = do
   attrNames <- evalTransAttributeNames transAttrNames graph
   pure (Group attrNames attrName expr')
 evalTransGraphRelationalExpr (Ungroup attrName expr) graph = do  
-  expr' <- evalTransGraphRelationalExpr expr graph    
-  pure (Ungroup attrName expr')
+  let expr' = evalTransGraphRelationalExpr expr graph    
+  Ungroup attrName <$> expr'
 evalTransGraphRelationalExpr (Restrict predicateExpr expr) graph = do
   expr' <- evalTransGraphRelationalExpr expr graph  
   predicateExpr' <- evalTransGraphRestrictionPredicateExpr predicateExpr graph
@@ -100,11 +100,11 @@ evalTransGraphRelationalExpr (Extend extendExpr expr) graph = do
   
 evalTransGraphTupleExpr :: TransactionGraph -> TransGraphTupleExpr -> Either RelationalError TupleExpr
 evalTransGraphTupleExpr graph (TupleExpr attrMap) = do
-  attrAssoc <- mapM (\(attrName, atomExpr) -> do 
+  let attrAssoc = mapM (\(attrName, atomExpr) -> do 
                         aExpr <- evalTransGraphAtomExpr graph atomExpr
                         pure (attrName, aExpr)
                     ) (M.toList attrMap)
-  pure (TupleExpr (M.fromList attrAssoc))
+  TupleExpr . M.fromList <$> attrAssoc
   
 evalTransGraphAtomExpr :: TransactionGraph -> TransGraphAtomExpr -> Either RelationalError AtomExpr
 evalTransGraphAtomExpr _ (AttributeAtomExpr aname) = pure $ AttributeAtomExpr aname
@@ -116,8 +116,8 @@ evalTransGraphAtomExpr graph (FunctionAtomExpr funcName args tLookup) = do
   atom <- runReader (evalAtomExpr emptyTuple (FunctionAtomExpr funcName args' ())) (RelationalExprStateElems (concreteDatabaseContext trans))
   pure (NakedAtomExpr atom)
 evalTransGraphAtomExpr graph (RelationAtomExpr expr) = do
-  expr' <- evalTransGraphRelationalExpr expr graph 
-  pure (RelationAtomExpr expr')
+  let expr' = evalTransGraphRelationalExpr expr graph 
+  RelationAtomExpr <$> expr'
 evalTransGraphAtomExpr graph (ConstructedAtomExpr dConsName args tLookup) = do
   trans <- lookupTransaction graph tLookup  
   args' <- mapM (evalTransGraphAtomExpr graph) args
@@ -135,22 +135,22 @@ evalTransGraphRestrictionPredicateExpr (OrPredicate exprA exprB) graph = do
   exprB' <- evalTransGraphRestrictionPredicateExpr exprB graph
   pure (OrPredicate exprA' exprB')
 evalTransGraphRestrictionPredicateExpr (NotPredicate expr) graph = do
-  expr' <- evalTransGraphRestrictionPredicateExpr expr graph
-  pure (NotPredicate expr')
+  let expr' = evalTransGraphRestrictionPredicateExpr expr graph
+  NotPredicate <$> expr'
 evalTransGraphRestrictionPredicateExpr (RelationalExprPredicate expr) graph = do  
-  expr' <- evalTransGraphRelationalExpr expr graph
-  pure (RelationalExprPredicate expr')
+  let expr' = evalTransGraphRelationalExpr expr graph
+  RelationalExprPredicate <$> expr'
 evalTransGraphRestrictionPredicateExpr (AtomExprPredicate expr) graph = do
-  expr' <- evalTransGraphAtomExpr graph expr
-  pure (AtomExprPredicate expr')
+  let expr' = evalTransGraphAtomExpr graph expr
+  AtomExprPredicate <$> expr'
 evalTransGraphRestrictionPredicateExpr (AttributeEqualityPredicate attrName expr) graph = do  
-  expr' <- evalTransGraphAtomExpr graph expr
-  pure (AttributeEqualityPredicate attrName expr')
+  let expr' = evalTransGraphAtomExpr graph expr
+  AttributeEqualityPredicate attrName <$> expr'
   
 evalTransGraphExtendTupleExpr :: TransGraphExtendTupleExpr -> TransactionGraph -> Either RelationalError ExtendTupleExpr
 evalTransGraphExtendTupleExpr (AttributeExtendTupleExpr attrName expr) graph = do
-  expr' <- evalTransGraphAtomExpr graph expr
-  pure (AttributeExtendTupleExpr attrName expr')
+  let expr' = evalTransGraphAtomExpr graph expr
+  AttributeExtendTupleExpr attrName <$> expr'
 
 evalTransGraphAttributeExpr :: TransactionGraph -> TransGraphAttributeExpr -> Either RelationalError AttributeExpr
 evalTransGraphAttributeExpr graph (AttributeAndTypeNameExpr attrName tCons tLookup) = do
