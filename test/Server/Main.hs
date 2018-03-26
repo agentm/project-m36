@@ -14,7 +14,6 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Base
 
 import System.Exit
-import System.IO
 
 import Control.Concurrent
 import Network.Transport (EndPointAddress)
@@ -28,8 +27,6 @@ import System.Directory
 #endif
 
 testList :: SessionId -> Connection -> MVar () -> Test
-testList sessionId conn _ = TestList [testFileDescriptorCount]
-{-
 testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
   where
     sessionTests = map (\t -> t sessionId conn) [
@@ -47,7 +44,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testNotification notificationTestMVar
       ] 
     serverTests = [testRequestTimeout, testFileDescriptorCount]
--}           
+
 main :: IO ()
 main = do
   (serverAddress, _) <- launchTestServer 0
@@ -221,18 +218,17 @@ testFileDescriptorCount :: Test
 testFileDescriptorCount = TestCase $ do
   (serverAddress, serverTid) <- launchTestServer 1000
   unusedMVar <- newEmptyMVar
+  startCount <- fdCount  
   Right (sess, testConn) <- testConnection serverAddress unusedMVar
-  hPutStrLn stderr "GONK1"
-  startCount <- fdCount
   --add a test commit to trigger the fsync machinery
   executeDatabaseContextExpr sess testConn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail  
   commit sess testConn >>= eitherFail
   close testConn
   endCount <- fdCount
   let fd_diff = endCount - startCount
-  hPutStrLn stderr "GONK2"      
-  assertBool ("fd leak: " ++ show fd_diff) (fd_diff == 0)
+  assertBool ("fd leak: " ++ show fd_diff) (fd_diff <= 0)
   killThread serverTid
+
   
 -- returns the number of open file descriptors -- linux only /proc usage
 fdCount :: IO Int
