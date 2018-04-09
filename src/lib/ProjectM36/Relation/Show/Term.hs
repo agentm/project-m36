@@ -12,8 +12,6 @@ import Control.Arrow hiding (left)
 import Data.Monoid
 import Data.Char.WCWidth --guess the width that the character will appear as in the terminal
 
-import Debug.Trace
-
 boxV :: StringType
 boxV = "│"
 boxH :: StringType
