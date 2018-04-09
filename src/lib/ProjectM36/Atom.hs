@@ -15,7 +15,7 @@ atomToText :: Atom -> T.Text
 atomToText (IntegerAtom i) = (T.pack . show) i
 atomToText (IntAtom i) = (T.pack . show) i
 atomToText (DoubleAtom i) = (T.pack . show) i
-atomToText (TextAtom i) = (T.pack . show) i --does this break quoting in CSV export?
+atomToText (TextAtom i) = i --does this break quoting in CSV export?
 atomToText (DayAtom i) = (T.pack . show) i
 atomToText (DateTimeAtom i) = (T.pack . show) i
 atomToText (ByteStringAtom i) = (T.pack . show) i

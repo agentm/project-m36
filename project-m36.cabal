@@ -57,6 +57,7 @@ Library
                    ,time
                    ,hashable-time
                    ,old-locale
+                   ,wcwidth
                    --used for CSV parsing
                    ,attoparsec
                    ,either
