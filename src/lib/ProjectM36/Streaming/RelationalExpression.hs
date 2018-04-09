@@ -1,36 +1,51 @@
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
-import ProjectM36.Streaming.Tuple
-import Streamly
-import Control.Monad.Catch
+import ProjectM36.Error
+import ProjectM36.RelationalExpression
 import qualified Data.Set as S
+import qualified Data.Map as M
+import Control.Monad.Trans.Reader
+
+type RelExprExecPlan = RelExprExecPlanBase ()
 
 --this will become more useful once we have multiple join strategies, etc.
-data RelExprExecPlan = StreamTuplesFromFilePlan FilePath |
+data RelExprExecPlanBase a = StreamTuplesFromFilePlan FilePath |
                        ReadTuplesFromMemoryPlan RelationTupleSet |
                        
-                       RestrictTupleStreamPlan RestrictionFilter RelExprExprPlan |
-                       ProjectTupleStreamPlan (S.Set AttributeName) RelExprExecPlan |
+                       RestrictTupleStreamPlan (RestrictionPredicateExprBase a) (RelExprExecPlanBase a) |
+                       ProjectTupleStreamPlan (S.Set AttributeName) (RelExprExecPlanBase a) |
+                       RenameTupleStreamPlan AttributeName AttributeName (RelExprExecPlanBase a) |
+                       GroupTupleStreamPlan (AttributeNamesBase a) AttributeName (RelExprExecPlanBase a) |
+                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a) |
+                       ExtendTupleStreamPlan (ExtendTupleExprBase a) (RelExprExecPlanBase a) |
                        
-                       UnionTupleStreamsPlan ReadTuplesPlan RelExprPlan |
-                       JoinTupleStreamsPlan RelExprExecPlan RelExprExecPlan |
-                       DifferenceStreamsPlan RelExprExecPlan RelExprExecPlan
+                       UnionTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       JoinTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       DifferenceStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       EqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       NotEqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        
+                       MakeStaticRelationPlan Attributes RelationTupleSet |
+                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase a]) [TupleExprBase a] |
+                       ExistingRelationPlan Relation
                       
-planRelationalExpr :: MonadAsync m => RelationalExpr -> M.Map RelVarName RelExprPlan -> RelationalExprStateElems -> Either RelationalError RelExprExecPlan
+planRelationalExpr :: RelationalExpr -> 
+                      M.Map RelVarName RelExprExecPlan -> 
+                      RelationalExprStateElems -> 
+                      Either RelationalError RelExprExecPlan
 planRelationalExpr (RelationVariable name _) rvMap _ = case M.lookup name rvMap of
   Nothing -> Left (RelVarNotDefinedError name)
   Just plan -> Right plan
   
 planRelationalExpr (Project attrNames expr) rvMap state = do
-  attrNameSet <- evalAttributeNames attrNames expr  
+  attrNameSet <- runReader (evalAttributeNames attrNames expr) state
   subExpr <- planRelationalExpr expr rvMap state
   pure (ProjectTupleStreamPlan attrNameSet subExpr)
   
 planRelationalExpr (Union exprA exprB) rvMap state = do  
   planA <- planRelationalExpr exprA rvMap state
   planB <- planRelationalExpr exprB rvMap state
-  pure (UnionTupleStreamPlan planA planB)
+  pure (UnionTupleStreamsPlan planA planB)
   
 planRelationalExpr (Join exprA exprB) rvMap state = do  
   planA <- planRelationalExpr exprA rvMap state
@@ -42,23 +57,29 @@ planRelationalExpr (Difference exprA exprB) rvMap state = do
   planB <- planRelationalExpr exprB rvMap state
   pure (DifferenceStreamsPlan planA planB)
 
-planRelationalExpr (MakeStaticRelation attributeSet tupleSet) = do
+planRelationalExpr (MakeStaticRelation attributeSet tupleSet) _ _ = pure (MakeStaticRelationPlan attributeSet tupleSet)
   
+planRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) _ _ = pure (MakeRelationFromExprsPlan mAttrExprs tupleExprs)
   
-evalRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do  
-  
-evalRelationalExpr (ExistingRelation rel) = pure (Right rel)  
+planRelationalExpr (ExistingRelation rel) _ _ = pure (ExistingRelationPlan rel)  
 
-evalRelationalExpr (Rename oldAttrName newAttrName relExpr) = do
+planRelationalExpr (Rename oldAttrName newAttrName relExpr) rvMap state = 
+  RenameTupleStreamPlan oldAttrName newAttrName <$> planRelationalExpr relExpr rvMap state
   
-evalRelationalExpr (Group oldAttrNames newAttrName relExpr) = do  
+planRelationalExpr (Group oldAttrNames newAttrName relExpr) rvMap state = 
+  GroupTupleStreamPlan oldAttrNames newAttrName <$> planRelationalExpr relExpr rvMap state
   
-evalRelationalExpr (Ungroup attrName relExpr) = do
+planRelationalExpr (Ungroup attrName relExpr) rvMap state = 
+  UngroupTupleStreamPlan attrName <$> planRelationalExpr relExpr rvMap state
   
-evalRelationalExpr (Restrict predicateExpr relExpr) = do  
+planRelationalExpr (Restrict predicateExpr relExpr) rvMap state =
+  RestrictTupleStreamPlan predicateExpr <$> planRelationalExpr relExpr rvMap state
   
-evalRelationalExpr (Equals relExprA relExprB) = do  
+planRelationalExpr (Equals relExprA relExprB) rvMap state =   
+  EqualTupleStreamsPlan <$> planRelationalExpr relExprA rvMap state <*> planRelationalExpr relExprB rvMap state
   
-evalRelationalExpr (NotEquals relExprA relExprB) = do  
+planRelationalExpr (NotEquals relExprA relExprB) rvMap state =
+  NotEqualTupleStreamsPlan <$> planRelationalExpr relExprA rvMap state <*> planRelationalExpr relExprB rvMap state
   
-evalRelationalExpr (Extend tupleExpression relExpr) = do  
+planRelationalExpr (Extend tupleExpression relExpr) rvMap state = 
+  ExtendTupleStreamPlan tupleExpression <$> planRelationalExpr relExpr rvMap state
