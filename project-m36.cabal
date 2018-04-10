@@ -28,6 +28,8 @@ Library
                    ,ghc-paths
                    ,mtl
                    ,containers
+                   ,serialise
+                   ,cborg
                    ,unordered-containers
                    ,hashable
                    ,haskeline
