@@ -57,7 +57,7 @@ Library
                    ,time
                    ,hashable-time
                    ,old-locale
-                   ,wcwidth
+                   ,rset
                    --used for CSV parsing
                    ,attoparsec
                    ,either
@@ -113,6 +113,7 @@ Library
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
                      ProjectM36.Relation.Show.Term,
+                     ProjectM36.WCWidth,
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,

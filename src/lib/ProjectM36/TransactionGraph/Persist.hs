@@ -214,7 +214,7 @@ readGraphTransactionIdFile dbdir = do
   Right . map grapher . T.lines <$> readUTF8FileOrError (transactionLogPath dbdir)
 
 --rationale- reading essential database files must fail hard
-readUTF8FileOrError :: FilePath -> IO (T.Text)
+readUTF8FileOrError :: FilePath -> IO T.Text
 readUTF8FileOrError pathIn = do
   eFileBytes <- try (BS.readFile pathIn) :: IO (Either IOError BS.ByteString)
   case eFileBytes of 
