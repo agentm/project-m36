@@ -85,7 +85,7 @@ testCSVExport = TestCase $ do
     Right rel -> 
       case relationAsCSV rel of
         Left err -> assertFailure $ "export failed: " ++ show err
-        Right csvData -> 
+        Right csvData ->
           --BS.writeFile "/tmp/csv" csvData
           --putStrLn (TL.unpack (TE.decodeUtf8 csvData))
           case csvAsRelation attrs basicTypeConstructorMapping csvData of -- import csv data back to relation

@@ -6,7 +6,6 @@ module ProjectM36.Persist (writeFileSync,
                            printFdCount,
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
-import qualified Data.Text.IO as TIO
 import qualified Data.Text as T
 
 #if defined(linux_HOST_OS)
@@ -38,6 +37,8 @@ import Foreign.C
 
 import System.IO (withFile, IOMode(WriteMode), Handle)
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString as BS'
+import qualified Data.Text.Encoding as TE
 
 #if defined(mingw32_HOST_OS)
 import ProjectM36.Win32Handle
@@ -52,7 +53,7 @@ writeFileSync :: DiskSync -> FilePath -> T.Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
-      TIO.hPutStr handle strOut
+      BS'.hPut handle (TE.encodeUtf8 strOut)
       syncHandle sync handle
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()

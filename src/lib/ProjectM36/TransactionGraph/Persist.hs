@@ -21,7 +21,8 @@ import Data.Either (isRight)
 import Data.Maybe (fromMaybe)
 import qualified Data.List as L
 import Control.Exception.Base
-import qualified Data.Text.IO as TIO
+import qualified Data.ByteString as BS
+import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
 import Data.Monoid
 import qualified Crypto.Hash.SHA256 as SHA256
@@ -200,7 +201,7 @@ writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = w
     
 readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
-  let graphTransactionIdData = TIO.readFile (transactionLogPath dbdir)
+  let graphTransactionIdData = readUTF8FileOrError (transactionLogPath dbdir)
   SHA256.hash . encodeUtf8 <$> graphTransactionIdData
     
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
@@ -210,5 +211,15 @@ readGraphTransactionIdFile dbdir = do
         (readUUID tid, readEpoch epochText, map readUUID parentIds)
       readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
       readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
-  Right . map grapher . T.lines <$> TIO.readFile (transactionLogPath dbdir)
+  Right . map grapher . T.lines <$> readUTF8FileOrError (transactionLogPath dbdir)
 
+--rationale- reading essential database files must fail hard
+readUTF8FileOrError :: FilePath -> IO (T.Text)
+readUTF8FileOrError pathIn = do
+  eFileBytes <- try (BS.readFile pathIn) :: IO (Either IOError BS.ByteString)
+  case eFileBytes of 
+    Left err -> error (show err)
+    Right fileBytes ->
+      case TE.decodeUtf8' fileBytes of
+        Left err -> error (show err)
+        Right utf8Bytes -> pure utf8Bytes
