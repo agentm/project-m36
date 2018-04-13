@@ -417,9 +417,9 @@ ctrlChars = foldr insertRange empty [
   ]
 
 wcwidth :: Char -> Int
-wcwidth c = if queryPoint v basicZero then 0
-            else if queryPoint v ctrlChars then -1
-                 else if queryPoint v wIDEEASTASIAN then 2
-                      else if queryPoint v zEROWIDTH then 0
-                           else 1
+wcwidth c | queryPoint v basicZero = 0
+          | queryPoint v ctrlChars = -1
+          | queryPoint v wIDEEASTASIAN = 2
+          | queryPoint v zEROWIDTH = 0
+          | otherwise = 1
   where v = ord c
