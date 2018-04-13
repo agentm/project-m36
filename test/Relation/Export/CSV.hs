@@ -70,7 +70,7 @@ testCSVExport = TestCase $ do
          listCons TextAtomType [TextAtom "text1", TextAtom "text2"],
          testInterval
          ],
-        [TextAtom "second text atom", 
+        [TextAtom "second text atom with 漢字", 
          IntegerAtom 314, 
          DayAtom (fromGregorian 1001 6 28),
          DateTimeAtom (addUTCTime 360 now),
