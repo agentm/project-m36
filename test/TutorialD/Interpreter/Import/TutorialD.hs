@@ -5,6 +5,8 @@ import System.Exit
 import System.IO.Temp
 import qualified Data.Map as M
 import System.IO
+import qualified Data.ByteString as BS
+import qualified Data.Text.Encoding as TE
 
 main :: IO ()
 main = do 
@@ -14,7 +16,7 @@ main = do
 testTutdImport :: Test
 testTutdImport = TestCase $ 
   withSystemTempFile "m.tutd" $ \tempPath handle -> do
-    hPutStrLn handle "x:=relation{tuple{a 5,b \"spam\"}}; y:=relation{tuple{b \"漢字\"}}"
+    BS.hPut handle (TE.encodeUtf8 "x:=relation{tuple{a 5,b \"spam\"}}; y:=relation{tuple{b \"漢字\"}}")
     hClose handle
     let expectedExpr = MultipleExpr [
           Assign "x" (MakeRelationFromExprs Nothing 
