@@ -21,7 +21,7 @@ extra-deps:
 - distributed-process-extras-0.3.2
 - cryptohash-sha256-0.11.100.1
 - megaparsec-5.3.1
-- wcwidth-0.0.2
+- rset-1.0.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}

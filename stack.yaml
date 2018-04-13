@@ -19,7 +19,7 @@ extra-deps:
 - distributed-process-async-0.2.4
 - distributed-process-client-server-0.2.3
 - distributed-process-extras-0.3.2
-- wcwidth-0.0.2
+- rset-1.0.0
 
 # Override default flag values for local packages and extra-deps
 flags: {}
