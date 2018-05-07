@@ -24,6 +24,7 @@ data RODatabaseContextOperator where
   ShowPlan :: DatabaseContextExpr -> RODatabaseContextOperator
   ShowTypes :: RODatabaseContextOperator
   ShowRelationVariables :: RODatabaseContextOperator
+  ShowAtomFunctions :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -48,6 +49,9 @@ showTypesP = reserved ":showtypes" >> pure ShowTypes
 showRelationVariables :: Parser RODatabaseContextOperator
 showRelationVariables = reserved ":showrelvars" >> pure ShowRelationVariables
 
+showAtomFunctionsP :: Parser RODatabaseContextOperator
+showAtomFunctionsP = reserved ":showatomfunctions" >> pure ShowAtomFunctions
+
 quitP :: Parser RODatabaseContextOperator
 quitP = do
   reservedOp ":quit"
@@ -71,6 +75,7 @@ roDatabaseContextOperatorP = typeP
              <|> showConstraintsP
              <|> showPlanP
              <|> showTypesP
+             <|> showAtomFunctionsP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -122,6 +127,12 @@ evalRODatabaseContextOp sessionId conn ShowTypes = do
     
 evalRODatabaseContextOp sessionId conn ShowRelationVariables = do
   eRel <- C.relationVariablesAsRelation sessionId conn
+  case eRel of
+    Left err -> pure $ DisplayErrorResult (T.pack (show err))
+    Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+    
+evalRODatabaseContextOp sessionId conn ShowAtomFunctions = do
+  eRel <- C.atomFunctionsAsRelation sessionId conn
   case eRel of
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))

@@ -1,12 +1,17 @@
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Relation
+import ProjectM36.AtomType
 import ProjectM36.AtomFunctionError
+import ProjectM36.ScriptSession
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
+import qualified Data.Text as T
+
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
-foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [Attribute "_" foldType]), returnType]
+foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [Attribute "a" foldType]), returnType]
 
 atomFunctionForName :: AtomFunctionName -> AtomFunctions -> Either RelationalError AtomFunction
 atomFunctionForName funcName funcSet = if HS.null foundFunc then
@@ -64,4 +69,16 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
   argsType ++ [ADTypeConstructor "Either" [
                 ADTypeConstructor "AtomFunctionError" [],                     
                 retType]])
-                                                     
+
+loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
+loadAtomFunctions modName funcName objPath = do
+  loadFunction modName funcName objPath                               
+
+atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
+atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
+  where tups = map atomFuncToTuple (HS.toList funcs)
+        attrs = A.attributesFromList [Attribute "name" TextAtomType,
+                                     Attribute "arguments" TextAtomType]
+        atomFuncToTuple aFunc = [TextAtom (atomFuncName aFunc),
+                                 TextAtom (atomFuncTypeToText aFunc)]
+        atomFuncTypeToText aFunc = T.intercalate " -> " (map prettyAtomType (atomFuncType aFunc))

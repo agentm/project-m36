@@ -26,6 +26,12 @@ atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
 
 dbContextIOExprP :: Parser DatabaseContextIOExpr
-dbContextIOExprP = addAtomFunctionExprP <|> addDatabaseContextFunctionExprP
+dbContextIOExprP = addAtomFunctionExprP <|> addDatabaseContextFunctionExprP <|> loadAtomFunctionsP
+
+loadAtomFunctionsP :: Parser DatabaseContextIOExpr
+loadAtomFunctionsP = do
+  reserved "loadatomfunctions"
+  LoadAtomFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
+
   
                                              

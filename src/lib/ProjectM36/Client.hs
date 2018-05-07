@@ -32,6 +32,7 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
        headName,
        remoteDBLookupName,
@@ -98,7 +99,7 @@ import ProjectM36.Base hiding (inclusionDependencies) --defined in this module a
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.Atomable
-import ProjectM36.AtomFunction
+import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
 import qualified ProjectM36.IsomorphicSchema as Schema
@@ -910,7 +911,20 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
             Left err -> pure (Left err)
             Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
-relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
+relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
+
+-- | Returns the names and types of the atom functions in the current 'Session'.
+atomFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _) -> do
+        pure (AF.atomFunctionsAsRelation (atomFunctions (concreteDatabaseContext session)))
+        
+atomFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
 headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)
