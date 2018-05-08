@@ -33,5 +33,8 @@ loadAtomFunctionsP = do
   reserved "loadatomfunctions"
   LoadAtomFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
 
-  
+loadDatabaseContextFunctionsP :: Parser DatabaseContextIOExpr  
+loadDatabaseContextFunctionsP = do
+  reserved "loaddatabasecontextfunctions"
+  LoadDatabaseContextFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
                                              

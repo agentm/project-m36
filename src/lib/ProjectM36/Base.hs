@@ -338,9 +338,9 @@ type ObjFunctionName = StringType
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
 data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
                              LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
-                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript 
+                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
+                             LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath
                            deriving (Show, Eq, Generic, Binary)
-
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 

@@ -25,6 +25,7 @@ module ProjectM36.Client
        typeForRelationalExpr,
        inclusionDependencies,
        ProjectM36.Client.typeConstructorMapping,
+       ProjectM36.Client.databaseContextFunctionsAsRelation,      
        planForDatabaseContextExpr,
        currentSchemaName,
        SchemaName,
@@ -102,6 +103,7 @@ import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
+import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
 import Control.Monad.Trans.Reader
@@ -925,6 +927,18 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
         pure (AF.atomFunctionsAsRelation (atomFunctions (concreteDatabaseContext session)))
         
 atomFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
+
+databaseContextFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _) -> do
+        pure (DCF.databaseContextFunctionsAsRelation (dbcFunctions (concreteDatabaseContext session)))
+
+databaseContextFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
 headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)

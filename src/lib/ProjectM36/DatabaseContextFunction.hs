@@ -2,8 +2,13 @@ module ProjectM36.DatabaseContextFunction where
 --implements functions which operate as: [Atom] -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Attribute as A
+import ProjectM36.Relation
+import ProjectM36.AtomType
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import ProjectM36.ScriptSession
+import qualified Data.Text as T
 
 emptyDatabaseContextFunction :: DatabaseContextFunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = DatabaseContextFunction { 
@@ -54,3 +59,18 @@ databaseContextFunctionReturnType tCons = ADTypeConstructor "Either" [
                                           
 createScriptedDatabaseContextFunction :: DatabaseContextFunctionName -> [TypeConstructor] -> TypeConstructor -> DatabaseContextFunctionBodyScript -> DatabaseContextIOExpr
 createScriptedDatabaseContextFunction funcName argsIn retArg = AddDatabaseContextFunction funcName (argsIn ++ [databaseContextFunctionReturnType retArg])
+
+loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
+loadDatabaseContextFunctions modName funcName objPath = do
+  loadFunction modName funcName objPath                               
+
+databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
+databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
+  where
+    attrs = A.attributesFromList [Attribute "name" TextAtomType,
+                                  Attribute "arguments" TextAtomType]
+    tups = map dbcFuncToTuple (HS.toList dbcFuncs)
+    dbcFuncToTuple func = [TextAtom (dbcFuncName func),
+                           TextAtom (dbcTextType (dbcFuncType func))]
+    dbcTextType typ = T.intercalate " -> " ((map prettyAtomType typ) ++ ["DatabaseContext", "DatabaseContext"])
+                                                
