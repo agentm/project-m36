@@ -11,7 +11,8 @@ import qualified Data.Text as T
 
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
-foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [Attribute "a" foldType]), returnType]
+--the underscore in the attribute name means that any attributes are acceptable
+foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [Attribute "_" foldType]), returnType]
 
 atomFunctionForName :: AtomFunctionName -> AtomFunctions -> Either RelationalError AtomFunction
 atomFunctionForName funcName funcSet = if HS.null foundFunc then
