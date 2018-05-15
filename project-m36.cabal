@@ -26,7 +26,6 @@ Library
     Build-Depends: base>=4.8 && < 6.0
                    ,ghc >= 7.8 && < 8.3
                    ,ghc-paths
-                   ,ghci
                    ,mtl
                    ,containers
                    ,unordered-containers
@@ -166,7 +165,7 @@ Library
     Default-Extensions: OverloadedStrings, CPP
     if impl(ghc>= 8)
       build-depends:
-        ghc-boot
+        ghc-boot, ghci
 
 Executable tutd
     Build-Depends: base >=4.8 && <5.0,

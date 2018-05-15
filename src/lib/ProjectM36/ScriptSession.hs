@@ -18,6 +18,9 @@ import GHC
 import GHC.Paths (libdir)
 #if __GLASGOW_HASKELL__ >= 800
 import GHC.LanguageExtensions
+import GHCi.ObjLink
+#else
+import ObjLink
 #endif
 import DynFlags
 import Panic
@@ -28,7 +31,6 @@ import Type
 
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
-import GHCi.ObjLink
 import Encoding
 
 data ScriptSession = ScriptSession {
