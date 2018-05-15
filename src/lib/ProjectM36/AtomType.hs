@@ -252,14 +252,16 @@ prettyAtomType :: AtomType -> T.Text
 prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList attrs)) `T.append` "}"
 prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` T.concat (map showTypeVars (M.toList typeVarMap))
   where
+    showTypeVars (_, TypeVariableType x) = " " <> x
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
-prettyAtomType (TypeVariableType x) = "?TypeVariableType " <> x <> "?"
-prettyAtomType (IntervalAtomType tv) = "Interval (" <> prettyAtomType tv <> ")"
+prettyAtomType (TypeVariableType x) = x
+prettyAtomType (IntervalAtomType tv) = "Interval " <> prettyAtomType tv
 prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
   where fullName = (T.pack . show) aType
 
 prettyAttribute :: Attribute -> T.Text
+prettyAttribute (Attribute _ (TypeVariableType x)) = x
 prettyAttribute attr = A.attributeName attr `T.append` "::" `T.append` prettyAtomType (A.atomType attr)
 
 resolveTypeVariables :: [AtomType] -> [AtomType] -> Either RelationalError TypeVarMap  

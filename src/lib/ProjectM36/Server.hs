@@ -41,6 +41,8 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (CloseSession sessionId) -> handleCloseSession ti sessionId conn),
      handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
      handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
+     handleCall (\conn (RetrieveAtomFunctionSummary sessionId) -> handleRetrieveAtomFunctionSummary ti sessionId conn),
+     handleCall (\conn (RetrieveDatabaseContextFunctionSummary sessionId) -> handleRetrieveDatabaseContextFunctionSummary ti sessionId conn),     
      handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
      handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr),
      handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),

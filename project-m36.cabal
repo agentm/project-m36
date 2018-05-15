@@ -152,20 +152,20 @@ Library
                      ProjectM36.TypeConstructorDef,
                      ProjectM36.FileLock,
                      ProjectM36.FSType
-    GHC-Options: -Wall
+    GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.3
       Other-Modules: ProjectM36.Win32Handle
     else
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
-    CC-Options: -fPIC
+    CC-Options: -fPIC 
     Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings, CPP
     if impl(ghc>= 8)
       build-depends:
-        ghc-boot
+        ghc-boot, ghci
 
 Executable tutd
     Build-Depends: base >=4.8 && <5.0,
@@ -225,7 +225,7 @@ Executable tutd
                    TutorialD.Interpreter.SchemaOperator
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    GHC-Options: -Wall
+    GHC-Options: -Wall -rdynamic
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings

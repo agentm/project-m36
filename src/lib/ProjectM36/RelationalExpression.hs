@@ -561,7 +561,20 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddDatabaseContextFunct
           Right eContext -> case eContext of
             Left err -> pure (Left err)
             Right context' -> pure (Right context')
-              
+evalDatabaseContextIOExpr _ currentContext (LoadAtomFunctions modName funcName modPath) = do
+  eLoadFunc <- loadAtomFunctions (T.unpack modName) (T.unpack funcName) modPath
+  case eLoadFunc of
+    Left LoadSymbolError -> pure (Left LoadFunctionError)
+    Right atomFunctionListFunc -> let newContext = currentContext { atomFunctions = mergedFuncs }
+                                      mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList atomFunctionListFunc)
+                                  in pure (Right newContext)
+evalDatabaseContextIOExpr _ currentContext (LoadDatabaseContextFunctions modName funcName modPath) = do
+  eLoadFunc <- loadDatabaseContextFunctions (T.unpack modName) (T.unpack funcName) modPath
+  case eLoadFunc of
+    Left LoadSymbolError -> pure (Left LoadFunctionError)
+    Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
+                             mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
+                                  in pure (Right newContext)
     
 updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do
