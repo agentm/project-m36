@@ -72,8 +72,7 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
                 retType]])
 
 loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
-loadAtomFunctions modName funcName objPath = do
-  loadFunction modName funcName objPath                               
+loadAtomFunctions = loadFunction
 
 atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
 atomFunctionsAsRelation funcs = mkRelationFromList attrs tups

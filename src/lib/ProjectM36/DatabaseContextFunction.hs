@@ -61,8 +61,7 @@ createScriptedDatabaseContextFunction :: DatabaseContextFunctionName -> [TypeCon
 createScriptedDatabaseContextFunction funcName argsIn retArg = AddDatabaseContextFunction funcName (argsIn ++ [databaseContextFunctionReturnType retArg])
 
 loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
-loadDatabaseContextFunctions modName funcName objPath = do
-  loadFunction modName funcName objPath                               
+loadDatabaseContextFunctions = loadFunction
 
 databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
 databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
@@ -72,5 +71,5 @@ databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
     tups = map dbcFuncToTuple (HS.toList dbcFuncs)
     dbcFuncToTuple func = [TextAtom (dbcFuncName func),
                            TextAtom (dbcTextType (dbcFuncType func))]
-    dbcTextType typ = T.intercalate " -> " ((map prettyAtomType typ) ++ ["DatabaseContext", "DatabaseContext"])
+    dbcTextType typ = T.intercalate " -> " (map prettyAtomType typ ++ ["DatabaseContext", "DatabaseContext"])
                                                 

@@ -923,7 +923,7 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, _) -> do
+      Right (session, _) -> 
         pure (AF.atomFunctionsAsRelation (atomFunctions (concreteDatabaseContext session)))
         
 atomFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
@@ -935,7 +935,7 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, _) -> do
+      Right (session, _) ->
         pure (DCF.databaseContextFunctionsAsRelation (dbcFunctions (concreteDatabaseContext session)))
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
