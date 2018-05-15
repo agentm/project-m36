@@ -142,7 +142,7 @@ someDBCFunctions = [DatabaseContextFunction {
           pure $ ctx { relationVariables = M.insert "testRel" testRel (relationVariables ctx) }
 ```
 
-The function returns a list of `DatabaseContextFunction`s which adds a relation variable to the current database context.
+The function returns a list of `DatabaseContextFunction`s (just one in this case). The function adds a relation variable to the current database context.
 
 Compile it with GHC:
 
