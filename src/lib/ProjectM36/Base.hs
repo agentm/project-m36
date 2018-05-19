@@ -1,5 +1,6 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances,OverloadedStrings  #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
@@ -14,7 +15,7 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
-import Data.Text (Text,unpack)
+import Data.Text (Text,unpack,pack)
 import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
@@ -23,6 +24,15 @@ import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
+--for generating arbitrary tuples
+import Test.QuickCheck
+import Test.QuickCheck.Gen
+import Test.QuickCheck.Random
+import Test.QuickCheck.Arbitrary.ADT
+import qualified Data.ByteString.Char8 as B
+import Data.Time
+import Data.Time.Clock
+
 
 type StringType = Text
   
@@ -527,3 +537,58 @@ instance Hashable DatabaseContextFunction where
                            
 instance Eq DatabaseContextFunction where                           
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
+
+
+-- for creating arbitrary tuples 
+
+instance Arbitrary Text where
+  arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"] --(arbitrary :: Gen String)
+
+instance Arbitrary Day where
+  arbitrary = ModifiedJulianDay <$> (arbitrary :: Gen Integer)
+
+instance Arbitrary Attribute where
+  arbitrary = genericArbitrary
+
+instance (Arbitrary a) => Arbitrary (V.Vector a) where
+    arbitrary = do
+      maxbound <- choose (0,5)
+      V.fromList <$> vectorOf maxbound arbitrary
+
+--not sure what's use on this one
+instance {-# OVERLAPPING #-} Arbitrary TypeVarMap where
+    arbitrary = undefined
+
+instance Arbitrary UTCTime where
+ arbitrary = UTCTime <$> arbitrary <*> (secondsToDiffTime <$> arbitrary)
+
+instance Arbitrary B.ByteString where
+  arbitrary = B.pack <$> (arbitrary :: Gen String)
+
+defAttributeNames = ["Number","People","Time","Thing"]
+defAtomtypes = [IntAtomType, TextAtomType, DayAtomType, TextAtomType]
+defAttributes = V.fromList $ zipWith Attribute defAttributeNames defAtomtypes
+
+instance Arbitrary RelationTuple where
+  arbitrary = do
+    a <- IntAtom <$> (arbitrary :: Gen Int)
+    b <- TextAtom <$> (arbitrary :: Gen Text)
+    c <- DayAtom <$> (arbitrary :: Gen Day)
+    d <- TextAtom <$> (arbitrary :: Gen Text)
+    let sample = V.fromList [a,b,c,d]
+    return $ RelationTuple defAttributes sample
+
+instance Arbitrary Relation where
+  arbitrary = do
+    list <- listOf (arbitrary :: Gen RelationTuple)
+    return $ Relation defAttributes (RelationTupleSet list)
+
+instance Arbitrary AtomType where
+  arbitrary = genericArbitrary
+
+instance Arbitrary Atom where
+  arbitrary = genericArbitrary
+
+instance ToADTArbitrary Atom
+
+

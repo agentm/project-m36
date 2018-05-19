@@ -71,6 +71,9 @@ Library
                    ,conduit
                    ,resourcet
                    ,http-api-data
+                   -- used for arbitrary tuples
+                   ,QuickCheck
+                   ,quickcheck-arbitrary-adt
 --needed for remote access
                    ,distributed-process-client-server >= 0.2.3
                    ,distributed-process >= 0.6.6
