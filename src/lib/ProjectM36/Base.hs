@@ -344,12 +344,13 @@ data DatabaseContextExpr =
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
-  
+type Range = (Int,Int)  
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
 data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
                              LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
                              AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
-                             LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath
+                             LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
+                             CreateArbitraryRelation RelVarName [AttributeExpr] Range
                            deriving (Show, Eq, Generic, Binary)
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
@@ -540,9 +541,8 @@ instance Eq DatabaseContextFunction where
 
 
 -- for creating arbitrary tuples 
-
 instance Arbitrary Text where
-  arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"] --(arbitrary :: Gen String)
+  arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"]
 
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> (arbitrary :: Gen Integer)
@@ -583,6 +583,15 @@ instance Arbitrary Relation where
     list <- listOf (arbitrary :: Gen RelationTuple)
     return $ Relation defAttributes (RelationTupleSet list)
 
+arbitraryRelationTuple attris = do
+  let attrisG = V.fromList <$>  mapM (arbitrary'.getAtomType) (V.toList attris)
+  RelationTuple attris <$> attrisG
+
+arbitraryRel attris bound@(min,max) = do
+  num <- choose (min,max)
+  let tupleListG = vectorOf num (arbitraryRelationTuple attris)
+  Relation attris <$> (RelationTupleSet <$> tupleListG)
+
 instance Arbitrary AtomType where
   arbitrary = genericArbitrary
 
@@ -591,4 +600,13 @@ instance Arbitrary Atom where
 
 instance ToADTArbitrary Atom
 
+arbitrary' :: AtomType -> Gen Atom
+arbitrary' IntAtomType  = IntAtom <$> (arbitrary :: Gen Int)
+arbitrary' IntegerAtomType  = IntegerAtom <$> (arbitrary :: Gen Integer)
+arbitrary' TextAtomType = TextAtom <$> (arbitrary :: Gen Text)
+arbitrary' DayAtomType  = DayAtom <$> (arbitrary :: Gen Day)
+arbitrary' BoolAtomType  = BoolAtom <$> (arbitrary :: Gen Bool)
+arbitrary' _            = undefined
 
+getAtomType :: Attribute -> AtomType
+getAtomType (Attribute _ atomType) = atomType

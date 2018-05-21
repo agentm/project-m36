@@ -82,6 +82,9 @@ printWelcome = do
 
 main :: IO ()
 main = do
+  hSetEncoding stdin  utf8
+  hSetEncoding stdout utf8
+  hSetEncoding stderr utf8
   interpreterConfig <- execParser opts
   let connInfo = connectionInfoForConfig interpreterConfig
   fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))

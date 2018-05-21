@@ -135,7 +135,7 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
     collapsedAttrs = vectorUniqueify attrs
 
 attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
+attributesEqual attrs1 attrs2 =  V.null (attributesDifference attrs1 attrs2)
 
 attributesAsMap :: Attributes -> M.Map AttributeName Attribute
 attributesAsMap attrs = (M.fromList . V.toList) (V.map (\attr -> (attributeName attr, attr)) attrs)
