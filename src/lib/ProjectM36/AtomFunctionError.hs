@@ -9,6 +9,7 @@ data AtomFunctionError = AtomFunctionUserError String |
                          AtomFunctionTypeMismatchError |
                          InvalidIntervalOrderingError |
                          InvalidIntervalBoundariesError |
+                         InvalidIntBoundError |
                          AtomFunctionEmptyRelationError |
                          AtomTypeDoesNotSupportOrderingError Text |
                          AtomTypeDoesNotSupportIntervalError Text |
