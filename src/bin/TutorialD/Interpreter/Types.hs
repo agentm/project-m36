@@ -28,10 +28,24 @@ dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeCo
 --built-in, nullary type constructors
 -- Int, Text, etc.
 primitiveTypeConstructorP :: Parser TypeConstructor
-primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
+primitiveTypeConstructorP = choice (relationTypeP ++ map (\(PrimitiveTypeConstructorDef name typ, _) -> do
                                                tName <- try $ symbol (T.unpack name)
                                                pure $ PrimitiveTypeConstructor tName typ)
                                        primitiveTypeConstructorMapping)
+                            
+-- relation{a Int} in type construction (no tuples parsed)
+relationTypeP :: Parser TypeConstructor
+relationTypeP = do
+  reserved "relation"
+  RelationAtomTypeConstructor <$> braces makeAttributeExprsP
+  
+--used in relation creation
+makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
+makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
+
+attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
+attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstructorP <*> parseMarkerP
+  
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  

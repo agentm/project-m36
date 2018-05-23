@@ -150,3 +150,4 @@ intersection :: Attributes -> Attributes -> Attributes
 intersection attrsA attrsB = V.fromList (M.elems intersected)
   where
     intersected = M.intersection (attributesAsMap attrsA) (attributesAsMap attrsB)
+    

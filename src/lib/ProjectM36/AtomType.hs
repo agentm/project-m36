@@ -116,6 +116,18 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
 resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
+resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExpr) typ tConsMap = 
+  case typ of
+    RelationAtomType attrs -> do
+      resolvedAttrs <- mapM (\atomtype' -> resolveAttributeExprTypeVars attrExpr atomtype' tConsMap) (map A.atomType (V.toList attrs))
+      error "poop"
+      
+--used when recursing down sub-relation type definition
+resolveAttributeExprTypeVars :: AttributeExprBase a -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
+resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = do 
+  resolvedType <- resolveAtomType (A.atomType attr) aType
+  
+resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap = resolveTypeConstructorTypeVars tCons aType tConsMap
     
 -- check that type vars on the right also appear on the left
 -- check that the data constructor names are unique      
@@ -161,7 +173,7 @@ resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresol
                                                   else
                                                     Left (AtomTypeMismatchError typeFromRelation unresolvedType)
                                                     
--- this could be optimized to reduce new tuple creation- if anyatomtype does not appear, just return the original typevarmap
+-- this could be optimized to reduce new tuple creation
 resolveAtomTypesInTypeVarMap :: TypeVarMap -> TypeVarMap -> Either RelationalError TypeVarMap
 resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
   {-
@@ -215,7 +227,8 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                             Left $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
                                           else
                                             Right ()
-      _ -> Right ()                                            
+      _ -> Right ()
+validateAtomType (RelationAtomType attrs) = error "poop"
 validateAtomType _ _ = Right ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
@@ -307,3 +320,5 @@ resolvedAtomTypeForDataConstructorDefArg tConsMap tvMap (DataConstructorDefTypeC
 resolvedAtomTypeForDataConstructorDefArg _ tvMap (DataConstructorDefTypeVarNameArg tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (DataConstructorUsesUndeclaredTypeVariable tvName)
   Just typ -> Right typ
+
+

@@ -33,12 +33,6 @@ makeRelationP = do
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs
 
---used in relation creation
-makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
-makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
-
-attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
-attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstructorP <*> parseMarkerP
   
 --abstract data type parser- in this context, the type constructor must not include any type arguments
 --Either Text Int
