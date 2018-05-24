@@ -59,7 +59,9 @@ main = do
       testRestrictionPredicateExprs,
       testRelationalAttributeNames,
       testSemijoin,
-      testAntijoin
+      testAntijoin,
+      testAssignWithTypeVar,
+      testDefineWithTypeVar
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -536,4 +538,16 @@ testAntijoin = TestCase $ do
     eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
     eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
     assertEqual "antijoin only Adams" eX eY
+  
+testAssignWithTypeVar :: Test
+testAssignWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "y:=relation{a int, b invalidtype}"
+  
+testDefineWithTypeVar :: Test  
+testDefineWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isInfixOf err1) "y::{a int, b invalidtype}"
   

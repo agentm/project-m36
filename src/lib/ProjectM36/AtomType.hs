@@ -215,7 +215,8 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                             Left $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
                                           else
                                             Right ()
-      _ -> Right ()                                            
+      _ -> Right ()                                
+validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)
 validateAtomType _ _ = Right ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
