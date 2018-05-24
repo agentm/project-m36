@@ -6,6 +6,7 @@ import qualified ProjectM36.DataConstructorDef as DCD
 import ProjectM36.MiscUtils
 import ProjectM36.Error
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.AttributeExpr as AE
 import qualified ProjectM36.Attribute as A
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -55,6 +56,7 @@ isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedATyp
 --lookup constructor name and check if the incoming atom types are valid
 isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConstructor expectedTConsName _) _ =  if tConsName /= expectedTConsName then Just (TypeConstructorNameMismatch expectedTConsName tConsName) else Nothing
 
+isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) _ = error "poopla"
 isValidAtomTypeForTypeConstructor aType tCons _ = Just (AtomTypeTypeConstructorReconciliationError aType (TC.name tCons))
 
 -- | Used to determine if the atom arguments can be used with the data constructor.  
@@ -116,17 +118,16 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
 resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
-resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExpr) typ tConsMap = 
+resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExprs) typ tConsMap = 
   case typ of
     RelationAtomType attrs -> do
-      resolvedAttrs <- mapM (\atomtype' -> resolveAttributeExprTypeVars attrExpr atomtype' tConsMap) (map A.atomType (V.toList attrs))
-      error "poop"
+      --resolve any typevars in the attrExprs 
+      error "poop4"
+    otherType -> error "poop5"
       
 --used when recursing down sub-relation type definition
 resolveAttributeExprTypeVars :: AttributeExprBase a -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = do 
-  resolvedType <- resolveAtomType (A.atomType attr) aType
-  
+resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = error "poop2"
 resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap = resolveTypeConstructorTypeVars tCons aType tConsMap
     
 -- check that type vars on the right also appear on the left
@@ -149,6 +150,10 @@ atomTypeForTypeConstructor (PrimitiveTypeConstructor _ aType) _ _ = Right aType
 atomTypeForTypeConstructor (TypeVariable tvname) _ tvMap = case M.lookup tvname tvMap of
   Nothing -> Right (TypeVariableType tvname)
   Just typ -> Right typ
+atomTypeForTypeConstructor (RelationAtomTypeConstructor attrExprs) tConsMap tvMap = do
+  resolvedAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap tvMap) attrExprs
+  let attrs = map (uncurry Attribute) (zip (map AE.attributeName attrExprs) resolvedAtomTypes)
+  pure (RelationAtomType (A.attributesFromList attrs))
 atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
   Just (tConsDef, _) -> do
@@ -156,6 +161,10 @@ atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.nam
       let pVarNames = TCD.typeVars tConsDef
           tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
       Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
+      
+atomTypeForAttributeExpr :: AttributeExprBase a -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType      
+atomTypeForAttributeExpr (NakedAttributeExpr attr) _ _ = pure (A.atomType attr)
+atomTypeForAttributeExpr (AttributeAndTypeNameExpr _ tCons _) tConsMap tvMap = atomTypeForTypeConstructor tCons tConsMap tvMap
 
 findTypeConstructor :: TypeConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, [DataConstructorDef])
 findTypeConstructor name = foldr tConsFolder Nothing
@@ -228,7 +237,7 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                           else
                                             Right ()
       _ -> Right ()
-validateAtomType (RelationAtomType attrs) = error "poop"
+validateAtomType (RelationAtomType attrs) _ = error "poop"
 validateAtomType _ _ = Right ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()

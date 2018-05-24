@@ -238,10 +238,11 @@ data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName]
                         deriving (Show, Generic, Binary, Eq, NFData)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
-data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructor] |
-                       PrimitiveTypeConstructor TypeConstructorName AtomType |
-                       RelationAtomTypeConstructor AttributeExpr |
-                       TypeVariable TypeVarName
+type TypeConstructor = TypeConstructorBase ()
+data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstructor] |
+                         PrimitiveTypeConstructor TypeConstructorName AtomType |
+                         RelationAtomTypeConstructor [AttributeExprBase a] |
+                         TypeVariable TypeVarName
                      deriving (Show, Generic, Binary, Eq, NFData)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
@@ -548,7 +549,7 @@ typeVars :: TypeConstructor -> S.Set TypeVarName
 typeVars (PrimitiveTypeConstructor _ _) = S.empty
 typeVars (ADTypeConstructor _ args) = S.unions (map typeVars args)
 typeVars (TypeVariable v) = S.singleton v
-typeVars (RelationAtomTypeConstructor attrExpr) = attrExprTypeVars attrExpr
+typeVars (RelationAtomTypeConstructor attrExprs) = S.unions (map attrExprTypeVars attrExprs)
     
 attrExprTypeVars :: AttributeExprBase a -> S.Set TypeVarName    
 attrExprTypeVars (AttributeAndTypeNameExpr _ tCons _) = typeVars tCons

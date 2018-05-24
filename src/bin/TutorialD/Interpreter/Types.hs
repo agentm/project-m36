@@ -7,6 +7,12 @@ import TutorialD.Interpreter.Base
 import ProjectM36.DataTypes.Primitive
 import qualified Data.Text as T
 
+class RelationalMarkerExpr a where
+  parseMarkerP :: Parser a
+
+instance RelationalMarkerExpr () where
+  parseMarkerP = pure ()
+  
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
 typeConstructorDefP :: Parser TypeConstructorDef
@@ -28,16 +34,16 @@ dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeCo
 --built-in, nullary type constructors
 -- Int, Text, etc.
 primitiveTypeConstructorP :: Parser TypeConstructor
-primitiveTypeConstructorP = choice (relationTypeP ++ map (\(PrimitiveTypeConstructorDef name typ, _) -> do
+primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
                                                tName <- try $ symbol (T.unpack name)
                                                pure $ PrimitiveTypeConstructor tName typ)
                                        primitiveTypeConstructorMapping)
                             
 -- relation{a Int} in type construction (no tuples parsed)
-relationTypeP :: Parser TypeConstructor
-relationTypeP = do
+relationTypeConstructorP :: Parser TypeConstructor
+relationTypeConstructorP = do
   reserved "relation"
-  RelationAtomTypeConstructor <$> braces makeAttributeExprsP
+  RelationAtomTypeConstructor <$> makeAttributeExprsP
   
 --used in relation creation
 makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
@@ -50,6 +56,7 @@ attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstruc
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
 typeConstructorP = primitiveTypeConstructorP <|>
+                   relationTypeConstructorP <|>
                    TypeVariable <$> uncapitalizedIdentifier <|>
                    ADTypeConstructor <$> capitalizedIdentifier <*> many (parens typeConstructorP <|>
                                                                          monoTypeConstructorP)

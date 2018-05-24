@@ -11,12 +11,6 @@ import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
 
-class RelationalMarkerExpr a where
-  parseMarkerP :: Parser a
-
-instance RelationalMarkerExpr () where
-  parseMarkerP = pure ()
-
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
 attributeListP = 
