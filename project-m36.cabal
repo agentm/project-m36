@@ -123,6 +123,7 @@ Library
                      ProjectM36.Client.Simple,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,
+                     ProjectM36.AttributeExpr,
                      ProjectM36.AtomFunctions.Basic,
                      ProjectM36.AtomFunctions.Primitive,
                      ProjectM36.Atomable,
