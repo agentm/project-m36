@@ -116,7 +116,7 @@ resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExprs) typ tCons
       
 --used when recursing down sub-relation type definition
 resolveAttributeExprTypeVars :: AttributeExprBase a -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = error "poop5"
+resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = pure $ resolveTypeVariable (A.atomType attr) aType
 resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap = resolveTypeConstructorTypeVars tCons aType tConsMap
     
 -- check that type vars on the right also appear on the left
