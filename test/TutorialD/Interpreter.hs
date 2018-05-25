@@ -59,7 +59,8 @@ main = do
       testRestrictionPredicateExprs,
       testRelationalAttributeNames,
       testSemijoin,
-      testAntijoin
+      testAntijoin,
+      testRelationAttributeDefinition      
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -536,4 +537,19 @@ testAntijoin = TestCase $ do
     eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
     eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
     assertEqual "antijoin only Adams" eX eY
+  
+testRelationAttributeDefinition :: Test
+testRelationAttributeDefinition = TestCase $ do
+    -- test normal subrelation construction
+    (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+    executeTutorialD sessionId dbconn "x:=relation{a relation{b Integer}}{tuple{a relation{tuple{b 4}}}}"
+    eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())  
+    let expected = mkRelationFromList attrs [[RelationAtom subRel]]
+        attrs = attributesFromList [Attribute "a" (RelationAtomType subRelAttrs)]
+        subRelAttrs = attributesFromList [Attribute "b" IntegerAtomType]
+        Right subRel = mkRelationFromList subRelAttrs [[IntegerAtom 4]]
+    assertEqual "relation attribute construction" expected eX
+    -- test rejected subrelation construction due to floating type variables
+    expectTutorialDErr sessionId dbconn "spam" "y:=relation{a relation{b x}}"
+    
   

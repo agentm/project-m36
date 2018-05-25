@@ -941,4 +941,3 @@ evalAttributeNames attrNames expr = do
             Left err -> pure (Left err)
             Right attrExprType -> pure (Right (A.attributeNameSet (attributes attrExprType)))
               
-

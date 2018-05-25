@@ -17,6 +17,8 @@ import Control.Monad.Writer
 import qualified Data.Map as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName = foldr tConsFolder Nothing
   where
@@ -42,23 +44,12 @@ atomTypeForDataConstructorName dConsName atomTypesIn tConsList =
       ConstructedAtomType (TCD.name tCons) <$> resolveDataConstructorTypeVars dCons atomTypesIn tConsList
         
 atomTypeForDataConstructorDefArg :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping ->  Either RelationalError AtomType
-atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aType tConss = 
-  case isValidAtomTypeForTypeConstructor aType tCons tConss of
-    Just err -> Left err
-    Nothing -> Right aType
+atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aType tConss = do
+  isValidAtomTypeForTypeConstructor aType tCons tConss
+  pure aType
 
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) aType _ = Right aType --any type is OK
         
---reconcile the atom-in types with the type constructors
-isValidAtomTypeForTypeConstructor :: AtomType -> TypeConstructor -> TypeConstructorMapping -> Maybe RelationalError
-isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedAType) _ = if expectedAType /= aType then Just (AtomTypeMismatchError expectedAType aType) else Nothing
-
---lookup constructor name and check if the incoming atom types are valid
-isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConstructor expectedTConsName _) _ =  if tConsName /= expectedTConsName then Just (TypeConstructorNameMismatch expectedTConsName tConsName) else Nothing
-
-isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) _ = error "poopla"
-isValidAtomTypeForTypeConstructor aType tCons _ = Just (AtomTypeTypeConstructorReconciliationError aType (TC.name tCons))
-
 -- | Used to determine if the atom arguments can be used with the data constructor.  
 -- | This is the entry point for type-checking from RelationalExpression.hs.
 atomTypeForDataConstructor :: TypeConstructorMapping -> DataConstructorName -> [AtomType] -> Either RelationalError AtomType
@@ -119,15 +110,16 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
 resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
 resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExprs) typ tConsMap = 
-  case typ of
+  case traceShowId typ of
     RelationAtomType attrs -> do
       --resolve any typevars in the attrExprs 
-      error "poop4"
-    otherType -> error "poop5"
+      tvMaps <- mapM (\(expectedAtomType, attrExpr) -> resolveAttributeExprTypeVars attrExpr expectedAtomType tConsMap) (zip (A.atomTypesList attrs) attrExprs)
+      pure (M.unions tvMaps)
+    otherType -> Left (AtomTypeMismatchError typ otherType)
       
 --used when recursing down sub-relation type definition
 resolveAttributeExprTypeVars :: AttributeExprBase a -> AtomType -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = error "poop2"
+resolveAttributeExprTypeVars (NakedAttributeExpr attr) aType _ = error "poop5"
 resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap = resolveTypeConstructorTypeVars tCons aType tConsMap
     
 -- check that type vars on the right also appear on the left
@@ -165,6 +157,19 @@ atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.nam
 atomTypeForAttributeExpr :: AttributeExprBase a -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType      
 atomTypeForAttributeExpr (NakedAttributeExpr attr) _ _ = pure (A.atomType attr)
 atomTypeForAttributeExpr (AttributeAndTypeNameExpr _ tCons _) tConsMap tvMap = atomTypeForTypeConstructor tCons tConsMap tvMap
+
+--reconcile the atom-in types with the type constructors
+isValidAtomTypeForTypeConstructor :: AtomType -> TypeConstructor -> TypeConstructorMapping -> Either RelationalError ()
+isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedAType) _ = if expectedAType /= aType then Left (AtomTypeMismatchError expectedAType aType) else pure ()
+
+--lookup constructor name and check if the incoming atom types are valid
+isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConstructor expectedTConsName _) _ =  if tConsName /= expectedTConsName then Left (TypeConstructorNameMismatch expectedTConsName tConsName) else pure ()
+
+isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) tConsMap = do
+  evaldAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap M.empty) attrExprs
+  mapM_ (uncurry resolveAtomType) (zip (map A.atomType (V.toList attrs)) evaldAtomTypes)
+  pure ()
+isValidAtomTypeForTypeConstructor aType tCons _ = Left (AtomTypeTypeConstructorReconciliationError aType (TC.name tCons))
 
 findTypeConstructor :: TypeConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, [DataConstructorDef])
 findTypeConstructor name = foldr tConsFolder Nothing
@@ -237,8 +242,11 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                           else
                                             Right ()
       _ -> Right ()
-validateAtomType (RelationAtomType attrs) _ = error "poop"
-validateAtomType _ _ = Right ()
+validateAtomType (RelationAtomType attrs) tConss = do
+  mapM_ (\attr ->
+         validateAtomType (A.atomType attr) tConss) (V.toList attrs)
+  pure ()
+validateAtomType _ _ = pure ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
 validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms
