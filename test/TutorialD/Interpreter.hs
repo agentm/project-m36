@@ -29,6 +29,7 @@ import Data.Text hiding (map)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
 
 main :: IO ()
 main = do
@@ -60,7 +61,9 @@ main = do
       testRelationalAttributeNames,
       testSemijoin,
       testAntijoin,
-      testRelationAttributeDefinition      
+      testRelationAttributeDefinition,
+      testAssignWithTypeVar,
+      testDefineWithTypeVar
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -87,7 +90,7 @@ main = do
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
                       ("x:=true; undefine x", Left (RelVarNotDefinedError "x")),
-                      ("x:=relation {b Integer, a Text}{}; insert x relation{tuple{b 5, a \"spam\"}}", mkRelationFromTuples simpleCAttributes [RelationTuple simpleCAttributes $ V.fromList [TextAtom "spam", IntegerAtom 5]]),
+                      ("x:=relation {b Integer, a Text}{}; insert x relation{tuple{b -5, a \"spam\"}}", mkRelationFromTuples simpleCAttributes [RelationTuple simpleCAttributes $ V.fromList [TextAtom "spam", IntegerAtom (-5)]]),
                       -- test nested relation constructor
                       ("x:=relation{tuple{a 5, b relation{tuple{a 6}}}}", mkRelation nestedRelationAttributes $ RelationTupleSet [RelationTuple nestedRelationAttributes (V.fromList [IntegerAtom 5, RelationAtom (Relation simpleAAttributes $ RelationTupleSet [RelationTuple simpleAAttributes $ V.fromList [IntegerAtom 6]])])]),
                       ("x:=relation{tuple{b 5,a \"spam\"},tuple{b 6,a \"sam\"}}; delete x where b=6", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntegerAtom 5])]),
@@ -156,7 +159,9 @@ main = do
                            ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
                            ("x:=relation{a Either Integer Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntegerAtomType TextAtomType) [IntegerAtom 3]]]),
                            --test datetime constructor
-                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]])
+                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]]),
+                           --test Day constructor
+                           ("x:=relation{tuple{a fromGregorian(2017,05,30)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DayAtomType]) [[DayAtom (fromGregorian 2017 05 30)]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
@@ -550,6 +555,16 @@ testRelationAttributeDefinition = TestCase $ do
         Right subRel = mkRelationFromList subRelAttrs [[IntegerAtom 4]]
     assertEqual "relation attribute construction" expected eX
     -- test rejected subrelation construction due to floating type variables
-    expectTutorialDErr sessionId dbconn "spam" "y:=relation{a relation{b x}}"
+    expectTutorialDErr sessionId dbconn (T.isPrefixOf "TypeConstructorTypeVarMissing") "y:=relation{a relation{b x}}"
     
+testAssignWithTypeVar :: Test
+testAssignWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "y:=relation{a int, b invalidtype}"
   
+testDefineWithTypeVar :: Test  
+testDefineWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isInfixOf err1) "y::{a int, b invalidtype}"

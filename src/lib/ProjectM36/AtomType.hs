@@ -17,8 +17,6 @@ import Control.Monad.Writer
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 findDataConstructor :: DataConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, DataConstructorDef)
 findDataConstructor dName = foldr tConsFolder Nothing
   where
@@ -110,11 +108,10 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
 resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
 resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExprs) typ tConsMap = 
-  case traceShowId typ of
-    RelationAtomType attrs -> do
+  case typ of
+    RelationAtomType attrs -> 
       --resolve any typevars in the attrExprs 
-      tvMaps <- mapM (\(expectedAtomType, attrExpr) -> resolveAttributeExprTypeVars attrExpr expectedAtomType tConsMap) (zip (A.atomTypesList attrs) attrExprs)
-      pure (M.unions tvMaps)
+      M.unions <$> mapM (\(expectedAtomType, attrExpr) -> resolveAttributeExprTypeVars attrExpr expectedAtomType tConsMap) (zip (A.atomTypesList attrs) attrExprs)
     otherType -> Left (AtomTypeMismatchError typ otherType)
       
 --used when recursing down sub-relation type definition
@@ -144,7 +141,7 @@ atomTypeForTypeConstructor (TypeVariable tvname) _ tvMap = case M.lookup tvname 
   Just typ -> Right typ
 atomTypeForTypeConstructor (RelationAtomTypeConstructor attrExprs) tConsMap tvMap = do
   resolvedAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap tvMap) attrExprs
-  let attrs = map (uncurry Attribute) (zip (map AE.attributeName attrExprs) resolvedAtomTypes)
+  let attrs = zipWith Attribute (map AE.attributeName attrExprs) resolvedAtomTypes
   pure (RelationAtomType (A.attributesFromList attrs))
 atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
@@ -246,6 +243,7 @@ validateAtomType (RelationAtomType attrs) tConss = do
   mapM_ (\attr ->
          validateAtomType (A.atomType attr) tConss) (V.toList attrs)
   pure ()
+validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)  
 validateAtomType _ _ = pure ()
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()

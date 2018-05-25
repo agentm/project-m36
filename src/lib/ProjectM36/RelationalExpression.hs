@@ -268,14 +268,21 @@ evalDatabaseContextExpr (Define relVarName attrExprs) = do
   relvars <- fmap relationVariables getStateContext
   tConss <- fmap typeConstructorMapping getStateContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
-  case lefts eAttrs of
-    err:_ -> pure (Left err)
-    [] -> case M.member relVarName relvars of
-      True -> pure (Left (RelVarAlreadyDefinedError relVarName))
-      False -> setRelVar relVarName emptyRelation >> pure (Right ())
-        where
-          attrs = A.attributesFromList (rights eAttrs)
-          emptyRelation = Relation attrs emptyTupleSet
+      attrErrs = lefts eAttrs
+      attrsList = rights eAttrs
+  if not (null  attrErrs) then
+    pure (Left (someErrors attrErrs))
+    else do
+      let atomTypeErrs = lefts $ map ((`validateAtomType` tConss) . A.atomType) attrsList
+      if not (null atomTypeErrs) then
+        pure (Left (someErrors atomTypeErrs))
+        else 
+        case M.member relVarName relvars of
+          True -> pure (Left (RelVarAlreadyDefinedError relVarName))
+          False -> setRelVar relVarName emptyRelation >> pure (Right ())
+            where
+              attrs = A.attributesFromList attrsList
+              emptyRelation = Relation attrs emptyTupleSet
 
 evalDatabaseContextExpr (Undefine relVarName) = deleteRelVar relVarName
 
@@ -867,6 +874,7 @@ verifyAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = runExceptT $ d
 evalAttrExpr :: TypeConstructorMapping -> AttributeExpr -> Either RelationalError Attribute
 evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons ()) = do
   aType <- atomTypeForTypeConstructor tCons aTypes M.empty
+  validateAtomType aType aTypes
   Right (Attribute attrName aType)
   
 evalAttrExpr _ (NakedAttributeExpr attr) = Right attr
