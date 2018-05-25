@@ -29,6 +29,7 @@ import Data.Text hiding (map)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
 
 main :: IO ()
 main = do
@@ -157,7 +158,9 @@ main = do
                            ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
                            ("x:=relation{a Either Integer Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntegerAtomType TextAtomType) [IntegerAtom 3]]]),
                            --test datetime constructor
-                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]])
+                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]]),
+                           --test Day constructor
+                           ("x:=relation{tuple{a fromGregorian(2017,05,30)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DayAtomType]) [[DayAtom (fromGregorian 2017 05 30)]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
