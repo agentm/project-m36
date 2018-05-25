@@ -29,6 +29,9 @@ atomType (Attribute _ atype) = atype
 atomTypes :: Attributes -> V.Vector AtomType
 atomTypes = V.map atomType
 
+atomTypesList :: Attributes -> [AtomType]
+atomTypesList = V.toList . atomTypes 
+
 --hm- no error-checking here
 addAttribute :: Attribute -> Attributes -> Attributes
 addAttribute attr attrs = attrs `V.snoc` attr

@@ -94,7 +94,7 @@ whiteSpace = Token.whiteSpace lexer
 -}
 
 integer :: Parser Integer
-integer = Lex.integer
+integer = Lex.signed spaceConsumer Lex.integer
 
 float :: Parser Double
 float = Lex.float

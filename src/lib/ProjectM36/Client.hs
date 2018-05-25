@@ -78,7 +78,7 @@ module ProjectM36.Client
        databaseContextExprForForeignKey,
        createScriptedAtomFunction,
        AttributeExprBase(..),
-       TypeConstructor(..),
+       TypeConstructorBase(..),
        TypeConstructorDef(..),
        DataConstructorDef(..),
        AttributeNamesBase(..),

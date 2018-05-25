@@ -248,9 +248,11 @@ data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName]
                         deriving (Show, Generic, Binary, Eq, NFData)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
-data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructor] |
-                       PrimitiveTypeConstructor TypeConstructorName AtomType |
-                       TypeVariable TypeVarName
+type TypeConstructor = TypeConstructorBase ()
+data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstructor] |
+                         PrimitiveTypeConstructor TypeConstructorName AtomType |
+                         RelationAtomTypeConstructor [AttributeExprBase a] |
+                         TypeVariable TypeVarName
                      deriving (Show, Generic, Binary, Eq, NFData)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
@@ -539,7 +541,6 @@ instance Hashable DatabaseContextFunction where
 instance Eq DatabaseContextFunction where                           
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
 
-
 -- for creating arbitrary tuples 
 instance Arbitrary Text where
   arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"]
@@ -610,3 +611,43 @@ arbitrary' _            = undefined
 
 getAtomType :: Attribute -> AtomType
 getAtomType (Attribute _ atomType) = atomType
+
+attrTypeVars :: Attribute -> S.Set TypeVarName
+attrTypeVars (Attribute _ aType) = case aType of
+  IntAtomType -> S.empty
+  IntegerAtomType -> S.empty
+  DoubleAtomType -> S.empty
+  TextAtomType -> S.empty
+  DayAtomType -> S.empty
+  DateTimeAtomType -> S.empty
+  ByteStringAtomType -> S.empty
+  BoolAtomType -> S.empty
+  (IntervalAtomType atomtyp) -> atomTypeVars atomtyp
+  (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList attrs))
+  (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
+  (TypeVariableType nam) -> S.singleton nam
+  
+typeVars :: TypeConstructor -> S.Set TypeVarName
+typeVars (PrimitiveTypeConstructor _ _) = S.empty
+typeVars (ADTypeConstructor _ args) = S.unions (map typeVars args)
+typeVars (TypeVariable v) = S.singleton v
+typeVars (RelationAtomTypeConstructor attrExprs) = S.unions (map attrExprTypeVars attrExprs)
+    
+attrExprTypeVars :: AttributeExprBase a -> S.Set TypeVarName    
+attrExprTypeVars (AttributeAndTypeNameExpr _ tCons _) = typeVars tCons
+attrExprTypeVars (NakedAttributeExpr attr) = attrTypeVars attr
+
+atomTypeVars :: AtomType -> S.Set TypeVarName
+atomTypeVars IntAtomType = S.empty
+atomTypeVars IntegerAtomType = S.empty
+atomTypeVars DoubleAtomType = S.empty
+atomTypeVars TextAtomType = S.empty
+atomTypeVars DayAtomType = S.empty
+atomTypeVars DateTimeAtomType = S.empty
+atomTypeVars ByteStringAtomType = S.empty
+atomTypeVars BoolAtomType = S.empty
+atomTypeVars (IntervalAtomType aType) = atomTypeVars aType
+atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
+atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
+atomTypeVars (TypeVariableType nam) = S.singleton nam
+

@@ -3,6 +3,7 @@
 module TutorialD.Interpreter.TransGraphRelationalOperator where
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.TransactionGraph
+import TutorialD.Interpreter.Types
 import qualified ProjectM36.Client as C
 
 import TutorialD.Interpreter.Base
@@ -15,7 +16,7 @@ import qualified Data.Text as T
 
 instance RelationalMarkerExpr TransactionIdLookup where
   parseMarkerP = string "@" *> transactionIdLookupP
-    
+
 newtype TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelationalExpr
                                      deriving Show
 

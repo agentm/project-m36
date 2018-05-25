@@ -11,12 +11,6 @@ import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
 
-class RelationalMarkerExpr a where
-  parseMarkerP :: Parser a
-
-instance RelationalMarkerExpr () where
-  parseMarkerP = pure ()
-
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
 attributeListP = 
@@ -33,12 +27,6 @@ makeRelationP = do
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs
 
---used in relation creation
-makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
-makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
-
-attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
-attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstructorP <*> parseMarkerP
   
 --abstract data type parser- in this context, the type constructor must not include any type arguments
 --Either Text Int

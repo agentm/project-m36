@@ -43,7 +43,15 @@ primitiveAtomFunctions = HS.fromList [
                  atomFuncBody = body $ integerAtomFuncLessThan True >=> boolAtomNot},
   AtomFunction { atomFuncName = "not",
                  atomFuncType = [BoolAtomType, BoolAtomType],
-                 atomFuncBody = body $ \(b:_) -> boolAtomNot b }  
+                 atomFuncBody = body $ \(b:_) -> boolAtomNot b },
+  AtomFunction { atomFuncName = "int",
+                 atomFuncType = [IntegerAtomType, IntAtomType],
+                 atomFuncBody = body $ \(IntegerAtom v:_) -> if v < fromIntegral (maxBound :: Int) then
+                                                   pure (IntAtom (fromIntegral v))
+                                                 else
+                                                   Left InvalidIntBoundError
+                                                   }
+  
   ]
   where
     body = AtomFunctionBody Nothing
