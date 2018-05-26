@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances,OverloadedStrings  #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,TypeSynonymInstances,FlexibleInstances,OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -32,7 +32,6 @@ import Test.QuickCheck.Arbitrary.ADT
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Data.Time.Clock
-
 
 type StringType = Text
   
@@ -540,7 +539,31 @@ instance Eq DatabaseContextFunction where
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
 
 
--- for creating arbitrary tuples 
+-- for creating arbitrary relations 
+
+arbitrary' :: AtomType -> Gen Atom
+arbitrary' IntegerAtomType  = IntegerAtom <$> (arbitrary :: Gen Integer)
+arbitrary' IntAtomType  = IntAtom <$> (arbitrary :: Gen Int)
+arbitrary' DoubleAtomType = DoubleAtom <$> (arbitrary :: Gen Double)
+arbitrary' TextAtomType = TextAtom <$> (arbitrary :: Gen Text)
+arbitrary' DayAtomType  = DayAtom <$> (arbitrary :: Gen Day)
+<<<<<<< Updated upstream
+arbitrary' DateTimeAtomType = DateTimeAtom <$> (arbitrary :: Gen UTCTime)
+arbitrary' BoolAtomType  = BoolAtom <$> (arbitrary :: Gen Bool)
+arbitrary' (IntervalAtomType atomTy) = IntervalAtom <$> (arbitrary' atomTy) <*> (arbitrary' atomTy) <*> arbitrary <*> arbitrary
+arbitrary' (RelationAtomType attrs) = arbitraryRel attrs (0,10) 
+arbitrary' (ConstructedAtomType tcname tvmap) = undefined -- ConstructedAtom DataConstructorName AtomType [Atom]
+arbitrary' (ConstructedAtomType tcname tvmap) = do
+
+=======
+arbitrary' DateTimeAtomType = undefined
+arbitrary' BoolAtomType  = BoolAtom <$> (arbitrary :: Gen Bool)
+arbitrary' (IntervalAtomType atomTy) = undefined
+arbitrary' (RelationAtomType attrs) = RelationAtom <$> (arbitrary :: Gen Relation) -- Right now, it only gives predefined attributes without Relation attribute. 
+arbitrary' (ConstructedAtomType tcname tvmap) = undefined -- ConstructedAtom DataConstructorName AtomType [Atom]
+>>>>>>> Stashed changes
+arbitrary' (TypeVariableType tvname) = undefined
+
 instance Arbitrary Text where
   arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"]
 
@@ -560,7 +583,7 @@ instance {-# OVERLAPPING #-} Arbitrary TypeVarMap where
     arbitrary = undefined
 
 instance Arbitrary UTCTime where
- arbitrary = UTCTime <$> arbitrary <*> (secondsToDiffTime <$> arbitrary)
+ arbitrary = UTCTime <$> arbitrary <*> (secondsToDiffTime <$> choose(0,86400))
 
 instance Arbitrary B.ByteString where
   arbitrary = B.pack <$> (arbitrary :: Gen String)
@@ -569,6 +592,7 @@ defAttributeNames = ["Number","People","Time","Thing"]
 defAtomtypes = [IntAtomType, TextAtomType, DayAtomType, TextAtomType]
 defAttributes = V.fromList $ zipWith Attribute defAttributeNames defAtomtypes
 
+{-
 instance Arbitrary RelationTuple where
   arbitrary = do
     a <- IntAtom <$> (arbitrary :: Gen Int)
@@ -582,12 +606,13 @@ instance Arbitrary Relation where
   arbitrary = do
     list <- listOf (arbitrary :: Gen RelationTuple)
     return $ Relation defAttributes (RelationTupleSet list)
+-}
 
 arbitraryRelationTuple attris = do
-  let attrisG = V.fromList <$>  mapM (arbitrary'.getAtomType) (V.toList attris)
+  let attrisG = V.fromList <$>  mapM (arbitrary' . atomType') (V.toList attris)
   RelationTuple attris <$> attrisG
 
-arbitraryRel attris bound@(min,max) = do
+arbitraryRel attris range@(min,max) = do
   num <- choose (min,max)
   let tupleListG = vectorOf num (arbitraryRelationTuple attris)
   Relation attris <$> (RelationTupleSet <$> tupleListG)
@@ -600,13 +625,5 @@ instance Arbitrary Atom where
 
 instance ToADTArbitrary Atom
 
-arbitrary' :: AtomType -> Gen Atom
-arbitrary' IntAtomType  = IntAtom <$> (arbitrary :: Gen Int)
-arbitrary' IntegerAtomType  = IntegerAtom <$> (arbitrary :: Gen Integer)
-arbitrary' TextAtomType = TextAtom <$> (arbitrary :: Gen Text)
-arbitrary' DayAtomType  = DayAtom <$> (arbitrary :: Gen Day)
-arbitrary' BoolAtomType  = BoolAtom <$> (arbitrary :: Gen Bool)
-arbitrary' _            = undefined
-
-getAtomType :: Attribute -> AtomType
-getAtomType (Attribute _ atomType) = atomType
+atomType' :: Attribute -> AtomType
+atomType' (Attribute _ atype) = atype
