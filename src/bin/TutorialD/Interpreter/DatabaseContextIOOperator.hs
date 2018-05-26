@@ -4,6 +4,7 @@ import ProjectM36.Base
 
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
+import TutorialD.Interpreter.RelationalExpr
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import Data.Text
@@ -13,6 +14,16 @@ addAtomFunctionExprP = dbioexprP "addatomfunction" AddAtomFunction
   
 addDatabaseContextFunctionExprP :: Parser DatabaseContextIOExpr
 addDatabaseContextFunctionExprP = dbioexprP "adddatabasecontextfunction" AddDatabaseContextFunction
+
+createArbitraryRelationP :: Parser DatabaseContextIOExpr
+createArbitraryRelationP = do
+  reserved "createarbitraryrelation"
+  relVarName <- identifier
+  attrExprs <- makeAttributeExprsP :: Parser [AttributeExpr]
+  min <- fromInteger <$> integer
+  symbol "-"
+  max <- fromInteger <$> integer
+  pure $ CreateArbitraryRelation relVarName attrExprs (min,max)
   
 dbioexprP :: String -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
 dbioexprP res adt = do
@@ -29,7 +40,8 @@ dbContextIOExprP :: Parser DatabaseContextIOExpr
 dbContextIOExprP = addAtomFunctionExprP <|> 
                    addDatabaseContextFunctionExprP <|> 
                    loadAtomFunctionsP <|>
-                   loadDatabaseContextFunctionsP
+                   loadDatabaseContextFunctionsP <|>
+                   createArbitraryRelationP
 
 loadAtomFunctionsP :: Parser DatabaseContextIOExpr
 loadAtomFunctionsP = do

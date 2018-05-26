@@ -25,7 +25,7 @@ import qualified Data.Vector as V
 import qualified ProjectM36.TypeConstructorDef as TCD
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Reader
-
+import Test.QuickCheck
 import GHC
 import GHC.Paths
 
@@ -582,7 +582,24 @@ evalDatabaseContextIOExpr _ currentContext (LoadDatabaseContextFunctions modName
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in pure (Right newContext)
-    
+
+evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName attrExprs range)  = do
+  --Define
+  case runState ( evalDatabaseContextExpr (Define relVarName attrExprs)) (freshDatabaseState currentContext) of
+    (Left err,_) -> pure (Left err)
+    (Right (), elems@(ctx,_,_)) -> do
+         --Assign
+           let existingRelVar = M.lookup relVarName relVarTable
+               relVarTable = relationVariables ctx 
+           case existingRelVar of
+                Nothing -> pure $ Left (RelVarNotDefinedError relVarName)
+                Just existingRel -> do
+                                      let expectedAttributes = attributes existingRel
+                                      rel <- generate $ arbitraryRel expectedAttributes range
+                                      case runState (setRelVar relVarName rel) elems of
+                                           (Left err,_) -> pure (Left err)
+                                           (Right (), (ctx',_,_)) -> pure $ Right ctx'
+
 updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do
   --resolve all atom exprs
