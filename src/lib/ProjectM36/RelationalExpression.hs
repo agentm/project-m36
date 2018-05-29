@@ -11,6 +11,7 @@ import ProjectM36.ScriptSession
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
 import ProjectM36.DatabaseContextFunction
+import ProjectM36.Arbitrary
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -595,10 +596,14 @@ evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName a
                 Nothing -> pure $ Left (RelVarNotDefinedError relVarName)
                 Just existingRel -> do
                                       let expectedAttributes = attributes existingRel
-                                      rel <- generate $ arbitraryRel expectedAttributes range
-                                      case runState (setRelVar relVarName rel) elems of
-                                           (Left err,_) -> pure (Left err)
-                                           (Right (), (ctx',_,_)) -> pure $ Right ctx'
+                                      let tcMap = typeConstructorMapping ctx
+                                      eitherRel <- generate $ runReaderT (arbitraryRelation expectedAttributes range) tcMap
+                                      case eitherRel of
+                                           Left err -> pure $ Left err
+                                           Right rel -> do
+                                             case runState (setRelVar relVarName rel) elems of
+                                                  (Left err,_) -> pure (Left err)
+                                                  (Right (), (ctx',_,_)) -> pure $ Right ctx'
 
 updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context tupIn = do
