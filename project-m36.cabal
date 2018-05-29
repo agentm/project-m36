@@ -73,7 +73,6 @@ Library
                    ,http-api-data
                    -- used for arbitrary tuples
                    ,QuickCheck
-                   ,quickcheck-arbitrary-adt
 --needed for remote access
                    ,distributed-process-client-server >= 0.2.3
                    ,distributed-process >= 0.6.6
@@ -155,7 +154,8 @@ Library
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
                      ProjectM36.FileLock,
-                     ProjectM36.FSType
+                     ProjectM36.FSType,
+                     ProjectM36.Arbitrary
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.3
