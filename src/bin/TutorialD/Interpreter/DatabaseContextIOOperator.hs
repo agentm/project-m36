@@ -4,7 +4,6 @@ import ProjectM36.Base
 
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
-import TutorialD.Interpreter.RelationalExpr
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import Data.Text
@@ -20,10 +19,10 @@ createArbitraryRelationP = do
   reserved "createarbitraryrelation"
   relVarName <- identifier
   attrExprs <- makeAttributeExprsP :: Parser [AttributeExpr]
-  min <- fromInteger <$> integer
-  symbol "-"
-  max <- fromInteger <$> integer
-  pure $ CreateArbitraryRelation relVarName attrExprs (min,max)
+  min' <- fromInteger <$> integer
+  _ <- symbol "-"
+  max' <- fromInteger <$> integer
+  pure $ CreateArbitraryRelation relVarName attrExprs (min',max')
   
 dbioexprP :: String -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
 dbioexprP res adt = do

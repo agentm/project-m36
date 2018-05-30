@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances,OverloadedStrings  #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,TypeSynonymInstances,FlexibleInstances,OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -15,7 +15,7 @@ import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Vector as V
 import qualified Data.List as L
-import Data.Text (Text,unpack,pack)
+import Data.Text (Text,unpack)
 import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
@@ -24,16 +24,6 @@ import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
---for generating arbitrary tuples
-import Test.QuickCheck
-import Test.QuickCheck.Gen
-import Test.QuickCheck.Random
-import Test.QuickCheck.Arbitrary.ADT
-import qualified Data.ByteString.Char8 as B
-import Data.Time
-import Data.Time.Clock
-
-
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
@@ -541,6 +531,7 @@ instance Hashable DatabaseContextFunction where
 instance Eq DatabaseContextFunction where                           
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
 
+{-
 -- for creating arbitrary tuples 
 instance Arbitrary Text where
   arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"]
@@ -611,6 +602,7 @@ arbitrary' _            = undefined
 
 getAtomType :: Attribute -> AtomType
 getAtomType (Attribute _ atomType) = atomType
+-}
 
 attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of
