@@ -15,6 +15,3 @@ dayAtomFunctions = HS.fromList [
                  atomFuncBody = compiledAtomFunctionBody $ \(ConstructedAtom _ _ (IntAtom dayA:_):ConstructedAtom _ _ (IntAtom dayB:_):_) -> pure (BoolAtom (dayA < dayB))
                }
   ]
-
-dayTypeConstructorMapping :: TypeConstructorMapping
-dayTypeConstructorMapping = [] -- use fromGregorian

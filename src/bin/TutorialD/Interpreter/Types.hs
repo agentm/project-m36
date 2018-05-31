@@ -4,8 +4,6 @@ import ProjectM36.Base
 import Text.Megaparsec.Text
 import Text.Megaparsec
 import TutorialD.Interpreter.Base
-import ProjectM36.DataTypes.Primitive
-import qualified Data.Text as T
 
 class RelationalMarkerExpr a where
   parseMarkerP :: Parser a
@@ -31,14 +29,6 @@ dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeCo
                          DataConstructorDefTypeConstructorArg <$> typeConstructorP <|>
                          DataConstructorDefTypeVarNameArg <$> uncapitalizedIdentifier
   
---built-in, nullary type constructors
--- Int, Text, etc.
-primitiveTypeConstructorP :: Parser TypeConstructor
-primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
-                                               tName <- try $ symbol (T.unpack name)
-                                               pure $ PrimitiveTypeConstructor tName typ)
-                                       primitiveTypeConstructorMapping)
-                            
 -- relation{a Int} in type construction (no tuples parsed)
 relationTypeConstructorP :: Parser TypeConstructor
 relationTypeConstructorP = do
@@ -55,16 +45,14 @@ attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstruc
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
-typeConstructorP = primitiveTypeConstructorP <|>
-                   relationTypeConstructorP <|>
+typeConstructorP = relationTypeConstructorP <|>
                    TypeVariable <$> uncapitalizedIdentifier <|>
                    ADTypeConstructor <$> capitalizedIdentifier <*> many (parens typeConstructorP <|>
                                                                          monoTypeConstructorP)
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
-monoTypeConstructorP = primitiveTypeConstructorP <|>
-  ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
-  TypeVariable <$> uncapitalizedIdentifier
+monoTypeConstructorP = ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
+                       TypeVariable <$> uncapitalizedIdentifier
                    
 
 
