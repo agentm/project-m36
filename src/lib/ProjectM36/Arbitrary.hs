@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,TypeSynonymInstances,FlexibleInstances,OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification,FlexibleInstances,OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Arbitrary where
@@ -15,9 +15,8 @@ import Data.Time
 import Control.Monad.Reader
 
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
-arbitrary' IntegerAtomType = do
-  i <- lift (arbitrary :: Gen Integer)
-  pure $ Right $ IntegerAtom i
+arbitrary' IntegerAtomType = 
+  Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
 
 arbitrary' (RelationAtomType attrs)  = do
   tcMap <-ask
@@ -26,33 +25,26 @@ arbitrary' (RelationAtomType attrs)  = do
     Left err -> pure $ Left err
     Right rel -> pure $ Right $ RelationAtom rel
 
-arbitrary' IntAtomType = do
-  i <- lift (arbitrary :: Gen Int)
-  pure $ Right $ IntAtom i
+arbitrary' IntAtomType = 
+  Right . IntAtom <$> lift (arbitrary :: Gen Int)
 
-arbitrary' DoubleAtomType = do
-  i <- lift (arbitrary :: Gen Double)
-  pure $ Right $ DoubleAtom i
+arbitrary' DoubleAtomType = 
+  Right . DoubleAtom <$> lift (arbitrary :: Gen Double)
 
-arbitrary' TextAtomType = do
-  i <- lift (arbitrary :: Gen Text)
-  pure $ Right $ TextAtom i
+arbitrary' TextAtomType = 
+  Right . TextAtom <$> lift (arbitrary :: Gen Text)
 
-arbitrary' DayAtomType = do
-  i <- lift (arbitrary :: Gen Day)
-  pure $ Right $ DayAtom i
+arbitrary' DayAtomType = 
+  Right . DayAtom <$>  lift (arbitrary :: Gen Day)
 
-arbitrary' DateTimeAtomType = do
-  i <- lift (arbitrary :: Gen UTCTime)
-  pure $ Right $ DateTimeAtom i
+arbitrary' DateTimeAtomType = 
+  Right . DateTimeAtom <$> lift (arbitrary :: Gen UTCTime)
   
-arbitrary' ByteStringAtomType = do  
-  bs <- lift (arbitrary :: Gen B.ByteString)
-  pure $ Right $ ByteStringAtom bs
+arbitrary' ByteStringAtomType =
+  Right . ByteStringAtom <$> lift (arbitrary :: Gen B.ByteString)
 
-arbitrary' BoolAtomType = do
-  i <- lift (arbitrary :: Gen Bool)
-  pure $ Right $ BoolAtom i  
+arbitrary' BoolAtomType = 
+  Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
 
 arbitrary' (IntervalAtomType atomTy) = do
   tcMap <- ask
@@ -60,8 +52,8 @@ arbitrary' (IntervalAtomType atomTy) = do
   case eitherAtomType of
     Left err -> pure $ Left err
     Right atomType' -> do
-      a <- lift $ (arbitrary :: Gen Bool)
-      b <- lift $ (arbitrary :: Gen Bool)
+      a <- lift (arbitrary :: Gen Bool)
+      b <- lift (arbitrary :: Gen Bool)
       pure $ Right $ IntervalAtom atomType' atomType' a b
 
 arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do 
@@ -73,7 +65,7 @@ arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do
   case eitherGenDCDef of
     Left err -> pure $ Left err
     Right genDCDef -> do
-      dcDef <- lift $ genDCDef
+      dcDef <- lift genDCDef
       case resolvedAtomTypesForDataConstructorDefArgs tcMap tvMap dcDef of
         Left err -> pure $ Left err
         Right atomTypes -> do
@@ -104,7 +96,7 @@ instance Arbitrary B.ByteString where
 arbitraryRelationTuple :: Attributes -> WithTCMap Gen (Either RelationalError RelationTuple)
 arbitraryRelationTuple attris = do
   tcMap <- ask
-  listOfMaybeAType <- lift $ sequence $  map ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList attris)
+  listOfMaybeAType <- lift $ mapM ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList attris)
   case sequence listOfMaybeAType of
     Left err -> pure $ Left err
     Right listOfAttr -> do

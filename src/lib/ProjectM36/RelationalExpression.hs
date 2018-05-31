@@ -584,7 +584,7 @@ evalDatabaseContextIOExpr _ currentContext (LoadDatabaseContextFunctions modName
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in pure (Right newContext)
 
-evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName attrExprs range)  = do
+evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName attrExprs range) =
   --Define
   case runState ( evalDatabaseContextExpr (Define relVarName attrExprs)) (freshDatabaseState currentContext) of
     (Left err,_) -> pure (Left err)
@@ -600,7 +600,7 @@ evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName a
                                       eitherRel <- generate $ runReaderT (arbitraryRelation expectedAttributes range) tcMap
                                       case eitherRel of
                                            Left err -> pure $ Left err
-                                           Right rel -> do
+                                           Right rel ->
                                              case runState (setRelVar relVarName rel) elems of
                                                   (Left err,_) -> pure (Left err)
                                                   (Right (), (ctx',_,_)) -> pure $ Right ctx'
