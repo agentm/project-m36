@@ -106,7 +106,13 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
         else
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
 resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
+resolveTypeConstructorTypeVars (ADTypeConstructor tConsName []) typ tConss = case findTypeConstructor tConsName tConss of
+  --resolve ADT constructor to primitive type, if necessary
+  Just (PrimitiveTypeConstructorDef _ _, _) -> Right M.empty
+  _ -> Left (TypeConstructorAtomTypeMismatch tConsName typ)
+
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) typ _ = Left (TypeConstructorAtomTypeMismatch tConsName typ)
+
 resolveTypeConstructorTypeVars (RelationAtomTypeConstructor attrExprs) typ tConsMap = 
   case typ of
     RelationAtomType attrs -> 
@@ -145,11 +151,12 @@ atomTypeForTypeConstructor (RelationAtomTypeConstructor attrExprs) tConsMap tvMa
   pure (RelationAtomType (A.attributesFromList attrs))
 atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
+  Just (PrimitiveTypeConstructorDef _ aType, _) -> Right aType
   Just (tConsDef, _) -> do
-      tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructor tConsArg tConss tvMap) (TC.arguments tCons)    
-      let pVarNames = TCD.typeVars tConsDef
-          tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
-      Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
+          tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructor tConsArg tConss tvMap) (TC.arguments tCons)    
+          let pVarNames = TCD.typeVars tConsDef
+              tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
+          Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
       
 atomTypeForAttributeExpr :: AttributeExprBase a -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType      
 atomTypeForAttributeExpr (NakedAttributeExpr attr) _ _ = pure (A.atomType attr)
@@ -335,5 +342,4 @@ resolvedAtomTypeForDataConstructorDefArg tConsMap tvMap (DataConstructorDefTypeC
 resolvedAtomTypeForDataConstructorDefArg _ tvMap (DataConstructorDefTypeVarNameArg tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (DataConstructorUsesUndeclaredTypeVariable tvName)
   Just typ -> Right typ
-
 

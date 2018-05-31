@@ -10,7 +10,9 @@ primitiveTypeConstructorMapping = map (\(name, aType) ->
              ("Text", TextAtomType),
              ("Double", DoubleAtomType),
              ("Bool", BoolAtomType),
-             ("ByteString", ByteStringAtomType)
+             ("ByteString", ByteStringAtomType),
+             ("DateTime", DateTimeAtomType),
+             ("Day", DayAtomType)
             ]
             
 intTypeConstructor :: TypeConstructor            
