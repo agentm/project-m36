@@ -36,14 +36,15 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests  ++ [
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ 
+            map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests  ++ [
       transactionGraphBasicTest, 
       transactionGraphAddCommitTest, 
       transactionRollbackTest, 
       transactionJumpTest, 
       transactionBranchTest, 
       simpleJoinTest, 
-      testNotification, 
+      testNotification,
       testTypeConstructors, 
       testMergeTransactions, 
       testComments, 
@@ -63,7 +64,8 @@ main = do
       testAntijoin,
       testRelationAttributeDefinition,
       testAssignWithTypeVar,
-      testDefineWithTypeVar
+      testDefineWithTypeVar,
+      testIntervalType
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -568,3 +570,12 @@ testDefineWithTypeVar = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
   let err1 = "TypeConstructorTypeVarMissing"
   expectTutorialDErr sessionId dbconn (T.isInfixOf err1) "y::{a int, b invalidtype}"
+
+testIntervalType :: Test
+testIntervalType = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=relation{a Interval Integer}"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expectedIntervalInt = mkRelationFromList expectedAttrs []
+      expectedAttrs = A.attributesFromList [Attribute "a" (ConstructedAtomType "Interval" (M.singleton "a" IntegerAtomType))]
+  assertEqual "Interval Int attribute" expectedIntervalInt eX
