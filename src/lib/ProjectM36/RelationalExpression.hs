@@ -29,6 +29,7 @@ import Control.Monad.Trans.Reader
 import Test.QuickCheck
 import GHC
 import GHC.Paths
+import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 

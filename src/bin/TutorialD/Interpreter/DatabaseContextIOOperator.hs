@@ -8,6 +8,7 @@ import TutorialD.Interpreter.RelationalExpr
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import Data.Text
+import Debug.Trace
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
 addAtomFunctionExprP = dbioexprP "addatomfunction" AddAtomFunction

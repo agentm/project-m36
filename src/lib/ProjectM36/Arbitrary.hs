@@ -5,7 +5,7 @@ module ProjectM36.Arbitrary where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AtomType
-import ProjectM36.Attribute (atomType)
+import ProjectM36.Attribute (atomType,attributeName)
 import ProjectM36.DataConstructorDef as DCD
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -62,13 +62,15 @@ arbitrary' BoolAtomType = do
 
 arbitrary' (IntervalAtomType atomTy) = do
   tcMap <- ask
-  eitherAtomType <- lift $ runReaderT (arbitrary' atomTy) tcMap
-  case eitherAtomType of
-    Left err -> pure $ Left err
-    Right atomType -> do
-      a <- lift $ (arbitrary :: Gen Bool)
-      b <- lift $ (arbitrary :: Gen Bool)
-      pure $ Right $ IntervalAtom atomType atomType a b
+  eitherAtomTypeA <- lift $ runReaderT (arbitrary' atomTy) tcMap
+  eitherAtomTypeB <- lift $ runReaderT (arbitrary' atomTy) tcMap
+  case (eitherAtomTypeA,eitherAtomTypeB) of
+    (Right a, Right b) -> do
+      l <- lift $ (arbitrary :: Gen Bool)
+      r <- lift $ (arbitrary :: Gen Bool)
+      pure $ Right $ IntervalAtom a b l r
+    (Left err,_)  -> pure $ Left err
+    (Right _, Left err) -> pure $ Left err
 
 arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do 
   tcMap <- ask

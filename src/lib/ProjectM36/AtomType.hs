@@ -156,7 +156,10 @@ atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.nam
           tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructor tConsArg tConss tvMap) (TC.arguments tCons)    
           let pVarNames = TCD.typeVars tConsDef
               tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
-          Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
+          case TC.name tCons of
+            "Interval" -> Right (IntervalAtomType (head tConsArgTypes))
+            _ -> Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
+
       
 atomTypeForAttributeExpr :: AttributeExprBase a -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType      
 atomTypeForAttributeExpr (NakedAttributeExpr attr) _ _ = pure (A.atomType attr)

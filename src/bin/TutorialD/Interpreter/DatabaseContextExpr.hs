@@ -16,6 +16,7 @@ import ProjectM36.Key
 import ProjectM36.FunctionalDependency
 import Data.Monoid
 import Data.Functor
+import Debug.Trace
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseContextExprP :: Parser DatabaseContextExpr
