@@ -106,4 +106,11 @@ intervalOverlaps (IntervalAtom i1start i1end i1startopen i1endopen) (IntervalAto
 intervalOverlaps _ _ = Left AtomFunctionTypeMismatchError      
   
 intervalTypeConstructorMapping :: TypeConstructorMapping
-intervalTypeConstructorMapping = [(ADTypeConstructorDef "Interval" ["a"], [])]
+--intervalTypeConstructorMapping = [(ADTypeConstructorDef "Interval" ["a"], [])]
+intervalTypeConstructorMapping = [(ADTypeConstructorDef "Interval" ["a"],
+                                   [DataConstructorDef "Interval" [DataConstructorDefTypeVarNameArg "a",
+                                                                   DataConstructorDefTypeVarNameArg "a",
+                                                                   ]])
+                                 ]
+                                    
+

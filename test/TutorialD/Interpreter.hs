@@ -65,7 +65,8 @@ main = do
       testRelationAttributeDefinition,
       testAssignWithTypeVar,
       testDefineWithTypeVar,
-      testIntervalType
+      testIntervalType,
+      testArbitraryRelation
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -579,3 +580,10 @@ testIntervalType = TestCase $ do
   let expectedIntervalInt = mkRelationFromList expectedAttrs []
       expectedAttrs = A.attributesFromList [Attribute "a" (ConstructedAtomType "Interval" (M.singleton "a" IntegerAtomType))]
   assertEqual "Interval Int attribute" expectedIntervalInt eX
+  
+testArbitraryRelation :: Test  
+testArbitraryRelation = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv1 {a Integer} 5-10"
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv2 {a Integer, b relation{c Integer}} 10-100"
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv3 {a Int, b relation{c Interval Int}} 3-100"

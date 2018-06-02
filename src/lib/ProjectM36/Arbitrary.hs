@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,TypeSynonymInstances,FlexibleInstances,OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification,FlexibleInstances,OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Arbitrary where
@@ -7,27 +7,16 @@ import ProjectM36.Error
 import ProjectM36.AtomType
 import ProjectM36.Attribute (atomType,attributeName)
 import ProjectM36.DataConstructorDef as DCD
-import qualified Data.Map as M
-import qualified Data.Set as S
 import qualified Data.Vector as V
-import qualified Data.List as L
-import Data.Text (Text,unpack,pack)
+import Data.Text (Text,pack)
 import Test.QuickCheck
-import Test.QuickCheck.Gen
-import Test.QuickCheck.Random
-import Test.QuickCheck.Arbitrary
 import qualified Data.ByteString.Char8 as B
 import Data.Time
-import Data.Time.Clock
-import Debug.Trace
 import Control.Monad.Reader
-import Data.Either
-import Data.Either.Combinators
 
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
-arbitrary' IntegerAtomType = do
-  i <- lift (arbitrary :: Gen Integer)
-  pure $ Right $ IntegerAtom i
+arbitrary' IntegerAtomType = 
+  Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
 
 arbitrary' (RelationAtomType attrs)  = do
   tcMap <-ask
@@ -36,29 +25,26 @@ arbitrary' (RelationAtomType attrs)  = do
     Left err -> pure $ Left err
     Right rel -> pure $ Right $ RelationAtom rel
 
-arbitrary' IntAtomType = do
-  i <- lift (arbitrary :: Gen Int)
-  pure $ Right $ IntAtom i
+arbitrary' IntAtomType = 
+  Right . IntAtom <$> lift (arbitrary :: Gen Int)
 
-arbitrary' DoubleAtomType = do
-  i <- lift (arbitrary :: Gen Double)
-  pure $ Right $ DoubleAtom i
+arbitrary' DoubleAtomType = 
+  Right . DoubleAtom <$> lift (arbitrary :: Gen Double)
 
-arbitrary' TextAtomType = do
-  i <- lift (arbitrary :: Gen Text)
-  pure $ Right $ TextAtom i
+arbitrary' TextAtomType = 
+  Right . TextAtom <$> lift (arbitrary :: Gen Text)
 
-arbitrary' DayAtomType = do
-  i <- lift (arbitrary :: Gen Day)
-  pure $ Right $ DayAtom i
+arbitrary' DayAtomType = 
+  Right . DayAtom <$>  lift (arbitrary :: Gen Day)
 
-arbitrary' DateTimeAtomType = do
-  i <- lift (arbitrary :: Gen UTCTime)
-  pure $ Right $ DateTimeAtom i
+arbitrary' DateTimeAtomType = 
+  Right . DateTimeAtom <$> lift (arbitrary :: Gen UTCTime)
+  
+arbitrary' ByteStringAtomType =
+  Right . ByteStringAtom <$> lift (arbitrary :: Gen B.ByteString)
 
-arbitrary' BoolAtomType = do
-  i <- lift (arbitrary :: Gen Bool)
-  pure $ Right $ BoolAtom i
+arbitrary' BoolAtomType = 
+  Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
 
 arbitrary' (IntervalAtomType atomTy) = do
   tcMap <- ask
@@ -81,7 +67,7 @@ arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do
   case eitherGenDCDef of
     Left err -> pure $ Left err
     Right genDCDef -> do
-      dcDef <- lift $ genDCDef
+      dcDef <- lift genDCDef
       case resolvedAtomTypesForDataConstructorDefArgs tcMap tvMap dcDef of
         Left err -> pure $ Left err
         Right atomTypes -> do
@@ -91,7 +77,7 @@ arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do
           case eitherListOfAtom of 
             Left err -> pure $ Left err
             Right listOfAtom -> pure $ Right $ ConstructedAtom (DCD.name dcDef) constructedAtomType listOfAtom
-arbitrary' (TypeVariableType tvName) = undefined
+arbitrary' (TypeVariableType _) = error "arbitrary on type variable"
 
 maybeToRight :: b -> Maybe a -> Either b a
 maybeToRight _ (Just x) = Right x
@@ -112,7 +98,7 @@ instance Arbitrary B.ByteString where
 arbitraryRelationTuple :: Attributes -> WithTCMap Gen (Either RelationalError RelationTuple)
 arbitraryRelationTuple attris = do
   tcMap <- ask
-  listOfMaybeAType <- lift $ sequence $  map ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList attris)
+  listOfMaybeAType <- lift $ mapM ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList attris)
   case sequence listOfMaybeAType of
     Left err -> pure $ Left err
     Right listOfAttr -> do
