@@ -105,9 +105,10 @@ resolveTypeConstructorTypeVars (ADTypeConstructor tConsName _) (ConstructedAtomT
           Right pVarMap' 
         else
           Left (TypeConstructorTypeVarsMismatch expectedPVarNames (M.keysSet pVarMap'))
-resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = Right (M.singleton tvName typ)
+resolveTypeConstructorTypeVars (TypeVariable tvName) typ _ = case typ of
+  TypeVariableType nam -> Left (TypeConstructorTypeVarMissing nam)
+  _ -> Right (M.singleton tvName typ)
 resolveTypeConstructorTypeVars (ADTypeConstructor tConsName []) typ tConss = case findTypeConstructor tConsName tConss of
-  --resolve ADT constructor to primitive type, if necessary
   Just (PrimitiveTypeConstructorDef _ _, _) -> Right M.empty
   _ -> Left (TypeConstructorAtomTypeMismatch tConsName typ)
 
@@ -138,29 +139,35 @@ validateTypeConstructorDef tConsDef dConsList = execWriter $ do
   pure ()
     
 
+atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
+atomTypeForTypeConstructor = atomTypeForTypeConstructorValidate False
+
 -- | Create an atom type iff all type variables are provided.
 -- Either Int Text -> ConstructedAtomType "Either" {Int , Text}
-atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
-atomTypeForTypeConstructor (PrimitiveTypeConstructor _ aType) _ _ = Right aType
-atomTypeForTypeConstructor (TypeVariable tvname) _ tvMap = case M.lookup tvname tvMap of
-  Nothing -> Right (TypeVariableType tvname)
+atomTypeForTypeConstructorValidate :: Bool -> TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
+atomTypeForTypeConstructorValidate _ (PrimitiveTypeConstructor _ aType) _ _ = Right aType
+atomTypeForTypeConstructorValidate validate (TypeVariable tvname) _ tvMap = case M.lookup tvname tvMap of
+  Nothing -> if validate then
+                Left (TypeConstructorTypeVarMissing tvname)
+             else
+               pure (TypeVariableType tvname)
   Just typ -> Right typ
-atomTypeForTypeConstructor (RelationAtomTypeConstructor attrExprs) tConsMap tvMap = do
+atomTypeForTypeConstructorValidate _ (RelationAtomTypeConstructor attrExprs) tConsMap tvMap = do
   resolvedAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap tvMap) attrExprs
   let attrs = zipWith Attribute (map AE.attributeName attrExprs) resolvedAtomTypes
   pure (RelationAtomType (A.attributesFromList attrs))
-atomTypeForTypeConstructor tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
+atomTypeForTypeConstructorValidate val tCons tConss tvMap = case findTypeConstructor (TC.name tCons) tConss of
   Nothing -> Left (NoSuchTypeConstructorError (TC.name tCons))
   Just (PrimitiveTypeConstructorDef _ aType, _) -> Right aType
   Just (tConsDef, _) -> do
-          tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructor tConsArg tConss tvMap) (TC.arguments tCons)    
+          tConsArgTypes <- mapM (\tConsArg -> atomTypeForTypeConstructorValidate val tConsArg tConss tvMap) (TC.arguments tCons)    
           let pVarNames = TCD.typeVars tConsDef
               tConsArgs = M.fromList (zip pVarNames tConsArgTypes)
           Right (ConstructedAtomType (TC.name tCons) tConsArgs)      
       
 atomTypeForAttributeExpr :: AttributeExprBase a -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType      
 atomTypeForAttributeExpr (NakedAttributeExpr attr) _ _ = pure (A.atomType attr)
-atomTypeForAttributeExpr (AttributeAndTypeNameExpr _ tCons _) tConsMap tvMap = atomTypeForTypeConstructor tCons tConsMap tvMap
+atomTypeForAttributeExpr (AttributeAndTypeNameExpr _ tCons _) tConsMap tvMap = atomTypeForTypeConstructorValidate True tCons tConsMap tvMap
 
 --reconcile the atom-in types with the type constructors
 isValidAtomTypeForTypeConstructor :: AtomType -> TypeConstructor -> TypeConstructorMapping -> Either RelationalError ()
@@ -273,7 +280,6 @@ atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
                                else
                                  atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip attrs1 attrs2)
   return x
-atomTypeVerify (IntervalAtomType typA) (IntervalAtomType typB) = atomTypeVerify typA typB  
 atomTypeVerify x y = if x == y then
                        Right x
                      else
@@ -291,7 +297,6 @@ prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append`
     showTypeVars (tyVarName, aType) = " (" `T.append` tyVarName `T.append` "::" `T.append` prettyAtomType aType `T.append` ")"
 -- it would be nice to have the original ordering, but we don't have access to the type constructor here- maybe the typevarmap should be also positional (ordered map?)
 prettyAtomType (TypeVariableType x) = x
-prettyAtomType (IntervalAtomType tv) = "Interval " <> prettyAtomType tv
 prettyAtomType aType = T.take (T.length fullName - T.length "AtomType") fullName
   where fullName = (T.pack . show) aType
 
@@ -316,7 +321,6 @@ resolveTypeVariables expectedArgTypes actualArgTypes = do
   
 resolveTypeVariable :: AtomType -> AtomType -> TypeVarMap
 resolveTypeVariable (TypeVariableType tv) typ = M.singleton tv typ
-resolveTypeVariable (IntervalAtomType ityp) typ = resolveTypeVariable ityp typ
 resolveTypeVariable (ConstructedAtomType _ _) (ConstructedAtomType _ actualTvMap) = actualTvMap
 resolveTypeVariable _ _ = M.empty
 
@@ -327,7 +331,6 @@ resolveFunctionReturnValue funcName tvMap (ConstructedAtomType tCons retMap) = d
     pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
     else
     Left (AtomFunctionTypeVariableResolutionError funcName (fst (head (M.toList diff))))
-resolveFunctionReturnValue funcName tvMap (IntervalAtomType tv) = IntervalAtomType <$> resolveFunctionReturnValue funcName tvMap tv
 resolveFunctionReturnValue funcName tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName tvName)
   Just typ -> pure typ

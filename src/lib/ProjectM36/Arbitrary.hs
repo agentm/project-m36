@@ -45,17 +45,6 @@ arbitrary' ByteStringAtomType =
 
 arbitrary' BoolAtomType = 
   Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
-
-arbitrary' (IntervalAtomType atomTy) = do
-  tcMap <- ask
-  eitherAtomType <- lift $ runReaderT (arbitrary' atomTy) tcMap
-  case eitherAtomType of
-    Left err -> pure $ Left err
-    Right atomType' -> do
-      a <- lift (arbitrary :: Gen Bool)
-      b <- lift (arbitrary :: Gen Bool)
-      pure $ Right $ IntervalAtom atomType' atomType' a b
-
 arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do 
   tcMap <- ask
   let maybeTCons = findTypeConstructor tcName tcMap

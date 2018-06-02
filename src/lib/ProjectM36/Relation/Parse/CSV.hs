@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Relation
 import ProjectM36.AtomType
+import ProjectM36.DataTypes.Interval
 import qualified ProjectM36.Attribute as A
 
 import Data.Csv.Parser
@@ -82,42 +83,45 @@ parseCSVAtomP _ _ BoolAtomType = do
   case readMaybe bString of
     Nothing -> fail ("invalid BoolAtom string: " ++ bString)
     Just b -> pure (Right (BoolAtom b))
-parseCSVAtomP attrName tConsMap (IntervalAtomType iType) = do
-  begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)
-  eBeginv <- parseCSVAtomP attrName tConsMap iType
-  case eBeginv of
-    Left err -> pure (Left err)
-    Right beginv -> do
-      _ <- APT.char ','
-      eEndv <- parseCSVAtomP attrName tConsMap iType
-      case eEndv of
-        Left err -> pure (Left err)
-        Right endv -> do
-          let end = (APT.char ']' >> pure False) <|> 
-                    (APT.char ')' >> pure True)
-          Right  . IntervalAtom beginv endv begin <$> end
-parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) = do
-  dConsName <- capitalizedIdentifier
-  APT.skipSpace
+parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) 
+  | isIntervalAtomType typ = do
+    begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)
+    let iType = intervalSubType typ
+    eBeginv <- parseCSVAtomP attrName tConsMap iType
+    case eBeginv of
+      Left err -> pure (Left err)
+      Right beginv -> do
+        _ <- APT.char ','
+        eEndv <- parseCSVAtomP attrName tConsMap iType
+        case eEndv of
+          Left err -> pure (Left err)
+          Right endv -> do
+            end <- (APT.char ']' >> pure False) <|> 
+                   (APT.char ')' >> pure True)
+            pure (Right (ConstructedAtom "Interval" typ [beginv, endv, 
+                                                         BoolAtom begin, BoolAtom end]))
+  | otherwise = do
+    dConsName <- capitalizedIdentifier
+    APT.skipSpace
   --we need to look up the name right away in order to determine the types of the following arguments
   -- grab the data constructor
-  case findDataConstructor dConsName tConsMap of
-    Nothing -> pure (Left (NoSuchDataConstructorError dConsName))
-    Just (_, dConsDef) -> 
+    case findDataConstructor dConsName tConsMap of
+      Nothing -> pure (Left (NoSuchDataConstructorError dConsName))
+      Just (_, dConsDef) -> 
       -- identify the data constructor's expected atom type args
-      case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
-        Left err -> pure (Left err)
-        Right argAtomTypes -> do
-              atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
-                                 case argTyp of
-                                   ConstructedAtomType _ _ -> 
-                                     parens parseNextAtom <|>
-                                     parseNextAtom
-                                   _ -> parseNextAtom
-                               ) argAtomTypes
-              case lefts atomArgs of
-                [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
-                errs -> pure (Left (someErrors errs))
+        case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
+          Left err -> pure (Left err)
+          Right argAtomTypes -> do
+            atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
+                               case argTyp of
+                                 ConstructedAtomType _ _ -> 
+                                   parens parseNextAtom <|>
+                                   parseNextAtom
+                                 _ -> parseNextAtom
+                             ) argAtomTypes
+            case lefts atomArgs of
+              [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
+              errs -> pure (Left (someErrors errs))
 parseCSVAtomP attrName _ (RelationAtomType _) = pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
 parseCSVAtomP _ _ (TypeVariableType x) = pure (Left (TypeConstructorTypeVarMissing x))
       
