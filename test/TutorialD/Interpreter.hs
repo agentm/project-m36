@@ -10,6 +10,7 @@ import ProjectM36.Error
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.DataTypes.Either
+import ProjectM36.DataTypes.Interval
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
@@ -578,7 +579,7 @@ testIntervalType = TestCase $ do
   executeTutorialD sessionId dbconn "x:=relation{a Interval Integer}"
   eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
   let expectedIntervalInt = mkRelationFromList expectedAttrs []
-      expectedAttrs = A.attributesFromList [Attribute "a" (ConstructedAtomType "Interval" (M.singleton "a" IntegerAtomType))]
+      expectedAttrs = A.attributesFromList [Attribute "a" (intervalAtomType IntegerAtomType)]
   assertEqual "Interval Int attribute" expectedIntervalInt eX
   
 testArbitraryRelation :: Test  

@@ -514,7 +514,7 @@ evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcNam
             pure $ case eCompiledFunc of
               Left err -> Left (ScriptError err)
               Right compiledFunc -> do
-                funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructor funcTypeArg (typeConstructorMapping currentContext) M.empty) adjustedAtomTypeCons
+                funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructorValidate False funcTypeArg (typeConstructorMapping currentContext) M.empty) adjustedAtomTypeCons
                 let updatedFuncs = HS.insert newAtomFunc atomFuncs
                     newContext = currentContext { atomFunctions = updatedFuncs }
                     newAtomFunc = AtomFunction { atomFuncName = funcName,
@@ -896,7 +896,7 @@ verifyAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = runExceptT $ d
 -- | Look up the type's name and create a new attribute.
 evalAttrExpr :: TypeConstructorMapping -> AttributeExpr -> Either RelationalError Attribute
 evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons ()) = do
-  aType <- atomTypeForTypeConstructor tCons aTypes M.empty
+  aType <- atomTypeForTypeConstructorValidate True tCons aTypes M.empty
   validateAtomType aType aTypes
   Right (Attribute attrName aType)
   
