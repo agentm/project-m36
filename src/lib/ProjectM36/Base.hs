@@ -35,12 +35,9 @@ data Atom = IntegerAtom Integer |
             DateTimeAtom UTCTime |
             ByteStringAtom ByteString |
             BoolAtom Bool |
-            IntervalAtom Atom Atom OpenInterval OpenInterval |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
             deriving (Eq, Show, Binary, Typeable, NFData, Generic)
-                     
-type OpenInterval = Bool                     
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -53,7 +50,6 @@ instance Hashable Atom where
   hashWithSalt salt (DateTimeAtom dt) = salt `hashWithSalt` dt
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
-  hashWithSalt salt (IntervalAtom a1 a2 bo be) = salt `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` bo `hashWithSalt` be
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
 
 instance Binary UTCTime where
@@ -76,7 +72,6 @@ data AtomType = IntAtomType |
                 DateTimeAtomType |
                 ByteStringAtomType |
                 BoolAtomType |
-                IntervalAtomType AtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 TypeVariableType TypeVarName
@@ -614,7 +609,6 @@ attrTypeVars (Attribute _ aType) = case aType of
   DateTimeAtomType -> S.empty
   ByteStringAtomType -> S.empty
   BoolAtomType -> S.empty
-  (IntervalAtomType atomtyp) -> atomTypeVars atomtyp
   (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList attrs))
   (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
   (TypeVariableType nam) -> S.singleton nam
@@ -638,7 +632,6 @@ atomTypeVars DayAtomType = S.empty
 atomTypeVars DateTimeAtomType = S.empty
 atomTypeVars ByteStringAtomType = S.empty
 atomTypeVars BoolAtomType = S.empty
-atomTypeVars (IntervalAtomType aType) = atomTypeVars aType
 atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam

@@ -4,16 +4,18 @@
 module ProjectM36.Arbitrary where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.AtomFunctionError
 import ProjectM36.AtomType
 import ProjectM36.Attribute (atomType,attributeName)
 import ProjectM36.DataConstructorDef as DCD
+import ProjectM36.DataTypes.Interval
 import qualified Data.Vector as V
 import Data.Text (Text,pack)
 import Test.QuickCheck
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
-
+import Debug.Trace
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
 arbitrary' IntegerAtomType = 
   Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
@@ -45,23 +47,14 @@ arbitrary' ByteStringAtomType =
 
 arbitrary' BoolAtomType = 
   Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
-
-arbitrary' (IntervalAtomType atomTy) = do
-  tcMap <- ask
-  eitherAtomTypeA <- lift $ runReaderT (arbitrary' atomTy) tcMap
-  eitherAtomTypeB <- lift $ runReaderT (arbitrary' atomTy) tcMap
-  case (eitherAtomTypeA,eitherAtomTypeB) of
-    (Right a, Right b) -> do
-      l <- lift $ (arbitrary :: Gen Bool)
-      r <- lift $ (arbitrary :: Gen Bool)
-      pure $ Right $ IntervalAtom a b l r
-    (Left err,_)  -> pure $ Left err
-    (Right _, Left err) -> pure $ Left err
-
-arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap) = do 
+arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap)
+  | traceShow constructedAtomType False = undefined
+  --special-casing for Interval type
+  | isIntervalAtomType constructedAtomType = createArbitraryInterval (intervalSubType constructedAtomType)
+  | otherwise = do 
   tcMap <- ask
   let maybeTCons = findTypeConstructor tcName tcMap
-  let eitherTCons = maybeToRight (NoSuchTypeConstructorName tcName) maybeTCons
+  let eitherTCons = traceShowId $ maybeToRight (NoSuchTypeConstructorName tcName) maybeTCons
   let eitherDCDefs = snd <$> eitherTCons
   let eitherGenDCDef = elements <$> eitherDCDefs
   case eitherGenDCDef of
@@ -121,3 +114,21 @@ arbitraryRelation attris range = do
     Right tupleList ->  pure $ Right $ Relation attris $ RelationTupleSet tupleList
 
 type WithTCMap a = ReaderT TypeConstructorMapping a 
+
+createArbitraryInterval :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
+createArbitraryInterval subType = if supportsInterval subType then do
+  eBegin <- arbitrary' subType
+  eEnd <- arbitrary' subType
+  beginopen <- lift (arbitrary :: Gen Bool)
+  endopen <- lift (arbitrary :: Gen Bool)
+  case eBegin of
+    Left err -> pure (Left err)
+    Right begin -> 
+      case eEnd of
+        Left err -> pure (Left err)
+        Right end -> 
+          case createInterval begin end beginopen endopen of
+            Left _ -> createArbitraryInterval subType
+            Right val -> pure (Right val)
+  else
+    pure $ Left (ProjectM36.Error.AtomFunctionUserError (AtomTypeDoesNotSupportIntervalError (prettyAtomType subType)))

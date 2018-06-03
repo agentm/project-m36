@@ -57,7 +57,7 @@ testCSVExport = TestCase $ do
                                     Attribute "bytestringattr" ByteStringAtomType,
                                     Attribute "listintegerattr" (listAtomType IntegerAtomType),
                                     Attribute "listtextattr" (listAtomType TextAtomType),
-                                    Attribute "intervalattr" (IntervalAtomType DateTimeAtomType)
+                                    Attribute "intervalattr" (intervalAtomType DateTimeAtomType)
                                    ]
       sampleByteString = "\1\0\244\34\150"
       relOrErr = mkRelationFromList attrs [

@@ -14,9 +14,6 @@ main = do
                                   ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
-{-
-adddatabasecontextfunction "addtruerv" DatabaseContext -> DatabaseContext """(\[] ctx -> execState (evalDatabaseContextExpr (Assign "true2" (ExistingRelation relationTrue))) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""
--}
 testBasicDBCFunction :: Test
 testBasicDBCFunction = TestCase $ do  
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
@@ -43,9 +40,6 @@ testExceptionDBCFunction = TestCase $ do
   expectTutorialDErr sess conn (\err -> "UnhandledExceptionError" `T.isPrefixOf` err) "execute bomb()"
   
 
-{-
-adddatabasecontextfunction "multiArgFunc" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> execState (evalDatabaseContextExpr (Assign "person" (MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name), ("age", NakedAtomExpr age)])]))) ctx)"""
--}
 testDBCFunctionWithAtomArguments :: Test
 testDBCFunctionWithAtomArguments = TestCase $ do
   --test function with creation of a relvar with some arguments
@@ -60,7 +54,4 @@ testDBCFunctionWithAtomArguments = TestCase $ do
   assertEqual "person relation" expectedPerson result
   expectTutorialDErr sess conn (T.isPrefixOf "AtomTypeMismatchError") "execute multiArgFunc(\"fail\", \"fail\")"
 
-{-
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", name),("age",age))]] in if isRight (runState (executeRelationalExpr (RelationVariable "person" ()) ctx)) then execState (executeContextExpr (Insert "person" newrel)) ctx else execState (executeContextExpr (Assign "person" newrel)) ctx) :: [Atom] -> DatabaseContext -> DatabaseContext"""
--}
 
