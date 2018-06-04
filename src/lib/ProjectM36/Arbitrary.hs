@@ -76,7 +76,7 @@ maybeToRight _ (Just x) = Right x
 maybeToRight y Nothing  = Left y
 
 instance Arbitrary Text where
-  arbitrary = pack <$> (elements $ map (replicate 3) ['A'..'Z'])
+  arbitrary = pack <$> elements (map (replicate 3) ['A'..'Z'])
 
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> (arbitrary :: Gen Integer)

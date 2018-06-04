@@ -22,7 +22,7 @@ atomToText (BoolAtom i) = (T.pack . show) i
 atomToText (RelationAtom i) = (T.pack . show) i
 atomToText (ConstructedAtom dConsName typ atoms) 
   | isIntervalAtomType typ = case atoms of --special handling for printing intervals
-    (b:e:(BoolAtom bo):(BoolAtom be):[]) -> 
+    [b, e, BoolAtom bo, BoolAtom be] -> 
       let beginp = if bo then "(" else "["
           begin = atomToText b
           end = atomToText e 

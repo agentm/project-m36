@@ -15,9 +15,7 @@ intervalSubType :: AtomType -> AtomType
 intervalSubType typ = if isIntervalAtomType typ then
                         case typ of
                           ConstructedAtomType _ tvMap -> 
-                            case M.lookup "a" tvMap of
-                                 Nothing -> err
-                                 Just typ' -> typ'
+                            fromMaybe err (M.lookup "a" tvMap)
                           _ -> err
                         else
                         err
@@ -121,7 +119,14 @@ isIntervalAtomType (ConstructedAtomType nam tvMap) =
 isIntervalAtomType _ = False
     
 intervalOverlaps :: Atom -> Atom -> Either AtomFunctionError Bool
-intervalOverlaps (ConstructedAtom dCons1 typ1 (i1start:i1end:(BoolAtom i1startopen):(BoolAtom i1endopen):[])) (ConstructedAtom dCons2 typ2 (i2start:i2end:(BoolAtom i2startopen):(BoolAtom i2endopen):[])) = do
+intervalOverlaps (ConstructedAtom dCons1 typ1 [i1start,
+                                               i1end,
+                                               BoolAtom i1startopen,
+                                               BoolAtom i1endopen]) (ConstructedAtom dCons2 typ2 
+                                                                     [i2start, 
+                                                                      i2end, 
+                                                                      BoolAtom i2startopen,
+                                                                      BoolAtom i2endopen]) = do
   when (dCons1 /= "Interval" || dCons2 /= "Interval" || not (isIntervalAtomType typ1) || not (isIntervalAtomType typ2)) (Left AtomFunctionTypeMismatchError)
   cmp1 <- atomCompare i1start i2end
   cmp2 <- atomCompare i2start i1end
