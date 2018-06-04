@@ -6,7 +6,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AtomFunctionError
 import ProjectM36.AtomType
-import ProjectM36.Attribute (atomType,attributeName)
+import ProjectM36.Attribute (atomType)
 import ProjectM36.DataConstructorDef as DCD
 import ProjectM36.DataTypes.Interval
 import qualified Data.Vector as V
