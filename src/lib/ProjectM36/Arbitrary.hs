@@ -15,7 +15,6 @@ import Test.QuickCheck
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
-import Debug.Trace
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
 arbitrary' IntegerAtomType = 
   Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
@@ -48,13 +47,12 @@ arbitrary' ByteStringAtomType =
 arbitrary' BoolAtomType = 
   Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
 arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap)
-  | traceShow constructedAtomType False = undefined
   --special-casing for Interval type
   | isIntervalAtomType constructedAtomType = createArbitraryInterval (intervalSubType constructedAtomType)
   | otherwise = do 
   tcMap <- ask
   let maybeTCons = findTypeConstructor tcName tcMap
-  let eitherTCons = traceShowId $ maybeToRight (NoSuchTypeConstructorName tcName) maybeTCons
+  let eitherTCons = maybeToRight (NoSuchTypeConstructorName tcName) maybeTCons
   let eitherDCDefs = snd <$> eitherTCons
   let eitherGenDCDef = elements <$> eitherDCDefs
   case eitherGenDCDef of
@@ -77,7 +75,7 @@ maybeToRight _ (Just x) = Right x
 maybeToRight y Nothing  = Left y
 
 instance Arbitrary Text where
-  arbitrary = pack <$> elements ["Mary", "Johnny", "Sunny", "Ted"]
+  arbitrary = pack <$> (elements $ map (replicate 3) ['A'..'Z'])
 
 instance Arbitrary Day where
   arbitrary = ModifiedJulianDay <$> (arbitrary :: Gen Integer)
