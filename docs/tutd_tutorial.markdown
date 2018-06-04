@@ -594,3 +594,28 @@ In this query result, we can simultaneously answer how many suppliers are locate
 |sum(relation{int})|return the int sum of the relation's values|
 |max(relation{int})|return the maximum int from all the relation's values|
 |min(relation{int})|return the minimum int from all the relation's values|
+
+#### Arbitrary Relation Variables
+
+For testing purposes, it can be useful to populate a database with randomly generated data. Project:M36 can automatically create such data based solely on the type of the relation.
+
+```
+TutorialD (master/main): createarbitraryrelation employee {name Text, empid Int, hired DateTime} 3-100
+TutorialD (master/main): :showexpr employee
+┌──────────┬───────────────────────┬──────────┐
+│empid::Int│hired::DateTime        │name::Text│
+├──────────┼───────────────────────┼──────────┤
+│23        │1858-11-04 10:50:14 UTC│"LLL"     │
+│22        │1858-12-10 14:53:37 UTC│"LLL"     │
+│25        │1858-11-07 01:14:15 UTC│"SSS"     │
+│-12       │1858-11-06 06:20:57 UTC│"VVV"     │
+│-6        │1858-11-01 16:26:38 UTC│"SSS"     │
+│-1        │1858-10-31 14:41:26 UTC│"DDD"     │
+│-15       │1858-11-26 04:14:03 UTC│"VVV"     │
+│-18       │1858-12-17 00:01:09 UTC│"AAA"     │
+│-9        │1858-10-31 08:36:53 UTC│"XXX"     │
+│4         │1858-11-23 01:48:04 UTC│"VVV"     │
+└──────────┴───────────────────────┴──────────┘
+```
+
+The `createarbitraryrelation` syntax specifies the name of the relation variable, the type for the relation, and then an acceptable range for the tuple count.
