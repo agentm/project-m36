@@ -15,60 +15,6 @@ import Test.QuickCheck
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
-arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
-arbitrary' IntegerAtomType = 
-  Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
-
-arbitrary' (RelationAtomType attrs)  = do
-  tcMap <-ask
-  maybeRel <- lift $ runReaderT (arbitraryRelation attrs (0,5)) tcMap
-  case maybeRel of
-    Left err -> pure $ Left err
-    Right rel -> pure $ Right $ RelationAtom rel
-
-arbitrary' IntAtomType = 
-  Right . IntAtom <$> lift (arbitrary :: Gen Int)
-
-arbitrary' DoubleAtomType = 
-  Right . DoubleAtom <$> lift (arbitrary :: Gen Double)
-
-arbitrary' TextAtomType = 
-  Right . TextAtom <$> lift (arbitrary :: Gen Text)
-
-arbitrary' DayAtomType = 
-  Right . DayAtom <$>  lift (arbitrary :: Gen Day)
-
-arbitrary' DateTimeAtomType = 
-  Right . DateTimeAtom <$> lift (arbitrary :: Gen UTCTime)
-  
-arbitrary' ByteStringAtomType =
-  Right . ByteStringAtom <$> lift (arbitrary :: Gen B.ByteString)
-
-arbitrary' BoolAtomType = 
-  Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
-arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap)
-  --special-casing for Interval type
-  | isIntervalAtomType constructedAtomType = createArbitraryInterval (intervalSubType constructedAtomType)
-  | otherwise = do 
-  tcMap <- ask
-  let maybeTCons = findTypeConstructor tcName tcMap
-  let eitherTCons = maybeToRight (NoSuchTypeConstructorName tcName) maybeTCons
-  let eitherDCDefs = snd <$> eitherTCons
-  let eitherGenDCDef = elements <$> eitherDCDefs
-  case eitherGenDCDef of
-    Left err -> pure $ Left err
-    Right genDCDef -> do
-      dcDef <- lift genDCDef
-      case resolvedAtomTypesForDataConstructorDefArgs tcMap tvMap dcDef of
-        Left err -> pure $ Left err
-        Right atomTypes -> do
-          let genListOfEitherAtom = mapM (\aTy->runReaderT (arbitrary' aTy) tcMap) atomTypes
-          listOfEitherAtom <- lift genListOfEitherAtom
-          let eitherListOfAtom = sequence listOfEitherAtom
-          case eitherListOfAtom of 
-            Left err -> pure $ Left err
-            Right listOfAtom -> pure $ Right $ ConstructedAtom (DCD.name dcDef) constructedAtomType listOfAtom
-arbitrary' (TypeVariableType _) = error "arbitrary on type variable"
 
 maybeToRight :: b -> Maybe a -> Either b a
 maybeToRight _ (Just x) = Right x
