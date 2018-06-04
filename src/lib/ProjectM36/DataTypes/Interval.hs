@@ -8,6 +8,7 @@ import ProjectM36.AtomFunctionError
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Control.Monad (when)
+import Data.Maybe
 
 type OpenInterval = Bool                     
 
