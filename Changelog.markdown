@@ -1,3 +1,17 @@
+# 2018-06-04 (v0.4)
+
+* add contributed feature to allow users to [create arbitrary relations](https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown#arbitrary-relation-variables)
+* fix type validation bug allowing concrete type with type variables in relations
+* improve usability of `Interval a` data type
+* allow `Integer` to be parsed as negative in `tutd` console
+* support precompiled (Haskell) [`AtomFunction`s](https://github.com/agentm/project-m36/blob/master/docs/atomfunctions.markdown#pre-compiled-atom-functions) and [`DatabaseContextFunction`s](https://github.com/agentm/project-m36/blob/master/docs/database_context_functions.markdown#loading-precompiled-modules)
+* make TutorialD scripts read from the filesystem unconditionally read as UTF-8
+* improve support for display of multibyte characters in `tutd` console, especially Chinese
+* fix file descriptor leak in file sychronization
+* improve reliability by allowing fast-forward commits when using `autoMergeToHead`
+* add [`semijoin` and `anitjoin`](https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown#join) support to `tutd`
+* added various new static optimizations
+
 # 2017-11-14
 
 * alter websocket server API to allow for multiple representations (JSON, text, or HTML) to be selected and returned simultaneously
