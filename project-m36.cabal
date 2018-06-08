@@ -71,6 +71,7 @@ Library
                    ,conduit
                    ,resourcet
                    ,http-api-data
+                   ,semigroups
                    -- used for arbitrary tuples
                    ,QuickCheck
 --needed for remote access
@@ -137,6 +138,7 @@ Library
                      ProjectM36.DataTypes.Either,
                      ProjectM36.DataTypes.Maybe,
                      ProjectM36.DataTypes.List,
+                     ProjectM36.DataTypes.NonEmpty,
                      ProjectM36.DataTypes.Primitive,
                      ProjectM36.DataTypes.Interval,
                      ProjectM36.DataTypes.ByteString,

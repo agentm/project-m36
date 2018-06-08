@@ -5,6 +5,7 @@ module ProjectM36.Atomable where
 import ProjectM36.Base
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.List
+import ProjectM36.DataTypes.NonEmpty
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.Either
 import GHC.Generics
@@ -18,6 +19,7 @@ import Data.ByteString (ByteString)
 import Data.Time.Clock
 import Data.Maybe
 import Data.Proxy
+import qualified Data.List.NonEmpty as NE
 
 --also add haskell scripting atomable support
 --rename this module to Atomable along with test
@@ -153,6 +155,14 @@ instance Atomable a => Atomable [a] where
   fromAtom _ = error "improper fromAtom [a]"
   
   toAtomType _ = ConstructedAtomType "List" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
+  toAddTypeExpr _ = NoOperation
+
+instance Atomable a => Atomable (NE.NonEmpty a) where
+  toAtom (x NE.:| []) = ConstructedAtom "NECons" (nonEmptyAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x]
+  toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyAtomType (toAtomType (Proxy :: Proxy a))) (map toAtom (x:xs))
+  fromAtom _ = error "improper fromAtom (NonEmpty a)"
+
+  toAtomType _ = ConstructedAtomType "NonEmpty" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
 
 -- Generics

@@ -20,6 +20,7 @@ extra-deps:
 - distributed-process-client-server-0.2.3
 - distributed-process-extras-0.3.2
 - rset-1.0.0
+- binary-0.8.5.1
 
 # Override default flag values for local packages and extra-deps
 flags: {}

@@ -27,6 +27,9 @@ textTypeConstructor = PrimitiveTypeConstructor "Text" TextAtomType
 dayTypeConstructor :: TypeConstructor
 dayTypeConstructor = PrimitiveTypeConstructor "Day" DayAtomType
 
+dateTimeTypeConstructor :: TypeConstructor
+dateTimeTypeConstructor = PrimitiveTypeConstructor "DateTime" DayAtomType
+
 -- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
