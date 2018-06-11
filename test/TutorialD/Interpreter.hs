@@ -11,6 +11,8 @@ import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Interval
+import ProjectM36.DataTypes.NonEmptyList
+import ProjectM36.DataTypes.List
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
@@ -67,7 +69,8 @@ main = do
       testAssignWithTypeVar,
       testDefineWithTypeVar,
       testIntervalType,
-      testArbitraryRelation
+      testArbitraryRelation,
+      testNonEmptyListType
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -588,3 +591,20 @@ testArbitraryRelation = TestCase $ do
   executeTutorialD sessionId dbconn "createarbitraryrelation rv1 {a Integer} 5-10"
   executeTutorialD sessionId dbconn "createarbitraryrelation rv2 {a Integer, b relation{c Integer}} 10-100"
   executeTutorialD sessionId dbconn "createarbitraryrelation rv3 {a Int, b relation{c Interval Int}} 3-100"
+  
+testNonEmptyListType :: Test
+testNonEmptyListType = TestCase $ do
+  --create a NonEmptyList
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a NECons 3 (Cons 4 Empty)}} : {x:=nonEmptyListHead(@a)}"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expected = mkRelationFromList attrs [[nelist, nehead]]
+      attrs = attributesFromList [Attribute "a" neListType,
+                                  Attribute "x" IntegerAtomType]
+      neListType = nonEmptyListAtomType IntegerAtomType
+      listType = listAtomType IntegerAtomType
+      nelist = ConstructedAtom "NECons" (nonEmptyListAtomType IntegerAtomType) [
+        IntegerAtom 3,
+        ConstructedAtom "Cons" listType [IntegerAtom 4, ConstructedAtom "Empty" listType []]]
+      nehead = IntegerAtom 3
+  assertEqual "non-empty list type construction" expected eX

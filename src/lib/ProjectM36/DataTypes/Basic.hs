@@ -4,7 +4,7 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.List
-import ProjectM36.DataTypes.NonEmpty
+import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.DataTypes.Interval
 import ProjectM36.Base
 
@@ -13,7 +13,7 @@ basicTypeConstructorMapping = primitiveTypeConstructorMapping ++
                               maybeTypeConstructorMapping ++ 
                               eitherTypeConstructorMapping ++ 
                               listTypeConstructorMapping ++
-                              nonEmptyTypeConstructorMapping ++
+                              nonEmptyListTypeConstructorMapping ++
                               intervalTypeConstructorMapping
                               
 

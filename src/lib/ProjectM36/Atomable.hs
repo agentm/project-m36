@@ -1,11 +1,12 @@
 {-# LANGUAGE DefaultSignatures, TypeFamilies, TypeOperators, PolyKinds, FlexibleInstances, ScopedTypeVariables, FlexibleContexts #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
 import ProjectM36.Base
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.List
-import ProjectM36.DataTypes.NonEmpty
+import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.Either
 import GHC.Generics
@@ -158,12 +159,14 @@ instance Atomable a => Atomable [a] where
   toAddTypeExpr _ = NoOperation
 
 instance Atomable a => Atomable (NE.NonEmpty a) where
-  toAtom (x NE.:| []) = ConstructedAtom "NECons" (nonEmptyAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x]
-  toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyAtomType (toAtomType (Proxy :: Proxy a))) (map toAtom (x:xs))
-  fromAtom _ = error "improper fromAtom (NonEmpty a)"
+  toAtom (x NE.:| []) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x]
+  toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) (map toAtom (x:xs))
+  fromAtom _ = error "improper fromAtom (NonEmptyList a)"
 
-  toAtomType _ = ConstructedAtomType "NonEmpty" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
+  toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
+  
+instance Binary a => Binary (NE.NonEmpty a)  
 
 -- Generics
 class AtomableG g where
