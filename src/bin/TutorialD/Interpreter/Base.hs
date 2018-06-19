@@ -41,6 +41,8 @@ displayOpResult (DisplayParseErrorResult mPromptLength err) = do
       pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
   maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
   TIO.putStr ("ERR:" <> errString)
+displayOpResult (DisplayDataFrameResult dFrame) = do
+  TIO.putStrLn (showRelation $ fromDataFrame dFrame)
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
@@ -127,6 +129,7 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
+                               DisplayDataFrameResult DataFrame |
                                DisplayErrorResult StringType |
                                DisplayParseErrorResult (Maybe PromptLength) (ParseError Char Dec) | -- Int refers to length of prompt text
                                QuietSuccessResult

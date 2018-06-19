@@ -37,7 +37,7 @@ data Atom = IntegerAtom Integer |
             BoolAtom Bool |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
-            deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+            deriving (Eq, Ord, Show, Binary, Typeable, NFData, Generic)
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -77,7 +77,9 @@ data AtomType = IntAtomType |
                 TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq, NFData, Generic, Binary, Show)
-                       
+
+instance Ord AtomType where
+  compare = undefined                      
 type TypeVarMap = M.Map TypeVarName AtomType
 
 instance Hashable TypeVarMap where 
@@ -122,6 +124,16 @@ instance Eq RelationTupleSet where
 
 instance NFData RelationTupleSet where rnf = genericRnf
 
+sortDataFrameBy :: Attribute -> DataFrame -> DataFrame
+sortDataFrameBy attr (DataFrame attrs tupSet) =
+  case attr `elem` attrs of
+    True  -> DataFrame attrs $ sortTupleSetBy (compareRelationTupleBy attr) tupSet
+    False -> error $ "No such attribute: " ++ show attr
+
+sortTupleSetBy :: (RelationTuple -> RelationTuple -> Ordering) -> RelationTupleSet -> RelationTupleSet
+sortTupleSetBy compare' (RelationTupleSet tuples) =
+  RelationTupleSet $ L.sortBy compare' tuples
+
 --the same hash must be generated for equal tuples so that the hashset equality works
 instance Hashable RelationTuple where
   --sanity check the tuple for attribute and tuple counts
@@ -145,14 +157,31 @@ instance Binary RelationTuple
 instance Eq RelationTuple where
   (==) tuple1@(RelationTuple attrs1 _) tuple2@(RelationTuple attrs2 _) = attributesEqual attrs1 attrs2 && atomsEqual
     where
-    atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) attrs of
-      Nothing -> Nothing
-      Just index -> tupVec V.!? index
     atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) attrs1
 
+atomForAttribute attr (RelationTuple attrs tupVec) =
+  case V.findIndex (== attr) attrs of
+    Nothing -> Nothing
+    Just index -> tupVec V.!? index
+ 
 instance NFData RelationTuple where rnf = genericRnf
 
+data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom) deriving (Eq, Show, Generic) 
+
+compareRelationTupleBy :: Attribute -> RelationTuple -> RelationTuple -> Ordering
+compareRelationTupleBy attr tuple1@(RelationTuple attrs1 tupVec1) tuple2@(RelationTuple attrs2 tupVec2) =
+  case attr `elem` attrs1 && attr `elem` attrs2 of
+    True  -> compare (atomForAttribute attr tuple1) (atomForAttribute attr tuple2)
+    False -> error "Comparing two RelationTuples by an non-existent common attribute."
+
 data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
+
+instance Ord Relation where
+  compare (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) = undefined
+  (<)     = undefined
+  (<=)    = undefined
+  (>=)    = undefined
+  (>)     = undefined
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
@@ -167,7 +196,15 @@ instance Hashable Relation where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
       
 instance Binary Relation      
-  
+
+data DataFrame = DataFrame Attributes RelationTupleSet deriving (Show, Generic, Typeable)
+
+toDataFrame :: Relation -> DataFrame
+toDataFrame (Relation attr tupSet) = DataFrame attr tupSet
+
+fromDataFrame :: DataFrame -> Relation 
+fromDataFrame (DataFrame attr tupSet) = Relation attr tupSet
+
 -- | Used to represent the number of tuples in a relation.         
 data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
 

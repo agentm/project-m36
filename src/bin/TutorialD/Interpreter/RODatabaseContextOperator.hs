@@ -1,6 +1,8 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
+import ProjectM36.Attribute (attributeForName) 
+import ProjectM36.Relation (attributes)
 import ProjectM36.Error
 import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
@@ -26,6 +28,7 @@ data RODatabaseContextOperator where
   ShowRelationVariables :: RODatabaseContextOperator
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
+  ShowSortedDataFrame :: RelationalExpr -> AttributeName -> RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -81,6 +84,7 @@ roDatabaseContextOperatorP = typeP
              <|> showTypesP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
+             <|> showSortedDataFrameP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -148,6 +152,18 @@ evalRODatabaseContextOp sessionId conn ShowDatabaseContextFunctions = do
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
   
+evalRODatabaseContextOp sessionId conn (ShowSortedDataFrame expr attrName) = do
+  res <- C.executeRelationalExpr sessionId conn expr
+  case res of
+    Left err -> pure $ DisplayErrorResult $ T.pack (show err)
+    Right rel -> do
+      let attrs = attributes rel
+      case attributeForName attrName attrs of
+        Left err -> pure $ DisplayErrorResult $ T.pack (show err)
+        Right attr -> do
+          pure $ DisplayDataFrameResult $ sortDataFrameBy attr . toDataFrame $ rel
+
+ 
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
 interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
@@ -155,4 +171,10 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed
   
-  
+showSortedDataFrameP :: Parser RODatabaseContextOperator
+showSortedDataFrameP = do
+  reservedOp ":showsorteddataframe"
+  ShowSortedDataFrame <$> relExprP <*> identifier
+
+
+
