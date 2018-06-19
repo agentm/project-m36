@@ -28,7 +28,7 @@ data RODatabaseContextOperator where
   ShowRelationVariables :: RODatabaseContextOperator
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
-  ShowSortedDataFrame :: RelationalExpr -> AttributeName -> RODatabaseContextOperator
+  ShowDataFrame :: RelationalExpr -> AttributeName -> Maybe Integer -> Maybe Integer -> RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -84,7 +84,7 @@ roDatabaseContextOperatorP = typeP
              <|> showTypesP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
-             <|> showSortedDataFrameP
+             <|> showDataFrameP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -152,7 +152,7 @@ evalRODatabaseContextOp sessionId conn ShowDatabaseContextFunctions = do
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
   
-evalRODatabaseContextOp sessionId conn (ShowSortedDataFrame expr attrName) = do
+evalRODatabaseContextOp sessionId conn (ShowDataFrame expr attrName mbOffset mbLimit) = do
   res <- C.executeRelationalExpr sessionId conn expr
   case res of
     Left err -> pure $ DisplayErrorResult $ T.pack (show err)
@@ -161,7 +161,10 @@ evalRODatabaseContextOp sessionId conn (ShowSortedDataFrame expr attrName) = do
       case attributeForName attrName attrs of
         Left err -> pure $ DisplayErrorResult $ T.pack (show err)
         Right attr -> do
-          pure $ DisplayDataFrameResult $ sortDataFrameBy attr . toDataFrame $ rel
+          let dFrame = sortDataFrameBy attr . toDataFrame $ rel
+          let dFrame' = maybe dFrame (`drop'` dFrame) mbOffset
+          let dFrame'' = maybe dFrame' (`take'` dFrame') mbLimit
+          pure $ DisplayDataFrameResult $ dFrame''
 
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
@@ -171,10 +174,27 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed
   
-showSortedDataFrameP :: Parser RODatabaseContextOperator
-showSortedDataFrameP = do
-  reservedOp ":showsorteddataframe"
-  ShowSortedDataFrame <$> relExprP <*> identifier
+showDataFrameP :: Parser RODatabaseContextOperator
+showDataFrameP = do
+  reservedOp ":showdataframe"
+  relExpr <- relExprP
+  attriName <- orderByP
+  mbOffset <- optional offsetP
+  mbLimit <- optional limitP
+  pure $ ShowDataFrame relExpr attriName mbOffset mbLimit
 
+orderByP :: Parser AttributeName
+orderByP = do
+  reservedOp "orderby"
+  identifier
 
+offsetP :: Parser Integer
+offsetP = do
+  reservedOp "offset"
+  integer
+
+limitP :: Parser Integer
+limitP = do
+  reservedOp "limit"
+  integer
 

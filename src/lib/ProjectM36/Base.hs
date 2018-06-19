@@ -199,11 +199,14 @@ instance Binary Relation
 
 data DataFrame = DataFrame Attributes RelationTupleSet deriving (Show, Generic, Typeable)
 
+take' n (DataFrame attrs (RelationTupleSet xs)) = DataFrame attrs (RelationTupleSet $ take (fromInteger n) xs)
+drop' n (DataFrame attrs (RelationTupleSet xs)) = DataFrame attrs (RelationTupleSet $ drop (fromInteger n) xs)
+
 toDataFrame :: Relation -> DataFrame
-toDataFrame (Relation attr tupSet) = DataFrame attr tupSet
+toDataFrame (Relation attrs tupSet) = DataFrame attrs tupSet
 
 fromDataFrame :: DataFrame -> Relation 
-fromDataFrame (DataFrame attr tupSet) = Relation attr tupSet
+fromDataFrame (DataFrame attrs tupSet) = Relation attrs tupSet
 
 -- | Used to represent the number of tuples in a relation.         
 data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
