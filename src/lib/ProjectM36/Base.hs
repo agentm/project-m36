@@ -124,15 +124,18 @@ instance Eq RelationTupleSet where
 
 instance NFData RelationTupleSet where rnf = genericRnf
 
-sortDataFrameBy :: Attribute -> DataFrame -> DataFrame
-sortDataFrameBy attr (DataFrame attrs tupSet) =
-  case attr `elem` attrs of
-    True  -> DataFrame attrs $ sortTupleSetBy (compareRelationTupleBy attr) tupSet
-    False -> error $ "No such attribute: " ++ show attr
 
-sortTupleSetBy :: (RelationTuple -> RelationTuple -> Ordering) -> RelationTupleSet -> RelationTupleSet
-sortTupleSetBy compare' (RelationTupleSet tuples) =
-  RelationTupleSet $ L.sortBy compare' tuples
+data AttributeOrderExpr = AttributeOrderExpr AttributeName Order deriving(Show)
+data AttributeOrder = AttributeOrder Attribute Order deriving (Show)
+data Order = ASC | DESC deriving (Eq,Show)
+
+sortDataFrameBy :: [AttributeOrder] -> DataFrame -> DataFrame
+sortDataFrameBy attrOrders (DataFrame attrs tuples) =
+    DataFrame attrs $ sortTuplesBy (compareRelationTupleByAttributeOrders attrOrders) tuples
+
+sortTuplesBy :: (RelationTuple -> RelationTuple -> Ordering) -> [RelationTuple] -> [RelationTuple]
+sortTuplesBy compare' tuples =
+  L.sortBy compare' tuples
 
 --the same hash must be generated for equal tuples so that the hashset equality works
 instance Hashable RelationTuple where
@@ -168,8 +171,21 @@ instance NFData RelationTuple where rnf = genericRnf
 
 data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom) deriving (Eq, Show, Generic) 
 
-compareRelationTupleBy :: Attribute -> RelationTuple -> RelationTuple -> Ordering
-compareRelationTupleBy attr tuple1@(RelationTuple attrs1 tupVec1) tuple2@(RelationTuple attrs2 tupVec2) =
+compareRelationTupleByAttributeOrders :: [AttributeOrder] -> RelationTuple -> RelationTuple -> Ordering
+compareRelationTupleByAttributeOrders attributeOrders tup1 tup2 = 
+  let order_ (AttributeOrder _ ord) = ord
+      attr_ (AttributeOrder attr _) = attr
+      compare' (AttributeOrder attr order) = if order == DESC 
+        then compareRelationTupleByOneAttribute attr tup2 tup1
+        else compareRelationTupleByOneAttribute attr tup1 tup2
+      res = map compare' attributeOrders in
+  case L.find (/=EQ) res of
+    Nothing -> EQ
+    Just order -> order
+
+
+compareRelationTupleByOneAttribute :: Attribute -> RelationTuple -> RelationTuple -> Ordering
+compareRelationTupleByOneAttribute attr tuple1@(RelationTuple attrs1 tupVec1) tuple2@(RelationTuple attrs2 tupVec2) =
   case attr `elem` attrs1 && attr `elem` attrs2 of
     True  -> compare (atomForAttribute attr tuple1) (atomForAttribute attr tuple2)
     False -> error "Comparing two RelationTuples by an non-existent common attribute."
@@ -197,16 +213,19 @@ instance Hashable Relation where
       
 instance Binary Relation      
 
-data DataFrame = DataFrame Attributes RelationTupleSet deriving (Show, Generic, Typeable)
+data DataFrame = DataFrame Attributes [RelationTuple] deriving (Show, Generic, Typeable)
 
-take' n (DataFrame attrs (RelationTupleSet xs)) = DataFrame attrs (RelationTupleSet $ take (fromInteger n) xs)
-drop' n (DataFrame attrs (RelationTupleSet xs)) = DataFrame attrs (RelationTupleSet $ drop (fromInteger n) xs)
+take' :: Integer -> DataFrame -> DataFrame
+take' n (DataFrame attrs tuples) = DataFrame attrs (take (fromInteger n) tuples)
+
+drop' :: Integer -> DataFrame -> DataFrame
+drop' n (DataFrame attrs tuples) = DataFrame attrs (drop (fromInteger n) tuples)
 
 toDataFrame :: Relation -> DataFrame
-toDataFrame (Relation attrs tupSet) = DataFrame attrs tupSet
+toDataFrame (Relation attrs (RelationTupleSet tuples)) = DataFrame attrs tuples
 
 fromDataFrame :: DataFrame -> Relation 
-fromDataFrame (DataFrame attrs tupSet) = Relation attrs tupSet
+fromDataFrame (DataFrame attrs tuples) = Relation attrs (RelationTupleSet tuples)
 
 -- | Used to represent the number of tuples in a relation.         
 data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
