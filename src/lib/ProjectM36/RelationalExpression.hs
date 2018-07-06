@@ -850,7 +850,7 @@ typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
 -- grab the type of the data constructor, then validate that the args match the expected types
 typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) = 
   runExceptT $ do
-    argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs  
+    argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs 
     context <- fmap stateElemsContext (lift ask)
     either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
 
@@ -902,24 +902,31 @@ evalAttrExpr aTypes (AttributeAndTypeNameExpr attrName tCons ()) = do
 evalAttrExpr _ (NakedAttributeExpr attr) = Right attr
   
 evalTupleExpr :: Maybe Attributes -> TupleExpr -> RelationalExprState (Either RelationalError RelationTuple)
-evalTupleExpr attrs (TupleExpr tupMap) = do
+evalTupleExpr mAttrs (TupleExpr tupMap) = do
   context <- fmap stateElemsContext ask
   runExceptT $ do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
   -- I could adjust this logic so that when the attributes are not specified (Nothing), then I can attempt to extract the attributes from the tuple- the type resolution will blow up if an ambiguous data constructor is used (Left 4) and this should allow simple cases to "relation{tuple{a 4}}" to be processed
+    let attrs = fromMaybe A.emptyAttributes mAttrs
     attrAtoms <- mapM (\(attrName, aExpr) -> do
-                          newAtomType <- liftE (typeFromAtomExpr A.emptyAttributes aExpr)
+                          --provided when the relation header is available
+                          let eExpectedAtomType = A.atomTypeForAttributeName attrName attrs
+                          unresolvedType <- liftE (typeFromAtomExpr attrs aExpr)
+                          resolvedType <- case eExpectedAtomType of
+                            Left _ -> pure unresolvedType
+                            Right typeHint -> either throwE pure (resolveAtomType typeHint unresolvedType)
+                          --resolve atom typevars based on resolvedType?
                           newAtom <- liftE (evalAtomExpr emptyTuple aExpr)
-                          pure (attrName, newAtom, newAtomType)
+                          pure (attrName, newAtom, resolvedType)
                       ) (M.toList tupMap)
     let tupAttrs = A.attributesFromList $ map (\(attrName, _, aType) -> Attribute attrName aType) attrAtoms
         atoms = V.fromList $ map (\(_, atom, _) -> atom) attrAtoms
         tup = mkRelationTuple tupAttrs atoms
         tConss = typeConstructorMapping context
-        finalAttrs = fromMaybe tupAttrs attrs
+        finalAttrs = fromMaybe tupAttrs mAttrs
     --verify that the attributes match
     when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) $ throwE (TupleAttributeTypeMismatchError tupAttrs)
-    tup' <- either throwE pure (resolveTypesInTuple finalAttrs (reorderTuple finalAttrs tup))
+    tup' <- either throwE pure (resolveTypesInTuple finalAttrs tConss (reorderTuple finalAttrs tup))
     _ <- either throwE pure (validateTuple tup' tConss)
     pure tup'
 

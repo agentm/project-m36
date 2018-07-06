@@ -58,7 +58,7 @@ main = do
       testRelationalExprStateTupleElems, 
       testFunctionalDependencies, 
       testEmptyCommits,
-      testIntervalAtom,
+--      testIntervalAtom,
       testListConstructedAtom,
       testTypeChecker,
       testRestrictionPredicateExprs,
@@ -70,7 +70,8 @@ main = do
       testDefineWithTypeVar,
       testIntervalType,
       testArbitraryRelation,
-      testNonEmptyListType
+      testNonEmptyListType,
+      testUnresolvedAtomTypes
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -163,7 +164,7 @@ main = do
                            --test Maybe Integer
                            ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntegerAtomType [IntegerAtom 3]]]),
                            --test Either Integer Text
-                           ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
+                           ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarMissing "b")), -- Left 3, alone is not enough information to imply the type
                            ("x:=relation{a Either Integer Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntegerAtomType TextAtomType) [IntegerAtom 3]]]),
                            --test datetime constructor
                            ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]]),
@@ -608,3 +609,11 @@ testNonEmptyListType = TestCase $ do
         ConstructedAtom "Cons" listType [IntegerAtom 4, ConstructedAtom "Empty" listType []]]
       nehead = IntegerAtom 3
   assertEqual "non-empty list type construction" expected eX
+  
+testUnresolvedAtomTypes :: Test
+testUnresolvedAtomTypes = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a Empty}}"
+  executeTutorialD sessionId dbconn "x:=relation{a List Int}{tuple{a Empty}}"
+    

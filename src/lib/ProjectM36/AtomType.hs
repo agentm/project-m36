@@ -31,6 +31,7 @@ findDataConstructor dName = foldr tConsFolder Nothing
       [dCons] -> Just dCons
       _ -> error "More than one data constructor with the same name found"
   
+{-
 -- | Scan the atom types and return the resultant ConstructedAtomType or error.
 -- Used in typeFromAtomExpr to validate argument types.
 atomTypeForDataConstructorName :: DataConstructorName -> [AtomType] -> TypeConstructorMapping -> Either RelationalError AtomType
@@ -38,8 +39,12 @@ atomTypeForDataConstructorName :: DataConstructorName -> [AtomType] -> TypeConst
 atomTypeForDataConstructorName dConsName atomTypesIn tConsList =
   case findDataConstructor dConsName tConsList of
     Nothing -> Left (NoSuchDataConstructorError dConsName)
-    Just (tCons, dCons) -> 
-      ConstructedAtomType (TCD.name tCons) <$> resolveDataConstructorTypeVars dCons atomTypesIn tConsList
+    Just (tCons, dCons) -> do
+      dConsVars <- resolveDataConstructorTypeVars dCons atomTypesIn tConsList      
+      let tConsVars = M.fromList (map TypeVariableType (TCD.typeVars tCons))
+          allVars = M.union dConsVars tConsVars
+      ConstructedAtomType (TCD.name tCons) <$> allVars
+-}
         
 atomTypeForDataConstructorDefArg :: DataConstructorDefArg -> AtomType -> TypeConstructorMapping ->  Either RelationalError AtomType
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aType tConss = do
@@ -49,15 +54,20 @@ atomTypeForDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) aT
 atomTypeForDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) aType _ = Right aType --any type is OK
         
 -- | Used to determine if the atom arguments can be used with the data constructor.  
--- | This is the entry point for type-checking from RelationalExpression.hs.
+-- | This is the entry point for type-checking from RelationalExpression.hs
 atomTypeForDataConstructor :: TypeConstructorMapping -> DataConstructorName -> [AtomType] -> Either RelationalError AtomType
 atomTypeForDataConstructor tConss dConsName atomArgTypes =
   --lookup the data constructor
   case findDataConstructor dConsName tConss of
     Nothing -> Left (NoSuchDataConstructorError dConsName)
-    Just (tCons, dCons) -> 
+    Just (tCons, dCons) -> do
       --validate that the type constructor arguments are fulfilled in the data constructor
-      ConstructedAtomType (TCD.name tCons) <$> resolveDataConstructorTypeVars dCons atomArgTypes tConss
+      dConsVars <- resolveDataConstructorTypeVars dCons atomArgTypes tConss
+      let tConsVars = M.fromList (map (\v -> (v, TypeVariableType v)) (TCD.typeVars tCons))
+          allVars = M.union dConsVars tConsVars
+          unresolvedType = ConstructedAtomType (TCD.name tCons) allVars
+      --validateAtomType unresolvedType tConss -- do not validate here because the type may not be fully resolved at this point
+      pure unresolvedType
       
 -- | Walks the data and type constructors to extract the type variable map.
 resolveDataConstructorTypeVars :: DataConstructorDef -> [AtomType] -> TypeConstructorMapping -> Either RelationalError TypeVarMap
@@ -71,10 +81,11 @@ resolveDataConstructorTypeVars dCons@(DataConstructorDef _ defArgs) aTypeArgs tC
   --if any two maps have the same key and different values, this indicates a type arg mismatch
     let typeVarMapFolder valMap acc = case acc of
           Left err -> Left err
-          Right accMap -> if accMap `M.isSubmapOf` valMap then
-                            Right (M.union accMap valMap)
-                          else
-                            Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
+          Right accMap -> do 
+            case resolveAtomTypesInTypeVarMap valMap accMap of
+              Left (TypeConstructorTypeVarMissing _) -> Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
+              Left err -> Left err
+              Right ok -> pure ok
     case foldr typeVarMapFolder (Right M.empty) maps of
       Left err -> Left err
       Right typeVarMaps -> pure typeVarMaps
@@ -199,6 +210,12 @@ resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresol
                                                   else
                                                     Left (AtomTypeMismatchError typeFromRelation unresolvedType)
                                                     
+{-
+--walk an `AtomType` and apply the type variables in the map
+resolveAtomTypeVars :: TypeVarMap -> AtomType -> AtomType   
+resolveAtomTypeVars tvMap typ@(TypeVariableType nam) = fromMaybe typ (M.lookup nam tvMap)
+resolveAtomTypeVars tvMap (RelationAtomType relAttrs) = 
+-}                                                    
 -- this could be optimized to reduce new tuple creation
 resolveAtomTypesInTypeVarMap :: TypeVarMap -> TypeVarMap -> Either RelationalError TypeVarMap
 resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
@@ -220,24 +237,30 @@ resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
             subType@(ConstructedAtomType _ _) -> do
               resSubType <- resolveAtomType resType subType
               pure (resKey, resSubType)
-            otherType -> pure (resKey, otherType)
+            _ -> pure (resKey, resType)
           Nothing ->
             pure (resKey, resType) --swipe the missing type var from the expected map
   tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)
   pure (M.fromList tVarList)
   
 -- | See notes at `resolveTypesInTuple`. The typeFromRelation must not include any wildcards.
-resolveTypeInAtom :: AtomType -> Atom -> Either RelationalError Atom
-resolveTypeInAtom typeFromRelation atomIn@(ConstructedAtom dConsName _ args) = do
+resolveTypeInAtom :: AtomType -> Atom -> TypeConstructorMapping -> Either RelationalError Atom
+resolveTypeInAtom typeFromRelation@(ConstructedAtomType _ tvMap) atomIn@(ConstructedAtom dConsName _ args) tConss = do
   newType <- resolveAtomType typeFromRelation (atomTypeForAtom atomIn)
-  pure (ConstructedAtom dConsName newType args)
-resolveTypeInAtom _ atom = Right atom
+  case findDataConstructor dConsName tConss of
+    Nothing -> -- the atom may have been constructed using a constructor function without a public data constructor, no further resolution is possible
+      pure atomIn
+    Just (_, dConsDef) -> do
+      atomArgTypes <- resolvedAtomTypesForDataConstructorDefArgs tConss tvMap dConsDef
+      newArgs <- mapM (\(atom, atomTyp) -> resolveTypeInAtom atomTyp atom tConss) (zip args atomArgTypes)
+      pure (ConstructedAtom dConsName newType newArgs)
+resolveTypeInAtom _ atom _ = Right atom
   
 -- | When creating a tuple, the data constructor may not complete the type constructor arguments, so the wildcard "TypeVar x" fills in the type constructor's argument. The tuple type must be resolved before it can be part of a relation, however.
 -- Example: "Nothing" does not specify the the argument in "Maybe a", so allow delayed resolution in the tuple before it is added to the relation. Note that this resolution could cause a type error. Hardly a Hindley-Milner system.
-resolveTypesInTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
-resolveTypesInTuple resolvedAttrs (RelationTuple _ tupAtoms) = do
-  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom) (zip (V.toList tupAtoms) $ map A.atomType (V.toList resolvedAttrs))
+resolveTypesInTuple :: Attributes -> TypeConstructorMapping -> RelationTuple -> Either RelationalError RelationTuple
+resolveTypesInTuple resolvedAttrs tConss (RelationTuple _ tupAtoms) = do
+  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom tConss) (zip (V.toList tupAtoms) $ map A.atomType (V.toList resolvedAttrs))
   Right (RelationTuple resolvedAttrs (V.fromList newAtoms))
                            
 -- | Validate that the type is provided with complete type variables for type constructors.
@@ -252,7 +275,7 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                           if not (S.null diff) then
                                             Left $ TypeConstructorTypeVarsMismatch expectedTyVarNames actualTyVarNames
                                           else
-                                            Right ()
+                                            validateTypeVarMap tVarMap tConss
       _ -> Right ()
 validateAtomType (RelationAtomType attrs) tConss = do
   mapM_ (\attr ->
@@ -261,8 +284,21 @@ validateAtomType (RelationAtomType attrs) tConss = do
 validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)  
 validateAtomType _ _ = pure ()
 
+--ensure that all type vars are fully resolved
+validateTypeVarMap :: TypeVarMap -> TypeConstructorMapping -> Either RelationalError ()
+validateTypeVarMap tvMap tConss = mapM_ ((flip validateAtomType) tConss) $ (M.elems tvMap)
+
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
-validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtomType (atomTypeForAtom a) tConss) atoms
+validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtom a tConss) atoms
+
+--ensure that all types are fully resolved
+validateAtom :: Atom -> TypeConstructorMapping -> Either RelationalError ()
+validateAtom (RelationAtom (Relation _ tupSet)) tConss = mapM_ ((flip validateTuple) tConss) (asList tupSet)
+validateAtom (ConstructedAtom _ dConsType atomArgs) tConss = do
+  validateAtomType dConsType tConss
+  mapM_ ((flip validateAtom) tConss) atomArgs
+validateAtom _ _ = pure ()
+  
 
 -- | Determine if two types are equal or compatible (including special handling for TypeVar x).
 atomTypeVerify :: AtomType -> AtomType -> Either RelationalError AtomType
