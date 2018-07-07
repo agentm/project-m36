@@ -40,17 +40,17 @@ script:
    # Run tests
    set -e
    ./.travis/install-dependencies.sh
-   #stack --no-terminal --jobs=2 --system-ghc test
+   stack --no-terminal --jobs=2 --system-ghc test
  - |
    #Run HLint
-   #if [[ "$(uname)" = "Linux" ]]; then 
-    #curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
-   #fi
+   if [[ "$(uname)" = "Linux" ]]; then 
+    curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
+   fi
  - |
    #Run Haddock
-   #if [[ "$(uname)" = "Linux" ]]; then 
-    #stack --no-install-ghc --system-ghc --no-haddock-deps haddock 
-   #fi
+   if [[ "$(uname)" = "Linux" ]]; then 
+    stack --no-install-ghc --system-ghc --no-haddock-deps haddock 
+   fi
 
 after_success:
  - |
