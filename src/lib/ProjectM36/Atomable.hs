@@ -165,8 +165,10 @@ instance Atomable a => Atomable (NE.NonEmpty a) where
 
   toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
-  
+
+#if !MIN_VERSION_binary(0,8,4)
 instance Binary a => Binary (NE.NonEmpty a)  
+#endif
 
 -- Generics
 class AtomableG g where
