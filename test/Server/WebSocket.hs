@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- test the websocket server
 import Test.HUnit
 import qualified Network.WebSockets as WS
