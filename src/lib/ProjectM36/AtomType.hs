@@ -81,7 +81,7 @@ resolveDataConstructorTypeVars dCons@(DataConstructorDef _ defArgs) aTypeArgs tC
   --if any two maps have the same key and different values, this indicates a type arg mismatch
     let typeVarMapFolder valMap acc = case acc of
           Left err -> Left err
-          Right accMap -> do 
+          Right accMap -> 
             case resolveAtomTypesInTypeVarMap valMap accMap of
               Left (TypeConstructorTypeVarMissing _) -> Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
               Left err -> Left err
@@ -254,6 +254,9 @@ resolveTypeInAtom typeFromRelation@(ConstructedAtomType _ tvMap) atomIn@(Constru
       atomArgTypes <- resolvedAtomTypesForDataConstructorDefArgs tConss tvMap dConsDef
       newArgs <- mapM (\(atom, atomTyp) -> resolveTypeInAtom atomTyp atom tConss) (zip args atomArgTypes)
       pure (ConstructedAtom dConsName newType newArgs)
+resolveTypeInAtom (RelationAtomType attrs) (RelationAtom (Relation _ tupSet)) tConss = do
+  let newTups = mapM (resolveTypesInTuple attrs tConss) (asList tupSet)
+  RelationAtom . Relation attrs . RelationTupleSet <$> newTups
 resolveTypeInAtom _ atom _ = Right atom
   
 -- | When creating a tuple, the data constructor may not complete the type constructor arguments, so the wildcard "TypeVar x" fills in the type constructor's argument. The tuple type must be resolved before it can be part of a relation, however.
@@ -286,17 +289,17 @@ validateAtomType _ _ = pure ()
 
 --ensure that all type vars are fully resolved
 validateTypeVarMap :: TypeVarMap -> TypeConstructorMapping -> Either RelationalError ()
-validateTypeVarMap tvMap tConss = mapM_ ((flip validateAtomType) tConss) $ (M.elems tvMap)
+validateTypeVarMap tvMap tConss = mapM_ (`validateAtomType` tConss) $ M.elems tvMap
 
 validateTuple :: RelationTuple -> TypeConstructorMapping -> Either RelationalError ()
-validateTuple (RelationTuple _ atoms) tConss = mapM_ (\a -> validateAtom a tConss) atoms
+validateTuple (RelationTuple _ atoms) tConss = mapM_ (`validateAtom` tConss) atoms
 
 --ensure that all types are fully resolved
 validateAtom :: Atom -> TypeConstructorMapping -> Either RelationalError ()
-validateAtom (RelationAtom (Relation _ tupSet)) tConss = mapM_ ((flip validateTuple) tConss) (asList tupSet)
+validateAtom (RelationAtom (Relation _ tupSet)) tConss = mapM_ (`validateTuple` tConss) (asList tupSet)
 validateAtom (ConstructedAtom _ dConsType atomArgs) tConss = do
   validateAtomType dConsType tConss
-  mapM_ ((flip validateAtom) tConss) atomArgs
+  mapM_ (`validateAtom` tConss) atomArgs
 validateAtom _ _ = pure ()
   
 
