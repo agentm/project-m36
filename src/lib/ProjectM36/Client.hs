@@ -129,11 +129,12 @@ import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
 #if MIN_VERSION_network_transport_tcp(0,6,0)
+import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Transport.TCP.Internal (encodeEndPointAddress)
 #else
-import Network.Transport.TCP (encodeEndPointAddress)
+import Network.Transport.TCP (encodeEndPointAddress, createTransport, defaultTCPParameters)
 #endif
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
+
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
