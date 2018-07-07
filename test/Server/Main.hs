@@ -17,7 +17,11 @@ import System.Exit
 
 import Control.Concurrent
 import Network.Transport (EndPointAddress)
+#if MIN_VERSION_network_transport_tcp(0,6,0)                
+import Network.Transport.TCP.Internal (encodeEndPointAddress, decodeEndPointAddress)
+#else
 import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
+#endif
 import Data.Either (isRight)
 import Control.Exception
 import System.IO.Temp

@@ -1,10 +1,15 @@
+{-# LANGUAGE CPP #-}
 import ProjectM36.Server.WebSocket
 import ProjectM36.Server.Config
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import Control.Concurrent
 import qualified Network.WebSockets as WS
+#if MIN_VERSION_network_transport_tcp(0,6,0)                
+import Network.Transport.TCP.Internal (decodeEndPointAddress)
+#else
 import Network.Transport.TCP (decodeEndPointAddress)
+#endif
 import Control.Exception
 
 main :: IO ()

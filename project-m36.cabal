@@ -79,8 +79,8 @@ Library
                    ,distributed-process >= 0.6.6
                    ,distributed-process-extras >= 0.3.2
                    ,distributed-process-async >= 0.2.4
-                   ,network-transport-tcp
-                   ,network-transport
+                   ,network-transport-tcp >= 0.6.0
+                   ,network
                    ,list-t
                    ,stm-containers >= 0.2.15
                    ,optparse-applicative

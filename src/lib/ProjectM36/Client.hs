@@ -128,7 +128,12 @@ import Control.Exception.Base
 import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
-import Network.Transport.TCP (createTransport, defaultTCPParameters, encodeEndPointAddress)
+#if MIN_VERSION_network_transport_tcp(0,6,0)
+import Network.Transport.TCP.Internal (encodeEndPointAddress)
+#else
+import Network.Transport.TCP (encodeEndPointAddress)
+#endif
+import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
@@ -252,7 +257,11 @@ remoteDBLookupName = (++) "db-"
 
 createLocalNode :: IO (LocalNode, Transport)
 createLocalNode = do
+#if MIN_VERSION_network_transport_tcp(0,6,0)  
+  eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1", sn)) defaultTCPParameters
+#else
   eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
+#endif
   case eLocalTransport of
     Left err -> error ("failed to create transport: " ++ show err)
     Right localTransport -> do
