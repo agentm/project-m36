@@ -7,10 +7,10 @@ import qualified Data.Text as T
 
 main :: IO ()
 main = do
-  tcounts <- runTestTT (TestList [testBasicDBCFunction
-                                  --testErrorDBCFunction,
-                                  --testExceptionDBCFunction,
-                                 --testDBCFunctionWithAtomArguments
+  tcounts <- runTestTT (TestList [testBasicDBCFunction,
+                                  testErrorDBCFunction,
+                                  testExceptionDBCFunction,
+                                  testDBCFunctionWithAtomArguments
                                   ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
