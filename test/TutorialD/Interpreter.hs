@@ -58,7 +58,7 @@ main = do
       testRelationalExprStateTupleElems, 
       testFunctionalDependencies, 
       testEmptyCommits,
---      testIntervalAtom,
+      testIntervalAtom,
       testListConstructedAtom,
       testTypeChecker,
       testRestrictionPredicateExprs,

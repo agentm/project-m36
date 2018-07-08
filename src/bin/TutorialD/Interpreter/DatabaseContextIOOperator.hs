@@ -29,8 +29,7 @@ dbioexprP res adt = do
   reserved res
   funcName <- quotedString
   funcType <- atomTypeSignatureP
-  funcScript <- quotedString
-  pure $ adt funcName funcType funcScript
+  adt funcName funcType <$> quotedString
 
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow

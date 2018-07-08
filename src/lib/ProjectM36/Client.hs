@@ -1013,7 +1013,7 @@ callTestTimeout_ sessionId conn@(RemoteProcessConnection _) = remoteCall conn (T
 
 --used in tests only
 transactionGraph_ :: Connection -> IO TransactionGraph
-transactionGraph_ (InProcessConnection conf) = atomically $ readTVar (ipTransactionGraph conf)
+transactionGraph_ (InProcessConnection conf) = readTVarIO (ipTransactionGraph conf)
 transactionGraph_ _ = error "remote connection used"
 
 --used in tests only

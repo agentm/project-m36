@@ -616,9 +616,8 @@ updateTupleWithAtomExprs exprMap context tupIn = do
 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> Either RelationalError ()
-checkConstraints context = do
+checkConstraints context =
   mapM_ (uncurry checkIncDep) (M.toList deps) 
-  pure ()
   where
     deps = inclusionDependencies context
     eval expr = evalReader (evalRelationalExpr expr)

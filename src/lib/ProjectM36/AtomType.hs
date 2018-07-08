@@ -147,8 +147,6 @@ validateTypeConstructorDef tConsDef dConsList = execWriter $ do
       rightSideVars = S.unions (map DCD.typeVars dConsList)
       varsDiff = S.difference leftSideVars rightSideVars
   mapM_ tell [map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff)]
-  pure ()
-    
 
 atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
 atomTypeForTypeConstructor = atomTypeForTypeConstructorValidate False
@@ -191,7 +189,6 @@ isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConst
 isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) tConsMap = do
   evaldAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap M.empty) attrExprs
   mapM_ (uncurry resolveAtomType) (zip (map A.atomType (V.toList attrs)) evaldAtomTypes)
-  pure ()
 isValidAtomTypeForTypeConstructor aType tCons _ = Left (AtomTypeTypeConstructorReconciliationError aType (TC.name tCons))
 
 findTypeConstructor :: TypeConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, [DataConstructorDef])
@@ -280,10 +277,9 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
                                           else
                                             validateTypeVarMap tVarMap tConss
       _ -> Right ()
-validateAtomType (RelationAtomType attrs) tConss = do
+validateAtomType (RelationAtomType attrs) tConss =
   mapM_ (\attr ->
          validateAtomType (A.atomType attr) tConss) (V.toList attrs)
-  pure ()
 validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)  
 validateAtomType _ _ = pure ()
 

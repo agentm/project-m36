@@ -92,8 +92,7 @@ groupP = do
 ungroupP :: Parser (RelationalExprBase a -> RelationalExprBase a)
 ungroupP = do
   reservedOp "ungroup"
-  rvaAttrName <- identifier
-  pure $ Ungroup rvaAttrName
+  Ungroup <$> identifier
 
 extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 extendP = do
@@ -204,8 +203,7 @@ constructedAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a
 constructedAtomExprP consume = do
   dConsName <- capitalizedIdentifier
   dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaceConsumer else pure []
-  marker <- parseMarkerP
-  pure $ ConstructedAtomExpr dConsName dConsArgs marker
+  ConstructedAtomExpr dConsName dConsArgs <$> parseMarkerP
   
 -- used only for primitive type parsing ?
 atomP :: Parser Atom

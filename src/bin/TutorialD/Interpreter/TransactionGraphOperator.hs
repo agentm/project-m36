@@ -63,20 +63,15 @@ mergeTransactionStrategyP :: Parser MergeStrategy
 mergeTransactionStrategyP = (reserved "union" $> UnionMergeStrategy) <|>
                             (do
                                 reserved "selectedbranch"
-                                branch <- identifier
-                                pure (SelectedBranchMergeStrategy branch)) <|>
+                                SelectedBranchMergeStrategy <$> identifier) <|>
                             (do
                                 reserved "unionpreferbranch"
-                                branch <- identifier
-                                pure (UnionPreferMergeStrategy branch))
+                                UnionPreferMergeStrategy <$> identifier)
   
 mergeTransactionsP :: Parser TransactionGraphOperator
 mergeTransactionsP = do
   reservedOp ":mergetrans"
-  strategy <- mergeTransactionStrategyP
-  headA <- identifier
-  headB <- identifier
-  pure (MergeTransactions strategy headA headB)
+  MergeTransactions <$> mergeTransactionStrategyP <*> identifier <*> identifier
 
 transactionGraphOpP :: Parser TransactionGraphOperator
 transactionGraphOpP = 
