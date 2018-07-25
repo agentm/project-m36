@@ -134,6 +134,8 @@ applyStaticRelationalOptimization e@(NotEquals _ _) = pure $ Right e
   
 applyStaticRelationalOptimization e@(Extend _ _) = pure $ Right e  
 
+applyStaticRelationalOptimization e@(With _ _) = pure $ Right e  
+
 applyStaticDatabaseOptimization :: DatabaseContextExpr -> DatabaseState (Either RelationalError DatabaseContextExpr)
 applyStaticDatabaseOptimization x@NoOperation = pure $ Right x
 applyStaticDatabaseOptimization x@(Define _ _) = pure $ Right x
@@ -378,6 +380,7 @@ applyStaticRestrictionCollapse expr =
     MakeStaticRelation _ _ -> expr
     ExistingRelation _ -> expr
     RelationVariable _ _ -> expr
+    With _ _ -> expr
     Project attrs subexpr -> 
       Project attrs (applyStaticRestrictionCollapse subexpr)
     Union sub1 sub2 ->
@@ -420,6 +423,7 @@ applyStaticRestrictionPushdown expr = case expr of
   MakeStaticRelation _ _ -> expr
   ExistingRelation _ -> expr
   RelationVariable _ _ -> expr
+  With _ _ -> expr
   Project _ _ -> expr
   --this transformation cannot be inverted because the projection attributes might not exist in the inverted version
   Restrict restrictAttrs (Project projAttrs subexpr) -> 

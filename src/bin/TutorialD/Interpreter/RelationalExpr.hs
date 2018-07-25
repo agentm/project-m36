@@ -129,7 +129,7 @@ relOperators = [
   ]
 
 relExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
-relExprP = makeExprParser relTerm relOperators
+relExprP = try withMacroExprP <|> makeExprParser relTerm relOperators
 
 relVarP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relVarP = RelationVariable <$> identifier <*> parseMarkerP
@@ -235,3 +235,18 @@ boolAtomP = do
   
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP
+
+withMacroExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
+withMacroExprP = do
+  reservedOp "WITH"
+  views <- parens (sepBy createViewP comma) 
+  expr <-relExprP
+  pure $ With views expr 
+
+createViewP :: RelationalMarkerExpr a => Parser (RelVarName, RelationalExprBase a)
+createViewP = do 
+  name <- identifier
+  reservedOp "AS"
+  expr <- relExprP
+  pure $ (name, expr)
+ 

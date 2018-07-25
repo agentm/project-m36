@@ -214,6 +214,22 @@ evalRelationalExpr (Equals relExprA relExprB) = do
       Left err -> return $ Left err
       Right relB -> return $ Right $ if relA == relB then relationTrue else relationFalse
 
+evalRelationalExpr (With views mainExpr) = do
+  rstate <- ask
+  --let ctx = stateElemsContext rstate
+  
+  let addScopedView ctx (vname,vexpr) = case runState (evalDatabaseContextExpr (Assign vname vexpr)) (freshDatabaseState ctx) of
+                                             (Left err,_) -> (Left err)
+                                             (Right (), elems@(ctx',_,_)) -> (Right ctx')
+
+  case foldM addScopedView (stateElemsContext rstate) views of
+       Left err -> return $ Left err
+       Right ctx'' -> do 
+         let evalMainExpr = \expr -> runReader (evalRelationalExpr expr) (RelationalExprStateElems ctx'')
+         case evalMainExpr mainExpr of
+              Left err -> return $ Left err
+              Right rel -> return $ Right rel 
+
 --warning: copy-pasta from above- refactor
 evalRelationalExpr (NotEquals relExprA relExprB) = do
   evaldA <- evalRelationalExpr relExprA

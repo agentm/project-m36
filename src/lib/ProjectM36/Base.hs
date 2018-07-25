@@ -208,8 +208,10 @@ data RelationalExprBase a =
   --- | Returns the true relation iff 
   Equals (RelationalExprBase a) (RelationalExprBase a) |
   NotEquals (RelationalExprBase a) (RelationalExprBase a) |
-  Extend (ExtendTupleExprBase a) (RelationalExprBase a)
+  Extend (ExtendTupleExprBase a) (RelationalExprBase a) |
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
+  --Evaluate relationalExpr with scoped views
+  With [(RelVarName,RelationalExprBase a)] (RelationalExprBase a)
   deriving (Show, Eq, Generic, NFData)
            
 instance Binary RelationalExpr
