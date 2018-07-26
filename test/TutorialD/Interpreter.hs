@@ -71,7 +71,8 @@ main = do
       testIntervalType,
       testArbitraryRelation,
       testNonEmptyListType,
-      testUnresolvedAtomTypes
+      testUnresolvedAtomTypes,
+      testWithClause
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -616,4 +617,18 @@ testUnresolvedAtomTypes = TestCase $ do
   let err1 = "TypeConstructorTypeVarMissing"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a Empty}}"
   executeTutorialD sessionId dbconn "x:=relation{a List Int}{tuple{a Empty}}"
-    
+
+-- with (x as s) s    
+testWithClause :: Test
+testWithClause = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=with (x as s) x"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  assertEqual "with x as s" (Right suppliersRel) eX
+  
+  let err1 = "RelVarAlreadyDefinedError"  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as s) s"  
+  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as sp) s"  
+
+  
