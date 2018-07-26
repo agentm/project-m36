@@ -97,6 +97,13 @@ evalTransGraphRelationalExpr (Extend extendExpr expr) graph = do
   extendExpr' <- evalTransGraphExtendTupleExpr extendExpr graph
   expr' <- evalTransGraphRelationalExpr expr graph
   pure (Extend extendExpr' expr')
+evalTransGraphRelationalExpr (With views expr) graph = do
+  evaldViews <- mapM (\(vname, vexpr) -> do
+                         vexpr' <- evalTransGraphRelationalExpr vexpr graph
+                         pure (vname, vexpr')
+                     ) views
+  expr' <- evalTransGraphRelationalExpr expr graph
+  pure (With evaldViews expr')
   
 evalTransGraphTupleExpr :: TransactionGraph -> TransGraphTupleExpr -> Either RelationalError TupleExpr
 evalTransGraphTupleExpr graph (TupleExpr attrMap) = do
