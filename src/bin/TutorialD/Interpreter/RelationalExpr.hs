@@ -240,13 +240,12 @@ withMacroExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 withMacroExprP = do
   reservedOp "with"
   views <- parens (sepBy1 createViewP comma) 
-  expr <- relExprP
-  pure $ With views expr 
+  With views <$> relExprP
 
 createViewP :: RelationalMarkerExpr a => Parser (RelVarName, RelationalExprBase a)
 createViewP = do 
   name <- identifier
   reservedOp "as"
   expr <- relExprP
-  pure $ (name, expr)
+  pure (name, expr)
  

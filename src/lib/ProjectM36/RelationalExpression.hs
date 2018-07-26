@@ -227,7 +227,7 @@ evalRelationalExpr (With views mainExpr) = do
   case foldM addScopedView (stateElemsContext rstate) views of
        Left err -> return $ Left err
        Right ctx'' -> do 
-         let evalMainExpr = \expr -> runReader (evalRelationalExpr expr) (RelationalExprStateElems ctx'')
+         let evalMainExpr expr = runReader (evalRelationalExpr expr) (RelationalExprStateElems ctx'')
          case evalMainExpr mainExpr of
               Left err -> return $ Left err
               Right rel -> return $ Right rel 
