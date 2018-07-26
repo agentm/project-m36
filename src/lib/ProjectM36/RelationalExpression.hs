@@ -216,11 +216,13 @@ evalRelationalExpr (Equals relExprA relExprB) = do
 
 evalRelationalExpr (With views mainExpr) = do
   rstate <- ask
-  --let ctx = stateElemsContext rstate
   
-  let addScopedView ctx (vname,vexpr) = case runState (evalDatabaseContextExpr (Assign vname vexpr)) (freshDatabaseState ctx) of
-                                             (Left err,_) -> (Left err)
-                                             (Right (), elems@(ctx',_,_)) -> (Right ctx')
+  let addScopedView ctx (vname,vexpr) = if vname `M.member` relationVariables ctx then
+                                          Left (RelVarAlreadyDefinedError vname)
+                                        else
+                                          case runState (evalDatabaseContextExpr (Assign vname vexpr)) (freshDatabaseState ctx) of
+                                            (Left err,_) -> Left err
+                                            (Right (), (ctx',_,_)) -> Right ctx'
 
   case foldM addScopedView (stateElemsContext rstate) views of
        Left err -> return $ Left err
