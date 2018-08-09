@@ -95,6 +95,7 @@ Library
                      ProjectM36.TransactionGraph.Merge,
                      ProjectM36.TransGraphRelationalExpression,
                      ProjectM36.Base,
+                     ProjectM36.DataFrame,
                      ProjectM36.Attribute,
                      ProjectM36.AttributeNames,
                      ProjectM36.Tuple,

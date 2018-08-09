@@ -48,13 +48,6 @@ atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex
     Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
     Just atom -> Right atom
 
-{- -- resolve naming clash with Attribute and Relation later
-atomTypeForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Atom
-atomTypeForAttributeName attrName tup = do
-  atom <- atomForAttributeName attrName tup
-  return $ atomTypeForAtom atom
--}
-
 atomsForAttributeNames :: V.Vector AttributeName -> RelationTuple -> Either RelationalError (V.Vector Atom)
 atomsForAttributeNames attrNames tuple = 
   V.map (\index -> tupleAtoms tuple V.! index) <$> vectorIndicesForAttributeNames attrNames (tupleAttributes tuple)

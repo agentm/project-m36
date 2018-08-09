@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
 import ProjectM36.Attribute (attributeForName) 
+import ProjectM36.DataFrame
 import ProjectM36.Relation (attributes)
 import ProjectM36.Error
 import ProjectM36.InclusionDependency
