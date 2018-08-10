@@ -1,6 +1,7 @@
 import ProjectM36.Client
 import ProjectM36.TupleSet
 import ProjectM36.Relation.Show.Term
+import Data.Text.IO as TIO
 
 main :: IO ()
 main = do
@@ -32,7 +33,7 @@ main = do
           eRel <- executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "person" ()))
           case eRel of
             Left err -> print err
-            Right rel -> print (showRelation rel)
+            Right rel -> TIO.putStrLn (showRelation rel)
       
           --7. close the connection
           close conn

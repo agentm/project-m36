@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
 module ProjectM36.ScriptSession where
 
 import ProjectM36.Error
@@ -9,6 +10,7 @@ import System.Directory
 import Control.Monad.IO.Class
 import System.FilePath.Glob
 import System.FilePath
+import System.Info (os, arch)
 import Data.Text (Text, unpack)
 import Data.Maybe
 
@@ -16,6 +18,9 @@ import GHC
 import GHC.Paths (libdir)
 #if __GLASGOW_HASKELL__ >= 800
 import GHC.LanguageExtensions
+import GHCi.ObjLink
+#else
+import ObjLink
 #endif
 #if __GLASGOW_HASKELL__ >= 802
 import BasicTypes
@@ -31,6 +36,10 @@ import Type
 import Type hiding (pprTyThing)  
 #else
 #endif
+
+import GHC.Exts (addrToAny#)
+import GHC.Ptr (Ptr(..))
+import Encoding
 
 data ScriptSession = ScriptSession {
   hscEnv :: HscEnv, 
@@ -180,12 +189,11 @@ compileScript funcType script = do
   mErr <- typeCheckScript funcType script
   case mErr of
     Just err -> pure (Left err)
-    Nothing -> do
+    Nothing -> 
       --catch exception here
       --we could potentially wrap the script with Atom pattern matching so that the script doesn't have to do it, but the change to an Atom ADT should make it easier. Still, it would be nice if the script didn't have to handle a list of arguments, for example.
       -- we can't use dynCompileExpr here because
-      func <- compileExpr sScript
-      pure $ Right (unsafeCoerce func)
+       Right . unsafeCoerce <$> compileExpr sScript
       
 typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)    
 typeCheckScript expectedType inp = do
@@ -201,4 +209,39 @@ typeCheckScript expectedType inp = do
     pure Nothing
     else
     pure (Just (TypeCheckCompilationError (showType dflags expectedType) (showType dflags funcType)))
+    
+mangleSymbol :: Maybe String -> String -> String -> String
+mangleSymbol pkg module' valsym =
+    prefixUnderscore ++
+      maybe "" (\p -> zEncodeString p ++ "_") pkg ++
+      zEncodeString module' ++ "_" ++ zEncodeString valsym ++ "_closure"
       
+type ModName = String
+type FuncName = String
+
+data LoadSymbolError = LoadSymbolError
+
+loadFunction :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
+loadFunction modName funcName objPath = do
+#if __GLASGOW_HASKELL__ >= 802  
+  initObjLinker RetainCAFs
+#else
+  initObjLinker
+#endif
+  loadObj objPath
+  _ <- resolveObjs
+  ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)
+  case ptr of
+    Nothing -> pure (Left LoadSymbolError)
+    Just (Ptr addr) -> case addrToAny# addr of
+      (# hval #) -> pure (Right hval)
+      
+prefixUnderscore :: String      
+prefixUnderscore =
+    case (os,arch) of
+      ("mingw32","x86_64") -> ""
+      ("cygwin","x86_64") -> ""
+      ("mingw32",_) -> "_"
+      ("darwin",_) -> "_"
+      ("cygwin",_) -> "_"
+      _ -> ""

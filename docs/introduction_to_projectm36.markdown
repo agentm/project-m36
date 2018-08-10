@@ -1,7 +1,7 @@
 # Introduction to Project:M36
 
 ## What is Project:M36?
-Project:M36 is a relational-algebra-based database management system. It can be used a production-level database backend or for learning more about the relational algebra.
+Project:M36 is a relational-algebra-based database management system. It can be used as a production-level database backend or for learning more about the relational algebra.
 
 The principled mathematical approach to Project:M36's design sets it apart from competing DBMSs. Specifically, Project:M36 adheres strongly to the mathematics of the relational algebra and makes no compromises nor apologies in doing so. To that end, Project:M36 is implemented in the programming language "Haskell" which is itself based on the lambda calculus.
 
@@ -65,7 +65,7 @@ In addition to being a relational algebra engine, Project:M36 supports features 
 
 Most DBMSs provide a way to allow the user to specify atomic database state changes. These changes are often wrapped up as "transactions" which, when applied to the database state, offer the illusion of sequential and grouped, atomic changes applied to the databases. Often the only state which can be queried is the snapshot at the time the transaction is opened.
 
-Project:M36 extends this transaction model with the "transaction graph". This feture can be adequately described as version control for transactions. In the legacy DBMS model, the transactions are added to a linear transaction stream where each client is contending over the "head" of the stream- the latest transactions. In the transaction graph model, clients can add named branches and add transactions to the branches, then merge changes back, if necessary.
+Project:M36 extends this transaction model with the "transaction graph". This feature can be adequately described as version control for transactions. In the legacy DBMS model, the transactions are added to a linear transaction stream where each client is contending over the "head" of the stream- the latest transactions. In the transaction graph model, clients can add named branches and add transactions to the branches, then merge changes back, if necessary.
 
 This feature is useful, for example:
 * during testing- create a testing branch which production will never see. This obviates the need for a separate production data set.

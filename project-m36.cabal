@@ -44,6 +44,7 @@ Library
                    ,vector
                    ,parallel
                    ,monad-parallel
+                   ,exceptions
                    ,transformers
                    ,gnuplot
                    ,binary
@@ -56,6 +57,7 @@ Library
                    ,time
                    ,hashable-time
                    ,old-locale
+                   ,rset
                    --used for CSV parsing
                    ,attoparsec
                    ,either
@@ -69,6 +71,9 @@ Library
                    ,conduit
                    ,resourcet
                    ,http-api-data
+                   ,semigroups
+                   -- used for arbitrary tuples
+                   ,QuickCheck
 --needed for remote access
                    ,distributed-process-client-server >= 0.2.3
                    ,distributed-process >= 0.7.2
@@ -78,6 +83,8 @@ Library
                    ,network-transport
                    ,list-t
                    ,stm-containers >= 0.2.15
+                   ,foldl
+                   ,deferred-folds
                    ,optparse-applicative
                    ,Glob
 --used for hashing the transaction graph file to check for differences
@@ -111,6 +118,7 @@ Library
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.StaticOptimizer,
                      ProjectM36.Relation.Show.Term,
+                     ProjectM36.WCWidth,
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
@@ -120,6 +128,7 @@ Library
                      ProjectM36.Client.Simple,
                      ProjectM36.Persist,
                      ProjectM36.AtomType,
+                     ProjectM36.AttributeExpr,
                      ProjectM36.AtomFunctions.Basic,
                      ProjectM36.AtomFunctions.Primitive,
                      ProjectM36.Atomable,
@@ -131,6 +140,7 @@ Library
                      ProjectM36.DataTypes.Either,
                      ProjectM36.DataTypes.Maybe,
                      ProjectM36.DataTypes.List,
+                     ProjectM36.DataTypes.NonEmptyList,
                      ProjectM36.DataTypes.Primitive,
                      ProjectM36.DataTypes.Interval,
                      ProjectM36.DataTypes.ByteString,
@@ -148,21 +158,22 @@ Library
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
                      ProjectM36.FileLock,
-                     ProjectM36.FSType
-    GHC-Options: -Wall
+                     ProjectM36.FSType,
+                     ProjectM36.Arbitrary
+    GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.3
       Other-Modules: ProjectM36.Win32Handle
     else
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
-    CC-Options: -fPIC
+    CC-Options: -fPIC 
     Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings, CPP
     if impl(ghc>= 8)
       build-depends:
-        ghc-boot
+        ghc-boot, ghci
 
 Executable tutd
     Build-Depends: base >=4.8 && <5.0,
@@ -200,7 +211,7 @@ Executable tutd
                    base64-bytestring,
                    optparse-applicative,
                    attoparsec,
-                   stm-containers,
+                   stm-containers >= 1.0.0,
                    list-t
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
@@ -222,7 +233,7 @@ Executable tutd
                    TutorialD.Interpreter.SchemaOperator
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    GHC-Options: -Wall
+    GHC-Options: -Wall -rdynamic
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -427,6 +438,13 @@ Executable Example-Hair
     Main-Is: examples/hair.hs
     GHC-Options: -Wall
 
+Executable Example-CustomTupleable
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36
+    Main-Is: examples/CustomTupleable.hs
+    GHC-Options: -Wall
+
 Test-Suite test-scripts
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -540,4 +558,4 @@ Executable handles
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
   
-  
+

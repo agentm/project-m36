@@ -85,6 +85,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | ScriptError ScriptCompilationError
+                     | LoadFunctionError
                      | DatabaseContextFunctionUserError DatabaseContextFunctionError
                      | DatabaseLoadError PersistenceError
                        

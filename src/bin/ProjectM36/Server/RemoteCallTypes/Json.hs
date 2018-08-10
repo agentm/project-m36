@@ -80,15 +80,6 @@ instance ToJSON Atom where
                                             "val" .= decodeUtf8 (B64.encode i) ]
   toJSON atom@(BoolAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
-
-  toJSON atom@(IntervalAtom b e i1 i2) = object [ "type" .= atomTypeForAtom atom,
-                                                  "val" .= object [
-                                                    "begin" .= toJSON b,
-                                                    "end" .= toJSON e,
-                                                    "beginopen" .= i1,
-                                                    "endopen" .= i2
-                                                    ]
-                                                ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
@@ -103,9 +94,7 @@ instance FromJSON Atom where
     case atype of
       TypeVariableType _ -> fail "cannot pass TypeVariableType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
-      RelationAtomType _ -> do
-        rel <- o .: "val"
-        pure $ RelationAtom rel
+      RelationAtomType _ -> RelationAtom <$> o .: "val"
       IntAtomType -> IntAtom <$> o .: "val"
       IntegerAtomType -> IntegerAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"
@@ -120,12 +109,6 @@ instance FromJSON Atom where
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)
       BoolAtomType -> BoolAtom <$> o .: "val"
-      IntervalAtomType _ -> IntervalAtom <$>
-                              ((o .: "val") >>= (.: "begin")) <*>
-                              ((o .: "val") >>= (.: "end")) <*>
-                              ((o .: "val") >>= (.: "beginopen")) <*>
-                              ((o .: "val") >>= (.: "endopen"))
-
 
 instance ToJSON Notification
 instance FromJSON Notification

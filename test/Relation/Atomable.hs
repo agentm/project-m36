@@ -31,6 +31,9 @@ data Test4T = Test4Ca Integer |
 data TestListT = TestListC [Integer]
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)
                        
+data TestNonEmptyT = TestNonEmptyC [Integer]
+              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+
 data Test5T = Test5C {
   con1 :: Integer,
   con2 :: Integer
@@ -48,7 +51,8 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testADT6Maybe, testADT7Either]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either]
+
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -132,3 +136,8 @@ testListInstance :: Test
 testListInstance = TestCase $ do
   let example = TestListC [3,4,5]
   assertEqual "List instance" example (fromAtom (toAtom example))
+
+testNonEmptyInstance :: Test
+testNonEmptyInstance = TestCase $ do
+  let example = TestNonEmptyC [3,4,5]
+  assertEqual "NonEmpty instance" example (fromAtom (toAtom example))

@@ -41,7 +41,7 @@ instance DefaultOrdered RecordRelationTuple where
 newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
-  toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --squelch extraneous quotes for text type- the CSV library will add them if necessary
+  toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --without this, CSV text atoms are doubly quoted
   toField (RecordAtom atomVal) = (TE.encodeUtf8 . atomToText) atomVal
 
                

@@ -45,23 +45,20 @@ assignP = do
     relVarName <- identifier
     reservedOp ":="
     return relVarName
-  expr <- relExprP
-  pure $ Assign relVarName expr
+  Assign relVarName <$> relExprP
   
 multilineSep :: Parser T.Text  
 multilineSep = newline >> pure "\n"
 
 multipleDatabaseContextExprP :: Parser DatabaseContextExpr
-multipleDatabaseContextExprP = do
-  exprs <- sepBy1 databaseContextExprP semi
-  pure $ MultipleExpr exprs
+multipleDatabaseContextExprP = 
+  MultipleExpr <$> sepBy1 databaseContextExprP semi
 
 insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"
   relvar <- identifier
-  expr <- relExprP
-  pure $ Insert relvar expr
+  Insert relvar <$> relExprP
 
 defineP :: Parser DatabaseContextExpr
 defineP = do
@@ -69,8 +66,7 @@ defineP = do
     relVarName <- identifier
     reservedOp "::"
     return relVarName
-  attributeSet <- makeAttributeExprsP
-  pure $ Define relVarName attributeSet
+  Define relVarName <$> makeAttributeExprsP
 
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
@@ -109,8 +105,7 @@ addConstraintP = do
 deleteConstraintP :: Parser DatabaseContextExpr  
 deleteConstraintP = do
   reserved "deleteconstraint"
-  constraintName <- identifier
-  pure $ RemoveInclusionDependency constraintName
+  RemoveInclusionDependency <$> identifier
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
 keyP :: Parser DatabaseContextExpr  
@@ -150,14 +145,12 @@ addNotificationP = do
   notName <- identifier
   triggerExpr <- relExprP 
   resultOldExpr <- relExprP
-  resultNewExpr <- relExprP
-  pure $ AddNotification notName triggerExpr resultOldExpr resultNewExpr
+  AddNotification notName triggerExpr resultOldExpr <$> relExprP
   
 removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do
   reserved "unnotify"
-  notName <- identifier
-  pure $ RemoveNotification notName
+  RemoveNotification <$> identifier
 
 -- | data Hair = Bald | Color Text
 addTypeConstructorP :: Parser DatabaseContextExpr

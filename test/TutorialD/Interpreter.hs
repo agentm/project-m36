@@ -10,6 +10,9 @@ import ProjectM36.Error
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.DataTypes.Either
+import ProjectM36.DataTypes.Interval
+import ProjectM36.DataTypes.NonEmptyList
+import ProjectM36.DataTypes.List
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
@@ -29,20 +32,22 @@ import Data.Text hiding (map)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
 
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests  ++ [
+    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ 
+            map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests  ++ [
       transactionGraphBasicTest, 
       transactionGraphAddCommitTest, 
       transactionRollbackTest, 
       transactionJumpTest, 
       transactionBranchTest, 
       simpleJoinTest, 
-      testNotification, 
+      testNotification,
       testTypeConstructors, 
       testMergeTransactions, 
       testComments, 
@@ -59,7 +64,15 @@ main = do
       testRestrictionPredicateExprs,
       testRelationalAttributeNames,
       testSemijoin,
-      testAntijoin
+      testAntijoin,
+      testRelationAttributeDefinition,
+      testAssignWithTypeVar,
+      testDefineWithTypeVar,
+      testIntervalType,
+      testArbitraryRelation,
+      testNonEmptyListType,
+      testUnresolvedAtomTypes,
+      testWithClause
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -86,7 +99,7 @@ main = do
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
                       ("x:=true; undefine x", Left (RelVarNotDefinedError "x")),
-                      ("x:=relation {b Integer, a Text}{}; insert x relation{tuple{b 5, a \"spam\"}}", mkRelationFromTuples simpleCAttributes [RelationTuple simpleCAttributes $ V.fromList [TextAtom "spam", IntegerAtom 5]]),
+                      ("x:=relation {b Integer, a Text}{}; insert x relation{tuple{b -5, a \"spam\"}}", mkRelationFromTuples simpleCAttributes [RelationTuple simpleCAttributes $ V.fromList [TextAtom "spam", IntegerAtom (-5)]]),
                       -- test nested relation constructor
                       ("x:=relation{tuple{a 5, b relation{tuple{a 6}}}}", mkRelation nestedRelationAttributes $ RelationTupleSet [RelationTuple nestedRelationAttributes (V.fromList [IntegerAtom 5, RelationAtom (Relation simpleAAttributes $ RelationTupleSet [RelationTuple simpleAAttributes $ V.fromList [IntegerAtom 6]])])]),
                       ("x:=relation{tuple{b 5,a \"spam\"},tuple{b 6,a \"sam\"}}; delete x where b=6", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntegerAtom 5])]),
@@ -152,10 +165,12 @@ main = do
                            --test Maybe Integer
                            ("x:=relation{tuple{a Just 3}}", mkRelationFromList simpleMaybeIntAttributes [[ConstructedAtom "Just" maybeIntegerAtomType [IntegerAtom 3]]]),
                            --test Either Integer Text
-                           ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarsMismatch (S.fromList ["a","b"]) (S.fromList ["a"]))), -- Left 3, alone is not enough information to imply the type
+                           ("x:=relation{tuple{a Left 3}}",  Left (TypeConstructorTypeVarMissing "b")), -- Left 3, alone is not enough information to imply the type
                            ("x:=relation{a Either Integer Text}{tuple{a Left 3}}", mkRelationFromList simpleEitherIntTextAttributes [[ConstructedAtom "Left" (eitherAtomType IntegerAtomType TextAtomType) [IntegerAtom 3]]]),
                            --test datetime constructor
-                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]])
+                           ("x:=relation{tuple{a dateTimeFromEpochSeconds(1495199790)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DateTimeAtomType]) [[DateTimeAtom (posixSecondsToUTCTime(realToFrac (1495199790 :: Int)))]]),
+                           --test Day constructor
+                           ("x:=relation{tuple{a fromGregorian(2017,05,30)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DayAtomType]) [[DayAtom (fromGregorian 2017 05 30)]])
                           ]
 
 assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
@@ -536,4 +551,84 @@ testAntijoin = TestCase $ do
     eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
     eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
     assertEqual "antijoin only Adams" eX eY
+  
+testRelationAttributeDefinition :: Test
+testRelationAttributeDefinition = TestCase $ do
+    -- test normal subrelation construction
+    (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+    executeTutorialD sessionId dbconn "x:=relation{a relation{b Integer}}{tuple{a relation{tuple{b 4}}}}"
+    eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())  
+    let expected = mkRelationFromList attrs [[RelationAtom subRel]]
+        attrs = attributesFromList [Attribute "a" (RelationAtomType subRelAttrs)]
+        subRelAttrs = attributesFromList [Attribute "b" IntegerAtomType]
+        Right subRel = mkRelationFromList subRelAttrs [[IntegerAtom 4]]
+    assertEqual "relation attribute construction" expected eX
+    -- test rejected subrelation construction due to floating type variables
+    expectTutorialDErr sessionId dbconn (T.isPrefixOf "TypeConstructorTypeVarMissing") "y:=relation{a relation{b x}}"
+    
+testAssignWithTypeVar :: Test
+testAssignWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "y:=relation{a int, b invalidtype}"
+  
+testDefineWithTypeVar :: Test  
+testDefineWithTypeVar = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback    
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isInfixOf err1) "y::{a int, b invalidtype}"
+
+testIntervalType :: Test
+testIntervalType = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=relation{a Interval Integer}"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expectedIntervalInt = mkRelationFromList expectedAttrs []
+      expectedAttrs = A.attributesFromList [Attribute "a" (intervalAtomType IntegerAtomType)]
+  assertEqual "Interval Int attribute" expectedIntervalInt eX
+  
+testArbitraryRelation :: Test  
+testArbitraryRelation = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv1 {a Integer} 5-10"
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv2 {a Integer, b relation{c Integer}} 10-100"
+  executeTutorialD sessionId dbconn "createarbitraryrelation rv3 {a Int, b relation{c Interval Int}} 3-100"
+  
+testNonEmptyListType :: Test
+testNonEmptyListType = TestCase $ do
+  --create a NonEmptyList
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a NECons 3 (Cons 4 Empty)}} : {x:=nonEmptyListHead(@a)}"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  let expected = mkRelationFromList attrs [[nelist, nehead]]
+      attrs = attributesFromList [Attribute "a" neListType,
+                                  Attribute "x" IntegerAtomType]
+      neListType = nonEmptyListAtomType IntegerAtomType
+      listType = listAtomType IntegerAtomType
+      nelist = ConstructedAtom "NECons" (nonEmptyListAtomType IntegerAtomType) [
+        IntegerAtom 3,
+        ConstructedAtom "Cons" listType [IntegerAtom 4, ConstructedAtom "Empty" listType []]]
+      nehead = IntegerAtom 3
+  assertEqual "non-empty list type construction" expected eX
+  
+testUnresolvedAtomTypes :: Test
+testUnresolvedAtomTypes = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let err1 = "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a Empty}}"
+  executeTutorialD sessionId dbconn "x:=relation{a List Int}{tuple{a Empty}}"
+
+-- with (x as s) s    
+testWithClause :: Test
+testWithClause = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=with (x as s) x"
+  eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  assertEqual "with x as s" (Right suppliersRel) eX
+  
+  let err1 = "RelVarAlreadyDefinedError"  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as s) s"  
+  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as sp) s"  
+
   

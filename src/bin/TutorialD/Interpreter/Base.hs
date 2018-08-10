@@ -19,7 +19,7 @@ import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
 import Data.Void
-import Control.Applicative
+import Control.Applicative hiding (many, some)
 #else
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as Lex
@@ -117,16 +117,11 @@ arrow = symbol "->"
 semi :: Parser Text
 semi = symbol ";"
 
-{-
-whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer
--}
-
 integer :: Parser Integer
 #if MIN_VERSION_megaparsec(6,0,0)
-integer = Lex.decimal
+integer = Lex.signed spaceConsumer Lex.decimal
 #else
-integer = Lex.integer
+integer = Lex.signed spaceConsumer Lex.integer
 #endif
 
 float :: Parser Double

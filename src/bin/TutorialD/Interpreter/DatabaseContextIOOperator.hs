@@ -10,19 +10,41 @@ addAtomFunctionExprP = dbioexprP "addatomfunction" AddAtomFunction
   
 addDatabaseContextFunctionExprP :: Parser DatabaseContextIOExpr
 addDatabaseContextFunctionExprP = dbioexprP "adddatabasecontextfunction" AddDatabaseContextFunction
+
+createArbitraryRelationP :: Parser DatabaseContextIOExpr
+createArbitraryRelationP = do
+  reserved "createarbitraryrelation"
+  relVarName <- identifier
+  attrExprs <- makeAttributeExprsP :: Parser [AttributeExpr]
+  min' <- fromInteger <$> integer
+  _ <- symbol "-"
+  max' <- fromInteger <$> integer
+  pure $ CreateArbitraryRelation relVarName attrExprs (min',max')
   
 dbioexprP :: ParseStr -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
 dbioexprP res adt = do
   reserved res
   funcName <- quotedString
   funcType <- atomTypeSignatureP
-  funcScript <- quotedString
-  pure $ adt funcName funcType funcScript
+  adt funcName funcType <$> quotedString
 
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
 
 dbContextIOExprP :: Parser DatabaseContextIOExpr
-dbContextIOExprP = addAtomFunctionExprP <|> addDatabaseContextFunctionExprP
-  
+dbContextIOExprP = addAtomFunctionExprP <|> 
+                   addDatabaseContextFunctionExprP <|> 
+                   loadAtomFunctionsP <|>
+                   loadDatabaseContextFunctionsP <|>
+                   createArbitraryRelationP
+
+loadAtomFunctionsP :: Parser DatabaseContextIOExpr
+loadAtomFunctionsP = do
+  reserved "loadatomfunctions"
+  LoadAtomFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
+
+loadDatabaseContextFunctionsP :: Parser DatabaseContextIOExpr  
+loadDatabaseContextFunctionsP = do
+  reserved "loaddatabasecontextfunctions"
+  LoadDatabaseContextFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
                                              

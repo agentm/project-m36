@@ -7,14 +7,11 @@ import Data.Time.Calendar
 dayAtomFunctions :: AtomFunctions
 dayAtomFunctions = HS.fromList [
   AtomFunction { atomFuncName = "fromGregorian",
-                 atomFuncType = [IntAtomType, IntAtomType, IntAtomType, DayAtomType],
-                 atomFuncBody = compiledAtomFunctionBody $ \(IntAtom year:IntAtom month:IntAtom day:_) -> pure $ DayAtom (fromGregorian (fromIntegral year) (fromIntegral month) (fromIntegral day))
+                 atomFuncType = [IntegerAtomType, IntegerAtomType, IntegerAtomType, DayAtomType],
+                 atomFuncBody = compiledAtomFunctionBody $ \(IntegerAtom year:IntegerAtom month:IntegerAtom day:_) -> pure $ DayAtom (fromGregorian (fromIntegral year) (fromIntegral month) (fromIntegral day))
                  },
   AtomFunction { atomFuncName = "dayEarlierThan",
                  atomFuncType = [DayAtomType, DayAtomType, BoolAtomType],
                  atomFuncBody = compiledAtomFunctionBody $ \(ConstructedAtom _ _ (IntAtom dayA:_):ConstructedAtom _ _ (IntAtom dayB:_):_) -> pure (BoolAtom (dayA < dayB))
                }
   ]
-
-dayTypeConstructorMapping :: TypeConstructorMapping
-dayTypeConstructorMapping = [] -- use fromGregorian

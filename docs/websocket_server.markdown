@@ -6,7 +6,7 @@ The Project:M36 WebSocket server makes it easy to connect non-Haskell programs t
 
 ## Setup
 
-The websocket server is started with the same arguments as the normal [Project:M36 server](docs/server_mode.markdown):
+The websocket server is started with the same arguments as the normal [Project:M36 server](server_mode.markdown):
 
 ```
 cabal run project-m36-websocket-server -- --database mydbname --hostname 127.0.0.1

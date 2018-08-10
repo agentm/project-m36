@@ -95,7 +95,6 @@ writeTransaction sync dbdir trans = do
     B.encodeFile (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
-  pure ()
   
 writeRelVar :: DiskSync -> FilePath -> (RelVarName, Relation) -> IO ()
 writeRelVar sync transDir (relvarName, rel) = do

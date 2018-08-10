@@ -120,6 +120,16 @@ handleRetrieveRelationVariableSummary ti sessionId conn = do
   ret <- timeoutOrDie ti (relationVariablesAsRelation sessionId conn)
   reply ret conn  
   
+handleRetrieveAtomFunctionSummary :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Relation)
+handleRetrieveAtomFunctionSummary ti sessionId conn = do
+  ret <- timeoutOrDie ti (atomFunctionsAsRelation sessionId conn)
+  reply ret conn  
+  
+handleRetrieveDatabaseContextFunctionSummary :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Relation)
+handleRetrieveDatabaseContextFunctionSummary ti sessionId conn = do
+  ret <- timeoutOrDie ti (databaseContextFunctionsAsRelation sessionId conn)
+  reply ret conn  
+  
 handleRetrieveCurrentSchemaName :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError SchemaName)
 handleRetrieveCurrentSchemaName ti sessionId conn = do
   ret <- timeoutOrDie ti (currentSchemaName sessionId conn)

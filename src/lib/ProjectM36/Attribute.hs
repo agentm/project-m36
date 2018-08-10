@@ -29,6 +29,9 @@ atomType (Attribute _ atype) = atype
 atomTypes :: Attributes -> V.Vector AtomType
 atomTypes = V.map atomType
 
+atomTypesList :: Attributes -> [AtomType]
+atomTypesList = V.toList . atomTypes 
+
 --hm- no error-checking here
 addAttribute :: Attribute -> Attributes -> Attributes
 addAttribute attr attrs = attrs `V.snoc` attr
@@ -135,7 +138,7 @@ verifyAttributes attrs = if collapsedAttrs /= attrs then
     collapsedAttrs = vectorUniqueify attrs
 
 attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual attrs1 attrs2 = V.null (attributesDifference attrs1 attrs2)
+attributesEqual attrs1 attrs2 =  V.null (attributesDifference attrs1 attrs2)
 
 attributesAsMap :: Attributes -> M.Map AttributeName Attribute
 attributesAsMap attrs = (M.fromList . V.toList) (V.map (\attr -> (attributeName attr, attr)) attrs)

@@ -41,6 +41,8 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (CloseSession sessionId) -> handleCloseSession ti sessionId conn),
      handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
      handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
+     handleCall (\conn (RetrieveAtomFunctionSummary sessionId) -> handleRetrieveAtomFunctionSummary ti sessionId conn),
+     handleCall (\conn (RetrieveDatabaseContextFunctionSummary sessionId) -> handleRetrieveDatabaseContextFunctionSummary ti sessionId conn),     
      handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
      handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr),
      handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),
@@ -100,28 +102,37 @@ checkFSErrorMsg = "The filesystem does not support journaling so writes may not 
 
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO Bool
-launchServer daemonConfig mAddressMVar = do  
-  econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
-  case econn of 
-    Left err -> do      
-      hPutStrLn stderr ("Failed to create database connection: " ++ show err)
-      pure False
-    Right conn -> do
-      let hostname = bindHost daemonConfig
-          port = bindPort daemonConfig
-      etransport <- createTransport hostname (show port) (\sn -> (hostname, sn)) defaultTCPParameters
-      case etransport of
-        Left err -> error ("failed to create transport: " ++ show err)
-        Right transport -> do
-          eEndpoint <- newEndPoint transport
-          case eEndpoint of 
-            Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
-            Right endpoint -> do
-              localTCPNode <- newLocalNode transport initRemoteTable
-              --traceShowM ("newLocalNode in Server " ++ show (localNodeId localTCPNode))
-              runProcess localTCPNode $ do
-                let testBool = testMode daemonConfig
-                    reqTimeout = perRequestTimeout daemonConfig
-                serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
-              liftIO $ putStrLn "serve returned"
-              pure True
+launchServer daemonConfig mAddressMVar = do
+  checkFSResult <- checkFSType (checkFS daemonConfig) (persistenceStrategy daemonConfig)
+  if not checkFSResult then do
+    hPutStrLn stderr checkFSErrorMsg
+    pure False
+    else do
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
+      case econn of 
+        Left err -> do      
+          hPutStrLn stderr ("Failed to create database connection: " ++ show err)
+          pure False
+        Right conn -> do
+          let hostname = bindHost daemonConfig
+              port = bindPort daemonConfig
+#if MIN_VERSION_network_transport_tcp(0,6,0)                
+          etransport <- createTransport hostname (show port) (\nam -> (hostname, nam)) defaultTCPParameters              
+#else                        
+          etransport <- createTransport hostname (show port) defaultTCPParameters
+#endif
+          case etransport of
+            Left err -> error ("failed to create transport: " ++ show err)
+            Right transport -> do
+              eEndpoint <- newEndPoint transport
+              case eEndpoint of 
+                Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
+                Right endpoint -> do
+                  localTCPNode <- newLocalNode transport initRemoteTable
+                  --traceShowM ("newLocalNode in Server " ++ show (localNodeId localTCPNode))
+                  runProcess localTCPNode $ do
+                    let testBool = testMode daemonConfig
+                        reqTimeout = perRequestTimeout daemonConfig
+                    serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
+                  liftIO $ putStrLn "serve returned"
+                  pure True

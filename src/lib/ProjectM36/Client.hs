@@ -25,6 +25,7 @@ module ProjectM36.Client
        typeForRelationalExpr,
        inclusionDependencies,
        ProjectM36.Client.typeConstructorMapping,
+       ProjectM36.Client.databaseContextFunctionsAsRelation,      
        planForDatabaseContextExpr,
        currentSchemaName,
        SchemaName,
@@ -32,6 +33,7 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
        headName,
        remoteDBLookupName,
@@ -76,7 +78,7 @@ module ProjectM36.Client
        databaseContextExprForForeignKey,
        createScriptedAtomFunction,
        AttributeExprBase(..),
-       TypeConstructor(..),
+       TypeConstructorBase(..),
        TypeConstructorDef(..),
        DataConstructorDef(..),
        AttributeNamesBase(..),
@@ -98,9 +100,10 @@ import ProjectM36.Base hiding (inclusionDependencies) --defined in this module a
 import qualified ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.Atomable
-import ProjectM36.AtomFunction
+import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
+import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
 import Control.Monad.Trans.Reader
@@ -125,8 +128,14 @@ import Control.Exception.Base
 import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
-import Network.Transport.TCP.Internal (encodeEndPointAddress)
+
+#if MIN_VERSION_network_transport_tcp(0,6,0)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
+import Network.Transport.TCP.Internal (encodeEndPointAddress)
+#else
+import Network.Transport.TCP (encodeEndPointAddress, createTransport, defaultTCPParameters)
+#endif
+
 import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
 import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
 import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
@@ -138,8 +147,8 @@ import Control.Exception (IOException, handle, AsyncException, throwIO, fromExce
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
-import qualified STMContainers.Map as STMMap
-import qualified STMContainers.Set as STMSet
+import qualified StmContainers.Map as StmMap
+import qualified StmContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
@@ -215,7 +224,7 @@ defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo = RemoteProcessConnectionInfo defaultDatabaseName (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback 
 
 -- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
-type ClientNodes = STMSet.Set ProcessId
+type ClientNodes = StmSet.Set ProcessId
 
 -- internal structure specific to in-process connections
 data InProcessConnectionConf = InProcessConnectionConf {
@@ -250,7 +259,11 @@ remoteDBLookupName = (++) "db-"
 
 createLocalNode :: IO (LocalNode, Transport)
 createLocalNode = do
-  eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1",sn)) defaultTCPParameters
+#if MIN_VERSION_network_transport_tcp(0,6,0)  
+  eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1", sn)) defaultTCPParameters
+#else
+  eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
+#endif
   case eLocalTransport of
     Left err -> error ("failed to create transport: " ++ show err)
     Right localTransport -> do
@@ -294,8 +307,8 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
         graphTvar <- newTVarIO freshGraph
-        clientNodes <- STMSet.newIO
-        sessions <- STMMap.newIO
+        clientNodes <- StmSet.newIO
+        sessions <- StmMap.newIO
         (localNode, transport) <- createLocalNode
         notificationPid <- startNotificationListener localNode notificationCallback
         mScriptSession <- createScriptSession ghcPkgPaths
@@ -331,8 +344,7 @@ connectProjectM36 (RemoteProcessConnectionInfo databaseName serverNodeId notific
           liftIO $ putMVar connStatus (Left LoginError)
           else
           liftIO $ putMVar connStatus (Right $ RemoteProcessConnection RemoteProcessConnectionConf {rLocalNode = localNode, rProcessId = serverProcessId, rTransport = transport})
-  status <- takeMVar connStatus
-  pure status
+  takeMVar connStatus
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -352,8 +364,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
         Left err' -> return $ Left (SetupDatabaseDirectoryError err')
         Right graph' -> do
           tvarGraph <- newTVarIO graph'
-          sessions <- STMMap.newIO
-          clientNodes <- STMSet.newIO
+          sessions <- StmMap.newIO
+          clientNodes <- StmSet.newIO
           (localNode, transport) <- createLocalNode
           lockMVar <- newMVar digest
           let conn = InProcessConnection InProcessConnectionConf {
@@ -387,11 +399,11 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
         Left err -> pure (Left err)
         Right transaction -> do
             let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) False
-            keyDuplication <- STMMap.lookup newSessionId sessions
+            keyDuplication <- StmMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
                 Nothing -> do
-                   STMMap.insert (Session freshDiscon defaultSchemaName) newSessionId sessions
+                   StmMap.insert (Session freshDiscon defaultSchemaName) newSessionId sessions
                    pure $ Right newSessionId
 createSessionAtCommit_ _ _ (RemoteProcessConnection _) = error "createSessionAtCommit_ called on remote connection"
   
@@ -410,12 +422,12 @@ createSessionAtHead conn@(RemoteProcessConnection _) headn = remoteCall conn (Cr
 -- | Used internally for server connections to keep track of remote nodes for the purpose of sending notifications later.
 addClientNode :: Connection -> ProcessId -> IO ()
 addClientNode (RemoteProcessConnection _) _ = error "addClientNode called on remote connection"
-addClientNode (InProcessConnection conf) newProcessId = atomically (STMSet.insert newProcessId (ipClientNodes conf))
+addClientNode (InProcessConnection conf) newProcessId = atomically (StmSet.insert newProcessId (ipClientNodes conf))
 
 -- | Discards a session, eliminating any uncommitted changes present in the session.
 closeSession :: SessionId -> Connection -> IO ()
 closeSession sessionId (InProcessConnection conf) = 
-    atomically $ STMMap.delete sessionId (ipSessions conf)
+    atomically $ StmMap.delete sessionId (ipSessions conf)
 closeSession sessionId conn@(RemoteProcessConnection _) = remoteCall conn (CloseSession sessionId)       
 
 -- | 'close' cleans up the database access connection and closes any relevant sockets.
@@ -423,7 +435,7 @@ close :: Connection -> IO ()
 close (InProcessConnection conf) = do
   atomically $ do
     let sessions = ipSessions conf
-    STMMap.deleteAll sessions
+    StmMap.reset sessions
     pure ()
   closeLocalNode (ipLocalNode conf)
   closeTransport (ipTransport conf)
@@ -482,9 +494,8 @@ remoteCall (RemoteProcessConnection conf) arg = runProcessResult localNode $ do
     serverProcessId = rProcessId conf
 
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
-sessionForSessionId sessionId sessions = do
-  maybeSession <- STMMap.lookup sessionId sessions
-  pure $ maybe (Left $ NoSuchSessionError sessionId) Right maybeSession
+sessionForSessionId sessionId sessions = 
+  maybe (Left $ NoSuchSessionError sessionId) Right <$> StmMap.lookup sessionId sessions
   
 schemaForSessionId :: Session -> STM (Either RelationalError Schema)  
 schemaForSessionId session = do
@@ -526,7 +537,7 @@ setCurrentSchemaName sessionId (InProcessConnection conf) sname = atomically $ d
     Left err -> pure (Left err)
     Right session -> case Sess.setSchemaName sname session of
       Left err -> pure (Left err)
-      Right newSession -> STMMap.insert newSession sessionId sessions >> pure (Right ())
+      Right newSession -> StmMap.insert newSession sessionId sessions >> pure (Right ())
 setCurrentSchemaName sessionId conn@(RemoteProcessConnection _) sname = remoteCall conn (ExecuteSetCurrentSchema sessionId sname)
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
@@ -579,7 +590,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas
                 newSession = Session newDiscon (Sess.schemaName session)
-            STMMap.insert newSession sessionId sessions
+            StmMap.insert newSession sessionId sessions
             pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
@@ -629,7 +640,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
               newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon (Sess.schemaName session)
-          atomically $ STMMap.insert newSession sessionId sessions
+          atomically $ StmMap.insert newSession sessionId sessions
           pure (Right ())
 executeDatabaseContextIOExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
@@ -740,7 +751,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
                                Left err -> pure $ Left err
                                Right previousTrans -> do
                                  (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                                 nodesToNotify <- toList (STMSet.stream nodes)
+                                 nodesToNotify <- toList (StmSet.stream nodes)
                                  pure $ Right (evaldNots, nodesToNotify, newGraph)
                              else
                               pure $ Right (M.empty, [], newGraph)
@@ -782,7 +793,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           let discon = Sess.disconnectedTransaction session 
               newSchemas = Schemas newContext newSubschemas
               newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas True) (Sess.schemaName session)
-          STMMap.insert newSession sessionId sessions
+          StmMap.insert newSession sessionId sessions
           pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
 
@@ -891,9 +902,8 @@ transactionGraphAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure $ Left err
-      Right session -> do
-        graph <- readTVar tvar
-        pure $ graphAsRelation (Sess.disconnectedTransaction session) graph
+      Right session ->
+        graphAsRelation (Sess.disconnectedTransaction session) <$> readTVar tvar
     
 transactionGraphAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 
@@ -914,7 +924,32 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
             Left err -> pure (Left err)
             Right relvars -> pure $ R.relationVariablesAsRelation relvars
       
-relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)      
+relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
+
+-- | Returns the names and types of the atom functions in the current 'Session'.
+atomFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _) -> 
+        pure (AF.atomFunctionsAsRelation (atomFunctions (concreteDatabaseContext session)))
+        
+atomFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
+
+databaseContextFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _) ->
+        pure (DCF.databaseContextFunctionsAsRelation (dbcFunctions (concreteDatabaseContext session)))
+
+databaseContextFunctionsAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
 headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)
@@ -979,14 +1014,14 @@ callTestTimeout_ sessionId conn@(RemoteProcessConnection _) = remoteCall conn (T
 
 --used in tests only
 transactionGraph_ :: Connection -> IO TransactionGraph
-transactionGraph_ (InProcessConnection conf) = atomically $ readTVar (ipTransactionGraph conf)
+transactionGraph_ (InProcessConnection conf) = readTVarIO (ipTransactionGraph conf)
 transactionGraph_ _ = error "remote connection used"
 
 --used in tests only
 disconnectedTransaction_ :: SessionId -> Connection -> IO DisconnectedTransaction
 disconnectedTransaction_ sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
-  mSession <- atomically $ STMMap.lookup sessionId sessions
+  mSession <- atomically $ StmMap.lookup sessionId sessions
   case mSession of
     Nothing -> error "No such session"
     Just (Sess.Session discon _) -> pure discon
@@ -1044,13 +1079,13 @@ commitLock_ sessionId conf stmBlock = do
               Right (discon', graph', transactionIdsToPersist) -> do
                 writeTVar graphTvar graph'
                 let newSession = Session discon' (Sess.schemaName session)
-                STMMap.insert newSession sessionId sessions
+                StmMap.insert newSession sessionId sessions
                 case transactionForId (Sess.parentId session) oldGraph of
                   Left err -> pure $ Left err
                   Right previousTrans ->
                     if not (Prelude.null transactionIdsToPersist) then do
                       (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                      nodesToNotify <- toList (STMSet.stream nodes)
+                      nodesToNotify <- stmSetToList nodes
                       pure $ Right (evaldNots, nodesToNotify, graph', transactionIdsToPersist)
                     else pure (Right (M.empty, [], graph', []))
 
@@ -1067,7 +1102,7 @@ writeDisconAndGraph_ :: TVar TransactionGraph -> SessionId -> Session -> Session
 writeDisconAndGraph_ graphTvar sessionId session sessions discon graph = do
   writeTVar graphTvar graph
   let newSession = Session discon (Sess.schemaName session)
-  STMMap.insert newSession sessionId sessions
+  StmMap.insert newSession sessionId sessions
 -}
 
 -- | Runs an IO monad, commits the result when the monad returns no errors, otherwise, rolls back the changes and the error.

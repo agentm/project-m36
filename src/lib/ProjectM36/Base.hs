@@ -1,5 +1,6 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,TypeSynonymInstances,FlexibleInstances,OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
@@ -23,7 +24,6 @@ import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
-
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
@@ -35,12 +35,9 @@ data Atom = IntegerAtom Integer |
             DateTimeAtom UTCTime |
             ByteStringAtom ByteString |
             BoolAtom Bool |
-            IntervalAtom Atom Atom OpenInterval OpenInterval |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
             deriving (Eq, Show, Binary, Typeable, NFData, Generic)
-                     
-type OpenInterval = Bool                     
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -53,7 +50,6 @@ instance Hashable Atom where
   hashWithSalt salt (DateTimeAtom dt) = salt `hashWithSalt` dt
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
-  hashWithSalt salt (IntervalAtom a1 a2 bo be) = salt `hashWithSalt` a1 `hashWithSalt` a2 `hashWithSalt` bo `hashWithSalt` be
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
 
 instance Binary UTCTime where
@@ -76,7 +72,6 @@ data AtomType = IntAtomType |
                 DateTimeAtomType |
                 ByteStringAtomType |
                 BoolAtomType |
-                IntervalAtomType AtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 TypeVariableType TypeVarName
@@ -213,8 +208,10 @@ data RelationalExprBase a =
   --- | Returns the true relation iff 
   Equals (RelationalExprBase a) (RelationalExprBase a) |
   NotEquals (RelationalExprBase a) (RelationalExprBase a) |
-  Extend (ExtendTupleExprBase a) (RelationalExprBase a)
+  Extend (ExtendTupleExprBase a) (RelationalExprBase a) |
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
+  --Evaluate relationalExpr with scoped views
+  With [(RelVarName,RelationalExprBase a)] (RelationalExprBase a)
   deriving (Show, Eq, Generic, NFData)
            
 instance Binary RelationalExpr
@@ -238,9 +235,11 @@ data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName]
                         deriving (Show, Generic, Binary, Eq, NFData)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
-data TypeConstructor = ADTypeConstructor TypeConstructorName [TypeConstructor] |
-                       PrimitiveTypeConstructor TypeConstructorName AtomType |
-                       TypeVariable TypeVarName
+type TypeConstructor = TypeConstructorBase ()
+data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstructor] |
+                         PrimitiveTypeConstructor TypeConstructorName AtomType |
+                         RelationAtomTypeConstructor [AttributeExprBase a] |
+                         TypeVariable TypeVarName
                      deriving (Show, Generic, Binary, Eq, NFData)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
@@ -332,11 +331,16 @@ data DatabaseContextExpr =
   MultipleExpr [DatabaseContextExpr]
   deriving (Show, Eq, Binary, Generic)
 
+type ObjModuleName = StringType
+type ObjFunctionName = StringType
+type Range = (Int,Int)  
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
 data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
-                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript
+                             LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
+                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
+                             LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
+                             CreateArbitraryRelation RelVarName [AttributeExpr] Range
                            deriving (Show, Eq, Generic, Binary)
-
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
@@ -523,3 +527,41 @@ instance Hashable DatabaseContextFunction where
                            
 instance Eq DatabaseContextFunction where                           
   f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
+
+attrTypeVars :: Attribute -> S.Set TypeVarName
+attrTypeVars (Attribute _ aType) = case aType of
+  IntAtomType -> S.empty
+  IntegerAtomType -> S.empty
+  DoubleAtomType -> S.empty
+  TextAtomType -> S.empty
+  DayAtomType -> S.empty
+  DateTimeAtomType -> S.empty
+  ByteStringAtomType -> S.empty
+  BoolAtomType -> S.empty
+  (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList attrs))
+  (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
+  (TypeVariableType nam) -> S.singleton nam
+  
+typeVars :: TypeConstructor -> S.Set TypeVarName
+typeVars (PrimitiveTypeConstructor _ _) = S.empty
+typeVars (ADTypeConstructor _ args) = S.unions (map typeVars args)
+typeVars (TypeVariable v) = S.singleton v
+typeVars (RelationAtomTypeConstructor attrExprs) = S.unions (map attrExprTypeVars attrExprs)
+    
+attrExprTypeVars :: AttributeExprBase a -> S.Set TypeVarName    
+attrExprTypeVars (AttributeAndTypeNameExpr _ tCons _) = typeVars tCons
+attrExprTypeVars (NakedAttributeExpr attr) = attrTypeVars attr
+
+atomTypeVars :: AtomType -> S.Set TypeVarName
+atomTypeVars IntAtomType = S.empty
+atomTypeVars IntegerAtomType = S.empty
+atomTypeVars DoubleAtomType = S.empty
+atomTypeVars TextAtomType = S.empty
+atomTypeVars DayAtomType = S.empty
+atomTypeVars DateTimeAtomType = S.empty
+atomTypeVars ByteStringAtomType = S.empty
+atomTypeVars BoolAtomType = S.empty
+atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
+atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
+atomTypeVars (TypeVariableType nam) = S.singleton nam
+

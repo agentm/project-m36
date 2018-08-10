@@ -57,7 +57,7 @@ testCSVExport = TestCase $ do
                                     Attribute "bytestringattr" ByteStringAtomType,
                                     Attribute "listintegerattr" (listAtomType IntegerAtomType),
                                     Attribute "listtextattr" (listAtomType TextAtomType),
-                                    Attribute "intervalattr" (IntervalAtomType DateTimeAtomType)
+                                    Attribute "intervalattr" (intervalAtomType DateTimeAtomType)
                                    ]
       sampleByteString = "\1\0\244\34\150"
       relOrErr = mkRelationFromList attrs [
@@ -70,7 +70,7 @@ testCSVExport = TestCase $ do
          listCons TextAtomType [TextAtom "text1", TextAtom "text2"],
          testInterval
          ],
-        [TextAtom "second text atom", 
+        [TextAtom "second text atom with 漢字", 
          IntegerAtom 314, 
          DayAtom (fromGregorian 1001 6 28),
          DateTimeAtom (addUTCTime 360 now),
@@ -85,7 +85,7 @@ testCSVExport = TestCase $ do
     Right rel -> 
       case relationAsCSV rel of
         Left err -> assertFailure $ "export failed: " ++ show err
-        Right csvData -> 
+        Right csvData ->
           --BS.writeFile "/tmp/csv" csvData
           --putStrLn (TL.unpack (TE.decodeUtf8 csvData))
           case csvAsRelation attrs basicTypeConstructorMapping csvData of -- import csv data back to relation

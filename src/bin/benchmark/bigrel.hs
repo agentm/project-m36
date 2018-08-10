@@ -6,14 +6,14 @@ import ProjectM36.DateExamples
 import ProjectM36.Error
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
-import ProjectM36.Relation.Show.CSV
+--import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
 import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
-import qualified Data.HashSet as HS
-import qualified Data.ByteString.Lazy.Char8 as BS
-import qualified Data.IntMap as IM
-import qualified Data.Hashable as Hash
+--import qualified Data.HashSet as HS
+--import qualified Data.ByteString.Lazy.Char8 as BS
+--import qualified Data.IntMap as IM
+--import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
 import Options.Applicative
 import qualified Data.Map as M
@@ -30,6 +30,7 @@ dumpcsv rel = case relationAsCSV rel of
   Left err -> hPrint stderr err
   Right bsData -> BS.putStrLn bsData
 -}
+
 data BigrelArgs = BigrelArgs Int Int Text
 
 parseAttributeCount :: Parser Int
@@ -74,6 +75,7 @@ intmapMatrixRun = do
   let matrix = intmapMatrixRelation 100 100000
   print matrix
 -}
+
 --compare IntMap speed and size
 --this is about 3 times faster (9 minutes) for 10x100000 and uses 800 MB
 {-
@@ -82,8 +84,9 @@ intmapMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tu
   where
     mapper tupCount = IM.fromList $ map (\c-> (c, IntAtom (fromIntegral tupCount))) [0..attributeCount]
 -}
-instance Hash.Hashable (IM.IntMap Atom) where
-  hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
+-- instance Hash.Hashable (IM.IntMap Atom) where
+--  hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
+
 {-
 vectorMatrixRun :: IO ()
 vectorMatrixRun = do
@@ -93,6 +96,12 @@ vectorMatrixRun = do
 -- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
 --with IntAtom wrapper: 1m12s 90 MB
 {-
+
+
+-- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
+--with IntAtom wrapper: 1m12s 90 MB
+{-                    
+
 vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
@@ -100,7 +109,7 @@ vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tu
 -}
 instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)
-
+-}
 -- returns a relation with tupleCount tuples with a set of integer attributes attributesCount long
 -- this is useful for performance and resource usage testing
 matrixRelation :: Int -> Int -> Either RelationalError Relation

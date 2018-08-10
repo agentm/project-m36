@@ -1,10 +1,12 @@
 {-# LANGUAGE DefaultSignatures, TypeFamilies, TypeOperators, PolyKinds, FlexibleInstances, ScopedTypeVariables, FlexibleContexts #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
 import ProjectM36.Base
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.List
+import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.Either
 import GHC.Generics
@@ -18,6 +20,7 @@ import Data.ByteString (ByteString)
 import Data.Time.Clock
 import Data.Maybe
 import Data.Proxy
+import qualified Data.List.NonEmpty as NE
 
 --also add haskell scripting atomable support
 --rename this module to Atomable along with test
@@ -155,6 +158,18 @@ instance Atomable a => Atomable [a] where
   toAtomType _ = ConstructedAtomType "List" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
 
+instance Atomable a => Atomable (NE.NonEmpty a) where
+  toAtom (x NE.:| []) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x]
+  toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) (map toAtom (x:xs))
+  fromAtom _ = error "improper fromAtom (NonEmptyList a)"
+
+  toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
+  toAddTypeExpr _ = NoOperation
+
+#if !MIN_VERSION_binary(0,8,4)
+instance Binary a => Binary (NE.NonEmpty a)  
+#endif
+
 -- Generics
 class AtomableG g where
   --type AtomTG g
@@ -229,7 +244,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
     where
       tCons = PrimitiveTypeConstructor primitiveATypeName primitiveAType
       primitiveAType = toAtomType (Proxy :: Proxy a)
-      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) _ -> if typ == primitiveAType then Just name else Nothing) Nothing primitiveTypeConstructorMapping)
+      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) acc -> if typ == primitiveAType then Just name else acc) Nothing primitiveTypeConstructorMapping)
         
 instance AtomableG U1 where
   toAtomG = undefined

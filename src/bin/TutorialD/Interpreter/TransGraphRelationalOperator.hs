@@ -3,6 +3,7 @@
 module TutorialD.Interpreter.TransGraphRelationalOperator where
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.TransactionGraph
+import TutorialD.Interpreter.Types
 import qualified ProjectM36.Client as C
 
 import TutorialD.Interpreter.Base
@@ -12,7 +13,7 @@ import qualified Data.Text as T
 
 instance RelationalMarkerExpr TransactionIdLookup where
   parseMarkerP = string "@" *> transactionIdLookupP
-    
+
 newtype TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelationalExpr
                                      deriving Show
 
@@ -26,9 +27,7 @@ transactionIdHeadBacktrackP = (string "~" *> (TransactionIdHeadParentBacktrack <
                               (string "@" *> (TransactionStampHeadBacktrack <$> utcTimeP))
                               
 backtrackP :: Parser Int
-backtrackP = do
-  steps <- integer <|> pure 1
-  pure (fromIntegral steps)
+backtrackP = fromIntegral <$> integer <|> pure 1
   
 transGraphRelationalOpP :: Parser TransGraphRelationalOperator                     
 transGraphRelationalOpP = showTransGraphRelationalOpP

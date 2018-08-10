@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- test the websocket server
 import Test.HUnit
 import qualified Network.WebSockets as WS
@@ -17,7 +18,12 @@ import Data.Aeson
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
+#if MIN_VERSION_network_transport_tcp(0,6,0)                
 import Network.Transport.TCP.Internal (decodeEndPointAddress)
+#else
+import Network.Transport.TCP (decodeEndPointAddress)
+#endif
+
 
 --start the websocket server
 -- run some tutoriald against it
