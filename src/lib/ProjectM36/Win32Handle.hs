@@ -53,7 +53,7 @@ withHandleToHANDLE haskell_handle action =
         -- Do what the user originally wanted
         action windows_handle
 
-#if MIN_VERSION_win32(2,5,1)
+#if MIN_VERSION_Win32(2,5,1)
 #else
 withStablePtr :: a -> (StablePtr a -> IO b) -> IO b
 withStablePtr value = bracket (newStablePtr value) freeStablePtr
