@@ -147,8 +147,13 @@ import Control.Exception (IOException, handle, AsyncException, throwIO, fromExce
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Control.Distributed.Process.Serializable (Serializable)
+#if MIN_VERSION_stm_containers(1,0,0)
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Set as StmSet
+#else
+import qualified STMContainers.Map as StmMap
+import qualified STMContainers.Set as StmSet
+#endif
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
@@ -435,7 +440,11 @@ close :: Connection -> IO ()
 close (InProcessConnection conf) = do
   atomically $ do
     let sessions = ipSessions conf
+#if MIN_VERSION_stm_containers(1,0,0)        
     StmMap.reset sessions
+#else
+    StmMap.deleteAll sessions
+#endif
     pure ()
   closeLocalNode (ipLocalNode conf)
   closeTransport (ipTransport conf)
