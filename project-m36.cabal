@@ -162,7 +162,7 @@ Library
                      ProjectM36.Arbitrary
     GHC-Options: -Wall -rdynamic
     if os(windows)
-      Build-Depends: Win32 >= 2.3
+      Build-Depends: Win32 >= 2.5.4.1
       Other-Modules: ProjectM36.Win32Handle
     else
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
