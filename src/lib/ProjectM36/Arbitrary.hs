@@ -12,6 +12,7 @@ import ProjectM36.DataTypes.Interval
 import qualified Data.Vector as V
 import Data.Text (Text,pack)
 import Test.QuickCheck
+import Test.QuickCheck.Instances ()
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
