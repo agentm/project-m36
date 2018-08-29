@@ -64,6 +64,10 @@ mkRelationDeferVerify :: Attributes -> RelationTupleSet -> Either RelationalErro
 mkRelationDeferVerify attrs tupleSet = return $ Relation attrs (RelationTupleSet (filter tupleFilter (asList tupleSet)))
   where
     tupleFilter tuple = isRight (verifyTuple attrs tuple)
+    
+--return a relation of the same type except without any tuples
+relationWithEmptyTupleSet :: Relation -> Relation    
+relationWithEmptyTupleSet (Relation attrs _) = emptyRelationWithAttrs attrs
 
 mkRelationFromTuples :: Attributes -> [RelationTuple] -> Either RelationalError Relation
 mkRelationFromTuples attrs tupleSetList = do

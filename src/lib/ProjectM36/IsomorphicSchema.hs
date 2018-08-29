@@ -16,7 +16,6 @@ import qualified Data.Set as S
 import qualified Data.List as L
 import qualified Data.Text as T
 import Data.Monoid
---import Debug.Trace
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -304,11 +303,11 @@ validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
 
 -- | Create inclusion dependencies mainly for IsoRestrict because the predicate should hold in the base schema.
 createIncDepsForIsomorph :: SchemaName -> SchemaIsomorph -> InclusionDependencies
-createIncDepsForIsomorph sname (IsoRestrict _ predi (rvTrue, rvFalse)) = let 
+createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = let 
   newIncDep predicate rv = InclusionDependency (Project AN.empty (Restrict predicate (RelationVariable rv ()))) (ExistingRelation relationTrue)
-  incDepName b = "schema" <> "_" <> sname <> "_" <> T.pack (show b) in
-  M.fromList [(incDepName True, newIncDep predi rvTrue),
-              (incDepName False, newIncDep (NotPredicate predi) rvFalse)]
+  incDepName b = "schema" <> "_" <> sname <> "_" <> b in
+  M.fromList [(incDepName (origRv <> "_true"), newIncDep predi rvTrue),
+              (incDepName (origRv <> "_false"), newIncDep (NotPredicate predi) rvFalse)]
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created

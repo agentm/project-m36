@@ -663,7 +663,10 @@ typeForRelationalExpr expr = do
   --replace the relationVariables context element with a cloned set of relation devoid of tuples
   let context' = contextWithEmptyTupleSets context
       rstate' = setStateElemsContext rstate context'
-  pure (runReader (evalRelationalExpr expr) rstate')
+  --evalRelationalExpr could still return an existing relation with tuples, so strip them
+  pure $ case runReader (evalRelationalExpr expr) rstate' of
+    Left err -> Left err
+    Right typeRel -> Right (relationWithEmptyTupleSet typeRel)
 
 --returns a database context with all tuples removed
 --this is useful for type checking and optimization

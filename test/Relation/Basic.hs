@@ -25,7 +25,8 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "products" productsRel,
                      testRelation "supplierProducts" supplierProductsRel,
                      testMkRelationFromExprsBadAttrs,
-                     testDuplicateAttributes
+                     testDuplicateAttributes,
+                     testExistingRelationType
                     ]
 
 main :: IO ()           
@@ -104,3 +105,8 @@ testDuplicateAttributes = TestCase $ do
   let eRel = mkRelation attrs emptyTupleSet
       attrs = attributesFromList [Attribute "a" IntAtomType, Attribute "a" TextAtomType]
   assertEqual "duplicate attribute names" (Left (DuplicateAttributeNamesError (S.singleton "a"))) eRel
+  
+testExistingRelationType :: Test
+testExistingRelationType = TestCase $ do
+  let typeResult = runReader (typeForRelationalExpr (ExistingRelation relationTrue)) (RelationalExprStateElems DBC.empty)
+  assertEqual "ExistingRelation with tuples type" (Right relationFalse) typeResult
