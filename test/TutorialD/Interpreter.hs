@@ -72,7 +72,8 @@ main = do
       testArbitraryRelation,
       testNonEmptyListType,
       testUnresolvedAtomTypes,
-      testWithClause
+      testWithClause,
+      testAtomFunctionArgumentMismatch
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -631,4 +632,12 @@ testWithClause = TestCase $ do
   
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as sp) s"  
 
-  
+testAtomFunctionArgumentMismatch :: Test
+testAtomFunctionArgumentMismatch = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let err1 = "AtomTypeMismatchError"
+  --atom function type mismatch
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 5}} where ^gt(@a,1.5)"
+  --wrong argument count
+  let err2 = "FunctionArgumentCountMismatchError"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "x:=relation{tuple{a 5}} where ^gt(@a,1,3)"

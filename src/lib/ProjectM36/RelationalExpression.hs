@@ -753,18 +753,18 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
   --merge attrs into the state attributes
   rstate <- ask
   runExceptT $ do
-    aType <- liftE (typeFromAtomExpr attrs atomExpr)
+    aType <- liftE (typeFromAtomExpr attrs  atomExpr)
     if aType /= BoolAtomType then
       throwE (AtomTypeMismatchError aType BoolAtomType)
       else
       pure (\tupleIn ->
-                pure $ case runReader (evalAtomExpr tupleIn atomExpr) rstate of
-                  Left _ -> False
-                  Right boolAtomValue -> boolAtomValue == BoolAtom True)
+             case runReader (evalAtomExpr tupleIn atomExpr) rstate of
+                  Left err -> Left err
+                  Right boolAtomValue -> pure (boolAtomValue == BoolAtom True))
 
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
 tupleExprCheckNewAttrName attrName rel = if isRight (attributeForName attrName rel) then
-                                           Left (error "SPAMMIT" $ AttributeNameInUseError attrName)
+                                           Left (AttributeNameInUseError attrName)
                                          else
                                            Right rel
 
@@ -803,13 +803,15 @@ evalAtomExpr tupIn (FunctionAtomExpr funcName arguments ()) = do
     func <- either throwE pure (atomFunctionForName funcName functions)
     let expectedArgCount = length (atomFuncType func) - 1
         actualArgCount = length argTypes
-        safeInit [_] = []
         safeInit [] = [] -- different behavior from normal init
-        safeInit (_:xs) = safeInit xs
+        safeInit xs = init xs
     if expectedArgCount /= actualArgCount then
       throwE (FunctionArgumentCountMismatchError expectedArgCount actualArgCount)
       else do
-      mapM_ (\(expType, actType) -> either throwE pure (atomTypeVerify expType actType)) (safeInit (zip (atomFuncType func) argTypes))
+      let zippedArgs = zip (safeInit (atomFuncType func)) argTypes
+      mapM_ (\(expType, eActType) -> do
+                actType <- either throwE pure eActType
+                either throwE pure (atomTypeVerify expType actType)) zippedArgs
       evaldArgs <- mapM (liftE . evalAtomExpr tupIn) arguments
       case evalAtomFunction func evaldArgs of
         Left err -> throwE (AtomFunctionUserError err)

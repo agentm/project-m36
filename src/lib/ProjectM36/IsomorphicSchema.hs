@@ -14,7 +14,6 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-import qualified Data.Text as T
 import Data.Monoid
 -- isomorphic schemas offer bi-directional functors between two schemas
 
