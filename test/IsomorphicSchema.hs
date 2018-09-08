@@ -105,15 +105,15 @@ testIsoUnion = TestCase $ do
   --create motors relation which is split into low-power (<50 horsepower) and high-power (>=50 horsepower) motors
   --the schema is contains the split relvars
   motorsRel <- assertEither $ mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType,
-                                                                        Attribute "power" IntAtomType]) 
-               [[TextAtom "Puny", IntAtom 10],
-                [TextAtom "Scooter", IntAtom 49],
-                [TextAtom "Auto", IntAtom 200],
-                [TextAtom "Tractor", IntAtom 500]]
+                                                                        Attribute "power" IntegerAtomType]) 
+               [[TextAtom "Puny", IntegerAtom 10],
+                [TextAtom "Scooter", IntegerAtom 49],
+                [TextAtom "Auto", IntegerAtom 200],
+                [TextAtom "Tractor", IntegerAtom 500]]
   let baseSchema = mkRelationalExprState DBC.basicDatabaseContext {
         relationVariables = M.singleton "motor" motorsRel
         }
-      splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntAtom 50)] ())
+      splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntegerAtom 50)] ())
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",
                         IsoRename "true" "true",
                         IsoRename "false" "false"]
