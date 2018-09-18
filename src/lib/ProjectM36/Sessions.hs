@@ -16,21 +16,21 @@ import ProjectM36.Relation
 import ProjectM36.Error
 import qualified Data.UUID as U
 import qualified Control.Foldl as Foldl
-import qualified DeferredFolds.UnfoldM as UnfoldM
+import qualified DeferredFolds.UnfoldlM as UF
 
 type Sessions = StmMap.Map SessionId Session
 
 --from https://github.com/nikita-volkov/stm-containers/blob/master/test/Main/MapTests.hs
 stmMapToList :: StmMap.Map k v -> STM [(k, v)]
 #if MIN_VERSION_stm_containers(1,0,0)
-stmMapToList = UnfoldM.foldM (Foldl.generalize Foldl.list) . StmMap.unfoldM
+stmMapToList = UF.foldM (Foldl.generalize Foldl.list) . StmMap.unfoldlM
 #else
 stmMapToList = ListT.fold (\l -> return . (:l)) [] . StmMap.stream
 #endif
 
 stmSetToList :: StmSet.Set v -> STM [v]
 #if MIN_VERSION_stm_containers(1,0,0)
-stmSetToList = UnfoldM.foldM (Foldl.generalize Foldl.list) . StmSet.unfoldM
+stmSetToList = UF.foldM (Foldl.generalize Foldl.list) . StmSet.unfoldlM
 #else
 stmSetToList = ListT.fold (\l -> return . (:l)) [] . StmSet.stream
 #endif

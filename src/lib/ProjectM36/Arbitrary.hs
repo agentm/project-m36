@@ -10,7 +10,7 @@ import ProjectM36.Attribute (atomType)
 import ProjectM36.DataConstructorDef as DCD
 import ProjectM36.DataTypes.Interval
 import qualified Data.Vector as V
-import Data.Text (Text,pack)
+import Data.Text (Text)
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import qualified Data.ByteString.Char8 as B

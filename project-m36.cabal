@@ -96,7 +96,7 @@ Library
                      ProjectM36.FileLock,
                      ProjectM36.FSType,
                      ProjectM36.Arbitrary
-    GHC-Options: -Wall -rdynamic -threaded
+    GHC-Options: -Wall -rdynamic 
     if os(windows)
       Build-Depends: Win32 >= 2.5.4.1
       Other-Modules: ProjectM36.Win32Handle
