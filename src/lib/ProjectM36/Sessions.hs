@@ -16,10 +16,8 @@ import ProjectM36.Relation
 import ProjectM36.Error
 import qualified Data.UUID as U
 import qualified Control.Foldl as Foldl
-#if MIN_VERSION_deferred_folds(0,7,0)
+#if MIN_VERSION_stm_containers(1,0,0)
 import qualified DeferredFolds.UnfoldlM as UF
-#else
-import qualified DeferredFolds.UnfoldM as UF
 #endif
 
 type Sessions = StmMap.Map SessionId Session

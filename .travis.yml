@@ -24,6 +24,9 @@ matrix:
       os_image: xcode7.3
       compiler: ": #stack 8.2.2"
 
+    - env: CACHE_NAME=8.4.3 STACK_YAML=stack.ghc8.4.yaml
+      compiler: ": #stack 8.4.3"
+
 before_script:
  - unset CC
  - export PATH=$HOME/.local/bin:/opt/ghc/$GHC_VERSION/bin:$PATH

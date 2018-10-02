@@ -2,7 +2,7 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-11.20
+resolver: lts-12.11
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -12,14 +12,16 @@ extra-deps:
 - data-accessor-transformers-0.2.1.7
 - data-interval-1.2.0
 - extended-reals-0.2.1.0
-- gnuplot-0.5.4.1
-- text-1.2.2.1
+- gnuplot-0.5.5.3
 - aeson-1.2.1.00
 - distributed-process-0.7.3
 - distributed-process-async-0.2.4.1
 - distributed-process-client-server-0.2.3
 - distributed-process-extras-0.3.2
+#- deferred-folds-0.9.7.1
 - rset-1.0.0
+- hashable-time-0.2.0.2
+- network-transport-tcp-0.6.0
 
 # Override default flag values for local packages and extra-deps
 flags: 
