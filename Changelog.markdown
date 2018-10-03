@@ -1,3 +1,8 @@
+# 2018-10-03 (v0.5.1)
+
+* fix atom function type validation
+* add support for GHC 8.4 (now we support GHC 8.0, 8.2, and 8.4)
+	
 # 2018-08-10 (v0.5)
 
 * fix critical type bug which allowed unresolved types to be used
