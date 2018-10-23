@@ -66,7 +66,13 @@ renameSync sync srcPath dstPath = do
 atomicRename :: FilePath -> FilePath -> IO ()
 atomicRename srcPath dstPath = 
 #if defined(mingw32_HOST_OS)
-  Win32.moveFileEx srcPath dstPath Win32.mOVEFILE_REPLACE_EXISTING
+#if MIN_VERSION_Win32(2,6,0)
+  let dst = Just dstPath
+#else
+  let dst = dstPath
+#endif
+  in
+  Win32.moveFileEx srcPath dst Win32.mOVEFILE_REPLACE_EXISTING
 #else
   Posix.rename srcPath dstPath
 #endif
@@ -119,13 +125,10 @@ printFdCount =
   putStrLn "Fd count not supported on this OS."
 #endif
 
-
-fdCount :: IO Int
 #if FDCOUNTSUPPORTED
+fdCount :: IO Int
 fdCount = do
   fds <- getDirectoryContents FDDIR
   pure ((length fds) - 2)
-#else 
 --not supported on non-linux
-fdCount = pure 0
 #endif

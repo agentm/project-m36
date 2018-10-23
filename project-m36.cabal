@@ -101,11 +101,13 @@ Library
                      ProjectM36.FileLock,
                      ProjectM36.FSType,
                      ProjectM36.Arbitrary
-    GHC-Options: -Wall -rdynamic 
+    GHC-Options: -Wall
     if os(windows)
       Build-Depends: Win32 >= 2.5.4.1
       Other-Modules: ProjectM36.Win32Handle
     else
+      --219-  too many exported symbols under Windows and GHC 8.4
+      GHC-Options: -rdynamic
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
     CC-Options: -fPIC 
@@ -175,8 +177,8 @@ Executable tutd
                    TutorialD.Interpreter.TransGraphRelationalOperator,
                    TutorialD.Interpreter.SchemaOperator
     main-is: TutorialD/tutd.hs
-    CC-Options: -fPIC
-    GHC-Options: -Wall -rdynamic -threaded
+    CC-Options: -fPIC -rdynamic
+    GHC-Options: -Wall -threaded
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
