@@ -75,7 +75,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
 
 --only Haskell-scripted dbc and atom functions can be serialized                   
 testFunctionPersistence :: Test
-testFunctionPersistence = TestCase $ do
+testFunctionPersistence = TestCase $ 
  withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
       connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
