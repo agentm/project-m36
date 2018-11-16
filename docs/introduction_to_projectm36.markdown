@@ -40,7 +40,7 @@ Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```stack --stack_yaml stack.ghc8.2.yaml build```
+* ```stack --stack-yaml stack.ghc8.2.yaml build```
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
