@@ -24,8 +24,7 @@ dataConstructorDefP = DataConstructorDef <$> capitalizedIdentifier <*> many data
 
 -- data *Either a b* = Left *a* | Right *b*
 dataConstructorDefArgP :: Parser DataConstructorDefArg
-dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeConstructorP) <|>
-                         DataConstructorDefTypeConstructorArg <$> typeConstructorP <|>
+dataConstructorDefArgP = DataConstructorDefTypeConstructorArg <$> (monoTypeConstructorP <|> parens typeConstructorP) <|>
                          DataConstructorDefTypeVarNameArg <$> uncapitalizedIdentifier
   
 -- relation{a Int} in type construction (no tuples parsed)
@@ -44,9 +43,8 @@ attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstruc
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
 typeConstructorP = relationTypeConstructorP <|>
-                   TypeVariable <$> uncapitalizedIdentifier <|>
-                   ADTypeConstructor <$> capitalizedIdentifier <*> many (parens typeConstructorP <|>
-                                                                         monoTypeConstructorP)
+                   ADTypeConstructor <$> capitalizedIdentifier <*> many (monoTypeConstructorP <|> parens typeConstructorP) <|>
+                   monoTypeConstructorP
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
 monoTypeConstructorP = ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
