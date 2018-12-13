@@ -244,14 +244,14 @@ instance (Atomable a) => AtomableG (K1 c a) where
       tCons = typeToTypeConstructor $ toAtomType (Proxy :: Proxy a)
 
 typeToTypeConstructor :: AtomType -> TypeConstructor
-typeToTypeConstructor x@(IntAtomType) = PrimitiveTypeConstructor "Int" x
-typeToTypeConstructor x@(IntegerAtomType) = PrimitiveTypeConstructor "Integer" x
-typeToTypeConstructor x@(DoubleAtomType) = PrimitiveTypeConstructor "Double" x
-typeToTypeConstructor x@(TextAtomType) = PrimitiveTypeConstructor "Text" x
-typeToTypeConstructor x@(DayAtomType) = PrimitiveTypeConstructor "Day" x
-typeToTypeConstructor x@(DateTimeAtomType) = PrimitiveTypeConstructor "DateTime" x
-typeToTypeConstructor x@(ByteStringAtomType) = PrimitiveTypeConstructor "ByteString" x
-typeToTypeConstructor x@(BoolAtomType) = PrimitiveTypeConstructor "Bool" x
+typeToTypeConstructor x@IntAtomType = PrimitiveTypeConstructor "Int" x
+typeToTypeConstructor x@IntegerAtomType = PrimitiveTypeConstructor "Integer" x
+typeToTypeConstructor x@DoubleAtomType = PrimitiveTypeConstructor "Double" x
+typeToTypeConstructor x@TextAtomType = PrimitiveTypeConstructor "Text" x
+typeToTypeConstructor x@DayAtomType = PrimitiveTypeConstructor "Day" x
+typeToTypeConstructor x@DateTimeAtomType = PrimitiveTypeConstructor "DateTime" x
+typeToTypeConstructor x@ByteStringAtomType = PrimitiveTypeConstructor "ByteString" x
+typeToTypeConstructor x@BoolAtomType = PrimitiveTypeConstructor "Bool" x
 typeToTypeConstructor (RelationAtomType attrs)
   = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList attrs
   where
