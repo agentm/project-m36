@@ -30,6 +30,8 @@ import Test.QuickCheck
 import GHC
 import GHC.Paths
 
+import Debug.Trace
+
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -870,10 +872,12 @@ typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
   relType <- either throwE pure (runReader (typeForRelationalExpr relExpr) (mergeAttributesIntoRelationalExprState attrs rstate))
   pure (RelationAtomType (attributes relType))
 -- grab the type of the data constructor, then validate that the args match the expected types
-typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) = 
+typeFromAtomExpr attrs ae@(ConstructedAtomExpr dConsName dConsArgs _) = 
   runExceptT $ do
-    argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs 
+    argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs
+    --traceShowM ("typeFromAtomExpr", dConsArgs, argsTypes)
     context <- fmap stateElemsContext (lift ask)
+    traceShowM ("typeFromAtomExpr", ae)
     either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
 
 -- | Validate that the type of the AtomExpr matches the expected type.
