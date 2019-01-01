@@ -17,11 +17,13 @@ import System.Exit
 
 import Control.Concurrent
 import Network.Transport (EndPointAddress)
+
 #if MIN_VERSION_network_transport_tcp(0,6,0)                
 import Network.Transport.TCP.Internal (encodeEndPointAddress, decodeEndPointAddress)
 #else
 import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 #endif
+
 import Data.Either (isRight)
 import Control.Exception
 import System.IO.Temp
@@ -220,12 +222,12 @@ testFileDescriptorCount :: Test
 #if defined(linux_HOST_OS)
 --validate that creating a server, connecting a client, and then disconnecting doesn't leak file descriptors
 testFileDescriptorCount = TestCase $ do
-  (serverAddress, serverTid) <- launchTestServer 1000
+  (serverAddress, serverTid) <- launchTestServer 0
   unusedMVar <- newEmptyMVar
   startCount <- fdCount  
   Right (sess, testConn) <- testConnection serverAddress unusedMVar
   --add a test commit to trigger the fsync machinery
-  executeDatabaseContextExpr sess testConn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail  
+  executeDatabaseContextExpr sess testConn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess testConn >>= eitherFail
   close testConn
   endCount <- fdCount

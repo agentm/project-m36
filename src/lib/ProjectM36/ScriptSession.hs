@@ -22,12 +22,20 @@ import GHCi.ObjLink
 #else
 import ObjLink
 #endif
+#if __GLASGOW_HASKELL__ >= 802
+import BasicTypes
+#endif
 import DynFlags
 import Panic
 import Outputable --hiding ((<>))
 import PprTyThing
 import Unsafe.Coerce
+#if __GLASGOW_HASKELL__ >= 802
 import Type
+#elif __GLASGOW_HASKELL__ >= 710
+import Type hiding (pprTyThing)  
+#else
+#endif
 
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
@@ -75,7 +83,12 @@ initScriptSession ghcPkgPaths = do
                            trustFlags = map TrustPackage required_packages,
 #endif                                        
                            packageFlags = packageFlags dflags ++ packages,
+#if __GLASGOW_HASKELL__ >= 802
+                           packageDBFlags = map PackageDB localPkgPaths
+#else
                            extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
+#endif
+
                          }
         applyGopts flags = foldl gopt_set flags gopts
         applyXopts flags = foldl xopt_set flags xopts
@@ -107,7 +120,11 @@ initScriptSession ghcPkgPaths = do
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn mQual = ImportDecl {
+#if __GLASGOW_HASKELL__ >= 802          
+          ideclSourceSrc = NoSourceText,
+#else
           ideclSourceSrc = Nothing,
+#endif
           ideclName      = noLoc mn,
           ideclPkgQual   = Nothing,
           ideclSource    = False,
@@ -129,7 +146,12 @@ initScriptSession ghcPkgPaths = do
           "ProjectM36.DatabaseContextFunctionError",
           "ProjectM36.DatabaseContextFunctionUtils",
           "ProjectM36.RelationalExpression"]
-        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModuleName qualNam))) [
+#if __GLASGOW_HASKELL__ >= 802
+        mkModName = noLoc . mkModuleName
+#else
+        mkModName = mkModuleName
+#endif 
+        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModName qualNam))) [
           ("Data.Text", "T")
           ]
     setContext (unqualifiedModules ++ qualifiedModules)
@@ -177,7 +199,11 @@ typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)
 typeCheckScript expectedType inp = do
   dflags <- getSessionDynFlags  
   --catch exception for SyntaxError
+#if __GLASGOW_HASKELL__ >= 802
+  funcType <- GHC.exprType TM_Inst (unpack inp)    
+#else    
   funcType <- GHC.exprType (unpack inp)
+#endif
   --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType 
   if eqType funcType expectedType then
     pure Nothing
@@ -197,7 +223,11 @@ data LoadSymbolError = LoadSymbolError
 
 loadFunction :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
 loadFunction modName funcName objPath = do
+#if __GLASGOW_HASKELL__ >= 802  
+  initObjLinker RetainCAFs
+#else
   initObjLinker
+#endif
   loadObj objPath
   _ <- resolveObjs
   ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)

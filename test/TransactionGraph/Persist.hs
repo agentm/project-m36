@@ -25,8 +25,9 @@ main = do
   
 testList :: Test
 testList = TestList [testBootstrapDB, 
-                     testDBSimplePersistence, 
+                     testDBSimplePersistence,
                      testFunctionPersistence]
+                    
 
 stamp :: UTCTime
 stamp = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
@@ -74,7 +75,8 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
 
 --only Haskell-scripted dbc and atom functions can be serialized                   
 testFunctionPersistence :: Test
-testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
+testFunctionPersistence = TestCase $ 
+ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
       connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
   conn <- assertIOEither $ connectProjectM36 connInfo
@@ -85,9 +87,8 @@ testFunctionPersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
         ADTypeConstructor "Either" [ADTypeConstructor "AtomFunctionError" [],
                                     intTCons]] "(\\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
   _ <- assertIOEither $ executeDatabaseContextIOExpr sess conn addfunc
-
   _ <- assertIOEither $ commit sess conn
-  close conn
+  --close conn - pauses indefinitely on Windows
   --re-open the connection to reload the graph
   conn2 <- assertIOEither $ connectProjectM36 connInfo
   sess2 <- assertIOEither $ createSessionAtHead conn2 "master"

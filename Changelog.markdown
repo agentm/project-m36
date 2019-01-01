@@ -1,3 +1,16 @@
+# 2018-10-03 (v0.5.1)
+
+* fix atom function type validation
+* add support for GHC 8.4 (now we support GHC 8.0, 8.2, and 8.4)
+	
+# 2018-08-10 (v0.5)
+
+* fix critical type bug which allowed unresolved types to be used
+* add full support for GHC 8.2 with stack or cabal (delayed for a long time by dependency version boundaries)
+* drop support for GHC 7.10
+* add support for `with (relexpr as name,...)` syntax for use as tutd macros
+* add `NonEmptyList` list data type
+
 # 2018-06-04 (v0.4)
 
 * add contributed feature to allow users to [create arbitrary relations](https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown#arbitrary-relation-variables)

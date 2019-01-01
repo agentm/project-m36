@@ -30,23 +30,25 @@ The currently-preferred method of installation is from source. A future enhancem
 
 Requirements:
 
-* [GHC 7.10 or greater](https://www.haskell.org/downloads)
+To build with stack:
+
+* [GHC 8.2.2 or greater](https://www.haskell.org/downloads)
 * [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
-* Linux, MacOS X, or Windows OS
+* Linux, macOS, or Microsoft Windows
 
 Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```stack build```
+* ```stack --stack-yaml stack.ghc8.2.yaml build```
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.0.x:
+Alternative building with GHC 8.0.2 or greater:
 
 * ```cabal new-build```
 
-The resultant binaries can be found in ```./dist-newstyle/build/project-m36-0.1/build```.
+The resultant binaries can be found in ```./dist-newstyle/build/project-m36-<version>/build```.
 
 ## Accessing Project:M36 Databases
 

@@ -4,7 +4,6 @@ module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
 import ProjectM36.Base
-import ProjectM36.DataTypes.Primitive
 import ProjectM36.DataTypes.List
 import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.DataTypes.Maybe
@@ -12,13 +11,13 @@ import ProjectM36.DataTypes.Either
 import GHC.Generics
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Vector as V
 import Control.DeepSeq (NFData)
 import Data.Binary
 import Control.Applicative
 import Data.Time.Calendar
 import Data.ByteString (ByteString)
 import Data.Time.Clock
-import Data.Maybe
 import Data.Proxy
 import qualified Data.List.NonEmpty as NE
 
@@ -55,7 +54,7 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   toAtomType _ = toAtomTypeG (from (undefined :: a))
                       
   -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
-  toAddTypeExpr :: Proxy a -> DatabaseContextExpr
+  toAddTypeExpr :: proxy a -> DatabaseContextExpr
   default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => proxy a -> DatabaseContextExpr
   toAddTypeExpr _ = toAddTypeExprG (from (undefined :: a)) (toAtomType (Proxy :: Proxy a))
   
@@ -242,10 +241,25 @@ instance (Atomable a) => AtomableG (K1 c a) where
   getConstructorsG = undefined
   getConstructorArgsG (K1 _) = [DataConstructorDefTypeConstructorArg tCons]
     where
-      tCons = PrimitiveTypeConstructor primitiveATypeName primitiveAType
-      primitiveAType = toAtomType (Proxy :: Proxy a)
-      primitiveATypeName = fromMaybe (error ("primitive type missing: " ++ show primitiveAType)) (foldr (\(PrimitiveTypeConstructorDef name typ, _) acc -> if typ == primitiveAType then Just name else acc) Nothing primitiveTypeConstructorMapping)
-        
+      tCons = typeToTypeConstructor $ toAtomType (Proxy :: Proxy a)
+
+typeToTypeConstructor :: AtomType -> TypeConstructor
+typeToTypeConstructor x@IntAtomType = PrimitiveTypeConstructor "Int" x
+typeToTypeConstructor x@IntegerAtomType = PrimitiveTypeConstructor "Integer" x
+typeToTypeConstructor x@DoubleAtomType = PrimitiveTypeConstructor "Double" x
+typeToTypeConstructor x@TextAtomType = PrimitiveTypeConstructor "Text" x
+typeToTypeConstructor x@DayAtomType = PrimitiveTypeConstructor "Day" x
+typeToTypeConstructor x@DateTimeAtomType = PrimitiveTypeConstructor "DateTime" x
+typeToTypeConstructor x@ByteStringAtomType = PrimitiveTypeConstructor "ByteString" x
+typeToTypeConstructor x@BoolAtomType = PrimitiveTypeConstructor "Bool" x
+typeToTypeConstructor (RelationAtomType attrs)
+  = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList attrs
+  where
+    attrToAttrExpr (Attribute n t) = AttributeAndTypeNameExpr n (typeToTypeConstructor t) ()
+typeToTypeConstructor (ConstructedAtomType tcName tvMap)
+  = ADTypeConstructor tcName $ map typeToTypeConstructor (M.elems tvMap)
+typeToTypeConstructor (TypeVariableType tvName) = TypeVariable tvName
+
 instance AtomableG U1 where
   toAtomG = undefined
   fromAtomG _ _ = pure U1

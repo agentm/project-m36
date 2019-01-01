@@ -83,10 +83,9 @@ intmapMatrixRelation :: Int -> Int -> HS.HashSet (IM.IntMap Atom)
 intmapMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
     mapper tupCount = IM.fromList $ map (\c-> (c, IntAtom (fromIntegral tupCount))) [0..attributeCount]
-
-instance Hash.Hashable (IM.IntMap Atom) where
-  hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
 -}
+-- instance Hash.Hashable (IM.IntMap Atom) where
+--  hashWithSalt salt tupMap = Hash.hashWithSalt salt (show tupMap)
 
 {-
 vectorMatrixRun :: IO ()
@@ -94,15 +93,20 @@ vectorMatrixRun = do
   let matrix = vectorMatrixRelation 100 100000
   print matrix
 -}
+-- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
+--with IntAtom wrapper: 1m12s 90 MB
+{-
+
 
 -- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
 --with IntAtom wrapper: 1m12s 90 MB
 {-                    
+
 vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
   where
     mapper tupCount = V.replicate attributeCount (IntAtom (fromIntegral tupCount))
-
+-}
 instance Hash.Hashable (V.Vector Atom) where
   hashWithSalt salt vec = Hash.hashWithSalt salt (show vec)
 -}

@@ -14,6 +14,22 @@ TutorialD (master/main):
 
 "master" refers to the name of the branch to which the current transaction will be potentially committing.
 
+### Date's Sample Relations
+
+The examples in this tutorial can be executed after loading Chris Date's sample relations using:
+
+```
+:importexample date
+```
+
+Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
+
+|Relation Variable Name|Description|
+|----------------------|-----------|
+|s|suppliers|
+|p|parts|
+|sp|contains mapping of which suppliers supply which parts|
+
 ### Types
 
 TutorialD is strongly-typed. The basic built-in types are:
@@ -37,7 +53,7 @@ The ```interval``` function last two arguments are boolean values indicating whe
 Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
 
 ```
-TutorialD (master/main): :showexpr S:{more:=add(10,@sname)}
+TutorialD (master/main): :showexpr s:{more:=add(10,@sname)}
 ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
 ```
 
@@ -67,22 +83,6 @@ Chris Date refers to these relations as "TABLE_DUM" and "TABLE_DEE" but such arb
 ```
 products{}
 ```
-
-### Date's Sample Relations
-
-The examples in this tutorial can be executed after loading Chris Date's sample relations using:
-
-```
-:importexample date
-```
-
-Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
-
-|Relation Variable Name|Description|
-|----------------------|-----------|
-|s|suppliers|
-|p|parts|
-|sp|contains mapping of which suppliers supply which parts|
 
 ### Relational Expressions
 

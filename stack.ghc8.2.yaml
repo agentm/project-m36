@@ -2,7 +2,7 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-6.35
+resolver: lts-11.20
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -15,16 +15,16 @@ extra-deps:
 - gnuplot-0.5.4.1
 - text-1.2.2.1
 - aeson-1.2.1.00
-- distributed-process-0.6.6
-- distributed-process-async-0.2.4
+- distributed-process-0.7.3
+- distributed-process-async-0.2.4.1
 - distributed-process-client-server-0.2.3
 - distributed-process-extras-0.3.2
-- cryptohash-sha256-0.11.100.1
-- megaparsec-5.3.1
 - rset-1.0.0
 
 # Override default flag values for local packages and extra-deps
-flags: {}
+flags: 
+  project-m36:
+    stack: true
 
 # Extra package databases containing global packages
 extra-package-dbs: []

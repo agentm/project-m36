@@ -1,12 +1,30 @@
 {-# LANGUAGE DeriveGeneric, CPP #-}
-module TutorialD.Interpreter.Base where
+module TutorialD.Interpreter.Base (
+  module TutorialD.Interpreter.Base, 
+  module Text.Megaparsec,
+#if MIN_VERSION_megaparsec(6,0,0)  
+  module Text.Megaparsec.Char,
+  module Control.Applicative
+#else
+  module Text.Megaparsec.Text
+#endif
+ )
+  where
 import ProjectM36.Base
 import ProjectM36.AtomType
 import ProjectM36.Relation
 
+#if MIN_VERSION_megaparsec(6,0,0)
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
+import Data.Void
+import Control.Applicative hiding (many, some)
+#else
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as Lex
+#endif
+
 import Data.Text hiding (count)
 import System.Random
 import qualified Data.Text as T
@@ -44,16 +62,23 @@ displayOpResult (DisplayParseErrorResult mPromptLength err) = do
 displayOpResult (DisplayDataFrameResult dFrame) = do
   TIO.putStrLn (showRelation $ fromDataFrame dFrame)
 
+#if MIN_VERSION_megaparsec(6,0,0)
+type Parser = Parsec Void Text
+type ParseStr = Text
+#else
+type ParseStr = String
+#endif
+
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
   
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
 
-reserved :: String -> Parser ()
+reserved :: ParseStr -> Parser ()
 reserved word = try (string word *> notFollowedBy opChar *> spaceConsumer)
 
-reservedOp :: String -> Parser ()
+reservedOp :: ParseStr -> Parser ()
 reservedOp op = try (spaceConsumer *> string op *> notFollowedBy opChar *> spaceConsumer)
 
 parens :: Parser a -> Parser a
@@ -69,8 +94,12 @@ identifier = do
   spaceConsumer
   pure (pack (istart:irest))
 
-symbol :: String -> Parser Text
+symbol :: ParseStr -> Parser Text
+#if MIN_VERSION_megaparsec(6,0,0)
+symbol sym = Lex.symbol spaceConsumer sym
+#else
 symbol sym = pack <$> Lex.symbol spaceConsumer sym
+#endif
 
 comma :: Parser Text
 comma = symbol ","
@@ -90,13 +119,12 @@ arrow = symbol "->"
 semi :: Parser Text
 semi = symbol ";"
 
-{-
-whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer
--}
-
 integer :: Parser Integer
+#if MIN_VERSION_megaparsec(6,0,0)
+integer = Lex.signed spaceConsumer Lex.decimal
+#else
 integer = Lex.signed spaceConsumer Lex.integer
+#endif
 
 float :: Parser Double
 float = Lex.float
@@ -125,13 +153,19 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
 
 type PromptLength = Int 
 
+#if MIN_VERSION_megaparsec(6,0,0)
+type ParserError = ParseError Char Void
+#else    
+type ParserError = ParseError Char Dec  
+#endif
+
 data TutorialDOperatorResult = QuitResult |
                                DisplayResult StringType |
                                DisplayIOResult (IO ()) |
                                DisplayRelationResult Relation |
                                DisplayDataFrameResult DataFrame |
                                DisplayErrorResult StringType |
-                               DisplayParseErrorResult (Maybe PromptLength) (ParseError Char Dec) | -- Int refers to length of prompt text
+                               DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
                                

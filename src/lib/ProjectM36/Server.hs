@@ -136,4 +136,3 @@ launchServer daemonConfig mAddressMVar = do
                     serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
                   liftIO $ putStrLn "serve returned"
                   pure True
-  
