@@ -13,6 +13,7 @@ module TutorialD.Interpreter.Base (
 import ProjectM36.Base
 import ProjectM36.AtomType
 import ProjectM36.Relation
+import ProjectM36.DataFrame
 
 #if MIN_VERSION_megaparsec(6,0,0)
 import Text.Megaparsec.Char
@@ -59,8 +60,7 @@ displayOpResult (DisplayParseErrorResult mPromptLength err) = do
       pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
   maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
   TIO.putStr ("ERR:" <> errString)
-displayOpResult (DisplayDataFrameResult dFrame) = do
-  TIO.putStrLn (showRelation $ fromDataFrame dFrame)
+displayOpResult (DisplayDataFrameResult dFrame) = TIO.putStrLn (showDataFrame dFrame)
 
 #if MIN_VERSION_megaparsec(6,0,0)
 type Parser = Parsec Void Text
@@ -124,6 +124,13 @@ integer :: Parser Integer
 integer = Lex.signed spaceConsumer Lex.decimal
 #else
 integer = Lex.signed spaceConsumer Lex.integer
+#endif
+
+natural :: Parser Integer
+#if MIN_VERSION_megaparsec(6,0,0)
+natural = Lex.decimal <* spaceConsumer
+#else
+natural = Lex.integer <* spaceConsumer
 #endif
 
 float :: Parser Double

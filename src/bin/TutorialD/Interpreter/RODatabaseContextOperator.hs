@@ -1,9 +1,7 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
-import ProjectM36.Attribute (attributeForName) 
-import ProjectM36.DataFrame
-import ProjectM36.Relation (attributes)
+import qualified ProjectM36.DataFrame as DF
 import ProjectM36.Error
 import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
@@ -27,7 +25,7 @@ data RODatabaseContextOperator where
   ShowRelationVariables :: RODatabaseContextOperator
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
-  ShowDataFrame :: RelationalExpr -> [AttributeOrderExpr] -> Maybe Integer -> Maybe Integer -> RODatabaseContextOperator
+  ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -151,27 +149,11 @@ evalRODatabaseContextOp sessionId conn ShowDatabaseContextFunctions = do
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
   
-evalRODatabaseContextOp sessionId conn (ShowDataFrame expr attrOrdersExpr mbOffset mbLimit) = do
-  res <- C.executeRelationalExpr sessionId conn expr
-  case res of
-    Left err -> pure $ DisplayErrorResult $ T.pack (show err)
-    Right rel -> do
-      let relAttrs = attributes rel
-          attrName (AttributeOrderExpr name _) = name
-          order (AttributeOrderExpr _ ord) = ord
-          orders = map order attrOrdersExpr
-          attributeForName' = flip attributeForName relAttrs 
-          attrNames = map attrName attrOrdersExpr
-          verified = forM attrNames attributeForName'
-      case verified of
-        Left err -> pure $ DisplayErrorResult $ T.pack (show err)
-        Right attrs -> do
-              let attrOrders = map (\(attr',order')->AttributeOrder attr' order') (zip attrs orders)
-              let dFrame = sortDataFrameBy attrOrders . toDataFrame $ rel
-              let dFrame' = maybe dFrame (`drop'` dFrame) mbOffset
-              let dFrame'' = maybe dFrame' (`take'` dFrame') mbLimit
-              pure $ DisplayDataFrameResult $ dFrame''
-
+evalRODatabaseContextOp sessionId conn (ShowDataFrame dfExpr) = do
+  eDataFrame <- C.executeDataFrameExpr sessionId conn dfExpr
+  case eDataFrame of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right dframe -> pure (DisplayDataFrameResult dframe)
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
@@ -188,24 +170,24 @@ showDataFrameP = do
   attrOrdersExpr <- attrOrdersExprP
   mbOffset <- optional offsetP
   mbLimit <- optional limitP
-  pure $ ShowDataFrame relExpr attrOrdersExpr mbOffset mbLimit
+  pure $ ShowDataFrame (DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit)
 
 
 offsetP :: Parser Integer
 offsetP = do
   reservedOp "offset"
-  integer
+  natural
 
 limitP :: Parser Integer
 limitP = do
   reservedOp "limit"
-  integer
+  natural
 
-attrOrdersExprP :: Parser [AttributeOrderExpr]
+attrOrdersExprP :: Parser [DF.AttributeOrderExpr]
 attrOrdersExprP = braces (sepBy attrOrderExprP comma)
 
-attrOrderExprP :: Parser AttributeOrderExpr
-attrOrderExprP = AttributeOrderExpr <$> identifier <*> orderP
+attrOrderExprP :: Parser DF.AttributeOrderExpr
+attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP
 
-orderP :: Parser Order
-orderP = (try $ reservedOp "ASC" >> pure ASC) <|> (try $ reservedOp "DESC" >> pure DESC) <|> pure ASC
+orderP :: Parser DF.Order
+orderP = try (reservedOp "ascending" >> pure DF.AscendingOrder) <|> try (reservedOp "descending" >> pure DF.DescendingOrder) <|> pure DF.AscendingOrder

@@ -3,6 +3,7 @@ import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Client as C
 import ProjectM36.Error
+import ProjectM36.DataFrame
 import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
@@ -33,6 +34,11 @@ type Reply a = Process (ProcessReply (Either ServerError a) Connection)
 handleExecuteRelationalExpr :: Timeout -> SessionId -> Connection -> RelationalExpr -> Reply (Either RelationalError Relation)
 handleExecuteRelationalExpr ti sessionId conn expr = do
   ret <- timeoutOrDie ti (executeRelationalExpr sessionId conn expr)
+  reply ret conn
+
+handleExecuteDataFrameExpr :: Timeout -> SessionId -> Connection -> DataFrameExpr -> Reply (Either RelationalError DataFrame)
+handleExecuteDataFrameExpr ti sessionId conn expr = do
+  ret <- timeoutOrDie ti (executeDataFrameExpr sessionId conn expr)
   reply ret conn
   
 handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError ())

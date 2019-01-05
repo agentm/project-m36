@@ -38,16 +38,6 @@ boxBB = "┴"
 boxC :: StringType
 boxC = "┼"
 
-dboxH :: StringType
-dboxH = "═"
-dboxL :: StringType
-dboxL = "╞"
-dboxR :: StringType
-dboxR = "╡"
-
-class TermSize a where
-  termLength :: a -> Int
-
 --represent a relation as a table similar to those drawn by Date
 type Cell = StringType
 type Table = ([Cell], [[Cell]]) --header, body

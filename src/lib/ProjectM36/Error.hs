@@ -62,6 +62,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
+                     | AttributeNotSortableError Attribute
                      | FunctionNameInUseError AtomFunctionName
                      | FunctionNameNotInUseError AtomFunctionName
                      | EmptyCommitError

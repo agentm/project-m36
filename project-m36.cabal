@@ -77,6 +77,7 @@ Library
                      ProjectM36.Tupleable,
                      ProjectM36.DataConstructorDef,
                      ProjectM36.DataTypes.Basic,
+                     ProjectM36.DataTypes.Sorting,
                      ProjectM36.DataTypes.Day,
                      ProjectM36.DataTypes.DateTime,
                      ProjectM36.DataTypes.Either,
@@ -504,4 +505,12 @@ Executable handles
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
   
-
+Test-Suite test-dataframe
+    Default-Language: Haskell2010
+    Main-Is: test/DataFrame.hs
+    type: exitcode-stdio-1.0
+    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr,  TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, binary, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups
+    Default-Extensions: OverloadedStrings
+    GHC-Options: -Wall -threaded
+    Hs-Source-Dirs: ./src/bin, ., test/

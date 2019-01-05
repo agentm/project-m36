@@ -16,7 +16,8 @@ module ProjectM36.Client
        closeRemote_,
        executeRelationalExpr,
        executeDatabaseContextExpr,
-       executeDatabaseContextIOExpr,       
+       executeDatabaseContextIOExpr,
+       executeDataFrameExpr,
        executeGraphExpr,
        executeSchemaExpr,
        executeTransGraphRelationalExpr,
@@ -86,6 +87,10 @@ module ProjectM36.Client
        IncDepName,
        InclusionDependency(..),
        AttributeName,
+       DF.DataFrame(..),
+       DF.DataFrameExpr(..),
+       DF.AttributeOrderExpr(..),
+       DF.Order(..),
        RelationalError(..),
        RequestTimeoutException(..),
        RemoteProcessDiedException(..),
@@ -103,6 +108,7 @@ import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
 import ProjectM36.Key
+import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
@@ -1137,3 +1143,29 @@ withTransaction sessionId conn io successFunc = bracketOnError (pure ()) (const 
                     Right _ -> pure (Right val)
                   else -- no updates executed, so don't create a commit
                   pure (Right val)
+
+executeDataFrameExpr :: SessionId -> Connection -> DF.DataFrameExpr -> IO (Either RelationalError DF.DataFrame)
+executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
+  eRel <- executeRelationalExpr sessionId conn (DF.convertExpr dfExpr)
+  case eRel of
+    Left err -> pure (Left err)
+    Right rel -> do
+      let relAttrs = R.attributes rel
+          attrName (DF.AttributeOrderExpr name _) = name
+          order (DF.AttributeOrderExpr _ ord) = ord
+          orders = map order (DF.orderExprs dfExpr)
+          attributeForName' = flip attributeForName relAttrs 
+          attrNames = map attrName (DF.orderExprs dfExpr)
+          verified = forM attrNames attributeForName'
+      case verified of
+        Left err -> pure (Left err)
+        Right attrs -> do
+          let attrOrders = map (\(attr',order') -> DF.AttributeOrder (attributeName attr') order') (zip attrs orders)
+          case DF.sortDataFrameBy attrOrders . DF.toDataFrame $ rel of
+            Left err -> pure (Left err)
+            Right dFrame -> do
+              let dFrame' = maybe dFrame (`DF.drop'` dFrame) (DF.offset dfExpr)
+                  dFrame'' = maybe dFrame' (`DF.take'` dFrame') (DF.limit dfExpr)
+              pure (Right dFrame'')
+executeDataFrameExpr sessionId conn@(RemoteProcessConnection _) dfExpr = remoteCall conn (ExecuteDataFrameExpr sessionId dfExpr)
+        
