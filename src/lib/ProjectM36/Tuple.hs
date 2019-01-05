@@ -188,7 +188,7 @@ verifyTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTup
 verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
                               tupleTypes = V.map atomTypeForAtom (tupleAtoms tuple) in
   if V.length attrs /= V.length tupleTypes then
-    Left $ traceShow (attrs, tupleTypes) $ TupleAttributeCountMismatchError 0
+    Left $ TupleAttributeCountMismatchError 0
   else do
     mapM_ (uncurry atomTypeVerify) (V.zip attrsTypes tupleTypes)
     Right tuple
