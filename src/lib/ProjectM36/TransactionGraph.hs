@@ -400,7 +400,7 @@ mergeTransactions stamp newId parentId mergeStrategy (headNameA, headNameB) grap
   transA <- transactionForHeadErr headNameA 
   transB <- transactionForHeadErr headNameB 
   disconParent <- transactionForId parentId graph
-  let subHeads = M.filterWithKey (\k _ -> elem k [headNameA, headNameB]) (transactionHeadsForGraph graph)
+  let subHeads = M.filterWithKey (\k _ -> k `elem` [headNameA, headNameB]) (transactionHeadsForGraph graph)
   subGraph <- subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
   subGraph' <- filterSubGraph subGraph subHeads
   case createMergeTransaction stamp newId mergeStrategy subGraph' (transA, transB) of
