@@ -124,12 +124,12 @@ data DataFrameExpr = DataFrameExpr {
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
 dataFrameAsHTML df 
-  | length (tuples df) == 1 && null (attributes df) = style <>
+  | length (tuples df) == 1 && L.null (attributes df) = style <>
                           tablestart <>
                           "<tr><th></th></tr>" <>
                           "<tr><td></td></tr>" <> 
                           tablefooter <> "</table>"
-  | null (tuples df) && null (attributes df) = style <>
+  | L.null (tuples df) && L.null (attributes df) = style <>
                            tablestart <>
                            "<tr><th></th></tr>" <>
                            tablefooter <> 
