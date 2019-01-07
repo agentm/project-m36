@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import qualified Network.WebSockets as WS
 import ProjectM36.Server.RemoteCallTypes.Json ()
 import ProjectM36.Client.Json ()
+import ProjectM36.DataFrame
 import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation.Show.HTML
 import Data.Aeson
@@ -94,6 +95,12 @@ handleOpResult conn _ presentation (DisplayRelationResult rel) = do
       texto = ["text" .= showRelation rel | textPresentation presentation]
       htmlo = ["html" .= relationAsHTML rel | htmlPresentation presentation]
   WS.sendTextData conn (encode (object ["displayrelation" .= object (jsono ++ texto ++ htmlo)]))
+handleOpResult conn _ presentation (DisplayDataFrameResult df) = do
+  let jsono = ["json" .= df | jsonPresentation presentation]
+      texto = ["text" .= showDataFrame df | textPresentation presentation]
+      htmlo = ["html" .= dataFrameAsHTML df | htmlPresentation presentation]
+  WS.sendTextData conn (encode (object ["displaydataframe" .= object (jsono ++ texto ++ htmlo)]))
+  
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
 promptInfo sessionId conn = do

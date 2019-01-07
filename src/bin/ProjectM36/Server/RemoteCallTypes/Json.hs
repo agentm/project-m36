@@ -4,6 +4,7 @@
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.AtomFunctionError
 import ProjectM36.Base
+import ProjectM36.DataFrame
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
@@ -62,6 +63,18 @@ instance FromJSON SchemaExpr
 
 instance ToJSON SchemaIsomorph
 instance FromJSON SchemaIsomorph
+
+instance ToJSON DataFrame
+instance FromJSON DataFrame
+
+instance ToJSON DataFrameTuple
+instance FromJSON DataFrameTuple
+
+instance ToJSON AttributeOrder
+instance FromJSON AttributeOrder
+
+instance ToJSON Order
+instance FromJSON Order
 
 instance ToJSON Atom where
   toJSON atom@(IntegerAtom i) = object [ "type" .= atomTypeForAtom atom,

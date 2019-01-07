@@ -1,5 +1,5 @@
 import ProjectM36.Client
-import ProjectM36.DataFrame (atomForAttributeName, tuples)
+import ProjectM36.DataFrame
 import TutorialD.Interpreter.TestBase
 
 import Test.HUnit

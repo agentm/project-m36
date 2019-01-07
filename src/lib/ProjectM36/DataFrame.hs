@@ -6,8 +6,10 @@ import ProjectM36.Attribute as A
 import ProjectM36.Error
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
+import qualified ProjectM36.Relation.Show.HTML as RelHTML
 import ProjectM36.DataTypes.Sorting
 import ProjectM36.AtomType
+import ProjectM36.Atom
 import qualified Data.Vector as V
 import GHC.Generics
 import qualified Data.List as L
@@ -15,20 +17,28 @@ import qualified Data.Set as S
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Binary
+import Control.Arrow
 
 data AttributeOrderExpr = AttributeOrderExpr AttributeName Order deriving (Show, Generic, Binary)
 data AttributeOrder = AttributeOrder AttributeName Order deriving (Show, Generic, Binary)
 data Order = AscendingOrder | DescendingOrder deriving (Eq, Show, Generic, Binary)
 
-data DataFrame = DataFrame Attributes [DataFrameTuple] deriving (Show, Generic, Binary)
+ascending :: T.Text
+ascending = "⬆"
+
+descending :: T.Text
+descending = "⬇"
+
+arbitrary :: T.Text
+arbitrary = "↕"
+
+data DataFrame = DataFrame {
+  orders :: [AttributeOrder],
+  attributes :: Attributes,
+  tuples :: [DataFrameTuple]
+  } deriving (Show, Generic, Binary)
 
 data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom) deriving (Eq, Show, Generic, Binary)
-
-attributes :: DataFrame -> Attributes
-attributes (DataFrame attrs _) = attrs
-
-tuples :: DataFrame -> [DataFrameTuple]
-tuples (DataFrame _ tups) = tups
 
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
@@ -37,7 +47,7 @@ sortDataFrameBy attrOrders frame = do
             Left (AttributeNotSortableError attr)
             else
             pure ()) attrs
-  pure $ DataFrame (attributes frame) (sortTuplesBy (compareTupleByAttributeOrders attrOrders) (tuples frame))
+  pure $ DataFrame attrOrders (attributes frame) (sortTuplesBy (compareTupleByAttributeOrders attrOrders) (tuples frame))
 
 sortTuplesBy :: (DataFrameTuple -> DataFrameTuple -> Ordering) -> [DataFrameTuple] -> [DataFrameTuple]
 sortTuplesBy = L.sortBy
@@ -69,35 +79,39 @@ atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findInde
     Just atom -> Right atom
 
 take' :: Integer -> DataFrame -> DataFrame
-take' n (DataFrame attrs tuples') = DataFrame attrs (take (fromInteger n) tuples')
+take' n df = df { tuples = take (fromInteger n) (tuples df) }
 
 drop' :: Integer -> DataFrame -> DataFrame
-drop' n (DataFrame attrs tuples') = DataFrame attrs (drop (fromInteger n) tuples')
+drop' n df = df { tuples = drop (fromInteger n) (tuples df) }
 
 toDataFrame :: Relation -> DataFrame
-toDataFrame (Relation attrs (RelationTupleSet tuples')) = DataFrame attrs (map (\(RelationTuple tupAttrs tupVec) -> DataFrameTuple tupAttrs tupVec) tuples')
+toDataFrame (Relation attrs (RelationTupleSet tuples')) = DataFrame [] attrs (map (\(RelationTuple tupAttrs tupVec) -> DataFrameTuple tupAttrs tupVec) tuples')
 
 fromDataFrame :: DataFrame -> Either RelationalError Relation 
-fromDataFrame (DataFrame attrs dftuples) = R.mkRelation attrs (RelationTupleSet tuples')
+fromDataFrame df = R.mkRelation (attributes df) (RelationTupleSet tuples')
   where
-    tuples' = map (\(DataFrameTuple attrs' tupVec) -> RelationTuple attrs' tupVec) dftuples
+    tuples' = map (\(DataFrameTuple attrs' tupVec) -> RelationTuple attrs' tupVec) (tuples df)
 
+showDataFrame :: DataFrame -> T.Text
+showDataFrame = renderTable . dataFrameAsTable
+  
 --terminal display
 dataFrameAsTable :: DataFrame -> Table
-dataFrameAsTable (DataFrame attrs tups) = (header, body)
+dataFrameAsTable df = (header, body)
   where
-    oAttrNames = orderedAttributeNames attrs
-    oAttrs = orderedAttributes attrs
-    header = "DF" : map prettyAttribute oAttrs
-    body = snd (L.foldl' tupleFolder (1 :: Int,[]) tups)
+    oAttrNames = orderedAttributeNames (attributes df)
+    oAttrs = orderedAttributes (attributes df)
+    header = "DF" : map dfPrettyAttribute oAttrs
+    dfPrettyAttribute attr = prettyAttribute attr <> case L.find (\(AttributeOrder nam _) -> nam == attributeName attr) (orders df) of
+      Nothing -> arbitrary
+      Just (AttributeOrder _ AscendingOrder) -> ascending
+      Just (AttributeOrder _ DescendingOrder) -> descending
+    body = snd (L.foldl' tupleFolder (1 :: Int,[]) (tuples df))
     tupleFolder (count, acc) tuple = (count + 1,
                                       acc ++ [T.pack (show count) : map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom 0 atom
                                             ) oAttrNames])
-
-showDataFrame :: DataFrame -> StringType
-showDataFrame = renderTable . dataFrameAsTable
 
 -- | A Relation can be converted to a DataFrame for sorting, limits, and offsets.
 data DataFrameExpr = DataFrameExpr {
@@ -106,3 +120,53 @@ data DataFrameExpr = DataFrameExpr {
   offset :: Maybe Integer,
   limit :: Maybe Integer
   } deriving (Show, Binary, Generic)
+
+dataFrameAsHTML :: DataFrame -> T.Text
+-- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
+dataFrameAsHTML df 
+  | length (tuples df) == 1 && length (attributes df) == 0 = style <>
+                          tablestart <>
+                          "<tr><th></th></tr>" <>
+                          "<tr><td></td></tr>" <> 
+                          tablefooter <> "</table>"
+  | length (tuples df) == 0 && length (attributes df) == 0 = style <>
+                           tablestart <>
+                           "<tr><th></th></tr>" <>
+                           tablefooter <> 
+                           "</table>"
+  | otherwise = style <>
+                tablestart <> 
+                attributesAsHTML (attributes df) (orders df) <> 
+                tuplesAsHTML (tuples df) <> 
+                tablefooter <> 
+                "</table>"
+  where
+    cardinality = T.pack (show (length (tuples df)))
+    style = "<style>.pm36dataframe {empty-cells: show;} .pm36dataframe tbody td, .pm36relation th { border: 1px solid black;}</style>"
+    tablefooter = "<tfoot><tr><td colspan=\"100%\">" <> cardinality <> " tuples</td></tr></tfoot>"
+    tablestart = "<table class=\"pm36dataframe\"\">"
+
+tuplesAsHTML :: [DataFrameTuple] -> T.Text
+tuplesAsHTML tups = foldr folder "" tups
+  where
+    folder tuple acc = acc <> tupleAsHTML tuple
+
+tupleAssocs :: DataFrameTuple -> [(AttributeName, Atom)]
+tupleAssocs (DataFrameTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
+    
+
+tupleAsHTML :: DataFrameTuple -> T.Text
+tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> "</tr>"
+  where
+    tupleFrag tup = "<td>" <> atomAsHTML (snd tup) <> "</td>"
+    atomAsHTML (RelationAtom rel) = RelHTML.relationAsHTML rel
+    atomAsHTML atom = atomToText atom
+
+attributesAsHTML :: Attributes -> [AttributeOrder] -> T.Text
+attributesAsHTML attrs orders' = "<tr>" <> T.concat (map oneAttrHTML (V.toList attrs)) <> "</tr>"
+  where
+    oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (attributeName attr) <> "</th>"
+    ordering attrName = " " <> case L.find (\(AttributeOrder nam _) -> nam == attrName) orders' of
+      Nothing -> "(arb)"
+      Just (AttributeOrder _ AscendingOrder) -> "(asc)"
+      Just (AttributeOrder _ DescendingOrder) -> "(desc)"

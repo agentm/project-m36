@@ -3,7 +3,7 @@ import TutorialD.Interpreter.TestBase
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import Test.HUnit
-import ProjectM36.Relation
+import ProjectM36.Relation as R
 import ProjectM36.Tuple
 import ProjectM36.TupleSet
 import ProjectM36.Error
@@ -121,7 +121,7 @@ main = do
     simpleEitherIntTextAttributes = A.attributesFromList [Attribute "a" (eitherAtomType IntegerAtomType TextAtomType)]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" IntegerAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" IntegerAtomType])]
-    extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (attributes suppliersRel)]
+    extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (R.attributes suppliersRel)]
     byteStringAttributes = A.attributesFromList [Attribute "y" ByteStringAtomType]    
     groupCountAttrs = A.attributesFromList [Attribute "z" IntegerAtomType]
     minMaxAttrs = A.attributesFromList [Attribute "s#" TextAtomType, Attribute "z" IntegerAtomType]
@@ -133,10 +133,10 @@ main = do
                                      else Right tuple) suppliersRel
     dateExampleRelTests = [("x:=s where true", Right suppliersRel),
                            ("x:=s where city = \"London\"", restrict (\tuple -> pure $ atomForAttributeName "city" tuple == (Right $ TextAtom "London")) suppliersRel),
-                           ("x:=s where false", Right $ Relation (attributes suppliersRel) emptyTupleSet),
-                           ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"]]),
+                           ("x:=s where false", Right $ Relation (R.attributes suppliersRel) emptyTupleSet),
+                           ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (R.attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"]]),
                            ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" IntegerAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" IntegerAtomType]) (V.fromList [IntegerAtom 50])])),
-                           ("x:=s minus (s where status=20)", mkRelationFromList (attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"], [TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"], [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
+                           ("x:=s minus (s where status=20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"], [TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"], [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
                            --atom function tests
                            ("x:=((s : {status2 := add(10,@status)}) where status2=add(10,@status)){city,s#,sname,status}", Right suppliersRel),
                            ("x:=relation{tuple{a 5}} : {b:=s}", mkRelation extendTestAttributes (RelationTupleSet [mkRelationTuple extendTestAttributes (V.fromList [IntegerAtom 5, RelationAtom suppliersRel])])),
@@ -149,11 +149,11 @@ main = do
                            ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
                            ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
                            --boolean function restriction
-                           ("x:=s where ^lt(@status,20)", mkRelationFromList (attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
-                           ("x:=s where ^gt(@status,20)", mkRelationFromList (attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
+                           ("x:=s where ^lt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
+                           ("x:=s where ^gt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
                                                                                                        [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
                            ("x:=s where ^sum(@status)", Left $ AtomTypeMismatchError IntegerAtomType BoolAtomType),
-                           ("x:=s where ^not(gte(@status,20))", mkRelationFromList (attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
+                           ("x:=s where ^not(gte(@status,20))", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
                            --test key syntax
@@ -202,6 +202,7 @@ transactionGraphAddCommitTest = TestCase $ do
         DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
+        DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerror?"
         DisplayErrorResult err -> assertFailure (show err)   
         QuietSuccessResult -> do
@@ -522,7 +523,7 @@ testRestrictionPredicateExprs = TestCase $ do
   -- and
   executeTutorialD sessionId dbconn "x:=s where status=20 and status=10"
   eRvAnd <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
-  let expectedRelAnd = Right (emptyRelationWithAttrs (attributes suppliersRel))
+  let expectedRelAnd = Right (emptyRelationWithAttrs (R.attributes suppliersRel))
   assertEqual "status 20 and 10" expectedRelAnd eRvAnd
   
 testRelationalAttributeNames :: Test
@@ -533,7 +534,7 @@ testRelationalAttributeNames = TestCase $ do
     case eRv of
       Left err -> assertFailure (show err)
       Right rel -> 
-        assertEqual "attributes from sp" (attributes supplierProductsRel) (attributes rel)
+        assertEqual "attributes from sp" (R.attributes supplierProductsRel) (R.attributes rel)
     
 testSemijoin :: Test
 testSemijoin = TestCase $ do
