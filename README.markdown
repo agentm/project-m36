@@ -68,6 +68,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 1. [Transaction Graph Operators](docs/transaction_graph_operators.markdown)
 1. [ProjectM36.Client Library](docs/projectm36_client_library.markdown)
+1. [Data Frames for Sorting](docs/dataframes.markdown)
 1. [Adding New Data Types](docs/new_datatypes.markdown)
 1. [Database-Manipulating Functions](docs/database_context_functions.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
