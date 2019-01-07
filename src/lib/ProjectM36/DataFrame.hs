@@ -18,6 +18,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Binary
 import Control.Arrow
+import Data.Monoid
 
 data AttributeOrderExpr = AttributeOrderExpr AttributeName Order deriving (Show, Generic, Binary)
 data AttributeOrder = AttributeOrder AttributeName Order deriving (Show, Generic, Binary)
