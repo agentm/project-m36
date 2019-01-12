@@ -45,7 +45,7 @@ parseTutDExec = optional $ strOption (long "exec-tutd" <>
                            )
 
 opts :: ParserInfo InterpreterConfig            
-opts = info parseArgs idm
+opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths

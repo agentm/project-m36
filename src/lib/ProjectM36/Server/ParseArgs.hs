@@ -6,15 +6,15 @@ import ProjectM36.Server.Config
 import Data.Monoid
 
 parseArgsWithDefaults :: ServerConfig -> Parser ServerConfig
-parseArgsWithDefaults defaults = ServerConfig <$> 
-                     parsePersistenceStrategy <*> 
-                     parseCheckFS <*>
-                     parseDatabaseName <*> 
-                     parseHostname (bindHost defaults) <*> 
-                     parsePort (bindPort defaults) <*> 
-                     many parseGhcPkgPath <*> 
-                     parseTimeout (perRequestTimeout defaults) <*> 
-                     pure False
+parseArgsWithDefaults defaults = ServerConfig <$>
+                                 parsePersistenceStrategy <*>
+                                 parseCheckFS <*>
+                                 parseDatabaseName <*>
+                                 parseHostname (bindHost defaults) <*>
+                                 parsePort (bindPort defaults) <*>
+                                 many parseGhcPkgPath <*>
+                                 parseTimeout (perRequestTimeout defaults) <*>
+                                 parseTestMode
                      
 parsePersistenceStrategy :: Parser PersistenceStrategy
 parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
@@ -29,6 +29,9 @@ parsePersistenceStrategy = CrashSafePersistence <$> (dbdirOpt <* fsyncOpt) <|>
     fsyncOpt = switch (short 'f' <>
                     long "fsync" <>
                     help "Fsync all new transactions.")
+
+parseTestMode :: Parser Bool
+parseTestMode = flag True False (long "test-mode" <> hidden)
                
 parseCheckFS :: Parser Bool               
 parseCheckFS = flag True False (long "disable-fscheck" <>
@@ -38,7 +41,7 @@ parseDatabaseName :: Parser DatabaseName
 parseDatabaseName = strOption (short 'n' <>
                                long "database" <>
                                metavar "DATABASE_NAME")
-                    
+
 parseHostname :: Hostname -> Parser Hostname                    
 parseHostname defHostname = strOption (short 'h' <>
                            long "hostname" <>
@@ -64,4 +67,11 @@ parseConfig :: IO ServerConfig
 parseConfig = parseConfigWithDefaults defaultServerConfig
   
 parseConfigWithDefaults :: ServerConfig -> IO ServerConfig
-parseConfigWithDefaults defaults = execParser (info (parseArgsWithDefaults defaults) idm)
+parseConfigWithDefaults defaults = execParser (info (parseArgsWithDefaults defaults <**> helpOption) idm)
+
+
+helpOption :: Parser (a -> a)
+helpOption = abortOption ShowHelpText $ mconcat
+  [ long "help"
+  , help "Show this help text"
+  , hidden ]
