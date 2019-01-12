@@ -23,6 +23,7 @@ parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadNam
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
                              help "Start session at head name." <>
+                             metavar "GRAPH HEAD NAME" <>
                              value "master"
                             )
 
@@ -31,8 +32,10 @@ parseNodeId = createNodeId <$>
               strOption (long "host" <> 
                          short 'h' <>
                          help "Remote host name" <>
+                         metavar "HOSTNAME" <>
                          value "127.0.0.1") <*> 
               option auto (long "port" <>
+                           metavar "PORT NUMBER" <>
                            short 'p' <>
                       help "Remote port" <>
                       value defaultServerPort)
@@ -41,6 +44,7 @@ parseNodeId = createNodeId <$>
 parseTutDExec :: Parser (Maybe TutorialDExec)
 parseTutDExec = optional $ strOption (long "exec-tutd" <>
                            short 'e' <>
+                           metavar "TUTORIALD" <>
                            help "Execute TutorialD expression and exit"
                            )
 
