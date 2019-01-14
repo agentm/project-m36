@@ -57,6 +57,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Developer's Change Log](Changelog.markdown)
 1. [Simple Client API](docs/simple_api.markdown)
+1. [CSV Import/Export](docs/import_export_csv.markdown)
 
 ### Database Comparisons
 
