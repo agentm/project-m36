@@ -89,7 +89,7 @@ Decreasing a transaction's durability can reduce IO contention at the cost of re
 
 ### Native Haskell Compatibility
 
-Any Haskell data type which implements the ```Atom``` typeclass can be manipulated as a value in the database.
+Any Haskell data type which implements the ```Atomable``` typeclass can be manipulated as a value in the database.
 
 Haskell functions which operate on those values can also be added to the database.
 
