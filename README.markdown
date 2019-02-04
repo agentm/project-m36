@@ -26,10 +26,6 @@ Project:M36 is written entirely in the [Haskell programming language](https://ww
 
 [![asciicast](https://asciinema.org/a/3syu35c8cydm403292a74l1n5.png)](https://asciinema.org/a/3syu35c8cydm403292a74l1n5)
 
-## Try It!
-
-You can experiment instantly with Project:M36 straight from your browser at [try.project-m36.io](https://try.project-m36.io)!
-
 ## Use-Cases
 
 Project:M36 supports multiple frontends which target different audiences.
