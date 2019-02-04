@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 --really, a better name for this module could be "TransTransactionGraphRelationalExpr", but that name is too long
 module ProjectM36.TransGraphRelationalExpression where

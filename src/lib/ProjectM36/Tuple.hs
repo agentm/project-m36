@@ -86,7 +86,7 @@ mkRelationTuples attrs = map mapper
     mapper = mkRelationTuple attrs
     
 mkRelationTupleFromMap :: M.Map AttributeName Atom -> RelationTuple
-mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (\attrName -> attrMap M.! attrName) attrNames)
+mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (attrMap M.!) attrNames)
   where
     attrNames = V.fromList (M.keys attrMap)
     attrs = V.map (\attrName -> Attribute attrName (atomTypeForAtom (attrMap M.! attrName))) attrNames

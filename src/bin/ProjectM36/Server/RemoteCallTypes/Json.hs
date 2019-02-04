@@ -1,5 +1,5 @@
 --create a bunch of orphan instances for use with the websocket server
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.AtomFunctionError

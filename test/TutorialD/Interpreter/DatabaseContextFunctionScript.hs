@@ -38,7 +38,7 @@ testExceptionDBCFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   let addfunc = "adddatabasecontextfunction \"bomb\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\[] _ -> error \"boom\") :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
   executeTutorialD sess conn addfunc
-  expectTutorialDErr sess conn (\err -> "UnhandledExceptionError" `T.isPrefixOf` err) "execute bomb()"
+  expectTutorialDErr sess conn ("UnhandledExceptionError" `T.isPrefixOf`) "execute bomb()"
   
 
 testDBCFunctionWithAtomArguments :: Test
