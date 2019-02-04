@@ -85,6 +85,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 1. [WebSocket Server](docs/websocket_server.markdown)
 1. [Jupyter Notebook Kernel](docs/jupyter_kernel.markdown)
+1. [Persistent Driver](https://github.com/YuMingLiao/persistent-project-m36)
 
 ## Development
 
