@@ -56,7 +56,7 @@ class (Eq a, NFData a, Binary a, Show a) => Atomable a where
   -- | Creates DatabaseContextExpr necessary to load the type constructor and data constructor into the database.
   toAddTypeExpr :: proxy a -> DatabaseContextExpr
   default toAddTypeExpr :: (Generic a, AtomableG (Rep a)) => proxy a -> DatabaseContextExpr
-  toAddTypeExpr _ = toAddTypeExprG (from (undefined :: a)) (toAtomType (Proxy :: Proxy a))
+  toAddTypeExpr _ = toAddTypeExprG (from (error "insufficient laziness" :: a)) (toAtomType (Proxy :: Proxy a))
   
 instance Atomable Integer where  
   toAtom = IntegerAtom
@@ -184,17 +184,17 @@ class AtomableG g where
 instance (Datatype c, AtomableG a) => AtomableG (M1 D c a) where  
   toAtomG (M1 v) = toAtomG v
   fromAtomG atom args = M1 <$> fromAtomG atom args
-  toAtomsG = undefined
+  toAtomsG = error "invalid toAtomsG in M1 D"
   toAtomTypeG _ = ConstructedAtomType (T.pack typeName) M.empty -- generics don't allow us to get the type constructor variables- alternatives?
     where
       typeName = datatypeName (undefined :: M1 D c a x)
-  toAddTypeExprG (M1 v) (ConstructedAtomType tcName _) = AddTypeConstructor tcDef dataConstructors
+  toAddTypeExprG ~(M1 v) (ConstructedAtomType tcName _) = AddTypeConstructor tcDef dataConstructors
     where
       tcDef = ADTypeConstructorDef tcName []
       dataConstructors = getConstructorsG v
   toAddTypeExprG _ _ = NoOperation      
-  getConstructorsG (M1 v) = getConstructorsG v
-  getConstructorArgsG = undefined
+  getConstructorsG ~(M1 v) = getConstructorsG v
+  getConstructorArgsG = error "invalid getConstructorArgsG in M1 D"
   
 --constructor metadata
 instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
@@ -209,11 +209,11 @@ instance (Constructor c, AtomableG a) => AtomableG (M1 C c a) where
                                                      Nothing
     where
       dName = T.pack (conName (undefined :: M1 C c a x))
-  fromAtomG _ _ = error "unsupported generic traversal"
-  toAtomsG = undefined
-  toAtomTypeG = undefined
-  toAddTypeExprG = undefined  
-  getConstructorsG (M1 v) = [DataConstructorDef (T.pack dName) dArgs]
+  fromAtomG _ _ = error "invalid fromAtomG in M1 C"
+  toAtomsG = error "invalid toAtomsG in M1 C"
+  toAtomTypeG = error "invalid toAtomTypeG in M1 C"
+  toAddTypeExprG = error "invalid toAddTypeExprG in M1 C"
+  getConstructorsG ~(M1 v) = [DataConstructorDef (T.pack dName) dArgs]
     where
       dName = conName (undefined :: M1 C c a x)
       dArgs = getConstructorArgsG v
@@ -225,9 +225,9 @@ instance (Selector c, AtomableG a) => AtomableG (M1 S c a) where
   fromAtomG atom args = M1 <$> fromAtomG atom args
   toAtomsG (M1 v) = toAtomsG v
   toAtomTypeG (M1 v) = toAtomTypeG v
-  toAddTypeExprG _ _ = undefined  
-  getConstructorsG = undefined
-  getConstructorArgsG (M1 v) = getConstructorArgsG v
+  toAddTypeExprG = error "invalid toAddTypeExprG in M1 S"  
+  getConstructorsG = error "invalid getConstructorsG in M1 S"
+  getConstructorArgsG ~(M1 v) = getConstructorArgsG v
 
 -- field data metadata
 instance (Atomable a) => AtomableG (K1 c a) where
@@ -237,9 +237,9 @@ instance (Atomable a) => AtomableG (K1 c a) where
                            headatom [] = error "no more atoms for constructor!"
   toAtomsG (K1 v) = [toAtom v]
   toAtomTypeG _ = toAtomType (Proxy :: Proxy a)
-  toAddTypeExprG _ _ = undefined    
-  getConstructorsG = undefined
-  getConstructorArgsG (K1 _) = [DataConstructorDefTypeConstructorArg tCons]
+  toAddTypeExprG = error "invalid toAddTypeExprG in K1"    
+  getConstructorsG = error "invalid getConstructorsG in K1"
+  getConstructorArgsG ~(K1 _) = [DataConstructorDefTypeConstructorArg tCons]
     where
       tCons = typeToTypeConstructor $ toAtomType (Proxy :: Proxy a)
 
@@ -261,39 +261,39 @@ typeToTypeConstructor (ConstructedAtomType tcName tvMap)
 typeToTypeConstructor (TypeVariableType tvName) = TypeVariable tvName
 
 instance AtomableG U1 where
-  toAtomG = undefined
+  toAtomG = error "invalid toAtomG in U1"
   fromAtomG _ _ = pure U1
   toAtomsG _ = []
-  toAtomTypeG = undefined
-  toAddTypeExprG = undefined
-  getConstructorsG = undefined
+  toAtomTypeG = error "invalid toAtomTypeG in U1"
+  toAddTypeExprG = error "invalid toAddTypeExprG in U1"
+  getConstructorsG = error "invalid getConstructorsG in U1"
   getConstructorArgsG _ = []
   
 -- product types
 instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
-  toAtomG = undefined
+  toAtomG = error "invalid toAtomG in :*:"
   fromAtomG atom args = (:*:) <$> fromAtomG atom [headatom args] <*> fromAtomG atom (tailatoms args)
     where headatom (x:_) = x
           headatom [] = error "no more atoms in head for product!"
           tailatoms (_:xs) = xs
           tailatoms [] = error "no more atoms in tail for product!"
-  toAtomTypeG = undefined
+  toAtomTypeG = error "invalid toAtomTypeG in :*:"
   toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
-  toAddTypeExprG _ _ = undefined    
-  getConstructorsG = undefined
-  getConstructorArgsG (x :*: y) = getConstructorArgsG x ++ getConstructorArgsG y
+  toAddTypeExprG = error "invalid toAddTypeExprG in :*:"
+  getConstructorsG = error "invalid getConstructorsG in :*:"
+  getConstructorArgsG ~(x :*: y) = getConstructorArgsG x ++ getConstructorArgsG y
 
 -- sum types
 instance (AtomableG a, AtomableG b) => AtomableG (a :+: b) where
   toAtomG (L1 x) = toAtomG x
   toAtomG (R1 x) = toAtomG x
   fromAtomG atom args = (L1 <$> fromAtomG atom args) <|> (R1 <$> fromAtomG atom args)
-  toAtomTypeG = undefined
+  toAtomTypeG = error "invalid toAtomTypeG in :+:"
   toAtomsG (L1 x) = toAtomsG x
   toAtomsG (R1 x) = toAtomsG x
-  toAddTypeExprG _ _ = undefined
+  toAddTypeExprG = error "invalid toAddTypeExprG in :+:"
   getConstructorsG _ = getConstructorsG (undefined :: a x) ++ getConstructorsG (undefined :: b x)
-  getConstructorArgsG = undefined  
+  getConstructorArgsG = error "invalid getConstructorArgsG in :+:" 
   
 --this represents the unimplemented generics traversals which should never be called
 {-
