@@ -305,20 +305,22 @@ type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 --used for returning information about individual expressions
 type DatabaseContextExprName = StringType
 
+type DatabaseContextExpr = DatabaseContextExprBase ()
+
 -- | Database context expressions modify the database context.
-data DatabaseContextExpr = 
+data DatabaseContextExprBase a = 
   NoOperation |
   Define RelVarName [AttributeExpr] |
   Undefine RelVarName | --forget existence of relvar X
-  Assign RelVarName RelationalExpr |
-  Insert RelVarName RelationalExpr |
+  Assign RelVarName (RelationalExprBase a) |
+  Insert RelVarName (RelationalExprBase a) |
   Delete RelVarName RestrictionPredicateExpr  |
   Update RelVarName AttributeNameAtomExprMap RestrictionPredicateExpr |
   
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |
   
-  AddNotification NotificationName RelationalExpr RelationalExpr RelationalExpr |
+  AddNotification NotificationName (RelationalExprBase a) (RelationalExprBase a) (RelationalExprBase a) |
   RemoveNotification NotificationName |
 
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
@@ -331,8 +333,10 @@ data DatabaseContextExpr =
   
   ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExpr] |
   
-  MultipleExpr [DatabaseContextExpr]
-  deriving (Show, Eq, Binary, Generic)
+  MultipleExpr [DatabaseContextExprBase a]
+  deriving (Show, Eq, Generic)
+
+instance Binary DatabaseContextExpr
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
@@ -369,17 +373,15 @@ type TransactionHeads = M.Map HeadName Transaction
 -- | The transaction graph is the global database's state which references every committed transaction.
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
 
-transactionsForGraph :: TransactionGraph -> S.Set Transaction
-transactionsForGraph (TransactionGraph _ t) = t
-
-transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
-transactionHeadsForGraph (TransactionGraph heads _) = heads
-
 -- | Every transaction has context-specific information attached to it.
-data TransactionInfo = TransactionInfo TransactionId (S.Set TransactionId) UTCTime | -- 1 parent + n children
-                       MergeTransactionInfo TransactionId TransactionId (S.Set TransactionId) UTCTime -- 2 parents, n children
+-- The `TransactionDiff`s represent child/edge relationships to subsequent transactions (branches or continuations of the same branch).
+data TransactionInfo = TransactionInfo TransactionId TransactionDiffs UTCTime | -- 1 parent + n children
+                       MergeTransactionInfo TransactionId TransactionId TransactionDiffs UTCTime -- 2 parents, n children
                      deriving(Show, Generic)
-                             
+
+-- | Each child transaction must have a corresponding difference expression.
+type TransactionDiffs = [(TransactionId, TransactionDiffExpr)]
+
 instance Binary TransactionInfo                             
 
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
@@ -387,13 +389,13 @@ type TransactionId = UUID
 
 data Transaction = Transaction TransactionId TransactionInfo Schemas
                             
---instance Binary Transaction
-                            
+-- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
+data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DatabaseContextExpr
+--the database context expression represents a difference between the disconnected transaction and its immutable parent transaction
+
 type DirtyFlag = Bool
 
--- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DirtyFlag --parentID, context- the context here represents the singular concrete context from the schema
---the dirty flag indicates that the database context has diverged from its parent's context
+type TransactionDiffExpr = DatabaseContextExpr
                             
 transactionId :: Transaction -> TransactionId
 transactionId (Transaction tid _ _) = tid

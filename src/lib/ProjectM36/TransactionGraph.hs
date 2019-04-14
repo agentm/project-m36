@@ -9,6 +9,7 @@ import ProjectM36.Tuple
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
 import qualified ProjectM36.DisconnectedTransaction as Discon
+import qualified ProjectM36.TransactionDiffs as TD
 
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
@@ -66,7 +67,7 @@ bootstrapTransactionGraph stamp freshId context = TransactionGraph bootstrapHead
   where
     bootstrapHeads = M.singleton "master" freshTransaction
     newSchemas = Schemas context M.empty
-    freshTransaction = Transaction freshId (TransactionInfo U.nil S.empty stamp) newSchemas
+    freshTransaction = Transaction freshId (TransactionInfo U.nil TD.empty stamp) newSchemas
     bootstrapTransactions = S.singleton freshTransaction
 
 emptyTransactionGraph :: TransactionGraph
@@ -85,6 +86,12 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
                                                                   Just $ (head . M.keys) matchingTrans
   where
     matchingTrans = M.filter (transaction ==) heads
+
+transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
+transactionHeadsForGraph (TransactionGraph hs _) = hs
+
+transactionsForGraph :: TransactionGraph -> S.Set Transaction
+transactionsForGraph (TransactionGraph _ ts) = ts
 
 transactionForId :: TransactionId -> TransactionGraph -> Either RelationalError Transaction
 transactionForId tid graph 
@@ -115,29 +122,28 @@ parentTransactions (Transaction _ (MergeTransactionInfo pId1 pId2 _ _) _ ) graph
 
 
 childTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
-childTransactions (Transaction _ (TransactionInfo _ children _) _) = transactionsForIds children
-childTransactions (Transaction _ (MergeTransactionInfo _ _ children _) _) = transactionsForIds children
+childTransactions trans = transactionsForIds (transactionChildIds trans)
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
 addBranch :: UTCTime -> TransactionId -> HeadName -> TransactionId -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addBranch stamp newId newBranchName branchPointId graph = do
   parentTrans <- transactionForId branchPointId graph
-  let newTrans = Transaction newId (TransactionInfo branchPointId S.empty stamp) (schemas parentTrans)
-  addTransactionToGraph newBranchName newTrans graph
+  let newTrans = Transaction newId (TransactionInfo branchPointId TD.empty stamp) (schemas parentTrans)
+  addTransactionToGraph newBranchName newTrans [(newId, NoOperation)] graph
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction stamp newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId S.empty stamp) schemas')
+addDisconnectedTransaction stamp newId headName discon@(DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName (Transaction newId (TransactionInfo parentId TD.empty stamp) schemas') [(newId, Discon.diffExpr discon)]
 
 
-addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addTransactionToGraph headName newTrans graph = do
+addTransactionToGraph :: HeadName -> Transaction -> TransactionDiffs -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addTransactionToGraph headName newTrans transDiffs graph = do
   let parentIds = transactionParentIds newTrans
       childIds = transactionChildIds newTrans
       newId = transactionId newTrans
       validateIds ids = mapM (`transactionForId` graph) (S.toList ids)
-      addChildTransaction trans = transactionSetChildren trans (S.insert newId (transactionChildIds trans))
+      addChildTransaction trans = transactionSetChildren trans (transDiffs ++ diffs trans)
   --validate that the parent transactions are in the graph
   _ <- validateIds parentIds
   when (S.size parentIds < 1) (Left $ NewTransactionMissingParentError newId)
@@ -211,12 +217,12 @@ evalGraphOp _ _ _ graph (JumpToTransaction jumpId) = case transactionForId jumpI
   Left err -> Left err
   Right parentTrans -> Right (newTrans, graph)
     where
-      newTrans = DisconnectedTransaction jumpId (schemas parentTrans) False
+      newTrans = DisconnectedTransaction jumpId (schemas parentTrans) NoOperation
 
 -- switch from one head to another
 evalGraphOp _ _ _ graph (JumpToHead headName) =
   case transactionForHead headName graph of
-    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) False in
+    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) NoOperation in
       Right (disconnectedTrans, graph)
     Nothing -> Left $ NoSuchHeadNameError headName
     
@@ -226,7 +232,7 @@ evalGraphOp _ _ discon graph (WalkBackToTime backTime) = do
   case transactionForId jumpDest graph of
     Left err -> Left err
     Right trans -> do
-      let disconnectedTrans = DisconnectedTransaction (transactionId trans) (schemas trans) False
+      let disconnectedTrans = Discon.freshTransaction (transactionId trans) (schemas trans)
       Right (disconnectedTrans, graph)
               
 -- add new head pointing to branchPoint
@@ -245,7 +251,7 @@ evalGraphOp newId discon@(DisconnectedTransaction parentId disconContext) graph 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
 evalGraphOp stamp newId (DisconnectedTransaction parentId schemas' _) graph (Branch newBranchName) = do
-  let newDiscon = DisconnectedTransaction newId schemas' False
+  let newDiscon = Discon.freshTransaction newId schemas'
   case addBranch stamp newId newBranchName parentId graph of
     Left err -> Left err
     Right (_, newGraph) -> Right (newDiscon, newGraph)
@@ -260,7 +266,7 @@ evalGraphOp stamp newTransId discon@(DisconnectedTransaction parentId schemas' _
       Left err-> Left err
       Right (_, updatedGraph) -> Right (newDisconnectedTrans, updatedGraph)
       where
-        newDisconnectedTrans = DisconnectedTransaction newTransId schemas' False
+        newDisconnectedTrans = Discon.freshTransaction newTransId schemas'
         maybeUpdatedGraph = addDisconnectedTransaction stamp newTransId headName discon graph
 
 -- refresh the disconnected transaction, return the same graph
@@ -268,7 +274,7 @@ evalGraphOp _ _ (DisconnectedTransaction parentId _ _) graph Rollback = case tra
   Left err -> Left err
   Right parentTransaction -> Right (newDiscon, graph)
     where
-      newDiscon = DisconnectedTransaction parentId (schemas parentTransaction) False
+      newDiscon = Discon.freshTransaction parentId (schemas parentTransaction)
       
 evalGraphOp stamp newId (DisconnectedTransaction parentId _ _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions stamp newId parentId mergeStrategy (headNameA, headNameB) graph
 
@@ -322,7 +328,7 @@ evalROGraphOp discon graph ShowGraph = do
 createMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> TransactionGraph -> (Transaction, Transaction) -> Either MergeError Transaction
 createMergeTransaction stamp newId (SelectedBranchMergeStrategy selectedBranch) graph t2@(trans1, trans2) = do
   let selectedTrans = validateHeadName selectedBranch graph t2
-  Transaction newId (MergeTransactionInfo (transactionId trans1) (transactionId trans2) S.empty stamp) . schemas <$> selectedTrans
+  Transaction newId (MergeTransactionInfo (transactionId trans1) (transactionId trans2) TD.empty stamp) . schemas <$> selectedTrans
                        
 -- merge functions, relvars, individually
 createMergeTransaction stamp newId strat@UnionMergeStrategy graph t2 = createUnionMergeTransaction stamp newId strat graph t2
@@ -410,7 +416,7 @@ mergeTransactions stamp newId parentId mergeStrategy (headNameA, headNameB) grap
       Right _ -> case headNameForTransaction disconParent graph of
         Nothing -> Left (TransactionIsNotAHeadError parentId)
         Just headName -> do
-          (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
+          (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans ??? graph
           let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
               newDiscon = DisconnectedTransaction newId (schemas newTrans) False
           pure (newDiscon, newGraph')
@@ -468,7 +474,7 @@ createUnionMergeTransaction stamp newId strategy graph (t1,t2) = do
         typeConstructorMapping = types
         }
       newSchemas = Schemas newContext (subschemas t1)
-  pure (Transaction newId (MergeTransactionInfo (transactionId t1) (transactionId t2) S.empty stamp) newSchemas)
+  pure (Transaction newId (MergeTransactionInfo (transactionId t1) (transactionId t2) TD.empty stamp) newSchemas)
 
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
 lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
@@ -542,4 +548,4 @@ autoMergeToHead stamp (tempBranchTransId, tempCommitTransId, mergeTransId) disco
   
   pure (discon''''', graph''''')
 
-  
+
