@@ -3,7 +3,7 @@ import ProjectM36.Base
 import ProjectM36.Client
 import Options.Applicative
 import ProjectM36.Server.Config
-import Data.Monoid
+--import Data.Monoid
 
 parseArgsWithDefaults :: ServerConfig -> Parser ServerConfig
 parseArgsWithDefaults defaults = ServerConfig <$>

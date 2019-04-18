@@ -8,7 +8,7 @@ import qualified Data.List as L
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Data.Monoid
+--import Data.Monoid
 import qualified Data.Vector as V
 
 attributesAsHTML :: Attributes -> Text

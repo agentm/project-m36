@@ -3,7 +3,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.DataTypes.Interval
 import qualified Data.Text as T
-import Data.Monoid
+--import Data.Monoid
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (RelationAtom rel) = Right rel

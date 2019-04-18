@@ -3,17 +3,17 @@ import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Client as C
 import ProjectM36.Error
-import ProjectM36.DataFrame
 import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Distributed.Process.Async (async, task, waitCancelTimeout, AsyncResult(..))
-import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
 import Control.Concurrent (threadDelay)
+import Data.Typeable
+import Data.Binary
 
-timeoutOrDie :: Serializable a => Timeout -> IO a -> Process (Either ServerError a)
+timeoutOrDie :: (Binary a, Typeable a) => Timeout -> IO a -> Process (Either ServerError a)
 timeoutOrDie micros act = 
   if micros == 0 then
     liftIO act >>= \x -> pure (Right x)

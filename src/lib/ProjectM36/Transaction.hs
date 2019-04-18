@@ -3,31 +3,20 @@ import ProjectM36.Base
 import qualified Data.Set as S
 import qualified Data.UUID as U
 import Data.Time.Clock
+import qualified Data.List.NonEmpty as NE
+import ProjectM36.TransactionDiffs
 
-transactionTimestamp :: Transaction -> UTCTime
-transactionTimestamp (Transaction _ (TransactionInfo _ _ stamp) _) = stamp
-transactionTimestamp (Transaction _ (MergeTransactionInfo _ _ _ stamp) _) = stamp
-
-transactionParentIds :: Transaction -> S.Set TransactionId
-transactionParentIds (Transaction _ (TransactionInfo pId _ _) _) = S.singleton pId
-transactionParentIds (Transaction _ (MergeTransactionInfo pId1 pId2 _ _) _) = S.fromList [pId1, pId2]
-
-transactionChildIds :: Transaction -> S.Set TransactionId
-transactionChildIds (Transaction _ (TransactionInfo _ children _) _) = S.fromList (map fst children)
-transactionChildIds (Transaction _ (MergeTransactionInfo _ _ children _) _) = S.fromList (map fst children)
-
--- | Create a new transaction which is identical to the original except that a new set of child transaction ids is added.
-transactionSetChildren :: Transaction -> TransactionDiffs -> Transaction
-transactionSetChildren t@(Transaction _ (TransactionInfo pId _  stamp) schemas') diffs' = Transaction (transactionId t) (TransactionInfo pId diffs' stamp) schemas'
-transactionSetChildren t@(Transaction _ (MergeTransactionInfo pId1 pId2 _ stamp) schemas') diffs' = Transaction (transactionId t) (MergeTransactionInfo pId1 pId2 diffs' stamp) schemas'
+parentIds :: Transaction -> S.Set TransactionId
+parentIds (Transaction _ tinfo _) = S.fromList (NE.toList (NE.map fst (parents tinfo)))
 
 -- | Return the same transaction but referencing only the specific child transactions. This is useful when traversing a graph and returning a subgraph. This doesn't filter parent transactions because it assumes a head-to-root traversal.
 filterTransactionInfoTransactions :: S.Set TransactionId -> TransactionInfo -> TransactionInfo
-filterTransactionInfoTransactions filterIds (TransactionInfo parentId diffs' stamp) = TransactionInfo (filterParent parentId filterIds) (filterDiffs filterIds diffs') stamp
-filterTransactionInfoTransactions filterIds (MergeTransactionInfo parentIdA parentIdB diffs' stamp) = MergeTransactionInfo (filterParent parentIdA filterIds) (filterParent parentIdB filterIds) (filterDiffs filterIds diffs') stamp
-
-filterDiffs :: S.Set TransactionId -> TransactionDiffs -> TransactionDiffs
-filterDiffs filterIds = filter (\(tid,_) -> S.member tid filterIds)
+filterTransactionInfoTransactions filterIds tinfo =
+  TransactionInfo { parents = case
+                      NE.filter (\diff -> S.member (fst diff) filterIds) (parents tinfo) of
+                      [] -> root
+                      xs -> NE.fromList xs,
+                    stamp = stamp tinfo }
 
 filterParent :: TransactionId -> S.Set TransactionId -> TransactionId
 filterParent parentId validIds = if S.member parentId validIds then parentId else U.nil
@@ -49,5 +38,10 @@ subschemas :: Transaction -> Subschemas
 subschemas (Transaction _ _ (Schemas _ sschemas)) = sschemas
 
 diffs :: Transaction -> TransactionDiffs
-diffs (Transaction _ (TransactionInfo _ diffs' _) _) = diffs'
-diffs (Transaction _ (MergeTransactionInfo _ _ diffs' _) _) = diffs'
+diffs (Transaction _ info _) = parents info
+
+fresh :: TransactionId -> UTCTime -> Schemas -> Transaction
+fresh freshId stamp' newSchemas = Transaction freshId (TransactionInfo root stamp') newSchemas
+
+timestamp :: Transaction -> UTCTime
+timestamp (Transaction _ tinfo _) = stamp tinfo

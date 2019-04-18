@@ -14,7 +14,7 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-import Data.Monoid
+--import Data.Monoid
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well

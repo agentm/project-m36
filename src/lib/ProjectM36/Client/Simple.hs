@@ -25,7 +25,8 @@ module ProjectM36.Client.Simple (
   C.PersistenceStrategy(..),
   C.NotificationCallback,
   C.emptyNotificationCallback,
-  C.DatabaseContextExpr(..),
+  C.DatabaseContextExprBase(..),
+  C.DatabaseContextExpr,  
   C.RelationalExprBase(..)
   ) where
 

@@ -24,7 +24,7 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
-import Data.Monoid
+--import Data.Monoid
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock
@@ -192,12 +192,12 @@ writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = w
     uuidInfo = T.intercalate "\n" graphLines
     digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 
-    epochTime = realToFrac . utcTimeToPOSIXSeconds . transactionTimestamp :: Transaction -> Double
+    epochTime = realToFrac . utcTimeToPOSIXSeconds . timestamp :: Transaction -> Double
     graphLine trans = U.toText (transactionId trans) 
                       <> " " 
                       <> T.pack (show (epochTime trans))
                       <> " "
-                      <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
+                      <> T.intercalate " " (S.toList (S.map U.toText $ parentIds trans))
     
 readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
@@ -207,8 +207,8 @@ readGraphTransactionIdFileDigest dbdir = do
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tid:epochText:parentIds = T.words line in
-        (readUUID tid, readEpoch epochText, map readUUID parentIds)
+  let grapher line = let tid:epochText:parentIds' = T.words line in
+        (readUUID tid, readEpoch epochText, map readUUID parentIds')
       readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
       readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
   Right . map grapher . T.lines <$> readUTF8FileOrError (transactionLogPath dbdir)
@@ -223,3 +223,4 @@ readUTF8FileOrError pathIn = do
       case TE.decodeUtf8' fileBytes of
         Left err -> error (show err)
         Right utf8Bytes -> pure utf8Bytes
+

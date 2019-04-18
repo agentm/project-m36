@@ -24,6 +24,7 @@ import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
+import qualified Data.List.NonEmpty as NE
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
@@ -262,7 +263,7 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                            deriving (Show, Generic, Binary, Eq, NFData)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
-type RelationVariables = M.Map RelVarName Relation
+type RelationVariables = M.Map RelVarName RelationVariable --change to RelationalExprBase TransactionId
 
 type SchemaName = StringType                         
 
@@ -374,13 +375,19 @@ type TransactionHeads = M.Map HeadName Transaction
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
 
 -- | Every transaction has context-specific information attached to it.
--- The `TransactionDiff`s represent child/edge relationships to subsequent transactions (branches or continuations of the same branch).
+-- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
+data TransactionInfo = TransactionInfo {
+  parents :: TransactionDiffs,
+  stamp :: UTCTime
+  } deriving (Show, Generic)
+{-
 data TransactionInfo = TransactionInfo TransactionId TransactionDiffs UTCTime | -- 1 parent + n children
                        MergeTransactionInfo TransactionId TransactionId TransactionDiffs UTCTime -- 2 parents, n children
-                     deriving(Show, Generic)
+                     deriving (Show, Generic)
+-}
 
 -- | Each child transaction must have a corresponding difference expression.
-type TransactionDiffs = [(TransactionId, TransactionDiffExpr)]
+type TransactionDiffs = NE.NonEmpty (TransactionId, TransactionDiffExpr)
 
 instance Binary TransactionInfo                             
 

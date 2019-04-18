@@ -10,7 +10,7 @@ module ProjectM36.Tupleable where
 import           Data.Foldable
 import           Data.List                      (partition)
 import qualified Data.Map                       as Map
-import           Data.Monoid
+--import           Data.Monoid
 import           Data.Proxy
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V

@@ -46,7 +46,8 @@ module ProjectM36.Client
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
-       DatabaseContextExpr(..),
+       DatabaseContextExprBase(..),
+       DatabaseContextExpr,
        DatabaseContextIOExpr(..),
        Attribute(..),
        MergeStrategy(..),
@@ -152,7 +153,6 @@ import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import qualified Data.Map as M
-import Control.Distributed.Process.Serializable (Serializable)
 #if MIN_VERSION_stm_containers(1,0,0)
 import qualified StmContainers.Map as StmMap
 import qualified StmContainers.Set as StmSet
@@ -163,12 +163,13 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
-import "list-t" ListT
+--import "list-t" ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
 import Data.Time.Clock
+import Data.Typeable
 
 type Hostname = String
 
@@ -311,9 +312,9 @@ connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
   freshId <- nextRandom
-  stamp <- getCurrentTime
+  tstamp <- getCurrentTime
   let bootstrapContext = basicDatabaseContext 
-      freshGraph = bootstrapTransactionGraph stamp freshId bootstrapContext
+      freshGraph = bootstrapTransactionGraph tstamp freshId bootstrapContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
@@ -409,7 +410,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
     case transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) False
+            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) NoOperation
             keyDuplication <- StmMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
@@ -494,7 +495,7 @@ safeLogin login procId = do
     Left (_ :: ServerError) -> pure False
     Right val -> pure val
 
-remoteCall :: (Serializable a, Serializable b) => Connection -> a -> IO b
+remoteCall :: (Binary a, Binary b, Typeable a, Typeable b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ ) _ = error "remoteCall called on local connection"
 remoteCall (RemoteProcessConnection conf) arg = runProcessResult localNode $ do
   ret <- safeCall serverProcessId arg
@@ -601,7 +602,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
           (Left err,_) -> pure (Left err)
           (Right (), (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
           (Right (), (!context',_,True)) -> do
-            let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
+            let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
                 newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                 newSchemas = Schemas context' newSubschemas
                 newSession = Session newDiscon (Sess.schemaName session)
@@ -616,7 +617,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   id1 <- nextRandom
   id2 <- nextRandom
   id3 <- nextRandom
-  stamp <- getCurrentTime
+  tstamp <- getCurrentTime
   commitLock_ sessionId conf $ \graph -> do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
@@ -627,10 +628,10 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
           Just headTrans -> do
             --attempt fast-forward commit, if possible
             let graphInfo = if Sess.parentId session == transactionId headTrans then do
-                              ret <- Graph.evalGraphOp stamp id1 (Sess.disconnectedTransaction session) graph Commit
+                              ret <- Graph.evalGraphOp tstamp id1 (Sess.disconnectedTransaction session) graph Commit
                               pure (ret, [id1])
                             else do
-                              ret <- Graph.autoMergeToHead stamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph 
+                              ret <- Graph.autoMergeToHead tstamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph 
                               pure (ret, [id1,id2,id3])
             case graphInfo of
               Left err -> pure (Left err)
@@ -652,7 +653,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
       case res of
         Left err -> pure (Left err)
         Right context' -> do
-          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
+          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
               newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon (Sess.schemaName session)
           atomically $ StmMap.insert newSession sessionId sessions
@@ -694,14 +695,14 @@ executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (E
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let sessions = ipSessions conf
   freshId <- nextRandom
-  stamp <- getCurrentTime
+  tstamp <- getCurrentTime
   commitLock_ sessionId conf $ \updatedGraph -> do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
       Right session -> do
         let discon = Sess.disconnectedTransaction session
-        case evalGraphOp stamp freshId discon updatedGraph graphExpr of
+        case evalGraphOp tstamp freshId discon updatedGraph graphExpr of
           Left err -> pure (Left err)
           Right (discon', graph') -> do
             --if freshId appears in the graph, then we need to pass it on
@@ -807,7 +808,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           --hm- maybe we should start using lenses
           let discon = Sess.disconnectedTransaction session 
               newSchemas = Schemas newContext newSubschemas
-              newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas True) (Sess.schemaName session)
+              newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas NoOperation) (Sess.schemaName session)
           StmMap.insert newSession sessionId sessions
           pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
