@@ -58,13 +58,13 @@ SELECT a, b, c, x FROM "BigTable" WHERE x > 10000;
 
 In PostgreSQL, considering that the column/attribute has an index, *O(log(n))* reads are needed to identify on which pages in the table's on-disk storage the proper values can be found. Considering that the value *x* was previously described as random, despite the restriction, in the worst case, every page of the on-disk table may need to be read because each page could contain one value matching the restriction. This would necessitate reading *O(n)* tuples previously written to disk. After reading the tuples, the tuples must be filtered by the restriction to service the query.
 
-In Project:M36, the state of the database is determined to be the difference of the previous state *S* (before the *x+1* update above) and *S'* (after the update). The serialized update expression can be deserialized and and merged into the rewritten query:
+In Project:M36, the state of the database is determined to be the difference of the previous state *S* (before the *x+1* update above) and *S'* (after the update). The serialized update expression can be deserialized and merged into the rewritten query:
 
 ```
 SELECT orig.a, orig.b, orig.c, x_orig + 1 AS x FROM (SELECT a, b, c, x AS x_orig FROM "BigTable"@S) AS orig WHERE x > 10000;
 ```
 
-where the *@* symbol references the state of "BigTable" at transaction state *S* in the past. The rewrite process can occur in constant time regarding the tuple count, but the execution does require reading the previous state *S* of "BigTable" and filtering it as expected, but its tuple read cost is equivalent to that of the same statement at *S'*: *O(log(n))* utilizing a b-tree index.
+where the *@* symbol references the state of "BigTable" at transaction state *S* in the past. The rewrite process can occur in constant time regarding the tuple count, but the execution does require reading the previous state *S* of "BigTable", filtering it as expected. The tuple read cost is equivalent to that of the same statement at *S'*: *O(log(n))* utilizing a b-tree index.
 
 ### Summary
 
@@ -91,10 +91,19 @@ Certain types of updates still take a similar amount of time to commit in Projec
 ```
 INSERT INTO "BigTable"(a, b, c, x) VALUES (1,5,10,10),(20,20,21,30),.... #many tuples
 ```
-will still necessitate a *O(n)* write to disk in both databases. Though the asymptotic costs are equivalent, the number of writes are cut in half in Project:M36 since it does not require a write-ahead log.
+will still necessitate a *O(n)* tuple writes to disk in both databases. Though the asymptotic costs are equivalent, the number of writes are cut in half in Project:M36 since it does not require a write-ahead log.
 
 While PostgreSQL makes use of MVCC (multi-version concurrency control) which marks which tuples belong to a linear progression of transaction states, Project:M36 stores a full history of database state using a transaction graph (a directed acyclic graph similar to the commit-based graph of `git`). The graph allows named branches to be created and merged which also reduce contention around a singular graph head.
 
+## Applying Laziness to SQL RDBMSes
+
+Would it be possible to apply transaction-based laziness to an SQL-based RDBMS? Certainly, with sufficient shoe-horning, it could work, but SQL includes a few malfeatures which would make it difficult, if not impossible:
+
+  * non-idempotent server-side functions prevent laziness because of side effects- PostgreSQL can mark functions as idempotent, but does not validate or enforce the idempotence, Project:M36, via Safe Haskell, can validate pure functions
+  * the lack of "time travel", the ability to query database state in the past prevents reliance on previous states- if a new state relies on an older state, it must be referenceable 
+  * tightly-coupled table-to-storage management prevents alternative data models- indexing and constraint checking need to be statically verifiable and deferrable
+
+These hurdles are not insurmountable, just perhaps not a good fit for SQL databasese with a lot of historical and implementation baggage.
 
 ## Conclusion
 
@@ -106,6 +115,6 @@ Project:M36 implements a transaction graph which can represent the entirety of d
 
 The promise of the relational algebra has always been the liberation of data from its data structure representation in order to be able to answer arbitrary queries. Modern DBMSes which typically map tables directly to one or more files on disk fail to live up to this promise. Project:M36 sets out to rectify this failure.
 
-In a greater context, applying laziness to an architecture to make use of more interesting optimizations is hardly new. The OpenGL API views its "immediate" mode as effectively deprecated. High-level programming languages can make greater, more interesting inferences about how a computation must be execute. A computer can always consider many more possible solution paths than a human can.
+In a greater context, applying laziness to an architecture to make use of more interesting optimizations is hardly new. The OpenGL API views its "immediate" mode as effectively deprecated. Filesystems take advantage of laziness using copy-on-write semantics. High-level programming languages can make greater, more interesting inferences about how a computation must be execute. A computer can always consider many more possible solution paths than a human can.
 
 The adherence to mathematical priniciples in Project:M36 results in features and optimization opportunities which have not yet been discovered. In contrast to RDBMSes designed around specific optimizations (such as indexes, specific disk layouts, or key-value lookups), Project:M36 sets out to demonstrate practically that future optimizations can only be discovered when operating within a mathematically-coherent architecture. 
