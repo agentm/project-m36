@@ -72,7 +72,7 @@ where the *@* symbol references the state of "BigTable" at transaction state *S*
 |-|------------|-------------|
 | UPDATE x+1 | *O(nlog(n))* | *O(1)* |
 | COMMIT | flush *n* tuples to disk | flush expression to disk |
-| SELECT x>10000 | *Ω(log(n))*, *O(n)* worst case | *O(log(n)* |
+| SELECT x>10000 | *Ω(log(n))*, *O(n)* worst case | *O(log(n))* |
 
 Even if the user were to query all the tuples back, the actual IO cost in Project:M36 would be lower since the updates are only "executed" on the fly and not necessarily written to disk. However, a clever cacheing strategy could note that state *S* is queried often enough to warrant a cached version. The table's data on disk, however, is not required to answer the query.
 
@@ -83,6 +83,12 @@ To be able to perform an update and commit in constant or less than *O(n)* time 
   * constraints must be able to be statically validated in linear or logarithmic time
 
 However, even if constraints lack a proper oracle such as an index or a static means of validation and, thus, cannot be validated in constant time, the user may still benefit from serialization of the database update expression since writing the validated tuples to disk can be deferred beyond commit time and could go directly into an on-disk cache.
+
+## Worst Case Behavior
+
+Every database constraint can be represented as an inclusion dependency (ADD DATE BOOK REFERENCE)  whereby the evaluation of a relational expression `sub` must be a subset of the evaluation of relational expression `super` (`sub ⊆  super`) for the constraint to validate. Therefore, the worst case time to validate any constraint, assuming that the constraint has an ideal oracle, is O(n) in the tuple count. However, as mentioned above, there are many constraints that can be validated in constant or less-than-linear time. Furthermore, the validated tuples need not be written to disk once the constraint is found to hold. 
+
+Since there is great variation in constraint validation cost, the RDBMS could pre-analyze and report on associated constraints costs or make use of data independence to guide storage to optimize queries needed to service the constraint checker.
 
 ## Caveats
 
@@ -99,15 +105,19 @@ While PostgreSQL makes use of MVCC (multi-version concurrency control) which mar
 
 Would it be possible to apply transaction-based laziness to an SQL-based RDBMS? Certainly, with sufficient shoe-horning, it could work, but SQL includes a few malfeatures which would make it difficult, if not impossible:
 
-  * non-idempotent server-side functions prevent laziness because of side effects- PostgreSQL can mark functions as idempotent, but does not validate or enforce the idempotence, Project:M36, via Safe Haskell, can validate pure functions
-  * the lack of "time travel", the ability to query database state in the past prevents reliance on previous states- if a new state relies on an older state, it must be referenceable 
-  * tightly-coupled table-to-storage management prevents alternative data models- indexing and constraint checking need to be statically verifiable and deferrable
+  * Non-idempotent server-side functions prevent laziness because of side effects. PostgreSQL can mark functions as idempotent, but does not validate or enforce the idempotence, Project:M36, via Safe Haskell, can validate pure functions.
+  * The lack of "time travel", the ability to query database state in the past prevents reliance on previous states, prevents direct referencing of previous database states on which the state differences can be built.
+  * Tightly-coupled table-to-storage management prevents alternative data models. Indexing and constraint checking need to be statically verifiable and deferrable.
 
-These hurdles are not insurmountable, just perhaps not a good fit for SQL databasese with a lot of historical and implementation baggage.
+These hurdles are not insurmountable, just perhaps not a good fit for SQL databases with a lot of historical and implementation baggage.
+
+## Benchmarks
+
+Forthcoming.
 
 ## Conclusion
 
-Transactional time-to-commit is critical in ensuring that business decisions can make it to non-volatile storage as quickly as possible. By introducing Haskell-like lazy evaluation to update expressions and serializing the resultant thunk, commits can be serialized in constant time, disregarding the number of tuples modified in the expression.
+Transactional time-to-commit is critical in ensuring that business decisions can make it to non-volatile storage as quickly as possible. By introducing Haskell-like, lazy evaluation to update expressions and serializing the resultant thunk, commits can be serialized in constant time, disregarding the number of tuples modified in the expression.
 
 This serialization strategy turns modern RDBMS architecture on its head since the table/relation-to-file mapping is broken, resulting in true data independence. Any on-disk representation of a relation at a specific transaction state therefore merely becomes a cached and purgeable entity, drastically shrinking on-disk cacheing requirements while expanding the scope in which said strategies can operate. Hopefully, a truly data independent architecture will result in new optimization discoveries.
 
