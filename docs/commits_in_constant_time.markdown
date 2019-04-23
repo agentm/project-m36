@@ -2,7 +2,7 @@
 
 A.M.
 
-https://github.com/agentm/project-m36
+[Project:M36](https://github.com/agentm/project-m36)
 
 ## Synopsis
 
