@@ -1,5 +1,9 @@
 # Transactional Database Commits in O(1)
 
+A.M.
+
+https://github.com/agentm/project-m36
+
 ## Synopsis
 
 Common relational database management systems operate in an imperative manner by executing statements immediately. This naive strategy quickly becomes an IO-bound bottleneck. By applying Haskell's laziness-in-evaluation to database updates, new doors for optimizations based on what is queried make themselves apparent. Furthermore, by serializing thunks representing idempotent database updates, the database can commit transactions in constant time with regards to the tuple count since the tuples themselves need not be serialized. This optimization, combined with *fsync*-coalescing, can allow databases to commit to disk faster than tuples updates can be processed. 
@@ -86,7 +90,7 @@ However, even if constraints lack a proper oracle such as an index or a static m
 
 ## Worst Case Behavior
 
-Every database constraint can be represented as an inclusion dependency (ADD DATE BOOK REFERENCE)  whereby the evaluation of a relational expression `sub` must be a subset of the evaluation of relational expression `super` (`sub ⊆  super`) for the constraint to validate. Therefore, the worst case time to validate any constraint, assuming that the constraint has an ideal oracle, is O(n) in the tuple count. However, as mentioned above, there are many constraints that can be validated in constant or less-than-linear time. Furthermore, the validated tuples need not be written to disk once the constraint is found to hold. 
+Every database constraint can be represented as an inclusion dependency whereby the evaluation of a relational expression `sub` must be a subset of the evaluation of relational expression `super` (`sub ⊆  super`) for the constraint to validate. Therefore, the worst case time to validate any constraint, assuming that the constraint has an ideal oracle, is O(n) in the tuple count. However, as mentioned above, there are many constraints that can be validated in constant or less-than-linear time. Furthermore, the validated tuples need not be written to disk once the constraint is found to hold. 
 
 Since there is great variation in constraint validation cost, the RDBMS could pre-analyze and report on associated constraints costs or make use of data independence to guide storage to optimize queries needed to service the constraint checker.
 
