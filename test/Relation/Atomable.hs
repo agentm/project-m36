@@ -52,14 +52,30 @@ data User = User
   { userFirstName :: Text
   , userLastName :: Text
   } deriving (Eq, Ord, Show, Generic, NFData, Binary, Atomable)
-                       
+
+data Test9_4T = Test9_4C {
+  f9_41 :: Int,
+  f9_42 :: Int,
+  f9_43 :: Int,
+  f9_44 :: Int }
+              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+
+data Test9_5T = Test9_5C {
+    f9_51 :: Int,
+    f9_52 :: Int,
+    f9_53 :: Int,
+    f9_54 :: Int,
+    f9_55 :: Int
+    }
+              deriving (Show, Generic, Eq, Binary, NFData, Atomable)  
+
 main :: IO ()
 main = do
   tcounts <- runTestTT testList
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testRecordType]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testRecordType, testManyFields]
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -163,3 +179,13 @@ testRecordType = TestCase $ do
   let expected = AddTypeConstructor (ADTypeConstructorDef "User" []) [DataConstructorDef "User" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Text" TextAtomType),DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Text" TextAtomType)]]
 
   assertEqual "User record to database context expr" expected (toAddTypeExpr (Proxy :: Proxy User))
+
+--test both odd and even product types with more than 2 fields
+testManyFields :: Test
+testManyFields = TestCase $ do
+  let example4 = Test9_4C 1 2 3 4
+  assertEqual "four fields product type" example4 (fromAtom (toAtom example4))
+
+  let example5 = Test9_5C 1 2 3 4 5
+  assertEqual "five fields product type" example5 (fromAtom (toAtom example5))
+
