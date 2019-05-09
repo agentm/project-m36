@@ -192,7 +192,7 @@ data RelationalExprBase a =
   --in Tutorial D, relational variables pick up the type of the first relation assigned to them
   --relational variables should also be able to be explicitly-typed like in Haskell
   --- | Reference a relation variable by its name.
-  RelationVariable RelVarName a |
+  RelationVariable RelVarName a |   
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
   Project (AttributeNamesBase a) (RelationalExprBase a) |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
@@ -263,7 +263,10 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                            deriving (Show, Generic, Binary, Eq, NFData)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
-type RelationVariables = M.Map RelVarName RelationVariable --change to RelationalExprBase TransactionId
+type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
+
+-- a fundamental relational expr to which other relational expressions compile
+type GraphRefRelationalExpr = RelationalExprBase TransactionId
 
 type SchemaName = StringType                         
 
@@ -352,6 +355,8 @@ data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] 
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
+type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionId
+
 -- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 data RestrictionPredicateExprBase a =
   TruePredicate |
@@ -418,6 +423,8 @@ instance Ord Transaction where
 
 type AtomExpr = AtomExprBase ()
 
+type GraphRefAtomExpr = AtomExprBase TransactionId
+
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
                       NakedAtomExpr Atom |
@@ -435,7 +442,7 @@ data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBas
 type ExtendTupleExpr = ExtendTupleExprBase ()                              
 
 instance Binary ExtendTupleExpr
-           
+
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
 
@@ -502,8 +509,8 @@ data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructo
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Generic, NFData)
                           
-instance Binary TupleExpr                          
-                          
+instance Binary TupleExpr
+
 type TupleExpr = TupleExprBase ()                           
 
 data MergeStrategy = 
@@ -576,4 +583,20 @@ atomTypeVars BoolAtomType = S.empty
 atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam
+
+unimplemented :: a
+unimplemented = undefined
+
+--for serializing GraphRefRelationalExpr as part of transaction serialization
+instance Binary (TupleExprBase TransactionId)
+
+instance Binary GraphRefRelationalExpr 
+
+instance Binary (AtomExprBase TransactionId)
+
+instance Binary (AttributeNamesBase TransactionId)
+
+instance Binary (RestrictionPredicateExprBase TransactionId)
+
+instance Binary (ExtendTupleExprBase TransactionId)
 

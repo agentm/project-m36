@@ -43,8 +43,8 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> 
-                  unionMergeRelation prefer relA relB
+                (Just relA, Just relB) -> unimplemented
+                  --unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 
                 (Nothing, Nothing) -> error "impossible relvar naming lookup"

@@ -94,17 +94,6 @@ transactionHeadsForGraph (TransactionGraph hs _) = hs
 transactionsForGraph :: TransactionGraph -> S.Set Transaction
 transactionsForGraph (TransactionGraph _ ts) = ts
 
-transactionForId :: TransactionId -> TransactionGraph -> Either RelationalError Transaction
-transactionForId tid graph 
-  | tid == U.nil =
-    Left RootTransactionTraversalError
-  | S.null matchingTrans =
-    Left $ NoSuchTransactionError tid
-  | otherwise =
-    Right $ head (S.toList matchingTrans)
-  where
-    matchingTrans = S.filter (\(Transaction idMatch _ _) -> idMatch == tid) (transactionsForGraph graph)
-
 transactionsForIds :: S.Set TransactionId -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 transactionsForIds idSet graph =
   S.fromList <$> forM (S.toList idSet) (`transactionForId` graph)

@@ -17,17 +17,17 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr
-databaseContextAsDatabaseContextExpr context = MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
+databaseContextAsDatabaseContextExpr context = unimplemented {-MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
   where
-    relVarsExprs = map (\(name, rel) -> Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
+    relVarsExprs = map (\(name, rel) -> --Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
     incDepsExprs :: [DatabaseContextExpr]
     incDepsExprs = map (uncurry AddInclusionDependency) (M.toList (inclusionDependencies context))
-    funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet
+    funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet-}
 
 basicDatabaseContext :: DatabaseContext
 basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
-                                         relationVariables = M.fromList [("true", relationTrue),
-                                                                         ("false", relationFalse)],
+                                         relationVariables = M.fromList [("true", ExistingRelation relationTrue),
+                                                                         ("false", ExistingRelation relationFalse)],
                                          atomFunctions = basicAtomFunctions,
                                          dbcFunctions = basicDatabaseContextFunctions,
                                          notifications = M.empty,
