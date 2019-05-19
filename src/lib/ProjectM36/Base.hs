@@ -382,17 +382,16 @@ data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
 -- | Every transaction has context-specific information attached to it.
 -- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
 data TransactionInfo = TransactionInfo {
-  parents :: TransactionDiffs,
+  parents :: TransactionParents,
   stamp :: UTCTime
   } deriving (Show, Generic)
+
+type TransactionParents = NE.NonEmpty TransactionId
 {-
 data TransactionInfo = TransactionInfo TransactionId TransactionDiffs UTCTime | -- 1 parent + n children
                        MergeTransactionInfo TransactionId TransactionId TransactionDiffs UTCTime -- 2 parents, n children
                      deriving (Show, Generic)
 -}
-
--- | Each child transaction must have a corresponding difference expression.
-type TransactionDiffs = NE.NonEmpty (TransactionId, TransactionDiffExpr)
 
 instance Binary TransactionInfo                             
 
@@ -489,7 +488,10 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
                       deriving (Eq, Show, Generic, NFData)
                                
-type AttributeNames = AttributeNamesBase ()                               
+type AttributeNames = AttributeNamesBase ()
+
+type GraphRefAttributeNames = AttributeNamesBase TransactionId
+
 instance Binary AttributeNames
                                 
 -- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
@@ -499,6 +501,7 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            deriving (Show, Read)
                                     
 type AttributeExpr = AttributeExprBase ()
+type GraphRefAttributeExpr = AttributeExprBase TransactionId
 
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
@@ -511,7 +514,9 @@ newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                           
 instance Binary TupleExpr
 
-type TupleExpr = TupleExprBase ()                           
+type TupleExpr = TupleExprBase ()
+
+type GraphRefTupleExpr = TupleExprBase TransactionId
 
 data MergeStrategy = 
   -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)

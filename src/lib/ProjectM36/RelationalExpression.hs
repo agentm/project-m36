@@ -30,6 +30,9 @@ import Control.Monad.Trans.Reader
 import Test.QuickCheck
 import GHC
 import GHC.Paths
+import Data.Time.Clock
+import Data.Time.Calendar
+import qualified Data.List.NonEmpty as NE
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -54,6 +57,11 @@ freshDatabaseState context = DatabaseStateElems {
   } --future work: propagate return accumulator
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
+data RelationalExprStateElems = RelationalExprStateTupleElems
+                                DatabaseContext
+                                TransactionGraph
+                                Maybe (Either RelationTuple Attributes)
+
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
                                 RelationalExprStateAttrsElems DatabaseContext Attributes | --used when evaluating the type of a relexpr
                                 RelationalExprStateElems DatabaseContext --used by default at the top level of evaluation
@@ -260,14 +268,14 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
         Right tupProc -> pure (Right (Extend tupProc expr))
 
 --helper function to process relation variable creation/assignment
-setRelVar :: RelVarName -> GraphRefRelationalExpr -> DatabaseState (Either RelationalError ())
-setRelVar relVarName relExpr = do
+setRelVar :: RelVarName -> GraphRefRelationalExpr -> TransactionId -> TransactionGraph -> DatabaseState (Either RelationalError ())
+setRelVar relVarName relExpr transId graph = do
   currentContext <- getStateContext
   let newRelVars = M.insert relVarName relExpr $ relationVariables currentContext
       potentialContext = currentContext { relationVariables = newRelVars }
   --determine when to check constraints
   
-  case checkConstraints potentialContext of
+  case checkConstraints potentialContext transId graph of
     Left err -> pure (Left err)
     Right _ -> do
       putStateContext potentialContext
@@ -289,7 +297,7 @@ deleteRelVar relVarName = do
 evalDatabaseContextExpr :: DatabaseContextExpr -> TransactionId -> TransactionGraph -> DatabaseState (Either RelationalError ())
 evalDatabaseContextExpr NoOperation _ _ = pure (Right ())
   
-evalDatabaseContextExpr (Define relVarName attrExprs) _ _ = do
+evalDatabaseContextExpr (Define relVarName attrExprs) transId graph = do
   relvars <- fmap relationVariables getStateContext
   tConss <- fmap typeConstructorMapping getStateContext
   let eAttrs = map (evalAttrExpr tConss) attrExprs
@@ -304,7 +312,7 @@ evalDatabaseContextExpr (Define relVarName attrExprs) _ _ = do
         else 
         case M.member relVarName relvars of
           True -> pure (Left (RelVarAlreadyDefinedError relVarName))
-          False -> setRelVar relVarName (ExistingRelation emptyRelation) >> pure (Right ())
+          False -> setRelVar relVarName (ExistingRelation emptyRelation) transId graph >> pure (Right ())
             where
               attrs = A.attributesFromList attrsList
               emptyRelation = Relation attrs emptyTupleSet
@@ -320,10 +328,10 @@ evalDatabaseContextExpr (Assign relVarName expr) transId graph = do
       let ervExpr = runReader (evalRelationalExpr expr) relExprState
       case ervExpr of
         Left err -> pure (Left err)
-        Right rvExpr -> setRelVar relVarName rvExpr
+        Right rvExpr -> setRelVar relVarName rvExpr transId graph
     Just existingRel -> do
-      let eExpectedType = typeForGraphRefRelationalExpr existingRel transId graph
-          eNewExprType = runReader (typeForRelationalExpr expr) relExprState
+      let eExpectedType = typeForGraphRefRelationalExpr existingRel graph
+          eNewExprType = runReader (typeForRelationalExpr expr transId graph) relExprState
       case eExpectedType of
         Left err -> pure (Left err)
         Right expectedType ->
@@ -334,7 +342,7 @@ evalDatabaseContextExpr (Assign relVarName expr) transId graph = do
                 let ervExpr = runReader (evalRelationalExpr expr) relExprState
                 case ervExpr of
                   Left err -> pure (Left err)
-                  Right rvExpr -> setRelVar relVarName rvExpr
+                  Right rvExpr -> setRelVar relVarName rvExpr transId graph
               else
                 pure (Left (RelationTypeMismatchError (attributes expectedType) (attributes newExprType)))
 
@@ -342,17 +350,17 @@ evalDatabaseContextExpr (Insert relVarName relExpr) tid graph =
   evalDatabaseContextExpr (Assign relVarName (Union (RelationVariable relVarName ())
                                              relExpr)) tid graph
 
-evalDatabaseContextExpr (Delete relVarName predicate) transId _ = do
+evalDatabaseContextExpr (Delete relVarName predicate) transId graph = do
   ctx <- getStateContext
   let rv = RelationVariable relVarName transId
       rvState = mkRelationalExprState ctx
   case runReader (processRestrictionPredicateExpr predicate) rvState of
     Left err -> pure (Left err)
     Right graphRefPredicate ->    
-      setRelVar relVarName (Restrict (NotPredicate graphRefPredicate) rv)
+      setRelVar relVarName (Restrict (NotPredicate graphRefPredicate) rv) transId graph
   
 --union of restricted+updated portion and the unrestricted+unupdated portion
-evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr) transId _ = do
+evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr) transId graph = do
   context <- getStateContext
   let rvState = mkRelationalExprState context
       relVarTable = relationVariables context 
@@ -374,9 +382,9 @@ evalDatabaseContextExpr (Update relVarName atomExprMap restrictionPredicateExpr)
                               ) rv (M.toList atomExprMap)
               -- the atomExprMap could reference other attributes, so we must perform multi-pass folds
               updatedPortion = foldr projectAndRename updated (M.keys atomExprMap)
-          setRelVar relVarName (Union unrestrictedPortion updatedPortion)
+          setRelVar relVarName (Union unrestrictedPortion updatedPortion) transId graph
 
-evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) _ _ = do
+evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) transId graph = do
   currContext <- getStateContext
   let currDeps = inclusionDependencies currContext
       newDeps = M.insert newDepName newDep currDeps
@@ -384,7 +392,7 @@ evalDatabaseContextExpr (AddInclusionDependency newDepName newDep) _ _ = do
     pure (Left (InclusionDependencyNameInUseError newDepName))
     else do
       let potentialContext = currContext { inclusionDependencies = newDeps }
-      case checkConstraints potentialContext of
+      case checkConstraints potentialContext transId graph of
         Left err -> pure (Left err)
         Right _ -> do
           putStateContext potentialContext
@@ -614,7 +622,7 @@ evalDatabaseContextIOExpr _ currentContext transId graph (CreateArbitraryRelatio
            case existingRelVar of
                 Nothing -> pure $ Left (RelVarNotDefinedError relVarName)
                 Just existingRel -> do
-                  case typeForGraphRefRelationalExpr existingRel transId graph of
+                  case typeForGraphRefRelationalExpr existingRel graph of
                     Left err -> pure (Left err)
                     Right relType -> do
                       let expectedAttributes = attributes relType
@@ -623,7 +631,7 @@ evalDatabaseContextIOExpr _ currentContext transId graph (CreateArbitraryRelatio
                       case eitherRel of
                         Left err -> pure $ Left err
                         Right rel ->
-                          case runState (setRelVar relVarName (ExistingRelation rel)) elems of
+                          case runState (setRelVar relVarName (ExistingRelation rel) transId graph) elems of
                             (Left err,_) -> pure (Left err)
                             (Right (), elems') -> pure $ Right (context elems)
 
@@ -637,20 +645,28 @@ updateTupleWithAtomExprs exprMap context tupIn = do
   pure (updateTupleWithAtoms (M.fromList atomsAssoc) tupIn)
 
 --run verification on all constraints
-checkConstraints :: DatabaseContext -> Either RelationalError ()
-checkConstraints context =
+checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
+checkConstraints context transId graph@(TransactionGraph graphHeads transSet) =
   mapM_ (uncurry checkIncDep) (M.toList deps) 
   where
+    potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
+    tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
+                          utctDayTime = secondsToDiffTime 0 }
+    tempSchemas = Schemas context M.empty
+    tempTrans = Transaction U.nil (TransactionInfo (transId NE.:| []) tempStamp) tempSchemas
+    
     deps = inclusionDependencies context
     eval expr = evalReader (evalRelationalExpr expr)
     evalReader f = runReader f (RelationalExprStateElems context)
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
+      let gfSubsetExpr = processRelationalExpr subsetExpr transId
+          gfSupersetExpr = processRelationalExpr supersetExpr transId
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
-      typeSub <- evalReader (typeForRelationalExpr subsetExpr)
-      typeSuper <- evalReader (typeForRelationalExpr supersetExpr)
+      typeSub <- evalReader (typeForRelationalExpr subsetExpr transId graph)
+      typeSuper <- evalReader (typeForRelationalExpr supersetExpr transId graph)
       when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
-      let checkExpr = Equals supersetExpr (Union subsetExpr supersetExpr)
-      case eval checkExpr of
+      let checkExpr = Equals gfSupersetExpr (Union gfSubsetExpr gfSupersetExpr)
+      case evalGraphRefRelationalExpr checkExpr potentialGraph of
         Left err -> Left err
         Right resultRel -> if resultRel == relationTrue then
                                    pure ()
@@ -660,24 +676,23 @@ checkConstraints context =
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
 
-typeForRelationalExpr :: RelationalExpr -> RelationalExprState (Either RelationalError Relation)
-typeForRelationalExpr expr = do
+typeForRelationalExpr :: RelationalExpr -> TransactionId -> TransactionGraph ->  RelationalExprState (Either RelationalError Relation)
+typeForRelationalExpr expr transId graph = do
   rstate <- ask
   let context = stateElemsContext rstate
   --replace the relationVariables context element with a cloned set of relation devoid of tuples
-  let context' = contextWithEmptyTupleSets context
-      rstate' = setStateElemsContext rstate context'
   --evalRelationalExpr could still return an existing relation with tuples, so strip them
-  pure $ case runReader (evalRelationalExpr expr) rstate' of
-    Left err -> Left err
-    Right typeRel -> Right (relationWithEmptyTupleSet typeRel)
+  let gfExpr = processRelationalExpr expr transId
+  pure (typeForGraphRefRelationalExpr gfExpr graph)
 
 --returns a database context with all tuples removed
 --this is useful for type checking and optimization
+{-
 contextWithEmptyTupleSets :: DatabaseContext -> DatabaseContext
 contextWithEmptyTupleSets contextIn = contextIn { relationVariables = relVars }
   where
-    relVars = M.map (\rel -> Relation (attributes rel) emptyTupleSet) (relationVariables contextIn)
+    relVars = M.map (\rel -> ExistingRelation (Relation (attributes rel) emptyTupleSet)) (relationVariables contextIn)
+-}
 
 liftE :: (Monad m) => m (Either a b) -> ExceptT a m b
 liftE v = do
@@ -1043,10 +1058,97 @@ processExtendTupleExpr (AttributeExtendTupleExpr nam atomExpr) = do
     Left err -> pure (Left err)
     Right expr -> pure (Right (AttributeExtendTupleExpr nam expr))
 
-typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> TransactionId -> TransactionGraph -> Either RelationalError Relation
-typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = mkRelation attrs emptyTupleSet
-typeForGraphRefRelationalExpr (ExistingRelation rel) = pure (emptyRelationWithAttrs (attributes rel))
-typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = unimplemented
+typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> TransactionGraph -> Either RelationalError Relation
+typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) _ = mkRelation attrs emptyTupleSet
+typeForGraphRefRelationalExpr (ExistingRelation rel) _ = pure (emptyRelationWithAttrs (attributes rel))
+typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) graph =
+  case mAttrExprs of
+    Just attrExprs -> do
+      attrs <- mapM (\e -> evalGraphRefAttributeExpr e graph) attrExprs
+      pure (emptyRelationWithAttrs attrs)
+typeForGraphRefRelationalExpr (RelationVariable rvName tid) graph = do
+  trans <- transactionForId tid graph
+  let relVars = relationVariables (concreteDatabaseContext trans)
+  case M.lookup rvName relVars of
+    Nothing -> Left $ RelVarNotDefinedError name
+    Just rvExpr -> typeForGraphRefRelationalExpr rvExpr graph
+typeForGraphRefRelationalExpr (Project attrNames expr) graph = do
+  exprType <- typeForGraphRefRelationalExpr expr graph  
+  projectionAttrs <- evalGraphRefAttributeNames attrNames expr graph
+  project projectionAttrs exprType
+
+evalGraphRefAttributeNames :: AttributeNames -> GraphRefRelationalExpr -> TransactionGraph -> Either RelationalError (S.Set AttributeName)
+evalGraphRefAttributeNames attrNames expr graph = do
+  exprTyp <- typeForGraphRefRelationalExpr expr graph
+  let typeNameSet = S.fromList (V.toList (A.attributeNames (attributes exprTyp)))
+  case attrNames of
+        AttributeNames names ->
+          case A.projectionAttributesForNames names (attributes exprTyp) of
+            Left err -> pure (Left err)
+            Right attrs -> pure (Right (S.fromList (V.toList (A.attributeNames attrs))))
+          
+        InvertedAttributeNames names -> do
+          let nonExistentAttributeNames = A.attributeNamesNotContained names typeNameSet
+          if not (S.null nonExistentAttributeNames) then
+            pure (Left (AttributeNamesMismatchError nonExistentAttributeNames))
+            else
+            pure (Right (A.nonMatchingAttributeNameSet names typeNameSet))
+        
+        UnionAttributeNames namesA namesB -> do
+          eNameSetA <- evalAttributeNames namesA expr
+          case eNameSetA of
+            Left err -> pure (Left err)
+            Right nameSetA -> do
+              eNameSetB <- evalAttributeNames namesB expr
+              case eNameSetB of
+                Left err -> pure (Left err)
+                Right nameSetB ->           
+                  pure (Right (S.union nameSetA nameSetB))
+        
+        IntersectAttributeNames namesA namesB -> do
+          eNameSetA <- evalAttributeNames namesA expr
+          case eNameSetA of
+            Left err -> pure (Left err)
+            Right nameSetA -> do
+              eNameSetB <- evalAttributeNames namesB expr
+              case eNameSetB of
+                Left err -> pure (Left err)
+                Right nameSetB ->           
+                  pure (Right (S.intersection nameSetA nameSetB))
+        
+        RelationalExprAttributeNames attrExpr -> do
+          eAttrExprType <- typeForRelationalExpr attrExpr
+          case eAttrExprType of
+            Left err -> pure (Left err)
+            Right attrExprType -> pure (Right (A.attributeNameSet (attributes attrExprType)))
+        
+
+  
 
 processAtomExpr :: AtomExpr -> TransactionId -> GraphRefAtomExpr
-processAtomExpr = unimplemented
+processAtomExpr (AttributeAtomExpr nam) _ = AttributeAtomExpr nam
+processAtomExpr (NakedAtomExpr atom) _ = NakedAtomExpr atom
+processAtomExpr (FunctionAtomExpr fName atomExprs ()) tid = FunctionAtomExpr fName (fmap processAtomExpr tid) tid
+processAtomExpr (RelationAtomExpr expr) tid = RelationAtomExpr (processRelationalExpr expr tid)
+processAtomExpr (ConstructedAtomExpr dConsName atomExprs) = ConstructedAtomExpr dConsName (fmap processAtomExpr tid) tid
+
+processTupleExpr :: TupleExpr -> TransactionId -> GraphRefTupleExpr
+processTupleExpr (TupleExpr tMap) tid = TupleExpr (M.map (processAtomExpr tid) tMap)
+
+evalGraphRefAttributeExpr :: GraphRefAttributeExpr -> TransactionGraph -> Either RelationalError Attribute
+evalGraphRefAttributeExpr (AttributeAndTypeNameExpr attrName tCons tid) graph = do
+  trans <- transactionForId tid graph
+  let tConsMap = typeConstructorMapping (concreteDatabaseContext trans)
+  aType <- atomTypeForTypeConstructorValidate True tCons tConsMap M.empty
+  validateAtomType aType tConsMap
+  pure (Attribute attrName aType)
+
+--convert AttributeExpr to GraphRefAttributeExpr
+processAttributeExpr :: AttributeExpr -> TransactionId -> GraphRefAttributeExpr
+processAttributeExpr (AttributeAndTypeNameExpr nam tCons ()) tid = AttributeAndTypeNameExpr nam tCons tid
+processAttributeExpr (NakedAttributeExpr attr) = NakedAttributeExpr attr
+
+-- convert a RelationalExpr into a GraphRefRelationalExpr  
+processRelationalExpr :: RelationalExpr -> TransactionId -> GraphRefRelationalExpr
+processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) =
+  MakeRelationFromExprs (fmap (fmap processAttributeExpr) mAttrs) (processTupleExprs tupleExprs)
