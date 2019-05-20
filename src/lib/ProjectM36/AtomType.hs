@@ -139,14 +139,39 @@ resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap
     
 -- check that type vars on the right also appear on the left
 -- check that the data constructor names are unique      
-validateTypeConstructorDef :: TypeConstructorDef -> [DataConstructorDef] -> [RelationalError]
-validateTypeConstructorDef tConsDef dConsList = execWriter $ do
+validateTypeConstructorDef :: TypeConstructorDef -> [DataConstructorDef] -> TypeConstructorMapping -> Either RelationalError ()
+validateTypeConstructorDef tConsDef dConsList tConsMap = do
   let duplicateDConsNames = dupes (L.sort (map DCD.name dConsList))
-  mapM_ tell [map DataConstructorNameInUseError duplicateDConsNames]
+  when (length duplicateDConsNames > 0) (Left (someErrors (map DataConstructorNameInUseError duplicateDConsNames)))
   let leftSideVars = S.fromList (TCD.typeVars tConsDef)
       rightSideVars = S.unions (map DCD.typeVars dConsList)
       varsDiff = S.difference leftSideVars rightSideVars
-  mapM_ tell [map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff)]
+  when (S.size varsDiff > 0) (Left (someErrors (map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff))))
+  mapM_ (\dConsDef -> validateDataConstructorDef dConsDef tConsDef tConsMap) dConsList
+
+--check that the data constructor names are not in use (recursively)
+validateDataConstructorDef :: DataConstructorDef -> TypeConstructorDef -> TypeConstructorMapping -> Either RelationalError ()
+validateDataConstructorDef (DataConstructorDef dConsName dConsDefArgs) tConsDef tConsMap = do
+  case findDataConstructor dConsName tConsMap of
+    Just _ -> Left (DataConstructorNameInUseError dConsName)
+    Nothing -> do
+      mapM_ (\arg -> validateDataConstructorDefArg arg tConsDef tConsMap) dConsDefArgs
+
+
+validateDataConstructorDefArg :: DataConstructorDefArg -> TypeConstructorDef -> TypeConstructorMapping -> Either RelationalError ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor _ _)) _ _ = Right ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg (TypeVariable _)) _ _ = Right ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) tConsDef tConsMap = case findTypeConstructor (TC.name tCons) tConsMap of
+  Nothing -> do
+    when (TC.name tCons /= TCD.name tConsDef) (Left (NoSuchTypeConstructorName (TC.name tCons))) --allows for recursively-defined types
+    pure ()
+  Just (ADTypeConstructorDef _ tConsArgs, _) -> do --validate that the argument count matches- type matching can occur later
+    let existingCount = length tConsArgs
+        newCount = length (TC.arguments tCons) 
+    when (newCount /= existingCount) (Left (ConstructedAtomArgumentCountMismatchError existingCount newCount))
+    pure ()
+  Just (PrimitiveTypeConstructorDef _ _, _) -> pure ()  
+validateDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) _ _ = Right ()
 
 atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
 atomTypeForTypeConstructor = atomTypeForTypeConstructorValidate False

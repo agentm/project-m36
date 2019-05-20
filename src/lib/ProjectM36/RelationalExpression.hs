@@ -430,14 +430,14 @@ evalDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   let oldTypes = typeConstructorMapping currentContext
       tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
-  case validateTypeConstructorDef tConsDef dConsDefList of
-    errs@(_:_) -> pure (Left (someErrors errs))
-    [] | T.null tConsName || not (isUpper (T.head tConsName)) -> pure (Left (InvalidAtomTypeName tConsName))
-       | isJust (findTypeConstructor tConsName oldTypes) -> pure (Left (AtomTypeNameInUseError tConsName))
-       | otherwise -> do
-      let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
-      putStateContext $ currentContext { typeConstructorMapping = newTypes }
-      pure (Right ())
+  case validateTypeConstructorDef tConsDef dConsDefList oldTypes of
+    Left err -> pure (Left err)
+    Right _ | T.null tConsName || not (isUpper (T.head tConsName)) -> pure (Left (InvalidAtomTypeName tConsName))
+            | isJust (findTypeConstructor tConsName oldTypes) -> pure (Left (AtomTypeNameInUseError tConsName))
+            | otherwise -> do
+                let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
+                putStateContext $ currentContext { typeConstructorMapping = newTypes }
+                pure (Right ())
 
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalDatabaseContextExpr (RemoveTypeConstructor tConsName) = do

@@ -73,7 +73,8 @@ main = do
       testNonEmptyListType,
       testUnresolvedAtomTypes,
       testWithClause,
-      testAtomFunctionArgumentMismatch
+      testAtomFunctionArgumentMismatch,
+      testInvalidDataConstructor
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -642,3 +643,11 @@ testAtomFunctionArgumentMismatch = TestCase $ do
   --wrong argument count
   let err2 = "FunctionArgumentCountMismatchError"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "x:=relation{tuple{a 5}} where ^gt(@a,1,3)"
+
+testInvalidDataConstructor :: Test
+testInvalidDataConstructor = TestCase $ do
+  --test that a referenced TypeConstructor in a DataConstructor definition matches the expected count of arguments
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let err1 = "ConstructedAtomArgumentCountMismatchError"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "data TestT = TestT Maybe Int"
+  
