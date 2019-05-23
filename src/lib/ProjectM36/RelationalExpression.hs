@@ -57,25 +57,26 @@ freshDatabaseState context = DatabaseStateElems {
   } --future work: propagate return accumulator
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
-data RelationalExprStateElems = RelationalExprStateTupleElems
-                                DatabaseContext
-                                TransactionGraph
-                                Maybe (Either RelationTuple Attributes)
+data RelationalExprStateElems = RelationalExprStateTupleElems {
+  elems_context :: DatabaseContext,
+  elems_graph :: TransactionGraph,
+  elems_extra :: Maybe (Either RelationTuple Attributes) }
 
+{-
 data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
                                 RelationalExprStateAttrsElems DatabaseContext Attributes | --used when evaluating the type of a relexpr
                                 RelationalExprStateElems DatabaseContext --used by default at the top level of evaluation
-                                
+  -}
+  
 instance Show RelationalExprStateElems where                                
-  show (RelationalExprStateTupleElems _ tup) = "RelationalExprStateTupleElems " ++ show tup
-  show (RelationalExprStateAttrsElems _ attrs) = "RelationalExprStateAttrsElems" ++ show attrs
-  show (RelationalExprStateElems _) = "RelationalExprStateElems"
-                                
+  show e@RelationalExprStateTupleElems{..} = "RelationalExprStateTupleElems " ++ show (elems_extra e)
+
 mkRelationalExprState :: DatabaseContext -> RelationalExprStateElems
 mkRelationalExprState = RelationalExprStateElems
 
 mergeTuplesIntoRelationalExprState :: RelationTuple -> RelationalExprStateElems -> RelationalExprStateElems
-mergeTuplesIntoRelationalExprState tupIn (RelationalExprStateElems ctx) = RelationalExprStateTupleElems ctx tupIn
+mergeTuplesIntoRelationalExprState tupIn e@RelationalExprStateElems{..} =
+  e{elems_extra = <$> elems_extra e } RelationalExprStateTupleElems ctx tupIn
 mergeTuplesIntoRelationalExprState _ st@(RelationalExprStateAttrsElems _ _) = st
 mergeTuplesIntoRelationalExprState tupIn (RelationalExprStateTupleElems ctx existingTuple) = let mergedTupMap = M.union (tupleToMap tupIn) (tupleToMap existingTuple) in
   RelationalExprStateTupleElems ctx (mkRelationTupleFromMap mergedTupMap)
