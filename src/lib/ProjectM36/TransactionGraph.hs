@@ -486,7 +486,7 @@ backtrackGraph :: TransactionGraph -> TransactionId -> TransactionIdHeadBacktrac
 backtrackGraph graph currentTid (TransactionIdHeadParentBacktrack steps) = do
   trans <- transactionForId currentTid graph
   let parents = S.toAscList (transactionParentIds trans)
-  if length parents < 1 then
+  if null parents then
     Left RootTransactionTraversalError
     else do
     parentTrans <- transactionForId (head parents) graph
