@@ -213,7 +213,7 @@ atomP = stringAtomP <|>
         
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP = 
-  FunctionAtomExpr <$> identifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
+  FunctionAtomExpr <$> uncapitalizedIdentifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationalAtomExprP = RelationAtomExpr <$> relExprP
