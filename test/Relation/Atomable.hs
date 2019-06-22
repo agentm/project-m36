@@ -1,5 +1,5 @@
 --Test Atomable typeclass which allows users to use existing Haskell datatypes to marshal them to and from the database as ConstructedAtoms.
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, TypeApplications #-}
 import Test.HUnit
 import ProjectM36.Client
 import Data.Binary
@@ -75,7 +75,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testRecordType, testManyFields]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testSimpleList, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testRecordType, testManyFields]
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -159,6 +159,12 @@ testListInstance :: Test
 testListInstance = TestCase $ do
   let example = TestListC [3,4,5]
   assertEqual "List instance" example (fromAtom (toAtom example))
+
+testSimpleList :: Test
+testSimpleList = TestCase $ do
+  let example = toAtom @[Integer] [1,2,3]
+      expected = ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 1,ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 2,ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 3,ConstructedAtom "Empty" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) []]]]
+  assertEqual "simple list" expected example
 
 testNonEmptyInstance :: Test
 testNonEmptyInstance = TestCase $ do
