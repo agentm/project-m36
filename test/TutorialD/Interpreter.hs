@@ -74,7 +74,8 @@ main = do
       testUnresolvedAtomTypes,
       testWithClause,
       testAtomFunctionArgumentMismatch,
-      testInvalidDataConstructor
+      testInvalidDataConstructor,
+      testBasicList
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -650,4 +651,8 @@ testInvalidDataConstructor = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   let err1 = "ConstructedAtomArgumentCountMismatchError"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "data TestT = TestT Maybe Int"
-  
+
+testBasicList :: Test
+testBasicList = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x := relation{tuple{ a (Cons 1 (Cons 2 Empty)) }}"
