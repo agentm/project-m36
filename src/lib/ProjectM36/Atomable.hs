@@ -151,7 +151,7 @@ instance Atomable a => Atomable [a] where
   toAtom (x:xs) = ConstructedAtom "Cons" (listAtomType (toAtomType (Proxy :: Proxy a))) (toAtom x: [toAtom xs])
   
   fromAtom (ConstructedAtom "Empty" _ _) = []
-  fromAtom (ConstructedAtom "Cons" _ (x:y:[])) = fromAtom x:fromAtom y
+  fromAtom (ConstructedAtom "Cons" _ [x,y]) = fromAtom x:fromAtom y
   fromAtom _ = error "improper fromAtom [a]"
   
   toAtomType _ = ConstructedAtomType "List" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
