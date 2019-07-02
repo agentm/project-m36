@@ -51,6 +51,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
   where
     tupleFrag tup = "<td>" <> atomAsHTML (snd tup) <> "</td>"
     atomAsHTML (RelationAtom rel) = relationAsHTML rel
+    atomAsHTML (TextAtom t) = "&quot;" <> t <> "&quot;"
     atomAsHTML atom = atomToText atom
 
 tupleSetAsHTML :: RelationTupleSet -> Text
