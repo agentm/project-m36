@@ -55,11 +55,7 @@ serverDefinition testBool ti = defaultProcess {
   --unhandledMessagePolicy = Log
   }
   where
-    testModeHandlers = if not testBool then
-                         []
-                       else
-                         [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn)]
-                               
+    testModeHandlers =   [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn) | testBool]
                  
 initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar EndPointAddress), EndPointAddress) Connection
 initServer (conn, dbname, mAddressMVar, saddress) = do
