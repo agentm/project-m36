@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
@@ -12,7 +13,9 @@ import ProjectM36.Error
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.Functor
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
@@ -42,7 +45,7 @@ nothingP = spaceConsumer >> pure NoOperation
 assignP :: Parser DatabaseContextExpr
 assignP = do
   relVarName <- try $ do
-    relVarName <- identifier
+    relVarName <- relVarNameP
     reservedOp ":="
     return relVarName
   Assign relVarName <$> relExprP
@@ -57,13 +60,13 @@ multipleDatabaseContextExprP =
 insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"
-  relvar <- identifier
+  relvar <- relVarNameP
   Insert relvar <$> relExprP
 
 defineP :: Parser DatabaseContextExpr
 defineP = do
   relVarName <- try $ do
-    relVarName <- identifier
+    relVarName <- relVarNameP
     reservedOp "::"
     return relVarName
   Define relVarName <$> makeAttributeExprsP
@@ -71,17 +74,17 @@ defineP = do
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
-  Undefine <$> identifier
+  Undefine <$> relVarNameP
 
 deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
-  Delete <$> identifier <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
+  Delete <$> relVarNameP <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
 
 updateP :: Parser DatabaseContextExpr
 updateP = do
   reservedOp "update"
-  relVarName <- identifier
+  relVarName <- relVarNameP
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaceConsumer)
   attributeAssignments <- M.fromList <$> parens (sepBy attributeAssignmentP comma)
   return $ Update relVarName attributeAssignments predicate
@@ -164,7 +167,7 @@ addTypeConstructorP = do
 removeTypeConstructorP :: Parser DatabaseContextExpr
 removeTypeConstructorP = do
   reserved "undata"
-  RemoveTypeConstructor <$> identifier 
+  RemoveTypeConstructor <$> typeConstructorNameP
   
 removeAtomFunctionP :: Parser DatabaseContextExpr  
 removeAtomFunctionP = do
@@ -176,10 +179,13 @@ removeDatabaseContextFunctionP = do
   reserved "removedatabasecontextfunction"
   RemoveDatabaseContextFunction <$> quotedString
 
+functionNameP :: Parser AtomFunctionName
+functionNameP = uncapitalizedIdentifier
+
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"
-  funcName <- identifier
+  funcName <- functionNameP
   args <- parens (sepBy atomExprP comma)
   pure (ExecuteDatabaseContextFunction funcName args)
   

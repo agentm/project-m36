@@ -9,18 +9,24 @@ class RelationalMarkerExpr a where
 
 instance RelationalMarkerExpr () where
   parseMarkerP = pure ()
-  
+
+typeConstructorNameP :: Parser TypeConstructorName
+typeConstructorNameP = capitalizedIdentifier
+
+dataConstructorNameP :: Parser DataConstructorName
+dataConstructorNameP = capitalizedIdentifier
+
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
 typeConstructorDefP :: Parser TypeConstructorDef
-typeConstructorDefP = ADTypeConstructorDef <$> capitalizedIdentifier <*> typeVarNamesP
+typeConstructorDefP = ADTypeConstructorDef <$> typeConstructorNameP <*> typeVarNamesP
 
 typeVarNamesP :: Parser [TypeVarName]
 typeVarNamesP = many uncapitalizedIdentifier 
   
 -- data Either a b = *Left a* | *Right b*
 dataConstructorDefP :: Parser DataConstructorDef
-dataConstructorDefP = DataConstructorDef <$> capitalizedIdentifier <*> many dataConstructorDefArgP
+dataConstructorDefP = DataConstructorDef <$> typeConstructorNameP <*> many dataConstructorDefArgP
 
 -- data *Either a b* = Left *a* | Right *b*
 dataConstructorDefArgP :: Parser DataConstructorDefArg
@@ -47,7 +53,7 @@ typeConstructorP = relationTypeConstructorP <|>
                    monoTypeConstructorP
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
-monoTypeConstructorP = ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
+monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|>
                        TypeVariable <$> uncapitalizedIdentifier
                    
 

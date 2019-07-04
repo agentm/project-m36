@@ -90,9 +90,13 @@ braces = between (symbol "{") (symbol "}")
 identifier :: Parser Text
 identifier = do
   istart <- letterChar <|> char '_'
-  irest <- many (alphaNumChar <|> char '_' <|> char '#')
+  identifierRemainder istart
+
+identifierRemainder :: Char -> Parser Text
+identifierRemainder c = do
+  rest <- many (alphaNumChar <|> char '_' <|> char '#')
   spaceConsumer
-  pure (pack (istart:irest))
+  pure (pack (c:rest))
 
 symbol :: ParseStr -> Parser Text
 #if MIN_VERSION_megaparsec(6,0,0)
@@ -137,20 +141,12 @@ float :: Parser Double
 float = Lex.float
 
 capitalizedIdentifier :: Parser Text
-capitalizedIdentifier = do
-  fletter <- upperChar
-  restOfIdentifier_ fletter
-  
-restOfIdentifier_ :: Char -> Parser Text  
-restOfIdentifier_ fletter = do
-  rest <- option "" identifier 
-  spaceConsumer
-  pure (T.cons fletter rest)
+capitalizedIdentifier = 
+  upperChar >>= identifierRemainder
   
 uncapitalizedIdentifier :: Parser Text
-uncapitalizedIdentifier = do
-  fletter <- lowerChar
-  restOfIdentifier_ fletter  
+uncapitalizedIdentifier = 
+  lowerChar >>= identifierRemainder
 
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"
