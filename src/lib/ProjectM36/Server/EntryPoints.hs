@@ -1,9 +1,9 @@
+{-# LANGUAGE MonoLocalBinds #-}
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Client as C
 import ProjectM36.Error
-import ProjectM36.DataFrame
 import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)

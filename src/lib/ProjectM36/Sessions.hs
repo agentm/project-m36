@@ -1,4 +1,3 @@
-{-# LANGUAGE PackageImports #-}
 module ProjectM36.Sessions where
 import Control.Concurrent.STM
 #if MIN_VERSION_stm_containers(1,0,0)
@@ -8,7 +7,6 @@ import qualified StmContainers.Set as StmSet
 import qualified STMContainers.Map as StmMap
 import qualified STMContainers.Set as StmSet
 #endif 
-import "list-t" ListT
 import ProjectM36.Attribute
 import ProjectM36.Base
 import ProjectM36.Session

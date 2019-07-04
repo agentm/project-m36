@@ -18,7 +18,9 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Binary
 import Control.Arrow
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 
 data AttributeOrderExpr = AttributeOrderExpr AttributeName Order deriving (Show, Generic, Binary)
 data AttributeOrder = AttributeOrder AttributeName Order deriving (Show, Generic, Binary)

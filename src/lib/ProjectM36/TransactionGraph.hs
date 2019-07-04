@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, CPP #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -21,7 +21,9 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
 import Data.Either (lefts, rights, isRight)
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Control.Arrow
 import Data.Maybe
 

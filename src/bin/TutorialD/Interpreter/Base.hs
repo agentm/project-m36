@@ -35,7 +35,9 @@ import qualified Data.Text.IO as TIO
 import System.IO
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import qualified Data.UUID as U
 import Control.Monad.Random
 import Data.List.NonEmpty as NE

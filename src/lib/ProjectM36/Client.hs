@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns, PackageImports #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, BangPatterns, MonoLocalBinds #-}
 {-|
 Module: ProjectM36.Client
 
@@ -163,7 +163,6 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
-import "list-t" ListT
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)

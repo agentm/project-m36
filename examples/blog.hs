@@ -1,5 +1,5 @@
 -- a simple example of a blog schema
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP #-}
 
 import ProjectM36.Client
 import ProjectM36.Base
@@ -17,7 +17,9 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
 import Data.Proxy
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.List
 import Control.Monad (when, forM_)
 

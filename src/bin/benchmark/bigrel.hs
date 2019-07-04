@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -22,7 +22,9 @@ import System.IO
 import Control.Monad.State
 import Control.DeepSeq
 import Data.Text hiding (map)
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 
 {-
 dumpcsv :: Relation -> IO ()
