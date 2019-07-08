@@ -19,7 +19,7 @@ cabal run tutd
 
 ##  Some Basic TutorialD
 
-When you run the ```tutd``` interpreter, you are interacting with an in-memory database using a dialect of the TutorialD language which is described in numerous book by Chris J. Date. It is a language specifically designed for human interaction with the relational algebra.
+When you run the ```tutd``` interpreter, you are interacting with an in-memory database using a dialect of the TutorialD language which is described in numerous books by Chris J. Date. It is a language specifically designed for human interaction with the relational algebra.
 
 Note that TutorialD is strongly-typed- no type coercions take place automatically. For example, an integer will never be interpreted as a string or vice versa.
 
