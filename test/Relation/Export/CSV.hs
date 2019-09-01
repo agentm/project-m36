@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 import ProjectM36.Base
 import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Parse.CSV
@@ -11,7 +13,11 @@ import System.Exit
 import Test.HUnit
 import Data.Time.Calendar
 import Data.Time.Clock
+
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
+
 {-
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TE
