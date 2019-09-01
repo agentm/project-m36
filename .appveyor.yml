@@ -19,6 +19,7 @@ environment:
   matrix:
     - YAML: "stack.ghc8.2.yaml"
     - YAML: "stack.ghc8.4.yaml"
+    - YAML: "stack.ghc8.6.yaml"
 
 platform:
  - x64
