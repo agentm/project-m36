@@ -21,13 +21,23 @@ matrix:
 
     - env: CACHE_NAME=osx-8.2.2 STACK_YAML=stack.ghc8.2.yaml
       os: osx
-      os_image: xcode7.3
+      osx_image: xcode7.3
       compiler: ": #stack 8.2.2"
 
-    - env: CACHE_NAME=8.4.3 STACK_YAML=stack.ghc8.4.yaml
-      compiler: ": #stack 8.4.3"
+    - env: CACHE_NAME=8.4.4 STACK_YAML=stack.ghc8.4.yaml
+      compiler: ": #stack 8.4.4"
+
+    - env: CACHE_NAME=osx-8.4.4 STACK_YAML=stack.ghc8.4.yaml
+      os: osx
+      osx_image: xcode11
+      compiler: ": #stack 8.4.4"
 
     - env: CACHE_NAME=8.6.5 STACK_YAML=stack.ghc8.6.yaml
+      compiler: ": #stack 8.6.5"
+
+    - env: CACHE_NAME=osx-8.6.5 STACK_YAML=stack.ghc8.6.yaml
+      os: osx
+      osx_image: xcode11
       compiler: ": #stack 8.6.5"
 
 before_script:
