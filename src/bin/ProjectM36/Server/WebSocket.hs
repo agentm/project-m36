@@ -59,13 +59,13 @@ websocketProxyServer port host pending = do
                         Right (presentation, tutdString) ->
                           case parseTutorialD tutdString of
                             Left err -> handleOpResult conn dbconn presentation
-                              #if __GLASGOW_HASKELL__ >= 806
+#if __GLASGOW_HASKELL__ >= 806
                               (DisplayErrorResult
                                 ("parse error: " `T.append` T.pack
                                   (parseErrorPretty . NE.head . bundleErrors $ err)))
-                              #else
+#else
                               (DisplayErrorResult ("parse error: " `T.append` T.pack (parseErrorPretty err)))
-                              #endif
+#endif
                             Right parsed -> do
                               let timeoutFilter exc = if exc == RequestTimeoutException
                                                           then Just exc
