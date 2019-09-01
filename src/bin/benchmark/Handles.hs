@@ -14,7 +14,7 @@ import Control.Monad
 data HandlesArgs = HandlesArgs {
   openCloseCount :: Int,
   transactionCount :: Int,
-  dbdir :: FilePath, 
+  dbdir :: FilePath,
   tutdSetup :: String,
   tutdIterate :: String
   }
@@ -40,13 +40,13 @@ parseTutdIterate = strOption (short 'i' <> long "iterate-tutd" <> value "update 
 main :: IO ()
 main = do
   args <- execParser $ info (helper <*> parseArgs) fullDesc
-  replicateM_ (openCloseCount args) (runOpenClose 
+  replicateM_ (openCloseCount args) (runOpenClose
                                      (T.pack (tutdSetup args))
                                      (T.pack (tutdIterate args))
-                                     (transactionCount args) 
+                                     (transactionCount args)
                                      (dbdir args))
-  
-runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()  
+
+runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()
 runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
   let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback []
   eConn <- connectProjectM36 connInfo
@@ -56,7 +56,7 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
       eSess <- createSessionAtHead conn "master"
       case eSess of
         Left err -> error (show err)
-        Right session -> 
+        Right session ->
           --database setup
           case parseTutorialD tutdSetup' of
             Left err -> error (show err)
@@ -64,14 +64,19 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
               res <- evalTutorialD session conn UnsafeEvaluation parsed
               case res of
                 DisplayErrorResult err -> error (T.unpack err)
-                DisplayParseErrorResult _ err -> error (parseErrorPretty err)
-                _ -> do 
+                DisplayParseErrorResult _ err ->
+                  #if __GLASGOW_HASKELL__ >= 806
+                  error (errorBundlePretty err)
+                  #else
+                  error (parseErrorPretty err)
+                  #endif
+                _ -> do
                   replicateM_ tCount (runTransaction tutdIterate' session conn)
                   close conn
                   printFdCount
-  
+
 runTransaction :: T.Text -> SessionId -> Connection -> IO ()
-runTransaction tutdIterate' sess conn = 
+runTransaction tutdIterate' sess conn =
   --run tutd on every iteration
   case parseTutorialD tutdIterate' of
     Left err -> error (show err)
@@ -79,10 +84,14 @@ runTransaction tutdIterate' sess conn =
       res <- evalTutorialD sess conn UnsafeEvaluation parsed
       case res of
         DisplayErrorResult err -> error (T.unpack err)
-        DisplayParseErrorResult _ err -> error (parseErrorPretty err)
-        _ -> do 
-          eErr <- commit sess conn 
+        DisplayParseErrorResult _ err ->
+          #if __GLASGOW_HASKELL__ >= 806
+          error (errorBundlePretty err)
+          #else
+          error (parseErrorPretty err)
+          #endif
+        _ -> do
+          eErr <- commit sess conn
           case eErr of
             Left err -> error (show err)
             Right _ -> printFdCount
-      

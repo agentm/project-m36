@@ -1,6 +1,12 @@
+{-# LANGUAGE CPP #-}
+
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
+#if __GLASGOW_HASKELL__ >= 806
+import Control.Monad.Combinators.Expr
+#else
 import Text.Megaparsec.Expr
+#endif
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
@@ -12,7 +18,7 @@ import ProjectM36.MiscUtils
 
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
-attributeListP = 
+attributeListP =
   (reservedOp "all but" >>
    InvertedAttributeNames . S.fromList <$> sepBy attributeNameP comma) <|>
   (reservedOp "all from" >>
@@ -26,7 +32,7 @@ makeRelationP = do
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
   pure $ MakeRelationFromExprs attrExprs tupleExprs
 
-  
+
 --abstract data type parser- in this context, the type constructor must not include any type arguments
 --Either Text Int
 adTypeConstructorP :: Parser TypeConstructor
@@ -41,7 +47,7 @@ tupleExprP = do
   attrAssocs <- braces (sepBy tupleAtomExprP comma)
   --detect duplicate attribute names
   let dupAttrNames = dupes (sort (map fst attrAssocs))
-  if not (null dupAttrNames) then                    
+  if not (null dupAttrNames) then
     fail ("Attribute names duplicated: " ++ show dupAttrNames)
     else
     pure (TupleExpr (M.fromList attrAssocs))
@@ -51,7 +57,7 @@ tupleAtomExprP = do
   attributeName <- attributeNameP
   atomExpr <- atomExprP
   pure (attributeName, atomExpr)
-  
+
 projectP :: RelationalMarkerExpr a => Parser (RelationalExprBase a  -> RelationalExprBase a)
 projectP = Project <$> braces attributeListP
 
@@ -68,7 +74,7 @@ renameP = do
   renameList <- braces (sepBy renameClauseP comma)
   case renameList of
     [] -> pure (Restrict TruePredicate) --no-op when rename list is empty
-    renames -> 
+    renames ->
       pure $ \expr -> foldl (\acc (oldAttr, newAttr) -> Rename oldAttr newAttr acc) expr renames
 
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
@@ -97,20 +103,20 @@ extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalE
 extendP = do
   reservedOp ":"
   Extend <$> braces extendTupleExpressionP
-  
+
 semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 semijoinP = do
   reservedOp "semijoin" <|> reservedOp "matching"
-  pure (\exprA exprB -> 
+  pure (\exprA exprB ->
          Project (RelationalExprAttributeNames exprA) (Join exprA exprB))
-    
-antijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)    
+
+antijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 antijoinP = do
   reservedOp "not matching" <|> reservedOp "antijoin"
   pure (\exprA exprB ->
          Difference exprA (
            Project (RelationalExprAttributeNames exprA) (Join exprA exprB)))
-  
+
 relOperators :: RelationalMarkerExpr a => [[Operator Parser (RelationalExprBase a)]]
 relOperators = [
   [Postfix projectP],
@@ -136,7 +142,7 @@ attributeNameP = uncapitalizedIdentifier
 
 relVarNameP :: Parser RelVarName
 relVarNameP = uncapitalizedIdentifier
-  
+
 relVarP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relVarP = RelationVariable <$> relVarNameP <*> parseMarkerP
 
@@ -159,10 +165,10 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
                     <|> relationalBooleanExprP
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
-relationalBooleanExprP = 
+relationalBooleanExprP =
   --we can't actually detect if the type is relational boolean, so we just pass it to the next phase
   RelationalExprPredicate <$> (parens relExprP <|> relTerm)
-  
+
 restrictionAttributeEqualityP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionAttributeEqualityP = do
   attributeName <- attributeNameP
@@ -210,16 +216,16 @@ constructedAtomExprP consume = do
   dConsName <- dataConstructorNameP
   dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaceConsumer else pure []
   ConstructedAtomExpr dConsName dConsArgs <$> parseMarkerP
-  
+
 -- used only for primitive type parsing ?
 atomP :: Parser Atom
-atomP = stringAtomP <|> 
-        doubleAtomP <|> 
-        integerAtomP <|> 
+atomP = stringAtomP <|>
+        doubleAtomP <|>
+        integerAtomP <|>
         boolAtomP
-        
+
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
-functionAtomExprP = 
+functionAtomExprP =
   FunctionAtomExpr <$> uncapitalizedIdentifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
@@ -228,7 +234,7 @@ relationalAtomExprP = RelationAtomExpr <$> relExprP
 stringAtomP :: Parser Atom
 stringAtomP = TextAtom <$> quotedString
 
-doubleAtomP :: Parser Atom    
+doubleAtomP :: Parser Atom
 doubleAtomP = DoubleAtom <$> try float
 
 integerAtomP :: Parser Atom
@@ -238,20 +244,19 @@ boolAtomP :: Parser Atom
 boolAtomP = do
   val <- char 't' <|> char 'f'
   return $ BoolAtom (val == 't')
-  
+
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP
 
 withMacroExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 withMacroExprP = do
   reservedOp "with"
-  views <- parens (sepBy1 createViewP comma) 
+  views <- parens (sepBy1 createViewP comma)
   With views <$> relExprP
 
 createViewP :: RelationalMarkerExpr a => Parser (RelVarName, RelationalExprBase a)
-createViewP = do 
+createViewP = do
   name <- relVarNameP
   reservedOp "as"
   expr <- relExprP
   pure (name, expr)
- 

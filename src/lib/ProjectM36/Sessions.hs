@@ -7,7 +7,7 @@ import qualified StmContainers.Set as StmSet
 #else
 import qualified STMContainers.Map as StmMap
 import qualified STMContainers.Set as StmSet
-#endif 
+#endif
 import ProjectM36.Attribute
 import ProjectM36.Base
 import ProjectM36.Session
@@ -47,5 +47,3 @@ sessionsAsRelation sessions = do
   let atomMatrix = map (\(sessionId, session) -> [uuidAtom sessionId, uuidAtom (parentId session)]) sessionAssocs
   pure $ mkRelationFromList (attributesFromList [Attribute "sessionid" TextAtomType,
                              Attribute "parentCommit" TextAtomType]) atomMatrix
-    
-  

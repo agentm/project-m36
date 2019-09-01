@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, UnboxedTuples #-}
+{-# LANGUAGE MagicHash, UnboxedTuples, KindSignatures, DataKinds #-}
 module ProjectM36.ScriptSession where
 
 import ProjectM36.Error
@@ -33,7 +33,7 @@ import Unsafe.Coerce
 #if __GLASGOW_HASKELL__ >= 802
 import Type
 #elif __GLASGOW_HASKELL__ >= 710
-import Type hiding (pprTyThing)  
+import Type hiding (pprTyThing)
 #else
 #endif
 
@@ -42,11 +42,11 @@ import GHC.Ptr (Ptr(..))
 import Encoding
 
 data ScriptSession = ScriptSession {
-  hscEnv :: HscEnv, 
+  hscEnv :: HscEnv,
   atomFunctionBodyType :: Type,
   dbcFunctionBodyType :: Type
   }
-                     
+
 newtype ScriptSessionError = ScriptSessionLoadError GhcException
                           deriving (Show)
 
@@ -70,18 +70,18 @@ initScriptSession ghcPkgPaths = do
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb",
       homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
-    
+
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
-      
-    let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted , 
-                           ghcLink = LinkInMemory, 
+
+    let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted ,
+                           ghcLink = LinkInMemory,
                            safeHaskell = Sf_Trustworthy,
                            safeInfer = True,
                            safeInferred = True,
                            --verbosity = 3,
-#if __GLASGOW_HASKELL__ >= 800                           
+#if __GLASGOW_HASKELL__ >= 800
                            trustFlags = map TrustPackage required_packages,
-#endif                                        
+#endif
                            packageFlags = packageFlags dflags ++ packages,
 #if __GLASGOW_HASKELL__ >= 802
                            packageDBFlags = map PackageDB localPkgPaths
@@ -94,11 +94,11 @@ initScriptSession ghcPkgPaths = do
         applyXopts flags = foldl xopt_set flags xopts
 #if __GLASGOW_HASKELL__ >= 800
         xopts = [OverloadedStrings, ExtendedDefaultRules, ImplicitPrelude, ScopedTypeVariables]
-#else               
+#else
         xopts = [Opt_OverloadedStrings, Opt_ExtendedDefaultRules, Opt_ImplicitPrelude,  Opt_ScopedTypeVariables]
 #endif
         gopts = [] --[Opt_DistrustAllPackages, Opt_PackageTrust]
-        required_packages = ["base", 
+        required_packages = ["base",
                              "containers",
                              "Glob",
                              "directory",
@@ -120,10 +120,14 @@ initScriptSession ghcPkgPaths = do
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
     let safeImportDecl mn mQual = ImportDecl {
-#if __GLASGOW_HASKELL__ >= 802          
+#if __GLASGOW_HASKELL__ >= 802
           ideclSourceSrc = NoSourceText,
 #else
           ideclSourceSrc = Nothing,
+#endif
+
+#if __GLASGOW_HASKELL__ >= 806
+          ideclExt = NoExt,
 #endif
           ideclName      = noLoc mn,
           ideclPkgQual   = Nothing,
@@ -134,6 +138,9 @@ initScriptSession ghcPkgPaths = do
           ideclAs        = mQual,
           ideclHiding    = Nothing
           }
+#if __GLASGOW_HASKELL__ >= 806
+          :: ImportDecl (GhcPass (c :: Pass))
+#endif
         unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn) Nothing) [
           "Prelude",
           "Data.Map",
@@ -150,7 +157,7 @@ initScriptSession ghcPkgPaths = do
         mkModName = noLoc . mkModuleName
 #else
         mkModName = mkModuleName
-#endif 
+#endif
         qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModName qualNam))) [
           ("Data.Text", "T")
           ]
@@ -164,7 +171,7 @@ addImport :: String -> Ghc ()
 addImport moduleNam = do
   ctx <- getContext
   setContext ( (IIDecl $ simpleImportDecl (mkModuleName moduleNam)) : ctx )
-  
+
 showType :: DynFlags -> Type -> String
 showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)
 
@@ -189,33 +196,33 @@ compileScript funcType script = do
   mErr <- typeCheckScript funcType script
   case mErr of
     Just err -> pure (Left err)
-    Nothing -> 
+    Nothing ->
       --catch exception here
       --we could potentially wrap the script with Atom pattern matching so that the script doesn't have to do it, but the change to an Atom ADT should make it easier. Still, it would be nice if the script didn't have to handle a list of arguments, for example.
       -- we can't use dynCompileExpr here because
        Right . unsafeCoerce <$> compileExpr sScript
-      
-typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)    
+
+typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)
 typeCheckScript expectedType inp = do
-  dflags <- getSessionDynFlags  
+  dflags <- getSessionDynFlags
   --catch exception for SyntaxError
 #if __GLASGOW_HASKELL__ >= 802
-  funcType <- GHC.exprType TM_Inst (unpack inp)    
-#else    
+  funcType <- GHC.exprType TM_Inst (unpack inp)
+#else
   funcType <- GHC.exprType (unpack inp)
 #endif
-  --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType 
+  --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType
   if eqType funcType expectedType then
     pure Nothing
     else
     pure (Just (TypeCheckCompilationError (showType dflags expectedType) (showType dflags funcType)))
-    
+
 mangleSymbol :: Maybe String -> String -> String -> String
 mangleSymbol pkg module' valsym =
     prefixUnderscore ++
       maybe "" (\p -> zEncodeString p ++ "_") pkg ++
       zEncodeString module' ++ "_" ++ zEncodeString valsym ++ "_closure"
-      
+
 type ModName = String
 type FuncName = String
 
@@ -223,7 +230,7 @@ data LoadSymbolError = LoadSymbolError
 
 loadFunction :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
 loadFunction modName funcName objPath = do
-#if __GLASGOW_HASKELL__ >= 802  
+#if __GLASGOW_HASKELL__ >= 802
   initObjLinker RetainCAFs
 #else
   initObjLinker
@@ -235,8 +242,8 @@ loadFunction modName funcName objPath = do
     Nothing -> pure (Left LoadSymbolError)
     Just (Ptr addr) -> case addrToAny# addr of
       (# hval #) -> pure (Right hval)
-      
-prefixUnderscore :: String      
+
+prefixUnderscore :: String
 prefixUnderscore =
     case (os,arch) of
       ("mingw32","x86_64") -> ""

@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric, CPP #-}
 module TutorialD.Interpreter.Base (
-  module TutorialD.Interpreter.Base, 
+  module TutorialD.Interpreter.Base,
   module Text.Megaparsec,
-#if MIN_VERSION_megaparsec(6,0,0)  
+#if MIN_VERSION_megaparsec(6,0,0)
   module Text.Megaparsec.Char,
   module Control.Applicative
 #else
@@ -45,11 +45,16 @@ import Data.Time.Clock
 import Data.Time.Format
 import Control.Monad (void)
 
+#if __GLASGOW_HASKELL__ < 806
+anySingle :: Parsec Void Text (Token Text)
+anySingle = anyChar
+#endif
+
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
 displayOpResult (DisplayIOResult ioout) = ioout
-displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && T.last err /= '\n' then TIO.hPutStrLn else TIO.hPutStr in 
+displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && T.last err /= '\n' then TIO.hPutStrLn else TIO.hPutStr in
   outputf stderr ("ERR: " <> err)
 displayOpResult QuietSuccessResult = return ()
 displayOpResult (DisplayRelationResult rel) = do
@@ -57,8 +62,14 @@ displayOpResult (DisplayRelationResult rel) = do
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
 displayOpResult (DisplayParseErrorResult mPromptLength err) = do
-  let errString = T.pack (parseErrorPretty err)
+  let
+      #if __GLASGOW_HASKELL__ >= 806
+      errorIndent = errorOffset . NE.head . bundleErrors $ err
+      errString = T.pack (parseErrorPretty . NE.head . bundleErrors $ err)
+      #else
       errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+      errString = T.pack (parseErrorPretty err)
+      #endif
       pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
   maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
   TIO.putStr ("ERR:" <> errString)
@@ -73,7 +84,7 @@ type ParseStr = String
 
 spaceConsumer :: Parser ()
 spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
-  
+
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
 
@@ -143,11 +154,11 @@ float :: Parser Double
 float = Lex.float
 
 capitalizedIdentifier :: Parser Text
-capitalizedIdentifier = 
+capitalizedIdentifier =
   upperChar >>= identifierRemainder
-  
+
 uncapitalizedIdentifier :: Parser Text
-uncapitalizedIdentifier = 
+uncapitalizedIdentifier =
   lowerChar >>= identifierRemainder
 
 showRelationAttributes :: Attributes -> Text
@@ -156,12 +167,14 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
     showAttribute (Attribute name atomType) = name <> " " <> prettyAtomType atomType
     attrsL = V.toList attrs
 
-type PromptLength = Int 
+type PromptLength = Int
 
-#if MIN_VERSION_megaparsec(6,0,0)
+#if MIN_VERSION_megaparsec(7,0,0)
+type ParserError = ParseErrorBundle T.Text Void
+#elif MIN_VERSION_megaparsec(6,0,0)
 type ParserError = ParseError Char Void
-#else    
-type ParserError = ParseError Char Dec  
+#else
+type ParserError = ParseError Char Dec
 #endif
 
 data TutorialDOperatorResult = QuitResult |
@@ -173,15 +186,15 @@ data TutorialDOperatorResult = QuitResult |
                                DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text
                                QuietSuccessResult
                                deriving (Generic)
-                               
+
 type TransactionGraphWasUpdated = Bool
 
 --allow for python-style triple quoting because guessing the correct amount of escapes in different contexts is annoying
 tripleQuotedString :: Parser Text
 tripleQuotedString = do
   _ <- tripleQuote
-  pack <$> manyTill anyChar (try (tripleQuote >> notFollowedBy quote))
-  
+  pack <$> manyTill anySingle (try (tripleQuote >> notFollowedBy quote))
+
 normalQuotedString :: Parser Text
 normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 
@@ -190,7 +203,7 @@ quotedString = try tripleQuotedString <|> normalQuotedString
 
 uuidP :: Parser U.UUID
 uuidP = do
-  uuidStart <- count 8 hexDigitChar 
+  uuidStart <- count 8 hexDigitChar
   _ <- char '-' -- min 28 with no dashes, maximum 4 dashes
   uuidMid1 <- count 4 hexDigitChar
   _ <- char '-'
@@ -210,4 +223,3 @@ utcTimeP = do
   case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
     Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
     Just stamp -> pure stamp
-  
