@@ -62,14 +62,13 @@ displayOpResult (DisplayRelationResult rel) = do
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
 displayOpResult (DisplayParseErrorResult mPromptLength err) = do
-  let
-      #if __GLASGOW_HASKELL__ >= 806
-      errorIndent = errorOffset . NE.head . bundleErrors $ err
+#if __GLASGOW_HASKELL__ >= 806
+  let errorIndent = errorOffset . NE.head . bundleErrors $ err
       errString = T.pack (parseErrorPretty . NE.head . bundleErrors $ err)
-      #else
-      errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+#else
+  let errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
       errString = T.pack (parseErrorPretty err)
-      #endif
+#endif
       pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
   maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
   TIO.putStr ("ERR:" <> errString)
