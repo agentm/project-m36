@@ -15,13 +15,7 @@ clone_folder: "c:\\project-m36"
 clone_depth: 2
 environment:
   global:
-
-    # From https://www.fpcomplete.com/blog/2018/06/sed-a-debugging-story
-
     STACK_ROOT: "c:\\sr"
-    # Override the temp directory to avoid sed escaping issues
-    # See https://github.com/haskell/cabal/issues/5386
-    TMP: "c:\\tmp"
   matrix:
     - YAML: "stack.ghc8.2.yaml"
     - YAML: "stack.ghc8.4.yaml"
