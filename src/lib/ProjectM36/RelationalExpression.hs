@@ -518,8 +518,9 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) _
               let mValidTypes = map (\(expType, actType) -> case atomTypeVerify expType actType of 
                                         Left err -> Just err
                                         Right _ -> Nothing) (zip (dbcFuncType func) atomTypes)
-                  typeErrors = catMaybes mValidTypes 
-                  eAtomArgs = map (\arg -> runReader (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
+                  typeErrors = catMaybes mValidTypes
+                  eAtomArgs = unimplemented
+                  --eAtomArgs = map (\arg -> runReader (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
               if length (lefts eAtomArgs) > 1 then
                 pure (Left (someErrors (lefts eAtomArgs)))
                 else if not (null typeErrors) then
@@ -644,7 +645,8 @@ updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> T
 updateTupleWithAtomExprs exprMap context graph tupIn = do
   --resolve all atom exprs
   atomsAssoc <- mapM (\(attrName, atomExpr) -> do
-                         atom <- runReader (evalAtomExpr tupIn atomExpr) (mkRelationalExprState context graph)
+                         let atom = unimplemented
+                         --atom <- runReader (evalAtomExpr tupIn atomExpr) (mkRelationalExprState context graph)
                          pure (attrName, atom)
                      ) (M.toList exprMap)
   pure (updateTupleWithAtoms (M.fromList atomsAssoc) tupIn)
@@ -734,6 +736,7 @@ predicateRestrictionFilter attrs (NotPredicate expr) =
     pure (fmap not . exprv)
 
 --optimization opportunity: if the subexpression does not reference attributes in the top-level expression, then it need only be evaluated once, statically, outside the tuple filter- see historical implementation here
+{-
 predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = do
   rstate <- ask
   pure (Right (\tup -> case runReader (evalRelationalExpr relExpr) (mergeTuplesIntoRelationalExprState tup rstate) of
@@ -783,7 +786,7 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
              case runReader (evalAtomExpr tupleIn atomExpr) rstate of
                   Left err -> Left err
                   Right boolAtomValue -> pure (boolAtomValue == BoolAtom True))
-
+-}
 tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
 tupleExprCheckNewAttrName attrName rel = if isRight (attributeForName attrName rel) then
                                            Left (AttributeNameInUseError attrName)
@@ -801,11 +804,12 @@ extendTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrName atomE
       atomExprType' <- liftE (verifyAtomExprTypes relIn atomExpr atomExprType)
       let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType']
           newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
-      pure (newAndOldAttrs, \tup -> let substate = mergeTuplesIntoRelationalExprState tup rstate in case runReader (evalAtomExpr tup atomExpr) substate of
+      pure (newAndOldAttrs, \tup -> let substate = mergeTuplesIntoRelationalExprState tup rstate in
+               case unimplemented {-runReader (evalAtomExpr tup atomExpr) substate-} of
                  Left err -> Left err
                  Right atom -> Right (tupleAtomExtend newAttrName atom tup)
                )
-
+{-
 evalAtomExpr :: RelationTuple -> AtomExpr -> RelationalExprState (Either RelationalError Atom)
 evalAtomExpr tupIn (AttributeAtomExpr attrName) = case atomForAttributeName attrName tupIn of
   Right atom -> pure (Right atom)
@@ -852,7 +856,7 @@ evalAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs ()) = runExcept
   aType <- either throwE pure (runReader (typeFromAtomExpr (tupleAttributes tupIn) cons) newState)
   argAtoms <- mapM (\arg -> either throwE pure (runReader (evalAtomExpr tupIn arg) newState)) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
-
+-}
 typeFromAtomExpr :: Attributes -> AtomExpr -> RelationalExprState (Either RelationalError AtomType)
 typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
   rstate <- ask
@@ -863,7 +867,7 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
           stateAttrs = stateAttributes rstate in
       case A.attributeForName attrName stateAttrs of
         Right attr -> pure (Right (A.atomType attr))
-        Left _ -> case atomForAttributeName attrName tup of
+        Left _ -> case atomForAttributeName attrName stateTup of
           Right atom -> pure (Right (atomTypeForAtom atom))
           Left _ -> pure (Left err)
 
@@ -887,7 +891,7 @@ typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
             Right tvMap -> pure (resolveFunctionReturnValue funcName tvMap funcRetType)
 typeFromAtomExpr attrs (RelationAtomExpr relExpr) = runExceptT $ do
   rstate <- lift ask
-  relType <- either throwE pure (runReader (typeForRelationalExpr relExpr) (mergeAttributesIntoRelationalExprState attrs rstate))
+  relType <- either throwE pure (runReader (typeForRelationalExpr relExpr () (mergeAttributesIntoRelationalExprState attrs rstate))
   pure (RelationAtomType (attributes relType))
 -- grab the type of the data constructor, then validate that the args match the expected types
 typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) = 

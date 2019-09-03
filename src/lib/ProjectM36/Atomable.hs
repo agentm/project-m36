@@ -272,11 +272,10 @@ instance AtomableG U1 where
 -- product types
 instance (AtomableG a, AtomableG b) => AtomableG (a :*: b) where
   toAtomG = undefined
-  fromAtomG atom args = (:*:) <$> fromAtomG atom [headatom args] <*> fromAtomG atom (tailatoms args)
-    where headatom (x:_) = x
-          headatom [] = error "no more atoms in head for product!"
-          tailatoms (_:xs) = xs
-          tailatoms [] = error "no more atoms in tail for product!"
+  fromAtomG atom args = (:*:) <$> fromAtomG atom splitargs1 <*> fromAtomG atom splitargs2
+    where splitargs1 = take splitpoint args 
+          splitargs2 = drop splitpoint args
+          splitpoint = length args `div` 2
   toAtomTypeG = undefined
   toAtomsG (x :*: y) = toAtomsG x ++ toAtomsG y
   toAddTypeExprG _ _ = undefined    
