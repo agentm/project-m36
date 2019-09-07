@@ -45,10 +45,11 @@ import Data.Time.Clock
 import Data.Time.Format
 import Control.Monad (void)
 
-#if __GLASGOW_HASKELL__ < 806
+#if !MIN_VERSION_megaparsec(7,0,0)
 anySingle :: Parsec Void Text (Token Text)
 anySingle = anyChar
 #endif
+
 
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
@@ -62,7 +63,7 @@ displayOpResult (DisplayRelationResult rel) = do
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
 displayOpResult (DisplayParseErrorResult mPromptLength err) = do
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
   let errorIndent = errorOffset . NE.head . bundleErrors $ err
       errString = T.pack (parseErrorPretty . NE.head . bundleErrors $ err)
 #else

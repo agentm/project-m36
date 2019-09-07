@@ -2,7 +2,7 @@
 
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
 import Control.Monad.Combinators.Expr
 #else
 import Text.Megaparsec.Expr

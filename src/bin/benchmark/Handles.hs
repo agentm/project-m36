@@ -65,7 +65,7 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
               case res of
                 DisplayErrorResult err -> error (T.unpack err)
                 DisplayParseErrorResult _ err ->
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
                   error (errorBundlePretty err)
 #else
                   error (parseErrorPretty err)
@@ -85,7 +85,7 @@ runTransaction tutdIterate' sess conn =
       case res of
         DisplayErrorResult err -> error (T.unpack err)
         DisplayParseErrorResult _ err ->
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
           error (errorBundlePretty err)
 #else
           error (parseErrorPretty err)

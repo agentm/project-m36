@@ -23,7 +23,7 @@ import Control.Applicative
 import Text.Megaparsec.Error
 import Data.Functor
 
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE
 #endif
 
@@ -59,7 +59,7 @@ websocketProxyServer port host pending = do
                         Right (presentation, tutdString) ->
                           case parseTutorialD tutdString of
                             Left err -> handleOpResult conn dbconn presentation
-#if __GLASGOW_HASKELL__ >= 806
+#if MIN_VERSION_megaparsec(7,0,0)
                               (DisplayErrorResult
                                 ("parse error: " `T.append` T.pack
                                   (parseErrorPretty . NE.head . bundleErrors $ err)))
