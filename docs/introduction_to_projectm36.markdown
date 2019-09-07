@@ -44,7 +44,7 @@ Compilation steps:
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.0.2 or greater:
+Alternative building with GHC 8.2.2 or greater:
 
 * ```cabal new-build```
 

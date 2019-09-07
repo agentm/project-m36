@@ -85,7 +85,7 @@ Project:M36 supports multiple frontends which target different audiences.
 
 ## Development
 
-Project:M36 is developed in Haskell and compiled with GHC 8.0.2 or later.
+Project:M36 is developed in Haskell and compiled with GHC 8.2.2 or later.
 
 ## Related Projects
 
