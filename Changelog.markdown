@@ -1,3 +1,11 @@
+# 2019-09-07 (v0.7)
+
+* fix case sensitivity issue with relation variables in tutd
+* fix multibyte escaping in data frames
+* fix broken instances of `Atomable [a]`
+* fix `TypeConstructor` validation of argument count
+* add help option to executables
+
 # 2019-01-08 (v0.6)
 
 * fix atom type parsing to support more complex data types
