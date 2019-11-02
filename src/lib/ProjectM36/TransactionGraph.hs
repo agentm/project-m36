@@ -88,12 +88,6 @@ headNameForTransaction transaction (TransactionGraph heads _) = if M.null matchi
   where
     matchingTrans = M.filter (transaction ==) heads
 
-transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
-transactionHeadsForGraph (TransactionGraph hs _) = hs
-
-transactionsForGraph :: TransactionGraph -> S.Set Transaction
-transactionsForGraph (TransactionGraph _ ts) = ts
-
 transactionsForIds :: S.Set TransactionId -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 transactionsForIds idSet graph =
   S.fromList <$> forM (S.toList idSet) (`transactionForId` graph)

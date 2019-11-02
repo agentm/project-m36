@@ -379,6 +379,12 @@ type TransactionHeads = M.Map HeadName Transaction
 -- | The transaction graph is the global database's state which references every committed transaction.
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
 
+transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
+transactionHeadsForGraph (TransactionGraph hs _) = hs
+
+transactionsForGraph :: TransactionGraph -> S.Set Transaction
+transactionsForGraph (TransactionGraph _ ts) = ts
+
 -- | Every transaction has context-specific information attached to it.
 -- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
 data TransactionInfo = TransactionInfo {
