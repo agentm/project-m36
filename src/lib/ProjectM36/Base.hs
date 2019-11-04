@@ -444,7 +444,8 @@ instance Binary AtomExpr
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
                      deriving (Show, Eq, Generic, NFData)
                               
-type ExtendTupleExpr = ExtendTupleExprBase ()                              
+type ExtendTupleExpr = ExtendTupleExprBase ()
+type GraphRefExtendTupleExpr = ExtendTupleExprBase TransactionId
 
 instance Binary ExtendTupleExpr
 

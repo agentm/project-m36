@@ -94,7 +94,7 @@ transactionsForIds idSet graph =
 
 -- | A root transaction terminates a graph and has no parents.
 isRootTransaction :: Transaction -> Bool
-isRootTransaction trans = diffs trans == TD.root
+isRootTransaction trans = parentTransactions == nil :| []
 
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
