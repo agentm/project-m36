@@ -6,9 +6,9 @@ import ProjectM36.Error
 import Control.Monad.State
 import Control.Monad.Trans.Reader
 
-executeDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
-executeDatabaseContextExpr expr context = case runState (evalDatabaseContextExpr expr) (freshDatabaseState context) of
-  (Right (), (context', _, _)) -> pure context'
+executeDatabaseContextExpr :: DatabaseContextExpr -> TransactionId -> TransactionGraph -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+executeDatabaseContextExpr expr tid graph context = case runState (evalDatabaseContextExpr expr tid graph) (freshDatabaseState context) of
+  (Right (), st) -> pure (context t)
   (Left err, _) -> error (show err)
   
 executeRelationalExpr :: RelationalExpr -> DatabaseContext -> Either RelationalError Relation

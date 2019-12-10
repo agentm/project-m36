@@ -311,6 +311,8 @@ type DatabaseContextExprName = StringType
 
 type DatabaseContextExpr = DatabaseContextExprBase ()
 
+type GraphRefDatabaseContextExpr = DatabaseContextExprBase TransactionId
+
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase a = 
   NoOperation |
@@ -318,8 +320,8 @@ data DatabaseContextExprBase a =
   Undefine RelVarName | --forget existence of relvar X
   Assign RelVarName (RelationalExprBase a) |
   Insert RelVarName (RelationalExprBase a) |
-  Delete RelVarName RestrictionPredicateExpr  |
-  Update RelVarName AttributeNameAtomExprMap RestrictionPredicateExpr |
+  Delete RelVarName (RestrictionPredicateExprBase a)  |
+  Update RelVarName AttributeNameAtomExprMap (RestrictionPredicateExprBase a) |
   
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |

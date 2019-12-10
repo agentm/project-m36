@@ -58,50 +58,51 @@ freshDatabaseState context = DatabaseStateElems {
   } --future work: propagate return accumulator
 
 -- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
-data RelationalExprStateElems = RelationalExprStateElems {
-  elems_context :: DatabaseContext, 
-  elems_graph :: TransactionGraph,
-  elems_currentTransId :: TransactionId,
-  elems_extra :: Maybe (Either RelationTuple Attributes)
+data RelationalExprEnv = RelationalExprEnv {
+  re_context :: DatabaseContext, 
+  re_graph :: TransactionGraph,
+  re_currentTransId :: TransactionId,
+  re_extra :: Maybe (Either RelationTuple Attributes)
   }
 
-stateTuple :: RelationalExprStateElems -> RelationTuple
-stateTuple e = fromLeft emptyTuple (fromMaybe (Left emptyTuple) (elems_extra e))
+stateTuple :: RelationalExprEnv -> RelationTuple
+stateTuple e = fromLeft emptyTuple (fromMaybe (Left emptyTuple) (re_extra e))
 
-stateAttributes :: RelationalExprStateElems -> Attributes
-stateAttributes e = fromRight emptyAttributes (fromMaybe (Right emptyAttributes) (elems_extra e))
+stateAttributes :: RelationalExprEnv -> Attributes
+stateAttributes e = fromRight emptyAttributes (fromMaybe (Right emptyAttributes) (re_extra e))
 {-
-data RelationalExprStateElems = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
+data RelationalExprEnv = RelationalExprStateTupleElems DatabaseContext RelationTuple | -- used when fully evaluating a relexpr
                                 RelationalExprStateAttrsElems DatabaseContext Attributes | --used when evaluating the type of a relexpr
-                                RelationalExprStateElems DatabaseContext --used by default at the top level of evaluation
+                                RelationalExprEnv DatabaseContext --used by default at the top level of evaluation
   -}
   
-instance Show RelationalExprStateElems where                                  show e@RelationalExprStateElems{} = "RelationalExprStateElems " ++ show (elems_extra e)
+instance Show RelationalExprEnv where
+  show e@RelationalExprEnv{} = "RelationalExprEnv " ++ show (re_extra e)
 
-mkRelationalExprState :: DatabaseContext -> TransactionId -> TransactionGraph -> RelationalExprStateElems
+mkRelationalExprState :: DatabaseContext -> TransactionId -> TransactionGraph -> RelationalExprEnv
 mkRelationalExprState ctx currentTransId graph =
-  RelationalExprStateElems
-  { elems_context = ctx,
-    elems_graph = graph,
-    elems_currentTransId = currentTransId,
-    elems_extra = Nothing }
+  RelationalExprEnv
+  { re_context = ctx,
+    re_graph = graph,
+    re_currentTransId = currentTransId,
+    re_extra = Nothing }
 
 currentTrans :: RelationalExprState (Either RelationalError Transaction)
 currentTrans = do
-  tid <- elems_currentTransId <$> ask
-  graph <- elems_graph <$> ask
+  tid <- re_currentTransId <$> ask
+  graph <- re_graph <$> ask
   pure (transactionForId tid graph)
   
-mergeTuplesIntoRelationalExprState :: RelationTuple -> RelationalExprStateElems -> RelationalExprStateElems
-mergeTuplesIntoRelationalExprState tupIn e@RelationalExprStateElems{} =
-  e{elems_extra = new_elems }
+mergeTuplesIntoRelationalExprState :: RelationTuple -> RelationalExprEnv -> RelationalExprEnv
+mergeTuplesIntoRelationalExprState tupIn e@RelationalExprEnv{} =
+  e{re_extra = new_elems }
   where
     new_elems = Just (Left newTuple)
     mergedTupMap = M.union (tupleToMap tupIn) (tupleToMap (stateTuple e))
     newTuple = mkRelationTupleFromMap mergedTupMap
   
-mergeAttributesIntoRelationalExprState :: Attributes -> RelationalExprStateElems -> RelationalExprStateElems
-mergeAttributesIntoRelationalExprState attrsIn e@RelationalExprStateElems{} = e{elems_extra = newattrs }
+mergeAttributesIntoRelationalExprState :: Attributes -> RelationalExprEnv -> RelationalExprEnv
+mergeAttributesIntoRelationalExprState attrsIn e@RelationalExprEnv{} = e{re_extra = newattrs }
   where
     newattrs = Just (Right (A.union attrsIn (stateAttributes e)))
 
@@ -129,18 +130,18 @@ putStateContext ctx' = do
   s <- get
   put (s {context = ctx'}) 
   
-type RelationalExprState a = Reader RelationalExprStateElems a
+type RelationalExprState a = Reader RelationalExprEnv a
 
-stateElemsContext :: RelationalExprStateElems -> DatabaseContext
-stateElemsContext = elems_context
+envContext :: RelationalExprEnv -> DatabaseContext
+envContext = re_context
 
-setStateElemsContext :: RelationalExprStateElems -> DatabaseContext -> RelationalExprStateElems
-setStateElemsContext e ctx = e { elems_context = ctx }
+setEnvContext :: RelationalExprEnv -> DatabaseContext -> RelationalExprEnv
+setEnvContext e ctx = e { re_context = ctx }
 
 --relvar state is needed in evaluation of relational expression but only as read-only in order to extract current relvar values
 evalRelationalExpr :: RelationalExpr -> RelationalExprState (Either RelationalError GraphRefRelationalExpr)
 evalRelationalExpr (RelationVariable name _) = do
-  relvarTable <- fmap (relationVariables . stateElemsContext) ask
+  relvarTable <- fmap (relationVariables . envContext) ask
   return $ case M.lookup name relvarTable of
     Just res -> Right res
     Nothing -> Left $ RelVarNotDefinedError name
@@ -188,7 +189,7 @@ evalRelationalExpr (MakeStaticRelation attributeSet tupleSet) =
     Left err -> return $ Left err
     
 evalRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
-  currentContext <- fmap stateElemsContext ask
+  currentContext <- fmap envContext ask
   let tConss = typeConstructorMapping currentContext
   -- if the mAttrExprs is Nothing, then we should attempt to infer the tuple attributes from the first tuple itself- note that this is not always possible
   runExceptT $ do
@@ -257,7 +258,7 @@ evalRelationalExpr (With views mainExpr) = do
   case foldM addScopedView (stateElemsContext rstate) views of
        Left err -> return $ Left err
        Right ctx'' -> do 
-         let evalMainExpr expr = runReader (evalRelationalExpr expr) (RelationalExprStateElems ctx'')
+         let evalMainExpr expr = runReader (evalRelationalExpr expr) (RelationalExprEnv ctx'')
          case evalMainExpr mainExpr of
               Left err -> return $ Left err
               Right rel -> return $ Right rel 
@@ -886,7 +887,7 @@ typeFromAtomExpr attrs (AttributeAtomExpr attrName) = do
 
 typeFromAtomExpr _ (NakedAtomExpr atom) = pure (Right (atomTypeForAtom atom))
 typeFromAtomExpr attrs (FunctionAtomExpr funcName atomArgs _) = do
-  context <- fmap stateElemsContext ask
+  context <- fmap envContext ask
   let funcs = atomFunctions context
   case atomFunctionForName funcName funcs of
     Left err -> pure (Left err)
@@ -912,7 +913,7 @@ typeFromAtomExpr attrs (RelationAtomExpr relExpr) = do
 typeFromAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs _) = 
   runExceptT $ do
     argsTypes <- mapM (liftE . typeFromAtomExpr attrs) dConsArgs 
-    context <- fmap stateElemsContext (lift ask)
+    context <- fmap envContext (lift ask)
     either throwE pure (atomTypeForDataConstructor (typeConstructorMapping context) dConsName argsTypes)
 
 -- | Validate that the type of the AtomExpr matches the expected type.
@@ -933,7 +934,7 @@ verifyAtomExprTypes _ (NakedAtomExpr atom) expectedType = pure (atomTypeVerify e
 verifyAtomExprTypes relIn (FunctionAtomExpr funcName funcArgExprs _) expectedType = do
   rstate <- ask
   let functions = atomFunctions context
-      context = stateElemsContext rstate
+      context = envContext rstate
   runExceptT $ do
     func <- either throwE pure (atomFunctionForName funcName functions)
     let expectedArgTypes = atomFuncType func
@@ -965,7 +966,7 @@ evalAttrExpr _ (NakedAttributeExpr attr) = Right attr
   
 evalTupleExpr :: Maybe Attributes -> TupleExpr -> RelationalExprState (Either RelationalError RelationTuple)
 evalTupleExpr mAttrs (TupleExpr tupMap) = do
-  context <- fmap stateElemsContext ask
+  context <- fmap envContext ask
   runExceptT $ do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
   -- I could adjust this logic so that when the attributes are not specified (Nothing), then I can attempt to extract the attributes from the tuple- the type resolution will blow up if an ambiguous data constructor is used (Left 4) and this should allow simple cases to "relation{tuple{a 4}}" to be processed
@@ -1039,7 +1040,7 @@ evalAttributeNames attrNames expr = do
           case eAttrExprType of
             Left err -> pure (Left err)
             Right attrExprType -> pure (Right (A.attributeNameSet (attributes attrExprType)))
-              
+
 evalGraphRefRelationalExpr :: GraphRefRelationalExpr -> TransactionGraph -> Either RelationalError Relation
 evalGraphRefRelationalExpr (RelationVariable name tid) graph = do
   ctx <- dbContextForTransId tid graph
@@ -1190,10 +1191,10 @@ processAtomExpr :: AtomExpr -> RelationalExprState GraphRefAtomExpr
 processAtomExpr (AttributeAtomExpr nam) = pure $ AttributeAtomExpr nam
 processAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processAtomExpr (FunctionAtomExpr fName atomExprs ()) = do
-  tid <- elems_currentTransId <$> ask
+  tid <- re_currentTransId <$> ask
   FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> pure tid
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
-processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> (elems_currentTransId <$> ask)
+processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> (re_currentTransId <$> ask)
 
 processTupleExpr :: TupleExpr -> RelationalExprState GraphRefTupleExpr
 processTupleExpr (TupleExpr tMap) = 
@@ -1201,7 +1202,7 @@ processTupleExpr (TupleExpr tMap) =
 
 evalGraphRefAttributeExpr :: GraphRefAttributeExpr -> RelationalExprState (Either RelationalError Attribute)
 evalGraphRefAttributeExpr (AttributeAndTypeNameExpr attrName tCons tid) = do
-  graph <- elems_graph <$> ask
+  graph <- re_graph <$> ask
   case transactionForId tid graph of
     Left err -> pure (Left err)
     Right trans -> do
@@ -1216,7 +1217,7 @@ evalGraphRefAttributeExpr (AttributeAndTypeNameExpr attrName tCons tid) = do
 --convert AttributeExpr to GraphRefAttributeExpr
 processAttributeExpr :: AttributeExpr -> RelationalExprState GraphRefAttributeExpr
 processAttributeExpr (AttributeAndTypeNameExpr nam tCons ()) = do
-  tid <- elems_currentTransId <$> ask
+  tid <- re_currentTransId <$> ask
   pure $ AttributeAndTypeNameExpr nam tCons tid
 processAttributeExpr (NakedAttributeExpr attr) = pure $ NakedAttributeExpr attr
 
@@ -1227,3 +1228,30 @@ processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
                   Nothing -> pure Nothing
                   Just mAttrs'' -> Just <$> mapM processAttributeExpr mAttrs''
   MakeRelationFromExprs mAttrs' <$> mapM processTupleExpr tupleExprs
+
+
+mkEmptyRelVars :: RelationVariables -> RelationVariables
+mkEmptyRelVars rvMap = M.map mkEmptyRelVar rvMap
+  where
+    mkEmptyRelVar (MakeRelationFromExprs mAttrs _) = MakeRelationFromExprs mAttrs []
+    mkEmptyRelVar (MakeStaticRelation attrs _) = MakeStaticRelation attrs emptyTupleSet
+    mkEmptyRelVar (ExistingRelation rel) = ExistingRelation (emptyRelationWithAttrs (attributes rel))
+    mkEmptyRelVar rv@RelationVariable{} = Restrict (NotPredicate TruePredicate) rv
+    mkEmptyRelVar (Project attrNames expr) = Project attrNames (mkEmptyRelVar expr)
+    mkEmptyRelVar (Union exprA exprB) = Union (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
+    mkEmptyRelVar (Join exprA exprB) = Join (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
+    mkEmptyRelVar (Rename nameA nameB expr) = Rename nameA nameB (mkEmptyRelVar expr)
+    mkEmptyRelVar (Difference exprA exprB) = Difference (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
+    mkEmptyRelVar (Group attrNames attrName expr) = Group attrNames attrName (mkEmptyRelVar expr)
+    mkEmptyRelVar (Ungroup attrName expr) = Ungroup attrName (mkEmptyRelVar expr)
+    mkEmptyRelVar (Restrict pred expr) = Restrict pred (mkEmptyRelVar expr)
+    mkEmptyRelVar (Equals exprA exprB) = Equals (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
+    mkEmptyRelVar (NotEquals exprA exprB) = NotEquals (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
+    mkEmptyRelVar (Extend extTuple expr) = Extend extTuple (mkEmptyRelVar expr)
+    mkEmptyRelVar (With macros expr) = With (map (\(rv, expr) -> (rv, mkEmptyRelVar expr)) macros) (mkEmptyRelVar expr)
+
+processAttributeNames :: AttributeNames -> RelationalExprState GraphRefAttributeNames
+processAttributeNames (AttributeNames nameSet) = pure $ AttributeNames nameSet
+processAttributeNames (UnionAttributeNames attrNamesA attrNamesB) = UnionAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
+processAttributeNames (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
+processAttributeNames (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> processRelationalExpr expr

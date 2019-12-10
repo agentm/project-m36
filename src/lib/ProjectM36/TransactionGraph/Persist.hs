@@ -3,6 +3,7 @@ import ProjectM36.Error
 import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
+import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
 import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)

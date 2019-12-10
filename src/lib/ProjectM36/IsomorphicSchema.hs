@@ -261,7 +261,7 @@ relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.emp
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
                            expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
-                           rel <- runReader (evalRelationalExpr expr') (RelationalExprStateElems context)
+                           rel <- unimplemented --runReader (evalRelationalExpr expr') (RelationalExprStateElems context)
                            pure (rv, rel)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 
@@ -321,7 +321,8 @@ evalSchemaExpr (AddSubschema sname morphs) context sschemas =
           moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
           incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
       in
-      case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
+      case unimplemented of
+--      case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
         (Left err, _) -> Left err
         (Right (), (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
   where
