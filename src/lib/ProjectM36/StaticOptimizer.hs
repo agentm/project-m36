@@ -16,15 +16,40 @@ import Control.Monad.Trans.Reader
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-
 type StaticOptimizerEnv = RelationalExprEnv
 
 type StaticOptimizerMonad a = ReaderT StaticOptimizerEnv (ExceptT RelationalError Identity) a
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
-optimize :: RelationalExprEnv -> GraphRefRelationalExpr -> Either RelationalError GraphRefRelationalExpr
-optimize reEnv expr = runIdentity (runExceptT (runReaderT (optimizeGraphRefRelationalExpr expr) reEnv))
 
+-- | A temporary function to be replaced by IO-based implementation.
+optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
+optimizeAndEvalRelationalExpr env expr = do
+  let gfExpr = runReader (processRelationalExpr expr) env
+  optExpr <- runStaticOptimizerMonad env (fullOptimizeGraphRefRelationalExpr gfExpr)
+  evalGraphRefRelationalExpr optExpr (re_graph env)
 
+optimizeAndEvalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr expr = do
+  env <- dbcRelationalExprEnv  
+  let gfExpr = runReader (processDatabaseContextExpr expr) env
+      eOptExpr = runStaticOptimizerMonad env (optimizeDatabaseContextExpr gfExpr)
+  case eOptExpr of
+    Left err -> lift (except (Left err))
+    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
+
+optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
+optimizeAndEvalDatabaseContextIOExpr expr = do
+  reEnv <- getDBCIORelationalExprEnv
+  let gfExpr = runReader (processDatabaseContextIOExpr expr) reEnv
+  optExpr <- runStaticOptimizerMonad reEnv (optimizeDatbaseContextIOExpr gfExpr)
+  evalGraphRefDatabaseContextIOExpr optExpr
+
+  
+runStaticOptimizerMonad :: RelationalExprEnv -> StaticOptimizerMonad a -> Either RelationalError a
+runStaticOptimizerMonad env m = runIdentity (runExceptT (runReaderT m env))
+
+optimizeRelationalExpr' :: RelationalExprEnv -> GraphRefRelationalExpr -> Either RelationalError GraphRefRelationalExpr
+optimizeRelationalExpr' reEnv expr = runIdentity (runExceptT (runReaderT (optimizeGraphRefRelationalExpr expr) reEnv))
 
 fullOptimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> StaticOptimizerMonad GraphRefRelationalExpr
 fullOptimizeGraphRefRelationalExpr expr = do
@@ -138,7 +163,7 @@ optimizeDatabaseContextExpr (Assign name expr) = do
   pure $ Assign name optExpr
     
 optimizeDatabaseContextExpr (Insert targetName expr) = do
-  optimizedExpr <- optimizeGraphRefRelationalExpr expr
+  optimizedExpr <- fullOptimizeGraphRefRelationalExpr expr
   if isEmptyRelationExpr optimizedExpr then -- if we are trying to insert an empty relation, do nothing
     pure NoOperation
     else 
@@ -158,9 +183,9 @@ optimizeDatabaseContextExpr dep@(AddInclusionDependency _ _) = pure dep
 
 optimizeDatabaseContextExpr (RemoveInclusionDependency name) = pure (RemoveInclusionDependency name)
 
-optimizeDatabaseContextExpr (AddNotification name triggerExpr resultOldExpr resultNewExpr) = do
-  optExpr <- optimizeGraphRefRelationalExpr triggerExpr
-  pure (AddNotification name optExpr resultOldExpr resultNewExpr)
+optimizeDatabaseContextExpr (AddNotification name triggerExpr resultOldExpr resultNewExpr) = 
+  --we can't optimize these expressions until they run
+  pure (AddNotification name triggerExpr resultOldExpr resultNewExpr)
 
 optimizeDatabaseContextExpr notif@(RemoveNotification _) = pure notif
 

@@ -316,7 +316,7 @@ type GraphRefDatabaseContextExpr = DatabaseContextExprBase TransactionId
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase a = 
   NoOperation |
-  Define RelVarName [AttributeExpr] |
+  Define RelVarName [AttributeExprBase a] |
   Undefine RelVarName | --forget existence of relvar X
   Assign RelVarName (RelationalExprBase a) |
   Insert RelVarName (RelationalExprBase a) |
@@ -326,7 +326,7 @@ data DatabaseContextExprBase a =
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |
   
-  AddNotification NotificationName (RelationalExprBase a) (RelationalExprBase a) (RelationalExprBase a) |
+  AddNotification NotificationName RelationalExpr RelationalExpr RelationalExpr |
   RemoveNotification NotificationName |
 
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
@@ -337,7 +337,7 @@ data DatabaseContextExprBase a =
   
   RemoveDatabaseContextFunction DatabaseContextFunctionName |
   
-  ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExpr] |
+  ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExprBase a] |
   
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Eq, Generic)
@@ -348,12 +348,17 @@ type ObjModuleName = StringType
 type ObjFunctionName = StringType
 type Range = (Int,Int)  
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
-data DatabaseContextIOExpr = AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
-                             LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
-                             AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
-                             LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
-                             CreateArbitraryRelation RelVarName [AttributeExpr] Range
+data DatabaseContextIOExprBase a =
+  AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
+  LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
+  AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
+  LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
+  CreateArbitraryRelation RelVarName [AttributeExprBase a] Range
                            deriving (Show, Eq, Generic, Binary)
+
+type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase TransactionId
+
+type DatabaseContextIOExpr = DatabaseContextIOExprBase ()
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 

@@ -407,7 +407,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
     let sessions = ipSessions conf
         graphTvar = ipTransactionGraph conf
     graph <- readTVar graphTvar
-    case transactionForId commitId graph of
+    case RE.transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
             let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) NoOperation
@@ -570,13 +570,14 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
                     Right expr
       case expr' of
         Left err -> pure (Left err)
-        Right expr'' -> case optimizeRelationalExpr (Sess.concreteDatabaseContext session) expr'' of
-          Left err -> pure (Left err)
-          Right optExpr -> do
-            let evald = runReader (RE.evalRelationalExpr optExpr) (RE.mkRelationalExprState (Sess.concreteDatabaseContext session))
-            case evald of
-              Left err -> pure (Left err)
-              Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+        Right expr'' -> do
+          let graphTvar = ipTransactionGraph conf
+          graph <- readTVar graphTvar
+          let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) (Sess.parentId session) graph
+          case optimizeAndEvalRelationalExpr reEnv expr'' of
+            Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+            Left err -> pure (Left err)
+
 executeRelationalExpr sessionId conn@(RemoteProcessConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
@@ -593,21 +594,19 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
                     Schema.processDatabaseContextExprInSchema schema expr
       case expr' of 
         Left err -> pure (Left err)
-        Right expr'' -> case runState (do
-                                          eOptExpr <- applyStaticDatabaseOptimization expr''
-                                          case eOptExpr of
-                                            Left err -> pure (Left err)
-                                            Right optExpr ->
-                                              RE.evalDatabaseContextExpr optExpr) (RE.freshDatabaseState (Sess.concreteDatabaseContext session)) of
-          (Left err,_) -> pure (Left err)
-          (Right (), (_,_,False)) -> pure (Right ()) --optimization- if nothing was dirtied, nothing to do
-          (Right (), (!context',_,True)) -> do
-            let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
-                newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
-                newSchemas = Schemas context' newSubschemas
-                newSession = Session newDiscon (Sess.schemaName session)
-            StmMap.insert newSession sessionId sessions
-            pure (Right ())
+        Right expr'' ->
+          case runDatabaseContextEvalMonad ctx env (optimizeAndEvalDatabaseContextExpr expr'') of
+          Left err -> pure (Left err)
+          Right newState ->
+            if not dbc_dirty then --nothing dirtied, nothing to do
+              pure (Right ())
+            else do
+              let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
+                  newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
+                  newSchemas = Schemas context' newSubschemas
+                  newSession = Session newDiscon (Sess.schemaName session)
+              StmMap.insert newSession sessionId sessions
+              pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteProcessConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
 -- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing). Alternatively, as an optimization, if a simple commit is possible (meaning that the head has not changed), then a fast-forward commit takes place instead.
@@ -680,7 +679,7 @@ executeCommitExprSTM_ oldContext newContext nodes = do
   let nots = notifications oldContext
       fireNots = notificationChanges nots oldContext newContext 
       evaldNots = M.map mkEvaldNot fireNots
-      evalInContext expr ctx = runReader (RE.evalRelationalExpr expr) (RE.mkRelationalExprState ctx)
+      evalInContext expr ctx = runReader (optimizeAndEvalRelationalExpr expr) (RE.mkRelationalExprEnv ctx)
       mkEvaldNot notif = EvaluatedNotification { notification = notif, 
                                                  reportOldRelation = evalInContext (reportOldExpr notif) oldContext,
                                                  reportNewRelation = evalInContext (reportNewExpr notif) newContext}
