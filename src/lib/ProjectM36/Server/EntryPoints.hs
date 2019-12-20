@@ -83,7 +83,7 @@ handleRetrieveInclusionDependencies ti sessionId conn = do
   ret <- timeoutOrDie ti (inclusionDependencies sessionId conn)
   reply ret conn
   
-handleRetrievePlanForDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError DatabaseContextExpr)
+handleRetrievePlanForDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError GraphRefDatabaseContextExpr)
 handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr = do
   ret <- timeoutOrDie ti (planForDatabaseContextExpr sessionId conn dbExpr)
   reply ret conn

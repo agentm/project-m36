@@ -18,9 +18,6 @@ import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
 import Control.Exception
 import GHC
 import GHC.Paths
-import Codec.Compression.GZip
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path =

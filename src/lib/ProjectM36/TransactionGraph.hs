@@ -10,7 +10,6 @@ import ProjectM36.Tuple
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
 import qualified ProjectM36.DisconnectedTransaction as Discon
-import qualified ProjectM36.TransactionDiffs as TD
 
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
@@ -117,7 +116,7 @@ addBranch stamp' newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction stamp' newId headName discon@(DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName newTrans
+addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName newTrans
   where
     newTrans = Transaction newId (TI.singleParent parentId stamp') schemas'
 
@@ -332,16 +331,16 @@ validateHeadName headName graph (t1, t2) =
   
 -- Algorithm: start at one transaction and work backwards up the parents. If there is a node we have not yet visited as a child, then walk that up to its head. If that branch contains the goal transaction, then we have completed a valid subgraph traversal.
 subGraphOfFirstCommonAncestor :: TransactionGraph -> TransactionHeads -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError TransactionGraph
-subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans traverseSet = do
-  let currentid = transactionId currentTrans
+subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans' goalTrans traverseSet = do
+  let currentid = transactionId currentTrans'
       goalid = transactionId goalTrans
-  if currentTrans == goalTrans then
+  if currentTrans' == goalTrans then
     Right (TransactionGraph resultHeads traverseSet) -- add filter
     --catch root transaction to improve error?
     else do
-    currentTransChildren <- childTransactions currentTrans origGraph
-    let searchChildren = S.difference (S.insert currentTrans traverseSet) currentTransChildren
-        searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans traverseSet)
+    currentTransChildren <- childTransactions currentTrans' origGraph
+    let searchChildren = S.difference (S.insert currentTrans' traverseSet) currentTransChildren
+        searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans' traverseSet)
         childSearches = map searchChild (S.toList searchChildren)
         errors = lefts childSearches
         pathsFound = rights childSearches
@@ -350,11 +349,11 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans goalTrans trave
     unless (null realErrors) (Left (head realErrors))
     -- if no paths found, search the parent
     if null pathsFound then
-      case oneParent currentTrans of
+      case oneParent currentTrans' of
         Left RootTransactionTraversalError -> Left (NoCommonTransactionAncestorError currentid goalid)
         Left err -> Left err
         Right currentTransParent ->
-          subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans traverseSet)
+          subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans' traverseSet)
       else -- we found a path
       Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
   where

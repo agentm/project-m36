@@ -3,7 +3,6 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.StaticOptimizer
-import Control.Monad.Trans.Reader
 import qualified Data.Map as M
 import Data.Either (isRight)
 

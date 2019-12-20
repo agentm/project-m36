@@ -35,7 +35,7 @@ unionMergeRelation prefer relA relB = case relA `union` relB of
 
 --try to execute unions against the relvars contents -- if a relvar only appears in one context, include it
 unionMergeRelVars :: MergePreference -> RelationVariables -> RelationVariables -> Either MergeError RelationVariables
-unionMergeRelVars prefer relvarsA relvarsB = do
+unionMergeRelVars _ relvarsA relvarsB = do
   let allNames = S.toList (S.union (M.keysSet relvarsA) (M.keysSet relvarsB))
   foldM (\acc name -> do
             mergedRel <- do
@@ -43,7 +43,7 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> unimplemented
+                (Just _, Just _) -> unimplemented
                   --unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 

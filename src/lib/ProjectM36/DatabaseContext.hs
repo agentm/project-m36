@@ -17,7 +17,7 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr
-databaseContextAsDatabaseContextExpr context = unimplemented {-MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
+databaseContextAsDatabaseContextExpr _ = unimplemented {-MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
   where
     relVarsExprs = map (\(name, rel) -> --Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
     incDepsExprs :: [DatabaseContextExpr]

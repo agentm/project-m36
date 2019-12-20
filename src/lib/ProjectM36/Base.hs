@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveFoldable, DeriveFunctor #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -216,7 +216,7 @@ data RelationalExprBase a =
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
   With [(RelVarName,RelationalExprBase a)] (RelationalExprBase a)
-  deriving (Show, Eq, Generic, NFData)
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
            
 instance Binary RelationalExpr
            
@@ -313,6 +313,8 @@ type DatabaseContextExpr = DatabaseContextExprBase ()
 
 type GraphRefDatabaseContextExpr = DatabaseContextExprBase TransactionId
 
+instance Binary GraphRefDatabaseContextExpr
+
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase a = 
   NoOperation |
@@ -373,7 +375,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq, Generic, NFData)
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
 
 instance Binary RestrictionPredicateExpr
 
@@ -443,13 +445,13 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq,Show,Generic, NFData)
+                    deriving (Eq,Show,Generic, NFData, Foldable, Functor)
                        
 instance Binary AtomExpr                       
 
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Eq, Generic, NFData)
+                     deriving (Show, Eq, Generic, NFData, Foldable, Functor)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()
 type GraphRefExtendTupleExpr = ExtendTupleExprBase TransactionId
@@ -500,7 +502,7 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             UnionAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             IntersectAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
-                      deriving (Eq, Show, Generic, NFData)
+                      deriving (Eq, Show, Generic, NFData, Foldable, Functor)
                                
 type AttributeNames = AttributeNamesBase ()
 
@@ -520,11 +522,11 @@ type GraphRefAttributeExpr = AttributeExprBase TransactionId
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary, NFData)
+                         deriving (Eq, Show, Generic, Binary, NFData, Foldable, Functor)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Generic, NFData)
+                 deriving (Eq, Show, Generic, NFData, Foldable, Functor)
                           
 instance Binary TupleExpr
 

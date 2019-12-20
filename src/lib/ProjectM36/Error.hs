@@ -96,6 +96,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | SchemaCreationError SchemaError 
                        
                      | ImproperDatabaseStateError
+
+                     | NonConcreteSchemaPlanError
                        
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable, NFData) 

@@ -1,6 +1,5 @@
 module ProjectM36.TransactionGraph.Persist where
 import ProjectM36.Error
-import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.RelationalExpression
