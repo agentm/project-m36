@@ -23,9 +23,11 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
 import Data.Either (lefts, rights, isRight)
---import Data.Monoid
 import Control.Arrow
 import Data.Maybe
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 {-
 --import Debug.Trace

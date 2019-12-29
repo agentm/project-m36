@@ -2,7 +2,9 @@ module ProjectM36.Key where
 import ProjectM36.Base
 import ProjectM36.Relation
 import qualified Data.Set as S
---import Data.Monoid
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 {-
 keys can be implemented using inclusion dependencies as well: the count of the projection of the keys' attributes must be equal to the count of the tuples- p. 120 Database in Depth

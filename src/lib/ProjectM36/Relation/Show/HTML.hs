@@ -8,8 +8,10 @@ import qualified Data.List as L
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
---import Data.Monoid
 import qualified Data.Vector as V
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 attributesAsHTML :: Attributes -> Text
 attributesAsHTML attrs = "<tr>" <> T.concat (map oneAttrHTML (V.toList attrs)) <> "</tr>"

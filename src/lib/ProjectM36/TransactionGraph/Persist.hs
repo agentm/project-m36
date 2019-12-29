@@ -24,12 +24,14 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
---import Data.Monoid
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock
 import Data.Text.Read
 import System.FilePath.Glob
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 type LockFileHash = ByteString
 

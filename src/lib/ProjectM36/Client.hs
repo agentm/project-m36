@@ -817,7 +817,10 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
     Left err -> pure (Left err)
     Right (session, _) -> do
       let subschemas' = subschemas session
-      case Schema.evalSchemaExpr schemaExpr (Sess.concreteDatabaseContext session) subschemas' of
+          transId = Sess.parentId session
+          context = Sess.concreteDatabaseContext session
+      graph <- readTVar (ipTransactionGraph conf)
+      case Schema.evalSchemaExpr schemaExpr context transId graph subschemas' of
         Left err -> pure (Left err)
         Right (newSubschemas, newContext) -> do
           --hm- maybe we should start using lenses
@@ -957,10 +960,11 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
       Left err -> pure (Left err)
       Right (session, schema) -> do
         let context = Sess.concreteDatabaseContext session
+            transId = Sess.parentId session
         if Sess.schemaName session == defaultSchemaName then
           pure $ RE.relationVariablesAsRelation (relationVariables context) graph
           else
-          case Schema.relationVariablesInSchema schema context of
+          case Schema.relationVariablesInSchema schema context transId graph of
             Left err -> pure (Left err)
             Right relvars -> pure $ RE.relationVariablesAsRelation relvars graph
       

@@ -6,11 +6,13 @@ import ProjectM36.RelationalExpression
 import ProjectM36.TransGraphRelationalExpression as TGRE
 import ProjectM36.Error
 import ProjectM36.Transaction
+import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
 import Control.Monad.State
-import Control.Monad.Trans.Reader
+import Control.Monad.Reader
+import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.Functor.Identity
 import qualified Data.Map as M
@@ -26,30 +28,37 @@ type GraphRefStaticOptimizerMonad a = ReaderT TransactionGraph (ExceptT Relation
 -- | A temporary function to be replaced by IO-based implementation.
 optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
 optimizeAndEvalRelationalExpr env expr = do
-  let gfExpr = runReader (processRelationalExpr expr) env
+  let gfExpr = runProcessExprM tid graph (processRelationalExpr expr)
+      tid = re_currentTransId env
+      graph = re_graph env
+      gfEnv = freshGraphRefRelationalExprEnv graph
   optExpr <- runGraphRefStaticOptimizerMonad (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
-  evalGraphRefRelationalExpr optExpr (re_graph env)
+  runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 optimizeAndEvalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr expr = do
-  env <- dbcRelationalExprEnv  
-  let gfExpr = runReader (processDatabaseContextExpr expr) env
-      eOptExpr = runGraphRefStaticOptimizerMonad (re_graph env) (optimizeGraphRefDatabaseContextExpr gfExpr)
+  tid <- dce_transId <$> ask
+  graph <- dce_graph <$> ask
+  let gfExpr = runProcessExprM tid graph (processDatabaseContextExpr expr)
+      eOptExpr = runGraphRefStaticOptimizerMonad graph (optimizeGraphRefDatabaseContextExpr gfExpr)
   case eOptExpr of
-    Left err -> lift (except (Left err))
+    Left err -> throwError err
     Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
 optimizeAndEvalTransGraphRelationalExpr :: TransactionGraph -> TransGraphRelationalExpr -> Either RelationalError Relation
 optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
   optExpr <- runGraphRefStaticOptimizerMonad graph (fullOptimizeGraphRefRelationalExpr gfExpr)
-  evalGraphRefRelationalExpr optExpr graph
+  let gfEnv = freshGraphRefRelationalExprEnv graph
+  runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do
-  reEnv <- getDBCIORelationalExprEnv
-  let gfExpr = runReader (processDatabaseContextIOExpr expr) reEnv
-      eOptExpr = runStaticOptimizerMonad reEnv (optimizeDatabaseContextIOExpr gfExpr)
+  env <- getDBCIORelationalExprEnv
+  let gfExpr = runProcessExprM tid graph (processDatabaseContextIOExpr expr)
+      eOptExpr = runStaticOptimizerMonad env (optimizeDatabaseContextIOExpr gfExpr)
+      tid = re_currentTransId env
+      graph = re_graph env
   case eOptExpr of
     Left err -> pure (Left err)
     Right optExpr ->
@@ -86,10 +95,11 @@ optimizeGraphRefRelationalExpr e@(RelationVariable _ _) = pure e
   
 --remove project of attributes which removes no attributes
 optimizeGraphRefRelationalExpr (Project attrNameSet expr) = do
-  reenv <- ask 
-  let relType = runReader (typeForGraphRefRelationalExpr expr) reenv
+  graph <- ask
+  let relType = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
+      gfEnv = freshGraphRefRelationalExprEnv graph
   case relType of
-    Left err -> lift $ except (Left err)
+    Left err -> throwError err
     Right relType2 
       | AS.all == attrNameSet ->        
         optimizeGraphRefRelationalExpr expr
@@ -124,13 +134,14 @@ optimizeGraphRefRelationalExpr (Join exprA exprB) = do
                            pure (Join optExprA optExprB)
                            
 optimizeGraphRefRelationalExpr (Difference exprA exprB) = do
-  env <- ask
+  graph <- ask
   optExprA <- optimizeGraphRefRelationalExpr exprA
   optExprB <- optimizeGraphRefRelationalExpr exprB
   if optExprA == optExprB then do --A difference A == A where false
-    let eEmptyRel = runReader (typeForGraphRefRelationalExpr optExprA) env
+    let eEmptyRel = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr optExprA)
+        gfEnv = freshGraphRefRelationalExprEnv graph
     case eEmptyRel of
-      Left err -> lift (except (Left err))
+      Left err -> throwError err
       Right emptyRel -> pure (ExistingRelation emptyRel)
     else
     pure (Difference optExprA optExprB)
@@ -150,9 +161,10 @@ optimizeGraphRefRelationalExpr (Restrict predicate expr) = do
   case optimizedPredicate of
     optimizedPredicate' | isTrueExpr optimizedPredicate' -> optimizeGraphRefRelationalExpr expr -- remove predicate entirely
     optimizedPredicate' | isFalseExpr optimizedPredicate' -> do -- replace where false predicate with empty relation with attributes from relexpr
-        let attributesRel = runReader (typeForGraphRefRelationalExpr expr) graph
+        let attributesRel = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
+            gfEnv = freshGraphRefRelationalExprEnv graph
         case attributesRel of 
-          Left err -> lift (except (Left err))
+          Left err -> throwError err
           Right attributesRelA -> pure $ MakeStaticRelation (attributes attributesRelA) emptyTupleSet
       | otherwise -> do
         optSubExpr <- optimizeGraphRefRelationalExpr expr
@@ -321,61 +333,52 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
     -- the sub exprs are in different transactions or none at all, so we cannot extract inclusion dependencies across transaction boundaries
    Nothing -> pure expr
    Just commonTransId -> do
-    let typeForExpr e = runReader (typeForGraphRefRelationalExpr e) graph
-        eProjType = typeForExpr expr
-        eTypeA = typeForExpr exprA
-        eTypeB = typeForExpr exprB
-        liftErr = lift . except . Left
-    case eProjType of
-      Left err -> liftErr err
-      Right projType -> 
-       case eTypeA of 
-        Left err -> liftErr err
-        Right typeA -> 
-          case eTypeB of
-            Left err -> liftErr err
-            Right typeB -> do
-              let matchesProjectionAttributes 
-                    | attrNames projType `S.isSubsetOf` attrNames typeA =
-                      Just ((exprA, typeA), (exprB, typeB))
-                    | attrNames projType `S.isSubsetOf` attrNames typeB =
-                        Just ((exprB, typeB), (exprA, typeA))
-                    | otherwise =
-                      Nothing
-                  attrNames = A.attributeNameSet . attributes
-              case matchesProjectionAttributes of
-                Nothing ->  -- this optimization does not apply
-                  pure expr
-                Just ((joinedExpr, joinedType), (unjoinedExpr, _)) -> do
-                  --lookup transaction
-                  trans <- lift $ except (transactionForId commonTransId graph)
-                  --scan inclusion dependencies for a foreign key relationship
-                  let incDeps = inclusionDependencies commonContext
-                      commonContext = concreteDatabaseContext trans
-                      reEnv = mkRelationalExprEnv commonContext commonTransId graph
-                      fkConstraint = foldM isFkConstraint False incDeps
-                      --search for matching fk constraint
-                      isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do
-                        let gfSubAttrNames = runReader (processAttributeNames subAttrNames) reEnv
-                            gfSubRv = runReader (processRelationalExpr subrv) reEnv
-                            gfSuperRv = runReader (processRelationalExpr superrv) reEnv
-                        
-                        case runReader (evalGraphRefAttributeNames gfSubAttrNames expr) graph of
-                          Left _ -> pure acc
-                          Right subAttrNameSet -> 
-                            pure (acc || (joinedExpr == gfSubRv &&
-                                          unjoinedExpr == gfSuperRv && 
-                                          -- the fk attribute is one of the projection attributes
-                                          A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
+    let typeForExpr e = lift $ except $ runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr e)
+        gfEnv = freshGraphRefRelationalExprEnv graph
+    projType <- typeForExpr expr
+    typeA <- typeForExpr exprA
+    typeB <- typeForExpr exprB
+    let matchesProjectionAttributes 
+          | attrNames projType `S.isSubsetOf` attrNames typeA =
+              Just ((exprA, typeA), (exprB, typeB))
+          | attrNames projType `S.isSubsetOf` attrNames typeB =
+              Just ((exprB, typeB), (exprA, typeA))
+          | otherwise =
+              Nothing
+        attrNames = A.attributeNameSet . attributes
+    case matchesProjectionAttributes of
+      Nothing ->  -- this optimization does not apply
+        pure expr
+      Just ((joinedExpr, joinedType), (unjoinedExpr, _)) -> do
+        --lookup transaction
+        trans <- lift $ except (transactionForId commonTransId graph)
+        --scan inclusion dependencies for a foreign key relationship
+        let incDeps = inclusionDependencies commonContext
+            commonContext = concreteDatabaseContext trans
+            reEnv = mkRelationalExprEnv commonContext commonTransId graph
+            fkConstraint = foldM isFkConstraint False incDeps
+            --search for matching fk constraint
+            isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do
+              let gfSubAttrNames = processM (processAttributeNames subAttrNames)
+                  gfSubRv = processM (processRelationalExpr subrv)
+                  gfSuperRv = processM (processRelationalExpr superrv)
+                  processM = runProcessExprM commonTransId graph
+                  gfEnv = freshGraphRefRelationalExprEnv graph
+              case runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames gfSubAttrNames expr) of
+                Left _ -> pure acc
+                Right subAttrNameSet -> 
+                  pure (acc || (joinedExpr == gfSubRv &&
+                                 unjoinedExpr == gfSuperRv && 
+                                 -- the fk attribute is one of the projection attributes
+                                 A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
                                 ))
-                      isFkConstraint acc _ = pure acc
-                  case fkConstraint of
-                    Right True -> --join elimination optimization applies
-                      optimizeGraphRefRelationalExpr (Project attrNameSet joinedExpr)
-                    Right False -> --join elimination optimization does not apply
-                      pure expr
-                    Left err -> 
-                      lift $ except (Left err)
+            isFkConstraint acc _ = pure acc
+        case fkConstraint of
+          Right True -> --join elimination optimization applies
+            optimizeGraphRefRelationalExpr (Project attrNameSet joinedExpr)
+          Right False -> --join elimination optimization does not apply
+            pure expr
+          Left err -> throwError err
           
 applyStaticJoinElimination expr = pure expr
                                                                               

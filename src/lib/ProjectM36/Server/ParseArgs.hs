@@ -3,7 +3,9 @@ import ProjectM36.Base
 import ProjectM36.Client
 import Options.Applicative
 import ProjectM36.Server.Config
---import Data.Monoid
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 parseArgsWithDefaults :: ServerConfig -> Parser ServerConfig
 parseArgsWithDefaults defaults = ServerConfig <$>

@@ -3,7 +3,9 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.DataTypes.Interval
 import qualified Data.Text as T
---import Data.Monoid
+#if __GLASGOW_HASKELL__ <= 802
+import Data.Monoid
+#endif
 
 relationForAtom :: Atom -> Either RelationalError Relation
 relationForAtom (RelationAtom rel) = Right rel
