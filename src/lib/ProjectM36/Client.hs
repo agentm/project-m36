@@ -114,7 +114,6 @@ import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
-import Control.Monad.Trans.Reader
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.DatabaseContext (basicDatabaseContext)
 import qualified ProjectM36.TransactionGraph as Graph
@@ -125,6 +124,7 @@ import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
+import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
@@ -599,7 +599,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
           let ctx = Sess.concreteDatabaseContext session
               env = RE.mkDatabaseContextEvalEnv transId graph
               transId = Sess.parentId session
-          case RE.runDatabaseContextEvalMonad ctx env (optimizeAndEvalDatabaseContextExpr expr'') of
+          case RE.runDatabaseContextEvalMonad ctx env (optimizeAndEvalDatabaseContextExpr True expr'') of
             Left err -> pure (Left err)
             Right newState ->
               if not (RE.dbc_dirty newState) then --nothing dirtied, nothing to do
@@ -877,9 +877,10 @@ typeForRelationalExprSTM sessionId (InProcessConnection conf) relExpr = do
       case processed of
         Left err -> pure (Left err)
         Right relExpr' -> do
+          graph <- readTVar (ipTransactionGraph conf)          
           let transId = Sess.parentId session
-          graph <- readTVar (ipTransactionGraph conf)
-          pure $ runReader (RE.typeForRelationalExpr relExpr') (RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) transId graph)
+              reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) transId graph
+          pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr relExpr') 
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
 
@@ -922,9 +923,8 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
       Left err -> pure $ Left err 
       Right (session, _) ->
         if schemaName session == defaultSchemaName then do
-          let env = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) transId graph
-              transId = Sess.parentId session
-              gfExpr = runReader (RE.processDatabaseContextExpr dbExpr) env
+          let transId = Sess.parentId session
+              gfExpr = runProcessExprM transId graph (processDatabaseContextExpr dbExpr)
           pure $ runGraphRefStaticOptimizerMonad graph (optimizeGraphRefDatabaseContextExpr gfExpr)
         else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly-}
           pure (Left NonConcreteSchemaPlanError)

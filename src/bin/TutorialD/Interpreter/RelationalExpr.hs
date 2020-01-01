@@ -238,13 +238,14 @@ relationAtomExprP = RelationAtomExpr <$> makeRelationP
 withMacroExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 withMacroExprP = do
   reservedOp "with"
-  views <- parens (sepBy1 createViewP comma) 
-  With views <$> relExprP
+  macros <- parens (sepBy1 createMacroP comma) 
+  With macros <$> relExprP
 
-createViewP :: RelationalMarkerExpr a => Parser (RelVarName, RelationalExprBase a)
-createViewP = do 
+createMacroP :: RelationalMarkerExpr a => Parser (WithNameExprBase a, RelationalExprBase a)
+createMacroP = do 
   name <- identifier
   reservedOp "as"
   expr <- relExprP
-  pure (name, expr)
+  marker <- parseMarkerP
+  pure (WithNameExpr name marker, expr)
  

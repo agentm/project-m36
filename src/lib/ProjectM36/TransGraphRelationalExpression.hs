@@ -39,6 +39,10 @@ instance Binary TransGraphAtomExpr
 
 type TransGraphAttributeExpr = AttributeExprBase TransactionIdLookup
 
+type TransGraphWithNameExpr = WithNameExprBase TransactionIdLookup
+
+instance Binary TransGraphWithNameExpr
+
 data TransGraphEvalEnv = TransGraphEvalEnv {
   tge_graph :: TransactionGraph
   }
@@ -108,9 +112,10 @@ processTransGraphRelationalExpr (Extend extendExpr expr) = do
   expr' <- processTransGraphRelationalExpr expr 
   pure (Extend extendExpr' expr')
 processTransGraphRelationalExpr (With views expr) = do
-  evaldViews <- mapM (\(vname, vexpr) -> do
+  evaldViews <- mapM (\(wnexpr, vexpr) -> do
+                         wnexpr' <- processTransGraphWithNameExpr wnexpr
                          vexpr' <- processTransGraphRelationalExpr vexpr 
-                         pure (vname, vexpr')
+                         pure (wnexpr', vexpr')
                      ) views
   expr' <- processTransGraphRelationalExpr expr 
   pure (With evaldViews expr')
@@ -178,3 +183,7 @@ processTransGraphAttributeNames (IntersectAttributeNames namesA namesB) = do
 processTransGraphAttributeNames (RelationalExprAttributeNames expr) = do
   evaldExpr <- processTransGraphRelationalExpr expr 
   pure (RelationalExprAttributeNames evaldExpr)
+
+processTransGraphWithNameExpr :: TransGraphWithNameExpr -> TransGraphEvalMonad GraphRefWithNameExpr
+processTransGraphWithNameExpr (WithNameExpr rvname tlookup) =
+  WithNameExpr rvname <$> findTransId tlookup

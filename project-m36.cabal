@@ -102,7 +102,11 @@ Library
                      ProjectM36.TypeConstructorDef,
                      ProjectM36.FileLock,
                      ProjectM36.FSType,
-                     ProjectM36.Arbitrary
+                     ProjectM36.Arbitrary,
+                     ProjectM36.GraphRefRelationalExpr,
+                     ProjectM36.NormalizeExpr,
+                     ProjectM36.TransactionInfo,
+                     ProjectM36.WithNameExpr
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.5.4.1

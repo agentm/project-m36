@@ -13,7 +13,6 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-import Control.Monad.Reader
 #if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
 #endif

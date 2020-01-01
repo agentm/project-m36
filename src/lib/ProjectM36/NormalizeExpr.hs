@@ -37,7 +37,7 @@ processRelationalExpr (Rename attrA attrB expr) =
 processRelationalExpr (Difference exprA exprB) = Difference <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Group attrNames attrName expr) = Group <$> processAttributeNames attrNames <*> pure attrName <*> processRelationalExpr expr
 processRelationalExpr (Ungroup attrName expr) = Ungroup attrName <$> processRelationalExpr expr
-processRelationalExpr (Restrict pred expr) = Restrict <$> processRestrictionPredicateExpr pred <*> processRelationalExpr expr
+processRelationalExpr (Restrict pred' expr) = Restrict <$> processRestrictionPredicateExpr pred' <*> processRelationalExpr expr
 processRelationalExpr (Equals exprA exprB) =
   Equals <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (NotEquals exprA exprB) =   
@@ -45,10 +45,16 @@ processRelationalExpr (NotEquals exprA exprB) =
 processRelationalExpr (Extend extendExpr expr) =
   Extend <$> processExtendTupleExpr extendExpr <*> processRelationalExpr expr
 processRelationalExpr (With macros expr) =
-  With <$> mapM (\(nam, wexpr) -> (,) nam <$> processRelationalExpr wexpr) macros <*> processRelationalExpr expr
+  With <$> mapM (\(wnexpr, macroExpr) -> (,) <$> processWithNameExpr wnexpr <*> processRelationalExpr macroExpr) macros <*> processRelationalExpr expr
+
+processWithNameExpr :: WithNameExpr -> ProcessExprM GraphRefWithNameExpr
+processWithNameExpr (WithNameExpr rvname ()) =
+  WithNameExpr rvname <$> askTid
 
 processAttributeNames :: AttributeNames -> ProcessExprM GraphRefAttributeNames
 processAttributeNames (AttributeNames nameSet) = pure $ AttributeNames nameSet
+processAttributeNames (InvertedAttributeNames attrNameSet) =
+  pure $ InvertedAttributeNames attrNameSet
 processAttributeNames (UnionAttributeNames attrNamesA attrNamesB) = UnionAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
 processAttributeNames (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
 processAttributeNames (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> processRelationalExpr expr
@@ -61,8 +67,8 @@ processDatabaseContextExpr expr =
     Undefine nam -> pure (Undefine nam)
     Assign nam rexpr -> Assign nam <$> processRelationalExpr rexpr
     Insert nam rexpr -> Insert nam <$> processRelationalExpr rexpr
-    Delete nam pred -> Delete nam <$> processRestrictionPredicateExpr pred
-    Update nam attrMap pred -> Update nam attrMap <$> processRestrictionPredicateExpr pred
+    Delete nam pred' -> Delete nam <$> processRestrictionPredicateExpr pred'
+    Update nam attrMap pred' -> Update nam attrMap <$> processRestrictionPredicateExpr pred'
 
     AddInclusionDependency nam dep -> pure (AddInclusionDependency nam dep)
     RemoveInclusionDependency nam -> pure (RemoveInclusionDependency nam)
@@ -79,12 +85,12 @@ processDatabaseContextExpr expr =
 processDatabaseContextIOExpr :: DatabaseContextIOExpr -> ProcessExprM GraphRefDatabaseContextIOExpr
 processDatabaseContextIOExpr (AddAtomFunction f tcs sc) =
   pure (AddAtomFunction f tcs sc)
-processDatabaseContextIOExpr (LoadAtomFunctions mod fun file) =
-  pure (LoadAtomFunctions mod fun file)
-processDatabaseContextIOExpr (AddDatabaseContextFunction mod fun path) =
-  pure (AddDatabaseContextFunction mod fun path)
-processDatabaseContextIOExpr (LoadDatabaseContextFunctions mod fun path) =
-  pure (LoadDatabaseContextFunctions mod fun path)
+processDatabaseContextIOExpr (LoadAtomFunctions mod' fun file) =
+  pure (LoadAtomFunctions mod' fun file)
+processDatabaseContextIOExpr (AddDatabaseContextFunction mod' fun path) =
+  pure (AddDatabaseContextFunction mod' fun path)
+processDatabaseContextIOExpr (LoadDatabaseContextFunctions mod' fun path) =
+  pure (LoadDatabaseContextFunctions mod' fun path)
 processDatabaseContextIOExpr (CreateArbitraryRelation rvName attrExprs range) =
   CreateArbitraryRelation rvName <$> mapM processAttributeExpr attrExprs <*> pure range
   

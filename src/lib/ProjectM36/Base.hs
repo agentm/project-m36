@@ -215,10 +215,21 @@ data RelationalExprBase a =
   Extend (ExtendTupleExprBase a) (RelationalExprBase a) |
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
-  With [(RelVarName,RelationalExprBase a)] (RelationalExprBase a)
+  With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
   deriving (Show, Eq, Generic, NFData, Foldable, Functor)
            
 instance Binary RelationalExpr
+
+data WithNameExprBase a = WithNameExpr RelVarName a
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
+
+type WithNameExpr = WithNameExprBase ()
+
+instance Binary WithNameExpr
+
+type GraphRefWithNameExpr = WithNameExprBase TransactionId
+
+instance Binary GraphRefWithNameExpr
            
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification

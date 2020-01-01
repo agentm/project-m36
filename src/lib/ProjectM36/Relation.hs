@@ -95,7 +95,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   where
     newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
       
-project :: S.Set AttributeName -> Relation -> Either RelationalError Relation      
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project attrNames rel@(Relation _ tupSet) = do
   newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
   let newAttrNameSet = A.attributeNameSet newAttrs

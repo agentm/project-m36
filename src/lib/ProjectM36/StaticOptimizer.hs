@@ -35,12 +35,15 @@ optimizeAndEvalRelationalExpr env expr = do
   optExpr <- runGraphRefStaticOptimizerMonad (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
-optimizeAndEvalDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContextEvalMonad ()
-optimizeAndEvalDatabaseContextExpr expr = do
+optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr optimize expr = do
   tid <- dce_transId <$> ask
   graph <- dce_graph <$> ask
   let gfExpr = runProcessExprM tid graph (processDatabaseContextExpr expr)
-      eOptExpr = runGraphRefStaticOptimizerMonad graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+      eOptExpr = if optimize then
+                   runGraphRefStaticOptimizerMonad graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+                   else
+                   pure gfExpr
   case eOptExpr of
     Left err -> throwError err
     Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
@@ -363,7 +366,6 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
                   gfSubRv = processM (processRelationalExpr subrv)
                   gfSuperRv = processM (processRelationalExpr superrv)
                   processM = runProcessExprM commonTransId graph
-                  gfEnv = freshGraphRefRelationalExprEnv graph
               case runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames gfSubAttrNames expr) of
                 Left _ -> pure acc
                 Right subAttrNameSet -> 

@@ -12,7 +12,7 @@ executeDatabaseContextExpr expr transId graph context' =
     Left err -> error (show err)
   where
     env = mkDatabaseContextEvalEnv transId graph
-    run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr expr)
+    run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr True expr)
   
 executeRelationalExpr :: RelationalExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError Relation
 executeRelationalExpr expr context transId graph =
