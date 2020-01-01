@@ -211,5 +211,5 @@ utcTimeP = do
   timeStr <- quotedString
   case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
     Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
-    Just stamp -> pure stamp
+    Just stamp' -> pure stamp'
   
