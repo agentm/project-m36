@@ -7,7 +7,9 @@ import ProjectM36.Server
 import System.IO
 import Options.Applicative
 import System.Exit
+#if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
+#endif
 import Data.Maybe
 import qualified Data.Text as T
 

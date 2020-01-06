@@ -58,8 +58,8 @@ liftE = lift . except
 askGraph :: TransGraphEvalMonad TransactionGraph
 askGraph = tge_graph <$> ask
 
-findTransId :: TransactionIdLookup -> TransGraphEvalMonad TransactionId
-findTransId tlook = transactionId <$> findTrans tlook
+findTransId :: TransactionIdLookup -> TransGraphEvalMonad GraphRefTransactionMarker
+findTransId tlook = TransactionMarker . transactionId <$> findTrans tlook
 
 findTrans :: TransactionIdLookup -> TransGraphEvalMonad Transaction
 findTrans tlook = do

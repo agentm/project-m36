@@ -14,12 +14,16 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           atomFunctions = HS.empty,
                           dbcFunctions = HS.empty,
                           typeConstructorMapping = [] }
+
+-- | Remove TransactionId markers on GraphRefRelationalExpr
+stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
+stripGraphRefRelationalExpr = fmap (const ())
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr
-databaseContextAsDatabaseContextExpr _ = unimplemented {-MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
+databaseContextAsDatabaseContextExpr context = MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
   where
-    relVarsExprs = map (\(name, rel) -> --Assign name (ExistingRelation rel)) (M.toList (relationVariables context))
+    relVarsExprs = map (\(name, rel) -> Assign name (stripGraphRefRelationalExpr rel)) (M.toList (relationVariables context))
     incDepsExprs :: [DatabaseContextExpr]
     incDepsExprs = map (uncurry AddInclusionDependency) (M.toList (inclusionDependencies context))
     funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet-}

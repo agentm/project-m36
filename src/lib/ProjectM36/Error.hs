@@ -98,6 +98,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | ImproperDatabaseStateError
 
                      | NonConcreteSchemaPlanError
+
+                     | NoUncommittedContextInEvalError
                        
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable, NFData) 

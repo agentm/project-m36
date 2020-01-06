@@ -5,18 +5,15 @@ import Control.Monad.Trans.Reader as R
 import qualified Data.Map as M
 
 --used to process/normalize exprs to their respective graph ref forms
-type ProcessExprM a = Reader (TransactionGraph, TransactionId) a
+type ProcessExprM a = Reader GraphRefTransactionMarker a
 
 type CurrentTransactionId = TransactionId
 
-runProcessExprM :: CurrentTransactionId -> TransactionGraph -> ProcessExprM a -> a
-runProcessExprM tid graph m = runReader m (graph, tid)
+runProcessExprM :: GraphRefTransactionMarker -> ProcessExprM a -> a
+runProcessExprM mtid m = runReader m mtid
 
-askGraph :: ProcessExprM TransactionGraph
-askGraph = fst <$> R.ask
-
-askTid :: ProcessExprM CurrentTransactionId
-askTid = snd <$> R.ask
+askMarker :: ProcessExprM GraphRefTransactionMarker
+askMarker = R.ask
 
 -- convert a RelationalExpr into a GraphRefRelationalExpr using the current trans Id
 processRelationalExpr :: RelationalExpr -> ProcessExprM GraphRefRelationalExpr
@@ -28,7 +25,7 @@ processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
 processRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
 --requires current trans id and graph
-processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askTid
+processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askMarker
 processRelationalExpr (Project attrNames expr) = Project <$> processAttributeNames attrNames <*> processRelationalExpr expr
 processRelationalExpr (Union exprA exprB) = Union <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Join exprA exprB) = Join <$> processRelationalExpr exprA <*> processRelationalExpr exprB
@@ -49,7 +46,7 @@ processRelationalExpr (With macros expr) =
 
 processWithNameExpr :: WithNameExpr -> ProcessExprM GraphRefWithNameExpr
 processWithNameExpr (WithNameExpr rvname ()) =
-  WithNameExpr rvname <$> askTid
+  WithNameExpr rvname <$> askMarker
 
 processAttributeNames :: AttributeNames -> ProcessExprM GraphRefAttributeNames
 processAttributeNames (AttributeNames nameSet) = pure $ AttributeNames nameSet
@@ -114,9 +111,9 @@ processAtomExpr :: AtomExpr -> ProcessExprM GraphRefAtomExpr
 processAtomExpr (AttributeAtomExpr nam) = pure $ AttributeAtomExpr nam
 processAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
-  FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askTid
+  FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askMarker
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
-processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askTid
+processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askMarker
 
 processTupleExpr :: TupleExpr -> ProcessExprM GraphRefTupleExpr
 processTupleExpr (TupleExpr tMap) = 
@@ -125,6 +122,6 @@ processTupleExpr (TupleExpr tMap) =
 --convert AttributeExpr to GraphRefAttributeExpr
 processAttributeExpr :: AttributeExpr -> ProcessExprM GraphRefAttributeExpr
 processAttributeExpr (AttributeAndTypeNameExpr nam tCons ()) =
-  AttributeAndTypeNameExpr nam tCons <$> askTid
+  AttributeAndTypeNameExpr nam tCons <$> askMarker
 processAttributeExpr (NakedAttributeExpr attr) = pure $ NakedAttributeExpr attr
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveFoldable, DeriveFunctor #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveFoldable, DeriveFunctor, DeriveTraversable #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -13,6 +13,7 @@ import Data.UUID (UUID)
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
+import GHC.Stack
 import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text,unpack)
@@ -216,21 +217,19 @@ data RelationalExprBase a =
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
   With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
            
 instance Binary RelationalExpr
 
 data WithNameExprBase a = WithNameExpr RelVarName a
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 type WithNameExpr = WithNameExprBase ()
 
 instance Binary WithNameExpr
 
-type GraphRefWithNameExpr = WithNameExprBase TransactionId
+type GraphRefWithNameExpr = WithNameExprBase GraphRefTransactionMarker
 
-instance Binary GraphRefWithNameExpr
-           
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
 
@@ -276,8 +275,12 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
 
+data GraphRefTransactionMarker = TransactionMarker TransactionId |
+                                 UncommittedContextMarker
+                                 deriving (Eq, Show, Binary, Generic, NFData, Ord)
+  
 -- a fundamental relational expr to which other relational expressions compile
-type GraphRefRelationalExpr = RelationalExprBase TransactionId
+type GraphRefRelationalExpr = RelationalExprBase GraphRefTransactionMarker
 
 type SchemaName = StringType                         
 
@@ -322,7 +325,7 @@ type DatabaseContextExprName = StringType
 
 type DatabaseContextExpr = DatabaseContextExprBase ()
 
-type GraphRefDatabaseContextExpr = DatabaseContextExprBase TransactionId
+type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker
 
 instance Binary GraphRefDatabaseContextExpr
 
@@ -369,13 +372,13 @@ data DatabaseContextIOExprBase a =
   CreateArbitraryRelation RelVarName [AttributeExprBase a] Range
                            deriving (Show, Eq, Generic, Binary)
 
-type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase TransactionId
+type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase GraphRefTransactionMarker
 
 type DatabaseContextIOExpr = DatabaseContextIOExprBase ()
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
-type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionId
+type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase GraphRefTransactionMarker
 
 -- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
 data RestrictionPredicateExprBase a =
@@ -386,7 +389,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor)
+  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Binary RestrictionPredicateExpr
 
@@ -448,7 +451,7 @@ instance Ord Transaction where
 
 type AtomExpr = AtomExprBase ()
 
-type GraphRefAtomExpr = AtomExprBase TransactionId
+type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
@@ -456,16 +459,16 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq,Show,Generic, NFData, Foldable, Functor)
+                    deriving (Eq,Show,Generic, NFData, Foldable, Functor, Traversable)
                        
 instance Binary AtomExpr                       
 
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Eq, Generic, NFData, Foldable, Functor)
+                     deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()
-type GraphRefExtendTupleExpr = ExtendTupleExprBase TransactionId
+type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
 
 instance Binary ExtendTupleExpr
 
@@ -513,11 +516,11 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             UnionAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             IntersectAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
-                      deriving (Eq, Show, Generic, NFData, Foldable, Functor)
+                      deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
                                
 type AttributeNames = AttributeNamesBase ()
 
-type GraphRefAttributeNames = AttributeNamesBase TransactionId
+type GraphRefAttributeNames = AttributeNamesBase GraphRefTransactionMarker
 
 instance Binary AttributeNames
                                 
@@ -528,22 +531,22 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            deriving (Show, Read)
                                     
 type AttributeExpr = AttributeExprBase ()
-type GraphRefAttributeExpr = AttributeExprBase TransactionId
+type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
 
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary, NFData, Foldable, Functor)
+                         deriving (Eq, Show, Generic, Binary, NFData, Foldable, Functor, Traversable)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Generic, NFData, Foldable, Functor)
+                 deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
                           
 instance Binary TupleExpr
 
 type TupleExpr = TupleExprBase ()
 
-type GraphRefTupleExpr = TupleExprBase TransactionId
+type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 
 data MergeStrategy = 
   -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)
@@ -616,19 +619,22 @@ atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList att
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam
 
-unimplemented :: a
+unimplemented :: HasCallStack => a
 unimplemented = undefined
 
 --for serializing GraphRefRelationalExpr as part of transaction serialization
-instance Binary (TupleExprBase TransactionId)
+instance Binary (TupleExprBase GraphRefTransactionMarker)
 
 instance Binary GraphRefRelationalExpr 
 
-instance Binary (AtomExprBase TransactionId)
+instance Binary (AtomExprBase GraphRefTransactionMarker)
 
-instance Binary (AttributeNamesBase TransactionId)
+instance Binary (AttributeNamesBase GraphRefTransactionMarker)
 
-instance Binary (RestrictionPredicateExprBase TransactionId)
+instance Binary (RestrictionPredicateExprBase GraphRefTransactionMarker)
 
-instance Binary (ExtendTupleExprBase TransactionId)
+instance Binary (ExtendTupleExprBase GraphRefTransactionMarker)
+
+instance Binary GraphRefWithNameExpr
+           
 

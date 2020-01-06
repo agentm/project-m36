@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, LambdaCase #-}
+{-# LANGUAGE GADTs, LambdaCase, CPP #-}
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
@@ -28,7 +28,9 @@ import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
+#if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
+#endif
 import Data.List (isPrefixOf)
 import Control.Exception
 import System.Exit

@@ -19,8 +19,7 @@ dateExamplesConnection callback = do
       case eSessionId of
         Left err -> error (show err)
         Right sessionId -> do
-          mapM_ (\(rvName,rvRel) -> executeDatabaseContextExpr sessionId conn (Assign rvName (Base.ExistingRelation rvRel))) (M.toList (Base.relationVariables dateExamples))
-          mapM_ (\(idName,incDep) -> executeDatabaseContextExpr sessionId conn (AddInclusionDependency idName incDep)) (M.toList incDeps)
+          executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples
       --skipping atom functions for now- there are no atom function manipulation operators yet
           commit sessionId conn >>= eitherFail
           pure (sessionId, conn)

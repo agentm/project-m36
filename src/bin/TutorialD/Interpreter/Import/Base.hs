@@ -1,7 +1,10 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Import.Base where
 import ProjectM36.Base
 import ProjectM36.Error
+#if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
+#endif
 
 -- | import data into a relation variable
 data RelVarDataImportOperator = RelVarDataImportOperator RelVarName FilePath (RelVarName -> TypeConstructorMapping -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr))

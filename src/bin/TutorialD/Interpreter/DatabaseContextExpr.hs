@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
@@ -11,7 +12,9 @@ import ProjectM36.Error
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
+#if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
+#endif
 import Data.Functor
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
@@ -200,7 +203,8 @@ interpretDatabaseContextExpr context transId graph tutdstring =
     Left err -> Left $ PM36E.ParseError (T.pack (show err))
     Right parsed -> do
       let env = RE.mkDatabaseContextEvalEnv transId graph
-      RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
+      x <- RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
+      pure x
 
 {-
 --no optimization

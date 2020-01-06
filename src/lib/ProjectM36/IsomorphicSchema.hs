@@ -256,14 +256,14 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
 inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
 inclusionDependenciesInSchema schema incDeps = M.fromList <$> mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps)
   
-relationVariablesInSchema :: Schema -> DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError RelationVariables
-relationVariablesInSchema schema@(Schema morphs) context transId graph = foldM transform M.empty morphs
+relationVariablesInSchema :: Schema -> Either RelationalError RelationVariables
+relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morphs
   where
     transform newRvMap morph = do
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
                            expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
-                           let gfExpr = runProcessExprM transId graph (processRelationalExpr expr')
+                           let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr')
                            pure (rv, gfExpr)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 

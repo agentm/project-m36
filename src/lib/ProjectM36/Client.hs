@@ -135,8 +135,10 @@ import Control.Exception.Base
 import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
-
-#if MIN_VERSION_network_transport_tcp(0,6,0)
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, TCPAddr(..), TCPAddrInfo(..))
+import Network.Transport.TCP.Internal (encodeEndPointAddress)
+#elif MIN_VERSION_network_transport_tcp(0,6,0)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Transport.TCP.Internal (encodeEndPointAddress)
 #else
@@ -271,8 +273,15 @@ remoteDBLookupName = (++) "db-"
 
 createLocalNode :: IO (LocalNode, Transport)
 createLocalNode = do
-#if MIN_VERSION_network_transport_tcp(0,6,0)  
-  eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1", sn)) defaultTCPParameters
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+  let addrInfo = TCPAddrInfo {
+        tcpBindHost = "127.0.0.1",
+        tcpBindPort = "0",
+        tcpExternalAddress = \sn -> ("127.0.0.1", sn)
+        }
+  eLocalTransport <- createTransport (Addressable addrInfo) defaultTCPParameters
+#elif MIN_VERSION_network_transport_tcp(0,6,0)  
+  eLocalTransport <- createTransport "127.0.0.1" "0" ) defaultTCPParameters
 #else
   eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
 #endif
@@ -573,7 +582,7 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
         Right expr'' -> do
           let graphTvar = ipTransactionGraph conf
           graph <- readTVar graphTvar
-          let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) (Sess.parentId session) graph
+          let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
           case optimizeAndEvalRelationalExpr reEnv expr'' of
             Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
             Left err -> pure (Left err)
@@ -685,17 +694,16 @@ executeGraphExprSTM_ freshId sessionId session sessions graphExpr graph graphTVa
   
 -- process notifications for commits
 executeCommitExprSTM_
-  :: TransactionId
-  -> TransactionGraph
+  :: TransactionGraph
   -> DatabaseContext
   -> DatabaseContext
   -> ClientNodes
   -> STM (EvaluatedNotifications, ClientNodes)
-executeCommitExprSTM_ transId graph oldContext newContext nodes = do
+executeCommitExprSTM_ graph oldContext newContext nodes = do
   let nots = notifications oldContext
-      fireNots = notificationChanges nots transId graph oldContext newContext 
+      fireNots = notificationChanges nots graph oldContext newContext 
       evaldNots = M.map mkEvaldNot fireNots
-      evalInContext expr ctx = optimizeAndEvalRelationalExpr (RE.mkRelationalExprEnv ctx transId graph) expr
+      evalInContext expr ctx = optimizeAndEvalRelationalExpr (RE.mkRelationalExprEnv ctx graph) expr
  
       mkEvaldNot notif = EvaluatedNotification { notification = notif, 
                                                  reportOldRelation = evalInContext (reportOldExpr notif) oldContext,
@@ -878,8 +886,7 @@ typeForRelationalExprSTM sessionId (InProcessConnection conf) relExpr = do
         Left err -> pure (Left err)
         Right relExpr' -> do
           graph <- readTVar (ipTransactionGraph conf)          
-          let transId = Sess.parentId session
-              reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) transId graph
+          let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
           pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr relExpr') 
     
 typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
@@ -923,9 +930,9 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
       Left err -> pure $ Left err 
       Right (session, _) ->
         if schemaName session == defaultSchemaName then do
-          let transId = Sess.parentId session
-              gfExpr = runProcessExprM transId graph (processDatabaseContextExpr dbExpr)
-          pure $ runGraphRefStaticOptimizerMonad graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+          let ctx = Sess.concreteDatabaseContext session
+              gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr dbExpr)
+          pure $ runGraphRefStaticOptimizerMonad (Just ctx) graph (optimizeGraphRefDatabaseContextExpr gfExpr)
         else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly-}
           pure (Left NonConcreteSchemaPlanError)
 
@@ -960,11 +967,10 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
       Left err -> pure (Left err)
       Right (session, schema) -> do
         let context = Sess.concreteDatabaseContext session
-            transId = Sess.parentId session
         if Sess.schemaName session == defaultSchemaName then
           pure $ RE.relationVariablesAsRelation (relationVariables context) graph
           else
-          case Schema.relationVariablesInSchema schema context transId graph of
+          case Schema.relationVariablesInSchema schema of
             Left err -> pure (Left err)
             Right relvars -> pure $ RE.relationVariablesAsRelation relvars graph
       
@@ -1128,8 +1134,7 @@ commitLock_ sessionId conf stmBlock = do
                   Left err -> pure $ Left err
                   Right previousTrans ->
                     if not (Prelude.null transactionIdsToPersist) then do
-                      let transId = Sess.parentId newSession
-                      (evaldNots, nodes) <- executeCommitExprSTM_ transId graph' (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                      (evaldNots, nodes) <- executeCommitExprSTM_ graph' (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
                       nodesToNotify <- stmSetToList nodes
                       pure $ Right (evaldNots, nodesToNotify, graph', transactionIdsToPersist)
                     else pure (Right (M.empty, [], graph', []))

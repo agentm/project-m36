@@ -20,7 +20,7 @@ eval = undefined
 
 -}
 
-data SingularTransactionRef = SingularTransactionRef TransactionId |
+data SingularTransactionRef = SingularTransactionRef GraphRefTransactionMarker |
                               MultipleTransactionsRef |
                               NoTransactionsRef
                               deriving (Eq, Show)
@@ -38,7 +38,7 @@ singularTransaction expr =
     transSet = foldr (\transId acc -> S.insert transId acc) S.empty expr
 
 -- | Return True if two 'GraphRefRelationalExpr's both refer exclusively to the same transaction (or none at all).
-inSameTransaction :: GraphRefRelationalExpr -> GraphRefRelationalExpr -> Maybe TransactionId
+inSameTransaction :: GraphRefRelationalExpr -> GraphRefRelationalExpr -> Maybe GraphRefTransactionMarker
 inSameTransaction exprA exprB = case (stA, stB) of
   (SingularTransactionRef tA, SingularTransactionRef tB) | tA == tB -> Just tA
   _ -> Nothing

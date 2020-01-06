@@ -8,7 +8,11 @@ import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
 
 import Control.Monad.IO.Class (liftIO)
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, TCPAddr(..), TCPAddrInfo(..))
+#else
+import Network.Transport.TCP (createTransport, defaultTCPParameters)  
+#endif
 import Network.Transport (EndPointAddress(..), newEndPoint, address)
 import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode, initRemoteTable)
 import Control.Distributed.Process.Extras.Time (Delay(..))
@@ -117,7 +121,14 @@ launchServer daemonConfig mAddressMVar = do
         Right conn -> do
           let hostname = bindHost daemonConfig
               port = bindPort daemonConfig
-#if MIN_VERSION_network_transport_tcp(0,6,0)                
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+              addrInfo = TCPAddrInfo {
+                tcpBindHost = hostname,
+                tcpBindPort = show port,
+                tcpExternalAddress = \sn -> (hostname, sn)
+                }
+          etransport <- createTransport (Addressable addrInfo) defaultTCPParameters
+#elif MIN_VERSION_network_transport_tcp(0,6,0)                
           etransport <- createTransport hostname (show port) (\nam -> (hostname, nam)) defaultTCPParameters              
 #else                        
           etransport <- createTransport hostname (show port) defaultTCPParameters

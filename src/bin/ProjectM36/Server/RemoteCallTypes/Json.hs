@@ -149,3 +149,6 @@ instance FromJSON PersistenceError
 
 instance ToJSON AtomFunctionError
 instance FromJSON AtomFunctionError
+
+instance ToJSON WithNameExpr
+instance FromJSON WithNameExpr

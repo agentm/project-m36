@@ -4,12 +4,14 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DateExamples
 import ProjectM36.Error
+import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 --import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
 import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph
 --import qualified Data.HashSet as HS
 --import qualified Data.ByteString.Lazy.Char8 as BS
 --import qualified Data.IntMap as IM
@@ -23,6 +25,9 @@ import Control.Monad.State
 import Control.DeepSeq
 import Data.Text hiding (map)
 import Data.Monoid
+import Data.Time.Clock
+import Data.UUID
+import Data.UUID.V4
 
 {-
 dumpcsv :: Relation -> IO ()
@@ -60,13 +65,18 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) =
     Right rel -> if tutd == "" then
                    putStrLn "Done."
                  else do
+                   now <- getCurrentTime
+                   tid <- nextRandom
                    let setx = Assign "x" (ExistingRelation (force rel))
-                       (context,_,_) = execState (evalDatabaseContextExpr setx) (freshDatabaseState dateExamples)
-                       interpreted = interpretDatabaseContextExpr context tutd
+                       graph = bootstrapTransactionGraph now tid dateExamples
+                       env = mkDatabaseContextEvalEnv tid graph
+                       eNewState = runDatabaseContextEvalMonad dateExamples env (optimizeAndEvalDatabaseContextExpr True setx)
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
-                   case interpreted of
-                     Right context' -> TIO.putStrLn $ relationAsHTML (relationVariables context' M.! "x")
+                   case eNewState of
+                     Right newState -> do
+                       let ctx = dbc_context newState
+                       TIO.putStrLn $ relationAsHTML (relationVariables ctx M.! "x")
                      Left err -> hPrint stderr err
 
 {-
