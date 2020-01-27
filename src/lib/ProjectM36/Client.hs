@@ -931,8 +931,9 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
       Right (session, _) ->
         if schemaName session == defaultSchemaName then do
           let ctx = Sess.concreteDatabaseContext session
+              transId = Sess.parentId session
               gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr dbExpr)
-          pure $ runGraphRefStaticOptimizerMonad (Just ctx) graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+          pure $ runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeGraphRefDatabaseContextExpr gfExpr)
         else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly-}
           pure (Left NonConcreteSchemaPlanError)
 
@@ -968,11 +969,13 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
       Right (session, schema) -> do
         let context = Sess.concreteDatabaseContext session
         if Sess.schemaName session == defaultSchemaName then
-          pure $ RE.relationVariablesAsRelation (relationVariables context) graph
+          pure $ RE.relationVariablesAsRelation context graph
           else
           case Schema.relationVariablesInSchema schema of
             Left err -> pure (Left err)
-            Right relvars -> pure $ RE.relationVariablesAsRelation relvars graph
+            Right relvars -> do
+              let schemaContext = context {relationVariables = relvars }
+              pure $ RE.relationVariablesAsRelation schemaContext graph 
       
 relationVariablesAsRelation sessionId conn@(RemoteProcessConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
 

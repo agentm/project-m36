@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE FlexibleContexts  #-}
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
@@ -33,7 +35,7 @@ import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
-import GHC
+import GHC hiding (getContext)
 import GHC.Paths
 import Data.Time.Clock
 import Data.Time.Calendar
@@ -362,6 +364,7 @@ setRelVar :: RelVarName -> GraphRefRelationalExpr -> DatabaseContextEvalMonad ()
 setRelVar relVarName relExpr = do
 
   currentContext <- getStateContext
+  --prevent recursive relvar definition
   let newRelVars = M.insert relVarName relExpr $ relationVariables currentContext
       potentialContext = currentContext { relationVariables = newRelVars }
   --determine when to check constraints
@@ -433,37 +436,31 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
                 dbErr (RelationTypeMismatchError (attributes expectedType) (attributes newExprType))
 
 evalGraphRefDatabaseContextExpr (Insert relVarName relExpr) = do
+  gfExpr <- relVarByName relVarName
   evalGraphRefDatabaseContextExpr (Assign relVarName
                                    (Union
-                                    (RelationVariable relVarName UncommittedContextMarker)
+                                    gfExpr
                                     relExpr))
 
 evalGraphRefDatabaseContextExpr (Delete relVarName predicate) = do
-  transId <- dbcTransId
-  let rv = RelationVariable relVarName (TransactionMarker transId)
-  setRelVar relVarName (Restrict (NotPredicate predicate) rv)
+  gfExpr <- relVarByName relVarName
+  setRelVar relVarName (Restrict (NotPredicate predicate) gfExpr)
   
 --union of restricted+updated portion and the unrestricted+unupdated portion
 evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
-  context <- getStateContext
-  transId <- dbcTransId
-  let relVarMap = relationVariables context 
-  case M.lookup relVarName relVarMap of
-        Nothing -> dbErr (RelVarNotDefinedError relVarName)
-        Just _ -> do
-          let unrestrictedPortion = Restrict (NotPredicate pred') rv
-              rv = RelationVariable relVarName (TransactionMarker transId)
-              tmpAttr attr = "_tmp_" <> attr --this could certainly be improved to verify that there is no attribute name conflict
-              updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
-              projectAndRename attr expr = Rename (tmpAttr attr) attr (Project (InvertedAttributeNames (S.singleton attr)) expr)
+  rvExpr <- relVarByName relVarName
+  let unrestrictedPortion = Restrict (NotPredicate pred') rvExpr
+      tmpAttr attr = "_tmp_" <> attr --this could certainly be improved to verify that there is no attribute name conflict
+      updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
+      projectAndRename attr expr = Rename (tmpAttr attr) attr (Project (InvertedAttributeNames (S.singleton attr)) expr)
               --TODO restrictedPortion = Restrict pred'
-              updated = foldr (\(oldname, atomExpr) accum ->
+      updated = foldr (\(oldname, atomExpr) accum ->
                                  let procAtomExpr = runProcessExprM UncommittedContextMarker (processAtomExpr atomExpr) in
                                   updateAttr oldname procAtomExpr accum
-                              ) rv (M.toList atomExprMap)
+                              ) rvExpr (M.toList atomExprMap)
               -- the atomExprMap could reference other attributes, so we must perform multi-pass folds
-              updatedPortion = foldr projectAndRename updated (M.keys atomExprMap)
-          setRelVar relVarName (Union unrestrictedPortion updatedPortion)
+      updatedPortion = foldr projectAndRename updated (M.keys atomExprMap)
+  setRelVar relVarName (Union unrestrictedPortion updatedPortion)
 
 evalGraphRefDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
   currContext <- getStateContext
@@ -539,6 +536,7 @@ evalGraphRefDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
 
 evalGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context
+  ctx <- getContext
   mapM_ (\expr -> evalGraphRefDatabaseContextExpr expr) exprs
 
 evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName) = do
@@ -1417,13 +1415,14 @@ dbErr :: RelationalError -> DatabaseContextEvalMonad ()
 dbErr err = lift (except (Left err))
       
 -- | Return a Relation describing the relation variables.
-relationVariablesAsRelation :: RelationVariables -> TransactionGraph -> Either RelationalError Relation
-relationVariablesAsRelation relVarMap graph = do
+relationVariablesAsRelation :: DatabaseContext -> TransactionGraph -> Either RelationalError Relation
+relationVariablesAsRelation ctx graph = do
   let subrelAttrs = A.attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
       attrs = A.attributesFromList [Attribute "name" TextAtomType,
                                   Attribute "attributes" (RelationAtomType subrelAttrs)]
+      relVars = relationVariables ctx
       mkRvDesc (rvName, gfExpr) = do
-        let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
+        let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
         gfType <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
         pure (rvName, gfType)
       relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributes rel)]
@@ -1431,8 +1430,43 @@ relationVariablesAsRelation relVarMap graph = do
       attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
         Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
         Right rel -> RelationAtom rel
-  rvs <- mapM mkRvDesc (M.toList relVarMap)
+  rvs <- mapM mkRvDesc (M.toList relVars)
   let tups = map relVarToAtomList rvs
   mkRelationFromList attrs tups
 
+-- | An unoptimized variant of evalGraphRefRelationalExpr for testing.
+evalRelationalExpr :: RelationalExpr -> RelationalExprM Relation
+evalRelationalExpr expr = do
+  graph <- reGraph
+  context <- reContext
+  let expr' = runProcessExprM UncommittedContextMarker (processRelationalExpr expr)
+      gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
+  case runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr expr') of
+    Left err -> throwError err
+    Right rel -> pure rel
+
+{-
+relVarByName :: RelVarName -> GraphRefRelationalExprM GraphRefRelationalExpr
+relVarByName = do
+  relvars <- relationVariables <$> getStateContext  
+  case M.lookup relVarName relvars of
+        Nothing -> dbErr (RelVarNotDefinedError relVarName)
+        Just gfexpr -> pure gfExpr
+-}
+
+class (MonadError RelationalError m, Monad m) => DatabaseContextM m where
+  getContext :: m DatabaseContext
+  
+instance DatabaseContextM (ReaderT GraphRefRelationalExprEnv (ExceptT RelationalError Identity)) where
+  getContext = gfDatabaseContextForMarker UncommittedContextMarker
+
+instance DatabaseContextM (RWST DatabaseContextEvalEnv () DatabaseContextEvalState (ExceptT RelationalError Identity)) where
+  getContext = getStateContext
+    
+relVarByName :: DatabaseContextM m => RelVarName -> m GraphRefRelationalExpr
+relVarByName rvName = do
+  relvars <- relationVariables <$> getContext  
+  case M.lookup rvName relvars of
+    Nothing -> throwError (RelVarNotDefinedError rvName)
+    Just gfexpr -> pure gfexpr
   

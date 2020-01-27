@@ -62,8 +62,8 @@ basicTransactionGraph = do
       uuidB = fakeUUID 11
       uuidRoot = fakeUUID 1
       rootContext = concreteDatabaseContext rootTrans
-  (_, bsGraph') <- addTransaction "branchA" (createTrans uuidA (TransactionInfo uuidRoot S.empty testTime) rootContext) bsGraph
-  (_, bsGraph'') <- addTransaction "branchB" (createTrans uuidB (TransactionInfo uuidRoot S.empty testTime) rootContext) bsGraph'
+  (_, bsGraph') <- addTransaction "branchA" (createTrans uuidA (TransactionInfo S.empty testTime) rootContext) bsGraph
+  (_, bsGraph'') <- addTransaction "branchB" (createTrans uuidB (TransactionInfo S.empty testTime) rootContext) bsGraph'
   pure bsGraph''
   
 addTransaction :: HeadName -> Transaction -> TransactionGraph -> IO (Transaction, TransactionGraph)

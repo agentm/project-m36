@@ -2,16 +2,14 @@ module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
-import qualified ProjectM36.Base as Base
 import ProjectM36.DateExamples
+import ProjectM36.DatabaseContext
 import Test.HUnit
-import qualified Data.Map as M
 import Data.Text
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
   dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [])
-  let incDeps = Base.inclusionDependencies dateExamples
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do
@@ -19,7 +17,7 @@ dateExamplesConnection callback = do
       case eSessionId of
         Left err -> error (show err)
         Right sessionId -> do
-          executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples
+          executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples) >>= eitherFail
       --skipping atom functions for now- there are no atom function manipulation operators yet
           commit sessionId conn >>= eitherFail
           pure (sessionId, conn)

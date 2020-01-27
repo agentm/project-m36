@@ -7,9 +7,9 @@ import ProjectM36.TupleSet
 import ProjectM36.Attribute hiding (null, attributeNames)
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph
 import ProjectM36.Tuple
 import qualified ProjectM36.DatabaseContext as DBC
-import Control.Monad.Trans.Reader
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -94,8 +94,12 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" expectedError (mkRelatio
 
 testMkRelationFromExprsBadAttrs :: Test
 testMkRelationFromExprsBadAttrs = TestCase $ do
-  let context = DBC.empty
-  case runReader (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
+  let context = DBC.empty 
+  (graph,_) <- freshTransactionGraph context  
+  let reenv = mkRelationalExprEnv context graph
+      reExpr = MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))]
+      evald = runRelationalExprM reenv (evalRelationalExpr reExpr)
+  case evald of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"
 
@@ -108,5 +112,7 @@ testDuplicateAttributes = TestCase $ do
   
 testExistingRelationType :: Test
 testExistingRelationType = TestCase $ do
-  let typeResult = runReader (typeForRelationalExpr (ExistingRelation relationTrue)) (RelationalExprStateElems DBC.empty)
+  (graph, _) <- freshTransactionGraph dateExamples
+  let typeResult = runRelationalExprM reenv (typeForRelationalExpr (ExistingRelation relationTrue))
+      reenv = mkRelationalExprEnv dateExamples graph
   assertEqual "ExistingRelation with tuples type" (Right relationFalse) typeResult

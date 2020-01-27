@@ -25,15 +25,10 @@ import Data.Binary
 import Data.Either (lefts, rights, isRight)
 import Control.Arrow
 import Data.Maybe
+import Data.UUID.V4
 #if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
 #endif
-
-{-
---import Debug.Trace
-import Control.Monad.Reader
-import qualified ProjectM36.DisconnectedTransaction as D
--}
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -73,6 +68,14 @@ bootstrapTransactionGraph stamp' freshId context = TransactionGraph bootstrapHea
     freshTransaction = fresh freshId stamp' newSchemas
     bootstrapTransactions = S.singleton freshTransaction
 
+-- | Create a transaction graph from a context.
+freshTransactionGraph :: DatabaseContext -> IO (TransactionGraph, TransactionId)
+freshTransactionGraph ctx = do
+  now <- getCurrentTime
+  freshId <- nextRandom
+  pure $ (bootstrapTransactionGraph now freshId ctx, freshId)
+
+
 emptyTransactionGraph :: TransactionGraph
 emptyTransactionGraph = TransactionGraph M.empty S.empty
 
@@ -97,6 +100,9 @@ transactionsForIds idSet graph =
 -- | A root transaction terminates a graph and has no parents.
 isRootTransaction :: Transaction -> Bool
 isRootTransaction trans = parentIds trans == S.singleton U.nil
+
+rootTransactions :: TransactionGraph -> S.Set Transaction
+rootTransactions graph = S.filter isRootTransaction (transactionsForGraph graph)
 
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)

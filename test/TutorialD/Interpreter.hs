@@ -9,6 +9,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Error
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
+import ProjectM36.RelationalExpression
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Interval
 import ProjectM36.DataTypes.NonEmptyList
@@ -39,8 +40,9 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = map (\(tutd, expected) -> TestCase $ assertTutdEqual basicDatabaseContext expected tutd) simpleRelTests ++ 
-            map (\(tutd, expected) -> TestCase $ assertTutdEqual dateExamples expected tutd) dateExampleRelTests  ++ [
+    tests = [
+      simpleRelTests
+{-      dateExampleRelTests,
       transactionGraphBasicTest, 
       transactionGraphAddCommitTest, 
       transactionRollbackTest, 
@@ -73,9 +75,15 @@ main = do
       testNonEmptyListType,
       testUnresolvedAtomTypes,
       testWithClause,
-      testAtomFunctionArgumentMismatch
+      testAtomFunctionArgumentMismatch-}
       ]
-    simpleRelTests = [("x:=true", Right relationTrue),
+
+simpleRelTests :: Test
+simpleRelTests = TestCase $ do
+  (graph, transId) <- freshTransactionGraph dateExamples  
+  mapM_ (\(tutd, expected) -> assertTutdEqual basicDatabaseContext transId graph expected tutd) testTups
+  where
+    testTups = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
                       ("x:=true union false", Right relationTrue),
                       ("x:=true minus false", Right relationTrue),
@@ -114,24 +122,30 @@ main = do
     simpleBAttributes = A.attributesFromList [Attribute "d" IntegerAtomType]
     simpleCAttributes = A.attributesFromList [Attribute "a" TextAtomType, Attribute "b" IntegerAtomType]
     simpleDAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" IntegerAtomType]
-    maybeTextAtomType = ConstructedAtomType "Maybe" (M.singleton "a" TextAtomType)
-    maybeIntegerAtomType = ConstructedAtomType "Maybe" (M.singleton "a" IntegerAtomType)
-    simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" maybeTextAtomType]
-    simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" maybeIntegerAtomType]
-    simpleEitherIntTextAttributes = A.attributesFromList [Attribute "a" (eitherAtomType IntegerAtomType TextAtomType)]
     simpleProjectionAttributes = A.attributesFromList [Attribute "c" IntegerAtomType]
     nestedRelationAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" (RelationAtomType $ A.attributesFromList [Attribute "a" IntegerAtomType])]
-    extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (R.attributes suppliersRel)]
+  
+dateExampleRelTests :: Test
+dateExampleRelTests = TestCase $ do
+  (graph, transId) <- freshTransactionGraph dateExamples
+  mapM_ (\(tutd, expected) -> assertTutdEqual dateExamples transId graph expected tutd) testTups
+  where
+    simpleEitherIntTextAttributes = A.attributesFromList [Attribute "a" (eitherAtomType IntegerAtomType TextAtomType)]
+    maybeIntegerAtomType = ConstructedAtomType "Maybe" (M.singleton "a" IntegerAtomType)
+    maybeTextAtomType = ConstructedAtomType "Maybe" (M.singleton "a" TextAtomType)
+    simpleMaybeTextAttributes = A.attributesFromList [Attribute "a" maybeTextAtomType]
+    simpleMaybeIntAttributes = A.attributesFromList [Attribute "a" maybeIntegerAtomType]
     byteStringAttributes = A.attributesFromList [Attribute "y" ByteStringAtomType]    
-    groupCountAttrs = A.attributesFromList [Attribute "z" IntegerAtomType]
     minMaxAttrs = A.attributesFromList [Attribute "s#" TextAtomType, Attribute "z" IntegerAtomType]
+    groupCountAttrs = A.attributesFromList [Attribute "z" IntegerAtomType]
     updateParisPlus10 = relMap (\tuple -> do
                                    statusAtom <- atomForAttributeName "status" tuple
                                    cityAtom <- atomForAttributeName "city" tuple
                                    if cityAtom == TextAtom "Paris" then
                                      Right $ updateTupleWithAtoms (M.singleton "status" (IntegerAtom (castInteger statusAtom + 10))) tuple
                                      else Right tuple) suppliersRel
-    dateExampleRelTests = [("x:=s where true", Right suppliersRel),
+    extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (R.attributes suppliersRel)]
+    testTups = [("x:=s where true", Right suppliersRel),
                            ("x:=s where city = \"London\"", restrict (\tuple -> pure $ atomForAttributeName "city" tuple == (Right $ TextAtom "London")) suppliersRel),
                            ("x:=s where false", Right $ Relation (R.attributes suppliersRel) emptyTupleSet),
                            ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (R.attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"]]),
@@ -174,14 +188,17 @@ main = do
                            ("x:=relation{tuple{a fromGregorian(2017,05,30)}}", mkRelationFromList (A.attributesFromList [Attribute "a" DayAtomType]) [[DayAtom (fromGregorian 2017 05 30)]])
                           ]
 
-assertTutdEqual :: DatabaseContext -> Either RelationalError Relation -> Text -> Assertion
-assertTutdEqual databaseContext expected tutd = assertEqual (unpack tutd) expected interpreted
+assertTutdEqual :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError Relation -> Text -> Assertion
+assertTutdEqual databaseContext transId graph expected tutd = assertEqual (unpack tutd) expected interpreted
   where
-    interpreted = case interpretDatabaseContextExpr databaseContext tutd of
+    interpreted = case interpretDatabaseContextExpr databaseContext transId graph tutd of
       Left err -> Left err
       Right context -> case M.lookup "x" (relationVariables context) of
         Nothing -> Left $ RelVarNotDefinedError "x"
-        Just rel -> Right rel
+        Just relExpr -> do
+          let env = freshGraphRefRelationalExprEnv (Just context) graph
+          runGraphRefRelationalExprM env (evalGraphRefRelationalExpr relExpr)
+
 
 transactionGraphBasicTest :: Test
 transactionGraphBasicTest = TestCase $ do
@@ -209,7 +226,7 @@ transactionGraphAddCommitTest = TestCase $ do
           commit sessionId dbconn >>= eitherFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
-          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just suppliersRel)
+          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
@@ -251,12 +268,16 @@ transactionBranchTest = TestCase $ do
 
 -- test that overlapping attribute names with different types fail with an error
 failJoinTest :: Test
-failJoinTest = TestCase $ assertTutdEqual basicDatabaseContext err "x:=relation{tuple{test 4}} join relation{tuple{test \"test\"}}"
+failJoinTest = TestCase $ do
+  (graph, transId) <- freshTransactionGraph dateExamples  
+  assertTutdEqual basicDatabaseContext transId graph err "x:=relation{tuple{test 4}} join relation{tuple{test \"test\"}}"
   where
     err = Left (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "test" IntegerAtomType]))
 
 simpleJoinTest :: Test
-simpleJoinTest = TestCase $ assertTutdEqual dateExamples joinedRel "x:=s join sp"
+simpleJoinTest = TestCase $ do
+  (graph, transId) <- freshTransactionGraph dateExamples    
+  assertTutdEqual dateExamples transId graph joinedRel "x:=s join sp"
     where
         attrs = A.attributesFromList [Attribute "city" TextAtomType,
                                       Attribute "qty" IntegerAtomType,
@@ -383,7 +404,9 @@ testTransGraphRelationalExpr = TestCase $ do
     _ -> assertFailure "failed to delete branch"
     
 testMultiAttributeRename :: Test
-testMultiAttributeRename = TestCase $ assertTutdEqual dateExamples renamedRel "x:=s rename {city as town, status as price} where false"
+testMultiAttributeRename = TestCase $ do
+  (graph, transId) <- freshTransactionGraph dateExamples    
+  assertTutdEqual dateExamples transId graph renamedRel "x:=s rename {city as town, status as price} where false"
   where
     sattrs = attributesFromList [Attribute "town" TextAtomType,
                                  Attribute "sname" TextAtomType,
