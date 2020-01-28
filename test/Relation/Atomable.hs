@@ -71,7 +71,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues]
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testManyFields]
 
 
 -- test some basic data types like int, day, etc.
@@ -170,8 +170,8 @@ testNonPrimitiveValues = TestCase $ do
 --test both odd and even product types with more than 2 fields
 testManyFields :: Test
 testManyFields = TestCase $ do
-  let example4 = Test9_4T 1 2 3 4
+  let example4 = Test9_4C 1 2 3 4
   assertEqual "four fields product type" example4 (fromAtom (toAtom example4))
 
-  let example5 = Test9_5T 1 2 3 4 5
+  let example5 = Test9_5C 1 2 3 4 5
   assertEqual "five fields product type" example5 (fromAtom (toAtom example5))
