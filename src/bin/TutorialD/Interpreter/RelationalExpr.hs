@@ -1,6 +1,10 @@
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
+#if MIN_VERSION_megaparsec(7,0,0)
+import Control.Monad.Combinators.Expr
+#else
 import Text.Megaparsec.Expr
+#endif
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types

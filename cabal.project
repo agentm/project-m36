@@ -1,3 +1,9 @@
 -- this is needed for GHC8 until distributed-process-extras is updated on Hackage with increased upper bounds
 packages: project-m36.cabal
-allow-newer: distributed-process-extras:time,distributed-process-extras:binary,distributed-process-client-server:binary,distributed-process-client-server:time,distributed-process-async:time,distributed-process-async:binary
+allow-newer: distributed-process-extras:time,distributed-process-extras:binary,distributed-process-client-server:binary,distributed-process-client-server:time,distributed-process-async:time,distributed-process-async:binary,distributed-process-extras:stm,distributed-process-extras:containers,network-transport-tcp:containers,distributed-process-client-server:stm,distributed-process-client-server:containers,distributed-process-async:stm,distributed-process-async:containers
+
+--necessary for GHC 8.6 support :/
+source-repository-package
+  type:     git
+  location: https://github.com/haskell-distributed/distributed-process.git
+  tag:      660d554f6acd2dba8b605c84e8fa69e45708bc14

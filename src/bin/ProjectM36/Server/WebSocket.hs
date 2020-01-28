@@ -23,6 +23,10 @@ import Control.Applicative
 import Text.Megaparsec.Error
 import Data.Functor
 
+#if MIN_VERSION_megaparsec(7,0,0)
+import Data.List.NonEmpty as NE
+#endif
+
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do    
   conn <- WS.acceptRequest pending
@@ -54,7 +58,14 @@ websocketProxyServer port host pending = do
                         Left _ -> unexpectedMsg
                         Right (presentation, tutdString) ->
                           case parseTutorialD tutdString of
-                            Left err -> handleOpResult conn dbconn presentation (DisplayErrorResult ("parse error: " `T.append` T.pack (parseErrorPretty err)))
+                            Left err -> handleOpResult conn dbconn presentation
+#if MIN_VERSION_megaparsec(7,0,0)
+                              (DisplayErrorResult
+                                ("parse error: " `T.append` T.pack
+                                  (parseErrorPretty . NE.head . bundleErrors $ err)))
+#else
+                              (DisplayErrorResult ("parse error: " `T.append` T.pack (parseErrorPretty err)))
+#endif
                             Right parsed -> do
                               let timeoutFilter exc = if exc == RequestTimeoutException 
                                                           then Just exc 

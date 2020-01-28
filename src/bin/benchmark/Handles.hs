@@ -62,8 +62,13 @@ runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
               res <- evalTutorialD session conn UnsafeEvaluation parsed
               case res of
                 DisplayErrorResult err -> error (T.unpack err)
-                DisplayParseErrorResult _ err -> error (parseErrorPretty err)
-                _ -> do 
+                DisplayParseErrorResult _ err ->
+#if MIN_VERSION_megaparsec(7,0,0)
+                  error (errorBundlePretty err)
+#else
+                  error (parseErrorPretty err)
+#endif
+                _ -> do
                   replicateM_ tCount (runTransaction tutdIterate' session conn)
                   close conn
                   printFdCount
@@ -77,9 +82,14 @@ runTransaction tutdIterate' sess conn =
       res <- evalTutorialD sess conn UnsafeEvaluation parsed
       case res of
         DisplayErrorResult err -> error (T.unpack err)
-        DisplayParseErrorResult _ err -> error (parseErrorPretty err)
-        _ -> do 
-          eErr <- commit sess conn 
+        DisplayParseErrorResult _ err ->
+#if MIN_VERSION_megaparsec(7,0,0)
+          error (errorBundlePretty err)
+#else
+          error (parseErrorPretty err)
+#endif
+        _ -> do
+          eErr <- commit sess conn
           case eErr of
             Left err -> error (show err)
             Right _ -> printFdCount

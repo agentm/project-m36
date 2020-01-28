@@ -45,6 +45,11 @@ import Data.Time.Clock
 import Data.Time.Format
 import Control.Monad (void)
 
+#if !MIN_VERSION_megaparsec(7,0,0)
+anySingle :: Parsec Void Text (Token Text)
+anySingle = anyChar
+#endif
+
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
@@ -57,8 +62,13 @@ displayOpResult (DisplayRelationResult rel) = do
   let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
   TIO.putStrLn (showRelation randomlySortedRel)
 displayOpResult (DisplayParseErrorResult mPromptLength err) = do
-  let errString = T.pack (parseErrorPretty err)
-      errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+#if MIN_VERSION_megaparsec(7,0,0)
+  let errorIndent = errorOffset . NE.head . bundleErrors $ err
+      errString = T.pack (parseErrorPretty . NE.head . bundleErrors $ err)
+#else
+  let errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
+      errString = T.pack (parseErrorPretty err)
+#endif
       pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
   maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
   TIO.putStr ("ERR:" <> errString)

@@ -536,7 +536,6 @@ evalGraphRefDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
 
 evalGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   --the multiple expressions must pass the same context around- not the old unmodified context
-  ctx <- getContext
   mapM_ (\expr -> evalGraphRefDatabaseContextExpr expr) exprs
 
 evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName) = do

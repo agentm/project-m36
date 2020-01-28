@@ -1,4 +1,7 @@
 {-# LANGUAGE MagicHash, UnboxedTuples #-}
+#if MIN_VERSION_GLASGOW_HASKELL(8,6,0,0)
+{-# LANGUAGE GADTs #-}
+#endif
 module ProjectM36.ScriptSession where
 
 import ProjectM36.Error
@@ -124,6 +127,9 @@ initScriptSession ghcPkgPaths = do
           ideclSourceSrc = NoSourceText,
 #else
           ideclSourceSrc = Nothing,
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(8,6,0,0)
+          ideclExt = noExt,
 #endif
           ideclName      = noLoc mn,
           ideclPkgQual   = Nothing,
