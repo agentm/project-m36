@@ -29,8 +29,8 @@ testList = TestList [testBootstrapDB,
                      testFunctionPersistence]
                     
 
-stamp :: UTCTime
-stamp = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
+stamp' :: UTCTime
+stamp' = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
 
 {- bootstrap a database, ensure that it can be read -}
 testBootstrapDB :: Test
@@ -38,7 +38,7 @@ testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> d
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp freshId dateExamples)
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp' freshId dateExamples)
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
@@ -48,17 +48,17 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  let graph = bootstrapTransactionGraph stamp freshId dateExamples
+  let graph = bootstrapTransactionGraph stamp' freshId dateExamples
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> 
-          case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) "x:=s" of
+          case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) (transactionId headTrans) graph "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
               let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) True
-                  addTrans = addDisconnectedTransaction stamp freshId' "master" newdiscon graph
+                  addTrans = addDisconnectedTransaction stamp' freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of
                 Left err -> assertFailure (show err)
