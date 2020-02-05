@@ -165,7 +165,8 @@ Executable tutd
                    optparse-applicative,
                    attoparsec,
                    stm-containers >= 1.0.0,
-                   list-t
+                   list-t,
+                   parser-combinators
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,

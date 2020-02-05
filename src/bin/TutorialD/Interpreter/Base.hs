@@ -172,7 +172,9 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
 
 type PromptLength = Int 
 
-#if MIN_VERSION_megaparsec(6,0,0)
+#if MIN_VERSION_megaparsec(7,0,0)
+type ParserError = ParseErrorBundle Text Void  
+#elif MIN_VERSION_megaparsec(6,0,0)
 type ParserError = ParseError Char Void
 #else    
 type ParserError = ParseError Char Dec  
@@ -194,7 +196,7 @@ type TransactionGraphWasUpdated = Bool
 tripleQuotedString :: Parser Text
 tripleQuotedString = do
   _ <- tripleQuote
-  pack <$> manyTill anyChar (try (tripleQuote >> notFollowedBy quote))
+  pack <$> manyTill anySingle (try (tripleQuote >> notFollowedBy quote))
   
 normalQuotedString :: Parser Text
 normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)

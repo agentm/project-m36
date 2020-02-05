@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
 #if MIN_VERSION_megaparsec(7,0,0)
