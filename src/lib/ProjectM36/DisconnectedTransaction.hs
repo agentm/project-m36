@@ -11,11 +11,7 @@ parentId :: DisconnectedTransaction -> TransactionId
 parentId (DisconnectedTransaction pid _ _) = pid
 
 isDirty :: DisconnectedTransaction -> Bool
-isDirty (DisconnectedTransaction _ _ NoOperation) = False
-isDirty _ = True
-
-diffExpr :: DisconnectedTransaction -> DatabaseContextExpr
-diffExpr (DisconnectedTransaction _ _ expr) = expr
+isDirty (DisconnectedTransaction _ _ flag) = flag
 
 freshTransaction :: TransactionId -> Schemas -> DisconnectedTransaction
-freshTransaction tid schemas' = DisconnectedTransaction tid schemas' NoOperation
+freshTransaction tid schemas' = DisconnectedTransaction tid schemas' False

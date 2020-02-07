@@ -419,7 +419,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
     case RE.transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) NoOperation
+            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) False
             keyDuplication <- StmMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
@@ -614,7 +614,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
               if not (RE.dbc_dirty newState) then --nothing dirtied, nothing to do
                 pure (Right ())
               else do
-                let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
+                let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas False
                     context' = RE.dbc_context newState
                     newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                     newSchemas = Schemas context' newSubschemas
@@ -670,7 +670,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
       case res of
         Left err -> pure (Left err)
         Right newState -> do
-          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas NoOperation
+          let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas False
               newSchemas = Schemas context' (Sess.subschemas session)
               newSession = Session newDiscon (Sess.schemaName session)
               context' = RE.dbc_context newState
@@ -834,7 +834,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           --hm- maybe we should start using lenses
           let discon = Sess.disconnectedTransaction session 
               newSchemas = Schemas newContext newSubschemas
-              newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas NoOperation) (Sess.schemaName session)
+              newSession = Session (DisconnectedTransaction (Discon.parentId discon) newSchemas False) (Sess.schemaName session)
           StmMap.insert newSession sessionId sessions
           pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteProcessConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          

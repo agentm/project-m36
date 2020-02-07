@@ -41,8 +41,8 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
     tests = [
-      simpleRelTests
-{-      dateExampleRelTests,
+      simpleRelTests,
+      dateExampleRelTests,
       transactionGraphBasicTest, 
       transactionGraphAddCommitTest, 
       transactionRollbackTest, 
@@ -75,7 +75,7 @@ main = do
       testNonEmptyListType,
       testUnresolvedAtomTypes,
       testWithClause,
-      testAtomFunctionArgumentMismatch-}
+      testAtomFunctionArgumentMismatch
       ]
 
 simpleRelTests :: Test
@@ -226,7 +226,7 @@ transactionGraphAddCommitTest = TestCase $ do
           commit sessionId dbconn >>= eitherFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
-          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
+          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (RelationVariable "s" UncommittedContextMarker))
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do

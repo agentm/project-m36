@@ -13,7 +13,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 testList :: Test
-testList = TestList [testIsoRename, testIsoRestrict]--, testIsoUnion, testSchemaValidation]
+testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
 
 main :: IO ()           
 main = do 
@@ -77,7 +77,6 @@ testIsoRestrict = TestCase $ do
   let predicate = AttributeEqualityPredicate "boss" (NakedAtomExpr (TextAtom ""))
       reenv = mkRelationalExprEnv DBC.empty graph
   bossRel <- assertEither $ runRelationalExprM reenv (evalRelationalExpr (Restrict predicate (ExistingRelation emprel)))
-  print "spam1"
   nonBossRel <- assertEither $ runRelationalExprM reenv (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel)))
             
   let schemaA = mkRelationalExprEnv baseContext graph
@@ -94,7 +93,6 @@ testIsoRestrict = TestCase $ do
   let empResult = evalRelExpr (evalRelationalExpr empExpr)
       unionResult = evalRelExpr (evalRelationalExpr unionq)
       evalRelExpr = runRelationalExprM schemaA
-  print "spam2"
   assertEqual "boss/nonboss isorestrict" unionResult empResult
   --execute database context expr
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])

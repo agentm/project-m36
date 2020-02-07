@@ -430,7 +430,7 @@ type TransactionId = UUID
 data Transaction = Transaction TransactionId TransactionInfo Schemas
                             
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DatabaseContextExpr
+data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DirtyFlag
 --the database context expression represents a difference between the disconnected transaction and its immutable parent transaction- is this diff expr used at all?
 
 type DirtyFlag = Bool

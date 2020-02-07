@@ -205,12 +205,12 @@ evalGraphOp _ _ _ graph (JumpToTransaction jumpId) = case transactionForId jumpI
   Left err -> Left err
   Right parentTrans -> Right (newTrans, graph)
     where
-      newTrans = DisconnectedTransaction jumpId (schemas parentTrans) NoOperation
+      newTrans = DisconnectedTransaction jumpId (schemas parentTrans) False
 
 -- switch from one head to another
 evalGraphOp _ _ _ graph (JumpToHead headName) =
   case transactionForHead headName graph of
-    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) NoOperation in
+    Just newHeadTransaction -> let disconnectedTrans = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction) False in
       Right (disconnectedTrans, graph)
     Nothing -> Left $ NoSuchHeadNameError headName
     
