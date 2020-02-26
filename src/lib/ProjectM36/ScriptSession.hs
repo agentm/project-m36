@@ -170,7 +170,7 @@ initScriptSession ghcPkgPaths = do
 addImport :: String -> Ghc ()
 addImport moduleNam = do
   ctx <- getContext
-  setContext ( (IIDecl $ simpleImportDecl (mkModuleName moduleNam)) : ctx )
+  setContext (IIDecl (simpleImportDecl (mkModuleName moduleNam)) : ctx)
 
 showType :: DynFlags -> Type -> String
 showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)

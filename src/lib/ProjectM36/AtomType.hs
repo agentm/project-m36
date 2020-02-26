@@ -346,7 +346,12 @@ atomTypeVerify x y = if x == y then
 
 -- | Determine if two typeVars are logically compatible.
 typeVarMapsVerify :: TypeVarMap -> TypeVarMap -> Bool
-typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) (map (\((_,v1),(_,v2)) -> atomTypeVerify v1 v2) (zip (M.toAscList a) (M.toAscList b))) == M.size a
+typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) zipped == M.size a
+  where
+    zipped = zipWith
+      (curry (\ ((_, v1), (_, v2)) -> atomTypeVerify v1 v2))
+      (M.toAscList a)
+      (M.toAscList b)
 
 prettyAtomType :: AtomType -> T.Text
 prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList attrs)) `T.append` "}"

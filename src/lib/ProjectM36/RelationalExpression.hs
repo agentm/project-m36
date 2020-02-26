@@ -501,9 +501,13 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
             _:_ -> pure (Left (someErrors (lefts eAtomTypes)))
             [] -> do
               let atomTypes = rights eAtomTypes
-              let mValidTypes = map (\(expType, actType) -> case atomTypeVerify expType actType of 
-                                        Left err -> Just err
-                                        Right _ -> Nothing) (zip (dbcFuncType func) atomTypes)
+              let mValidTypes = zipWith
+                                 (\expType actType
+                                  -> case atomTypeVerify expType actType of
+                                     Left err -> Just err
+                                     Right _ -> Nothing)
+                                (dbcFuncType func)
+                                atomTypes
                   typeErrors = catMaybes mValidTypes 
                   eAtomArgs = map (\arg -> runReader (evalAtomExpr emptyTuple arg) relExprState) atomArgExprs
               if length (lefts eAtomArgs) > 1 then

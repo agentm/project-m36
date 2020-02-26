@@ -135,7 +135,10 @@ import GHC.Conc.Sync
 
 import Network.Transport (Transport(closeTransport))
 
-#if MIN_VERSION_network_transport_tcp(0,6,0)
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)
+import Network.Transport.TCP.Internal (encodeEndPointAddress)
+#elif MIN_VERSION_network_transport_tcp(0,6,0)
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 import Network.Transport.TCP.Internal (encodeEndPointAddress)
 #else
@@ -269,7 +272,9 @@ remoteDBLookupName = (++) "db-"
 
 createLocalNode :: IO (LocalNode, Transport)
 createLocalNode = do
-#if MIN_VERSION_network_transport_tcp(0,6,0)  
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+  eLocalTransport <- createTransport (defaultTCPAddr "127.0.0.1" "0") defaultTCPParameters
+#elif MIN_VERSION_network_transport_tcp(0,6,0)  
   eLocalTransport <- createTransport "127.0.0.1" "0" (\sn -> ("127.0.0.1", sn)) defaultTCPParameters
 #else
   eLocalTransport <- createTransport "127.0.0.1" "0" defaultTCPParameters
@@ -1159,7 +1164,11 @@ executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
       case verified of
         Left err -> pure (Left err)
         Right attrs -> do
-          let attrOrders = map (\(attr',order') -> DF.AttributeOrder (attributeName attr') order') (zip attrs orders)
+          let attrOrders = zipWith
+                            (\attr' order'
+                             -> DF.AttributeOrder (attributeName attr') order')
+                           attrs
+                           orders
           case DF.sortDataFrameBy attrOrders . DF.toDataFrame $ rel of
             Left err -> pure (Left err)
             Right dFrame -> do
