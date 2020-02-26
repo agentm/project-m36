@@ -154,7 +154,7 @@ Executable tutd
                    directory,
                    filepath,
                    temporary,
-                   megaparsec >= 5.2.0 && < 8,
+                   megaparsec >= 5.2.0 && < 9,
                    haskeline,
                    random, MonadRandom,
                    base64-bytestring,
