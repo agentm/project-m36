@@ -9,11 +9,10 @@ packages:
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- git: https://github.com/Bodigrim/data-interval.git
-  commit: 05269a15ee4db49ad956646206d6e817f259f135
 - git: https://github.com/haskell-distributed/distributed-process.git
   commit: 660d554f6acd2dba8b605c84e8fa69e45708bc14
 - extended-reals-0.2.3.0
+- data-interval-2.0.1
 - stm-containers-1.1.0.4
 - distributed-static-0.3.9
 - stm-hamt-1.2.0.4
