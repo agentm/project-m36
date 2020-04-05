@@ -28,13 +28,13 @@ executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
     Right parsed -> do 
       result <- evalTutorialD sessionId conn UnsafeEvaluation parsed
       case result of
-        QuitResult -> putStrLn "yyy" >> assertFailure "quit?"
-        DisplayResult _ -> putStrLn "xxx" >> assertFailure "display?"
-        DisplayIOResult _ -> putStrLn "z" >> assertFailure "displayIO?"
-        DisplayRelationResult _ -> putStrLn "Y" >> assertFailure "displayrelation?"
-        DisplayDataFrameResult _ -> putStrLn "DF" >> assertFailure "displaydataframe?"
-        DisplayParseErrorResult _ _ -> putStrLn "X" >> assertFailure "displayparseerrorresult?"
-        DisplayErrorResult err -> putStrLn "asd" >> assertFailure (show tutd ++ ": " ++ show err)        
+        QuitResult -> assertFailure "quit?"
+        DisplayResult _ -> assertFailure "display?"
+        DisplayIOResult _ -> assertFailure "displayIO?"
+        DisplayRelationResult _ -> assertFailure "displayrelation?"
+        DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
+        DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
+        DisplayErrorResult err -> assertFailure (show tutd ++ ": " ++ show err)        
         QuietSuccessResult -> pure ()
         
 expectTutorialDErr :: SessionId -> Connection -> (Text -> Bool) -> Text -> IO ()        

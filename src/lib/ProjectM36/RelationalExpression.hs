@@ -42,6 +42,8 @@ import Data.Time.Calendar
 import qualified Data.List.NonEmpty as NE
 import Data.Functor.Identity
 
+--import Debug.Trace
+
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -362,7 +364,6 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
 --helper function to process relation variable creation/assignment
 setRelVar :: RelVarName -> GraphRefRelationalExpr -> DatabaseContextEvalMonad ()
 setRelVar relVarName relExpr = do
-
   currentContext <- getStateContext
   --prevent recursive relvar definition
   let newRelVars = M.insert relVarName relExpr $ relationVariables currentContext
@@ -417,13 +418,15 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
   graph <- re_graph <$> dbcRelationalExprEnv
   context <- getStateContext
   let existingRelVar = M.lookup relVarName (relationVariables context)
+      reEnv = freshGraphRefRelationalExprEnv (Just context) graph  
   case existingRelVar of
     Nothing -> do
-      setRelVar relVarName expr
+      case runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr) of
+        Left err -> dbErr err
+        Right _ -> setRelVar relVarName expr
     Just existingRel -> do
       let eExpectedType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr existingRel)
           eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr)
-          reEnv = freshGraphRefRelationalExprEnv (Just context) graph
       case eExpectedType of
         Left err -> dbErr err
         Right expectedType ->
@@ -453,11 +456,11 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
       tmpAttr attr = "_tmp_" <> attr --this could certainly be improved to verify that there is no attribute name conflict
       updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
       projectAndRename attr expr = Rename (tmpAttr attr) attr (Project (InvertedAttributeNames (S.singleton attr)) expr)
-              --TODO restrictedPortion = Restrict pred'
+      restrictedPortion = Restrict pred' rvExpr
       updated = foldr (\(oldname, atomExpr) accum ->
                                  let procAtomExpr = runProcessExprM UncommittedContextMarker (processAtomExpr atomExpr) in
                                   updateAttr oldname procAtomExpr accum
-                              ) rvExpr (M.toList atomExprMap)
+                              ) restrictedPortion (M.toList atomExprMap)
               -- the atomExprMap could reference other attributes, so we must perform multi-pass folds
       updatedPortion = foldr projectAndRename updated (M.keys atomExprMap)
   setRelVar relVarName (Union unrestrictedPortion updatedPortion)
@@ -472,6 +475,8 @@ evalGraphRefDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
     dbErr (InclusionDependencyNameInUseError newDepName)
     else do
       let potentialContext = currContext { inclusionDependencies = newDeps }
+      -- if the potential context passes all constraints, then save it
+      -- potential optimization: validate only the new constraint- all old constraints must already hold
       case checkConstraints potentialContext transId graph of
         Left err -> dbErr err
         Right _ -> 
@@ -873,7 +878,7 @@ predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = do
 
 predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) = do
   env <- askEnv
-  let attrs' = envAttributes env
+  let attrs' = A.union attrs (envAttributes env)
       ctxtup' = envTuple env
   atomExprType <- typeForGraphRefAtomExpr attrs' atomExpr
   attr <- lift $ except $ case A.attributeForName attrName attrs of
@@ -1045,7 +1050,8 @@ typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
         Right attr -> pure (A.atomType attr)
         Left _ -> case atomForAttributeName attrName envTup of
           Right atom -> pure (atomTypeForAtom atom)
-          Left _ -> throwError err
+          Left _ -> --throwError (traceStack (show ("typeForGRAtomExpr", attrs, envTup)) err)
+            throwError err
     Left err -> throwError err
 
 typeForGraphRefAtomExpr _ (NakedAtomExpr atom) = pure (atomTypeForAtom atom)
@@ -1305,7 +1311,8 @@ typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
   relVars <- relationVariables <$> gfDatabaseContextForMarker tid
   case M.lookup rvName relVars of
     Nothing -> throwError (RelVarNotDefinedError rvName)
-    Just rvExpr -> typeForGraphRefRelationalExpr rvExpr
+    Just rvExpr -> 
+      typeForGraphRefRelationalExpr rvExpr
 typeForGraphRefRelationalExpr (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr
@@ -1360,7 +1367,7 @@ evalGraphRefAttributeNames attrNames expr = do
     InvertedAttributeNames names -> do
           let nonExistentAttributeNames = A.attributeNamesNotContained names typeNameSet
           if not (S.null nonExistentAttributeNames) then
-            throwError (AttributeNamesMismatchError nonExistentAttributeNames)
+            throwError $ AttributeNamesMismatchError nonExistentAttributeNames
             else
             pure (A.nonMatchingAttributeNameSet names typeNameSet)
         
@@ -1392,7 +1399,7 @@ evalGraphRefAttributeExpr (NakedAttributeExpr attr) = pure attr
 mkEmptyRelVars :: RelationVariables -> RelationVariables
 mkEmptyRelVars rvMap = M.map mkEmptyRelVar rvMap
   where
-    mkEmptyRelVar (MakeRelationFromExprs mAttrs _) = MakeRelationFromExprs mAttrs []
+    mkEmptyRelVar expr@MakeRelationFromExprs{} = expr --do not truncate here because we might lose essential type information in emptying the tuples
     mkEmptyRelVar (MakeStaticRelation attrs _) = MakeStaticRelation attrs emptyTupleSet
     mkEmptyRelVar (ExistingRelation rel) = ExistingRelation (emptyRelationWithAttrs (attributes rel))
     mkEmptyRelVar rv@RelationVariable{} = Restrict (NotPredicate TruePredicate) rv
