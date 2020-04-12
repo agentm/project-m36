@@ -75,7 +75,8 @@ main = do
       testWithClause,
       testAtomFunctionArgumentMismatch,
       testInvalidDataConstructor,
-      testBasicList
+      testBasicList,
+      testRelationDeclarationMismatch
       ]
     simpleRelTests = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -656,3 +657,8 @@ testBasicList :: Test
 testBasicList = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sessionId dbconn "x := relation{tuple{ a (Cons 1 (Cons 2 Empty)) }}"
+
+testRelationDeclarationMismatch :: Test
+testRelationDeclarationMismatch = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AtomTypeMismatchError") "data A a = A a | B | C; a := relation{a A Integer}{tuple{a A \"1\"}}"

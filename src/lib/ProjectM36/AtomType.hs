@@ -224,7 +224,7 @@ findTypeConstructor name = foldr tConsFolder Nothing
                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
 resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) =
-  ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
+  ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap 
 resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
                                                     Right typeFromRelation
                                                   else
@@ -257,7 +257,11 @@ resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
             subType@(ConstructedAtomType _ _) -> do
               resSubType <- resolveAtomType resType subType
               pure (resKey, resSubType)
-            _ -> pure (resKey, resType)
+            TypeVariableType _ -> pure (resKey, resType)
+            typ -> if typ == resType then
+                     pure (resKey, resType)
+                   else
+                     Left $ AtomTypeMismatchError typ resType
           Nothing ->
             pure (resKey, resType) --swipe the missing type var from the expected map
   tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)
