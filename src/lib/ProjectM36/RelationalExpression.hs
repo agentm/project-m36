@@ -399,13 +399,10 @@ evalGraphRefDatabaseContextExpr (Define relVarName attrExprs) = do
   let eAttrs = runGraphRefRelationalExprM gfEnv (mapM evalGraphRefAttrExpr attrExprs)
       gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
   case eAttrs of
-    Left err ->  dbErr err
+    Left err -> dbErr err
     Right attrsList -> do
-      let atomTypeErrs = lefts $ map ((`validateAtomType` tConss) . A.atomType) attrsList
-      if not (null atomTypeErrs) then
-        dbErr (someErrors atomTypeErrs)
-        else 
-        case M.member relVarName relvars of
+      lift $ except $ validateAttributes tConss (A.attributesFromList attrsList)
+      case M.member relVarName relvars of
           True -> dbErr (RelVarAlreadyDefinedError relVarName)
           False -> setRelVar relVarName (ExistingRelation emptyRelation)
             where
@@ -418,15 +415,17 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
   graph <- re_graph <$> dbcRelationalExprEnv
   context <- getStateContext
   let existingRelVar = M.lookup relVarName (relationVariables context)
-      reEnv = freshGraphRefRelationalExprEnv (Just context) graph  
+      reEnv = freshGraphRefRelationalExprEnv (Just context) graph
+      eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr)      
   case existingRelVar of
     Nothing -> do
       case runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr) of
         Left err -> dbErr err
-        Right _ -> setRelVar relVarName expr
+        Right reltype -> do
+          lift $ except $ validateAttributes (typeConstructorMapping context) (attributes reltype)
+          setRelVar relVarName expr
     Just existingRel -> do
       let eExpectedType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr existingRel)
-          eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr)
       case eExpectedType of
         Left err -> dbErr err
         Right expectedType ->
@@ -434,6 +433,7 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
             Left err -> dbErr err
             Right newExprType -> do
               if newExprType == expectedType then do
+                lift $ except $ validateAttributes (typeConstructorMapping context) (attributes newExprType)
                 setRelVar relVarName expr 
               else
                 dbErr (RelationTypeMismatchError (attributes expectedType) (attributes newExprType))
@@ -1128,7 +1128,36 @@ evalGraphRefAttrExpr (AttributeAndTypeNameExpr attrName tCons transId) = do
   pure $ Attribute attrName aType
   
 evalGraphRefAttrExpr (NakedAttributeExpr attr) = pure attr
-  
+
+-- for tuple type concrete resolution (Nothing ==> Maybe Int) when the attributes hint is Nothing, we need to first process all the tuples, then extract the concrete types on a per-attribute basis, then reprocess the tuples to include the concrete types
+evalGraphRefTupleExprs :: Maybe Attributes -> [GraphRefTupleExpr] -> GraphRefRelationalExprM [RelationTuple]
+evalGraphRefTupleExprs mAttrs tupleExprs = do
+  tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprs
+  finalAttrs <- case mAttrs of
+    Just attrs -> pure attrs
+    Nothing ->
+      case tuples of
+        [] -> pure emptyAttributes
+        (headTuple:tailTuples) -> do
+      --gather up resolved atom types or throw an error if an attribute cannot be made concrete from the inferred types- this could still fail if the type cannot be inferred (e.g. from [Nothing, Nothing])
+          let mostResolvedTypes =
+                foldr (\tup acc ->
+                         fmap (\(tupAttr,accAttr) -> --if the attribute is a constructedatomtype, we can recurse into it to potentially resolve type variables
+                                 if isResolvedAttribute accAttr then
+                                   accAttr
+                                 else
+                                   case resolveAttributes accAttr tupAttr of
+                                     Left _ -> accAttr
+                                     Right val -> val) (zip (V.toList $ tupleAttributes tup) acc)) (V.toList $ tupleAttributes headTuple) tailTuples
+          pure (A.attributesFromList mostResolvedTypes)
+  --is it OK to get the tConsMap like this and use it uniformly across the tuples- couldn't the tuple expressions use types from other parts of the graph? Maybe it's OK because this is only used 
+  tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker UncommittedContextMarker
+  lift $ except $ validateAttributes tConsMap finalAttrs
+  mapM (\tup -> lift $ except $ resolveTypesInTuple finalAttrs tConsMap tup) tuples
+
+
+--resolveAttributes (Attribute "gonk" (ConstructedAtomType "Either" (fromList [("a",IntegerAtomType),("b",TypeVariableType "b")]))) (Attribute "gonk" (ConstructedAtomType "Either" (fromList [("a",TypeVariableType "a"),("b",TextAtomType)])))
+                                                                                                                                                 
 evalGraphRefTupleExpr :: Maybe Attributes -> GraphRefTupleExpr -> GraphRefRelationalExprM RelationTuple
 evalGraphRefTupleExpr mAttrs (TupleExpr tupMap) = do
   -- it's not possible for AtomExprs in tuple constructors to reference other Attributes' atoms due to the necessary order-of-operations (need a tuple to pass to evalAtomExpr)- it may be possible with some refactoring of type usage or delayed evaluation- needs more thought, but not a priority
@@ -1153,7 +1182,7 @@ evalGraphRefTupleExpr mAttrs (TupleExpr tupMap) = do
     --verify that the attributes match
   when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) $ throwError (TupleAttributeTypeMismatchError tupAttrs)
   --we can't resolve types here- they have to be resolved at the atom level where the graph ref is held
---  tup' <- lift $ except (resolveTypesInTuple finalAttrs tConss (reorderTuple finalAttrs tup))
+  --tup' <- lift $ except (resolveTypesInTuple finalAttrs tConss (reorderTuple finalAttrs tup))
   let tup' = reorderTuple finalAttrs tup
   --TODO: restore type resolution
 --  _ <- lift $ except (validateTuple tup' tConss)
@@ -1216,7 +1245,7 @@ evalGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
     Just _ ->
         Just . A.attributesFromList <$> mapM evalGraphRefAttrExpr (fromMaybe [] mAttrExprs)
     Nothing -> pure Nothing
-  tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprs
+  tuples <- evalGraphRefTupleExprs mAttrs tupleExprs
   let attrs = fromMaybe firstTupleAttrs mAttrs
       firstTupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
   lift $ except $ mkRelation attrs (RelationTupleSet tuples)
@@ -1301,7 +1330,7 @@ typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
                 attrs <- mapM (\e -> evalGraphRefAttributeExpr e) attrExprs
                 pure (Just (attributesFromList attrs))
               Nothing -> pure Nothing
-  tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprs
+  tuples <- evalGraphRefTupleExprs mAttrs tupleExprs
   let retAttrs = case tuples of
                 (tup:_) -> tupleAttributes tup
                 [] -> fromMaybe A.emptyAttributes mAttrs

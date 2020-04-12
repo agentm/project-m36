@@ -198,14 +198,23 @@ findTypeConstructor name = foldr tConsFolder Nothing
                                      Just (tCons, dConsList)
                                    else
                                      accum
-                                    
+
+resolveAttributes :: Attribute -> Attribute -> Either RelationalError Attribute
+resolveAttributes attrA attrB =
+  if A.attributeName attrA /= A.attributeName attrB then
+    Left $ AttributeNamesMismatchError (S.fromList (map A.attributeName [attrA, attrB]))
+  else
+    Attribute (A.attributeName attrA) <$> resolveAtomType (A.atomType attrA) (A.atomType attrB)
+    
+--given two atom types, try to resolve type variables                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
 resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) =
   ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
-resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
-                                                    Right typeFromRelation
-                                                  else
-                                                    Left (AtomTypeMismatchError typeFromRelation unresolvedType)
+resolveAtomType typeFromRelation unresolvedType = 
+  if typeFromRelation == unresolvedType then
+    Right typeFromRelation
+  else
+    Left (AtomTypeMismatchError typeFromRelation unresolvedType)
                                                     
 {-
 --walk an `AtomType` and apply the type variables in the map
@@ -229,12 +238,14 @@ resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
   let resolveTypePair resKey resType =
         -- if the key is missing in the unresolved type map, then fill it in with the value from the resolved map
         case M.lookup resKey unresolvedTypeMap of
-          Just unresType -> case unresType of 
+          Just unresType -> case unresType of
             --do we need to recurse for RelationAtomType?
             subType@(ConstructedAtomType _ _) -> do
-              resSubType <- resolveAtomType resType subType
-              pure (resKey, resSubType)
-            _ -> pure (resKey, resType)
+                resSubType <- resolveAtomType resType subType
+                pure (resKey, resSubType)
+            typ ->
+              let typ' = if isResolvedType typ then typ else resType in
+                pure (resKey, typ')
           Nothing ->
             pure (resKey, resType) --swipe the missing type var from the expected map
   tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)
@@ -282,6 +293,15 @@ validateAtomType (RelationAtomType attrs) tConss =
          validateAtomType (A.atomType attr) tConss) (V.toList attrs)
 validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)  
 validateAtomType _ _ = pure ()
+
+validateAttributes :: TypeConstructorMapping -> Attributes -> Either RelationalError ()
+validateAttributes tConss attrs =
+  if length errs > 0 then
+    Left (someErrors errs)
+  else
+    pure ()
+  where
+    errs = lefts $ map ((`validateAtomType` tConss) . A.atomType) (V.toList attrs)
 
 --ensure that all type vars are fully resolved
 validateTypeVarMap :: TypeVarMap -> TypeConstructorMapping -> Either RelationalError ()
@@ -382,3 +402,25 @@ resolvedAtomTypeForDataConstructorDefArg _ tvMap (DataConstructorDefTypeVarNameA
   Nothing -> Left (DataConstructorUsesUndeclaredTypeVariable tvName)
   Just typ -> Right typ
 
+isResolvedType :: AtomType -> Bool
+isResolvedType typ =
+  case typ of
+    IntAtomType -> True
+    IntegerAtomType -> True
+    DoubleAtomType -> True
+    TextAtomType -> True
+    DayAtomType -> True
+    DateTimeAtomType -> True
+    ByteStringAtomType -> True
+    BoolAtomType -> True
+    RelationAtomType attrs -> isResolvedAttributes attrs
+    ConstructedAtomType _ tvMap -> all isResolvedType (M.elems tvMap)
+    TypeVariableType _ -> False
+
+isResolvedAttributes :: Attributes -> Bool
+isResolvedAttributes attrs = all isResolvedAttribute (V.toList attrs)
+
+isResolvedAttribute :: Attribute -> Bool
+isResolvedAttribute = isResolvedType . A.atomType
+
+--given two AtomTypes x,y

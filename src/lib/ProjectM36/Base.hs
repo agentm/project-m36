@@ -81,7 +81,8 @@ data AtomType = IntAtomType |
               deriving (Eq, NFData, Generic, Binary, Show)
 
 instance Ord AtomType where
-  compare = undefined                      
+  compare = undefined
+  
 type TypeVarMap = M.Map TypeVarName AtomType
 
 instance Hashable TypeVarMap where 
