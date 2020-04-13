@@ -49,7 +49,7 @@ expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
         DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
-        DisplayErrorResult err -> assertBool ("match error on: " ++ unpack err) (matchFunc err)
+        DisplayErrorResult err -> assertBool (unpack tutd ++ " match error on: " ++ unpack err) (matchFunc err)
         QuietSuccessResult -> pure ()
         
 eitherFail :: Either RelationalError a -> IO ()

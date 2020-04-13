@@ -1379,8 +1379,14 @@ typeForGraphRefRelationalExpr NotEquals{} = do
 typeForGraphRefRelationalExpr (Extend extendTupleExpr expr) = do
   rel <- typeForGraphRefRelationalExpr expr
   evalGraphRefRelationalExpr (Extend extendTupleExpr (ExistingRelation rel))
-typeForGraphRefRelationalExpr expr@With{} = do
+typeForGraphRefRelationalExpr expr@(With withs _) = do
   let expr' = substituteWithNameMacros [] expr
+      checkMacroName (WithNameExpr macroName tid) = do
+        rvs <- relationVariables <$> gfDatabaseContextForMarker tid
+        case M.lookup macroName rvs of
+          Just _ -> lift $ except $ Left (RelVarAlreadyDefinedError macroName) --this error does not include the transaction marker, but should be good enough to identify the cause
+          Nothing -> pure ()
+  mapM checkMacroName (map fst withs)
   typeForGraphRefRelationalExpr expr'
   
 evalGraphRefAttributeNames :: GraphRefAttributeNames -> GraphRefRelationalExpr -> GraphRefRelationalExprM (S.Set AttributeName)
