@@ -94,7 +94,8 @@ launchTestServer ti = do
                                          persistenceStrategy = CrashSafePersistence (tempdir </> "db"),
                                          perRequestTimeout = ti,
                                          testMode = True,
-                                         bindPort = 0
+                                         bindPort = 0,
+                                         checkFS = False --not stricly needed for these tests
                                        }
     
       launchServer config (Just addressMVar) >> pure ()
