@@ -16,7 +16,7 @@ if type docker >/dev/null 2>&1; then
     case ${THE_DISTRIBUTION_ID} in
         rhel) info "This script not know how to install docker-ce on RHEL, so that docker cna't be installed by this script. Ignore."
               ;;
-        debian) my_arch=$(uname -m)
+        debian|ubuntu) my_arch=$(uname -m)
                 if [ ${my_arch} = "aarch64" ]; then
                     docker_arm="arm64"
                 else
@@ -44,7 +44,7 @@ if type docker-compose >/dev/null 2>&1; then
     case ${THE_DISTRIBUTION_ID} in
         rhel) info "This script not know how to install docker-compose on RHEL, so that docker-compose cna't be installed by this script. Ignore."
               ;;
-        debian) sudo apt-get purge -y docker-compose
+        debian|ubuntu) sudo apt-get purge -y docker-compose
                 ;;
         centos) [[ -e /usr/local/bin/docker-compose ]] && sudo rm /usr/local/bin/docker-compose
                 [[ -L /usr/bin/docker-compose ]] && sudo rm /usr/bin/docker-compose

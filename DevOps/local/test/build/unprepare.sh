@@ -17,7 +17,7 @@ set -u
 
 if type nix-build >/dev/null 2>&1; then
     info "nix-build found, trying to uninstall it"
-    if [ "${THE_DISTRIBUTION_ID}" == "debian" ]; then
+    if [ "${THE_DISTRIBUTION_ID}" == "debian" ] || [ "${THE_DISTRIBUTION_ID}" == "ubuntu" ]; then
         [[ -e /proc/sys/kernel/unprivileged_userns_clone ]] && sudo sysctl kernel.unprivileged_userns_clone=1
     fi
     set +e
@@ -34,7 +34,7 @@ fi
 if type nodejs >/dev/null 2>&1 || type node >/dev/null 2>&1; then
     info "nodejs found, trying to uninstall it"
     case ${THE_DISTRIBUTION_ID} in
-        debian)
+        debian|ubuntu)
             sudo apt-get purge -y nodejs
             ;;
         Darwin)

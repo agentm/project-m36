@@ -42,6 +42,33 @@ if ! type docker >/dev/null 2>&1; then
                 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
                 sudo /usr/sbin/usermod -a -G docker $(whoami)
                 ;;
+        ubuntu) THE_DISTRIBUTION_VERSION_CODENAME=$(grep -w "VERSION_CODENAME" /etc/os-release |awk -F"=" '{print $NF}'|sed 's/"//g')
+                my_arch=$(uname -m)
+                if [ ${my_arch} = "aarch64" ]; then
+                    docker_arm="arm64"
+                else
+                    docker_arm="amd64"
+                fi
+                if dpkg-query -l | grep docker.io ; then
+                    sudo apt-get purge -y docker.io 
+                fi
+                if dpkg-query -l | grep docker-engine ; then
+                    sudo apt-get purge -y docker-engine 
+                fi
+                if dpkg-query -l | grep docker ; then
+                    sudo apt-get purge -y docker
+                fi
+                if dpkg-query -l | grep runc ; then
+                    sudo apt-get purge -y runc
+                fi
+                sudo apt-get update
+                sudo apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+                sudo add-apt-repository "deb [arch=${docker_arm}] https://download.docker.com/linux/ubuntu ${THE_DISTRIBUTION_VERSION_CODENAME} stable"
+                sudo apt-get update
+                sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+                sudo /usr/sbin/usermod -a -G docker $(whoami)
+                ;;
         centos) sudo yum install -y yum-utils device-mapper-persistent-data lvm2
                 sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
                 sudo yum install -y docker-ce docker-ce-cli containerd.io
@@ -68,7 +95,7 @@ if ! type docker-compose >/dev/null 2>&1; then
     case ${THE_DISTRIBUTION_ID} in
         rhel) my_exit "docker-compose depends on docker, yet don't know how to install docker-ce on RHEL, so abord." 1
               ;;
-        debian) sudo apt-get update
+        debian|ubuntu) sudo apt-get update
                 sudo apt-get install -y docker-compose
                 ;;
         centos) sudo curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose

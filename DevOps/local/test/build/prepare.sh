@@ -14,7 +14,7 @@ begin_banner "Top level" "build prepare"
 get_last_stable_nix_channel () {
     local MY_CHANNEL_NAME_REGEX=""
     case ${THE_DISTRIBUTION_ID} in
-      debian|rhel|centos) MY_CHANNEL_NAME_REGEX='s/.*\(nixos-[0-9][0-9].[0-9][0-9]\).*/\1/p' ;;
+      debian|ubuntu|rhel|centos) MY_CHANNEL_NAME_REGEX='s/.*\(nixos-[0-9][0-9].[0-9][0-9]\).*/\1/p' ;;
       Darwin) MY_CHANNEL_NAME_REGEX='s/.*\(nixpkgs-[0-9][0-9].[0-9][0-9]-darwin\).*/\1/p' ;;
       *) ;;
     esac
@@ -36,6 +36,10 @@ if ! type nix-build >/dev/null 2>&1; then
     info "no nix-build found, trying to install it"
     case ${THE_DISTRIBUTION_ID} in
       debian)
+        [[ -e /proc/sys/kernel/unprivileged_userns_clone ]] && sudo sysctl kernel.unprivileged_userns_clone=1
+        curl https://nixos.org/nix/install | sh
+	      ;;
+      ubuntu)
         [[ -e /proc/sys/kernel/unprivileged_userns_clone ]] && sudo sysctl kernel.unprivileged_userns_clone=1
         curl https://nixos.org/nix/install | sh
 	      ;;
@@ -79,6 +83,11 @@ if ! type nodejs >/dev/null 2>&1 && ! type node >/dev/null 2>&1; then
     case ${THE_DISTRIBUTION_ID} in
       debian)
           curl -sL https://deb.nodesource.com/setup_10.x | sudo bash -
+          sudo apt-get update
+          sudo apt-get install -y nodejs
+	        ;;
+      ubuntu)
+          curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
           sudo apt-get update
           sudo apt-get install -y nodejs
 	        ;;
