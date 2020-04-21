@@ -15,6 +15,7 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.Arbitrary
+import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Transaction
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
@@ -111,7 +112,7 @@ mergeTuplesIntoGraphRefRelationalExprEnv tupIn e =
     new_elems = Just (Left newTuple)
     mergedTupMap = M.union (tupleToMap tupIn) (tupleToMap (envTuple e))
     newTuple = mkRelationTupleFromMap mergedTupMap
-  
+
 mergeAttributesIntoGraphRefRelationalExprEnv :: Attributes -> GraphRefRelationalExprEnv -> GraphRefRelationalExprEnv
 mergeAttributesIntoGraphRefRelationalExprEnv attrsIn e = e { gre_extra = newattrs }
   where
@@ -185,7 +186,7 @@ gfDatabaseContextForMarker (TransactionMarker transId) = concreteDatabaseContext
 gfDatabaseContextForMarker UncommittedContextMarker = do
   mctx <- gre_context <$> askEnv
   case mctx of
-    Nothing -> throwError NoUncommittedContextInEvalError
+    Nothing -> throwError (traceStack "relexpr" NoUncommittedContextInEvalError)
     Just ctx -> pure ctx
 
 runGraphRefRelationalExprM :: GraphRefRelationalExprEnv -> GraphRefRelationalExprM a -> Either RelationalError a
@@ -1131,6 +1132,7 @@ evalGraphRefAttrExpr (NakedAttributeExpr attr) = pure attr
 
 -- for tuple type concrete resolution (Nothing ==> Maybe Int) when the attributes hint is Nothing, we need to first process all the tuples, then extract the concrete types on a per-attribute basis, then reprocess the tuples to include the concrete types
 evalGraphRefTupleExprs :: Maybe Attributes -> [GraphRefTupleExpr] -> GraphRefRelationalExprM [RelationTuple]
+evalGraphRefTupleExprs _ [] = pure []
 evalGraphRefTupleExprs mAttrs tupleExprs = do
   tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprs
   finalAttrs <- case mAttrs of
@@ -1150,8 +1152,13 @@ evalGraphRefTupleExprs mAttrs tupleExprs = do
                                      Left _ -> accAttr
                                      Right val -> val) (zip (V.toList $ tupleAttributes tup) acc)) (V.toList $ tupleAttributes headTuple) tailTuples
           pure (A.attributesFromList mostResolvedTypes)
-  --is it OK to get the tConsMap like this and use it uniformly across the tuples- couldn't the tuple expressions use types from other parts of the graph? Maybe it's OK because this is only used 
-  tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker UncommittedContextMarker
+  --strategy: if all the tuple expr transaction markers refer to one location, then we can pass the type constructor mapping from that location, otherwise, we cannot assume that the types are the same
+  tConsMap <- case singularTransactions tupleExprs of
+                   SingularTransactionRef commonTransId -> do
+                     typeConstructorMapping <$> gfDatabaseContextForMarker commonTransId
+                   NoTransactionsRef -> pure [] --no custom type constructors are referenced, so no tConsMap is needed
+  -- if there are multiple transaction markers in the TupleExprs, then we can't assume a single type constructor mapping- this could be improved in the future, but if all the tuples are fully resolved, then we don't need further resolution                     
+                   _ -> throwError TupleExprsReferenceMultipleMarkersError
   lift $ except $ validateAttributes tConsMap finalAttrs
   mapM (\tup -> lift $ except $ resolveTypesInTuple finalAttrs tConsMap tup) tuples
 
@@ -1386,7 +1393,7 @@ typeForGraphRefRelationalExpr expr@(With withs _) = do
         case M.lookup macroName rvs of
           Just _ -> lift $ except $ Left (RelVarAlreadyDefinedError macroName) --this error does not include the transaction marker, but should be good enough to identify the cause
           Nothing -> pure ()
-  mapM checkMacroName (map fst withs)
+  mapM_ checkMacroName (map fst withs)
   typeForGraphRefRelationalExpr expr'
   
 evalGraphRefAttributeNames :: GraphRefAttributeNames -> GraphRefRelationalExpr -> GraphRefRelationalExprM (S.Set AttributeName)

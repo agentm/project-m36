@@ -100,6 +100,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NonConcreteSchemaPlanError
 
                      | NoUncommittedContextInEvalError
+                     | TupleExprsReferenceMultipleMarkersError
                        
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable, NFData) 

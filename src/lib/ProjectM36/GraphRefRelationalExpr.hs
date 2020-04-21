@@ -1,32 +1,31 @@
 module ProjectM36.GraphRefRelationalExpr where
 --evaluate relational expressions across the entire transaction graph to support cross-transaction referencing
 import ProjectM36.Base
-import ProjectM36.Error
 import qualified Data.Set as S
 
--- core evaluation function- all other relational expr forms compile to GraphRefRelationalExpr
-eval :: GraphRefRelationalExpr -> TransactionGraph -> Either RelationalError Relation
-eval = undefined
-{-eval (MakeRelationFromExprs mAttrExprs tupleExprs) graph = do
-  mAttrs <- case mAttrExprs of
-              Just _ ->
-                Just . A.attributesFromList <$> mapM (evalAttrExpr tConss) (fromMaybe [] mAttrExprs)
-              Nothing -> pure Nothing
-  tuples <- mapM (evalTupleExpr mAttrs) tupleExprs
-  let attrs = fromMaybe firstTupleAttrs mAttrs
-      firstTupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
-  mkRelation attrs (RelationTupleSet tuples)
-                
-
--}
+--import Debug.Trace
 
 data SingularTransactionRef = SingularTransactionRef GraphRefTransactionMarker |
                               MultipleTransactionsRef |
                               NoTransactionsRef
                               deriving (Eq, Show)
+
+instance Semigroup SingularTransactionRef where
+  NoTransactionsRef <> x = x
+  MultipleTransactionsRef <> _ = MultipleTransactionsRef
+  SingularTransactionRef tidA <> s@(SingularTransactionRef tidB) =
+    if tidA == tidB then
+      s
+    else
+      MultipleTransactionsRef
+  s@SingularTransactionRef{} <> NoTransactionsRef = s
+  _ <> MultipleTransactionsRef = MultipleTransactionsRef
+
+instance Monoid SingularTransactionRef where
+  mempty = NoTransactionsRef
   
 -- | return `Just transid` if this GraphRefRelationalExpr refers to just one transaction in the graph. This is useful for determining if certain optimizations can apply.
-singularTransaction :: GraphRefRelationalExpr -> SingularTransactionRef
+singularTransaction :: Foldable t => t GraphRefTransactionMarker -> SingularTransactionRef
 singularTransaction expr =
   if S.null transSet then
     NoTransactionsRef
@@ -44,3 +43,6 @@ inSameTransaction exprA exprB = case (stA, stB) of
   _ -> Nothing
   where stA = singularTransaction exprA
         stB = singularTransaction exprB
+
+singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMarker) -> SingularTransactionRef
+singularTransactions fs = foldMap singularTransaction fs
