@@ -92,7 +92,11 @@ check_dist_or_OS () {
     local MY_THE_DISTRIBUTION_VERSION=""
     if [ -e /etc/os-release ]; then
         MY_THE_DISTRIBUTION_ID=$(grep -w "ID" /etc/os-release |awk -F"=" '{print $NF}'|sed 's/"//g')
-        MY_THE_DISTRIBUTION_VERSION=$(grep -w "VERSION_ID" /etc/os-release |awk -F"=" '{print $NF}'|awk -F"." '{print $1}'|sed 's/"//g')
+	if [ "${MY_THE_DISTRIBUTION_ID}" == "ubuntu" ]; then
+	    MY_THE_DISTRIBUTION_VERSION=$(grep -w "VERSION_ID" /etc/os-release |awk -F"=" '{print $NF}'|sed 's/"//g')
+        else
+            MY_THE_DISTRIBUTION_VERSION=$(grep -w "VERSION_ID" /etc/os-release |awk -F"=" '{print $NF}'|awk -F"." '{print $1}'|sed 's/"//g')
+	fi
         echo "${MY_THE_DISTRIBUTION_ID} ${MY_THE_DISTRIBUTION_VERSION}"
     else if type uname > /dev/null 2>&1; then
              MY_THE_DISTRIBUTION_ID=$(uname -s)
