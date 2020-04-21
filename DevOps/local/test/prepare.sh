@@ -21,8 +21,6 @@ case ${THE_DISTRIBUTION_ID} in
             fi
             ;;
     ubuntu) if [ "${THE_DISTRIBUTION_VERSION}" != "16.04" ] && [ "${THE_DISTRIBUTION_VERSION}" != "18.04" ]; then
-	        echo ${THE_DISTRIBUTION_VERSION}
-	        cat /etc/os-release
                 my_exit "This CI/CD script only supports ubuntu 16.04 and 18.04, will abort" 1
             fi
             ;;
