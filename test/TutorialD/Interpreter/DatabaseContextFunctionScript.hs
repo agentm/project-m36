@@ -1,19 +1,26 @@
-import TutorialD.Interpreter.TestBase
+{-# LANGUAGE CPP #-}
 import System.Exit
 import Test.HUnit
+#ifdef PM36_HASKELL_SCRIPTING
+import TutorialD.Interpreter.TestBase
 import ProjectM36.Client
 import ProjectM36.Relation
 import qualified Data.Text as T
+#endif
 
 main :: IO ()
 main = do
-  tcounts <- runTestTT (TestList [testBasicDBCFunction,
-                                  testErrorDBCFunction,
-                                  testExceptionDBCFunction,
-                                  testDBCFunctionWithAtomArguments
+  tcounts <- runTestTT (TestList [
+#ifdef PM36_HASKELL_SCRIPTING
+    testBasicDBCFunction,
+    testErrorDBCFunction,
+    testExceptionDBCFunction,
+    testDBCFunctionWithAtomArguments
+#endif                                  
                                   ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
+#ifdef PM36_HASKELL_SCRIPTING
 testBasicDBCFunction :: Test
 testBasicDBCFunction = TestCase $ do  
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
@@ -55,4 +62,4 @@ testDBCFunctionWithAtomArguments = TestCase $ do
   assertEqual "person relation" expectedPerson result
   expectTutorialDErr sess conn (T.isPrefixOf "AtomTypeMismatchError") "execute multiArgFunc(\"fail\", \"fail\")"
 
-
+#endif

@@ -17,7 +17,6 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import Control.Monad.State hiding (join)
-import Control.Exception
 import Data.Maybe
 import Data.Either
 import Data.Char (isUpper)
@@ -27,8 +26,13 @@ import qualified ProjectM36.TypeConstructorDef as TCD
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Reader
 import Test.QuickCheck
+
+#ifdef PM36_HASKELL_SCRIPTING
 import GHC
+import Control.Exception
 import GHC.Paths
+#endif
+
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -520,6 +524,12 @@ evalDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) =
                        Right newContext -> putStateContext newContext >> pure (Right ())
       
 evalDatabaseContextIOExpr :: Maybe ScriptSession -> DatabaseContext -> DatabaseContextIOExpr -> IO (Either RelationalError DatabaseContext)
+#if !defined(PM36_HASKELL_SCRIPTING) 
+evalDatabaseContextIOExpr _ _ AddAtomFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalDatabaseContextIOExpr _ _ AddDatabaseContextFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalDatabaseContextIOExpr _ _ LoadAtomFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalDatabaseContextIOExpr _ _ LoadDatabaseContextFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+#else
 evalDatabaseContextIOExpr mScriptSession currentContext (AddAtomFunction funcName funcType script) = 
   case mScriptSession of
     Nothing -> pure (Left (ScriptError ScriptCompilationDisabledError))
@@ -605,6 +615,7 @@ evalDatabaseContextIOExpr _ currentContext (LoadDatabaseContextFunctions modName
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in pure (Right newContext)
+#endif          
 
 evalDatabaseContextIOExpr _ currentContext (CreateArbitraryRelation relVarName attrExprs range) =
   --Define

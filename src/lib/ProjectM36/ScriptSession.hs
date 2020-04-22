@@ -1,8 +1,12 @@
-{-# LANGUAGE MagicHash, UnboxedTuples, KindSignatures, DataKinds #-}
+{-# LANGUAGE UnboxedTuples, KindSignatures, DataKinds #-}
+#ifdef PM36_HASKELL_SCRIPTING
+{-# LANGUAGE MagicHash #-}
+#endif
 module ProjectM36.ScriptSession where
 
+#ifdef PM36_HASKELL_SCRIPTING
 import ProjectM36.Error
-
+import GHC
 import Control.Exception
 import Control.Monad
 import System.IO.Error
@@ -13,8 +17,6 @@ import System.FilePath
 import System.Info (os, arch)
 import Data.Text (Text, unpack)
 import Data.Maybe
-
-import GHC
 import GHC.Paths (libdir)
 #if __GLASGOW_HASKELL__ >= 800
 import GHC.LanguageExtensions
@@ -36,22 +38,38 @@ import Type
 import Type hiding (pprTyThing)
 #else
 #endif
-
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
 import Encoding
+#endif
+
 
 data ScriptSession = ScriptSession {
+#ifdef PM36_HASKELL_SCRIPTING
   hscEnv :: HscEnv,
   atomFunctionBodyType :: Type,
   dbcFunctionBodyType :: Type
+#endif
   }
 
-newtype ScriptSessionError = ScriptSessionLoadError GhcException
+#ifdef PM36_HASKELL_SCRIPTING
+data ScriptSessionError = ScriptSessionLoadError GhcException
+                        | ScriptingDisabled
                           deriving (Show)
+#else
+data ScriptSessionError = ScriptingDisabled
+  deriving (Show)
+#endif
+
+data LoadSymbolError = LoadSymbolError
+type ModName = String
+type FuncName = String
 
 -- | Configure a GHC environment/session which we will use for all script compilation.
 initScriptSession :: [String] -> IO (Either ScriptSessionError ScriptSession)
+#if !defined(PM36_HASKELL_SCRIPTING)
+initScriptSession _ = pure (Left ScriptingDisabled)
+#else
 initScriptSession ghcPkgPaths = do
     --for the sake of convenience, for developers' builds, include the local cabal sandbox package database and the cabal new-build package database
   eHomeDir <- tryJust (guard . isDoesNotExistError) getHomeDirectory
@@ -223,11 +241,6 @@ mangleSymbol pkg module' valsym =
       maybe "" (\p -> zEncodeString p ++ "_") pkg ++
       zEncodeString module' ++ "_" ++ zEncodeString valsym ++ "_closure"
 
-type ModName = String
-type FuncName = String
-
-data LoadSymbolError = LoadSymbolError
-
 loadFunction :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
 loadFunction modName funcName objPath = do
 #if __GLASGOW_HASKELL__ >= 802
@@ -252,3 +265,4 @@ prefixUnderscore =
       ("darwin",_) -> "_"
       ("cygwin",_) -> "_"
       _ -> ""
+#endif
