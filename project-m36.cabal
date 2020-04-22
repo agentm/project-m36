@@ -28,8 +28,19 @@ Flag stack
     Manual: True
     Default: False
 
+Flag haskell-scripting
+     Description: enables Haskell scripting which links against GHC as a library
+     Manual: True
+     Default: True
+
 Library
-    Build-Depends: base>=4.8 && < 4.13, ghc >= 8.2 && < 8.7, ghc-paths, mtl, containers, unordered-containers, hashable, haskeline, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text, bytestring, deepseq, deepseq-generics, vector, parallel, monad-parallel, exceptions, transformers, gnuplot, binary, filepath, zlib, directory, vector-binary-instances, temporary, stm, time, hashable-time, old-locale, rset, attoparsec, either, base64-bytestring, data-interval, extended-reals, network-transport, aeson >= 1.1, path-pieces, conduit, resourcet, http-api-data, semigroups, QuickCheck, quickcheck-instances, distributed-process-client-server >= 0.2.3, distributed-process >= 0.7.4, distributed-process-extras >= 0.3.2, distributed-process-async >= 0.2.4.1, network-transport-tcp >= 0.6.0, network-transport, list-t, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256
+    Build-Depends: base>=4.8 && < 4.13, ghc-paths, mtl, containers, unordered-containers, hashable, haskeline, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text, bytestring, deepseq, deepseq-generics, vector, parallel, monad-parallel, exceptions, transformers, gnuplot, binary, filepath, zlib, directory, vector-binary-instances, temporary, stm, time, hashable-time, old-locale, rset, attoparsec, either, base64-bytestring, data-interval, extended-reals, network-transport, aeson >= 1.1, path-pieces, conduit, resourcet, http-api-data, semigroups, QuickCheck, quickcheck-instances, distributed-process-client-server >= 0.2.3, distributed-process >= 0.7.4, distributed-process-extras >= 0.3.2, distributed-process-async >= 0.2.4.1, network-transport-tcp >= 0.6.0, network-transport, list-t, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256
+    if flag(haskell-scripting)
+        Build-Depends: ghc >= 8.2 && < 8.7
+        CPP-Options: -DPM36_HASKELL_SCRIPTING
+    if impl(ghc>= 8) && flag(haskell-scripting)
+      build-depends:
+        ghc-boot, ghci
     if impl(ghc>= 8.6)
         Build-Depends: deferred-folds
     Exposed-Modules: ProjectM36.Error,
@@ -118,15 +129,13 @@ Library
     Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings, CPP
-    if impl(ghc>= 8)
-      build-depends:
-        ghc-boot, ghci
-    if !flag(stack)
+    if !flag(stack) 
       Build-Depends: deferred-folds
 
 Executable tutd
+    if flag(haskell-scripting)
+        Build-Depends: ghc >= 8.2 && < 8.7
     Build-Depends: base >=4.8 && <5.0,
-                   ghc >= 7.8 && < 8.7,
                    ghc-paths,
                    project-m36,
                    containers,
@@ -189,8 +198,9 @@ Executable tutd
     Default-Extensions: OverloadedStrings
 
 Executable project-m36-server
+    if flag(haskell-scripting)
+        Build-Depends: ghc >= 8.2 && < 8.7
     Build-Depends: base,
-                   ghc >= 7.8 && < 8.7,
                    ghc-paths,
                    project-m36,
                    binary,

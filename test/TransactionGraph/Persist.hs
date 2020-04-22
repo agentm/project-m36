@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
@@ -5,8 +6,6 @@ import ProjectM36.TransactionGraph.Persist
 import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.DateExamples
-import ProjectM36.Client
-import ProjectM36.Relation
 import System.IO.Temp
 import System.Exit
 import Data.Either
@@ -17,6 +16,10 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Time.Clock
 import Data.Time.Calendar
+#ifdef PM36_HASKELL_SCRIPTING
+import ProjectM36.Client
+import ProjectM36.Relation
+#endif
 
 main :: IO ()           
 main = do 
@@ -75,7 +78,10 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
 
 --only Haskell-scripted dbc and atom functions can be serialized                   
 testFunctionPersistence :: Test
-testFunctionPersistence = TestCase $ 
+#if !defined(PM36_HASKELL_SCRIPTING)
+testFunctionPersistence = TestCase $ pure ()
+#else
+testFunctionPersistence = TestCase $
  withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
       connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
@@ -96,10 +102,11 @@ testFunctionPersistence = TestCase $
   res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
-    
+
 assertIOEither :: (Show a) => IO (Either a b) -> IO b
 assertIOEither x = do
   ret <- x
   case ret of
     Left err -> assertFailure (show err) >> undefined
     Right val -> pure val
+#endif  
