@@ -1,25 +1,32 @@
-import TutorialD.Interpreter.TestBase
+{-# LANGUAGE CPP #-}
 import System.Exit
 import Test.HUnit
+#ifdef PM36_HASKELL_SCRIPTING
+import TutorialD.Interpreter.TestBase
 import ProjectM36.Client
 import ProjectM36.Relation
 import ProjectM36.DataTypes.Maybe
 import qualified Data.Vector as V
 import qualified Data.Map as M
+#endif
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 main :: IO ()
 main = do
-  tcounts <- runTestTT (TestList [testBasicAtomFunction,
-                                  testExceptionAtomFunction,
-                                  testErrorAtomFunction,
-                                  testNoArgumentAtomFunction,
-                                  testArgumentTypeMismatch,
-                                  testPolymorphicReturnType,
-                                  testScriptedTypeVariable
-                                  ])
+  tcounts <- runTestTT (TestList [
+#ifdef PM36_HASKELL_SCRIPTING
+    testBasicAtomFunction,
+    testExceptionAtomFunction,
+    testErrorAtomFunction,
+    testNoArgumentAtomFunction,
+    testArgumentTypeMismatch,
+    testPolymorphicReturnType,
+    testScriptedTypeVariable
+#endif    
+    ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
+#ifdef PM36_HASKELL_SCRIPTING
 --add an atom function and run it
 testBasicAtomFunction :: Test
 testBasicAtomFunction = TestCase $ do
@@ -112,3 +119,4 @@ testScriptedTypeVariable = TestCase $ do
 
   assertEqual "id function equality" expectedResult result
   
+#endif
