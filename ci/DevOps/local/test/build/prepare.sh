@@ -16,6 +16,6 @@ set +u
 set -u
 
 # generate nix file for the project
-ls ${SCRIPT_ABS_PATH}/../../../../../*.cabal > /dev/null 2>&1 || ls ${SCRIPT_ABS_PATH}/../../../../../package.yaml > /dev/null 2>&1 && cabal2nix --no-check ${SCRIPT_ABS_PATH}/../../../../.. > ${SCRIPT_ABS_PATH}/nix/project-m36.nix
+ls ${SCRIPT_ABS_PATH}/../../../../../*.cabal > /dev/null 2>&1 || ls ${SCRIPT_ABS_PATH}/../../../../../package.yaml > /dev/null 2>&1 && cabal2nix --no-check -f-haskell-scripting ${SCRIPT_ABS_PATH}/../../../../.. > ${SCRIPT_ABS_PATH}/nix/project-m36.nix
 
 done_banner "project-m36" "build prepare"

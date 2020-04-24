@@ -4,10 +4,10 @@
 , deepseq-generics, deferred-folds, directory, distributed-process
 , distributed-process-async, distributed-process-client-server
 , distributed-process-extras, either, exceptions, extended-reals
-, filepath, foldl, ghc, ghc-boot, ghc-paths, ghci, Glob, gnuplot
-, hashable, hashable-time, haskeline, http-api-data, http-types
-, HUnit, list-t, megaparsec, monad-parallel, MonadRandom, mtl
-, network, network-transport, network-transport-tcp, old-locale
+, filepath, foldl, ghc, ghc-paths, Glob, gnuplot, hashable
+, hashable-time, haskeline, http-api-data, http-types, HUnit
+, list-t, megaparsec, monad-parallel, MonadRandom, mtl, network
+, network-transport, network-transport-tcp, old-locale
 , optparse-applicative, parallel, parser-combinators, path-pieces
 , QuickCheck, quickcheck-instances, random, random-shuffle
 , resourcet, rset, scotty, semigroups, stdenv, stm, stm-containers
@@ -19,6 +19,7 @@ mkDerivation {
   pname = "project-m36";
   version = "0.7";
   src = /home/chenjf/projects/project-m36/ci/DevOps/local/test/build/../../../../..;
+  configureFlags = [ "-f-haskell-scripting" ];
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
@@ -27,9 +28,9 @@ mkDerivation {
     deepseq-generics deferred-folds directory distributed-process
     distributed-process-async distributed-process-client-server
     distributed-process-extras either exceptions extended-reals
-    filepath foldl ghc ghc-boot ghc-paths ghci Glob gnuplot hashable
-    hashable-time haskeline http-api-data list-t monad-parallel
-    MonadRandom mtl network-transport network-transport-tcp old-locale
+    filepath foldl ghc-paths Glob gnuplot hashable hashable-time
+    haskeline http-api-data list-t monad-parallel MonadRandom mtl
+    network-transport network-transport-tcp old-locale
     optparse-applicative parallel path-pieces QuickCheck
     quickcheck-instances random-shuffle resourcet rset semigroups stm
     stm-containers temporary text time transformers unix
