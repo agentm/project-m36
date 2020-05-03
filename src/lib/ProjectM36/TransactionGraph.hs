@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, FlexibleContexts #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -10,14 +10,14 @@ import ProjectM36.Tuple
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
 import qualified ProjectM36.DisconnectedTransaction as Discon
-
-import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
+
+import Control.Monad.Except hiding (join)
+import qualified Data.Vector as V
 import qualified Data.UUID as U
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.List.NonEmpty as NE
-import Control.Monad
 import Data.Time.Clock
 import qualified Data.Text as T
 import GHC.Generics
@@ -264,7 +264,9 @@ evalGraphOp _ _ (DisconnectedTransaction parentId _ _) graph Rollback = case tra
     where
       newDiscon = Discon.freshTransaction parentId (schemas parentTransaction)
       
-evalGraphOp stamp' newId (DisconnectedTransaction parentId _ _) graph (MergeTransactions mergeStrategy headNameA headNameB) = mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) graph
+evalGraphOp stamp' newId (DisconnectedTransaction parentId _ _) graph (MergeTransactions mergeStrategy headNameA headNameB) = runGraphRefRelationalExprM env (mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB))
+  where
+    env = freshGraphRefRelationalExprEnv Nothing graph
 
 evalGraphOp _ _ discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) = case transactionForHead branchName graph of
   Nothing -> Left (NoSuchHeadNameError branchName)
@@ -388,26 +390,30 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
            else --we have some paths!
              Right (S.unions paths)
 
-mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> MergeStrategy -> (HeadName, HeadName) -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
-mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) graph = do
+mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> MergeStrategy -> (HeadName, HeadName) -> GraphRefRelationalExprM (DisconnectedTransaction, TransactionGraph)
+mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = do
+  graph <- gfGraph
   let transactionForHeadErr name = case transactionForHead name graph of
-        Nothing -> Left (NoSuchHeadNameError name)
-        Just t -> Right t
-  transA <- transactionForHeadErr headNameA 
-  transB <- transactionForHeadErr headNameB 
-  disconParent <- transactionForId parentId graph
+        Nothing -> throwError (NoSuchHeadNameError name)
+        Just t -> pure t
+      runE e = case e of
+        Left e' -> throwError e'
+        Right v -> pure v
+  transA <- transactionForHeadErr headNameA
+  transB <- transactionForHeadErr headNameB
+  disconParent <- gfTransForId parentId
   let subHeads = M.filterWithKey (\k _ -> k `elem` [headNameA, headNameB]) (transactionHeadsForGraph graph)
-  subGraph <- subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
-  subGraph' <- filterSubGraph subGraph subHeads
+  subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
+  subGraph' <- runE $ filterSubGraph subGraph subHeads
   case createMergeTransaction stamp' newId mergeStrategy subGraph' (transA, transB) of
-    Left err -> Left (MergeTransactionError err)
+    Left err -> throwError (MergeTransactionError err)
     Right mergedTrans -> 
       case headNameForTransaction disconParent graph of
-        Nothing -> Left (TransactionIsNotAHeadError parentId)
+        Nothing -> throwError (TransactionIsNotAHeadError parentId)
         Just headName -> do
-          (newTrans, newGraph) <- addTransactionToGraph headName mergedTrans graph
+          (newTrans, newGraph) <- runE $ addTransactionToGraph headName mergedTrans graph
           case checkConstraints (concreteDatabaseContext mergedTrans) newId graph of
-            Left err -> Left err
+            Left err -> throwError err
             Right _ -> do
               let newGraph' = TransactionGraph (transactionHeadsForGraph newGraph) (transactionsForGraph newGraph)
                   newDiscon = Discon.freshTransaction newId (schemas newTrans)

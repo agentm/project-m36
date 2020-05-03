@@ -186,7 +186,7 @@ gfDatabaseContextForMarker (TransactionMarker transId) = concreteDatabaseContext
 gfDatabaseContextForMarker UncommittedContextMarker = do
   mctx <- gre_context <$> askEnv
   case mctx of
-    Nothing -> throwError (traceStack "relexpr" NoUncommittedContextInEvalError)
+    Nothing -> throwError NoUncommittedContextInEvalError
     Just ctx -> pure ctx
 
 runGraphRefRelationalExprM :: GraphRefRelationalExprEnv -> GraphRefRelationalExprM a -> Either RelationalError a

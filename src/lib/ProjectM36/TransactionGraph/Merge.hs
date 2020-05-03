@@ -2,6 +2,7 @@
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.RelationalExpression
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
@@ -34,8 +35,8 @@ unionMergeRelation prefer relA relB = case relA `union` relB of
         PreferNeither -> Left StrategyViolatesRelationVariableMergeError
 
 --try to execute unions against the relvars contents -- if a relvar only appears in one context, include it
-unionMergeRelVars :: MergePreference -> RelationVariables -> RelationVariables -> Either MergeError RelationVariables
-unionMergeRelVars _ relvarsA relvarsB = do
+unionMergeRelVars :: MergePreference -> RelationVariables -> RelationVariables -> GraphRefRelationalExprM RelationVariables
+unionMergeRelVars prefer relvarsA relvarsB = do
   let allNames = S.toList (S.union (M.keysSet relvarsA) (M.keysSet relvarsB))
   foldM (\acc name -> do
             mergedRel <- do
@@ -43,8 +44,8 @@ unionMergeRelVars _ relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just _, Just _) -> unimplemented
-                  --unionMergeRelation prefer relA relB
+                (Just relA, Just relB) -> 
+                  unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 
                 (Nothing, Nothing) -> error "impossible relvar naming lookup"
