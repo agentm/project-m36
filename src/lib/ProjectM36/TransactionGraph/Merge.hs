@@ -46,7 +46,6 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
                 (Just relA, Just relB) -> do
-                  traceShowM ("unionMerge", relA, relB)
                   relA' <- evalGraphRefRelationalExpr relA
                   relB' <- evalGraphRefRelationalExpr relB
                   case unionMergeRelation prefer relA' relB' of

@@ -163,7 +163,7 @@ newTransUncommittedReplace trans@(Transaction tid tinfo (Schemas ctx sschemas)) 
   uncommittedReplace marker = marker
   relvars = relationVariables (concreteDatabaseContext trans)  
   fixedRelvars = M.map (fmap uncommittedReplace) relvars
-  fixedContext = ctx { relationVariables = traceShow ("newReplace", M.lookup "conflictrv" fixedRelvars) fixedRelvars }
+  fixedContext = ctx { relationVariables = fixedRelvars }
   
 
 

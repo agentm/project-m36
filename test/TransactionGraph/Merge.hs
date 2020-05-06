@@ -158,7 +158,8 @@ testSelectedBranchMerge = TestCase $ do
     Right st -> pure (dbc_context st)
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) updatedBranchBContext) graph
   --create the merge transaction in the graph
-  let eGraph' = mergeTransactions testTime (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB") graph'
+  let eGraph' = runGraphRefRelationalExprM gfEnv $ mergeTransactions testTime (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB")
+      gfEnv = freshGraphRefRelationalExprEnv Nothing graph'
       
   (_, graph'') <- assertEither eGraph'
 
@@ -187,13 +188,14 @@ testUnionPreferMergeStrategy = TestCase $ do
   (_, graph') <- addTransaction "branchA" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) branchAContext) graph
   (_, graph'') <- addTransaction "branchB" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) branchBContext) graph'
   -- validate that the conflict is hidden because we preferred a branch
-  let merged = mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB") graph''
+  let merged = runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB")
+      env = freshGraphRefRelationalExprEnv Nothing graph''
   case merged of
     Left err -> assertFailure ("expected merge success: " ++ show err)
     Right (discon, _) -> do
       let Just rvExpr = M.lookup conflictRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
           reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
-          Right rvRel = runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
+      rvRel <- assertEither $ runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
       assertEqual "branchB relvar preferred in conflict" branchBRelVar rvRel
   
 -- try various individual component conflicts and check for merge failure
@@ -214,14 +216,16 @@ testUnionMergeStrategy = TestCase $ do
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) updatedBranchBContext) graph
-  (discon, _) <- assertEither $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB") graph'
+  let env = freshGraphRefRelationalExprEnv Nothing graph'
+  (discon, _) <- assertEither $ runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB")
   let Just rvExpr = M.lookup branchBOnlyRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
       Right rvRel = runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
       reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
       
   assertEqual "branchBOnlyRelVar should appear in the merge" relationTrue rvRel
   (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) updatedBranchAContext) graph'
-  let eMergeGraph = mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
+  let eMergeGraph = runGraphRefRelationalExprM gfEnv $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
+      gfEnv = freshGraphRefRelationalExprEnv Nothing graph''
   case eMergeGraph of
     Left err -> assertFailure ("expected merge success: " ++ show err)
     Right (_, mergeGraph) -> do
@@ -240,7 +244,8 @@ testUnionMergeStrategy = TestCase $ do
       let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName (ExistingRelation conflictRelVar) (relationVariables updatedBranchAContext) }
       conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
       (_, graph''') <- addTransaction "branchA" (createTrans (fakeUUID 6) (TransactionInfo (transactionId conflictBranchATrans NE.:| []) testTime) conflictContextA) graph''
-      let failingMerge = mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph'''
+      let failingMerge = runGraphRefRelationalExprM gfEnv' $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
+          gfEnv' = freshGraphRefRelationalExprEnv Nothing graph'''
       case failingMerge of
         Right _ -> assertFailure "expected merge failure"
         Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError)
@@ -272,7 +277,8 @@ testUnionMergeIncDepViolation = TestCase $ do
   (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) branchAContext) graph'
   
   --check that the union merge fails due to a violated constraint
-  let eMerge = mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB") graph''
+  let eMerge = runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
+      env = freshGraphRefRelationalExprEnv Nothing graph''
   case eMerge of
     Left (InclusionDependencyCheckError incDepName') -> assertEqual "incdep violation name" incDepName incDepName'
     Left err -> assertFailure ("other error: " ++ show err)
