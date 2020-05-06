@@ -23,6 +23,8 @@ import qualified Data.Set as S
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
+--import Debug.Trace
+
 data GraphRefSOptRelationalExprEnv =
   GraphRefSOptRelationalExprEnv
   {

@@ -3,6 +3,7 @@ module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
+import Control.Monad.Except hiding (join)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
@@ -44,8 +45,13 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> 
-                  unionMergeRelation prefer relA relB
+                (Just relA, Just relB) -> do
+                  traceShowM ("unionMerge", relA, relB)
+                  relA' <- evalGraphRefRelationalExpr relA
+                  relB' <- evalGraphRefRelationalExpr relB
+                  case unionMergeRelation prefer relA' relB' of
+                    Left err -> throwError (MergeTransactionError err)
+                    Right _merged -> pure (Union relA relB)
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 
                 (Nothing, Nothing) -> error "impossible relvar naming lookup"
