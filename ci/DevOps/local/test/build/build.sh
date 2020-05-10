@@ -21,8 +21,8 @@ if [ -f ${SCRIPT_ABS_PATH}/nix/project-m36.nix ]; then
         [ -x ~/.emacs.d/bin/doom ] && echo "((nil . ((dante-target . \"project-m36\"))))" > ${SCRIPT_ABS_PATH}/../../../../.dir-locals.el && nix-shell --run "~/.emacs.d/bin/doom env > /dev/null 2>&1" ${SCRIPT_ABS_PATH}/nix/shell.nix
         nix-shell ${SCRIPT_ABS_PATH}/nix/shell.nix
     else
-        #nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-update ; cabal new-clean ; cabal new-test" ${SCRIPT_ABS_PATH}/nix/shell.nix
-        #nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-clean" ${SCRIPT_ABS_PATH}/nix/shell.nix
+        nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-update ; cabal new-clean ; cabal new-test" ${SCRIPT_ABS_PATH}/nix/shell.nix
+        nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-clean" ${SCRIPT_ABS_PATH}/nix/shell.nix
         nix-build -A project-m36-docker ${SCRIPT_ABS_PATH}/nix/default.nix
     fi
 else

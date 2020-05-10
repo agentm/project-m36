@@ -242,17 +242,6 @@ divert	258	DIVERT		# Divert pseudo-protocol
   name = "project-m36";
   tag = project-m36.version;
   created = "now";
-  # This is a quick and dirty hack to fix the hard-coding architecture
-  extraCommands = ''
-    myar=$(uname -m)
-    case $myar in
-      aarch64)
-          cat $out/json | sed 's/"amd64"/"arm64"/g'  > $out/json1
-          cp $out/json1 $out/json
-               ;;
-      *) ;;
-    esac
-  '';
 
   contents = [ static-project-m36
                project-m36-env ];

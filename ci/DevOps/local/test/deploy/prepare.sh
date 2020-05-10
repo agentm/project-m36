@@ -21,7 +21,7 @@ myGroup2=$(awk -F":" '{print $1}' /etc/group | grep -w project-m36)
 set -e
 if [ "X${myGroup2}" = "X" ]; then
     info "no project-m36 group defined yet, create it..."
-    sudo groupadd -f --gid 90001 project-m36
+    sudo groupadd -f --gid 90009 project-m36
 fi
 
 set +e
@@ -29,7 +29,7 @@ myUser2=$(awk -F":" '{print $1}' /etc/passwd | grep -w project-m36)
 set -e
 if [ "X${myUser2}" = "X" ]; then
     info "no project-m36 user defined yet, create it..."
-    sudo useradd -G docker -m -p Passw0rd --uid 90001 --gid 90001 project-m36
+    sudo useradd -G docker -m -p Passw0rd --uid 90009 --gid 90009 project-m36
 fi
 
 if [ ! -d /var/project-m36 ]; then
