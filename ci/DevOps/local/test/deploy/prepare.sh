@@ -45,11 +45,11 @@ sudo chown project-m36:project-m36 /var/project-m36/docker-compose-project-m36.y
 sudo sed "s:project-m36_config_path:/var/project-m36/config:g" < /var/project-m36/docker-compose-project-m36.yml.orig | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml.01" project-m36 
 sudo sed "s:project-m36_data_path:/var/project-m36/data:g" < /var/project-m36/docker-compose-project-m36.yml.01 | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml" project-m36
 
-if [ -L ${SCRIPT_ABS_PATH}/../../../../result ]; then
-    project-m36_IMAGE_ID=$(sudo sg docker -c "docker images"|grep -w project-m36|awk '{print $3}')
-    cmdPath=$(sudo sg docker -c "docker image inspect ${project-m36_IMAGE_ID}" | grep "/nix/store/" | awk -F"/" '{print "/nix/store/"$4}')
-    sudo sed "s:static_project-m36_nix_store_path:${cmdPath}:g" < /var/project-m36/docker-compose-project-m36.yml | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml.02" project-m36
-    sudo cat /var/project-m36/docker-compose-project-m36.yml.02 | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml" project-m36
-fi
+# if [ -L ${SCRIPT_ABS_PATH}/../../../../result ]; then
+#     project-m36_IMAGE_ID=$(sudo sg docker -c "docker images"|grep -w project-m36|awk '{print $3}')
+#     cmdPath=$(sudo sg docker -c "docker image inspect ${project-m36_IMAGE_ID}" | grep "/nix/store/" | awk -F"/" '{print "/nix/store/"$4}')
+#     sudo sed "s:static_project-m36_nix_store_path:${cmdPath}:g" < /var/project-m36/docker-compose-project-m36.yml | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml.02" project-m36
+#     sudo cat /var/project-m36/docker-compose-project-m36.yml.02 | sudo su -p -c "dd of=/var/project-m36/docker-compose-project-m36.yml" project-m36
+# fi
 
 done_banner "project-m36" "deploy prepare"

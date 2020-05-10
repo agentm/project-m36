@@ -23,7 +23,7 @@ if [ -f ${SCRIPT_ABS_PATH}/nix/project-m36.nix ]; then
     else
         #nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-update ; cabal new-clean ; cabal new-test" ${SCRIPT_ABS_PATH}/nix/shell.nix
         #nix-shell --run "cd ${SCRIPT_ABS_PATH}/../../../../.. ; cabal new-clean" ${SCRIPT_ABS_PATH}/nix/shell.nix
-        nix-build -A project-m36-server-docker -A project-m36-websocket-server-docker -A project-m36-tutd-docker ${SCRIPT_ABS_PATH}/nix/default.nix
+        nix-build -A project-m36-docker ${SCRIPT_ABS_PATH}/nix/default.nix
     fi
 else
     info "No ${SCRIPT_ABS_PATH}/nix/project-m36.nix found, skip building"

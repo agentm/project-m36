@@ -238,136 +238,40 @@ divert	258	DIVERT		# Divert pseudo-protocol
     '';
   };
 
-  overrideCabal = drv: f: (drv.override (args: args // {
-    mkDerivation = drv: (args.mkDerivation drv).override f;
-  })) // {
-    overrideScope = scope: overrideCabal (drv.overrideScope scope) f;
-  };
-
-  static-project-m36-server = drv: overrideCabal drv (drv: {
-    postFixup = "rm -rf $out/lib $out/nix-support $out/share/doc $out/bin/Example* $out/bin/tutd $out/bin/bigrel $out/bin/handles $out/bin/project-m36-websocket-server";
-  });
-  
-  static-project-m36-websocket-server = drv: overrideCabal drv (drv: {
-    postFixup = "rm -rf $out/lib $out/nix-support $out/share/doc $out/bin/Example* $out/bin/tutd $out/bin/bigrel $out/bin/handles $out/bin/project-m36-server";
-  });
-
-  static-project-m36-tutd = drv: overrideCabal drv (drv: {
-    postFixup = "rm -rf $out/lib $out/nix-support $out/share/doc $out/bin/Example* $out/bin/project-m36-server $out/bin/bigrel $out/bin/handles $out/bin/project-m36-websocket-server";
-  });
-
-  static-project-m36-example = drv: overrideCabal drv (drv: {
-    postFixup = "rm -fr $out/lib $out/nix-support $out/share/doc $out/bin/tutd $out/bin/bigrel $out/bin/handles $out/bin/project-m36-server $out/bin/project-m36-websocket-server";
-  });
-
-  project-m36-server-docker =  pkgs.dockerTools.buildImage {
-  name = "project-m36-server";
-  tag = project-m36.version;
-  
-  contents = [ (static-project-m36-server static-project-m36)
-               project-m36-env ];
-  config = {
-    Env = [ 
-    "PARA1="
-    "PARA2="
-    ];
-    User = "project-m36";
-    Cmd = [ "${static-project-m36}/bin/project-m36-server" ];
-    ExposedPorts = {
-      "5432/tcp" = {};
-    };
-    WorkingDir = "/data";
-    Volumes = {
-      "/data" = {};
-    };
-  };
-};
-
-  project-m36-websocket-server-docker =  pkgs.dockerTools.buildImage {
-  name = "project-m36-websocket";
-  tag = project-m36.version;
-  
-  contents = [ (static-project-m36-websocket-server static-project-m36)
-               project-m36-env ];
-  config = {
-    Env = [ 
-    "PARA1="
-    "PARA2="
-    ];
-    User = "project-m36";
-    Cmd = [ "${static-project-m36}/bin/project-m36-websocket-server" ];
-    ExposedPorts = {
-      "5432/tcp" = {};
-    };
-    WorkingDir = "/data";
-    Volumes = {
-      "/data" = {};
-    };
-  };
-};
-  project-m36-tutd-docker =  pkgs.dockerTools.buildImage {
-  name = "project-m36-tutd";
-  tag = project-m36.version;
-  
-  contents = [ (static-project-m36-tutd static-project-m36)
-               project-m36-env ];
-  config = {
-    Env = [ 
-    "PARA1="
-    "PARA2="
-    ];
-    User = "project-m36";
-    Cmd = [ "${static-project-m36}/bin/tutd" ];
-    ExposedPorts = {
-      "5432/tcp" = {};
-    };
-    WorkingDir = "/data";
-    Volumes = {
-      "/data" = {};
-    };
-  };
-};
-  project-m36-example-docker =  pkgs.dockerTools.buildImage {
-  name = "project-m36-example";
-  tag = project-m36.version;
-  
-  contents = [ (static-project-m36-example static-project-m36)
-               project-m36-env ];
-  config = {
-    Env = [ 
-    "PARA1="
-    "PARA2="
-    ];
-    User = "project-m36";
-    Cmd = [ "${static-project-m36}/bin/Example-SimpleClient" ];
-    ExposedPorts = {
-      "5432/tcp" = {};
-    };
-    WorkingDir = "/data";
-    Volumes = {
-      "/data" = {};
-    };
-  };
-};
   project-m36-docker =  pkgs.dockerTools.buildImage {
   name = "project-m36";
   tag = project-m36.version;
-  
+  created = "now";
+  # This is a quick and dirty hack to fix the hard-coding architecture
+  extraCommands = ''
+    myar=$(uname -m)
+    case $myar in
+      aarch64)
+          cat $out/json | sed 's/"amd64"/"arm64"/g'  > $out/json1
+          cp $out/json1 $out/json
+               ;;
+      *) ;;
+    esac
+  '';
+
   contents = [ static-project-m36
                project-m36-env ];
   config = {
-    Env = [ 
-    "PARA1="
-    "PARA2="
+    Env = [
+      "PATH=${static-project-m36}/bin:$PATH"
+      "DATABASE=mytestdb"
+      "DATABASE_DIRECTORY=/var/project-m36/data"
+      "HOSTNAME=localhost"
+      "PORT=54321"
     ];
     User = "project-m36";
-    Cmd = [ "${static-project-m36}/bin/project-m36-server" ];
+    Cmd = [ "project-m36-server" ];
     ExposedPorts = {
-      "5432/tcp" = {};
+      "54321/tcp" = {};
     };
-    WorkingDir = "/data";
+    WorkingDir = "/var/project-m36/data";
     Volumes = {
-      "/data" = {};
+      "/var/project-m36/data" = {};
     };
   };
 };
@@ -375,8 +279,4 @@ in  {
   inherit project-m36;
   inherit static-project-m36;
   inherit project-m36-docker;
-  inherit project-m36-server-docker;
-  inherit project-m36-websocket-server-docker;
-  inherit project-m36-tutd-docker;
-  inherit project-m36-example-docker;
 }
