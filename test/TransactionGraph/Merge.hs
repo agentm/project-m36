@@ -195,8 +195,8 @@ testUnionPreferMergeStrategy = TestCase $ do
     Right (discon, _) -> do
       let Just rvExpr = M.lookup conflictRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
           reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
-      rvRel <- assertEither $ runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
-      assertEqual "branchB relvar preferred in conflict" branchBRelVar rvRel
+      let eRvRel = runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
+      assertEqual "branchB relvar preferred in conflict" (Right branchBRelVar) eRvRel
   
 -- try various individual component conflicts and check for merge failure
 testUnionMergeStrategy :: Test

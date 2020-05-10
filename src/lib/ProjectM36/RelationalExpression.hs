@@ -43,8 +43,6 @@ import Data.Time.Calendar
 import qualified Data.List.NonEmpty as NE
 import Data.Functor.Identity
 
---import Debug.Trace
-
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
