@@ -8,18 +8,20 @@ git:
 matrix:
   fast_finish: true
   include:
-    - env: BUILD_NAME=OSX
-      os: osx
+    # disable due to a sudo issue on osx. The doc claims there's a passwordless env but still ask for sudo password
+    # - env: BUILD_NAME=OSX
+    #   os: osx
 
     - env: BUILD_NAME=LINUX-AMD64
       os: linux
       dist: bionic
       arch: amd64
 
-    - env: BUILD_NAME=LINUX-ARM64
-      os: linux
-      dist: bionic
-      arch: arm64
+    # disable due to it takes too long
+    # - env: BUILD_NAME=LINUX-ARM64
+    #   os: linux
+    #   dist: bionic
+    #   arch: arm64
 
 before_script:
  - unset CC
