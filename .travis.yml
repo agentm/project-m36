@@ -11,6 +11,7 @@ matrix:
     # disable due to a sudo issue on osx. The doc claims there's a passwordless env but still ask for sudo password
     - env: BUILD_NAME=OSX
       os: osx
+      osx_image: xcode11.4
 
     # - env: BUILD_NAME=LINUX-AMD64
     #   os: linux
