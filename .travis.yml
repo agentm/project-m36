@@ -17,11 +17,11 @@ matrix:
       dist: bionic
       arch: amd64
 
-    # disable due to it takes too long
-    - env: BUILD_NAME=LINUX-ARM64
-      os: linux
-      dist: bionic
-      arch: arm64
+    # disable due to it takes too long. For a successful build, it may take over 20 hours!
+    # - env: BUILD_NAME=LINUX-ARM64
+    #   os: linux
+    #   dist: bionic
+    #   arch: arm64
 
 before_script:
  - unset CC
