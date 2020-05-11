@@ -1165,8 +1165,7 @@ executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
         Left err -> pure (Left err)
         Right attrs -> do
           let attrOrders = zipWith
-                            (\attr' order'
-                             -> DF.AttributeOrder (attributeName attr') order')
+                            (DF.AttributeOrder . attributeName)
                            attrs
                            orders
           case DF.sortDataFrameBy attrOrders . DF.toDataFrame $ rel of
