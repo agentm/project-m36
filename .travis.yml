@@ -1,11 +1,14 @@
 # For more information, see https://github.com/ChrisPenner/haskell-stack-travis-ci
 language: c
-sudo: true
+# sudo: true -- this is deprecated
 
 git:
   submodules: false  # whether to recursively clone submodules
 
-matrix:
+os: linux
+dist: bionic
+
+jobs:
   fast_finish: true
   include:
     - env: BUILD_NAME=OSX
