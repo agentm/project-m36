@@ -26,7 +26,8 @@ matrix:
 before_script:
  - unset CC
  - id
- - sudo -n true
+ - sudo -n true || echo "sudo password needed, may fail"
+ - sudo -v
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
