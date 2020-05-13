@@ -41,6 +41,11 @@ script:
 after_success:
  - |
    # Build and ship binary
-   #./.travis/attach-binary.sh
+   # cd.sh will deploy the built image locally and push it to the docker hub
+   # Because it needs to login to docker hub, you should define the following
+   # two env variables in the travis-ci.org setting page of this repository
+   # project_m36_DOCKER_HUB_USERNAME
+   # project_m36_DOCKER_HUB_PASSWORD
+   ./ci/DevOps/local/test/cd.sh
 
 # EOF

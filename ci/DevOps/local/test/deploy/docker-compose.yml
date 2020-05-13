@@ -3,7 +3,7 @@
 version: '2'
 services:
   project-m36:
-    image: project-m36:0.7
+    image: DOCKER_HUB_IMAGE_TAG
     ports:
       - "54321:54321"
     # links:

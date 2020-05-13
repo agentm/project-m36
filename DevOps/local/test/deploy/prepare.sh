@@ -97,10 +97,14 @@ if ! type docker-compose >/dev/null 2>&1; then
               ;;
         debian|ubuntu) sudo apt-get update
                 sudo apt-get install -y docker-compose
+                # following is for docker login
+                sudo apt-get install -y gnupg pass
                 ;;
         centos) sudo curl -L "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                 sudo chmod +x /usr/local/bin/docker-compose
                 sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+                # following is for docker login
+                sudo yum install -y gnupg pass
                 ;;
         Darwin) info "docker-compose will installed with docker desktop for macos. skip."
                 ;;
