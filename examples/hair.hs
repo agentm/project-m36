@@ -31,8 +31,10 @@ main = do
 
   --create a relation with the new Hair AtomType
   let blond = NakedAtomExpr (toAtom Blond)
-  eCheck $ executeDatabaseContextExpr sessionId conn (Assign "people" (MakeRelationFromExprs Nothing [
-            TupleExpr (M.fromList [("hair", blond), ("name", NakedAtomExpr (TextAtom "Colin"))])]))
+  eCheck $ executeDatabaseContextExpr sessionId conn
+    (Assign "people"
+     (MakeRelationFromExprs Nothing $ TupleExprs () [
+         TupleExpr (M.fromList [("hair", blond), ("name", NakedAtomExpr (TextAtom "Colin"))])]))
 
   let restrictionPredicate = AttributeEqualityPredicate "hair" blond
   peopleRel <- eCheck $ executeRelationalExpr sessionId conn (Restrict restrictionPredicate (RelationVariable "people" ()))

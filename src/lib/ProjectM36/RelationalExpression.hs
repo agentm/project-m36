@@ -1129,10 +1129,10 @@ evalGraphRefAttrExpr (AttributeAndTypeNameExpr attrName tCons transId) = do
 evalGraphRefAttrExpr (NakedAttributeExpr attr) = pure attr
 
 -- for tuple type concrete resolution (Nothing ==> Maybe Int) when the attributes hint is Nothing, we need to first process all the tuples, then extract the concrete types on a per-attribute basis, then reprocess the tuples to include the concrete types
-evalGraphRefTupleExprs :: Maybe Attributes -> [GraphRefTupleExpr] -> GraphRefRelationalExprM [RelationTuple]
-evalGraphRefTupleExprs _ [] = pure []
-evalGraphRefTupleExprs mAttrs tupleExprs = do
-  tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprs
+evalGraphRefTupleExprs :: Maybe Attributes -> GraphRefTupleExprs -> GraphRefRelationalExprM [RelationTuple]
+evalGraphRefTupleExprs _ (TupleExprs _ []) = pure []
+evalGraphRefTupleExprs mAttrs (TupleExprs fixedMarker tupleExprL) = do
+  tuples <- mapM (evalGraphRefTupleExpr mAttrs) tupleExprL
   finalAttrs <- case mAttrs of
     Just attrs -> pure attrs
     Nothing ->
@@ -1151,10 +1151,11 @@ evalGraphRefTupleExprs mAttrs tupleExprs = do
                                      Right val -> val) (zip (V.toList $ tupleAttributes tup) acc)) (V.toList $ tupleAttributes headTuple) tailTuples
           pure (A.attributesFromList mostResolvedTypes)
   --strategy: if all the tuple expr transaction markers refer to one location, then we can pass the type constructor mapping from that location, otherwise, we cannot assume that the types are the same
-  tConsMap <- case singularTransactions tupleExprs of
+  tConsMap <- case singularTransactions tupleExprL of
                    SingularTransactionRef commonTransId -> do
                      typeConstructorMapping <$> gfDatabaseContextForMarker commonTransId
-                   NoTransactionsRef -> pure [] --no custom type constructors are referenced, so no tConsMap is needed
+                   NoTransactionsRef -> do
+                     typeConstructorMapping <$> gfDatabaseContextForMarker fixedMarker
   -- if there are multiple transaction markers in the TupleExprs, then we can't assume a single type constructor mapping- this could be improved in the future, but if all the tuples are fully resolved, then we don't need further resolution                     
                    _ -> throwError TupleExprsReferenceMultipleMarkersError
   lift $ except $ validateAttributes tConsMap finalAttrs

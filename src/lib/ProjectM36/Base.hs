@@ -185,7 +185,7 @@ type RelationalExpr = RelationalExprBase ()
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExprBase a =
   --- | Create a relation from tuple expressions.
-  MakeRelationFromExprs (Maybe [AttributeExprBase a]) [TupleExprBase a] |
+  MakeRelationFromExprs (Maybe [AttributeExprBase a]) (TupleExprsBase a) |
   --- | Create and reference a relation from attributes and a tuple set.
   MakeStaticRelation Attributes RelationTupleSet |
   --- | Reference an existing relation in Haskell-space.
@@ -549,6 +549,15 @@ type TupleExpr = TupleExprBase ()
 
 type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 
+data TupleExprsBase a = TupleExprs a [TupleExprBase a]
+  deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
+
+type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
+
+type TupleExprs = TupleExprsBase ()
+
+instance Binary TupleExprs
+
 data MergeStrategy = 
   -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)
   UnionMergeStrategy |
@@ -624,6 +633,8 @@ unimplemented :: HasCallStack => a
 unimplemented = undefined
 
 --for serializing GraphRefRelationalExpr as part of transaction serialization
+instance Binary (TupleExprsBase GraphRefTransactionMarker)
+
 instance Binary (TupleExprBase GraphRefTransactionMarker)
 
 instance Binary GraphRefRelationalExpr 

@@ -101,7 +101,7 @@ testHaskell2DB = TestCase $ do
   let createRelExpr = Assign "x" rel
             
       rel = MakeRelationFromExprs Nothing
-            [TupleExpr (M.singleton "a1" (NakedAtomExpr atomVal))]
+            (TupleExprs () [TupleExpr (M.singleton "a1" (NakedAtomExpr atomVal))])
       atomVal = toAtom exampleVal
       exampleVal = Test1C 10
   checkExecuteDatabaseContextExpr sessionId dbconn createRelExpr

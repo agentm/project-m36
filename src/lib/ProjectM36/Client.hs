@@ -99,6 +99,7 @@ module ProjectM36.Client
        AtomType(..),
        Atomable(..),
        TupleExprBase(..),
+       TupleExprsBase(..),
        AtomExprBase(..),
        RestrictionPredicateExprBase(..),
        withTransaction

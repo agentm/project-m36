@@ -97,7 +97,7 @@ testMkRelationFromExprsBadAttrs = TestCase $ do
   let context = DBC.empty 
   (graph,_) <- freshTransactionGraph context  
   let reenv = mkRelationalExprEnv context graph
-      reExpr = MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))]
+      reExpr = MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) (TupleExprs () [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])
       evald = runRelationalExprM reenv (evalRelationalExpr reExpr)
   case evald of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err

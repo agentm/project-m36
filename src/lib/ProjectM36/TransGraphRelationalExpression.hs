@@ -29,6 +29,10 @@ type TransGraphTupleExpr = TupleExprBase TransactionIdLookup
 
 instance Binary TransGraphTupleExpr
 
+type TransGraphTupleExprs = TupleExprsBase TransactionIdLookup
+
+instance Binary TransGraphTupleExprs
+
 type TransGraphRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionIdLookup
 
 instance Binary TransGraphRestrictionPredicateExpr
@@ -69,7 +73,7 @@ findTrans tlook = do
 -- OUTDATED a previous attempt at this function attempted to convert TransGraphRelationalExpr to RelationalExpr by resolving the transaction lookups. However, there is no way to resolve a FunctionAtomExpr to an Atom without fully evaluating the higher levels (TupleExpr, etc.). An anonymous function expression cannot be serialized, so that workaround is out. Still, I suspect we can reuse the existing static optimizer logic to work on both structures. The current conversion reduces the chance of whole-query optimization due to full-evaluation on top of full-evaluation, so this function would benefit from some re-design.
 processTransGraphRelationalExpr :: TransGraphRelationalExpr -> TransGraphEvalMonad GraphRefRelationalExpr
 processTransGraphRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
-  tupleExprs' <- mapM processTransGraphTupleExpr tupleExprs
+  tupleExprs' <- processTransGraphTupleExprs tupleExprs
   case mAttrExprs of
     Nothing -> pure (MakeRelationFromExprs Nothing tupleExprs')
     Just attrExprs -> do
@@ -119,7 +123,11 @@ processTransGraphRelationalExpr (With views expr) = do
                      ) views
   expr' <- processTransGraphRelationalExpr expr 
   pure (With evaldViews expr')
-  
+
+processTransGraphTupleExprs :: TransGraphTupleExprs -> TransGraphEvalMonad GraphRefTupleExprs
+processTransGraphTupleExprs (TupleExprs marker texprs) =
+  TupleExprs <$> findTransId marker <*> mapM processTransGraphTupleExpr texprs
+
 processTransGraphTupleExpr :: TransGraphTupleExpr -> TransGraphEvalMonad GraphRefTupleExpr
 processTransGraphTupleExpr (TupleExpr attrMap) = do
   let attrAssoc = mapM (\(attrName, atomExpr) -> do 

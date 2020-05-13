@@ -6,7 +6,9 @@ import Options.Applicative
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base hiding (Parser, option)
 import qualified Data.Text as T
+#if __GLASGOW_HASKELL__ <= 802
 import Data.Monoid
+#endif
 import Control.Monad
 
 data HandlesArgs = HandlesArgs {

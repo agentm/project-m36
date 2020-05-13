@@ -22,6 +22,9 @@ instance FromJSON RelationalExpr
 instance ToJSON TupleExpr
 instance FromJSON TupleExpr
 
+instance ToJSON TupleExprs
+instance FromJSON TupleExprs
+
 instance ToJSON RestrictionPredicateExpr
 instance FromJSON RestrictionPredicateExpr
 

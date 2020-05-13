@@ -393,7 +393,7 @@ isFalseExpr _ = False
 
 -- determine if the created relation can statically be determined to be empty
 isEmptyRelationExpr :: RelationalExprBase a -> Bool    
-isEmptyRelationExpr (MakeRelationFromExprs _ []) = True
+isEmptyRelationExpr (MakeRelationFromExprs _ (TupleExprs _ [])) = True
 isEmptyRelationExpr (MakeStaticRelation _ tupSet) = null (asList tupSet)
 isEmptyRelationExpr (ExistingRelation rel) = rel == emptyRelationWithAttrs (attributes rel)
 isEmptyRelationExpr _ = False

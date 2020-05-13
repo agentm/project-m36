@@ -29,7 +29,8 @@ makeRelationP = do
   reserved "relation"
   attrExprs <- try (fmap Just makeAttributeExprsP) <|> pure Nothing
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
-  pure $ MakeRelationFromExprs attrExprs tupleExprs
+  marker <- parseMarkerP
+  pure $ MakeRelationFromExprs attrExprs (TupleExprs marker tupleExprs)
 
   
 --abstract data type parser- in this context, the type constructor must not include any type arguments

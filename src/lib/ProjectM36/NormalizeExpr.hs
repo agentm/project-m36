@@ -21,7 +21,7 @@ processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
   mAttrs' <- case mAttrs of
                   Nothing -> pure Nothing
                   Just mAttrs'' -> Just <$> mapM processAttributeExpr mAttrs''
-  MakeRelationFromExprs mAttrs' <$> mapM processTupleExpr tupleExprs
+  MakeRelationFromExprs mAttrs' <$> processTupleExprs tupleExprs
 processRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
 --requires current trans id and graph
@@ -115,8 +115,13 @@ processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
 processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askMarker
 
+processTupleExprs :: TupleExprs -> ProcessExprM GraphRefTupleExprs
+processTupleExprs (TupleExprs () tupleExprs) = do
+  marker <- askMarker
+  TupleExprs marker <$> mapM processTupleExpr tupleExprs
+  
 processTupleExpr :: TupleExpr -> ProcessExprM GraphRefTupleExpr
-processTupleExpr (TupleExpr tMap) = 
+processTupleExpr (TupleExpr tMap) = do
   TupleExpr . M.fromList <$> mapM (\(k,v) -> (,) k <$> processAtomExpr v) (M.toList tMap)
 
 --convert AttributeExpr to GraphRefAttributeExpr

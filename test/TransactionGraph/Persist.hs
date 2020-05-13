@@ -93,7 +93,7 @@ testFunctionPersistence = TestCase $
   conn2 <- assertIOEither $ connectProjectM36 connInfo
   sess2 <- assertIOEither $ createSessionAtHead conn2 "master"
   
-  res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
+  res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))]))
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
     
