@@ -11,9 +11,10 @@ dist: bionic
 jobs:
   fast_finish: true
   include:
-    - env: BUILD_NAME=OSX
-      os: osx
-      osx_image: xcode11.4
+    # disable because some of the travis-ci osx images would ask password for sudo
+    # - env: BUILD_NAME=OSX
+    #   os: osx
+    #   osx_image: xcode11.4
 
     - env: BUILD_NAME=LINUX-AMD64
       os: linux
