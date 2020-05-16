@@ -615,7 +615,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
               if not (RE.dbc_dirty newState) then --nothing dirtied, nothing to do
                 pure (Right ())
               else do
-                let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas False
+                let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas True
                     context' = RE.dbc_context newState
                     newSubschemas = Schema.processDatabaseContextExprSchemasUpdate (Sess.subschemas session) expr
                     newSchemas = Schemas context' newSubschemas
