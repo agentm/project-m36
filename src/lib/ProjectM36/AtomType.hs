@@ -139,14 +139,37 @@ resolveAttributeExprTypeVars (AttributeAndTypeNameExpr _ tCons _) aType tConsMap
     
 -- check that type vars on the right also appear on the left
 -- check that the data constructor names are unique      
-validateTypeConstructorDef :: TypeConstructorDef -> [DataConstructorDef] -> [RelationalError]
-validateTypeConstructorDef tConsDef dConsList = execWriter $ do
+validateTypeConstructorDef :: TypeConstructorDef -> [DataConstructorDef] -> TypeConstructorMapping -> Either RelationalError ()
+validateTypeConstructorDef tConsDef dConsList tConsMap = do
   let duplicateDConsNames = dupes (L.sort (map DCD.name dConsList))
-  mapM_ tell [map DataConstructorNameInUseError duplicateDConsNames]
+  unless (null duplicateDConsNames) (Left (someErrors (map DataConstructorNameInUseError duplicateDConsNames)))
   let leftSideVars = S.fromList (TCD.typeVars tConsDef)
       rightSideVars = S.unions (map DCD.typeVars dConsList)
       varsDiff = S.difference leftSideVars rightSideVars
-  mapM_ tell [map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff)]
+  when (S.size varsDiff > 0) (Left (someErrors (map DataConstructorUsesUndeclaredTypeVariable (S.toList varsDiff))))
+  mapM_ (\dConsDef -> validateDataConstructorDef dConsDef tConsDef tConsMap) dConsList
+
+--check that the data constructor names are not in use (recursively)
+validateDataConstructorDef :: DataConstructorDef -> TypeConstructorDef -> TypeConstructorMapping -> Either RelationalError ()
+validateDataConstructorDef (DataConstructorDef dConsName dConsDefArgs) tConsDef tConsMap = 
+  case findDataConstructor dConsName tConsMap of
+    Just _ -> Left (DataConstructorNameInUseError dConsName)
+    Nothing ->
+      mapM_ (\arg -> validateDataConstructorDefArg arg tConsDef tConsMap) dConsDefArgs
+
+
+validateDataConstructorDefArg :: DataConstructorDefArg -> TypeConstructorDef -> TypeConstructorMapping -> Either RelationalError ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor _ _)) _ _ = Right ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg (TypeVariable _)) _ _ = Right ()
+validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) tConsDef tConsMap = case findTypeConstructor (TC.name tCons) tConsMap of
+  Nothing ->
+    when (TC.name tCons /= TCD.name tConsDef) (Left (NoSuchTypeConstructorName (TC.name tCons))) --allows for recursively-defined types
+  Just (ADTypeConstructorDef _ tConsArgs, _) -> do --validate that the argument count matches- type matching can occur later
+    let existingCount = length tConsArgs
+        newCount = length (TC.arguments tCons) 
+    when (newCount /= existingCount) (Left (ConstructedAtomArgumentCountMismatchError existingCount newCount))
+  Just (PrimitiveTypeConstructorDef _ _, _) -> pure ()  
+validateDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) _ _ = Right ()
 
 atomTypeForTypeConstructor :: TypeConstructor -> TypeConstructorMapping -> TypeVarMap -> Either RelationalError AtomType
 atomTypeForTypeConstructor = atomTypeForTypeConstructorValidate False
@@ -209,12 +232,11 @@ resolveAttributes attrA attrB =
 --given two atom types, try to resolve type variables                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
 resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) =
-  ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap
-resolveAtomType typeFromRelation unresolvedType = 
-  if typeFromRelation == unresolvedType then
-    Right typeFromRelation
-  else
-    Left (AtomTypeMismatchError typeFromRelation unresolvedType)
+  ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap 
+resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
+                                                    Right typeFromRelation
+                                                  else
+                                                    Left (AtomTypeMismatchError typeFromRelation unresolvedType)
                                                     
 {-
 --walk an `AtomType` and apply the type variables in the map
@@ -241,11 +263,13 @@ resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
           Just unresType -> case unresType of
             --do we need to recurse for RelationAtomType?
             subType@(ConstructedAtomType _ _) -> do
-                resSubType <- resolveAtomType resType subType
-                pure (resKey, resSubType)
-            typ ->
-              let typ' = if isResolvedType typ then typ else resType in
-                pure (resKey, typ')
+              resSubType <- resolveAtomType resType subType
+              pure (resKey, resSubType)
+            TypeVariableType _ -> pure (resKey, resType)
+            typ -> if typ == resType then
+                     pure (resKey, resType)
+                   else
+                     Left $ AtomTypeMismatchError typ resType
           Nothing ->
             pure (resKey, resType) --swipe the missing type var from the expected map
   tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)
@@ -343,7 +367,12 @@ atomTypeVerify x y = if x == y then
 
 -- | Determine if two typeVars are logically compatible.
 typeVarMapsVerify :: TypeVarMap -> TypeVarMap -> Bool
-typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) (map (\((_,v1),(_,v2)) -> atomTypeVerify v1 v2) (zip (M.toAscList a) (M.toAscList b))) == M.size a
+typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) zipped == M.size a
+  where
+    zipped = zipWith
+      (curry (\ ((_, v1), (_, v2)) -> atomTypeVerify v1 v2))
+      (M.toAscList a)
+      (M.toAscList b)
 
 prettyAtomType :: AtomType -> T.Text
 prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList attrs)) `T.append` "}"

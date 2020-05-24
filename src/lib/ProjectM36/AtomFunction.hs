@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -72,7 +73,11 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
                 retType]])
 
 loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
+#ifdef PM36_HASKELL_SCRIPTING
 loadAtomFunctions = loadFunction
+#else
+loadAtomFunctions _ _ _ = pure (Left LoadSymbolError)
+#endif
 
 atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
 atomFunctionsAsRelation funcs = mkRelationFromList attrs tups

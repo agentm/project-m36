@@ -4,13 +4,16 @@
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE CPP #-}
 
 module ProjectM36.Tupleable where
 
 import           Data.Foldable
 import           Data.List                      (partition)
 import qualified Data.Map                       as Map
---import           Data.Monoid
+#if __GLASGOW_HASKELL__ < 804
+import           Data.Monoid
+#endif
 import           Data.Proxy
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V

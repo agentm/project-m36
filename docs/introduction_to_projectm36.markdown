@@ -32,7 +32,7 @@ Requirements:
 
 To build with stack:
 
-* [GHC 8.2.2 or greater](https://www.haskell.org/downloads)
+* [GHC 8.4.4 or greater](https://www.haskell.org/downloads)
 * [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
 * Linux, macOS, or Microsoft Windows
 
@@ -40,11 +40,11 @@ Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```stack --stack-yaml stack.ghc8.2.yaml build```
+* ```stack --stack-yaml stack.ghc8.6.yaml build```
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.0.2 or greater:
+Alternative building with GHC 8.4.4 or greater:
 
 * ```cabal new-build```
 

@@ -24,6 +24,9 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock

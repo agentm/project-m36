@@ -9,7 +9,7 @@ import ProjectM36.Attribute hiding (null)
 import qualified Data.List as L
 import qualified Data.Text as T
 import Control.Arrow hiding (left)
-#if __GLASGOW_HASKELL__ <= 802
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 import ProjectM36.WCWidth --guess the width that the character will appear as in the terminal

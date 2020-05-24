@@ -16,16 +16,16 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: CACHE_NAME=8.2.2 STACK_YAML=stack.ghc8.2.yaml
-      compiler: ": #stack 8.2.2"
+    - env: CACHE_NAME=8.4.4 STACK_YAML=stack.ghc8.4.yaml
+      compiler: ": #stack 8.4.4"
 
-    - env: CACHE_NAME=osx-8.2.2 STACK_YAML=stack.ghc8.2.yaml
+    - env: CACHE_NAME=8.6.5 STACK_YAML=stack.ghc8.6.yaml
+      compiler: ": #stack 8.6.5"
+
+    - env: CACHE_NAME=osx-8.6.5 STACK_YAML=stack.ghc8.6.yaml
       os: osx
-      os_image: xcode7.3
-      compiler: ": #stack 8.2.2"
-
-    - env: CACHE_NAME=8.4.3 STACK_YAML=stack.ghc8.4.yaml
-      compiler: ": #stack 8.4.3"
+      osx_image: xcode11
+      compiler: ": #stack 8.6.5"
 
 before_script:
  - unset CC
@@ -43,13 +43,13 @@ script:
    stack --no-terminal --jobs=2 --system-ghc test
  - |
    #Run HLint
-   if [[ "$(uname)" = "Linux" ]]; then 
+   if [[ "$(uname)" = "Linux" ]]; then
     curl -sL https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh | sh -s lint src test examples --cpp-define VERSION_project_m36=HLINT
    fi
  - |
    #Run Haddock
-   if [[ "$(uname)" = "Linux" ]]; then 
-    stack --no-install-ghc --system-ghc --no-haddock-deps haddock 
+   if [[ "$(uname)" = "Linux" ]]; then
+    stack --no-install-ghc --system-ghc --no-haddock-deps haddock
    fi
 
 after_success:

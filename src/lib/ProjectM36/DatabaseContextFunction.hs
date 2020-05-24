@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module ProjectM36.DatabaseContextFunction where
 --implements functions which operate as: [Atom] -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 import ProjectM36.Base
@@ -61,7 +62,11 @@ createScriptedDatabaseContextFunction :: DatabaseContextFunctionName -> [TypeCon
 createScriptedDatabaseContextFunction funcName argsIn retArg = AddDatabaseContextFunction funcName (argsIn ++ [databaseContextFunctionReturnType retArg])
 
 loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
+#ifdef PM36_HASKELL_SCRIPTING
 loadDatabaseContextFunctions = loadFunction
+#else
+loadDatabaseContextFunctions _ _ _ = pure (Left LoadSymbolError)
+#endif
 
 databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
 databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups

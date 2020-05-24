@@ -1,5 +1,5 @@
 --Test Atomable typeclass which allows users to use existing Haskell datatypes to marshal them to and from the database as ConstructedAtoms.
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, TypeApplications #-}
 import Test.HUnit
 import ProjectM36.Client
 import Data.Binary
@@ -48,6 +48,11 @@ data Test7T = Test7C (Either Integer Integer)
 data Test8T = Test8C Test1T
             deriving (Show, Generic, Eq, Binary, NFData, Atomable)
 
+data User = User
+  { userFirstName :: Text
+  , userLastName :: Text
+  } deriving (Eq, Ord, Show, Generic, NFData, Binary, Atomable)
+
 data Test9_4T = Test9_4C {
   f9_41 :: Int,
   f9_42 :: Int,
@@ -64,15 +69,13 @@ data Test9_5T = Test9_5C {
     }
               deriving (Show, Generic, Eq, Binary, NFData, Atomable)  
 
-                       
 main :: IO ()
 main = do
   tcounts <- runTestTT testList
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testManyFields]
-
+testList = TestList [testHaskell2DB, testADT1, testADT2, testADT3, testADT4, testADT5, testBasicMarshaling, testSimpleList, testListInstance, testNonEmptyInstance, testADT6Maybe, testADT7Either, testNonPrimitiveValues, testRecordType, testManyFields]
 
 -- test some basic data types like int, day, etc.
 testBasicMarshaling :: Test
@@ -157,6 +160,12 @@ testListInstance = TestCase $ do
   let example = TestListC [3,4,5]
   assertEqual "List instance" example (fromAtom (toAtom example))
 
+testSimpleList :: Test
+testSimpleList = TestCase $ do
+  let example = toAtom @[Integer] [1,2,3]
+      expected = ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 1,ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 2,ConstructedAtom "Cons" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) [IntegerAtom 3,ConstructedAtom "Empty" (ConstructedAtomType "List" (M.fromList [("a",IntegerAtomType)])) []]]]
+  assertEqual "simple list" expected example
+
 testNonEmptyInstance :: Test
 testNonEmptyInstance = TestCase $ do
   let example = TestNonEmptyC [3,4,5]
@@ -166,6 +175,16 @@ testNonPrimitiveValues :: Test
 testNonPrimitiveValues = TestCase $ do
   let example = Test8C (Test1C 3)
   assertEqual "non-primitive values" example (fromAtom (toAtom example))
+
+testRecordType :: Test
+testRecordType = TestCase $ do
+  let example = User { userFirstName = "Bob"
+                       ,userLastName = "Smith"
+                     }
+  assertEqual "User record" example (fromAtom (toAtom example))
+  let expected = AddTypeConstructor (ADTypeConstructorDef "User" []) [DataConstructorDef "User" [DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Text" TextAtomType),DataConstructorDefTypeConstructorArg (PrimitiveTypeConstructor "Text" TextAtomType)]]
+
+  assertEqual "User record to database context expr" expected (toAddTypeExpr (Proxy :: Proxy User))
 
 --test both odd and even product types with more than 2 fields
 testManyFields :: Test

@@ -75,7 +75,10 @@ main = do
       testNonEmptyListType,
       testUnresolvedAtomTypes,
       testWithClause,
-      testAtomFunctionArgumentMismatch
+      testAtomFunctionArgumentMismatch,
+      testInvalidDataConstructor,
+      testBasicList,
+      testRelationDeclarationMismatch
       ]
 
 simpleRelTests :: Test
@@ -491,16 +494,22 @@ testEmptyCommits = TestCase $ do
   assertEqual "empty insert empty commit" (Right False) dirty'
   Right () <- commit sessionId dbconn
   
-  --update no tuples
+  --update no tuples- since we defer the restriction, we can only assume the context is dirty, perhaps the constraint checker could offer an optimization here
   Right () <- executeDatabaseContextExpr sessionId dbconn (Update "s" (M.singleton "sname" (NakedAtomExpr (TextAtom "Bob"))) (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
   dirty'' <- disconnectedTransactionIsDirty sessionId dbconn
-  assertEqual "empty update empty commit" (Right False) dirty''
+  assertEqual "empty update empty commit" (Right True) dirty''
+  Right () <- commit sessionId dbconn
+
+  --assign the same rel expr
+  Right () <- executeDatabaseContextExpr sessionId dbconn (Assign "true" (ExistingRelation relationTrue))
+  sameREdirty <- disconnectedTransactionIsDirty sessionId dbconn
+  assertEqual "same relexpr assigned" (Right False) sameREdirty
   Right () <- commit sessionId dbconn
   
   --delete no tuples
   Right () <- executeDatabaseContextExpr sessionId dbconn (Delete "s" (AttributeEqualityPredicate "sname" (NakedAtomExpr (TextAtom "Mike"))))
   dirty''' <- disconnectedTransactionIsDirty sessionId dbconn
-  assertEqual "empty delete empty commit" (Right False) dirty'''
+  assertEqual "empty delete empty commit" (Right True) dirty'''
  
 testIntervalAtom :: Test  
 testIntervalAtom = TestCase $ do  
@@ -665,3 +674,20 @@ testAtomFunctionArgumentMismatch = TestCase $ do
   --wrong argument count
   let err2 = "FunctionArgumentCountMismatchError"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "x:=relation{tuple{a 5}} where ^gt(@a,1,3)"
+
+testInvalidDataConstructor :: Test
+testInvalidDataConstructor = TestCase $ do
+  --test that a referenced TypeConstructor in a DataConstructor definition matches the expected count of arguments
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let err1 = "ConstructedAtomArgumentCountMismatchError"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "data TestT = TestT Maybe Int"
+
+testBasicList :: Test
+testBasicList = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x := relation{tuple{ a (Cons 1 (Cons 2 Empty)) }}"
+
+testRelationDeclarationMismatch :: Test
+testRelationDeclarationMismatch = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AtomTypeMismatchError") "data A a = A a | B | C; a := relation{a A Integer}{tuple{a A \"1\"}}"

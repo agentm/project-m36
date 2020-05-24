@@ -13,10 +13,9 @@ import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
-#if __GLASGOW_HASKELL__ <= 802
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
-
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well

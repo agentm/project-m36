@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, FlexibleContexts #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, CPP, FlexibleContexts #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -24,6 +24,9 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Binary
 import Data.Either (lefts, rights, isRight)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
@@ -515,15 +518,16 @@ backtrackGraph :: TransactionGraph -> TransactionId -> TransactionIdHeadBacktrac
 -- tilde, step back one parent link- if a choice must be made, choose the "first" link arbitrarily
 backtrackGraph graph currentTid (TransactionIdHeadParentBacktrack steps) = do
   trans <- transactionForId currentTid graph
-  let parentIds' = S.toList (parentIds trans)
-  if length parentIds' < 1 then
-    Left RootTransactionTraversalError
-    else do
-    parentTrans <- transactionForId (head parentIds') graph
-    if steps == 1 then
-      pure (transactionId parentTrans)
-      else
-      backtrackGraph graph (transactionId parentTrans) (TransactionIdHeadParentBacktrack (steps - 1))
+
+  let parentIds' = S.toAscList (parentIds trans)
+  case parentIds' of
+    [] -> Left RootTransactionTraversalError
+    firstParentId:_ -> do
+      parentTrans <- transactionForId firstParentId graph
+      if steps == 1 then
+        pure (transactionId parentTrans)
+        else
+        backtrackGraph graph (transactionId parentTrans) (TransactionIdHeadParentBacktrack (steps - 1))
   
 backtrackGraph graph currentTid (TransactionIdHeadBranchBacktrack steps) = do
   trans <- transactionForId currentTid graph

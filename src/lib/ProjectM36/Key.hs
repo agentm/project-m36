@@ -2,7 +2,7 @@ module ProjectM36.Key where
 import ProjectM36.Base
 import ProjectM36.Relation
 import qualified Data.Set as S
-#if __GLASGOW_HASKELL__ <= 802
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 

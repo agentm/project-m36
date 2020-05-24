@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -9,7 +9,6 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 --import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
-import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 --import qualified Data.HashSet as HS
@@ -18,16 +17,16 @@ import ProjectM36.TransactionGraph
 --import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
 import Options.Applicative
-import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import System.IO
-import Control.Monad.State
 import Control.DeepSeq
 import Data.Text hiding (map)
-import Data.Monoid
 import Data.Time.Clock
-import Data.UUID
 import Data.UUID.V4
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
+
 
 {-
 dumpcsv :: Relation -> IO ()
@@ -76,7 +75,9 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) =
                    case eNewState of
                      Right newState -> do
                        let ctx = dbc_context newState
-                       TIO.putStrLn $ relationAsHTML (relationVariables ctx M.! "x")
+                           Right x = optimizeAndEvalRelationalExpr env' (RelationVariable "x" ())
+                           env' = RelationalExprEnv ctx graph Nothing
+                       TIO.putStrLn $ relationAsHTML x
                      Left err -> hPrint stderr err
 
 {-

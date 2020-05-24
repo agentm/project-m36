@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 --cross-platform file locking utilizing POSIX file locking on Unix/Linux and Windows file locking
 --hackage's System.FileLock doesn't support POSIX advisory locks nor locking file based on file descriptors, hence this needless rewrite
 module ProjectM36.FileLock where

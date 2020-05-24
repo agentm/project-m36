@@ -21,27 +21,29 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
-import Control.Monad.RWS.Strict as RWS hiding (join)
-import Control.Monad.Trans.Class (lift)
-import Control.Exception
+import Control.Monad.State hiding (join)
 import Data.Maybe
 import Data.Either
 import Data.Char (isUpper)
+import Data.Time
+import qualified Data.List.NonEmpty as NE
+import Data.Functor.Identity
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified ProjectM36.TypeConstructorDef as TCD
+import qualified Control.Monad.RWS.Strict as RWS
+import Control.Monad.RWS.Strict (RWST, execRWST, runRWST)
 import Control.Monad.Except hiding (join)
 import Control.Monad.Trans.Except (except)
 import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
+#ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
+import Control.Exception
 import GHC.Paths
-import Data.Time.Clock
-import Data.Time.Calendar
-import qualified Data.List.NonEmpty as NE
-import Data.Functor.Identity
+#endif
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -367,12 +369,16 @@ setRelVar relVarName relExpr = do
   --prevent recursive relvar definition
   let newRelVars = M.insert relVarName relExpr $ relationVariables currentContext
       potentialContext = currentContext { relationVariables = newRelVars }
-  --determine when to check constraints
-  graph <- dbcGraph
-  tid <- dbcTransId
-  case checkConstraints potentialContext tid graph of
-    Left err -> dbErr err
-    Right _ -> putStateContext potentialContext
+  --optimization: if the relexpr is unchanged, skip the update      
+  if M.lookup relVarName (relationVariables currentContext) == Just relExpr then
+    pure ()
+    else do
+    --determine when to check constraints
+    graph <- dbcGraph
+    tid <- dbcTransId
+    case checkConstraints potentialContext tid graph of
+      Left err -> dbErr err
+      Right _ -> putStateContext potentialContext
 
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
 deleteRelVar :: RelVarName -> DatabaseContextEvalMonad ()
@@ -520,9 +526,9 @@ evalGraphRefDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   let oldTypes = typeConstructorMapping currentContext
       tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
-  case validateTypeConstructorDef tConsDef dConsDefList of
-    errs@(_:_) -> dbErr (someErrors errs)
-    [] | T.null tConsName || not (isUpper (T.head tConsName)) -> dbErr (InvalidAtomTypeName tConsName)
+  case validateTypeConstructorDef tConsDef dConsDefList oldTypes of
+    Left err -> throwError err
+    Right () | T.null tConsName || not (isUpper (T.head tConsName)) -> dbErr (InvalidAtomTypeName tConsName)
        | isJust (findTypeConstructor tConsName oldTypes) -> dbErr (AtomTypeNameInUseError tConsName)
        | otherwise -> do
       let newTypes = oldTypes ++ [(tConsDef, dConsDefList)]
@@ -598,7 +604,6 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArg
                      case evalDatabaseContextFunction func (rights eAtomArgs) context of
                        Left err -> dbErr err
                        Right newContext -> putStateContext newContext
-
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
@@ -638,6 +643,12 @@ getDBCIORelationalExprEnv = do
   pure $ mkRelationalExprEnv context (dbcio_graph env)
 
 evalGraphRefDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
+#if !defined(PM36_HASKELL_SCRIPTING)
+evalGraphRefDatabaseContextIOExpr AddAtomFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalGraphRefDatabaseContextIOExpr AddDatabaseContextFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalGraphRefDatabaseContextIOExpr LoadAtomFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalGraphRefDatabaseContextIOExpr LoadDatabaseContextFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+#else
 evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = do
   eScriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
@@ -671,7 +682,6 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = d
         Right eContext -> case eContext of
           Left err -> pure (Left err)
           Right context' -> putDBCIOContext context'
-          
 evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType script) = do
   eScriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
@@ -713,7 +723,6 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
           Right eContext -> case eContext of
             Left err -> pure (Left err)
             Right context' -> putDBCIOContext context'
-              
 evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName funcName modPath) = do
   currentContext <- getDBCIOContext
   eLoadFunc <- liftIO $ loadAtomFunctions (T.unpack modName) (T.unpack funcName) modPath
@@ -730,7 +739,6 @@ evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in putDBCIOContext newContext
-
 evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs range) = do
   --Define
   currentContext <- getDBCIOContext
@@ -761,7 +769,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
                           case runDatabaseContextEvalMonad currentContext evalEnv (setRelVar relVarName (ExistingRelation rel)) of
                             Left err -> pure (Left err)
                             Right dbstate' -> putDBCIOContext (dbc_context dbstate')
-
+#endif
 {-
 updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> TransactionGraph -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context graph tupIn = do

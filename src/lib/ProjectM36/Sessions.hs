@@ -14,9 +14,11 @@ import ProjectM36.Session
 import ProjectM36.Relation
 import ProjectM36.Error
 import qualified Data.UUID as U
-import qualified Control.Foldl as Foldl
 #if MIN_VERSION_stm_containers(1,0,0)
+import qualified Control.Foldl as Foldl
 import qualified DeferredFolds.UnfoldlM as UF
+#else
+import "list-t" ListT
 #endif
 
 type Sessions = StmMap.Map SessionId Session
@@ -45,5 +47,3 @@ sessionsAsRelation sessions = do
   let atomMatrix = map (\(sessionId, session) -> [uuidAtom sessionId, uuidAtom (parentId session)]) sessionAssocs
   pure $ mkRelationFromList (attributesFromList [Attribute "sessionid" TextAtomType,
                              Attribute "parentCommit" TextAtomType]) atomMatrix
-    
-  

@@ -17,7 +17,7 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
 import Data.Proxy
-#if __GLASGOW_HASKELL__ <= 802
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 import Data.List

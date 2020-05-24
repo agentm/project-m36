@@ -18,7 +18,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Binary
 import Control.Arrow
-#if __GLASGOW_HASKELL__ <= 802
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 
@@ -163,6 +163,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
   where
     tupleFrag tup = "<td>" <> atomAsHTML (snd tup) <> "</td>"
     atomAsHTML (RelationAtom rel) = RelHTML.relationAsHTML rel
+    atomAsHTML (TextAtom t) = "&quot;" <> t <> "&quot;"
     atomAsHTML atom = atomToText atom
 
 attributesAsHTML :: Attributes -> [AttributeOrder] -> T.Text

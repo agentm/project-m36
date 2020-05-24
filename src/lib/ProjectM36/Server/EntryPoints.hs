@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema

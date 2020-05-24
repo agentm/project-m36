@@ -2,22 +2,28 @@
 # For more information, see: http://docs.haskellstack.org/en/stable/yaml_configuration/
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-12.26
+resolver: lts-15.11
 
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- data-interval-1.3.0
+- git: https://github.com/agentm/distributed-process.git
+  commit: 688a5b96d4b7b36d90c3db676230b2c943604288
 - extended-reals-0.2.3.0
-- distributed-process-0.7.4
+- data-interval-2.0.1
+- stm-containers-1.1.0.4
+- distributed-static-0.3.9
+- stm-hamt-1.2.0.4
 - distributed-process-async-0.2.6
 - distributed-process-client-server-0.2.5.1
 - distributed-process-extras-0.3.5
 - rset-1.0.0
 - hashable-time-0.2.0.2
-- network-transport-tcp-0.6.0
+- network-transport-tcp-0.7.0
+- megaparsec-7.0.5
+- network-2.8.0.1
 
 # Override default flag values for local packages and extra-deps
 flags:
