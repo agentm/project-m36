@@ -61,6 +61,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [On NULL (in SQL)](docs/on_null.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
+1. [An Architecture for Data Independence](docs/data_independence.markdown)
 
 ### Advanced Features
 
