@@ -102,7 +102,7 @@ writeRelVars sync transDir relvars = do
   writeBSFileSync sync path (B.encode relvars)
 
 readRelVars :: FilePath -> IO RelationVariables
-readRelVars transDir = do
+readRelVars transDir = 
   B.decodeFile (relvarsPath transDir)
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()

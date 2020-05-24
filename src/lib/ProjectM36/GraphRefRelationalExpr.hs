@@ -26,15 +26,12 @@ instance Monoid SingularTransactionRef where
   
 -- | return `Just transid` if this GraphRefRelationalExpr refers to just one transaction in the graph. This is useful for determining if certain optimizations can apply.
 singularTransaction :: Foldable t => t GraphRefTransactionMarker -> SingularTransactionRef
-singularTransaction expr =
-  if S.null transSet then
-    NoTransactionsRef
-  else if S.size transSet == 1 then
-    SingularTransactionRef (head (S.toList transSet))
-    else
-    MultipleTransactionsRef
+singularTransaction expr
+  | S.null transSet = NoTransactionsRef
+  | S.size transSet == 1 = SingularTransactionRef (head (S.toList transSet))
+  | otherwise = MultipleTransactionsRef
   where
-    transSet = foldr (\transId acc -> S.insert transId acc) S.empty expr
+    transSet = foldr S.insert S.empty expr
 
 -- | Return True if two 'GraphRefRelationalExpr's both refer exclusively to the same transaction (or none at all).
 inSameTransaction :: GraphRefRelationalExpr -> GraphRefRelationalExpr -> Maybe GraphRefTransactionMarker
@@ -45,4 +42,4 @@ inSameTransaction exprA exprB = case (stA, stB) of
         stB = singularTransaction exprB
 
 singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMarker) -> SingularTransactionRef
-singularTransactions fs = foldMap singularTransaction fs
+singularTransactions = foldMap singularTransaction

@@ -17,7 +17,7 @@ substituteWithNameMacros macros e@(RelationVariable rvname tid) =
     macroFilt (WithNameExpr macroName macroTid, _) = rvname == macroName && tid== macroTid in
   case filter macroFilt macros of
     [] -> e
-    (_,replacement):[] -> replacement
+    [(_,replacement)] -> replacement
     _ -> error "more than one macro matched!"
 substituteWithNameMacros macros (Project attrs expr) =
   Project attrs (substituteWithNameMacros macros expr)

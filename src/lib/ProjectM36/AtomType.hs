@@ -320,7 +320,7 @@ validateAtomType _ _ = pure ()
 
 validateAttributes :: TypeConstructorMapping -> Attributes -> Either RelationalError ()
 validateAttributes tConss attrs =
-  if length errs > 0 then
+  if not (null errs) then
     Left (someErrors errs)
   else
     pure ()

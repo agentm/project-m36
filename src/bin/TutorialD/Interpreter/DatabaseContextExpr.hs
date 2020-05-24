@@ -206,8 +206,7 @@ interpretDatabaseContextExpr context transId graph tutdstring =
     Left err -> Left $ PM36E.ParseError (T.pack (show err))
     Right parsed -> do
       let env = RE.mkDatabaseContextEvalEnv transId graph
-      x <- RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
-      pure x
+      RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
 
 {-
 --no optimization

@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 module ProjectM36.StaticOptimizer where
@@ -59,22 +58,22 @@ class Monad m => AskGraphContext m where
   askContext :: m DatabaseContext
 
 instance AskGraphContext (ReaderT GraphRefSOptDatabaseContextExprEnv (ExceptT RelationalError Identity)) where
-  askGraph = odce_graph <$> ask
-  askContext = odce_context <$> ask
+  askGraph = asks odce_graph
+  askContext = asks odce_context 
 
 instance AskGraphContext (ReaderT GraphRefSOptRelationalExprEnv (ExceptT RelationalError Identity)) where
-  askGraph = ore_graph <$> ask
+  askGraph = asks ore_graph
   askContext = do
-    mctx <- ore_mcontext <$> ask
+    mctx <- asks ore_mcontext
     case mctx of
       Nothing -> throwError NoUncommittedContextInEvalError
       Just ctx -> pure ctx
 
 askTransId :: GraphRefSOptDatabaseContextExprM TransactionId
-askTransId = odce_transId <$> ask
+askTransId = asks odce_transId
 
 askMaybeContext :: GraphRefSOptRelationalExprM (Maybe DatabaseContext)
-askMaybeContext = ore_mcontext <$> ask
+askMaybeContext = asks ore_mcontext
 
 optimizeDatabaseContextExpr :: DatabaseContextExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr
 optimizeDatabaseContextExpr expr = do
@@ -83,8 +82,8 @@ optimizeDatabaseContextExpr expr = do
   
 optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr optimize expr = do
-  graph <- dce_graph <$> ask
-  transId <- dce_transId <$> ask
+  graph <- asks dce_graph
+  transId <- asks dce_transId
   context <- getStateContext
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
       eOptExpr = if optimize then
@@ -105,9 +104,9 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do
-  transId <- dbcio_transId <$> ask
+  transId <- asks dbcio_transId
   ctx <- getDBCIOContext
-  graph <- dbcio_graph <$> ask
+  graph <- asks dbcio_graph
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
       eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
@@ -164,8 +163,8 @@ optimizeGraphRefRelationalExpr' mctx graph expr =
 -- | optimize relational expression within database context expr monad
 liftGraphRefRelExpr :: GraphRefSOptRelationalExprM a -> GraphRefSOptDatabaseContextExprM a
 liftGraphRefRelExpr m = do
-  context <- odce_context <$> ask
-  graph <- odce_graph <$> ask
+  context <- asks odce_context
+  graph <- asks odce_graph
   lift $ except $ runGraphRefSOptRelationalExprM (Just context) graph m
   
 fullOptimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
@@ -358,10 +357,8 @@ applyStaticPredicateOptimization predi = do
     OrPredicate pred1 pred2 -> do
       optPredA <- applyStaticPredicateOptimization pred1
       optPredB <- applyStaticPredicateOptimization pred2
-      if optPredA == optPredB then
+      if (optPredA == optPredB) || isTrueExpr optPredA then
         pure optPredA
-        else if isTrueExpr optPredA then
-             pure optPredA  -- True or x -> True
         else if isTrueExpr optPredB then
                pure optPredB
              else
@@ -577,4 +574,4 @@ applyStaticRestrictionPushdown expr = case expr of
     
 -- no optimizations available  
 optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextIOExpr
-optimizeDatabaseContextIOExpr x = pure x
+optimizeDatabaseContextIOExpr = pure

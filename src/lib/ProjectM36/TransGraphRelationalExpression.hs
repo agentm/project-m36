@@ -47,7 +47,7 @@ type TransGraphWithNameExpr = WithNameExprBase TransactionIdLookup
 
 instance Binary TransGraphWithNameExpr
 
-data TransGraphEvalEnv = TransGraphEvalEnv {
+newtype TransGraphEvalEnv = TransGraphEvalEnv {
   tge_graph :: TransactionGraph
   }
 
@@ -169,7 +169,7 @@ evalTransGraphRestrictionPredicateExpr (AttributeEqualityPredicate attrName expr
   AttributeEqualityPredicate attrName <$> expr'
   
 processTransGraphExtendTupleExpr :: TransGraphExtendTupleExpr -> TransGraphEvalMonad GraphRefExtendTupleExpr
-processTransGraphExtendTupleExpr (AttributeExtendTupleExpr attrName expr) = do
+processTransGraphExtendTupleExpr (AttributeExtendTupleExpr attrName expr) =
   AttributeExtendTupleExpr attrName <$> processTransGraphAtomExpr expr
 
 processTransGraphAttributeExpr :: TransGraphAttributeExpr -> TransGraphEvalMonad GraphRefAttributeExpr

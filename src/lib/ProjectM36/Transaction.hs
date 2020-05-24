@@ -18,7 +18,7 @@ singleParent tid = tid NE.:| []
 filterTransactionInfoTransactions :: S.Set TransactionId -> TransactionInfo -> TransactionInfo
 filterTransactionInfoTransactions filterIds tinfo =
   TransactionInfo { parents = case
-                      NE.filter (\parent -> S.member parent filterIds) (parents tinfo) of
+                      NE.filter (`S.member`  filterIds) (parents tinfo) of
                       [] -> rootParent
                       xs -> NE.fromList xs,
                     stamp = stamp tinfo }
@@ -43,7 +43,7 @@ subschemas :: Transaction -> Subschemas
 subschemas (Transaction _ _ (Schemas _ sschemas)) = sschemas
 
 fresh :: TransactionId -> UTCTime -> Schemas -> Transaction
-fresh freshId stamp' newSchemas = Transaction freshId (TransactionInfo rootParent stamp') newSchemas
+fresh freshId stamp' = Transaction freshId (TransactionInfo rootParent stamp')
 
 timestamp :: Transaction -> UTCTime
 timestamp (Transaction _ tinfo _) = stamp tinfo

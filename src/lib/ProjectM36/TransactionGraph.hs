@@ -30,11 +30,6 @@ import Data.Monoid
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
-#if __GLASGOW_HASKELL__ <= 802
-import Data.Monoid
-#endif
-
---import Debug.Trace
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -79,7 +74,7 @@ freshTransactionGraph :: DatabaseContext -> IO (TransactionGraph, TransactionId)
 freshTransactionGraph ctx = do
   now <- getCurrentTime
   freshId <- nextRandom
-  pure $ (bootstrapTransactionGraph now freshId ctx, freshId)
+  pure (bootstrapTransactionGraph now freshId ctx, freshId)
 
 
 emptyTransactionGraph :: TransactionGraph
@@ -112,7 +107,7 @@ rootTransactions graph = S.filter isRootTransaction (transactionsForGraph graph)
 
 -- the first transaction has no parent - all other do have parents- merges have two parents
 parentTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
-parentTransactions trans graph = transactionsForIds (parentIds trans) graph
+parentTransactions trans = transactionsForIds (parentIds trans)
 
 childTransactions :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 childTransactions trans graph = transactionsForIds childIds graph

@@ -1,5 +1,6 @@
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
+import Control.Monad (void)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Basic
@@ -17,7 +18,7 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
 
 -- | Remove TransactionId markers on GraphRefRelationalExpr
 stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
-stripGraphRefRelationalExpr = fmap (const ())
+stripGraphRefRelationalExpr = void
         
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> DatabaseContextExpr

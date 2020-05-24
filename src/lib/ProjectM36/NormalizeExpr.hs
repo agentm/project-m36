@@ -121,7 +121,7 @@ processTupleExprs (TupleExprs () tupleExprs) = do
   TupleExprs marker <$> mapM processTupleExpr tupleExprs
   
 processTupleExpr :: TupleExpr -> ProcessExprM GraphRefTupleExpr
-processTupleExpr (TupleExpr tMap) = do
+processTupleExpr (TupleExpr tMap) =
   TupleExpr . M.fromList <$> mapM (\(k,v) -> (,) k <$> processAtomExpr v) (M.toList tMap)
 
 --convert AttributeExpr to GraphRefAttributeExpr

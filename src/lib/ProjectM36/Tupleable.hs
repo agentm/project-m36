@@ -26,9 +26,6 @@ import           ProjectM36.Error
 import           ProjectM36.Tuple
 import           ProjectM36.TupleSet
 import qualified Data.Set as S
-#if __GLASGOW_HASKELL__ <= 802
-import Data.Monoid
-#endif
 
 {-import Data.Binary
 import Control.DeepSeq
