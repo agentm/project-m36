@@ -88,11 +88,11 @@ Typical databases implement various strategies for audit logging, including:
 
 Project:M36, through its inherent ability to travel the append-only transaction graph, enables audit-logging by allowing users to checkout previous transaction states. Committed transaction states are immutable, so no relation pollution or secondary database is necessary.
 
-## Selective Caching
+### Selective Caching
 
 Typical databases materialize entire tuple sets representing each named relation (relation variable), but there is nothing special about relations that happen to be named. Data independence allows us to cache answers to common or even anticipated queries- this allows the schema to be normalized and unmaterialized while the *denormalized* query results are materialized cached. This flexibility saves disk space and allows the cache to be much more dynamic than in a typical DBMS.
 
-## Never-Materialized Tuples Replace Partitions
+### Never-Materialized Tuples Replace Partitions
 
 Queries on very large relations often very often restricted (filtered by tuple) to generate subsets which are often partitioned, for example, by an event's date. Instead of requiring DBMS users to manually partition and slice their data in one, fixed, particular way, Project:M36's cacheing system will only cache those tuples that serve the interests of the queries. With something like an LRU cache, a data independent architecture will naturally cache "partitions" of the full relation without manual intervention.
 
