@@ -50,7 +50,6 @@ anySingle :: Parsec Void Text (Token Text)
 anySingle = anyChar
 #endif
 
-
 displayOpResult :: TutorialDOperatorResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
@@ -222,4 +221,4 @@ utcTimeP = do
   timeStr <- quotedString
   case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
     Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
-    Just stamp -> pure stamp
+    Just stamp' -> pure stamp'

@@ -80,13 +80,13 @@ initScriptSession ghcPkgPaths = do
     let ghcVersion = projectVersion dflags
 
     sandboxPkgPaths <- liftIO $ concat <$> mapM glob [
-      "./dist-newstyle/packagedb/ghc-" ++ ghcVersion,
+      --"./dist-newstyle/packagedb/ghc-" ++ ghcVersion, --rely on cabal 3's ghc.environment install: "cabal install --lib project-m36"
       ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d",
       ".stack-work/install/*/*/" ++ ghcVersion ++ "/pkgdb",
       ".stack-work/install/*/pkgdb/", --windows stack build
       "C:/sr/snapshots/b201cfe6/pkgdb", --windows stack build- ideally, we could run `stack path --snapshot-pkg-db, but this is sufficient to pass CI
-      homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb",
-      homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
+      homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb"
+      --homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
 
     let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)

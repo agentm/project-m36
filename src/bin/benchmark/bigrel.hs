@@ -4,27 +4,29 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DateExamples
 import ProjectM36.Error
+import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 --import ProjectM36.Relation.Show.CSV
 import ProjectM36.Relation.Show.HTML
-import TutorialD.Interpreter.DatabaseContextExpr (interpretDatabaseContextExpr)
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph
 --import qualified Data.HashSet as HS
 --import qualified Data.ByteString.Lazy.Char8 as BS
 --import qualified Data.IntMap as IM
 --import qualified Data.Hashable as Hash
 import qualified Data.Vector as V
 import Options.Applicative
-import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import System.IO
-import Control.Monad.State
 import Control.DeepSeq
 import Data.Text hiding (map)
+import Data.Time.Clock
+import Data.UUID.V4
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
+
 
 {-
 dumpcsv :: Relation -> IO ()
@@ -62,13 +64,20 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) =
     Right rel -> if tutd == "" then
                    putStrLn "Done."
                  else do
+                   now <- getCurrentTime
+                   tid <- nextRandom
                    let setx = Assign "x" (ExistingRelation (force rel))
-                       (context,_,_) = execState (evalDatabaseContextExpr setx) (freshDatabaseState dateExamples)
-                       interpreted = interpretDatabaseContextExpr context tutd
+                       graph = bootstrapTransactionGraph now tid dateExamples
+                       env = mkDatabaseContextEvalEnv tid graph
+                       eNewState = runDatabaseContextEvalMonad dateExamples env (optimizeAndEvalDatabaseContextExpr True setx)
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
-                   case interpreted of
-                     Right context' -> TIO.putStrLn $ relationAsHTML (relationVariables context' M.! "x")
+                   case eNewState of
+                     Right newState -> do
+                       let ctx = dbc_context newState
+                           Right x = optimizeAndEvalRelationalExpr env' (RelationVariable "x" ())
+                           env' = RelationalExprEnv ctx graph Nothing
+                       TIO.putStrLn $ relationAsHTML x
                      Left err -> hPrint stderr err
 
 {-

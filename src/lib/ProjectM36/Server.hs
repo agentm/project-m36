@@ -9,7 +9,7 @@ import ProjectM36.FSType
 
 import Control.Monad.IO.Class (liftIO)
 #if MIN_VERSION_network_transport_tcp(0,7,0)
-import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)  
 #else
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
 #endif

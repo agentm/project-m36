@@ -9,17 +9,12 @@ import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Binary as B
---import qualified Data.ByteString as BS
 import System.FilePath
 import System.Directory
 import qualified Data.Text as T
 import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
-
-import Codec.Compression.GZip
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
 
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC
@@ -41,8 +36,8 @@ transactionDir dbdir transId = dbdir </> show transId
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
 
-relvarsDir :: FilePath -> FilePath        
-relvarsDir transdir = transdir </> "relvars"
+relvarsPath :: FilePath -> FilePath        
+relvarsPath transdir = transdir </> "relvars"
 
 incDepsDir :: FilePath -> FilePath
 incDepsDir transdir = transdir </> "incdeps"
@@ -90,7 +85,7 @@ writeTransaction sync dbdir trans = do
   transDirExists <- doesDirectoryExist finalTransDir
   unless transDirExists $ do
     --create sub directories
-    mapM_ createDirectory [tempTransDir, relvarsDir tempTransDir, incDepsDir tempTransDir, dbcFuncsDir tempTransDir]
+    mapM_ createDirectory [tempTransDir, incDepsDir tempTransDir, dbcFuncsDir tempTransDir]
     writeRelVars sync tempTransDir (relationVariables context)
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
@@ -100,23 +95,15 @@ writeTransaction sync dbdir trans = do
     B.encodeFile (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
-  
-writeRelVar :: DiskSync -> FilePath -> (RelVarName, Relation) -> IO ()
-writeRelVar sync transDir (relvarName, rel) = do
-  let relvarPath = relvarsDir transDir </> T.unpack relvarName
-  writeBSFileSync sync relvarPath (compress (B.encode rel))
-  
-writeRelVars :: DiskSync -> FilePath -> M.Map RelVarName Relation -> IO ()
-writeRelVars sync transDir relvars = mapM_ (writeRelVar sync transDir) $ M.toList relvars
 
-readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
-readRelVars transDir = do
-  let relvarsPath = relvarsDir transDir
-  relvarNames <- getDirectoryNames relvarsPath
-  let relvars = mapM (\name -> do
-                      rel <- B.decode . decompress . BSL.fromStrict <$> BS.readFile (relvarsPath </> name)
-                      return (T.pack name, rel)) relvarNames
-  M.fromList <$> relvars
+writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
+writeRelVars sync transDir relvars = do
+  let path = relvarsPath transDir
+  writeBSFileSync sync path (B.encode relvars)
+
+readRelVars :: FilePath -> IO RelationVariables
+readRelVars transDir = 
+  B.decodeFile (relvarsPath transDir)
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do

@@ -2,10 +2,11 @@
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.RelationalExpression
+import Control.Monad.Except hiding (join)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
-import ProjectM36.Relation
 import Control.Monad (foldM)
 import qualified Data.HashSet as HS
 
@@ -22,19 +23,22 @@ unionMergeMaps prefer mapA mapB = case prefer of
                      Left StrategyViolatesComponentMergeError
                      
 -- perform the merge even if the attributes are different- is this what we want? Obviously, we need finer-grained merge options.
-unionMergeRelation :: MergePreference -> Relation -> Relation -> Either MergeError Relation
-unionMergeRelation prefer relA relB = case relA `union` relB of
-    Right unionRel -> pure unionRel
-    Left (AttributeNamesMismatchError _) -> preferredRelVar
-    Left _ -> Left StrategyViolatesRelationVariableMergeError
-    where
-      preferredRelVar = case prefer of
-        PreferFirst -> Right relA
-        PreferSecond -> Right relB
-        PreferNeither -> Left StrategyViolatesRelationVariableMergeError
+unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr
+unionMergeRelation prefer relA relB = do
+  let unioned = Union relA relB
+      mergeErr = MergeTransactionError StrategyViolatesRelationVariableMergeError
+      preferredRelVar =
+        case prefer of
+          PreferFirst -> pure relA
+          PreferSecond -> pure relB
+          PreferNeither -> throwError mergeErr
+      handler AttributeNamesMismatchError{} = preferredRelVar
+      handler _err' = throwError mergeErr
+  --typecheck first?
+  (evalGraphRefRelationalExpr unioned >> pure (Union relA relB)) `catchError` handler
 
 --try to execute unions against the relvars contents -- if a relvar only appears in one context, include it
-unionMergeRelVars :: MergePreference -> RelationVariables -> RelationVariables -> Either MergeError RelationVariables
+unionMergeRelVars :: MergePreference -> RelationVariables -> RelationVariables -> GraphRefRelationalExprM RelationVariables
 unionMergeRelVars prefer relvarsA relvarsB = do
   let allNames = S.toList (S.union (M.keysSet relvarsA) (M.keysSet relvarsB))
   foldM (\acc name -> do

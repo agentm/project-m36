@@ -6,7 +6,6 @@ import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Types
 import qualified Data.Map as M
-import Control.Monad.State
 import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
@@ -192,19 +191,22 @@ executeDatabaseContextFunctionP = do
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP
 
+{-
 evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContext
 evalDatabaseContextExpr useOptimizer context expr = do
     optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) (RE.freshDatabaseState context)
     case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) (RE.freshDatabaseState context) of
         (Right (), (context',_, _)) -> Right context'
         (Left err, _) -> Left err
+-}
 
-
-interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
-interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
-                                    Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> 
-                                      evalDatabaseContextExpr True context parsed
+interpretDatabaseContextExpr :: DatabaseContext -> TransactionId -> TransactionGraph -> T.Text -> Either RelationalError DatabaseContext
+interpretDatabaseContextExpr context transId graph tutdstring =
+  case parse databaseExprOpP "" tutdstring of
+    Left err -> Left $ PM36E.ParseError (T.pack (show err))
+    Right parsed -> do
+      let env = RE.mkDatabaseContextEvalEnv transId graph
+      RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
 
 {-
 --no optimization

@@ -3,28 +3,25 @@ import ProjectM36.Base
 import qualified Data.Set as S
 import qualified Data.UUID as U
 import Data.Time.Clock
+import qualified Data.List.NonEmpty as NE
 
-transactionTimestamp :: Transaction -> UTCTime
-transactionTimestamp (Transaction _ (TransactionInfo _ _ stamp) _) = stamp
-transactionTimestamp (Transaction _ (MergeTransactionInfo _ _ _ stamp) _) = stamp
+parentIds :: Transaction -> S.Set TransactionId
+parentIds (Transaction _ tinfo _) = S.fromList (NE.toList (parents tinfo))
 
-transactionParentIds :: Transaction -> S.Set TransactionId
-transactionParentIds (Transaction _ (TransactionInfo pId _ _) _) = S.singleton pId
-transactionParentIds (Transaction _ (MergeTransactionInfo pId1 pId2 _ _) _) = S.fromList [pId1, pId2]
+rootParent :: TransactionParents
+rootParent = singleParent U.nil
 
-transactionChildIds :: Transaction -> S.Set TransactionId
-transactionChildIds (Transaction _ (TransactionInfo _ children _) _) = children
-transactionChildIds (Transaction _ (MergeTransactionInfo _ _ children _) _) = children
-
--- | Create a new transaction which is identical to the original except that a new set of child transaction ids is added.
-transactionSetChildren :: Transaction -> S.Set TransactionId -> Transaction
-transactionSetChildren t@(Transaction _ (TransactionInfo pId _ stamp) schemas') childIds = Transaction (transactionId t) (TransactionInfo pId childIds stamp) schemas'
-transactionSetChildren t@(Transaction _ (MergeTransactionInfo pId1 pId2 _ stamp) schemas') childIds = Transaction (transactionId t) (MergeTransactionInfo pId1 pId2 childIds stamp) schemas'
+singleParent :: TransactionId -> TransactionParents
+singleParent tid = tid NE.:| []
 
 -- | Return the same transaction but referencing only the specific child transactions. This is useful when traversing a graph and returning a subgraph. This doesn't filter parent transactions because it assumes a head-to-root traversal.
 filterTransactionInfoTransactions :: S.Set TransactionId -> TransactionInfo -> TransactionInfo
-filterTransactionInfoTransactions filterIds (TransactionInfo parentId childIds stamp) = TransactionInfo (filterParent parentId filterIds) (S.intersection childIds filterIds) stamp
-filterTransactionInfoTransactions filterIds (MergeTransactionInfo parentIdA parentIdB childIds stamp) = MergeTransactionInfo (filterParent parentIdA filterIds) (filterParent parentIdB filterIds) (S.intersection childIds filterIds) stamp
+filterTransactionInfoTransactions filterIds tinfo =
+  TransactionInfo { parents = case
+                      NE.filter (`S.member`  filterIds) (parents tinfo) of
+                      [] -> rootParent
+                      xs -> NE.fromList xs,
+                    stamp = stamp tinfo }
 
 filterParent :: TransactionId -> S.Set TransactionId -> TransactionId
 filterParent parentId validIds = if S.member parentId validIds then parentId else U.nil
@@ -44,3 +41,9 @@ schemas (Transaction _ _ schemas') = schemas'
 -- | Returns all subschemas which are isomorphic or sub-isomorphic to the concrete schema.
 subschemas :: Transaction -> Subschemas
 subschemas (Transaction _ _ (Schemas _ sschemas)) = sschemas
+
+fresh :: TransactionId -> UTCTime -> Schemas -> Transaction
+fresh freshId stamp' = Transaction freshId (TransactionInfo rootParent stamp')
+
+timestamp :: Transaction -> UTCTime
+timestamp (Transaction _ tinfo _) = stamp tinfo

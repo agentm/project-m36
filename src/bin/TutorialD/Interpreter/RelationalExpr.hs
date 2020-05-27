@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-
 module TutorialD.Interpreter.RelationalExpr where
 import Text.Megaparsec
 #if MIN_VERSION_megaparsec(7,0,0)
@@ -30,7 +29,8 @@ makeRelationP = do
   reserved "relation"
   attrExprs <- try (fmap Just makeAttributeExprsP) <|> pure Nothing
   tupleExprs <- braces (sepBy tupleExprP comma) <|> pure []
-  pure $ MakeRelationFromExprs attrExprs tupleExprs
+  marker <- parseMarkerP
+  pure $ MakeRelationFromExprs attrExprs (TupleExprs marker tupleExprs)
 
 
 --abstract data type parser- in this context, the type constructor must not include any type arguments
@@ -251,12 +251,15 @@ relationAtomExprP = RelationAtomExpr <$> makeRelationP
 withMacroExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 withMacroExprP = do
   reservedOp "with"
-  views <- parens (sepBy1 createViewP comma)
+  views <- parens (sepBy1 createMacroP comma)
   With views <$> relExprP
 
-createViewP :: RelationalMarkerExpr a => Parser (RelVarName, RelationalExprBase a)
-createViewP = do
-  name <- relVarNameP
+createMacroP :: RelationalMarkerExpr a => Parser (WithNameExprBase a, RelationalExprBase a)
+createMacroP = do 
+  name <- identifier
   reservedOp "as"
   expr <- relExprP
-  pure (name, expr)
+  marker <- parseMarkerP
+  pure (WithNameExpr name marker, expr)
+
+

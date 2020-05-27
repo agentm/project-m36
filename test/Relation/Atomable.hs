@@ -104,7 +104,7 @@ testHaskell2DB = TestCase $ do
   let createRelExpr = Assign "x" rel
             
       rel = MakeRelationFromExprs Nothing
-            [TupleExpr (M.singleton "a1" (NakedAtomExpr atomVal))]
+            (TupleExprs () [TupleExpr (M.singleton "a1" (NakedAtomExpr atomVal))])
       atomVal = toAtom exampleVal
       exampleVal = Test1C 10
   checkExecuteDatabaseContextExpr sessionId dbconn createRelExpr
@@ -194,4 +194,3 @@ testManyFields = TestCase $ do
 
   let example5 = Test9_5C 1 2 3 4 5
   assertEqual "five fields product type" example5 (fromAtom (toAtom example5))
-

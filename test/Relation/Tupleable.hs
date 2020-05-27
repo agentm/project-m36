@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, FlexibleInstances, FlexibleContexts, TypeOperators, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, FlexibleInstances, FlexibleContexts, DeriveAnyClass #-}
 import Test.HUnit
 import ProjectM36.Tupleable
 import ProjectM36.Atomable

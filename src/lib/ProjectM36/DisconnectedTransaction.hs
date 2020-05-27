@@ -9,3 +9,9 @@ schemas (DisconnectedTransaction _ s _) = s
 
 parentId :: DisconnectedTransaction -> TransactionId
 parentId (DisconnectedTransaction pid _ _) = pid
+
+isDirty :: DisconnectedTransaction -> Bool
+isDirty (DisconnectedTransaction _ _ flag) = flag
+
+freshTransaction :: TransactionId -> Schemas -> DisconnectedTransaction
+freshTransaction tid schemas' = DisconnectedTransaction tid schemas' False

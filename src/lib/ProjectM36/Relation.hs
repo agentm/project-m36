@@ -4,8 +4,6 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
-import qualified Data.Map as M
-import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
@@ -97,7 +95,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   where
     newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
       
-project :: S.Set AttributeName -> Relation -> Either RelationalError Relation      
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project attrNames rel@(Relation _ tupSet) = do
   newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
   let newAttrNameSet = A.attributeNameSet newAttrs
@@ -304,20 +302,6 @@ typesAsRelation types = mkRelationFromTuples attrs tuples
     mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " (DCD.name dCons:map (T.pack . show) (DCD.fields dCons)))) dConsList of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> RelationAtom rel
-
--- | Return a Relation describing the relation variables.
-relationVariablesAsRelation :: M.Map RelVarName Relation -> Either RelationalError Relation
-relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
-  where
-    subrelAttrs = A.attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
-    attrs = A.attributesFromList [Attribute "name" TextAtomType,
-                                  Attribute "attributes" (RelationAtomType subrelAttrs)]
-    tups = map relVarToAtomList (M.toList relVarMap)
-    relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributes rel)]
-    attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
-      Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
-      Right rel -> RelationAtom rel
-    attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       
 -- | Randomly resort the tuples. This is useful for emphasizing that two relations are equal even when they are printed to the console in different orders.
 randomizeTupleOrder :: MonadRandom m => Relation -> m Relation

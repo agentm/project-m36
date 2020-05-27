@@ -3,12 +3,11 @@ module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.MiscUtils
-import ProjectM36.RelationalExpression
 import ProjectM36.Relation
+import ProjectM36.NormalizeExpr
+import ProjectM36.RelationalExpression
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
-import Control.Monad.State
-import Control.Monad.Trans.Reader
 import GHC.Generics
 import Data.Binary
 import qualified Data.Map as M
@@ -256,15 +255,15 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
 inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
 inclusionDependenciesInSchema schema incDeps = M.fromList <$> mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps)
   
-relationVariablesInSchema :: Schema -> DatabaseContext -> Either RelationalError RelationVariables
-relationVariablesInSchema schema@(Schema morphs) context = foldM transform M.empty morphs
+relationVariablesInSchema :: Schema -> Either RelationalError RelationVariables
+relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morphs
   where
     transform newRvMap morph = do
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
                            expr' <- processRelationalExprInSchema schema (RelationVariable rv ())
-                           rel <- runReader (evalRelationalExpr expr') (RelationalExprStateElems context)
-                           pure (rv, rel)) rvNames
+                           let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr')
+                           pure (rv, gfExpr)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 
 
@@ -312,24 +311,24 @@ createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = le
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
-evalSchemaExpr :: SchemaExpr -> DatabaseContext -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
-evalSchemaExpr (AddSubschema sname morphs) context sschemas =
+evalSchemaExpr :: SchemaExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
+evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
   if M.member sname sschemas then
     Left (SubschemaNameInUseError sname)
-    else case valid of
-    Just err -> Left (SchemaCreationError err)
-    Nothing -> 
-      let newSchemas = M.insert sname newSchema sschemas
-          moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
-          incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
-      in
-      case runState (evalDatabaseContextExpr incDepExprs) (context, M.empty, False) of
-        (Left err, _) -> Left err
-        (Right (), (newContext,_,_)) -> pure (newSchemas, newContext) --need to propagate dirty flag here
-  where
-    newSchema = Schema morphs
-    valid = validateSchema newSchema context
-evalSchemaExpr (RemoveSubschema sname) context sschemas = if M.member sname sschemas then
+    else
+    case validateSchema (Schema morphs) context of
+      Just err -> Left (SchemaCreationError err)
+      Nothing -> do
+        let newSchemas = M.insert sname newSchema sschemas
+            newSchema = Schema morphs
+            moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
+            incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
+            dbenv = mkDatabaseContextEvalEnv transId graph
+        dbstate <- runDatabaseContextEvalMonad context dbenv (evalGraphRefDatabaseContextExpr incDepExprs)
+        pure (newSchemas, dbc_context dbstate)
+--need to propagate dirty flag here      
+
+evalSchemaExpr (RemoveSubschema sname) context _ _ sschemas = if M.member sname sschemas then
                                            pure (M.delete sname sschemas, context)
                                          else
                                            Left (SubschemaNameNotInUseError sname)

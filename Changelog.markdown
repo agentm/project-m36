@@ -1,3 +1,7 @@
+# 2020-05-25 (v0.8)
+
+* refactor backend to maximize laziness: [An Architecture for Data Independence](docs/data_independence.markdown)
+
 # 2019-09-07 (v0.7)
 
 * fix case sensitivity issue with relation variables in tutd

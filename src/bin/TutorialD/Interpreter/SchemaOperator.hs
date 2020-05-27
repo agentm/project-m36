@@ -42,7 +42,7 @@ isoRestrictP = do
   reserved "isorestrict"
   relVarIn <- qrelVarP
   relvarsOut <- isoRestrictOutRelVarsP
-  IsoRestrict <$> pure relVarIn <*> restrictionPredicateP <*> pure relvarsOut
+  IsoRestrict relVarIn <$> restrictionPredicateP <*> pure relvarsOut
   
 isoRestrictOutRelVarsP :: Parser (RelVarName, RelVarName)  
 isoRestrictOutRelVarsP = (,) <$> qrelVarP <*> qrelVarP
@@ -55,7 +55,7 @@ isoUnionP = do
   reserved "isounion"
   relVarsIn <- isoUnionInRelVarsP
   relVarsOut <- qrelVarP
-  IsoUnion <$> pure relVarsIn <*> restrictionPredicateP <*> pure relVarsOut
+  IsoUnion relVarsIn <$> restrictionPredicateP <*> pure relVarsOut
   
 isoRenameP :: Parser SchemaIsomorph
 isoRenameP = do

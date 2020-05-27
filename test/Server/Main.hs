@@ -147,10 +147,11 @@ testPlanForDatabaseContextExpr sessionId conn = TestCase $ do
   let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType) ()]
       testrv = "testrv"
       dbExpr = Define testrv attrExprs
+      expected = Define testrv [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType) UncommittedContextMarker]
   planResult <- planForDatabaseContextExpr sessionId conn dbExpr
   case planResult of
     Left err -> assertFailure (show err)
-    Right plan -> assertEqual "planForDatabaseContextExpr failure" dbExpr plan
+    Right plan -> assertEqual "planForDatabaseContextExpr failure" expected plan
         
 testTransactionGraphAsRelation :: SessionId -> Connection -> Test    
 testTransactionGraphAsRelation sessionId conn = TestCase $ do

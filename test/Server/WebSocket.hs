@@ -57,13 +57,14 @@ waitForListenSocket secondsToTry port =
   if secondsToTry <= 0 then
     throw WaitForSocketListenException
     else do
-    hostaddr <- inet_addr "127.0.0.1"
+    --hostaddr <- inet_addr "127.0.0.1"
+    hostaddr:_ <- getAddrInfo Nothing (Just "127.0.0.1") (Just (show port))
     sock <- socket AF_INET Stream defaultProtocol
     let handler :: IOException -> IO ()
         handler _ = do
           threadDelay 1000000
           waitForListenSocket (secondsToTry - 1) port
-    catch (connect sock (SockAddrInet port hostaddr)) handler
+    catch (connect sock (addrAddress hostaddr)) handler
   
 main :: IO ()
 main = do

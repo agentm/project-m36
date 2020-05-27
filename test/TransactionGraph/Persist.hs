@@ -32,8 +32,8 @@ testList = TestList [testBootstrapDB,
                      testFunctionPersistence]
                     
 
-stamp :: UTCTime
-stamp = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
+stamp' :: UTCTime
+stamp' = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
 
 {- bootstrap a database, ensure that it can be read -}
 testBootstrapDB :: Test
@@ -41,7 +41,7 @@ testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> d
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp freshId dateExamples)
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp' freshId dateExamples)
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
@@ -51,17 +51,17 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  let graph = bootstrapTransactionGraph stamp freshId dateExamples
+  let graph = bootstrapTransactionGraph stamp' freshId dateExamples
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> 
-          case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) "x:=s" of
+          case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) (transactionId headTrans) graph "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
-              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) True
-                  addTrans = addDisconnectedTransaction stamp freshId' "master" newdiscon graph
+              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) False
+                  addTrans = addDisconnectedTransaction stamp' freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of
                 Left err -> assertFailure (show err)
@@ -99,7 +99,7 @@ testFunctionPersistence = TestCase $
   conn2 <- assertIOEither $ connectProjectM36 connInfo
   sess2 <- assertIOEither $ createSessionAtHead conn2 "master"
   
-  res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))])
+  res <- executeRelationalExpr sess2 conn2 (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "a" (FunctionAtomExpr "testdisk" [NakedAtomExpr (IntAtom 3)] ()))]))
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
 

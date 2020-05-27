@@ -7,7 +7,7 @@ import qualified StmContainers.Set as StmSet
 #else
 import qualified STMContainers.Map as StmMap
 import qualified STMContainers.Set as StmSet
-#endif
+#endif 
 import ProjectM36.Attribute
 import ProjectM36.Base
 import ProjectM36.Session
