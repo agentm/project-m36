@@ -793,7 +793,11 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) =
     tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
                           utctDayTime = secondsToDiffTime 0 }
     tempSchemas = Schemas context M.empty
-    tempTrans = Transaction U.nil (TransactionInfo (transId NE.:| []) tempStamp) tempSchemas
+    tempTrans = Transaction U.nil  tempTransInfo tempSchemas
+    tempTransInfo = TransactionInfo { parents = transId NE.:| [],
+                                      stamp = tempStamp,
+                                      merkleHash = mempty
+                                      }
     
     deps = inclusionDependencies context
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment

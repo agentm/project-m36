@@ -22,7 +22,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Time.Clock
 import qualified Data.Text as T
 import GHC.Generics
-import Data.Binary
+import Data.Binary as B
 import Data.Either (lefts, rights, isRight)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
@@ -30,6 +30,10 @@ import Data.Monoid
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
+import ProjectM36.DatabaseContext as DBC
+import Crypto.Hash.SHA256
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -67,7 +71,8 @@ bootstrapTransactionGraph stamp' freshId context = TransactionGraph bootstrapHea
     bootstrapHeads = M.singleton "master" freshTransaction
     newSchemas = Schemas context M.empty
     freshTransaction = fresh freshId stamp' newSchemas
-    bootstrapTransactions = S.singleton freshTransaction
+    hashedTransaction = Transaction freshId ((transactionInfo freshTransaction) { merkleHash = calculateMerkleHash freshTransaction emptyTransactionGraph }) newSchemas
+    bootstrapTransactions = S.singleton hashedTransaction
 
 -- | Create a transaction graph from a context.
 freshTransactionGraph :: DatabaseContext -> IO (TransactionGraph, TransactionId)
@@ -125,10 +130,13 @@ addBranch stamp' newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName newTrans
+addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) graph = addTransactionToGraph headName newTrans' graph
   where
-    newTrans = Transaction newId (TI.singleParent parentId stamp') schemas'
-
+    newTrans = Transaction newId newTInfo schemas'
+    newTInfo = TI.singleParent parentId stamp'
+    newTrans' = Transaction newId (newTInfo { merkleHash = newHash }) schemas'
+    newHash = calculateMerkleHash newTrans graph--lookup parents in graph to calculate
+--LOOP
 addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addTransactionToGraph headName newTrans graph = do
   let parentIds' = parentIds newTrans
@@ -295,6 +303,7 @@ graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _
   mkRelationFromList attrs tupleMatrix
   where
     attrs = A.attributesFromList [Attribute "id" TextAtomType,
+                                  Attribute "hash" ByteStringAtomType,
                                   Attribute "stamp" DateTimeAtomType,
                                   Attribute "parents" (RelationAtomType parentAttributes),
                                   Attribute "current" BoolAtomType,
@@ -304,6 +313,7 @@ graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
       Right parentTransRel -> Right [TextAtom $ T.pack $ show (transactionId transaction),
+                                     ByteStringAtom $ merkleHash (transactionInfo transaction),
                                      DateTimeAtom (timestamp transaction),
                                      RelationAtom parentTransRel,
                                      BoolAtom $ parentId == transactionId transaction,
@@ -338,7 +348,8 @@ createMergeTransaction stamp' newId (SelectedBranchMergeStrategy selectedBranch)
   pure $ Transaction newId (TransactionInfo {
                         parents = NE.fromList [transactionId trans1,
                                                transactionId trans2],
-                        stamp = stamp' }) (schemas selectedTrans)
+                        stamp = stamp',
+                        merkleHash = unimplemented }) (schemas selectedTrans)
                        
 -- merge functions, relvars, individually
 createMergeTransaction stamp' newId strat@UnionMergeStrategy t2 =
@@ -496,7 +507,8 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
   pure (Transaction newId (TransactionInfo {
                               parents = NE.fromList [transactionId t1,
                                                      transactionId t2],
-                              stamp = stamp'}) newSchemas)
+                              stamp = stamp',
+                              merkleHash = unimplemented }) newSchemas)
 
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
 lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
@@ -571,4 +583,22 @@ autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) disc
   
   pure (discon''''', graph''''')
 
+
+-- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
+calculateMerkleHash :: Transaction -> TransactionGraph -> BS.ByteString
+calculateMerkleHash trans graph = hashlazy (mconcat ([transIds,
+                                                     dbcBytes,
+                                                     schemasBytes,
+                                                     parentMerkleHashes]))
+  where
+    parentMerkleHashes = BL.fromChunks $ map getMerkleHash parentTranses
+    parentTranses =
+      case transactionsForIds (parentIds trans) graph of
+        Left RootTransactionTraversalError -> []
+        Left e -> error ("failed to find transaction in Merkle hash construction: " ++ show e)
+        Right t -> S.toList t
+    getMerkleHash t = merkleHash (transactionInfo t)
+    transIds = B.encode (transactionId trans : S.toList (parentIds trans))
+    dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
+    schemasBytes = B.encode (subschemas trans)
 

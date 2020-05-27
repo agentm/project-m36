@@ -10,6 +10,8 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import ProjectM36.ScriptSession
 import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary as B
 
 emptyDatabaseContextFunction :: DatabaseContextFunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = DatabaseContextFunction { 
@@ -77,4 +79,12 @@ databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
     dbcFuncToTuple func = [TextAtom (dbcFuncName func),
                            TextAtom (dbcTextType (dbcFuncType func))]
     dbcTextType typ = T.intercalate " -> " (map prettyAtomType typ ++ ["DatabaseContext", "DatabaseContext"])
-                                                
+
+-- for merkle hash                       
+hashBytes :: DatabaseContextFunction -> BL.ByteString
+hashBytes func = mconcat [fname, ftype, fbody]
+  where
+    fname = B.encode (dbcFuncName func)
+    ftype = B.encode (dbcFuncType func)
+    fbody = case dbcFuncBody func of
+      DatabaseContextFunctionBody mBody _ -> B.encode mBody

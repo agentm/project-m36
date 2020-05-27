@@ -7,6 +7,10 @@ import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.Relation
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary as B
+import ProjectM36.AtomFunction as AF
+import ProjectM36.DatabaseContextFunction as DBCF
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -38,3 +42,14 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          notifications = M.empty,
                                          typeConstructorMapping = basicTypeConstructorMapping
                                          }
+
+--for building the Merkle hash
+hashBytes :: DatabaseContext -> BL.ByteString
+hashBytes ctx = mconcat [incDeps, rvs, atomFs, dbcFs, nots, tConsMap]
+  where
+    incDeps = B.encode (inclusionDependencies ctx)
+    rvs = B.encode (relationVariables ctx)
+    atomFs = HS.foldr (\f -> mappend (AF.hashBytes f)) mempty (atomFunctions ctx)
+    dbcFs = HS.foldr (\f -> mappend (DBCF.hashBytes f)) mempty (dbcFunctions ctx)
+    nots = B.encode (notifications ctx)
+    tConsMap = B.encode (typeConstructorMapping ctx)

@@ -413,7 +413,8 @@ transactionsForGraph (TransactionGraph _ ts) = ts
 -- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
 data TransactionInfo = TransactionInfo {
   parents :: TransactionParents,
-  stamp :: UTCTime
+  stamp :: UTCTime,
+  merkleHash :: ByteString
   } deriving (Show, Generic)
 
 type TransactionParents = NE.NonEmpty TransactionId

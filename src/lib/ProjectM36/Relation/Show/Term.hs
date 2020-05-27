@@ -9,6 +9,8 @@ import ProjectM36.Attribute hiding (null)
 import qualified Data.List as L
 import qualified Data.Text as T
 import Control.Arrow hiding (left)
+import Data.ByteString.Base64 as B64
+import qualified Data.Text.Encoding as TE
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -97,6 +99,7 @@ showAtom :: Int -> Atom -> StringType
 showAtom _ (RelationAtom rel) = renderTable $ relationAsTable rel
 showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && not (null atoms)) $ T.concat (L.intersperse " " (dConsName : map (showAtom 1) atoms))
 showAtom _ (TextAtom t) = "\"" <> t <> "\""
+showAtom _ (ByteStringAtom bs) = TE.decodeUtf8 (B64.encode bs)
 showAtom _ atom = atomToText atom
 
 renderTable :: Table -> StringType

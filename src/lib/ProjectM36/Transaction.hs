@@ -17,11 +17,10 @@ singleParent tid = tid NE.:| []
 -- | Return the same transaction but referencing only the specific child transactions. This is useful when traversing a graph and returning a subgraph. This doesn't filter parent transactions because it assumes a head-to-root traversal.
 filterTransactionInfoTransactions :: S.Set TransactionId -> TransactionInfo -> TransactionInfo
 filterTransactionInfoTransactions filterIds tinfo =
-  TransactionInfo { parents = case
+  tinfo { parents = case
                       NE.filter (`S.member`  filterIds) (parents tinfo) of
                       [] -> rootParent
-                      xs -> NE.fromList xs,
-                    stamp = stamp tinfo }
+                      xs -> NE.fromList xs}
 
 filterParent :: TransactionId -> S.Set TransactionId -> TransactionId
 filterParent parentId validIds = if S.member parentId validIds then parentId else U.nil
@@ -43,7 +42,13 @@ subschemas :: Transaction -> Subschemas
 subschemas (Transaction _ _ (Schemas _ sschemas)) = sschemas
 
 fresh :: TransactionId -> UTCTime -> Schemas -> Transaction
-fresh freshId stamp' = Transaction freshId (TransactionInfo rootParent stamp')
+fresh freshId stamp' = Transaction freshId tinfo
+  where
+    tinfo = TransactionInfo {parents = rootParent,
+                             stamp = stamp',
+                             merkleHash = mempty
+                            }
 
 timestamp :: Transaction -> UTCTime
 timestamp (Transaction _ tinfo _) = stamp tinfo
+
