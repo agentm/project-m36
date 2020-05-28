@@ -345,11 +345,12 @@ createMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> (Transact
 createMergeTransaction stamp' newId (SelectedBranchMergeStrategy selectedBranch) t2@(trans1, trans2) = do
   graph <- gfGraph
   selectedTrans <- validateHeadName selectedBranch graph t2
-  pure $ Transaction newId (TransactionInfo {
-                        parents = NE.fromList [transactionId trans1,
-                                               transactionId trans2],
-                        stamp = stamp',
-                        merkleHash = unimplemented }) (schemas selectedTrans)
+  pure $ addMerkleHash graph $
+    Transaction newId (TransactionInfo {
+                          parents = NE.fromList [transactionId trans1,
+                                                 transactionId trans2],
+                          stamp = stamp',
+                          merkleHash = mempty }) (schemas selectedTrans)
                        
 -- merge functions, relvars, individually
 createMergeTransaction stamp' newId strat@UnionMergeStrategy t2 =
@@ -504,11 +505,12 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
         typeConstructorMapping = types
         }
       newSchemas = Schemas newContext (subschemas t1)
-  pure (Transaction newId (TransactionInfo {
-                              parents = NE.fromList [transactionId t1,
-                                                     transactionId t2],
-                              stamp = stamp',
-                              merkleHash = unimplemented }) newSchemas)
+  pure $ addMerkleHash graph $
+    Transaction newId (TransactionInfo {
+                          parents = NE.fromList [transactionId t1,
+                                                  transactionId t2],
+                            stamp = stamp',
+                            merkleHash = mempty }) newSchemas
 
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
 lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
@@ -584,6 +586,11 @@ autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) disc
   pure (discon''''', graph''''')
 
 
+addMerkleHash :: TransactionGraph -> Transaction -> Transaction
+addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas trans)
+  where
+    newInfo = (transactionInfo trans) { merkleHash = calculateMerkleHash trans graph }
+  
 -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
 calculateMerkleHash :: Transaction -> TransactionGraph -> BS.ByteString
 calculateMerkleHash trans graph = hashlazy (mconcat ([transIds,

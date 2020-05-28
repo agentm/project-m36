@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.Attribute
 import ProjectM36.Relation
 import ProjectM36.Transaction
+import ProjectM36.TransactionInfo as TI
 import ProjectM36.TransactionGraph
 import ProjectM36.Error
 import ProjectM36.Key
@@ -14,6 +15,17 @@ import ProjectM36.StaticOptimizer
 
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
+
+
+
+
+
+
+
+
+
+
+
 import Data.Word
 import qualified Data.UUID as U
 import qualified Data.Set as S
@@ -21,7 +33,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
-import qualified Data.List.NonEmpty as NE
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
@@ -61,10 +72,9 @@ basicTransactionGraph = do
       uuidA = fakeUUID 10
       uuidB = fakeUUID 11
       uuidRoot = fakeUUID 1
-      parents' = uuidRoot NE.:| []
       rootContext = concreteDatabaseContext rootTrans
-  (_, bsGraph') <- addTransaction "branchA" (createTrans uuidA (TransactionInfo parents' testTime) rootContext) bsGraph
-  (_, bsGraph'') <- addTransaction "branchB" (createTrans uuidB (TransactionInfo parents' testTime) rootContext) bsGraph'
+  (_, bsGraph') <- addTransaction "branchA" (createTrans uuidA (TI.singleParent uuidRoot testTime) rootContext) bsGraph
+  (_, bsGraph'') <- addTransaction "branchB" (createTrans uuidB (TI.singleParent uuidRoot testTime) rootContext) bsGraph'
   pure bsGraph''
   
 addTransaction :: HeadName -> Transaction -> TransactionGraph -> IO (Transaction, TransactionGraph)
@@ -108,7 +118,7 @@ testSubGraphToFirstAncestorSnipBranch = TestCase $ do
   baseGraph <- basicTransactionGraph  
   transA <- assertMaybe (transactionForHead "branchA" baseGraph) "failed to get branchA"
   transB <- assertMaybe (transactionForHead "branchB" baseGraph) "failed to get branchB"
-  (_, graph) <- addTransaction "branchC" (createTrans (fakeUUID 12) (TransactionInfo (fakeUUID 1 NE.:| []) testTime) (concreteDatabaseContext transA)) baseGraph
+  (_, graph) <- addTransaction "branchC" (createTrans (fakeUUID 12) (TI.singleParent (fakeUUID 1) testTime) (concreteDatabaseContext transA)) baseGraph
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph baseGraph) transA transB S.empty
   assertGraph subgraph
   let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)  
@@ -127,13 +137,13 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   updatedBranchBContext <- case runDatabaseContextEvalMonad branchBContext env (optimizeAndEvalDatabaseContextExpr True (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) of
     Left err -> assertFailure (show err) >> undefined
     Right st -> pure $ dbc_context st
-  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchBTrans) testTime) updatedBranchBContext) graph
   branchBTrans' <- assertMaybe (transactionForHead "branchB" graph') "failed to get branchB head"  
   assertEqual "branchB id 3" (fakeUUID 3) (transactionId branchBTrans')  
   
   -- add another transaction to branchA
   branchATrans <- assertMaybe (transactionForHead "branchA" graph) "failed to get branchA head"  
-  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) (concreteDatabaseContext branchATrans)) graph'
+  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TI.singleParent (transactionId branchATrans) testTime) (concreteDatabaseContext branchATrans)) graph'
   branchATrans' <- assertMaybe (transactionForHead "branchA" graph'') "failed to get branchA head"
   assertEqual "branchA id 4" (fakeUUID 4) (transactionId branchATrans')
                                               
@@ -156,7 +166,7 @@ testSelectedBranchMerge = TestCase $ do
   updatedBranchBContext <- case runDatabaseContextEvalMonad branchBContext env (optimizeAndEvalDatabaseContextExpr True (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) of
     Left err -> assertFailure (show err) >> undefined
     Right st -> pure (dbc_context st)
-  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchBTrans) testTime) updatedBranchBContext) graph
   --create the merge transaction in the graph
   let eGraph' = runGraphRefRelationalExprM gfEnv $ mergeTransactions testTime (fakeUUID 4) (fakeUUID 10) (SelectedBranchMergeStrategy "branchA") ("branchA", "branchB")
       gfEnv = freshGraphRefRelationalExprEnv Nothing graph'
@@ -185,8 +195,8 @@ testUnionPreferMergeStrategy = TestCase $ do
       branchBContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.insert conflictRelVarName (ExistingRelation branchBRelVar) (relationVariables (concreteDatabaseContext branchBTrans))}
       conflictRelVarName = "conflictRelVar" 
 
-  (_, graph') <- addTransaction "branchA" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) branchAContext) graph
-  (_, graph'') <- addTransaction "branchB" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) branchBContext) graph'
+  (_, graph') <- addTransaction "branchA" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchATrans) testTime) branchAContext) graph
+  (_, graph'') <- addTransaction "branchB" (createTrans (fakeUUID 4) (TI.singleParent (transactionId branchBTrans) testTime) branchBContext) graph'
   -- validate that the conflict is hidden because we preferred a branch
   let merged = runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) (UnionPreferMergeStrategy "branchB") ("branchA", "branchB")
       env = freshGraphRefRelationalExprEnv Nothing graph''
@@ -215,7 +225,7 @@ testUnionMergeStrategy = TestCase $ do
       branchAOnlyIncDepName = "branchAOnlyIncDep"
       branchBOnlyRelVarName = "branchBOnlyRelVar"
       branchAOnlyIncDep = InclusionDependency (ExistingRelation relationTrue) (ExistingRelation relationTrue)
-  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) updatedBranchBContext) graph
+  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchBTrans) testTime) updatedBranchBContext) graph
   let env = freshGraphRefRelationalExprEnv Nothing graph'
   (discon, _) <- assertEither $ runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB")
   let Just rvExpr = M.lookup branchBOnlyRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
@@ -223,7 +233,7 @@ testUnionMergeStrategy = TestCase $ do
       reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
       
   assertEqual "branchBOnlyRelVar should appear in the merge" relationTrue rvRel
-  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) updatedBranchAContext) graph'
+  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TI.singleParent (transactionId branchATrans) testTime) updatedBranchAContext) graph'
   let eMergeGraph = runGraphRefRelationalExprM gfEnv $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
       gfEnv = freshGraphRefRelationalExprEnv Nothing graph''
   case eMergeGraph of
@@ -243,7 +253,7 @@ testUnionMergeStrategy = TestCase $ do
       conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) []
       let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName (ExistingRelation conflictRelVar) (relationVariables updatedBranchAContext) }
       conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
-      (_, graph''') <- addTransaction "branchA" (createTrans (fakeUUID 6) (TransactionInfo (transactionId conflictBranchATrans NE.:| []) testTime) conflictContextA) graph''
+      (_, graph''') <- addTransaction "branchA" (createTrans (fakeUUID 6) (TI.singleParent (transactionId conflictBranchATrans) testTime) conflictContextA) graph''
       let failingMerge = runGraphRefRelationalExprM gfEnv' $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
           gfEnv' = freshGraphRefRelationalExprEnv Nothing graph'''
       case failingMerge of
@@ -272,9 +282,9 @@ testUnionMergeIncDepViolation = TestCase $ do
 
 
    --add the rv in new commits to both branches
-  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TransactionInfo (transactionId branchBTrans NE.:| []) testTime) branchBContext) graph
+  (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchBTrans) testTime) branchBContext) graph
                   
-  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TransactionInfo (transactionId branchATrans NE.:| []) testTime) branchAContext) graph'
+  (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TI.singleParent (transactionId branchATrans) testTime) branchAContext) graph'
   
   --check that the union merge fails due to a violated constraint
   let eMerge = runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
