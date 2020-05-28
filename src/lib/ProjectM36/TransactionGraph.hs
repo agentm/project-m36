@@ -593,10 +593,10 @@ addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas t
   
 -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
 calculateMerkleHash :: Transaction -> TransactionGraph -> BS.ByteString
-calculateMerkleHash trans graph = hashlazy (mconcat ([transIds,
+calculateMerkleHash trans graph = hashlazy (mconcat [transIds,
                                                      dbcBytes,
                                                      schemasBytes,
-                                                     parentMerkleHashes]))
+                                                     parentMerkleHashes])
   where
     parentMerkleHashes = BL.fromChunks $ map getMerkleHash parentTranses
     parentTranses =

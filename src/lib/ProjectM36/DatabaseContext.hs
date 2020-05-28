@@ -5,7 +5,6 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
-import ProjectM36.DatabaseContextFunction
 import ProjectM36.Relation
 import qualified Data.ByteString.Lazy as BL
 import Data.Binary as B
@@ -49,7 +48,7 @@ hashBytes ctx = mconcat [incDeps, rvs, atomFs, dbcFs, nots, tConsMap]
   where
     incDeps = B.encode (inclusionDependencies ctx)
     rvs = B.encode (relationVariables ctx)
-    atomFs = HS.foldr (\f -> mappend (AF.hashBytes f)) mempty (atomFunctions ctx)
-    dbcFs = HS.foldr (\f -> mappend (DBCF.hashBytes f)) mempty (dbcFunctions ctx)
+    atomFs = HS.foldr (mappend . AF.hashBytes) mempty (atomFunctions ctx)
+    dbcFs = HS.foldr (mappend . DBCF.hashBytes) mempty (dbcFunctions ctx)
     nots = B.encode (notifications ctx)
     tConsMap = B.encode (typeConstructorMapping ctx)
