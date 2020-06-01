@@ -43,14 +43,16 @@ TutorialD (master/main): :rollback
 In order to navigate the transaction graph, one must specify transaction UUIDs. Viewing the entirety of the transaction graph as a relation is a single command.
 
 ```
-TutorialD (master/main): :showgraph
-┌─────────────┬──────────┬──────────────────────────────────────┬────────────────────────────┬──────────────────────────────┐
-│current::Bool│head::Text│id::Text                              │parents::relation {id::Text}│stamp::DateTime               │
-├─────────────┼──────────┼──────────────────────────────────────┼────────────────────────────┼──────────────────────────────┤
+┌─────────────┬────────────────────────────────────────────┬──────────┬──────────────────────────────────────┬────────────────────────────────────────┬─────────────────────────────────┐
+│current::Bool│hash::ByteString                            │head::Text│id::Text                              │parents::relation {id::Text}            │stamp::DateTime                  │
+├─────────────┼────────────────────────────────────────────┼──────────┼──────────────────────────────────────┼────────────────────────────────────────┼─────────────────────────────────┤
+
 
 <big result elided>
 ```
 The "current" attribute is a boolean value. If true, the transaction is the parent of the current database context. Commits will be children of this transaction.
+
+The "hash" attribute contains the merkle tree hash for the given transaction. This can be used to ensure that the transaction graph has been used in an append-only fashion, ensuring historical state and audit log integrity.
 
 The "head" attribute is a boolean value indicating whether or not the transaction is a "head" node of its graph. Head nodes are nodes which have no children.
 

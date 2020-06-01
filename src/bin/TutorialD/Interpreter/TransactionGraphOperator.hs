@@ -2,8 +2,9 @@
 module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
 import ProjectM36.TransactionGraph hiding (autoMergeToHead)
-import ProjectM36.Client
+import ProjectM36.Client as C
 import ProjectM36.Base
+import ProjectM36.Relation (relationTrue)
 import Data.Functor
 
 data ConvenienceTransactionGraphOperator = AutoMergeToHead MergeStrategy HeadName
@@ -71,6 +72,9 @@ mergeTransactionsP = do
   reservedOp ":mergetrans"
   MergeTransactions <$> mergeTransactionStrategyP <*> identifier <*> identifier
 
+validateMerkleHashesP :: Parser ROTransactionGraphOperator
+validateMerkleHashesP = reservedOp ":validatemerklehashes" $> ValidateMerkleHashes
+
 transactionGraphOpP :: Parser TransactionGraphOperator
 transactionGraphOpP = 
   jumpToHeadP
@@ -83,7 +87,7 @@ transactionGraphOpP =
   <|> mergeTransactionsP
 
 roTransactionGraphOpP :: Parser ROTransactionGraphOperator
-roTransactionGraphOpP = showGraphP
+roTransactionGraphOpP = showGraphP <|> validateMerkleHashesP
 
 
 
@@ -101,6 +105,11 @@ interpretOps newUUID trans@(DisconnectedTransaction _ context) transGraph instri
 
 evalROGraphOp :: SessionId -> Connection -> ROTransactionGraphOperator -> IO (Either RelationalError Relation)
 evalROGraphOp sessionId conn ShowGraph = transactionGraphAsRelation sessionId conn
+evalROGraphOp sessionId conn ValidateMerkleHashes = do
+  eVal <- C.validateMerkleHashes sessionId conn
+  case eVal of
+    Left err -> pure (Left err)
+    Right _ -> pure (Right relationTrue)
 
 evalConvenienceGraphOp :: SessionId -> Connection -> ConvenienceTransactionGraphOperator -> IO (Either RelationalError ())
 evalConvenienceGraphOp sessionId conn (AutoMergeToHead strat head') = autoMergeToHead sessionId conn strat head'

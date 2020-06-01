@@ -172,3 +172,7 @@ handleRetrieveTypeConstructorMapping ti sessionId conn = do
   ret <- timeoutOrDie ti (C.typeConstructorMapping sessionId conn)
   reply ret conn
  
+handleValidateMerkleHashes :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError ())
+handleValidateMerkleHashes ti sessionId conn = do
+  ret <- timeoutOrDie ti (C.validateMerkleHashes sessionId conn)
+  reply ret conn

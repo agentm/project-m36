@@ -53,6 +53,7 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),
      handleCall (\conn (ExecuteAutoMergeToHead sessionId strat headName') -> handleExecuteAutoMergeToHead ti sessionId conn strat headName'),
      handleCall (\conn (RetrieveTypeConstructorMapping sessionId) -> handleRetrieveTypeConstructorMapping ti sessionId conn),
+     handleCall (\conn (ExecuteValidateMerkleHashes sessionId) -> handleValidateMerkleHashes ti sessionId conn),
      handleCall (\conn Logout -> handleLogout ti conn)
      ] ++ testModeHandlers,
   unhandledMessagePolicy = Terminate

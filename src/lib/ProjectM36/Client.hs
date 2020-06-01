@@ -80,6 +80,7 @@ module ProjectM36.Client
        databaseContextExprForUniqueKey,
        databaseContextExprForForeignKey,
        createScriptedAtomFunction,
+       ProjectM36.Client.validateMerkleHashes,
        AttributeExprBase(..),
        TypeConstructorBase(..),
        TypeConstructorDef(..),
@@ -118,7 +119,7 @@ import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.DatabaseContext (basicDatabaseContext)
 import qualified ProjectM36.TransactionGraph as Graph
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph as TG
 import qualified ProjectM36.Transaction as Trans
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
@@ -265,6 +266,7 @@ data Connection = InProcessConnection InProcessConnectionConf |
 data ConnectionError = SetupDatabaseDirectoryError PersistenceError |
                        IOExceptionError IOException |
                        NoSuchDatabaseByNameError DatabaseName |
+                       DatabaseValidationError [MerkleValidationError] |
                        LoginError 
                        deriving (Show, Eq, Generic)
                   
@@ -379,12 +381,15 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
       case graph of
         Left err' -> return $ Left (SetupDatabaseDirectoryError err')
         Right graph' -> do
-          tvarGraph <- newTVarIO graph'
-          sessions <- StmMap.newIO
-          clientNodes <- StmSet.newIO
-          (localNode, transport) <- createLocalNode
-          lockMVar <- newMVar digest
-          let conn = InProcessConnection InProcessConnectionConf {
+          case TG.validateMerkleHashes graph' of
+            Left merkleErrs -> pure (Left (DatabaseValidationError merkleErrs))
+            Right _ -> do
+              tvarGraph <- newTVarIO graph'
+              sessions <- StmMap.newIO
+              clientNodes <- StmSet.newIO
+              (localNode, transport) <- createLocalNode
+              lockMVar <- newMVar digest
+              let conn = InProcessConnection InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
                                              ipSessions = sessions,
@@ -395,9 +400,9 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipLocks = Just (lockFileH, lockMVar)
                                              }
 
-          notificationPid <- startNotificationListener localNode notificationCallback 
-          addClientNode conn notificationPid
-          pure (Right conn)
+              notificationPid <- startNotificationListener localNode notificationCallback
+              addClientNode conn notificationPid
+              pure (Right conn)
           
 -- | Create a new session at the transaction id and return the session's Id.
 createSessionAtCommit :: Connection -> TransactionId -> IO (Either RelationalError SessionId)
@@ -1205,3 +1210,16 @@ executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
               pure (Right dFrame'')
 executeDataFrameExpr sessionId conn@(RemoteProcessConnection _) dfExpr = remoteCall conn (ExecuteDataFrameExpr sessionId dfExpr)
         
+validateMerkleHashes :: SessionId -> Connection -> IO (Either RelationalError ())
+validateMerkleHashes sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right _ -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        case Graph.validateMerkleHashes graph of
+          Left merkleErrs -> pure $ Left $ someErrors (map (\(MerkleValidationError tid expected actual) -> MerkleHashValidationError tid expected actual) merkleErrs)
+          Right () -> pure (Right ())
+validateMerkleHashes sessionId conn@RemoteProcessConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)

@@ -3,11 +3,12 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
 import ProjectM36.TransactionGraph.Persist
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph as TG
 import ProjectM36.Transaction
 import ProjectM36.DateExamples
 import System.IO.Temp
 import System.Exit
+import System.Directory
 import Data.Either
 import Data.UUID.V4 (nextRandom)
 import System.FilePath
@@ -16,10 +17,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Time.Clock
 import Data.Time.Calendar
-#ifdef PM36_HASKELL_SCRIPTING
-import ProjectM36.Client
+import ProjectM36.Client as C
 import ProjectM36.Relation
-#endif
+import ProjectM36.Transaction.Persist
 
 main :: IO ()           
 main = do 
@@ -29,7 +29,8 @@ main = do
 testList :: Test
 testList = TestList [testBootstrapDB, 
                      testDBSimplePersistence,
-                     testFunctionPersistence]
+                     testFunctionPersistence,
+                     testMerkleHashValidation]
                     
 
 stamp' :: UTCTime
@@ -74,7 +75,62 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
                   case graphErr of
                     Left err -> assertFailure (show err)
                     Right graph'' -> assertBool "graph equality" (mapEq graph'' == mapEq graph')
-      
+
+testMerkleHashValidation :: Test
+testMerkleHashValidation = TestCase $
+  -- add a commit and validate the hashes successfully
+  withSystemTempDirectory "m36testdb" $ \tempdir -> do
+  let dbdir = tempdir </> "dbdir"
+      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
+  conn <- assertIOEither $ connectProjectM36 connInfo
+  sess <- assertIOEither $ createSessionAtHead conn "master"
+  Right _ <- executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
+  Right _ <- commit sess conn
+  val <- C.validateMerkleHashes sess conn
+  assertEqual "merkle success" (Right ()) val
+
+  --read graph from disk
+  conn' <- assertIOEither $ connectProjectM36 connInfo
+  sess' <- assertIOEither $ createSessionAtHead conn' "master"
+
+  val' <- C.validateMerkleHashes sess' conn'
+  assertEqual "merkle read again success" (Right ()) val'
+
+  --alter the on-disk representation and check that the hash validation fails
+  eGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
+  case eGraph of
+    Left err -> assertFailure "failed to load graph"
+    Right graph -> do
+      let trans = transactionHeadsForGraph graph M.! "master"
+          updatedTrans = Transaction (transactionId trans) (transactionInfo trans) updatedSchemas
+          transactionDir = dbdir </> show (transactionId trans)
+          updatedSchemas =
+            case schemas trans of
+              Schemas ctx sschemas ->
+                let updatedContext = ctx {
+                      relationVariables = M.insert "malicious" (ExistingRelation relationFalse) (relationVariables ctx)
+                      } in
+                Schemas updatedContext sschemas
+          maliciousGraph = TransactionGraph malHeads malTransSet
+          malHeads = M.insert "master" updatedTrans (transactionHeadsForGraph graph)
+          malTransSet = S.insert updatedTrans (transactionsForGraph graph)
+          malMerkleHash = calculateMerkleHash updatedTrans maliciousGraph
+          regMerkleHash = merkleHash (transactionInfo trans)
+      --validate and fail
+      let val'' = TG.validateMerkleHashes maliciousGraph
+      assertEqual "loaded graph merkle hashes" (Left [MerkleValidationError (transactionId trans) regMerkleHash malMerkleHash]) val''
+      --delete existing transaction directory
+      removeDirectoryRecursive transactionDir
+      writeTransaction NoDiskSync dbdir updatedTrans
+
+      --read graph from disk
+      eConnFail <- connectProjectM36 connInfo
+      case eConnFail of
+        Left err -> 
+          assertEqual "open connection merkle validation" (DatabaseValidationError [MerkleValidationError (transactionId trans) regMerkleHash malMerkleHash]) err
+        Right _ -> assertFailure "open connection validation" 
+
+
 
 --only Haskell-scripted dbc and atom functions can be serialized                   
 testFunctionPersistence :: Test
@@ -103,10 +159,11 @@ testFunctionPersistence = TestCase $
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
 
+#endif  
+
 assertIOEither :: (Show a) => IO (Either a b) -> IO b
 assertIOEither x = do
   ret <- x
   case ret of
     Left err -> assertFailure (show err) >> undefined
     Right val -> pure val
-#endif  

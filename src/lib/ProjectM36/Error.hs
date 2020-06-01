@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import ProjectM36.MerkleHash
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import qualified Data.Set as S
@@ -101,6 +102,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
 
                      | NoUncommittedContextInEvalError
                      | TupleExprsReferenceMultipleMarkersError
+
+                     | MerkleHashValidationError TransactionId MerkleHash MerkleHash
                        
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable, NFData) 

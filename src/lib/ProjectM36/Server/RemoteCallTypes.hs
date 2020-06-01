@@ -69,3 +69,6 @@ data ExecuteAutoMergeToHead = ExecuteAutoMergeToHead SessionId MergeStrategy Hea
                               deriving (Binary, Generic)
 data RetrieveTypeConstructorMapping = RetrieveTypeConstructorMapping SessionId 
                                       deriving (Binary, Generic)
+
+data ExecuteValidateMerkleHashes = ExecuteValidateMerkleHashes SessionId
+                          deriving (Binary, Generic)

@@ -4,6 +4,7 @@
 module ProjectM36.Base where
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
+import ProjectM36.MerkleHash
 
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -414,7 +415,7 @@ transactionsForGraph (TransactionGraph _ ts) = ts
 data TransactionInfo = TransactionInfo {
   parents :: TransactionParents,
   stamp :: UTCTime,
-  merkleHash :: ByteString
+  merkleHash :: MerkleHash
   } deriving (Show, Generic)
 
 type TransactionParents = NE.NonEmpty TransactionId

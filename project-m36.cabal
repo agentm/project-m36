@@ -79,6 +79,7 @@ Library
                      ProjectM36.Relation.Parse.CSV,
                      ProjectM36.IsomorphicSchema,
                      ProjectM36.InclusionDependency,
+                     ProjectM36.MerkleHash,
                      ProjectM36.Client,
                      ProjectM36.Client.Simple,
                      ProjectM36.Persist,

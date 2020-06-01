@@ -9,6 +9,7 @@ import ProjectM36.TupleSet
 import ProjectM36.Tuple
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
+import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
 
@@ -30,7 +31,6 @@ import Data.Monoid
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import ProjectM36.DatabaseContext as DBC
 import Crypto.Hash.SHA256
@@ -62,7 +62,7 @@ isCommit :: TransactionGraphOperator -> Bool
 isCommit Commit = True
 isCommit _ = False
                                        
-data ROTransactionGraphOperator = ShowGraph
+data ROTransactionGraphOperator = ShowGraph | ValidateMerkleHashes
                                   deriving Show
 
 bootstrapTransactionGraph :: UTCTime -> TransactionId -> DatabaseContext -> TransactionGraph
@@ -313,7 +313,7 @@ graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _
     tupleGenerator transaction = case transactionParentsRelation transaction graph of
       Left err -> Left err
       Right parentTransRel -> Right [TextAtom $ T.pack $ show (transactionId transaction),
-                                     ByteStringAtom $ merkleHash (transactionInfo transaction),
+                                     ByteStringAtom $ _unMerkleHash (merkleHash (transactionInfo transaction)),
                                      DateTimeAtom (timestamp transaction),
                                      RelationAtom parentTransRel,
                                      BoolAtom $ parentId == transactionId transaction,
@@ -592,13 +592,13 @@ addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas t
     newInfo = (transactionInfo trans) { merkleHash = calculateMerkleHash trans graph }
   
 -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
-calculateMerkleHash :: Transaction -> TransactionGraph -> BS.ByteString
-calculateMerkleHash trans graph = hashlazy (mconcat [transIds,
+calculateMerkleHash :: Transaction -> TransactionGraph -> MerkleHash
+calculateMerkleHash trans graph = MerkleHash $ hashlazy (mconcat [transIds,
                                                      dbcBytes,
                                                      schemasBytes,
                                                      parentMerkleHashes])
   where
-    parentMerkleHashes = BL.fromChunks $ map getMerkleHash parentTranses
+    parentMerkleHashes = BL.fromChunks $ map (_unMerkleHash . getMerkleHash) parentTranses
     parentTranses =
       case transactionsForIds (parentIds trans) graph of
         Left RootTransactionTraversalError -> []
@@ -609,3 +609,25 @@ calculateMerkleHash trans graph = hashlazy (mconcat [transIds,
     dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
     schemasBytes = B.encode (subschemas trans)
 
+validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()
+validateMerkleHash trans graph = 
+  if expectedHash /= actualHash  then
+    Left (MerkleValidationError (transactionId trans) expectedHash actualHash)
+  else
+    pure ()
+  where
+    expectedHash = merkleHash (transactionInfo trans)
+    actualHash = calculateMerkleHash trans graph
+
+data MerkleValidationError = MerkleValidationError TransactionId MerkleHash MerkleHash
+  deriving (Show, Eq, Generic)
+
+validateMerkleHashes :: TransactionGraph -> Either [MerkleValidationError] ()
+validateMerkleHashes graph =
+  if null errs then pure () else Left errs
+  where
+    errs = S.foldr validateTrans [] (transactionsForGraph graph)    
+    validateTrans trans acc =
+      case validateMerkleHash trans graph of
+        Left err -> err : acc
+        _ -> acc

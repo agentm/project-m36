@@ -10,6 +10,7 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.MerkleHash
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
@@ -131,6 +132,15 @@ instance FromJSON Notification
 
 instance ToJSON ScriptCompilationError
 instance FromJSON ScriptCompilationError
+
+instance ToJSON MerkleHash where
+  toJSON h = object [ "merklehash" .= decodeUtf8 (B64.encode (_unMerkleHash h))]
+instance FromJSON MerkleHash where
+  parseJSON = withObject "merklehash" $ \o -> do
+    b64bs <- encodeUtf8 <$> o .: "merklehash"
+    case B64.decode b64bs of
+      Left err -> fail ("Failed to parse merkle hash: " ++ err)
+      Right bs -> pure (MerkleHash bs)
 
 instance ToJSON RelationalError
 instance FromJSON RelationalError
