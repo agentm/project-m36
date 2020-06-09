@@ -96,6 +96,12 @@ Typical databases materialize entire tuple sets representing each named relation
 
 Queries on very large relations often very often restricted (filtered by tuple) to generate subsets which are often partitioned, for example, by an event's date. Instead of requiring DBMS users to manually partition and slice their data in one, fixed, particular way, Project:M36's cacheing system will only cache those tuples that serve the interests of the queries. With something like an LRU cache, a data independent architecture will naturally cache "partitions" of the full relation without manual intervention.
 
+### Elimination of DBA role
+
+Databases essential to a business function are often guarded by a human database administrator (DBA) whose role it is to monitor database performance and to play gatekeeper to database schema changes as the database grows. This role is necessary because database tuning can be an arcane skill, rife with pitfalls for those who don't know the database software inside-and-out. This is a direct cause of data dependence, forcing DBAs to manually enforce data partitioning and shuffling data to different servers, configuring database replicas, and making Faustian bargains to "denormalize" tables for analytical workloads.
+
+A data independent architecture eliminates this role by allowing the database to make the optimal choices itself. This means that the database can respond to schema changes immediately, without manual repartitioning or denormalization steps. 
+
 ## Conclusion
 
 Project:M36's backend architecture enables new optimizations and features that are sorely lacking in existing DBMSes. By leveraging its novel transaction graph and deferred evaluation, Project:M36 handles more DBMS use-cases.
