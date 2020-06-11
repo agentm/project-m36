@@ -31,25 +31,4 @@ if type nix-build >/dev/null 2>&1; then
     [[ -f $HOME/.bashrc ]] && sed -i.nix.uninstall.bak '/.nix-profile/d' $HOME/.bashrc
 fi
 
-if type nodejs >/dev/null 2>&1 || type node >/dev/null 2>&1; then
-    info "nodejs found, trying to uninstall it"
-    case ${THE_DISTRIBUTION_ID} in
-        debian|ubuntu)
-            sudo apt-get purge -y nodejs
-            ;;
-        Darwin)
-            if type brew > /dev/null 2>&1; then
-                brew uninstall node@10
-                brew unlink node@10
-            else
-                info "Use your macOS finder to uninstall the nodejs package."
-            fi
-            ;;
-        rhel|centos)
-            sudo yum erase -y nodejs
-            ;;
-        *) ;;
-    esac
-fi
-
 done_banner "Top level" "build unprepare"
