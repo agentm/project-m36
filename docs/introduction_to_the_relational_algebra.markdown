@@ -378,7 +378,7 @@ Since a value can store any (immutable) type, it can certainly hold a relation. 
 
 For example, in SQL, if one wants to collect some aggregate data over some tuples while still returning the individual tuples, in the best case, the aggregate information must be repeated for every individual tuple. In the worst case, two separate queries are required since nested tables are not supported.
 
-In the relational algebra, The aggregate value can be placed alongside the relation value from whic the aggregate was derived.
+In the relational algebra, The aggregate value can be placed alongside the relation value from which the aggregate was derived.
 
 Example:
 
