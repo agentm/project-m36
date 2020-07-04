@@ -411,11 +411,12 @@ Executable Example-CustomTupleable
     Main-Is: examples/CustomTupleable.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-DerivingCustomTupleable
-    Default-Language: Haskell2010
-    Build-Depends: base, text, deepseq, binary, project-m36
-    Main-Is: examples/DerivingCustomTupleable.hs
-    GHC-Options: -Wall -threaded
+-- requires ghc >= 8.6.1
+-- Executable Example-DerivingCustomTupleable
+    -- Default-Language: Haskell2010
+    -- Build-Depends: base, text, deepseq, binary, project-m36
+    -- Main-Is: examples/DerivingCustomTupleable.hs
+    -- GHC-Options: -Wall -threaded
 
 Test-Suite test-scripts
     Default-Language: Haskell2010
