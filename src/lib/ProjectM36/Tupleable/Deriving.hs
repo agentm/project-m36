@@ -56,6 +56,7 @@ module ProjectM36.Tupleable.Deriving
 import           Data.Proxy
 import qualified Data.Text            as T
 import           Data.Text.Manipulate
+import           Data.Maybe
 import           GHC.TypeLits
 import           GHC.Generics         (Generic, Rep)
 import           ProjectM36.Tupleable
@@ -128,7 +129,7 @@ instance KnownSymbol prefix => ModifyText (AddPrefix prefix) where
 data DropPrefix (prefix :: Symbol)
 
 instance KnownSymbol prefix => ModifyText (DropPrefix prefix) where
-  modifyText _ oldText = maybe oldText id (T.stripPrefix prefixText oldText)
+  modifyText _ oldText = fromMaybe oldText (T.stripPrefix prefixText oldText)
     where
       prefixText = T.pack (symbolVal (Proxy :: Proxy prefix))
 
@@ -144,7 +145,7 @@ instance KnownSymbol suffix => ModifyText (AddSuffix suffix) where
 data DropSuffix (suffix :: Symbol)
 
 instance KnownSymbol suffix => ModifyText (DropSuffix suffix) where
-  modifyText _ oldText = maybe oldText id (T.stripSuffix suffixText oldText)
+  modifyText _ oldText = fromMaybe oldText (T.stripSuffix suffixText oldText)
     where
       suffixText = T.pack (symbolVal (Proxy :: Proxy suffix))
 

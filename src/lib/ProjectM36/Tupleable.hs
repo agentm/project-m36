@@ -178,7 +178,7 @@ class Tupleable a where
   toAttributes = genericToAttributes defaultTupleableOptions
 
 -- | Options that influence deriving behavior.
-data TupleableOptions = TupleableOptions {
+newtype TupleableOptions = TupleableOptions {
   -- | A function that translates record field names into attribute names.
   fieldModifier :: T.Text -> T.Text
   }
