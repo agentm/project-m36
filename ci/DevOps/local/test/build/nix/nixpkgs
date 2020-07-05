@@ -1,0 +1,10 @@
+# nixpkgs-19.09 at 2020-04-05T15:13:59Z
+{
+  # Descriptive name to make the store path easier to identify
+  name = "nixos-19.09-2020-04-05";
+  url = "https://github.com/nixos/nixpkgs-channels/";
+  # Commit hash for nixos-19.09 as of 2020-04-05
+  # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
+  ref = "refs/heads/nixos-19.09";
+  rev = "f6c1d3b113ce9e7c908991df2e8eed02f03df1bc";
+}

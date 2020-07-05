@@ -1,0 +1,21 @@
+# docker-compose.yml
+
+version: '2'
+services:
+  project-m36:
+    image: DOCKER_HUB_IMAGE_TAG
+    ports:
+      - "54321:54321"
+    # links:
+    #   - depend_service:depend_service
+    user: project-m36
+    environment:
+      DATABASE: mytestdb
+      DATABASE_DIRECTORY: /var/project-m36/data
+    command: project-m36-server --database $DATABASE --database-directory $DATABASE_DIRECTORY
+    volumes:
+      - "project-m36_config_path:/var/project-m36/config"
+      - "project-m36_data_path:/var/project-m36/data"
+    # depends_on:
+    #   - depend_service
+    restart: unless-stopped
