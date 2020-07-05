@@ -56,6 +56,7 @@ import           Data.Maybe           (fromMaybe)
 import           Data.Proxy
 import qualified Data.Text            as T
 import           Data.Text.Manipulate
+import           Data.Maybe
 import           GHC.TypeLits
 import           GHC.Generics         (Generic, Rep)
 import           ProjectM36.Tupleable
