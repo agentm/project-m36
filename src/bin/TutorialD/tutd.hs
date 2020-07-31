@@ -5,8 +5,11 @@ import ProjectM36.Client
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import System.IO
+import GHC.IO.Encoding
 import Options.Applicative
 import System.Exit
+import System.Environment
+import Control.Monad
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -86,8 +89,15 @@ printWelcome = do
   putStrLn "A full tutorial is available at:"
   putStrLn "https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown"
 
+-- | If the locale is set to ASCII, upgrade it to UTF-8 because tutd outputs UTF-8-encoded attributes. This is especially important in light docker images where the locale data may be missing.
+setLocaleIfNecessary :: IO ()
+setLocaleIfNecessary = do
+  l <- getLocaleEncoding
+  when (textEncodingName l == "ASCII") (setLocaleEncoding utf8)
+    
 main :: IO ()
 main = do
+  setLocaleIfNecessary
   interpreterConfig <- execParser opts
   let connInfo = connectionInfoForConfig interpreterConfig
   fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))
