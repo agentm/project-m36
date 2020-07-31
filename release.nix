@@ -89,7 +89,7 @@ let
 	     sha256 = "085j4yjr8wimxampxqdrg47p577whwg2mjxgfdl44yfck52fb6an";
           }{};
       
-      project-m36 = self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { };
+      project-m36 = dontCheck (self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { });
 
     };
   };
@@ -103,9 +103,10 @@ in
     packages = p: with p; [
       project
     ];
-    buildInputs = with haskellPackages; [
-      ghcid
-      hlint       # or ormolu
+    buildInputs = [
+      haskellPackages.ghcid
+      haskellPackages.hlint
+      pkgs.docker
     ];
     withHoogle = true;
   };
