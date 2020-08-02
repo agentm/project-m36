@@ -15,4 +15,4 @@ jobs:
         name: project-m36
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
     - run: cachix use iohk
-    - run: nix-build -A project-m36.components.all
+    - run: nix-build docker.nix
