@@ -8,7 +8,6 @@ import System.IO
 import GHC.IO.Encoding
 import Options.Applicative
 import System.Exit
-import System.Environment
 import Control.Monad
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid

@@ -5,6 +5,7 @@ let
 in
  pkgs.dockerTools.buildImage {
    name = "project-m36";
+   tag = "latest";
    contents = [static-project-m36];
    config = { Env = ["LC_ALL=en_US.UTF-8"]; };
  }
