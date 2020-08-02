@@ -17,5 +17,5 @@ jobs:
     - run: cachix use iohk
     - run: docker load < $(nix-build docker.nix)
     - run: echo ${{secrets.DOCKERHUB_PASSWORD}} | docker login --username ${{secrets.DOCKERHUB_USER}} --password-stdin
-    - run: docker tag project-m36:latest projectm36/project-m36
+    - run: docker tag project-m36:latest projectm36/project-m36:$(awk '/^Version:/ {print $2}' project-m36.cabal)
     - run: docker push projectm36/project-m36
