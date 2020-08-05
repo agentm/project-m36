@@ -7,5 +7,7 @@ in
    name = "project-m36";
    tag = "latest";
    contents = [static-project-m36];
-   config = { Env = ["LC_ALL=en_US.UTF-8"]; };
+   #expose default project-m36 and websocket server ports
+   config = { Env = ["LC_ALL=en_US.UTF-8"];
+   	      ExposedPorts = { "6543/tcp" = {}; "8000/tcp" = {}; }; };
  }
