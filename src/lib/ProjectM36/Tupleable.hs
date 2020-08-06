@@ -6,7 +6,26 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE CPP #-}
 
-module ProjectM36.Tupleable where
+module ProjectM36.Tupleable
+  ( toInsertExpr
+  , toDefineExpr
+  , tupleAssocsEqualityPredicate
+  , partitionByAttributes
+  , toUpdateExpr
+  , toDeleteExpr
+  , validateAttributes
+  , Tupleable(..)
+
+    -- * Generics
+  , genericToTuple
+  , genericFromTuple
+  , genericToAttributes
+  , TupleableG(..)
+    -- ** Options
+  , defaultTupleableOptions
+  , TupleableOptions()
+  , fieldModifier
+  ) where
 
 import           Data.Foldable
 import           Data.List                      (partition)
@@ -121,56 +140,109 @@ validateAttributes actualAttrs expectedAttrs val
   where
       nonMatchingAttrs = attributeNamesNotContained actualAttrs expectedAttrs
 
-
+-- | Types that can be converted to and from 'RelationTuple'.
+--
+-- deriving without customization:
+--
+-- > data Example = Example
+-- >     { foo :: Integer
+-- >     , bar :: Text
+-- >     }
+-- >     deriving (Generic)
+-- >
+-- > instance Tupleable Example
+--
+-- deriving with customization using "ProjectM36.Tupleable.Deriving":
+--
+-- > data Example = Example
+-- >     { exampleFoo :: Integer
+-- >     , exampleBar :: Text
+-- >     }
+-- >     deriving stock (Generic)
+-- >     deriving (Tupleable)
+-- >         via Codec (Field (DropPrefix "example" >>> CamelCase)) Example
 class Tupleable a where
   toTuple :: a -> RelationTuple
 
   fromTuple :: RelationTuple -> Either RelationalError a
 
-  toAttributes :: proxy a -> Attributes
+  toAttributes :: Proxy a -> Attributes
 
   default toTuple :: (Generic a, TupleableG (Rep a)) => a -> RelationTuple
-  toTuple v = toTupleG (from v)
+  toTuple = genericToTuple defaultTupleableOptions
 
   default fromTuple :: (Generic a, TupleableG (Rep a)) => RelationTuple -> Either RelationalError a
-  fromTuple tup = to <$> fromTupleG tup
+  fromTuple = genericFromTuple defaultTupleableOptions
 
-  default toAttributes :: (Generic a, TupleableG (Rep a)) => proxy a -> Attributes
-  toAttributes _ = toAttributesG (from (undefined :: a))
+  default toAttributes :: (Generic a, TupleableG (Rep a)) => Proxy a -> Attributes
+  toAttributes = genericToAttributes defaultTupleableOptions
+
+-- | Options that influence deriving behavior.
+newtype TupleableOptions = TupleableOptions {
+  -- | A function that translates record field names into attribute names.
+  fieldModifier :: T.Text -> T.Text
+  }
+
+-- | The default options for deriving Tupleable instances.
+--
+-- These options can be customized by using record update syntax. For example,
+--
+-- > defaultTupleableOptions
+-- >     { fieldModifier = \fieldName ->
+-- >         case Data.Text.stripPrefix "example" fieldName of
+-- >             Nothing -> fieldName
+-- >             Just attributeName -> attributeName
+-- >     }
+--
+-- will result in record field names being translated into attribute names by
+-- removing the prefix "example" from the field names.
+defaultTupleableOptions :: TupleableOptions
+defaultTupleableOptions = TupleableOptions {
+  fieldModifier = id
+  }
+
+genericToTuple :: (Generic a, TupleableG (Rep a)) => TupleableOptions -> a -> RelationTuple
+genericToTuple opts v = toTupleG opts (from v)
+
+genericFromTuple :: (Generic a, TupleableG (Rep a)) => TupleableOptions -> RelationTuple -> Either RelationalError a
+genericFromTuple opts tup = to <$> fromTupleG opts tup
+
+genericToAttributes :: forall a. (Generic a, TupleableG (Rep a)) => TupleableOptions -> Proxy a -> Attributes
+genericToAttributes opts _ = toAttributesG opts (from (undefined :: a))
 
 class TupleableG g where
-  toTupleG :: g a -> RelationTuple
-  toAttributesG :: g a -> Attributes
-  fromTupleG :: RelationTuple -> Either RelationalError (g a)
+  toTupleG :: TupleableOptions -> g a -> RelationTuple
+  toAttributesG :: TupleableOptions -> g a -> Attributes
+  fromTupleG :: TupleableOptions -> RelationTuple -> Either RelationalError (g a)
   isRecordTypeG :: g a -> Bool
 
 --data type metadata
 instance (Datatype c, TupleableG a) => TupleableG (M1 D c a) where
-  toTupleG (M1 v) = toTupleG v
-  toAttributesG (M1 v) = toAttributesG v
-  fromTupleG v = M1 <$> fromTupleG v
+  toTupleG opts (M1 v) = toTupleG opts v
+  toAttributesG opts (M1 v) = toAttributesG opts v
+  fromTupleG opts v = M1 <$> fromTupleG opts v
   isRecordTypeG (M1 v) = isRecordTypeG v
 
 --constructor metadata
 instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) where
-  toTupleG (M1 v) = RelationTuple attrs atoms
+  toTupleG opts (M1 v) = RelationTuple attrs atoms
     where
-      attrsToCheck = toAttributesG v
+      attrsToCheck = toAttributesG opts v
       counter = V.generate (V.length attrsToCheck) id
       attrs = V.zipWith (\num attr@(Attribute name typ) -> if T.null name then
                                                              Attribute ("attr" <> T.pack (show (num + 1))) typ
                                                            else
                                                              attr) counter attrsToCheck
       atoms = V.fromList (toAtomsG v)
-  toAttributesG (M1 v) = toAttributesG v
-  fromTupleG tup = M1 <$> fromTupleG tup
+  toAttributesG opts (M1 v) = toAttributesG opts v
+  fromTupleG opts tup = M1 <$> fromTupleG opts tup
   isRecordTypeG (M1 v) = isRecordTypeG v
 
 -- product types
 instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
   toTupleG = error "toTupleG"
-  toAttributesG ~(x :*: y) = toAttributesG x V.++ toAttributesG y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
-  fromTupleG tup = (:*:) <$> fromTupleG tup <*> fromTupleG processedTuple
+  toAttributesG opts ~(x :*: y) = toAttributesG opts x V.++ toAttributesG opts y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
+  fromTupleG opts tup = (:*:) <$> fromTupleG opts tup <*> fromTupleG opts processedTuple
     where
       processedTuple = if isRecordTypeG (undefined :: a x) then
                          tup
@@ -181,18 +253,22 @@ instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
 --selector/record
 instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
   toTupleG = error "toTupleG"
-  toAttributesG m@(M1 v) = V.singleton (Attribute name aType)
+  toAttributesG opts m@(M1 v) = V.singleton (Attribute modifiedName aType)
    where
      name = T.pack (selName m)
+     modifiedName = if T.null name then
+                      name
+                    else
+                      fieldModifier opts name
      aType = toAtomTypeG v
-  fromTupleG tup = if null name then -- non-record type, just pull off the first tuple item
+  fromTupleG opts tup = if null name then -- non-record type, just pull off the first tuple item
                      M1 <$> atomv (V.head (tupleAtoms tup))
                    else do
-                     atom <- atomForAttributeName (T.pack name) tup
+                     atom <- atomForAttributeName (fieldModifier opts (T.pack name)) tup
                      val <- atomv atom
                      pure (M1 val)
    where
-     expectedAtomType = atomType (V.head (toAttributesG (undefined :: M1 S c a x)))
+     expectedAtomType = atomType (V.head (toAttributesG opts (undefined :: M1 S c a x)))
      atomv atom = maybe (Left (AtomTypeMismatchError
                                expectedAtomType
                                (atomTypeForAtom atom)
@@ -203,8 +279,8 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
 --constructors with no arguments
 --basically useless but orthoganal to relationTrue
 instance TupleableG U1 where
-  toTupleG _= emptyTuple
-  toAttributesG _ = emptyAttributes
-  fromTupleG _ = pure U1
+  toTupleG _ _ = emptyTuple
+  toAttributesG _ _ = emptyAttributes
+  fromTupleG _ _ = pure U1
   isRecordTypeG _ = False
 

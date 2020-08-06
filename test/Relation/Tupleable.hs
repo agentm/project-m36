@@ -1,6 +1,16 @@
-{-# LANGUAGE DeriveGeneric, FlexibleInstances, FlexibleContexts, DeriveAnyClass #-}
+{-# LANGUAGE
+    DeriveGeneric
+  , FlexibleInstances
+  , FlexibleContexts
+  , DeriveAnyClass
+  , ScopedTypeVariables
+  , TypeApplications
+  , DataKinds
+  , TypeOperators
+  , AllowAmbiguousTypes
+  #-}
 import Test.HUnit
-import ProjectM36.Tupleable
+import ProjectM36.Tupleable.Deriving
 import ProjectM36.Atomable
 import ProjectM36.Attribute
 import ProjectM36.Error
@@ -58,6 +68,13 @@ data Test9T = Test9C
                 attr9C :: Double
               }
             deriving (Generic, Show, Eq)
+
+data Test10T = Test10C {
+  longAttrNameA10 :: Integer,
+  long_attr_name_b10 :: Integer,
+  longMixed_attr_NameC10 :: Integer
+  }
+  deriving (Generic, Show, Eq)
            
 instance Tupleable Test1T
 
@@ -83,7 +100,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr, testReorderedTuple]
+testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr, testReorderedTuple, testAddPrefixField, testDropPrefixField, testAddSuffixField, testDropSuffixField, testUpperCaseField, testLowerCaseField, testTitleCaseField, testCamelCaseField, testPascalCaseField, testSnakeCaseField, testSpinalCaseField, testTrainCaseField, testAsIsCodec, testAsIsField, testComposeRLCodec, testComposeRLField, testComposeLRCodec, testComposeLRField]
 
 testADT1 :: Test
 testADT1 = TestCase $ assertEqual "one record constructor" (Right example) (fromTuple (toTuple example))
@@ -200,3 +217,153 @@ testReorderedTuple = TestCase $ do
                          attrC = 4}
       actual = fromTuple . tupleRev . toTuple $ expected
   assertEqual "reordered tuple" (Right expected) actual
+
+testCodec :: forall tag. ModifyOptions tag => String -> [AttributeName] -> Test
+testCodec msg expected = TestCase $
+    assertEqual msg (S.fromList expected) actual
+  where
+    actual = attributeNameSet $ toAttributes (Proxy :: Proxy (Codec tag Test10T))
+
+testAddPrefixField :: Test
+testAddPrefixField = testCodec
+  @(Field (AddPrefix "prefix_"))
+  "codec field add prefix attributes"
+  ["prefix_longAttrNameA10",
+   "prefix_long_attr_name_b10",
+   "prefix_longMixed_attr_NameC10"]
+
+testDropPrefixField :: Test
+testDropPrefixField = testCodec
+  @(Field (DropPrefix "long"))
+  "codec field drop prefix"
+  ["AttrNameA10",
+   "_attr_name_b10",
+   "Mixed_attr_NameC10"]
+
+testAddSuffixField :: Test
+testAddSuffixField = testCodec
+  @(Field (AddSuffix "_suffix"))
+  "codec field add suffix"
+  ["longAttrNameA10_suffix",
+   "long_attr_name_b10_suffix",
+   "longMixed_attr_NameC10_suffix"]
+
+testDropSuffixField :: Test
+testDropSuffixField = testCodec
+  @(Field (DropSuffix "10"))
+  "codec field drop suffix"
+  ["longAttrNameA",
+   "long_attr_name_b",
+   "longMixed_attr_NameC"]
+
+testUpperCaseField :: Test
+testUpperCaseField = testCodec
+  @(Field UpperCase)
+  "codec field uppercase"
+  ["LONGATTRNAMEA10",
+   "LONG_ATTR_NAME_B10",
+   "LONGMIXED_ATTR_NAMEC10"]
+
+testLowerCaseField :: Test
+testLowerCaseField = testCodec
+  @(Field LowerCase)
+  "codec field lowercase"
+  ["longattrnamea10",
+   "long_attr_name_b10",
+   "longmixed_attr_namec10"]
+
+testTitleCaseField :: Test
+testTitleCaseField = testCodec
+  @(Field TitleCase)
+  "codec field title case"
+  ["Long Attr Name A10",
+   "Long Attr Name B10",
+   "Long Mixed Attr Name C10"]
+
+testCamelCaseField :: Test
+testCamelCaseField = testCodec
+  @(Field CamelCase)
+  "codec field camel case"
+  ["longAttrNameA10",
+   "longAttrNameB10",
+   "longMixedAttrNameC10"]
+
+testPascalCaseField :: Test
+testPascalCaseField = testCodec
+  @(Field PascalCase)
+  "codec field pascal case"
+  ["LongAttrNameA10",
+   "LongAttrNameB10",
+   "LongMixedAttrNameC10"]
+
+testSnakeCaseField :: Test
+testSnakeCaseField = testCodec
+  @(Field SnakeCase)
+  "codec field snake case"
+  ["long_attr_name_a10",
+   "long_attr_name_b10",
+   "long_mixed_attr_name_c10"]
+
+testSpinalCaseField :: Test
+testSpinalCaseField = testCodec
+  @(Field SpinalCase)
+  "codec field spinal case"
+  ["long-attr-name-a10",
+   "long-attr-name-b10",
+   "long-mixed-attr-name-c10"]
+
+testTrainCaseField :: Test
+testTrainCaseField = testCodec
+  @(Field TrainCase)
+  "codec field train case"
+  ["Long-Attr-Name-A10",
+   "Long-Attr-Name-B10",
+   "Long-Mixed-Attr-Name-C10"]
+
+testAsIsCodec :: Test
+testAsIsCodec = testCodec
+  @AsIs
+  "codec as is"
+  ["longAttrNameA10",
+   "long_attr_name_b10",
+   "longMixed_attr_NameC10"]
+
+testAsIsField :: Test
+testAsIsField = testCodec
+  @(Field AsIs)
+  "codec field as is"
+  ["longAttrNameA10",
+   "long_attr_name_b10",
+   "longMixed_attr_NameC10"]
+
+testComposeRLCodec :: Test
+testComposeRLCodec = testCodec
+  @(Field UpperCase <<< Field (DropPrefix "long"))
+  "codec (<<<)"
+  ["ATTRNAMEA10",
+   "_ATTR_NAME_B10",
+   "MIXED_ATTR_NAMEC10"]
+
+testComposeRLField :: Test
+testComposeRLField = testCodec
+  @(Field (UpperCase <<< DropPrefix "long"))
+  "codec field (<<<)"
+  ["ATTRNAMEA10",
+   "_ATTR_NAME_B10",
+   "MIXED_ATTR_NAMEC10"]
+
+testComposeLRCodec :: Test
+testComposeLRCodec = testCodec
+  @(Field (DropPrefix "long") >>> Field UpperCase)
+  "codec (>>>)"
+  ["ATTRNAMEA10",
+   "_ATTR_NAME_B10",
+   "MIXED_ATTR_NAMEC10"]
+
+testComposeLRField :: Test
+testComposeLRField = testCodec
+  @(Field (DropPrefix "long" >>> UpperCase))
+  "codec field (>>>)"
+  ["ATTRNAMEA10",
+   "_ATTR_NAME_B10",
+   "MIXED_ATTR_NAMEC10"]
