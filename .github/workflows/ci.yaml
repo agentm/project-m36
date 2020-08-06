@@ -21,6 +21,7 @@ jobs:
       run: echo ${{secrets.DOCKERHUB_PASSWORD}} | docker login --username ${{secrets.DOCKERHUB_USER}} --password-stdin
     - name: docker tag with version
       run: docker tag project-m36:latest projectm36/project-m36:$(awk '/^Version:/ {print $2}' project-m36.cabal)
+      if: ${{ github.ref == 'master' }}
     - name: docker tag latest
       run: docker tag project-m36:latest projectm36/project-m36:latest
       if: ${{ github.ref == 'master' }}
