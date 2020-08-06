@@ -24,6 +24,6 @@ jobs:
       if: ${{ github.ref == 'refs/heads/master' }}
     - name: docker tag latest
       run: docker tag project-m36:latest projectm36/project-m36:latest
-      if: ${{ github.ref == 'ref/heads/master' }}
+      if: ${{ github.ref == 'refs/heads/master' }}
     - run: docker push projectm36/project-m36
       if: ${{ github.ref == 'refs/heads/master' }}
