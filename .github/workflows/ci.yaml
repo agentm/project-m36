@@ -15,7 +15,8 @@ jobs:
         name: project-m36
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
     - run: cachix use iohk
-    - run: docker load < $(nix-build docker.nix)
+    - name: docker load
+      run: docker load < $(nix-build docker.nix)
     - name: docker login
       run: echo ${{secrets.DOCKERHUB_PASSWORD}} | docker login --username ${{secrets.DOCKERHUB_USER}} --password-stdin
     - name: docker tag with version
