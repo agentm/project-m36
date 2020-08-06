@@ -6,6 +6,7 @@
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
 [![Build status](https://travis-ci.org/agentm/project-m36.svg?branch=master)](https://travis-ci.org/agentm/project-m36)
 [![Windows Build status](https://ci.appveyor.com/api/projects/status/q7jyddd6dy1ibqdo/branch/master?svg=true)](https://ci.appveyor.com/project/agentm/project-m36)
+[![Github Workflow status](https://github.com/agentm/project-m36/workflows/CI/badge.svg)](https://github.com/agentm/project-m36/actions?query=workflow%3ACI)
 
 
 *Software can always be made faster, but rarely can it be made more correct.*
