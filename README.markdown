@@ -34,6 +34,12 @@ Project:M36 supports multiple frontends which target different audiences.
 * store and manipulate databases
 * use Project:M36 as a native Haskell database backend
 
+## Download
+
+Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
+
+Run `docker run projectm36/project-m36 tutd` to start the TutorialD command line interface.
+
 ## Community
 
 * [Developer's Blog](https://agentm.github.io/project-m36/)

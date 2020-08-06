@@ -15,16 +15,35 @@ The relational algebra is the mathematical model underpinning Project:M36. When 
 
 ## Binary Releases
 
-### Windows
-Project:M36 now provides binary installations for Windows. Check the (releases page)[https://github.com/agentm/project-m36/releases] for downloads.
+The quickest and preferred method of installation is via docker, which works on Linux, macOS, and Windows. Docker downloads and runs preconfigured software in secure, sandboxed containers, preventing third-party software from altering the host system without your permission.
 
-### MacOS X
+### Install Docker:
 
-Binary releases are not yet available for MacOS X, but compiling from source is easy.
+* [Windows 10 Docker Installation](https://docs.docker.com/docker-for-windows/wsl/)
+* [MacOS Docker Installation](https://docs.docker.com/docker-for-mac/install/)
+* [Linux Docker Installation](https://docs.docker.com/engine/install/#server)
 
-### Linux
+### Run TutorialD from Docker Image
 
-The currently-preferred method of installation is from source. A future enhancement would be installation from deb or rpm.
+This downloads the docker image tagged "latest" and runs `tutd`, the TutorialD command line interface. Try the [15-Minute TutorialD Tutorial](15_minute_tutorial.markdown) and try some expressions.
+
+```bash
+docker run -it projectm36/project-m36 tutd
+```
+
+### Run Project:M36 Server
+
+The default port for the project-m36 server is 6543.
+
+```bash
+docker run --network host projectm36/project-m36 project-m36-server -n <database_name>
+```
+
+### Connect to Project:M36 Server
+
+```bash
+docker run --network host projectm36/project-m36
+```
 
 ## Source Installation
 
