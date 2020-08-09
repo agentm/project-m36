@@ -741,6 +741,7 @@ evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in putDBCIOContext newContext
+#endif
 evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs range) = do
   --Define
   currentContext <- getDBCIOContext
@@ -771,7 +772,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
                           case runDatabaseContextEvalMonad currentContext evalEnv (setRelVar relVarName (ExistingRelation rel)) of
                             Left err -> pure (Left err)
                             Right dbstate' -> putDBCIOContext (dbc_context dbstate')
-#endif
+
 {-
 updateTupleWithAtomExprs :: M.Map AttributeName AtomExpr -> DatabaseContext -> TransactionGraph -> RelationTuple -> Either RelationalError RelationTuple
 updateTupleWithAtomExprs exprMap context graph tupIn = do

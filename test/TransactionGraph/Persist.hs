@@ -99,11 +99,11 @@ testMerkleHashValidation = TestCase $
   --alter the on-disk representation and check that the hash validation fails
   eGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   case eGraph of
-    Left err -> assertFailure "failed to load graph"
+    Left err -> assertFailure $ "failed to load graph" ++ show err
     Right graph -> do
       let trans = transactionHeadsForGraph graph M.! "master"
           updatedTrans = Transaction (transactionId trans) (transactionInfo trans) updatedSchemas
-          transactionDir = dbdir </> show (transactionId trans)
+          transactionDir' = dbdir </> show (transactionId trans)
           updatedSchemas =
             case schemas trans of
               Schemas ctx sschemas ->
@@ -120,7 +120,7 @@ testMerkleHashValidation = TestCase $
       let val'' = TG.validateMerkleHashes maliciousGraph
       assertEqual "loaded graph merkle hashes" (Left [MerkleValidationError (transactionId trans) regMerkleHash malMerkleHash]) val''
       --delete existing transaction directory
-      removeDirectoryRecursive transactionDir
+      removeDirectoryRecursive transactionDir'
       writeTransaction NoDiskSync dbdir updatedTrans
 
       --read graph from disk
