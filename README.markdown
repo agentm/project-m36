@@ -15,6 +15,12 @@
 
 Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date.
 
+## Quick Install
+
+Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
+
+Run `docker run -it projectm36/project-m36 tutd` to start the TutorialD command line interface.
+
 ## Description
 
 Unlike most database management systems (DBMS), Project:M36 is opinionated software which adheres strictly to the mathematics of the relational algebra. The purpose of this adherence is to prove that software which implements mathematically-sound design principles reaps benefits in the form of code clarity, consistency, performance, and future-proofing.
@@ -34,12 +40,6 @@ Project:M36 supports multiple frontends which target different audiences.
 * learn about the relational algebra via TutorialD
 * store and manipulate databases
 * use Project:M36 as a native Haskell database backend
-
-## Download
-
-Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
-
-Run `docker run projectm36/project-m36 tutd` to start the TutorialD command line interface.
 
 ## Community
 
