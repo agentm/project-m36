@@ -18,6 +18,7 @@ import System.Info (os, arch)
 import Data.Text (Text, unpack)
 import Data.Maybe
 import GHC.Paths (libdir)
+import System.Environment
 #if __GLASGOW_HASKELL__ >= 800
 import GHC.LanguageExtensions
 import GHCi.ObjLink
@@ -78,6 +79,8 @@ initScriptSession ghcPkgPaths = do
   handleGhcException excHandler $ runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     let ghcVersion = projectVersion dflags
+    -- get nix packages dir, if available
+    mNixLibDir <- liftIO $ lookupEnv "NIX_GHC_LIBDIR"
 
     sandboxPkgPaths <- liftIO $ concat <$> mapM glob [
       --"./dist-newstyle/packagedb/ghc-" ++ ghcVersion, --rely on cabal 3's ghc.environment install: "cabal install --lib project-m36"
@@ -89,7 +92,7 @@ initScriptSession ghcPkgPaths = do
       --homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
 
-    let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths)
+    let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths ++ maybeToList mNixLibDir)
 
     let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted ,
                            ghcLink = LinkInMemory,

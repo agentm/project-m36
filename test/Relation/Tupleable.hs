@@ -17,7 +17,6 @@ import ProjectM36.Error
 import Data.Binary
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
-import GHC.Generics
 import qualified Data.Vector as V
 import qualified Data.Map as M
 import qualified Data.Text as T
