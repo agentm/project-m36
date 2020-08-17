@@ -78,7 +78,8 @@ main = do
       testAtomFunctionArgumentMismatch,
       testInvalidDataConstructor,
       testBasicList,
-      testRelationDeclarationMismatch
+      testRelationDeclarationMismatch,
+      testInvalidTuples
       ]
 
 simpleRelTests :: Test
@@ -691,3 +692,11 @@ testRelationDeclarationMismatch :: Test
 testRelationDeclarationMismatch = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   expectTutorialDErr sessionId dbconn (T.isPrefixOf "AtomTypeMismatchError") "data A a = A a | B | C; a := relation{a A Integer}{tuple{a A \"1\"}}"
+
+--generate errors when the tuples in a new relation don't match
+testInvalidTuples :: Test
+testInvalidTuples = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{b 2}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{a 2, b 3}}"
+--  expectTutorialDErr sessionId dbconn (T.isPrefixOf "ParseErrorBundle") ":showexpr relation{tuple{a 2, a 3}}" --parse failure can't be validated with this function

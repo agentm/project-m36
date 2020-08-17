@@ -1155,15 +1155,27 @@ evalGraphRefTupleExprs mAttrs (TupleExprs fixedMarker tupleExprL) = do
         [] -> pure emptyAttributes
         (headTuple:tailTuples) -> do
       --gather up resolved atom types or throw an error if an attribute cannot be made concrete from the inferred types- this could still fail if the type cannot be inferred (e.g. from [Nothing, Nothing])
-          let mostResolvedTypes =
-                foldr (\tup acc ->
-                         fmap (\(tupAttr,accAttr) -> --if the attribute is a constructedatomtype, we can recurse into it to potentially resolve type variables
-                                 if isResolvedAttribute accAttr then
-                                   accAttr
-                                 else
-                                   case resolveAttributes accAttr tupAttr of
-                                     Left _ -> accAttr
-                                     Right val -> val) (zip (V.toList $ tupleAttributes tup) acc)) (V.toList $ tupleAttributes headTuple) tailTuples
+          let 
+              processTupleAttrs (tupAttr, accAttr) =
+                --if the attribute is a constructedatomtype, we can recurse into it to potentially resolve type variables                
+                if isResolvedAttribute accAttr && tupAttr == accAttr then
+                  pure accAttr
+                else
+                  lift $ except $ resolveAttributes accAttr tupAttr 
+          mostResolvedTypes <-
+                foldM (\acc tup -> do
+                         let zipped = zip (V.toList $ tupleAttributes tup) acc
+                             accNames = S.fromList $ map A.attributeName acc
+                             tupNames = A.attributeNameSet (tupleAttributes tup)
+                             attrNamesDiff = S.union (S.difference accNames tupNames) (S.difference tupNames accNames)
+                         unless (null attrNamesDiff) (throwError (AttributeNamesMismatchError attrNamesDiff))
+                         nextTupleAttrs <- mapM processTupleAttrs zipped
+                         let diff = A.attributesDifference (A.attributesFromList nextTupleAttrs) (A.attributesFromList acc)
+                         if diff == A.emptyAttributes then
+                           pure nextTupleAttrs
+                           else
+                           throwError (TupleAttributeTypeMismatchError diff)
+                      ) (V.toList $ tupleAttributes headTuple) tailTuples
           pure (A.attributesFromList mostResolvedTypes)
   --strategy: if all the tuple expr transaction markers refer to one location, then we can pass the type constructor mapping from that location, otherwise, we cannot assume that the types are the same
   tConsMap <- case singularTransactions tupleExprL of
