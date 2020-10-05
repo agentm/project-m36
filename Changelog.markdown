@@ -1,3 +1,7 @@
+# 2020-10-05 (v0.8.1)
+
+* support GHC 8.10
+
 # 2020-05-25 (v0.8)
 
 * refactor backend to maximize laziness: [An Architecture for Data Independence](docs/data_independence.markdown)
