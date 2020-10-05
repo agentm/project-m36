@@ -147,7 +147,9 @@ initScriptSession ghcPkgPaths = do
           ideclSourceSrc = Nothing,
 #endif
 
-#if __GLASGOW_HASKELL__ >= 806
+#if __GLASGOW_HASKELL__ >= 810
+          ideclExt = noExtField,
+#elif __GLASGOW_HASKELL__ >= 806
           ideclExt = NoExt,
 #endif
           ideclName      = noLoc mn,
@@ -155,7 +157,11 @@ initScriptSession ghcPkgPaths = do
           ideclSource    = False,
           ideclSafe      = True,
           ideclImplicit  = False,
-          ideclQualified = isJust mQual,
+#if __GLASGOW_HASKELL__ >= 810
+          ideclQualified = if isJust mQual then QualifiedPre else NotQualified,
+#else
+          ideclQualified = isJust mQual
+#endif
           ideclAs        = mQual,
           ideclHiding    = Nothing
           }

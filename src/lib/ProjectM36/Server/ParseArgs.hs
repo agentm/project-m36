@@ -73,7 +73,7 @@ parseConfigWithDefaults defaults = execParser (info (parseArgsWithDefaults defau
 
 
 helpOption :: Parser (a -> a)
-helpOption = abortOption ShowHelpText $ mconcat
+helpOption = abortOption (ShowHelpText Nothing) $ mconcat
   [ long "help"
   , help "Show this help text"
   , hidden ]
