@@ -173,7 +173,7 @@ Executable tutd
                    haskeline,
                    random, MonadRandom,
                    base64-bytestring,
-                   optparse-applicative >= 0.16,
+                   optparse-applicative,
                    attoparsec,
                    stm-containers >= 1.0.0,
                    list-t,
