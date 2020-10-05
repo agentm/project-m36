@@ -160,7 +160,7 @@ initScriptSession ghcPkgPaths = do
 #if __GLASGOW_HASKELL__ >= 810
           ideclQualified = if isJust mQual then QualifiedPre else NotQualified,
 #else
-          ideclQualified = isJust mQual
+          ideclQualified = isJust mQual,
 #endif
           ideclAs        = mQual,
           ideclHiding    = Nothing
