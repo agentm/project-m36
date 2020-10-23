@@ -10,42 +10,25 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Data.Functor.Identity
-import Data.Binary
 
 -- | The TransGraphRelationalExpression is equivalent to a relational expression except that relation variables can reference points in the transaction graph (at previous points in time).
 type TransGraphRelationalExpr = RelationalExprBase TransactionIdLookup
 
-instance Binary TransGraphRelationalExpr
-
 type TransGraphAttributeNames = AttributeNamesBase TransactionIdLookup
-
-instance Binary TransGraphAttributeNames
 
 type TransGraphExtendTupleExpr = ExtendTupleExprBase TransactionIdLookup
 
-instance Binary TransGraphExtendTupleExpr
-
 type TransGraphTupleExpr = TupleExprBase TransactionIdLookup
-
-instance Binary TransGraphTupleExpr
 
 type TransGraphTupleExprs = TupleExprsBase TransactionIdLookup
 
-instance Binary TransGraphTupleExprs
-
 type TransGraphRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionIdLookup
 
-instance Binary TransGraphRestrictionPredicateExpr
-
 type TransGraphAtomExpr = AtomExprBase TransactionIdLookup
-
-instance Binary TransGraphAtomExpr 
 
 type TransGraphAttributeExpr = AttributeExprBase TransactionIdLookup
 
 type TransGraphWithNameExpr = WithNameExprBase TransactionIdLookup
-
-instance Binary TransGraphWithNameExpr
 
 newtype TransGraphEvalEnv = TransGraphEvalEnv {
   tge_graph :: TransactionGraph

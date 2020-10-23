@@ -7,3 +7,13 @@ source-repository-package
   type:     git
   location: https://github.com/agentm/distributed-process.git
   tag:      f352e097fbe494ad648b4e09249f865893ae90a3
+
+source-repository-package
+  type:     git
+  location: https://github.com/agentm/curryer.git
+  tag:      08578c17071c61ce59dbc6cb442c7ec17aeb1294
+
+source-repository-package
+  type: git
+  location: https://github.com/composewell/streamly.git
+  tag: e218fb9d8f4263fd69d32a2ff318bac0e179c642

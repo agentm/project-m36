@@ -100,10 +100,10 @@ syncDirectory :: DiskSync -> FilePath -> IO ()
 syncDirectory FsyncDiskSync path = directoryFsync path 
 syncDirectory NoDiskSync _ = pure ()
 
-writeBSFileSync :: DiskSync -> FilePath -> BS.ByteString -> IO ()
+writeBSFileSync :: DiskSync -> FilePath -> BS'.ByteString -> IO ()
 writeBSFileSync sync path bstring =
   withFile path WriteMode $ \handle -> do
-    BS.hPut handle bstring
+    BS'.hPut handle bstring
     syncHandle sync handle
   
 directoryFsync :: FilePath -> IO ()

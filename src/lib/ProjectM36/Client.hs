@@ -136,24 +136,9 @@ import qualified ProjectM36.Relation as R
 import Control.Exception.Base
 import GHC.Conc.Sync
 
-import Network.Transport (Transport(closeTransport))
-#if MIN_VERSION_network_transport_tcp(0,7,0)
-import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)
-import Network.Transport.TCP.Internal (encodeEndPointAddress)
-#elif MIN_VERSION_network_transport_tcp(0,6,0)
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-import Network.Transport.TCP.Internal (encodeEndPointAddress)
-#else
-import Network.Transport.TCP (encodeEndPointAddress, createTransport, defaultTCPParameters)
-#endif
-
-import Control.Distributed.Process.Node (newLocalNode, initRemoteTable, runProcess, LocalNode, forkProcess, closeLocalNode)
-import Control.Distributed.Process.Extras.Internal.Types (whereisRemote)
-import Control.Distributed.Process.ManagedProcess.Client (call, safeCall)
 import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
-import Control.Distributed.Process (ProcessId, Process, receiveWait, send, match, NodeId(..), reconnect)
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import qualified Data.Map as M

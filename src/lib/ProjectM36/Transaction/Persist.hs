@@ -8,13 +8,13 @@ import ProjectM36.AtomFunction
 import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.Binary as B
 import System.FilePath
 import System.Directory
 import qualified Data.Text as T
 import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
+import Codec.Winery
 
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC
@@ -62,7 +62,7 @@ readTransaction dbdir transId mScriptSession = do
     return $ Left $ MissingTransactionError transId
     else do
     relvars <- readRelVars transDir
-    transInfo <- B.decodeFile (transactionInfoPath transDir)
+    transInfo <- readFileDeserialise (transactionInfoPath transDir)
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
     sschemas <- readSubschemas transDir
@@ -92,28 +92,28 @@ writeTransaction sync dbdir trans = do
     writeDBCFuncs sync tempTransDir (dbcFunctions context)
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     writeSubschemas sync tempTransDir (subschemas trans)
-    B.encodeFile (transactionInfoPath tempTransDir) (transactionInfo trans)
+    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
 
 writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
 writeRelVars sync transDir relvars = do
   let path = relvarsPath transDir
-  writeBSFileSync sync path (B.encode relvars)
+  writeBSFileSync sync path (serialise relvars)
 
 readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = 
-  B.decodeFile (relvarsPath transDir)
+  readFileDeserialise (relvarsPath transDir)
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
   let atomFuncPath = atomFuncsPath transDir 
-  writeBSFileSync sync atomFuncPath (B.encode $ map (\f -> (atomFuncType f, atomFuncName f, atomFunctionScript f)) (HS.toList funcs))
+  writeBSFileSync sync atomFuncPath (serialise $ map (\f -> (atomFuncType f, atomFuncName f, atomFunctionScript f)) (HS.toList funcs))
 
 --all the atom functions are in one file
 readAtomFuncs :: FilePath -> Maybe ScriptSession -> IO AtomFunctions
 readAtomFuncs transDir mScriptSession = do
-  atomFuncsList <- B.decodeFile (atomFuncsPath transDir)
+  atomFuncsList <- readFileDeserialise (atomFuncsPath transDir)
   --only Haskell script functions can be serialized
   --we always return the pre-compiled functions
   funcs <- mapM (\(funcType, funcName, mFuncScript) -> loadAtomFunc precompiledAtomFunctions mScriptSession funcName funcType mFuncScript) atomFuncsList
@@ -153,7 +153,7 @@ readAtomFunc _ _ _ _ = error "Haskell scripting is disabled"
 #else
 readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsPath transDir
-  (funcType, mFuncScript) <- B.decodeFile @([AtomType],Maybe T.Text) atomFuncPath
+  (funcType, mFuncScript) <- readFileDeserialise @([AtomType],Maybe T.Text) atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName precompiledFuncs of
@@ -184,7 +184,7 @@ writeDBCFuncs sync transDir funcs = mapM_ (writeDBCFunc sync transDir) (HS.toLis
 writeDBCFunc :: DiskSync -> FilePath -> DatabaseContextFunction -> IO ()
 writeDBCFunc sync transDir func = do
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack (dbcFuncName func)  
-  writeBSFileSync sync dbcFuncPath (B.encode (dbcFuncType func, databaseContextFunctionScript func))
+  writeBSFileSync sync dbcFuncPath (serialise (dbcFuncType func, databaseContextFunctionScript func))
 
 readDBCFuncs :: FilePath -> Maybe ScriptSession -> IO DatabaseContextFunctions
 readDBCFuncs transDir mScriptSession = do
@@ -201,7 +201,7 @@ readDBCFunc transDir funcName _ precompiledFuncs = do
 readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
 #endif
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName
-  (_funcType, mFuncScript) <- B.decodeFile @([AtomType], Maybe T.Text) dbcFuncPath
+  (_funcType, mFuncScript) <- readFileDeserialise @([AtomType], Maybe T.Text) dbcFuncPath
   case mFuncScript of
     Nothing -> case databaseContextFunctionForName funcName precompiledFuncs of
       Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName)
@@ -225,7 +225,7 @@ readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
 
 writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
 writeIncDep sync transDir (incDepName, incDep) = 
-  writeBSFileSync sync (incDepsDir transDir </> T.unpack incDepName) $ B.encode incDep
+  writeBSFileSync sync (incDepsDir transDir </> T.unpack incDepName) $ serialise incDep
   
 writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
 writeIncDeps sync transDir incdeps = mapM_ (writeIncDep sync transDir) $ M.toList incdeps 
@@ -233,7 +233,7 @@ writeIncDeps sync transDir incdeps = mapM_ (writeIncDep sync transDir) $ M.toLis
 readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
 readIncDep transDir incdepName = do
   let incDepPath = incDepsDir transDir </> T.unpack incdepName
-  incDepData <- B.decodeFile incDepPath
+  incDepData <- readFileDeserialise incDepPath
   pure (incdepName, incDepData)
   
 readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)  
@@ -245,20 +245,20 @@ readIncDeps transDir = do
 readSubschemas :: FilePath -> IO Subschemas  
 readSubschemas transDir = do
   let sschemasPath = subschemasPath transDir
-  B.decodeFile sschemasPath
+  readFileDeserialise sschemasPath
   
 writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
 writeSubschemas sync transDir sschemas = do
   let sschemasPath = subschemasPath transDir
-  writeBSFileSync sync sschemasPath (B.encode sschemas)
+  writeBSFileSync sync sschemasPath (serialise sschemas)
   
 writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
 writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
-  writeBSFileSync sync atPath $ B.encode types
+  writeBSFileSync sync atPath $ serialise types
 
 readTypeConstructorMapping :: FilePath -> IO TypeConstructorMapping
 readTypeConstructorMapping path = do
   let atPath = typeConsPath path
-  B.decodeFile atPath
+  readFileDeserialise atPath
   
   

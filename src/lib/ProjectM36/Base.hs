@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -18,15 +18,15 @@ import GHC.Stack
 import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text,unpack)
-import Data.Binary
 import Data.Vector.Binary()
 import Data.Time.Clock
-import Data.Time.Clock.POSIX
-import Data.Time.Calendar (Day,toGregorian,fromGregorian)
 import Data.Hashable.Time ()
+import Data.Time.Calendar (Day)
 import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
+--import Codec.Winery
+
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
@@ -40,7 +40,7 @@ data Atom = IntegerAtom Integer |
             BoolAtom Bool |
             RelationAtom Relation |
             ConstructedAtom DataConstructorName AtomType [Atom]
-            deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+            deriving (Eq, Show, Typeable, NFData, Generic)
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -54,16 +54,6 @@ instance Hashable Atom where
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
-
-instance Binary UTCTime where
-  put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
-  get = posixSecondsToUTCTime . fromRational <$> (get :: Get Rational)
-    
-instance Binary Day where    
-  put day = put $ toGregorian day
-  get = do
-    (y,m,d) <- get :: Get (Integer, Int, Int)
-    return (fromGregorian y m d)
 
 -- I suspect the definition of ConstructedAtomType with its name alone is insufficient to disambiguate the cases; for example, one could create a type named X, remove a type named X, and re-add it using different constructors. However, as long as requests are served from only one DatabaseContext at-a-time, the type name is unambiguous. This will become a problem for time-travel, however.
 -- | The AtomType uniquely identifies the type of a atom.
@@ -79,7 +69,7 @@ data AtomType = IntAtomType |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
-              deriving (Eq, NFData, Generic, Binary, Show)
+              deriving (Eq, NFData, Generic, Show)
 
 instance Ord AtomType where
   compare = undefined
@@ -98,7 +88,7 @@ isRelationAtomType _ = False
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic, NFData, Binary)
+data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic, NFData)
 
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
@@ -116,10 +106,7 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
-
-instance Read Relation where
-  readsPrec = error "relation read not supported"
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic)
 
 instance Eq RelationTupleSet where
  set1 == set2 = hset set1 == hset set2
@@ -146,8 +133,6 @@ instance Hashable RelationTuple where
 -- | A tuple is a set of attributes mapped to their 'Atom' values.
 data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Generic)
 
-instance Binary RelationTuple
-
 instance Eq RelationTuple where
   (==) tuple1@(RelationTuple attrs1 _) tuple2@(RelationTuple attrs2 _) = attributesEqual attrs1 attrs2 && atomsEqual
     where
@@ -157,7 +142,6 @@ instance Eq RelationTuple where
       atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) attrs1
 
 instance NFData RelationTuple where rnf = genericRnf
-
 
 data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
 
@@ -173,8 +157,6 @@ instance Hashable Relation where
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
       
-instance Binary Relation      
-
 -- | Used to represent the number of tuples in a relation.         
 data RelationCardinality = Countable | Finite Int deriving (Eq, Show, Generic, Ord)
 
@@ -221,14 +203,10 @@ data RelationalExprBase a =
   With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
   deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
            
-instance Binary RelationalExpr
-
 data WithNameExprBase a = WithNameExpr RelVarName a
   deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 type WithNameExpr = WithNameExprBase ()
-
-instance Binary WithNameExpr
 
 type GraphRefWithNameExpr = WithNameExprBase GraphRefTransactionMarker
 
@@ -241,14 +219,14 @@ data Notification = Notification {
   reportOldExpr :: RelationalExpr, --run the expression in the pre-change context
   reportNewExpr :: RelationalExpr --run the expression in the post-change context
   }
-  deriving (Show, Eq, Binary, Generic, NFData)
+  deriving (Show, Eq, Generic, NFData)
 
 type TypeVarName = StringType
   
 -- | Metadata definition for type constructors such as @data Either a b@.
 data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName] |
                           PrimitiveTypeConstructorDef TypeConstructorName AtomType
-                        deriving (Show, Generic, Binary, Eq, NFData)
+                        deriving (Show, Generic, Eq, NFData)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
 type TypeConstructor = TypeConstructorBase ()
@@ -256,7 +234,7 @@ data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstruc
                          PrimitiveTypeConstructor TypeConstructorName AtomType |
                          RelationAtomTypeConstructor [AttributeExprBase a] |
                          TypeVariable TypeVarName
-                     deriving (Show, Generic, Binary, Eq, NFData)
+                     deriving (Show, Generic, Eq, NFData)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
 
@@ -266,20 +244,20 @@ type DataConstructorName = StringType
 type AtomTypeName = StringType
 
 -- | Used to define a data constructor in a type constructor context such as @Left a | Right b@
-data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic, NFData)
+data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Generic, NFData)
 
 type DataConstructorDefs = [DataConstructorDef]
 
 data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructor | 
                              DataConstructorDefTypeVarNameArg TypeVarName
-                           deriving (Show, Generic, Binary, Eq, NFData)
+                           deriving (Show, Generic, Eq, NFData)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
 
 data GraphRefTransactionMarker = TransactionMarker TransactionId |
                                  UncommittedContextMarker
-                                 deriving (Eq, Show, Binary, Generic, NFData, Ord)
+                                 deriving (Eq, Show, Generic, NFData, Ord)
   
 -- a fundamental relational expr to which other relational expressions compile
 type GraphRefRelationalExpr = RelationalExprBase GraphRefTransactionMarker
@@ -290,17 +268,18 @@ type Subschemas = M.Map SchemaName Schema
 
 -- | Every transaction has one concrete database context and any number of isomorphic subschemas.
 data Schemas = Schemas DatabaseContext Subschemas
+  deriving (Generic)
 
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
 -- I spent some time thinking about whether the VirtualDatabaseContext/Schema and DatabaseContext data constructors should be the same constructor, but that would allow relation variables to be created in a "virtual" context which would appear to defeat the isomorphisms of the contexts. It should be possible to switch to an alternative schema to view the same equivalent information without information loss. However, allowing all contexts to reference another context while maintaining its own relation variables, new types, etc. could be interesting from a security perspective. For example, if a user creates a new relvar in a virtual context, then does it necessarily appear in all linked contexts? After deliberation, I think the relvar should appear in *all* linked contexts to retain the isomorphic properties, even when the isomorphism is for a subset of the context. This hints that the IsoMorphs should allow for "fall-through"; that is, when a relvar is not defined in the virtual context (for morphing), then the lookup should fall through to the underlying context.
 newtype Schema = Schema SchemaIsomorphs
-              deriving (Generic, Binary)
+              deriving (Generic)
                               
 data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarName, RelVarName) | 
                       IsoRename RelVarName RelVarName |
                       IsoUnion (RelVarName, RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
                       -- IsoTypeConstructor in morphAttrExpr
-                      deriving (Generic, Binary, Show)
+                      deriving (Generic, Show)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
                               
@@ -318,8 +297,6 @@ type IncDepName = StringType
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
 data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData)
 
-instance Binary InclusionDependency
-
 type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 
 --used for returning information about individual expressions
@@ -328,8 +305,6 @@ type DatabaseContextExprName = StringType
 type DatabaseContextExpr = DatabaseContextExprBase ()
 
 type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker
-
-instance Binary GraphRefDatabaseContextExpr
 
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase a = 
@@ -360,8 +335,6 @@ data DatabaseContextExprBase a =
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Eq, Generic)
 
-instance Binary DatabaseContextExpr
-
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
 type Range = (Int,Int)  
@@ -372,7 +345,7 @@ data DatabaseContextIOExprBase a =
   AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
   LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
   CreateArbitraryRelation RelVarName [AttributeExprBase a] Range
-                           deriving (Show, Eq, Generic, Binary)
+                           deriving (Show, Eq, Generic)
 
 type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase GraphRefTransactionMarker
 
@@ -393,8 +366,6 @@ data RestrictionPredicateExprBase a =
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
   deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Binary RestrictionPredicateExpr
-
 -- child + parent links
 -- | A transaction graph's head name references the leaves of the transaction graph and can be used during session creation to indicate at which point in the graph commits should persist.
 type HeadName = StringType
@@ -403,6 +374,7 @@ type TransactionHeads = M.Map HeadName Transaction
 
 -- | The transaction graph is the global database's state which references every committed transaction.
 data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
+  deriving Generic
 
 transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
 transactionHeadsForGraph (TransactionGraph hs _) = hs
@@ -425,12 +397,11 @@ data TransactionInfo = TransactionInfo TransactionId TransactionDiffs UTCTime | 
                      deriving (Show, Generic)
 -}
 
-instance Binary TransactionInfo                             
-
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 type TransactionId = UUID
 
 data Transaction = Transaction TransactionId TransactionInfo Schemas
+  deriving Generic
                             
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
 data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DirtyFlag
@@ -464,16 +435,12 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
                     deriving (Eq,Show,Generic, NFData, Foldable, Functor, Traversable)
                        
-instance Binary AtomExpr                       
-
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
                      deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()
 type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
-
-instance Binary ExtendTupleExpr
 
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -485,6 +452,7 @@ type AtomFunctionBodyScript = StringType
 type AtomFunctionBodyType = [Atom] -> Either AtomFunctionError Atom
 
 data AtomFunctionBody = AtomFunctionBody (Maybe AtomFunctionBodyScript) AtomFunctionBodyType
+  deriving Generic
 
 instance NFData AtomFunctionBody where
   rnf (AtomFunctionBody mScript _) = rnf mScript
@@ -525,8 +493,6 @@ type AttributeNames = AttributeNamesBase ()
 
 type GraphRefAttributeNames = AttributeNamesBase GraphRefTransactionMarker
 
-instance Binary AttributeNames
-                                
 -- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
 data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory-only database
                            MinimalPersistence FilePath | -- ^ fsync off, not crash-safe
@@ -539,14 +505,12 @@ type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary, NFData, Foldable, Functor, Traversable)
+                         deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
                           
-instance Binary TupleExpr
-
 type TupleExpr = TupleExprBase ()
 
 type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
@@ -558,8 +522,6 @@ type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
 
 type TupleExprs = TupleExprsBase ()
 
-instance Binary TupleExprs
-
 data MergeStrategy = 
   -- | After a union merge, the merge transaction is a result of union'ing relvars of the same name, introducing all uniquely-named relvars, union of constraints, union of atom functions, notifications, and types (unless the names and definitions collide, e.g. two types of the same name with different definitions)
   UnionMergeStrategy |
@@ -567,7 +529,7 @@ data MergeStrategy =
   UnionPreferMergeStrategy HeadName |
   -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the last transaction in the selected branch.
   SelectedBranchMergeStrategy HeadName
-                     deriving (Eq, Show, Binary, Generic, NFData)
+                     deriving (Eq, Show, Generic, NFData)
 
 type DatabaseContextFunctionName = StringType
 
@@ -635,20 +597,5 @@ unimplemented :: HasCallStack => a
 unimplemented = undefined
 
 --for serializing GraphRefRelationalExpr as part of transaction serialization
-instance Binary (TupleExprsBase GraphRefTransactionMarker)
-
-instance Binary (TupleExprBase GraphRefTransactionMarker)
-
-instance Binary GraphRefRelationalExpr 
-
-instance Binary (AtomExprBase GraphRefTransactionMarker)
-
-instance Binary (AttributeNamesBase GraphRefTransactionMarker)
-
-instance Binary (RestrictionPredicateExprBase GraphRefTransactionMarker)
-
-instance Binary (ExtendTupleExprBase GraphRefTransactionMarker)
-
-instance Binary GraphRefWithNameExpr
            
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, CPP, FlexibleContexts #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, CPP, FlexibleContexts, DerivingVia #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -13,6 +13,7 @@ import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
 
+import Codec.Winery
 import Control.Monad.Except hiding (join)
 import Control.Monad.Reader hiding (join)
 import qualified Data.Vector as V
@@ -23,7 +24,6 @@ import qualified Data.List.NonEmpty as NE
 import Data.Time.Clock
 import qualified Data.Text as T
 import GHC.Generics
-import Data.Binary as B
 import Data.Either (lefts, rights, isRight)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
@@ -38,13 +38,15 @@ import Crypto.Hash.SHA256
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
                            TransactionIdHeadNameLookup HeadName [TransactionIdHeadBacktrack]
-                           deriving (Show, Eq, Binary, Generic)
+                           deriving (Show, Eq, Generic)
+                           deriving Serialise via WineryVariant TransactionIdLookup
                            
 -- | Used for git-style head backtracking such as topic~3^2.
-data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ git equivalent of ~: walk back n parents, arbitrarily choosing a parent when a choice must be made
+data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ git equivalent of ~v: walk back n parents, arbitrarily choosing a parent when a choice must be made
                                   TransactionIdHeadBranchBacktrack Int | -- ^ git equivalent of ^: walk back one parent level to the nth arbitrarily-chosen parent 
                                   TransactionStampHeadBacktrack UTCTime -- ^ git equivalent of 'git-rev-list -n 1 --before X' find the first transaction which was created before the timestamp
-                                  deriving (Show, Eq, Binary, Generic)
+                                  deriving (Show, Eq, Generic)
+                                  deriving Serialise via WineryVariant TransactionIdHeadBacktrack
 
   
 -- | Operators which manipulate a transaction graph and which transaction the current 'Session' is based upon.
@@ -56,7 +58,8 @@ data TransactionGraphOperator = JumpToHead HeadName  |
                                 MergeTransactions MergeStrategy HeadName HeadName |
                                 Commit |
                                 Rollback
-                              deriving (Eq, Show, Binary, Generic)
+                              deriving (Eq, Show, Generic)
+                              deriving Serialise via WineryVariant TransactionGraphOperator
                                        
 isCommit :: TransactionGraphOperator -> Bool                                       
 isCommit Commit = True
@@ -593,10 +596,9 @@ addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas t
   
 -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
 calculateMerkleHash :: Transaction -> TransactionGraph -> MerkleHash
-calculateMerkleHash trans graph = MerkleHash $ hashlazy (mconcat [transIds,
-                                                     dbcBytes,
-                                                     schemasBytes,
-                                                     parentMerkleHashes])
+calculateMerkleHash trans graph = MerkleHash $ hashlazy (BL.fromChunks [transIds,
+                                                                        schemasBytes
+                                                                       ] <>                                                      dbcBytes <> parentMerkleHashes)
   where
     parentMerkleHashes = BL.fromChunks $ map (_unMerkleHash . getMerkleHash) parentTranses
     parentTranses =
@@ -605,9 +607,9 @@ calculateMerkleHash trans graph = MerkleHash $ hashlazy (mconcat [transIds,
         Left e -> error ("failed to find transaction in Merkle hash construction: " ++ show e)
         Right t -> S.toList t
     getMerkleHash t = merkleHash (transactionInfo t)
-    transIds = B.encode (transactionId trans : S.toList (parentIds trans))
+    transIds = serialise (transactionId trans : S.toList (parentIds trans))
     dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
-    schemasBytes = B.encode (subschemas trans)
+    schemasBytes = serialise (subschemas trans)
 
 validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()
 validateMerkleHash trans graph = 

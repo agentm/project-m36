@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, LambdaCase #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, LambdaCase, DerivingVia #-}
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -9,10 +9,10 @@ import ProjectM36.RelationalExpression
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
 import GHC.Generics
-import Data.Binary
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
+import Codec.Winery hiding (Schema)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -28,7 +28,8 @@ import Data.Monoid
 
 data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs |
                   RemoveSubschema SchemaName
-                  deriving (Generic, Binary, Show)
+                  deriving (Generic, Show)
+                  deriving Serialise via WineryVariant SchemaExpr
 
   
 isomorphs :: Schema -> SchemaIsomorphs

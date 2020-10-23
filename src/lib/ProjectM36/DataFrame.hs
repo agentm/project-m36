@@ -1,9 +1,10 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingVia #-}
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
 import ProjectM36.Attribute as A
 import ProjectM36.Error
+import ProjectM36.Serialise.Base
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
 import qualified ProjectM36.Relation.Show.HTML as RelHTML
@@ -16,15 +17,20 @@ import qualified Data.List as L
 import qualified Data.Set as S
 import Data.Maybe
 import qualified Data.Text as T
-import Data.Binary
 import Control.Arrow
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 
-data AttributeOrderExpr = AttributeOrderExpr AttributeName Order deriving (Show, Generic, Binary)
-data AttributeOrder = AttributeOrder AttributeName Order deriving (Show, Generic, Binary)
-data Order = AscendingOrder | DescendingOrder deriving (Eq, Show, Generic, Binary)
+data AttributeOrderExpr = AttributeOrderExpr AttributeName Order
+  deriving (Show, Generic)
+
+data AttributeOrder = AttributeOrder AttributeName Order
+  deriving (Show, Generic)
+
+data Order = AscendingOrder | DescendingOrder
+  deriving (Eq, Show, Generic)
+
 
 ascending :: T.Text
 ascending = "⬆"
@@ -39,9 +45,11 @@ data DataFrame = DataFrame {
   orders :: [AttributeOrder],
   attributes :: Attributes,
   tuples :: [DataFrameTuple]
-  } deriving (Show, Generic, Binary)
+  }
+  deriving (Show, Generic)
 
-data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom) deriving (Eq, Show, Generic, Binary)
+data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
+  deriving (Eq, Show, Generic)
 
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
@@ -122,7 +130,9 @@ data DataFrameExpr = DataFrameExpr {
   orderExprs :: [AttributeOrderExpr],
   offset :: Maybe Integer,
   limit :: Maybe Integer
-  } deriving (Show, Binary, Generic)
+  }
+  deriving (Show, Generic)
+ 
 
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser

@@ -9,7 +9,6 @@ import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Text as T
-import Data.Binary
 import Data.Typeable
 import Control.Exception
 
@@ -106,12 +105,12 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | MerkleHashValidationError TransactionId MerkleHash MerkleHash
                        
                      | MultipleErrors [RelationalError]
-                       deriving (Show,Eq,Generic,Binary,Typeable, NFData) 
+                       deriving (Show,Eq,Generic,Typeable, NFData) 
 
 data PersistenceError = InvalidDirectoryError FilePath | 
                         MissingTransactionError TransactionId |
                         WrongDatabaseFormatVersionError String String
-                      deriving (Show, Eq, Generic, Binary, NFData)
+                      deriving (Show, Eq, Generic, NFData)
 
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      
@@ -129,7 +128,7 @@ data MergeError = SelectedHeadMismatchMergeError |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
                   StrategyViolatesRelationVariableMergeError |
                   StrategyViolatesTypeConstructorMergeError
-                  deriving (Show, Eq, Generic, Binary, Typeable)
+                  deriving (Show, Eq, Generic, Typeable)
                            
 instance NFData MergeError where rnf = genericRnf                           
                                  
@@ -137,17 +136,17 @@ data ScriptCompilationError = TypeCheckCompilationError String String | --expect
                               SyntaxErrorCompilationError String |
                               ScriptCompilationDisabledError |
                               OtherScriptCompilationError String
-                            deriving (Show, Eq, Generic, Binary, Typeable, NFData)
+                            deriving (Show, Eq, Generic, Typeable, NFData)
                                      
 instance Exception ScriptCompilationError                                     
                                                
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |
                    RelVarOutReferencedMoreThanOnce RelVarName
-                   deriving (Show, Eq, Generic, Binary, Typeable, NFData)
+                   deriving (Show, Eq, Generic, Typeable, NFData)
                            
                                                
 -- errors returned from the distributed-process call handlers
 data ServerError = RequestTimeoutError |
                    ProcessDiedError String
-                   deriving (Generic, Binary, Eq)
+                   deriving (Generic, Eq)

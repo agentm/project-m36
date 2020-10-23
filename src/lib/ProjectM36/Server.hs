@@ -8,16 +8,6 @@ import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
 
 import Control.Monad.IO.Class (liftIO)
-#if MIN_VERSION_network_transport_tcp(0,7,0)
-import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)  
-#else
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-#endif
-import Network.Transport (EndPointAddress(..), newEndPoint, address)
-import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode, initRemoteTable)
-import Control.Distributed.Process.Extras.Time (Delay(..))
-import Control.Distributed.Process (Process, register, getSelfPid)
-import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
 import Control.Concurrent.MVar (putMVar, MVar)
 import System.IO (stderr, hPutStrLn)
 import System.FilePath (takeDirectory)

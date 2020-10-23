@@ -3,6 +3,7 @@ module ProjectM36.DatabaseContextFunction where
 --implements functions which operate as: [Atom] -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Serialise.Base
 import ProjectM36.Attribute as A
 import ProjectM36.Relation
 import ProjectM36.AtomType
@@ -11,7 +12,7 @@ import qualified Data.Map as M
 import ProjectM36.ScriptSession
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
-import Data.Binary as B
+import Codec.Winery
 
 emptyDatabaseContextFunction :: DatabaseContextFunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = DatabaseContextFunction { 
@@ -82,9 +83,9 @@ databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
 
 -- for merkle hash                       
 hashBytes :: DatabaseContextFunction -> BL.ByteString
-hashBytes func = mconcat [fname, ftype, fbody]
+hashBytes func = BL.fromChunks [fname, ftype, fbody]
   where
-    fname = B.encode (dbcFuncName func)
-    ftype = B.encode (dbcFuncType func)
+    fname = serialise (dbcFuncName func)
+    ftype = serialise (dbcFuncType func)
     fbody = case dbcFuncBody func of
-      DatabaseContextFunctionBody mBody _ -> B.encode mBody
+      DatabaseContextFunctionBody mBody _ -> serialise mBody

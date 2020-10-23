@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
+import ProjectM36.Serialise.Base
 import ProjectM36.Error
 import ProjectM36.Relation
 import ProjectM36.AtomType
@@ -11,6 +12,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
 import Data.Binary as B
+import Codec.Winery
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
 --the underscore in the attribute name means that any attributes are acceptable
@@ -91,10 +93,10 @@ atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
 
 --for calculating the merkle hash
 hashBytes :: AtomFunction -> BL.ByteString
-hashBytes func = mconcat [B.encode (atomFuncName func),
-                          B.encode (atomFuncType func),
-                          bodyBin
-                         ]
+hashBytes func = BL.fromChunks [serialise (atomFuncName func),
+                                serialise (atomFuncType func),
+                                bodyBin
+                               ]
   where
     bodyBin = case atomFuncBody func of
-                AtomFunctionBody mScript _ -> B.encode mScript
+                AtomFunctionBody mScript _ -> serialise mScript

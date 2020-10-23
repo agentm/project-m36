@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Binary as B
 import ProjectM36.AtomFunction as AF
 import ProjectM36.DatabaseContextFunction as DBCF
+import Codec.Winery
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -44,11 +45,11 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
 
 --for building the Merkle hash
 hashBytes :: DatabaseContext -> BL.ByteString
-hashBytes ctx = mconcat [incDeps, rvs, atomFs, dbcFs, nots, tConsMap]
+hashBytes ctx = BL.fromChunks [incDeps, rvs, nots, tConsMap] <> atomFs <> dbcFs
   where
-    incDeps = B.encode (inclusionDependencies ctx)
-    rvs = B.encode (relationVariables ctx)
+    incDeps = serialise (inclusionDependencies ctx)
+    rvs = serialise (relationVariables ctx)
     atomFs = HS.foldr (mappend . AF.hashBytes) mempty (atomFunctions ctx)
     dbcFs = HS.foldr (mappend . DBCF.hashBytes) mempty (dbcFunctions ctx)
-    nots = B.encode (notifications ctx)
-    tConsMap = B.encode (typeConstructorMapping ctx)
+    nots = serialise (notifications ctx)
+    tConsMap = serialise (typeConstructorMapping ctx)
