@@ -79,7 +79,8 @@ main = do
       testInvalidDataConstructor,
       testBasicList,
       testRelationDeclarationMismatch,
-      testInvalidTuples
+      testInvalidTuples,
+      testSelfReferencingUncommittedContext
       ]
 
 simpleRelTests :: Test
@@ -230,7 +231,7 @@ transactionGraphAddCommitTest = TestCase $ do
           commit sessionId dbconn >>= eitherFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
-          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (RelationVariable "s" UncommittedContextMarker))
+          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
@@ -700,3 +701,12 @@ testInvalidTuples = TestCase $ do
   expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{b 2}}"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{a 2, b 3}}"
 --  expectTutorialDErr sessionId dbconn (T.isPrefixOf "ParseErrorBundle") ":showexpr relation{tuple{a 2, a 3}}" --parse failure can't be validated with this function
+
+testSelfReferencingUncommittedContext :: Test
+testSelfReferencingUncommittedContext = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "s:=s union s"
+  eS <- executeRelationalExpr sessionId dbconn (RelationVariable "s" ())
+  _ <- rollback sessionId dbconn
+  eSorig <- executeRelationalExpr sessionId dbconn (RelationVariable "s" ())  
+  assertEqual "s=s'" eSorig eS
