@@ -3,7 +3,7 @@
 --Serialise instances for ProjectM36.Base data types- orphan instance city
 module ProjectM36.Serialise.Base where
 import Codec.Winery hiding (Schema)
-import Codec.Winery.Internal hiding (Schema)
+import Codec.Winery.Internal
 import Control.Monad
 import ProjectM36.Base
 import ProjectM36.MerkleHash
@@ -44,7 +44,6 @@ deriving via WineryVariant (AttributeNamesBase a) instance Serialise a => Serial
 deriving via WineryVariant (ExtendTupleExprBase a) instance Serialise a => Serialise (ExtendTupleExprBase a)
 deriving via WineryVariant Schema instance Serialise Schema
 deriving via WineryVariant MergeStrategy instance Serialise MergeStrategy
-
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d
