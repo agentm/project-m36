@@ -222,3 +222,9 @@ utcTimeP = do
   case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
     Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
     Just stamp' -> pure stamp'
+
+
+colonOp :: Text -> Parser ()
+colonOp opStr = do
+  _ <- chunk opStr <* spaceChar <* spaceConsumer
+  pure ()
