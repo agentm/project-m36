@@ -226,5 +226,5 @@ utcTimeP = do
 
 colonOp :: Text -> Parser ()
 colonOp opStr = do
-  _ <- chunk opStr <* spaceChar <* spaceConsumer
+  _ <- string opStr <* spaceChar <* spaceConsumer
   pure ()
