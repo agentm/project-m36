@@ -137,9 +137,9 @@ semi = symbol ";"
 
 integer :: Parser Integer
 #if MIN_VERSION_megaparsec(6,0,0)
-integer = Lex.signed spaceConsumer Lex.decimal
+integer = Lex.signed (pure ()) Lex.decimal <* spaceConsumer
 #else
-integer = Lex.signed spaceConsumer Lex.integer
+integer = Lex.signed (pure ()) Lex.integer <* spaceConsumer
 #endif
 
 natural :: Parser Integer
