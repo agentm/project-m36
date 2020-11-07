@@ -224,7 +224,7 @@ utcTimeP = do
     Just stamp' -> pure stamp'
 
 
-colonOp :: Text -> Parser ()
-colonOp opStr = do
-  _ <- string opStr <* spaceChar <* spaceConsumer
+colonOp :: Text -> Text -> Parser ()
+colonOp opStr shortOpStr = do
+  _ <- (string opStr <|> string shortOpStr) <* spaceChar <* spaceConsumer
   pure ()

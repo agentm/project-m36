@@ -31,44 +31,44 @@ data RODatabaseContextOperator where
 
 typeP :: Parser RODatabaseContextOperator
 typeP = do
-  colonOp ":type"
+  colonOp ":type" ":t"
   ShowRelationType <$> relExprP
 
 showRelP :: Parser RODatabaseContextOperator
 showRelP = do
-  colonOp ":showexpr"
+  colonOp ":showexpr" ":se"
   ShowRelation <$> relExprP
 
 showPlanP :: Parser RODatabaseContextOperator
 showPlanP = do
-  colonOp ":showplan"
+  colonOp ":showplan" ":sp"
   ShowPlan <$> databaseContextExprP
 
 showTypesP :: Parser RODatabaseContextOperator
-showTypesP = colonOp ":showtypes" >> pure ShowTypes
+showTypesP = colonOp ":showtypes" ":st" >> pure ShowTypes
 
 showRelationVariables :: Parser RODatabaseContextOperator
-showRelationVariables = colonOp ":showrelvars" >> pure ShowRelationVariables
+showRelationVariables = colonOp ":showrelvars" ":srv" >> pure ShowRelationVariables
 
 showAtomFunctionsP :: Parser RODatabaseContextOperator
-showAtomFunctionsP = colonOp ":showatomfunctions" >> pure ShowAtomFunctions
+showAtomFunctionsP = colonOp ":showatomfunctions" ":saf" >> pure ShowAtomFunctions
 
 showDatabaseContextFunctionsP :: Parser RODatabaseContextOperator
-showDatabaseContextFunctionsP = colonOp ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
+showDatabaseContextFunctionsP = colonOp ":showdatabasecontextfunctions" ":sdbf" >> pure ShowDatabaseContextFunctions
 
 quitP :: Parser RODatabaseContextOperator
 quitP = do
-  colonOp ":quit"
+  colonOp ":quit" ":q"
   return Quit
 
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
-  colonOp ":constraints"
+  colonOp ":constraints" ":c"
   ShowConstraint <$> option "" identifier
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
-  colonOp ":plotexpr"
+  colonOp ":plotexpr" ":pe"
   PlotRelation <$> relExprP
 
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
@@ -164,7 +164,7 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
   
 showDataFrameP :: Parser RODatabaseContextOperator
 showDataFrameP = do
-  colonOp ":showdataframe"
+  colonOp ":showdataframe" ":sdf"
   relExpr <- relExprP
   reservedOp "orderby"
   attrOrdersExpr <- attrOrdersExprP
