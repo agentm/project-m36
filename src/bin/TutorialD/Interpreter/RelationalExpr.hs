@@ -106,7 +106,7 @@ extendP = do
   case extends of
     [] -> pure (Restrict TruePredicate)
     extends' ->
-      pure $ \expr -> foldl (\acc ext -> Extend ext acc) expr extends'
+      pure $ \expr -> foldl (flip Extend) expr extends'
 
 semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 semijoinP = do
