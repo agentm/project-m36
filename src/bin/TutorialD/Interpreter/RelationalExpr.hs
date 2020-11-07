@@ -129,7 +129,8 @@ relOperators = [
   [InfixL antijoinP],
   [InfixL (reservedOp "union" >> return Union)],
   [InfixL (reservedOp "minus" >> return Difference)],
-  [InfixN (reservedOp "=" >> return Equals)],
+  [InfixN (reservedOp "=" >> return Equals),
+   InfixN (reservedOp "/=" >> return NotEquals)],
   [Postfix extendP]
   ]
 
