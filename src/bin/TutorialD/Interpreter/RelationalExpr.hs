@@ -102,7 +102,11 @@ ungroupP = do
 extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 extendP = do
   reservedOp ":"
-  Extend <$> braces extendTupleExpressionP
+  extends <- braces (sepBy extendTupleExpressionP comma)
+  case extends of
+    [] -> pure (Restrict TruePredicate)
+    extends' ->
+      pure $ \expr -> foldl (\acc ext -> Extend ext acc) expr extends'
 
 semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 semijoinP = do

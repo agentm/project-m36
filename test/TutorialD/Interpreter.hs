@@ -121,7 +121,8 @@ simpleRelTests = TestCase $ do
                       ("x:=relation{tuple{a 5}} : {b:=6}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 6])]),
                       ("x:=relation{tuple{a 5}} : {b:=add(@a,5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 10])]),
                       ("x:=relation{tuple{a 5}} : {b:=add(@a,\"spam\")}", Left (AtomFunctionTypeError "add" 2 IntegerAtomType TextAtomType)),
-                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 12])])
+                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 12])]),
+                      ("x:=false:{a:=1,b:=2}", mkRelationFromTuples simpleDAttributes [])
                      ]
     simpleAAttributes = A.attributesFromList [Attribute "a" IntegerAtomType]
     simpleBAttributes = A.attributesFromList [Attribute "d" IntegerAtomType]
