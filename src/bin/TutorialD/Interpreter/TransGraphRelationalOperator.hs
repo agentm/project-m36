@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module TutorialD.Interpreter.TransGraphRelationalOperator where
 import ProjectM36.TransGraphRelationalExpression
@@ -8,9 +8,6 @@ import qualified ProjectM36.Client as C
 
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
-
-import Text.Megaparsec
-import Text.Megaparsec.Text
 
 import qualified Data.Text as T
 

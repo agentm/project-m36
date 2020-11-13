@@ -1,20 +1,20 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import ProjectM36.Base
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Types
 import qualified Data.Map as M
-import Control.Monad.State
 import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
 import qualified ProjectM36.RelationalExpression as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.Functor
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
@@ -44,11 +44,10 @@ nothingP = spaceConsumer >> pure NoOperation
 assignP :: Parser DatabaseContextExpr
 assignP = do
   relVarName <- try $ do
-    relVarName <- identifier
+    relVarName <- relVarNameP
     reservedOp ":="
     return relVarName
-  expr <- relExprP
-  pure $ Assign relVarName expr
+  Assign relVarName <$> relExprP
   
 multilineSep :: Parser T.Text  
 multilineSep = newline >> pure "\n"
@@ -60,33 +59,31 @@ multipleDatabaseContextExprP =
 insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"
-  relvar <- identifier
-  expr <- relExprP
-  pure $ Insert relvar expr
+  relvar <- relVarNameP
+  Insert relvar <$> relExprP
 
 defineP :: Parser DatabaseContextExpr
 defineP = do
   relVarName <- try $ do
-    relVarName <- identifier
+    relVarName <- relVarNameP
     reservedOp "::"
     return relVarName
-  attributeSet <- makeAttributeExprsP
-  pure $ Define relVarName attributeSet
+  Define relVarName <$> makeAttributeExprsP
 
 undefineP :: Parser DatabaseContextExpr
 undefineP = do
   reservedOp "undefine"
-  Undefine <$> identifier
+  Undefine <$> relVarNameP
 
 deleteP :: Parser DatabaseContextExpr
 deleteP = do
   reservedOp "delete"
-  Delete <$> identifier <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
+  Delete <$> relVarNameP <*> option TruePredicate (reservedOp "where" *> restrictionPredicateP)
 
 updateP :: Parser DatabaseContextExpr
 updateP = do
   reservedOp "update"
-  relVarName <- identifier
+  relVarName <- relVarNameP
   predicate <- option TruePredicate (reservedOp "where" *> restrictionPredicateP <* spaceConsumer)
   attributeAssignments <- M.fromList <$> parens (sepBy attributeAssignmentP comma)
   return $ Update relVarName attributeAssignments predicate
@@ -110,8 +107,7 @@ addConstraintP = do
 deleteConstraintP :: Parser DatabaseContextExpr  
 deleteConstraintP = do
   reserved "deleteconstraint"
-  constraintName <- identifier
-  pure $ RemoveInclusionDependency constraintName
+  RemoveInclusionDependency <$> identifier
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
 keyP :: Parser DatabaseContextExpr  
@@ -151,14 +147,12 @@ addNotificationP = do
   notName <- identifier
   triggerExpr <- relExprP 
   resultOldExpr <- relExprP
-  resultNewExpr <- relExprP
-  pure $ AddNotification notName triggerExpr resultOldExpr resultNewExpr
+  AddNotification notName triggerExpr resultOldExpr <$> relExprP
   
 removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do
   reserved "unnotify"
-  notName <- identifier
-  pure $ RemoveNotification notName
+  RemoveNotification <$> identifier
 
 -- | data Hair = Bald | Color Text
 addTypeConstructorP :: Parser DatabaseContextExpr
@@ -172,7 +166,7 @@ addTypeConstructorP = do
 removeTypeConstructorP :: Parser DatabaseContextExpr
 removeTypeConstructorP = do
   reserved "undata"
-  RemoveTypeConstructor <$> identifier 
+  RemoveTypeConstructor <$> typeConstructorNameP
   
 removeAtomFunctionP :: Parser DatabaseContextExpr  
 removeAtomFunctionP = do
@@ -184,29 +178,35 @@ removeDatabaseContextFunctionP = do
   reserved "removedatabasecontextfunction"
   RemoveDatabaseContextFunction <$> quotedString
 
+functionNameP :: Parser AtomFunctionName
+functionNameP = uncapitalizedIdentifier
+
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"
-  funcName <- identifier
+  funcName <- functionNameP
   args <- parens (sepBy atomExprP comma)
   pure (ExecuteDatabaseContextFunction funcName args)
   
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP
 
+{-
 evalDatabaseContextExpr :: Bool -> DatabaseContext -> DatabaseContextExpr -> Either RelationalError DatabaseContext
 evalDatabaseContextExpr useOptimizer context expr = do
     optimizedExpr <- evalState (applyStaticDatabaseOptimization expr) (RE.freshDatabaseState context)
     case runState (RE.evalDatabaseContextExpr (if useOptimizer then optimizedExpr else expr)) (RE.freshDatabaseState context) of
         (Right (), (context',_, _)) -> Right context'
         (Left err, _) -> Left err
+-}
 
-
-interpretDatabaseContextExpr :: DatabaseContext -> T.Text -> Either RelationalError DatabaseContext
-interpretDatabaseContextExpr context tutdstring = case parse databaseExprOpP "" tutdstring of
-                                    Left err -> Left $ PM36E.ParseError (T.pack (show err))
-                                    Right parsed -> 
-                                      evalDatabaseContextExpr True context parsed
+interpretDatabaseContextExpr :: DatabaseContext -> TransactionId -> TransactionGraph -> T.Text -> Either RelationalError DatabaseContext
+interpretDatabaseContextExpr context transId graph tutdstring =
+  case parse databaseExprOpP "" tutdstring of
+    Left err -> Left $ PM36E.ParseError (T.pack (show err))
+    Right parsed -> do
+      let env = RE.mkDatabaseContextEvalEnv transId graph
+      RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
 
 {-
 --no optimization

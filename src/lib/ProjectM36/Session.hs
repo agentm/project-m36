@@ -3,6 +3,7 @@ import ProjectM36.Base
 import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error
+import qualified ProjectM36.DisconnectedTransaction as Discon
 
 type SessionId = UUID
 
@@ -18,7 +19,7 @@ disconnectedTransaction :: Session -> DisconnectedTransaction
 disconnectedTransaction (Session discon _) = discon
 
 isDirty :: Session -> DirtyFlag
-isDirty (Session (DisconnectedTransaction _ _ dirtyFlag) _) = dirtyFlag
+isDirty (Session discon _) = Discon.isDirty discon
 
 concreteDatabaseContext :: Session -> DatabaseContext
 concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _) _) _) = context

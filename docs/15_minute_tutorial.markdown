@@ -5,10 +5,16 @@ Thank you for evaluating Project:M36, a new relational algebra engine written in
 ## Prerequisites
 
 * any Linux
-* GHC 7.10 or later version (Haskell compiler)
+* GHC 8.2 or later version (Haskell compiler)
 * cabal (package downloader) installed
 
 ## Download and Install
+
+Run a pre-built docker image:
+
+```docker run -it projectm36/project-m36 tutd```
+
+or build it yourself:
 
 ```bash
 git clone https://github.com/agentm/project-m36.git
@@ -19,7 +25,7 @@ cabal run tutd
 
 ##  Some Basic TutorialD
 
-When you run the ```tutd``` interpreter, you are interacting with an in-memory database using a dialect of the TutorialD language which is described in numerous book by Chris J. Date. It is a language specifically designed for human interaction with the relational algebra.
+When you run the ```tutd``` interpreter, you are interacting with an in-memory database using a dialect of the TutorialD language which is described in numerous books by Chris J. Date. It is a language specifically designed for human interaction with the relational algebra.
 
 Note that TutorialD is strongly-typed- no type coercions take place automatically. For example, an integer will never be interpreted as a string or vice versa.
 
@@ -29,15 +35,7 @@ Note that TutorialD is strongly-typed- no type coercions take place automaticall
 TutorialD (master/main): :importexample date
 ```
 
-or
-
-```
-TutorialD (master/main): :importtud "scripts/DateExamples.tutd"
-```
-
-```:importtutd``` (do not skip typing the preceding colon), loads a file which contains a script written in the TutorialD dialect used by Project:M36 and executes it to change the state of the database. In this case, the relations "s" (supplier), "p" (product), and "sp" (suppliers-products) are now loaded.
-
-```:importexample date``` loads the date example directly without any file I/O, so it is safe to use with the websocket server.
+```:importexample``` (do not skip typing the preceding colon), loads a built-in example schema and executes it to change the state of the database. In this case, the relations "s" (supplier), "p" (product), and "sp" (suppliers-products) are now loaded.
 
 ### Execute Relational Expressions
 
@@ -164,7 +162,7 @@ Database context expressions change the state of the database, much like "CREATE
 #### Create a Relation Variable
 
 ```
-TutorialD (master/main): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
+TutorialD (master/main): x:=relation{name Text, age Integer}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
 TutorialD (master/main): :showexpr x
 ┌────────┬──────────┐
 │age::Int│name::Text│
@@ -179,23 +177,25 @@ This is similar to SQL's "CREATE TABLE" operator.
 #### Insert Additional Tuples
 
 ```
-TutorialD (master/main): x:=relation{name Text, age Int}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
+TutorialD (master/main): x:=relation{name Text, age Integer}{tuple{name "Steve", age 40},tuple{name "Mike", age 31}}
 TutorialD (master/main): :showexpr x
-┌────────┬──────────┐
-│age::Int│name::Text│
-├────────┼──────────┤
-│40      │"Steve"   │
-│31      │"Mike"    │
-└────────┴──────────┘
+┌────────────┬──────────┐
+│age::Integer│name::Text│
+├────────────┼──────────┤
+│31          │"Mike"    │
+│40          │"Steve"   │
+└────────────┴──────────┘
+
 TutorialD (master/main): insert x relation{tuple{name "Bob", age 24}}
 TutorialD (master/main): :showexpr x
-┌────────┬──────────┐
-│age::Int│name::Text│
-├────────┼──────────┤
-│40      │"Steve"   │
-│24      │"Bob"     │
-│31      │"Mike"    │
-└────────┴──────────┘
+┌────────────┬──────────┐
+│age::Integer│name::Text│
+├────────────┼──────────┤
+│31          │"Mike"    │
+│40          │"Steve"   │
+│24          │"Bob"     │
+└────────────┴──────────┘
+
 ```
 
 Note that the relational insertion is identical to "x:=x union relation{...}".
@@ -204,50 +204,51 @@ Note that the relational insertion is identical to "x:=x union relation{...}".
 
 ```
 TutorialD (master/main): :showexpr s
-┌──────────┬────────┬───────────┬───────────┐
-│city::Text│s#::Text│sname::Text│status::Int│
-├──────────┼────────┼───────────┼───────────┤
-│"Paris"   │"S2"    │"Jones"    │10         │
-│"Paris"   │"S3"    │"Blake"    │30         │
-│"London"  │"S1"    │"Smith"    │20         │
-│"London"  │"S4"    │"Clark"    │20         │
-│"Athens"  │"S5"    │"Adams"    │30         │
-└──────────┴────────┴───────────┴───────────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"London"  │"S1"    │"Smith"    │20             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+└──────────┴────────┴───────────┴───────────────┘
 TutorialD (master/main): update s where city="London" (status:=35)
 TutorialD (master/main): :showexpr s
-┌──────────┬────────┬───────────┬───────────┐
-│city::Text│s#::Text│sname::Text│status::Int│
-├──────────┼────────┼───────────┼───────────┤
-│"London"  │"S4"    │"Clark"    │35         │
-│"London"  │"S1"    │"Smith"    │35         │
-│"Paris"   │"S2"    │"Jones"    │10         │
-│"Paris"   │"S3"    │"Blake"    │30         │
-│"Athens"  │"S5"    │"Adams"    │30         │
-└──────────┴────────┴───────────┴───────────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │35             │
+│"London"  │"S4"    │"Clark"    │35             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+└──────────┴────────┴───────────┴───────────────┘
+
 ```
 #### Deleting Tuples from a Relation Variable
 
 ```
 TutorialD (master/main): :showexpr s
-┌──────────┬────────┬───────────┬───────────┐
-│city::Text│s#::Text│sname::Text│status::Int│
-├──────────┼────────┼───────────┼───────────┤
-│"Paris"   │"S2"    │"Jones"    │10         │
-│"Paris"   │"S3"    │"Blake"    │30         │
-│"London"  │"S1"    │"Smith"    │20         │
-│"London"  │"S4"    │"Clark"    │20         │
-│"Athens"  │"S5"    │"Adams"    │30         │
-└──────────┴────────┴───────────┴───────────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
 TutorialD (master/main): delete s where sname="Adams"
 TutorialD (master/main): :showexpr s
-┌──────────┬────────┬───────────┬───────────┐
-│city::Text│s#::Text│sname::Text│status::Int│
-├──────────┼────────┼───────────┼───────────┤
-│"Paris"   │"S2"    │"Jones"    │10         │
-│"Paris"   │"S3"    │"Blake"    │30         │
-│"London"  │"S1"    │"Smith"    │20         │
-│"London"  │"S4"    │"Clark"    │20         │
-└──────────┴────────┴───────────┴───────────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
 ```
 
 ### Execute Transaction Graph Expressions
@@ -270,7 +271,7 @@ TutorialD (master/main): :rollback
 
 ```
 TutorialD (master/main): :branch experimental
-TutorialD (experimental): employee:=relation{name Text, salary Int}
+TutorialD (experimental): employee:=relation{name Text, salary Integer}
 TutorialD (experimental): :commit
 ```
 

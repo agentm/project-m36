@@ -3,6 +3,7 @@ module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
 import ProjectM36.TransactionGraph
+import ProjectM36.DataFrame
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
 import GHC.Generics
@@ -17,6 +18,8 @@ data Login = Login ProcessId
 data Logout = Logout
             deriving (Binary, Generic)
 data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr 
+                           deriving (Binary, Generic)
+data ExecuteDataFrameExpr = ExecuteDataFrameExpr SessionId DataFrameExpr
                            deriving (Binary, Generic)
 data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseContextExpr
                                 deriving (Binary, Generic)
@@ -66,3 +69,6 @@ data ExecuteAutoMergeToHead = ExecuteAutoMergeToHead SessionId MergeStrategy Hea
                               deriving (Binary, Generic)
 data RetrieveTypeConstructorMapping = RetrieveTypeConstructorMapping SessionId 
                                       deriving (Binary, Generic)
+
+data ExecuteValidateMerkleHashes = ExecuteValidateMerkleHashes SessionId
+                          deriving (Binary, Generic)

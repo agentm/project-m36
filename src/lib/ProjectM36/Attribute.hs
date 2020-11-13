@@ -7,6 +7,7 @@ import qualified Data.Vector as V
 import qualified Data.Hashable as Hash
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Either
 
 arity :: Attributes -> Int
 arity = V.length
@@ -73,6 +74,9 @@ attributeForName :: AttributeName -> Attributes -> Either RelationalError Attrib
 attributeForName attrName attrs = case V.find (\attr -> attributeName attr == attrName) attrs of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just attr -> Right attr
+
+isAttributeNameContained :: AttributeName -> Attributes -> Bool
+isAttributeNameContained nam attrs = isRight (attributeForName nam attrs)
 
 --similar to attributesForNames, but returns error if some names are missing  
 projectionAttributesForNames :: S.Set AttributeName -> Attributes -> Either RelationalError Attributes

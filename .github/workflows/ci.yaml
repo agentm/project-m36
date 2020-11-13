@@ -1,0 +1,29 @@
+name: "CI"
+on:
+  pull_request:
+  push:
+jobs:
+  dockerimage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2.3.1
+    - uses: cachix/install-nix-action@v10
+      with:
+        skip_adding_nixpkgs_channel: true
+    - uses: cachix/cachix-action@v6
+      with:
+        name: project-m36
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - run: cachix use iohk
+    - name: docker load
+      run: docker load < $(nix-build docker.nix)
+    - name: docker login
+      run: echo ${{secrets.DOCKERHUB_PASSWORD}} | docker login --username ${{secrets.DOCKERHUB_USER}} --password-stdin
+    - name: docker tag with version
+      run: docker tag project-m36:latest projectm36/project-m36:$(awk '/^Version:/ {print $2}' project-m36.cabal)
+      if: ${{ github.ref == 'refs/heads/master' }}
+    - name: docker tag latest
+      run: docker tag project-m36:latest projectm36/project-m36:latest
+      if: ${{ github.ref == 'refs/heads/master' }}
+    - run: docker push projectm36/project-m36
+      if: ${{ github.ref == 'refs/heads/master' }}

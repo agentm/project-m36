@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
@@ -7,12 +8,13 @@ import Control.Distributed.Process (Process, ProcessId)
 import Control.Distributed.Process.ManagedProcess (ProcessReply)
 import Control.Distributed.Process.ManagedProcess.Server (reply)
 import Control.Distributed.Process.Async (async, task, waitCancelTimeout, AsyncResult(..))
-import Control.Distributed.Process.Serializable (Serializable)
 import Control.Monad.IO.Class (liftIO)
 import Data.Map
 import Control.Concurrent (threadDelay)
+import Data.Typeable
+import Data.Binary
 
-timeoutOrDie :: Serializable a => Timeout -> IO a -> Process (Either ServerError a)
+timeoutOrDie :: (Binary a, Typeable a) => Timeout -> IO a -> Process (Either ServerError a)
 timeoutOrDie micros act = 
   if micros == 0 then
     liftIO act >>= \x -> pure (Right x)
@@ -33,6 +35,11 @@ type Reply a = Process (ProcessReply (Either ServerError a) Connection)
 handleExecuteRelationalExpr :: Timeout -> SessionId -> Connection -> RelationalExpr -> Reply (Either RelationalError Relation)
 handleExecuteRelationalExpr ti sessionId conn expr = do
   ret <- timeoutOrDie ti (executeRelationalExpr sessionId conn expr)
+  reply ret conn
+
+handleExecuteDataFrameExpr :: Timeout -> SessionId -> Connection -> DataFrameExpr -> Reply (Either RelationalError DataFrame)
+handleExecuteDataFrameExpr ti sessionId conn expr = do
+  ret <- timeoutOrDie ti (executeDataFrameExpr sessionId conn expr)
   reply ret conn
   
 handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError ())
@@ -77,7 +84,7 @@ handleRetrieveInclusionDependencies ti sessionId conn = do
   ret <- timeoutOrDie ti (inclusionDependencies sessionId conn)
   reply ret conn
   
-handleRetrievePlanForDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError DatabaseContextExpr)
+handleRetrievePlanForDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError GraphRefDatabaseContextExpr)
 handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr = do
   ret <- timeoutOrDie ti (planForDatabaseContextExpr sessionId conn dbExpr)
   reply ret conn
@@ -165,3 +172,7 @@ handleRetrieveTypeConstructorMapping ti sessionId conn = do
   ret <- timeoutOrDie ti (C.typeConstructorMapping sessionId conn)
   reply ret conn
  
+handleValidateMerkleHashes :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError ())
+handleValidateMerkleHashes ti sessionId conn = do
+  ret <- timeoutOrDie ti (C.validateMerkleHashes sessionId conn)
+  reply ret conn

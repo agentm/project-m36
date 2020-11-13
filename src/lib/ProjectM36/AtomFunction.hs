@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -8,7 +9,8 @@ import ProjectM36.ScriptSession
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary as B
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
 --the underscore in the attribute name means that any attributes are acceptable
@@ -72,7 +74,11 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
                 retType]])
 
 loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
+#ifdef PM36_HASKELL_SCRIPTING
 loadAtomFunctions = loadFunction
+#else
+loadAtomFunctions _ _ _ = pure (Left LoadSymbolError)
+#endif
 
 atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
 atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
@@ -82,3 +88,13 @@ atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
         atomFuncToTuple aFunc = [TextAtom (atomFuncName aFunc),
                                  TextAtom (atomFuncTypeToText aFunc)]
         atomFuncTypeToText aFunc = T.intercalate " -> " (map prettyAtomType (atomFuncType aFunc))
+
+--for calculating the merkle hash
+hashBytes :: AtomFunction -> BL.ByteString
+hashBytes func = mconcat [B.encode (atomFuncName func),
+                          B.encode (atomFuncType func),
+                          bodyBin
+                         ]
+  where
+    bodyBin = case atomFuncBody func of
+                AtomFunctionBody mScript _ -> B.encode mScript

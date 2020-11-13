@@ -1,11 +1,8 @@
 --compiling the script requires the IO monad because it must load modules from the filesystem, so we create the function and generate the requisite DatabaseExpr here.
 module TutorialD.Interpreter.DatabaseContextIOOperator where
 import ProjectM36.Base
-
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import Data.Text
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
@@ -24,13 +21,12 @@ createArbitraryRelationP = do
   max' <- fromInteger <$> integer
   pure $ CreateArbitraryRelation relVarName attrExprs (min',max')
   
-dbioexprP :: String -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
+dbioexprP :: ParseStr -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
 dbioexprP res adt = do
   reserved res
   funcName <- quotedString
   funcType <- atomTypeSignatureP
-  funcScript <- quotedString
-  pure $ adt funcName funcType funcScript
+  adt funcName funcType <$> quotedString
 
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow

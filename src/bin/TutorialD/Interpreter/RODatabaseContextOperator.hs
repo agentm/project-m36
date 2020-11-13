@@ -1,11 +1,10 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
+import qualified ProjectM36.DataFrame as DF
 import ProjectM36.Error
 import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
@@ -26,49 +25,50 @@ data RODatabaseContextOperator where
   ShowRelationVariables :: RODatabaseContextOperator
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
+  ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
 typeP :: Parser RODatabaseContextOperator
 typeP = do
-  reservedOp ":type"
+  colonOp ":type"
   ShowRelationType <$> relExprP
 
 showRelP :: Parser RODatabaseContextOperator
 showRelP = do
-  reservedOp ":showexpr"
+  colonOp ":showexpr"
   ShowRelation <$> relExprP
 
 showPlanP :: Parser RODatabaseContextOperator
 showPlanP = do
-  reservedOp ":showplan"
+  colonOp ":showplan"
   ShowPlan <$> databaseContextExprP
 
 showTypesP :: Parser RODatabaseContextOperator
-showTypesP = reserved ":showtypes" >> pure ShowTypes
+showTypesP = colonOp ":showtypes" >> pure ShowTypes
 
 showRelationVariables :: Parser RODatabaseContextOperator
-showRelationVariables = reserved ":showrelvars" >> pure ShowRelationVariables
+showRelationVariables = colonOp ":showrelvars" >> pure ShowRelationVariables
 
 showAtomFunctionsP :: Parser RODatabaseContextOperator
-showAtomFunctionsP = reserved ":showatomfunctions" >> pure ShowAtomFunctions
+showAtomFunctionsP = colonOp ":showatomfunctions" >> pure ShowAtomFunctions
 
 showDatabaseContextFunctionsP :: Parser RODatabaseContextOperator
-showDatabaseContextFunctionsP = reserved ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
+showDatabaseContextFunctionsP = colonOp ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
 
 quitP :: Parser RODatabaseContextOperator
 quitP = do
-  reservedOp ":quit"
+  colonOp ":quit"
   return Quit
 
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
-  reservedOp ":constraints"
+  colonOp ":constraints"
   ShowConstraint <$> option "" identifier
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
-  reserved ":plotexpr"
+  colonOp ":plotexpr"
   PlotRelation <$> relExprP
 
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
@@ -81,6 +81,7 @@ roDatabaseContextOperatorP = typeP
              <|> showTypesP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
+             <|> showDataFrameP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -148,6 +149,12 @@ evalRODatabaseContextOp sessionId conn ShowDatabaseContextFunctions = do
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
   
+evalRODatabaseContextOp sessionId conn (ShowDataFrame dfExpr) = do
+  eDataFrame <- C.executeDataFrameExpr sessionId conn dfExpr
+  case eDataFrame of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right dframe -> pure (DisplayDataFrameResult dframe)
+ 
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
 interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
@@ -155,4 +162,32 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed
   
-  
+showDataFrameP :: Parser RODatabaseContextOperator
+showDataFrameP = do
+  colonOp ":showdataframe"
+  relExpr <- relExprP
+  reservedOp "orderby"
+  attrOrdersExpr <- attrOrdersExprP
+  mbOffset <- optional offsetP
+  mbLimit <- optional limitP
+  pure $ ShowDataFrame (DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit)
+
+
+offsetP :: Parser Integer
+offsetP = do
+  reservedOp "offset"
+  natural
+
+limitP :: Parser Integer
+limitP = do
+  reservedOp "limit"
+  natural
+
+attrOrdersExprP :: Parser [DF.AttributeOrderExpr]
+attrOrdersExprP = braces (sepBy attrOrderExprP comma)
+
+attrOrderExprP :: Parser DF.AttributeOrderExpr
+attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP
+
+orderP :: Parser DF.Order
+orderP = try (reservedOp "ascending" >> pure DF.AscendingOrder) <|> try (reservedOp "descending" >> pure DF.DescendingOrder) <|> pure DF.AscendingOrder

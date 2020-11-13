@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Import.CSV where
 import TutorialD.Interpreter.Import.Base
 import ProjectM36.Base
@@ -5,8 +6,7 @@ import ProjectM36.Error
 import ProjectM36.Relation.Parse.CSV hiding (quotedString)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as T
-import Text.Megaparsec.Text
-import TutorialD.Interpreter.Base
+import TutorialD.Interpreter.Base hiding (try)
 import Control.Exception
 
 importCSVRelation :: RelVarName -> TypeConstructorMapping -> Attributes -> FilePath -> IO (Either RelationalError DatabaseContextExpr)

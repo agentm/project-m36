@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -8,19 +9,18 @@ import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Binary as B
---import qualified Data.ByteString as BS
 import System.FilePath
 import System.Directory
 import qualified Data.Text as T
 import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
-import Control.Exception
+
+#ifdef PM36_HASKELL_SCRIPTING
 import GHC
+import Control.Exception
 import GHC.Paths
-import Codec.Compression.GZip
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
+#endif
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path =
@@ -36,8 +36,8 @@ transactionDir dbdir transId = dbdir </> show transId
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
 
-relvarsDir :: FilePath -> FilePath        
-relvarsDir transdir = transdir </> "relvars"
+relvarsPath :: FilePath -> FilePath        
+relvarsPath transdir = transdir </> "relvars"
 
 incDepsDir :: FilePath -> FilePath
 incDepsDir transdir = transdir </> "incdeps"
@@ -85,7 +85,7 @@ writeTransaction sync dbdir trans = do
   transDirExists <- doesDirectoryExist finalTransDir
   unless transDirExists $ do
     --create sub directories
-    mapM_ createDirectory [tempTransDir, relvarsDir tempTransDir, incDepsDir tempTransDir, dbcFuncsDir tempTransDir]
+    mapM_ createDirectory [tempTransDir, incDepsDir tempTransDir, dbcFuncsDir tempTransDir]
     writeRelVars sync tempTransDir (relationVariables context)
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeAtomFuncs sync tempTransDir (atomFunctions context)
@@ -95,24 +95,15 @@ writeTransaction sync dbdir trans = do
     B.encodeFile (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
-  pure ()
-  
-writeRelVar :: DiskSync -> FilePath -> (RelVarName, Relation) -> IO ()
-writeRelVar sync transDir (relvarName, rel) = do
-  let relvarPath = relvarsDir transDir </> T.unpack relvarName
-  writeBSFileSync sync relvarPath (compress (B.encode rel))
-  
-writeRelVars :: DiskSync -> FilePath -> M.Map RelVarName Relation -> IO ()
-writeRelVars sync transDir relvars = mapM_ (writeRelVar sync transDir) $ M.toList relvars
 
-readRelVars :: FilePath -> IO (M.Map RelVarName Relation)
-readRelVars transDir = do
-  let relvarsPath = relvarsDir transDir
-  relvarNames <- getDirectoryNames relvarsPath
-  let relvars = mapM (\name -> do
-                      rel <- B.decode . decompress . BSL.fromStrict <$> BS.readFile (relvarsPath </> name)
-                      return (T.pack name, rel)) relvarNames
-  M.fromList <$> relvars
+writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
+writeRelVars sync transDir relvars = do
+  let path = relvarsPath transDir
+  writeBSFileSync sync path (B.encode relvars)
+
+readRelVars :: FilePath -> IO RelationVariables
+readRelVars transDir = 
+  B.decodeFile (relvarsPath transDir)
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
@@ -129,33 +120,40 @@ readAtomFuncs transDir mScriptSession = do
   pure (HS.union precompiledAtomFunctions (HS.fromList funcs))
   
 loadAtomFunc :: AtomFunctions -> Maybe ScriptSession -> AtomFunctionName -> [AtomType] -> Maybe AtomFunctionBodyScript -> IO AtomFunction
-loadAtomFunc precompiledFuncs mScriptSession funcName funcType mFuncScript = case mFuncScript of
+loadAtomFunc precompiledFuncs _mScriptSession funcName _funcType mFuncScript = case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName precompiledFuncs of
       --WARNING: possible landmine here if we remove a precompiled atom function in the future, then the transaction cannot be restored
       Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
       Right realFunc -> pure realFunc
     --handle a real Haskell scripted function- compile and load
-    Just funcScript -> 
-      case mScriptSession of
+    Just _funcScript ->
+#ifdef PM36_HASKELL_SCRIPTING
+      case _mScriptSession of
         Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
         Just scriptSession -> do
           --risk of GHC exception during compilation here
           eCompiledScript <- runGhc (Just libdir) $ do
             setSession (hscEnv scriptSession)
-            compileScript (atomFunctionBodyType scriptSession) funcScript
+            compileScript (atomFunctionBodyType scriptSession) _funcScript
           case eCompiledScript of
             Left err -> throwIO err
             Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
-                                                        atomFuncType = funcType,
-                                                        atomFuncBody = AtomFunctionBody (Just funcScript) compiledScript }
+                                                        atomFuncType = _funcType,
+                                                        atomFuncBody = AtomFunctionBody (Just _funcScript) compiledScript }
+#else
+      error "Haskell scripting is disabled"
+#endif                                    
 
 --if the script session is enabled, compile the script, otherwise, hard error!  
   
 readAtomFunc :: FilePath -> AtomFunctionName -> Maybe ScriptSession -> AtomFunctions -> IO AtomFunction
+#if !defined(PM36_HASKELL_SCRIPTING)
+readAtomFunc _ _ _ _ = error "Haskell scripting is disabled"
+#else
 readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsPath transDir
-  (funcType, mFuncScript) <- B.decodeFile atomFuncPath
+  (funcType, mFuncScript) <- B.decodeFile @([AtomType],Maybe T.Text) atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName precompiledFuncs of
@@ -163,7 +161,8 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
       Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
       Right realFunc -> pure realFunc
     --handle a real Haskell scripted function- compile and load
-    Just funcScript -> 
+    Just funcScript ->
+
       case mScriptSession of
         Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
         Just scriptSession -> do
@@ -176,6 +175,7 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
             Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
                                                          atomFuncType = funcType,
                                                          atomFuncBody = AtomFunctionBody (Just funcScript) compiledScript }
+#endif
 
 
 writeDBCFuncs :: DiskSync -> FilePath -> DatabaseContextFunctions -> IO ()
@@ -194,26 +194,34 @@ readDBCFuncs transDir mScriptSession = do
   let funcs = mapM ((\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) . T.pack) funcNames
   HS.union basicDatabaseContextFunctions . HS.fromList <$> funcs
   
-readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction  
+readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction
+#if !defined(PM36_HASKELL_SCRIPTING)
+readDBCFunc transDir funcName _ precompiledFuncs = do
+#else
 readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
+#endif
   let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName
-  (funcType, mFuncScript) <- B.decodeFile dbcFuncPath
+  (_funcType, mFuncScript) <- B.decodeFile @([AtomType], Maybe T.Text) dbcFuncPath
   case mFuncScript of
     Nothing -> case databaseContextFunctionForName funcName precompiledFuncs of
       Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName)
       Right realFunc -> pure realFunc --return precompiled function
-    Just funcScript -> 
+    Just _funcScript ->
+#ifdef PM36_HASKELL_SCRIPTING
       case mScriptSession of
         Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
         Just scriptSession -> do
           eCompiledScript <- runGhc (Just libdir) $ do
             setSession (hscEnv scriptSession)
-            compileScript (dbcFunctionBodyType scriptSession) funcScript
+            compileScript (dbcFunctionBodyType scriptSession) _funcScript
           case eCompiledScript of
             Left err -> throwIO err
             Right compiledScript -> pure DatabaseContextFunction { dbcFuncName = funcName,
-                                                                    dbcFuncType = funcType,
-                                                                    dbcFuncBody = DatabaseContextFunctionBody (Just funcScript) compiledScript}
+                                                                    dbcFuncType = _funcType,
+                                                                    dbcFuncBody = DatabaseContextFunctionBody (Just _funcScript) compiledScript}
+#else
+      error "Haskell scripting is disabled"
+#endif
 
 writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
 writeIncDep sync transDir (incDepName, incDep) = 

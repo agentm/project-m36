@@ -2,10 +2,9 @@ module TutorialD.Interpreter.Export.CSV where
 import ProjectM36.Relation.Show.CSV
 import TutorialD.Interpreter.Export.Base
 import TutorialD.Interpreter.RelationalExpr
-import TutorialD.Interpreter.Base
+import TutorialD.Interpreter.Base hiding (try)
 import ProjectM36.Base
 import ProjectM36.Error
-import Text.Megaparsec.Text
 import qualified Data.ByteString.Lazy as BS
 import Control.Exception (try)
 import qualified Data.Text as T

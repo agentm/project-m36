@@ -20,10 +20,10 @@ testTutdImport = TestCase $
     hClose handle
     let expectedExpr = MultipleExpr [
           Assign "x" (MakeRelationFromExprs Nothing 
-                      [TupleExpr (M.fromList [("a", NakedAtomExpr $ IntegerAtom 5),
+                      $ TupleExprs () [TupleExpr (M.fromList [("a", NakedAtomExpr $ IntegerAtom 5),
                                               ("b", NakedAtomExpr $ TextAtom "spam")])]),
           Assign "y" (MakeRelationFromExprs Nothing 
-                      [TupleExpr (M.fromList [("b", NakedAtomExpr (TextAtom "漢字"))])])]
+                      $ TupleExprs () [TupleExpr (M.fromList [("b", NakedAtomExpr (TextAtom "漢字"))])])]
     imported <- importTutorialD tempPath
     assertEqual "import tutd" (Right expectedExpr) imported
 

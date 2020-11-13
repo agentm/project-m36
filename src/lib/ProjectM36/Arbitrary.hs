@@ -10,8 +10,9 @@ import ProjectM36.Attribute (atomType)
 import ProjectM36.DataConstructorDef as DCD
 import ProjectM36.DataTypes.Interval
 import qualified Data.Vector as V
-import Data.Text (Text,pack)
+import Data.Text (Text)
 import Test.QuickCheck
+import Test.QuickCheck.Instances ()
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
@@ -74,18 +75,6 @@ arbitrary' (TypeVariableType _) = error "arbitrary on type variable"
 maybeToRight :: b -> Maybe a -> Either b a
 maybeToRight _ (Just x) = Right x
 maybeToRight y Nothing  = Left y
-
-instance Arbitrary Text where
-  arbitrary = pack <$> elements (map (replicate 3) ['A'..'Z'])
-
-instance Arbitrary Day where
-  arbitrary = ModifiedJulianDay <$> (arbitrary :: Gen Integer)
-
-instance Arbitrary UTCTime where
- arbitrary = UTCTime <$> arbitrary <*> (secondsToDiffTime <$> choose(0,86400))
-
-instance Arbitrary B.ByteString where
-  arbitrary = B.pack <$> (arbitrary :: Gen String)
 
 arbitraryRelationTuple :: Attributes -> WithTCMap Gen (Either RelationalError RelationTuple)
 arbitraryRelationTuple attris = do

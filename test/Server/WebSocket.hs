@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- test the websocket server
 import Test.HUnit
 import qualified Network.WebSockets as WS
@@ -17,7 +18,12 @@ import Data.Aeson
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
+#if MIN_VERSION_network_transport_tcp(0,6,0)                
+import Network.Transport.TCP.Internal (decodeEndPointAddress)
+#else
 import Network.Transport.TCP (decodeEndPointAddress)
+#endif
+
 
 --start the websocket server
 -- run some tutoriald against it
@@ -26,7 +32,8 @@ launchTestServer :: IO (PortNumber, DatabaseName)
 launchTestServer = do
   addressMVar <- newEmptyMVar
   let config = defaultServerConfig { databaseName = testDatabaseName, 
-                                     bindPort = 0 }
+                                     bindPort = 0,
+                                     checkFS = False}
       testDatabaseName = "test"
   -- start normal server
   _ <- forkIO (launchServer config (Just addressMVar) >> pure ())
@@ -50,13 +57,14 @@ waitForListenSocket secondsToTry port =
   if secondsToTry <= 0 then
     throw WaitForSocketListenException
     else do
-    hostaddr <- inet_addr "127.0.0.1"
+    --hostaddr <- inet_addr "127.0.0.1"
+    hostaddr:_ <- getAddrInfo Nothing (Just "127.0.0.1") (Just (show port))
     sock <- socket AF_INET Stream defaultProtocol
     let handler :: IOException -> IO ()
         handler _ = do
           threadDelay 1000000
           waitForListenSocket (secondsToTry - 1) port
-    catch (connect sock (SockAddrInet port hostaddr)) handler
+    catch (connect sock (addrAddress hostaddr)) handler
   
 main :: IO ()
 main = do

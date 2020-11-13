@@ -30,6 +30,12 @@ function updateStatus(status)
 	appendResult(tutd, relastable);
 	mungeEmptyRows();
     }
+    if(status.dataframe)
+    {
+	var dataframeastable = conn.generateDataFrame(status.dataframe);
+	appendResult(tutd, dataframeastable);
+	mungeEmptyRows();
+    }
     if(status.acknowledgement)
     {
 	var ok = document.createElement("span");

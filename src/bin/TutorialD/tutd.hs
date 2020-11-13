@@ -5,9 +5,13 @@ import ProjectM36.Client
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import System.IO
+import GHC.IO.Encoding
 import Options.Applicative
 import System.Exit
+import Control.Monad
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -23,6 +27,7 @@ parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadNam
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
                              help "Start session at head name." <>
+                             metavar "GRAPH HEAD NAME" <>
                              value "master"
                             )
 
@@ -31,8 +36,10 @@ parseNodeId = createNodeId <$>
               strOption (long "host" <> 
                          short 'h' <>
                          help "Remote host name" <>
+                         metavar "HOSTNAME" <>
                          value "127.0.0.1") <*> 
               option auto (long "port" <>
+                           metavar "PORT NUMBER" <>
                            short 'p' <>
                       help "Remote port" <>
                       value defaultServerPort)
@@ -41,11 +48,12 @@ parseNodeId = createNodeId <$>
 parseTutDExec :: Parser (Maybe TutorialDExec)
 parseTutDExec = optional $ strOption (long "exec-tutd" <>
                            short 'e' <>
+                           metavar "TUTORIALD" <>
                            help "Execute TutorialD expression and exit"
                            )
 
 opts :: ParserInfo InterpreterConfig            
-opts = info parseArgs idm
+opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
@@ -80,8 +88,15 @@ printWelcome = do
   putStrLn "A full tutorial is available at:"
   putStrLn "https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown"
 
+-- | If the locale is set to ASCII, upgrade it to UTF-8 because tutd outputs UTF-8-encoded attributes. This is especially important in light docker images where the locale data may be missing.
+setLocaleIfNecessary :: IO ()
+setLocaleIfNecessary = do
+  l <- getLocaleEncoding
+  when (textEncodingName l == "ASCII") (setLocaleEncoding utf8)
+    
 main :: IO ()
 main = do
+  setLocaleIfNecessary
   interpreterConfig <- execParser opts
   let connInfo = connectionInfoForConfig interpreterConfig
   fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))

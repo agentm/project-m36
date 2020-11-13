@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import ProjectM36.MerkleHash
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import qualified Data.Set as S
@@ -62,6 +63,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
+                     | AttributeNotSortableError Attribute
                      | FunctionNameInUseError AtomFunctionName
                      | FunctionNameNotInUseError AtomFunctionName
                      | EmptyCommitError
@@ -95,6 +97,13 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | SchemaCreationError SchemaError 
                        
                      | ImproperDatabaseStateError
+
+                     | NonConcreteSchemaPlanError
+
+                     | NoUncommittedContextInEvalError
+                     | TupleExprsReferenceMultipleMarkersError
+
+                     | MerkleHashValidationError TransactionId MerkleHash MerkleHash
                        
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Binary,Typeable, NFData) 

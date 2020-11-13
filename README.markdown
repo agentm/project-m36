@@ -6,6 +6,7 @@
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
 [![Build status](https://travis-ci.org/agentm/project-m36.svg?branch=master)](https://travis-ci.org/agentm/project-m36)
 [![Windows Build status](https://ci.appveyor.com/api/projects/status/q7jyddd6dy1ibqdo/branch/master?svg=true)](https://ci.appveyor.com/project/agentm/project-m36)
+[![Github Workflow status](https://github.com/agentm/project-m36/workflows/CI/badge.svg)](https://github.com/agentm/project-m36/actions?query=workflow%3ACI)
 
 
 *Software can always be made faster, but rarely can it be made more correct.*
@@ -13,6 +14,12 @@
 ## Introduction
 
 Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date.
+
+## Quick Install
+
+Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
+
+Run `docker run -it projectm36/project-m36 tutd` to start the TutorialD command line interface.
 
 ## Description
 
@@ -25,10 +32,6 @@ Project:M36 is written entirely in the [Haskell programming language](https://ww
 ## Sample Session
 
 [![asciicast](https://asciinema.org/a/3syu35c8cydm403292a74l1n5.png)](https://asciinema.org/a/3syu35c8cydm403292a74l1n5)
-
-## Try It!
-
-You can experiment instantly with Project:M36 straight from your browser at [try.project-m36.io](https://try.project-m36.io)!
 
 ## Use-Cases
 
@@ -52,22 +55,26 @@ Project:M36 supports multiple frontends which target different audiences.
 
 1. [Installation and Introduction to Project:M36](docs/introduction_to_projectm36.markdown)
 1. [Introduction to the Relational Algebra](docs/introduction_to_the_relational_algebra.markdown)
+1. [TutorialD Cheatsheet](docs/tutd_cheatsheet.markdown)
 1. [TutorialD via Jupyter Notebook Walkthrough](jupyter/TutorialD%20Notebook%20Walkthrough.ipynb)
 1. [TutorialD Tutorial](docs/tutd_tutorial.markdown)
 1. [15 Minute Tutorial](docs/15_minute_tutorial.markdown)
 1. [Developer's Change Log](Changelog.markdown)
 1. [Simple Client API](docs/simple_api.markdown)
+1. [CSV Import/Export](docs/import_export_csv.markdown)
 
 ### Database Comparisons
 
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [On NULL (in SQL)](docs/on_null.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
+1. [An Architecture for Data Independence](docs/data_independence.markdown)
 
 ### Advanced Features
 
 1. [Transaction Graph Operators](docs/transaction_graph_operators.markdown)
 1. [ProjectM36.Client Library](docs/projectm36_client_library.markdown)
+1. [Data Frames for Sorting](docs/dataframes.markdown)
 1. [Adding New Data Types](docs/new_datatypes.markdown)
 1. [Database-Manipulating Functions](docs/database_context_functions.markdown)
 1. [Serving Remote ProjectM36 Databases](docs/server_mode.markdown)
@@ -78,15 +85,17 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Isomorphic Schemas](docs/isomorphic_schemas.markdown)
 1. [Replication](docs/replication.markdown)
 1. [Basic Operator Benchmarks](https://rawgit.com/agentm/project-m36/master/docs/basic_benchmarks.html)
+1. [Merkle Transaction Hashes](docs/merkle_transaction_graph.markdown)
 
 ### Integrations
 
 1. [WebSocket Server](docs/websocket_server.markdown)
 1. [Jupyter Notebook Kernel](docs/jupyter_kernel.markdown)
+1. [Persistent Driver](https://github.com/YuMingLiao/persistent-project-m36)
 
 ## Development
 
-Project:M36 is developed in Haskell and compiled with GHC 7.10 or GHC 8.0.2 or later.
+Project:M36 is developed in Haskell and compiled with GHC 8.2.2 or later.
 
 ## Related Projects
 

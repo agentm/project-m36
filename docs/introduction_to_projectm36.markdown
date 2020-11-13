@@ -15,38 +15,59 @@ The relational algebra is the mathematical model underpinning Project:M36. When 
 
 ## Binary Releases
 
-### Windows
-Project:M36 now provides binary installations for Windows. Check the (releases page)[https://github.com/agentm/project-m36/releases] for downloads.
+The quickest and preferred method of installation is via docker, which works on Linux, macOS, and Windows. Docker downloads and runs preconfigured software in secure, sandboxed containers, preventing third-party software from altering the host system without your permission.
 
-### MacOS X
+### Install Docker:
 
-Binary releases are not yet available for MacOS X, but compiling from source is easy.
+* [Windows 10 Docker Installation](https://docs.docker.com/docker-for-windows/wsl/)
+* [MacOS Docker Installation](https://docs.docker.com/docker-for-mac/install/)
+* [Linux Docker Installation](https://docs.docker.com/engine/install/#server)
 
-### Linux
+### Run TutorialD from Docker Image
 
-The currently-preferred method of installation is from source. A future enhancement would be installation from deb or rpm.
+This downloads the docker image tagged "latest" and runs `tutd`, the TutorialD command line interface. Try the [15-Minute TutorialD Tutorial](15_minute_tutorial.markdown) and try some expressions.
+
+```bash
+docker run -it projectm36/project-m36 tutd
+```
+
+### Run Project:M36 Server
+
+The default port for the project-m36 server is 6543.
+
+```bash
+docker run --network host projectm36/project-m36 project-m36-server -n <database_name>
+```
+
+### Connect to Project:M36 Server
+
+```bash
+docker run --network host projectm36/project-m36
+```
 
 ## Source Installation
 
 Requirements:
 
-* [GHC 7.10 or greater](https://www.haskell.org/downloads)
+To build with stack:
+
+* [GHC 8.4.4 or greater](https://www.haskell.org/downloads)
 * [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
-* Linux, MacOS X, or Windows OS
+* Linux, macOS, or Microsoft Windows
 
 Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```stack build```
+* ```stack --stack-yaml stack.ghc8.6.yaml build```
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.0.x:
+Alternative building with GHC 8.4.4 or greater:
 
 * ```cabal new-build```
 
-The resultant binaries can be found in ```./dist-newstyle/build/project-m36-0.1/build```.
+The resultant binaries can be found in ```./dist-newstyle/build/project-m36-<version>/build```.
 
 ## Accessing Project:M36 Databases
 
@@ -87,7 +108,7 @@ Decreasing a transaction's durability can reduce IO contention at the cost of re
 
 ### Native Haskell Compatibility
 
-Any Haskell data type which implements the ```Atom``` typeclass can be manipulated as a value in the database.
+Any Haskell data type which implements the ```Atomable``` typeclass can be manipulated as a value in the database.
 
 Haskell functions which operate on those values can also be added to the database.
 

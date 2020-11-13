@@ -8,7 +8,9 @@ import qualified Data.List as L
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import qualified Data.Vector as V
 
 attributesAsHTML :: Attributes -> Text
@@ -51,6 +53,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
   where
     tupleFrag tup = "<td>" <> atomAsHTML (snd tup) <> "</td>"
     atomAsHTML (RelationAtom rel) = relationAsHTML rel
+    atomAsHTML (TextAtom t) = "&quot;" <> t <> "&quot;"
     atomAsHTML atom = atomToText atom
 
 tupleSetAsHTML :: RelationTupleSet -> Text

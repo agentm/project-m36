@@ -8,7 +8,11 @@ import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
 
 import Control.Monad.IO.Class (liftIO)
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+import Network.Transport.TCP (createTransport, defaultTCPParameters, defaultTCPAddr)  
+#else
 import Network.Transport.TCP (createTransport, defaultTCPParameters)
+#endif
 import Network.Transport (EndPointAddress(..), newEndPoint, address)
 import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode, initRemoteTable)
 import Control.Distributed.Process.Extras.Time (Delay(..))
@@ -26,6 +30,7 @@ serverDefinition testBool ti = defaultProcess {
   apiHandlers = [                 
      handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName ti sessionId conn),
      handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr ti sessionId conn expr),
+     handleCall (\conn (ExecuteDataFrameExpr sessionId expr) -> handleExecuteDataFrameExpr ti sessionId conn expr),     
      handleCall (\conn (ExecuteDatabaseContextExpr sessionId expr) -> handleExecuteDatabaseContextExpr ti sessionId conn expr),
      handleCall (\conn (ExecuteDatabaseContextIOExpr sessionId expr) -> handleExecuteDatabaseContextIOExpr ti sessionId conn expr),
      handleCall (\conn (ExecuteGraphExpr sessionId expr) -> handleExecuteGraphExpr ti sessionId conn expr),
@@ -48,17 +53,14 @@ serverDefinition testBool ti = defaultProcess {
      handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),
      handleCall (\conn (ExecuteAutoMergeToHead sessionId strat headName') -> handleExecuteAutoMergeToHead ti sessionId conn strat headName'),
      handleCall (\conn (RetrieveTypeConstructorMapping sessionId) -> handleRetrieveTypeConstructorMapping ti sessionId conn),
+     handleCall (\conn (ExecuteValidateMerkleHashes sessionId) -> handleValidateMerkleHashes ti sessionId conn),
      handleCall (\conn Logout -> handleLogout ti conn)
      ] ++ testModeHandlers,
   unhandledMessagePolicy = Terminate
   --unhandledMessagePolicy = Log
   }
   where
-    testModeHandlers = if not testBool then
-                         []
-                       else
-                         [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn)]
-                               
+    testModeHandlers =   [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn) | testBool]
                  
 initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar EndPointAddress), EndPointAddress) Connection
 initServer (conn, dbname, mAddressMVar, saddress) = do
@@ -116,7 +118,13 @@ launchServer daemonConfig mAddressMVar = do
         Right conn -> do
           let hostname = bindHost daemonConfig
               port = bindPort daemonConfig
+#if MIN_VERSION_network_transport_tcp(0,7,0)
+          etransport <- createTransport (defaultTCPAddr hostname (show port)) defaultTCPParameters
+#elif MIN_VERSION_network_transport_tcp(0,6,0)                
+          etransport <- createTransport hostname (show port) (\nam -> (hostname, nam)) defaultTCPParameters              
+#else                        
           etransport <- createTransport hostname (show port) defaultTCPParameters
+#endif
           case etransport of
             Left err -> error ("failed to create transport: " ++ show err)
             Right transport -> do
@@ -132,4 +140,3 @@ launchServer daemonConfig mAddressMVar = do
                     serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
                   liftIO $ putStrLn "serve returned"
                   pure True
-  

@@ -1,14 +1,16 @@
 --create a bunch of orphan instances for use with the websocket server
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.AtomFunctionError
 import ProjectM36.Base
+import ProjectM36.DataFrame
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.MerkleHash
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
@@ -20,6 +22,9 @@ instance FromJSON RelationalExpr
 
 instance ToJSON TupleExpr
 instance FromJSON TupleExpr
+
+instance ToJSON TupleExprs
+instance FromJSON TupleExprs
 
 instance ToJSON RestrictionPredicateExpr
 instance FromJSON RestrictionPredicateExpr
@@ -62,6 +67,18 @@ instance FromJSON SchemaExpr
 
 instance ToJSON SchemaIsomorph
 instance FromJSON SchemaIsomorph
+
+instance ToJSON DataFrame
+instance FromJSON DataFrame
+
+instance ToJSON DataFrameTuple
+instance FromJSON DataFrameTuple
+
+instance ToJSON AttributeOrder
+instance FromJSON AttributeOrder
+
+instance ToJSON Order
+instance FromJSON Order
 
 instance ToJSON Atom where
   toJSON atom@(IntegerAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -116,6 +133,15 @@ instance FromJSON Notification
 instance ToJSON ScriptCompilationError
 instance FromJSON ScriptCompilationError
 
+instance ToJSON MerkleHash where
+  toJSON h = object [ "merklehash" .= decodeUtf8 (B64.encode (_unMerkleHash h))]
+instance FromJSON MerkleHash where
+  parseJSON = withObject "merklehash" $ \o -> do
+    b64bs <- encodeUtf8 <$> o .: "merklehash"
+    case B64.decode b64bs of
+      Left err -> fail ("Failed to parse merkle hash: " ++ err)
+      Right bs -> pure (MerkleHash bs)
+
 instance ToJSON RelationalError
 instance FromJSON RelationalError
 
@@ -136,3 +162,6 @@ instance FromJSON PersistenceError
 
 instance ToJSON AtomFunctionError
 instance FromJSON AtomFunctionError
+
+instance ToJSON WithNameExpr
+instance FromJSON WithNameExpr

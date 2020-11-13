@@ -1,2 +1,2 @@
 #!/bin/sh
-./.cabal-sandbox/bin/ghcid --command="cabal repl $1"
+~/.cabal/bin/ghcid --command="cabal new-repl $1"

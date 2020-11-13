@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module ProjectM36.DatabaseContextFunction where
 --implements functions which operate as: [Atom] -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 import ProjectM36.Base
@@ -9,6 +10,8 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import ProjectM36.ScriptSession
 import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as BL
+import Data.Binary as B
 
 emptyDatabaseContextFunction :: DatabaseContextFunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = DatabaseContextFunction { 
@@ -61,7 +64,11 @@ createScriptedDatabaseContextFunction :: DatabaseContextFunctionName -> [TypeCon
 createScriptedDatabaseContextFunction funcName argsIn retArg = AddDatabaseContextFunction funcName (argsIn ++ [databaseContextFunctionReturnType retArg])
 
 loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
+#ifdef PM36_HASKELL_SCRIPTING
 loadDatabaseContextFunctions = loadFunction
+#else
+loadDatabaseContextFunctions _ _ _ = pure (Left LoadSymbolError)
+#endif
 
 databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
 databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
@@ -72,4 +79,12 @@ databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups
     dbcFuncToTuple func = [TextAtom (dbcFuncName func),
                            TextAtom (dbcTextType (dbcFuncType func))]
     dbcTextType typ = T.intercalate " -> " (map prettyAtomType typ ++ ["DatabaseContext", "DatabaseContext"])
-                                                
+
+-- for merkle hash                       
+hashBytes :: DatabaseContextFunction -> BL.ByteString
+hashBytes func = mconcat [fname, ftype, fbody]
+  where
+    fname = B.encode (dbcFuncName func)
+    ftype = B.encode (dbcFuncType func)
+    fbody = case dbcFuncBody func of
+      DatabaseContextFunctionBody mBody _ -> B.encode mBody

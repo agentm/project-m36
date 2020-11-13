@@ -4,13 +4,13 @@ import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph
+import ProjectM36.StaticOptimizer
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import System.Exit
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Control.Monad.State
-import Control.Monad.Trans.Reader
 
 testList :: Test
 testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
@@ -36,7 +36,7 @@ assertMaybe x msg = case x of
 testSchemaValidation :: Test
 testSchemaValidation = TestCase $ do  
   let potentialSchema = DBC.basicDatabaseContext {
-        relationVariables = M.singleton "anotherRel" relationTrue
+        relationVariables = M.singleton "anotherRel" (ExistingRelation relationTrue)
         }
   -- missing relvars failure
       morphs = [IsoRename "true" "true", IsoRename "false" "false"]
@@ -50,15 +50,17 @@ testSchemaValidation = TestCase $ do
 testIsoRename :: Test
 testIsoRename = TestCase $ do
   -- create a schema with two relvars and rename one while the other remains the same in the isomorphic schema
-  let schemaA = mkRelationalExprState DBC.empty { 
-        relationVariables = M.fromList [("employee", relationTrue), 
-                                        ("department", relationFalse)]
+  let ctx = DBC.empty { 
+        relationVariables = M.fromList [("employee", ExistingRelation relationTrue), 
+                                        ("department", ExistingRelation relationFalse)]
         }
-      isomorphsAtoB = [IsoRename "emp" "employee", 
+  (graph, _) <- freshTransactionGraph ctx
+  let isomorphsAtoB = [IsoRename "emp" "employee", 
                        IsoRename "department" "department"]
-      unionExpr = Union (RelationVariable "emp" ()) (RelationVariable "department" ())      
+      unionExpr = Union (RelationVariable "emp" ()) (RelationVariable "department" ())
+      env = mkRelationalExprEnv ctx graph
   relExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB unionExpr)
-  let relResult = runReader (evalRelationalExpr relExpr) schemaA                             
+  let relResult = optimizeAndEvalRelationalExpr env relExpr
   assertEqual "employee relation morph" (Right relationTrue) relResult
   
 testIsoRestrict :: Test
@@ -67,59 +69,67 @@ testIsoRestrict = TestCase $ do
   -- the virtual schema has an employee
   let empattrs = A.attributesFromList [Attribute "name" TextAtomType,
                                         Attribute "boss" TextAtomType]
+  (graph, transId) <- freshTransactionGraph DBC.empty                 
   emprel <- assertEither $ mkRelationFromList empattrs
             [[TextAtom "Steve", TextAtom ""],
              [TextAtom "Cindy", TextAtom "Steve"],
              [TextAtom "Sam", TextAtom "Steve"]]
   let predicate = AttributeEqualityPredicate "boss" (NakedAtomExpr (TextAtom ""))
-  bossRel <- assertEither $ runReader (evalRelationalExpr (Restrict predicate (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
-  nonBossRel <- assertEither $ runReader (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel))) (mkRelationalExprState DBC.empty)
+      reenv = mkRelationalExprEnv DBC.empty graph
+  bossRel <- assertEither $ runRelationalExprM reenv (evalRelationalExpr (Restrict predicate (ExistingRelation emprel)))
+  nonBossRel <- assertEither $ runRelationalExprM reenv (evalRelationalExpr (Restrict (NotPredicate predicate) (ExistingRelation emprel)))
             
-  let schemaA = mkRelationalExprState DBC.empty {
-        relationVariables = M.fromList [("nonboss", nonBossRel),
-                                        ("boss", bossRel)]
+  let schemaA = mkRelationalExprEnv baseContext graph
+      baseContext = DBC.empty {
+        relationVariables = M.fromList [("nonboss", ExistingRelation nonBossRel),
+                                        ("boss", ExistingRelation bossRel)]
         }
-
       isomorphsAtoB = [IsoRestrict "employee" predicate ("boss", "nonboss")]
       bossq = RelationVariable "boss" ()
       nonbossq = RelationVariable "nonboss" ()
       employeeq = RelationVariable "employee" ()
       unionq = Union bossq nonbossq
   empExpr <- assertEither (applyRelationalExprSchemaIsomorphs isomorphsAtoB employeeq)
-  let empResult = runReader (evalRelationalExpr empExpr) schemaA
-      unionResult = runReader (evalRelationalExpr unionq) schemaA
+  let empResult = evalRelExpr (evalRelationalExpr empExpr)
+      unionResult = evalRelExpr (evalRelationalExpr unionq)
+      evalRelExpr = runRelationalExprM schemaA
   assertEqual "boss/nonboss isorestrict" unionResult empResult
   --execute database context expr
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let (postInsertContext,_,_) = execState (evalDatabaseContextExpr schemaBInsertExpr') (freshDatabaseState (stateElemsContext schemaA))
-      expectedRel = runReader (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ()))) (mkRelationalExprState postInsertContext)
+  let Right dbcState = evalDBCExpr schemaBInsertExpr'
+      postInsertContext = dbc_context dbcState
+      evalDBCExpr expr' = runDatabaseContextEvalMonad baseContext dbcenv (optimizeAndEvalDatabaseContextExpr False expr')
+      dbcenv = mkDatabaseContextEvalEnv transId graph
+      expectedRel = runRelationalExprM postInsertEnv (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ())))
+      postInsertEnv = mkRelationalExprEnv postInsertContext graph
   --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
-  let processedRel = runReader (evalRelationalExpr processedExpr) (mkRelationalExprState postInsertContext)
+  let processedRel = runRelationalExprM postInsertEnv (evalRelationalExpr processedExpr)
   assertEqual "insert bob boss" expectedRel processedRel
   
 testIsoUnion :: Test  
 testIsoUnion = TestCase $ do
   --create motors relation which is split into low-power (<50 horsepower) and high-power (>=50 horsepower) motors
   --the schema is contains the split relvars
+  (graph, _) <- freshTransactionGraph DBC.empty
   motorsRel <- assertEither $ mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType,
-                                                                        Attribute "power" IntAtomType]) 
-               [[TextAtom "Puny", IntAtom 10],
-                [TextAtom "Scooter", IntAtom 49],
-                [TextAtom "Auto", IntAtom 200],
-                [TextAtom "Tractor", IntAtom 500]]
-  let baseSchema = mkRelationalExprState DBC.basicDatabaseContext {
-        relationVariables = M.singleton "motor" motorsRel
-        }
-      splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntAtom 50)] ())
+                                                                        Attribute "power" IntegerAtomType]) 
+               [[TextAtom "Puny", IntegerAtom 10],
+                [TextAtom "Scooter", IntegerAtom 49],
+                [TextAtom "Auto", IntegerAtom 200],
+                [TextAtom "Tractor", IntegerAtom 500]]
+  let env = mkRelationalExprEnv DBC.basicDatabaseContext {
+        relationVariables = M.singleton "motor" (ExistingRelation motorsRel)
+        } graph
+      splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntegerAtom 50)] ())
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",
                         IsoRename "true" "true",
                         IsoRename "false" "false"]
-      lowmotors = runReader (evalRelationalExpr (Restrict splitPredicate (RelationVariable "motor" ()))) baseSchema
-      highmotors = runReader (evalRelationalExpr (Restrict (NotPredicate splitPredicate) (RelationVariable "motor" ()))) baseSchema
-      relResult expr = runReader (evalRelationalExpr expr) baseSchema
+      lowmotors = runRelationalExprM env (evalRelationalExpr (Restrict splitPredicate (RelationVariable "motor" ())))
+      highmotors = runRelationalExprM env (evalRelationalExpr (Restrict (NotPredicate splitPredicate) (RelationVariable "motor" ())))
+      relResult expr = runRelationalExprM env (evalRelationalExpr expr)
   lowpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "lowpower" ()))
   lowpowerRel <- assertEither (relResult lowpowerExpr)
   highpowerExpr <- assertEither (processRelationalExprInSchema (Schema splitIsomorphs) (RelationVariable "highpower" ()))

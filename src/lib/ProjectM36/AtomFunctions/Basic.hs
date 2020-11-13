@@ -6,6 +6,7 @@ import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Maybe
 import ProjectM36.DataTypes.Interval
 import ProjectM36.DataTypes.ByteString
+import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.AtomFunction
 import ProjectM36.DataTypes.List
@@ -19,6 +20,7 @@ basicAtomFunctions = HS.unions [primitiveAtomFunctions,
                                 eitherAtomFunctions,
                                 maybeAtomFunctions,
                                 listAtomFunctions,
+                                nonEmptyListAtomFunctions,
                                 bytestringAtomFunctions,
                                 intervalAtomFunctions]
 
