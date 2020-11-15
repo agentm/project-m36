@@ -5,6 +5,8 @@ import ProjectM36.Error
 import ProjectM36.Relation
 import qualified Data.Map as M
 import qualified Data.Text as T
+import ProjectM36.PrettyPrinter
+import Data.Text.Prettyprint.Doc 
 
 inclusionDependenciesAsRelation :: InclusionDependencies -> Either RelationalError Relation
 inclusionDependenciesAsRelation incDeps =
@@ -15,6 +17,6 @@ inclusionDependenciesAsRelation incDeps =
                                 Attribute "super" TextAtomType
                                 ]
     incDepAsAtoms (name, InclusionDependency exprA exprB) = [TextAtom name,
-                                                               TextAtom (T.pack (show exprA)),
-                                                               TextAtom (T.pack (show exprB))]
+                                                               TextAtom (T.pack (show (pretty exprA))),
+                                                               TextAtom (T.pack (show (pretty exprB)))]
   
