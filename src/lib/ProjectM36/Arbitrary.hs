@@ -9,6 +9,7 @@ import ProjectM36.AtomType
 import ProjectM36.Attribute (atomType)
 import ProjectM36.DataConstructorDef as DCD
 import ProjectM36.DataTypes.Interval
+import ProjectM36.Relation
 import qualified Data.Vector as V
 import Data.Text (Text)
 import Test.QuickCheck
@@ -48,6 +49,10 @@ arbitrary' ByteStringAtomType =
 
 arbitrary' BoolAtomType = 
   Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
+
+arbitrary' RelationalExprAtomType =
+  pure (Right (RelationalExprAtom (ExistingRelation relationTrue))) -- don't bother with arbitrary relational expressions
+
 arbitrary' constructedAtomType@(ConstructedAtomType tcName tvMap)
   --special-casing for Interval type
   | isIntervalAtomType constructedAtomType = createArbitraryInterval (intervalSubType constructedAtomType)

@@ -83,6 +83,11 @@ parseCSVAtomP _ _ BoolAtomType = do
   case readMaybe bString of
     Nothing -> fail ("invalid BoolAtom string: " ++ bString)
     Just b -> pure (Right (BoolAtom b))
+parseCSVAtomP _ _ RelationalExprAtomType = do
+  reString <- T.unpack <$> takeToEndOfData      
+  case readMaybe reString of
+    Nothing -> fail ("invalid RelationalExprAtom string: " ++ reString)
+    Just b -> pure (Right (RelationalExprAtom b))
 parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) 
   | isIntervalAtomType typ = do
     begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)

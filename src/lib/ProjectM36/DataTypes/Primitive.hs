@@ -42,3 +42,4 @@ atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
 atomTypeForAtom (BoolAtom _) = BoolAtomType
 atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
 atomTypeForAtom (ConstructedAtom _ aType _) = aType
+atomTypeForAtom (RelationalExprAtom _) = RelationalExprAtomType

@@ -37,6 +37,7 @@ supportsInterval typ = case typ of
   BoolAtomType -> False                         
   RelationAtomType _ -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
+  RelationalExprAtomType -> False
   TypeVariableType _ -> False
   
 supportsOrdering :: AtomType -> Bool  
@@ -50,6 +51,7 @@ supportsOrdering typ = case typ of
   ByteStringAtomType -> False
   BoolAtomType -> False                         
   RelationAtomType _ -> False
+  RelationalExprAtomType -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
   TypeVariableType _ -> False
   

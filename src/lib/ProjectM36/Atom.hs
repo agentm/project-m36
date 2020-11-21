@@ -20,6 +20,7 @@ atomToText (DayAtom i) = (T.pack . show) i
 atomToText (DateTimeAtom i) = (T.pack . show) i
 atomToText (ByteStringAtom i) = (T.pack . show) i
 atomToText (BoolAtom i) = (T.pack . show) i
+atomToText (RelationalExprAtom re) = (T.pack . show) re
 
 atomToText (RelationAtom i) = (T.pack . show) i
 atomToText (ConstructedAtom dConsName typ atoms) 

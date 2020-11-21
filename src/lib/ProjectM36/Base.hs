@@ -27,6 +27,9 @@ import Data.Hashable.Time ()
 import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
+import Data.Vector.Instances ()
+import Data.Hashable.Generic
+
 type StringType = Text
   
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
@@ -39,8 +42,9 @@ data Atom = IntegerAtom Integer |
             ByteStringAtom ByteString |
             BoolAtom Bool |
             RelationAtom Relation |
+            RelationalExprAtom RelationalExpr | --used for returning inc deps
             ConstructedAtom DataConstructorName AtomType [Atom]
-            deriving (Eq, Show, Binary, Typeable, NFData, Generic)
+            deriving (Eq, Show, Binary, Typeable, NFData, Generic, Read)
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -54,6 +58,7 @@ instance Hashable Atom where
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
+  hashWithSalt salt (RelationalExprAtom re) = salt `hashWithSalt` re
 
 instance Binary UTCTime where
   put utc = put $ toRational (utcTimeToPOSIXSeconds utc)
@@ -77,13 +82,15 @@ data AtomType = IntAtomType |
                 BoolAtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
+                RelationalExprAtomType |
                 TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
-              deriving (Eq, NFData, Generic, Binary, Show)
+              deriving (Eq, NFData, Generic, Binary, Show, Read, Hashable)
 
 instance Ord AtomType where
   compare = undefined
-  
+
+-- this should probably be an ordered dictionary in order to be able to round-trip these arguments  
 type TypeVarMap = M.Map TypeVarName AtomType
 
 instance Hashable TypeVarMap where 
@@ -98,7 +105,7 @@ isRelationAtomType _ = False
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Generic, NFData, Binary)
+data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Generic, NFData, Binary)
 
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
@@ -116,7 +123,7 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Binary, Read)
 
 instance Read Relation where
   readsPrec = error "relation read not supported"
@@ -144,7 +151,7 @@ instance Hashable RelationTuple where
       sortedTupVec = V.map (\(index, _) -> tupVec V.! index) $ V.fromList sortedAttrsIndices
   
 -- | A tuple is a set of attributes mapped to their 'Atom' values.
-data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Generic)
+data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Read, Generic)
 
 instance Binary RelationTuple
 
@@ -219,12 +226,15 @@ data RelationalExprBase a =
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
   With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
-           
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
+
+instance Hashable RelationalExpr where
+  hashWithSalt = genericHashWithSalt
+    
 instance Binary RelationalExpr
 
 data WithNameExprBase a = WithNameExpr RelVarName a
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
 
 type WithNameExpr = WithNameExprBase ()
 
@@ -248,15 +258,15 @@ type TypeVarName = StringType
 -- | Metadata definition for type constructors such as @data Either a b@.
 data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName] |
                           PrimitiveTypeConstructorDef TypeConstructorName AtomType
-                        deriving (Show, Generic, Binary, Eq, NFData)
+                        deriving (Show, Generic, Binary, Eq, NFData, Hashable, Read)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
 type TypeConstructor = TypeConstructorBase ()
 data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstructor] |
-                         PrimitiveTypeConstructor TypeConstructorName AtomType |
-                         RelationAtomTypeConstructor [AttributeExprBase a] |
-                         TypeVariable TypeVarName
-                     deriving (Show, Generic, Binary, Eq, NFData)
+                             PrimitiveTypeConstructor TypeConstructorName AtomType |
+                             RelationAtomTypeConstructor [AttributeExprBase a] |
+                             TypeVariable TypeVarName
+                           deriving (Show, Generic, Binary, Eq, NFData, Hashable, Read)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
 
@@ -266,13 +276,13 @@ type DataConstructorName = StringType
 type AtomTypeName = StringType
 
 -- | Used to define a data constructor in a type constructor context such as @Left a | Right b@
-data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic, NFData)
+data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Binary, Generic, NFData, Hashable, Read)
 
 type DataConstructorDefs = [DataConstructorDef]
 
 data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructor | 
                              DataConstructorDefTypeVarNameArg TypeVarName
-                           deriving (Show, Generic, Binary, Eq, NFData)
+                           deriving (Show, Generic, Binary, Eq, NFData, Hashable, Read)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
@@ -316,7 +326,7 @@ data DatabaseContext = DatabaseContext {
 type IncDepName = StringType             
 
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
-data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData)
+data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData, Hashable, Read)
 
 instance Binary InclusionDependency
 
@@ -326,6 +336,9 @@ type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 type DatabaseContextExprName = StringType
 
 type DatabaseContextExpr = DatabaseContextExprBase ()
+
+instance Hashable DatabaseContextExpr where
+  hashWithSalt = genericHashWithSalt
 
 type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker
 
@@ -358,7 +371,10 @@ data DatabaseContextExprBase a =
   ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExprBase a] |
   
   MultipleExpr [DatabaseContextExprBase a]
-  deriving (Show, Eq, Generic)
+  deriving (Show, Read, Eq, Generic, NFData)
+
+instance Hashable (M.Map AttributeName AtomExpr) where
+  hashWithSalt salt m = salt `hashWithSalt` M.toList m
 
 instance Binary DatabaseContextExpr
 
@@ -380,6 +396,8 @@ type DatabaseContextIOExpr = DatabaseContextIOExprBase ()
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
+instance Hashable RestrictionPredicateExpr
+
 type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase GraphRefTransactionMarker
 
 -- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
@@ -391,7 +409,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Binary RestrictionPredicateExpr
 
@@ -454,6 +472,8 @@ instance Ord Transaction where
 
 type AtomExpr = AtomExprBase ()
 
+instance Hashable AtomExpr
+
 type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
@@ -462,15 +482,18 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq,Show,Generic, NFData, Foldable, Functor, Traversable)
+                    deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
                        
 instance Binary AtomExpr                       
 
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Eq, Generic, NFData, Foldable, Functor, Traversable)
+                     deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
                               
 type ExtendTupleExpr = ExtendTupleExprBase ()
+
+instance Hashable ExtendTupleExpr
+  
 type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
 
 instance Binary ExtendTupleExpr
@@ -519,7 +542,12 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             UnionAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             IntersectAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
-                      deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
+                      deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+
+instance Hashable AttributeNames
+
+instance Hashable (S.Set AttributeName) where
+  hashWithSalt salt s = salt `hashWithSalt` S.toList s
                                
 type AttributeNames = AttributeNamesBase ()
 
@@ -539,12 +567,14 @@ type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Generic, Binary, NFData, Foldable, Functor, Traversable)
+                         deriving (Eq, Show, Read, Generic, Binary, NFData, Foldable, Functor, Traversable, Hashable)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
-                          
+                 deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+
+instance Hashable TupleExpr
+
 instance Binary TupleExpr
 
 type TupleExpr = TupleExprBase ()
@@ -552,7 +582,10 @@ type TupleExpr = TupleExprBase ()
 type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 
 data TupleExprsBase a = TupleExprs a [TupleExprBase a]
-  deriving (Eq, Show, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+
+instance Hashable TupleExprs where
+  hashWithSalt = genericHashWithSalt
 
 type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
 
@@ -604,6 +637,7 @@ attrTypeVars (Attribute _ aType) = case aType of
   DateTimeAtomType -> S.empty
   ByteStringAtomType -> S.empty
   BoolAtomType -> S.empty
+  RelationalExprAtomType -> S.empty
   (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList attrs))
   (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
   (TypeVariableType nam) -> S.singleton nam
@@ -627,6 +661,7 @@ atomTypeVars DayAtomType = S.empty
 atomTypeVars DateTimeAtomType = S.empty
 atomTypeVars ByteStringAtomType = S.empty
 atomTypeVars BoolAtomType = S.empty
+atomTypeVars RelationalExprAtomType = S.empty
 atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam
