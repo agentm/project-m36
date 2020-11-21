@@ -28,7 +28,6 @@ import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
-import Data.Hashable.Generic
 
 type StringType = Text
   
@@ -228,8 +227,7 @@ data RelationalExprBase a =
   With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable RelationalExpr where
-  hashWithSalt = genericHashWithSalt
+instance Hashable RelationalExpr
     
 instance Binary RelationalExpr
 
@@ -337,8 +335,7 @@ type DatabaseContextExprName = StringType
 
 type DatabaseContextExpr = DatabaseContextExprBase ()
 
-instance Hashable DatabaseContextExpr where
-  hashWithSalt = genericHashWithSalt
+instance Hashable DatabaseContextExpr 
 
 type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker
 
@@ -584,8 +581,7 @@ type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 data TupleExprsBase a = TupleExprs a [TupleExprBase a]
   deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable TupleExprs where
-  hashWithSalt = genericHashWithSalt
+instance Hashable TupleExprs
 
 type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
 
