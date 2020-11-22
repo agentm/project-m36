@@ -10,7 +10,7 @@ jobs:
         ghc: ['8.6.5', '8.4.4', '8.8.3']
         cabal: ['latest']
         os: [ubuntu-latest, macOS-latest, windows-latest]
-    name: GHC ${{ matrix.ghc }}
+    name: GHC ${{ matrix.ghc }} ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - name: Setup Haskell
