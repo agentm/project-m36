@@ -197,7 +197,7 @@ TutorialD (master/main): :showexpr s{all but city}
 └────────┴───────────┴───────────────┘
 ```
 
-Projection attributes can also be derived from a relational expression using `all from`:
+Projection attributes can be derived from a relational expression using `all from`:
 
 ```
 TutorialD (master/main): :showexpr (s join sp){all from s}
@@ -212,6 +212,42 @@ TutorialD (master/main): :showexpr (s join sp){all from s}
 ```
 
 Above, we join `s` and `sp` but project the result back onto the attributes of `s`.
+
+Projection attributes can be unioned from multiple sources using `union of`:
+
+```
+TutorialD (master/main): :showexpr (s join sp){union of {all from s} {all but p#}}
+┌──────────┬────────────┬────────┬───────────┬───────────────┐
+│city::Text│qty::Integer│s#::Text│sname::Text│status::Integer│
+├──────────┼────────────┼────────┼───────────┼───────────────┤
+│"Paris"   │400         │"S2"    │"Jones"    │10             │
+│"London"  │400         │"S1"    │"Smith"    │20             │
+│"Paris"   │200         │"S3"    │"Blake"    │30             │
+│"London"  │200         │"S4"    │"Clark"    │20             │
+│"London"  │200         │"S1"    │"Smith"    │20             │
+│"Paris"   │300         │"S2"    │"Jones"    │10             │
+│"London"  │100         │"S1"    │"Smith"    │20             │
+│"London"  │300         │"S4"    │"Clark"    │20             │
+│"London"  │300         │"S1"    │"Smith"    │20             │
+│"London"  │400         │"S4"    │"Clark"    │20             │
+└──────────┴────────────┴────────┴───────────┴───────────────┘
+```
+
+Here, after joining `s` and `p`, the union of all attributes from `s` and all attributes from `p` except for `p#` are returned.all
+
+Finally, projection attributes can be intersected using `intersection of`:
+
+```
+TutorialD (master/main): :showexpr (s join sp){intersection of {all from s} {all from p}}
+┌──────────┐
+│city::Text│
+├──────────┤
+│"London"  │
+│"Paris"   │
+└──────────┘
+```
+
+Here, after joining `s` and `p`, we project on the intersection of attributes from `s` and `p` which happens to be `city`.
 
 #### Restriction
 
