@@ -43,5 +43,5 @@ parseRelExpr :: String -> IO RelationalExpr
 parseRelExpr tutdStr =
   case parse relExprP "test" (pack tutdStr) of
     Left err ->
-      assertFailure (errorBundlePretty err)
+      assertFailure (show err)
     Right parsed -> pure parsed
