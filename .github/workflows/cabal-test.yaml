@@ -18,4 +18,4 @@ jobs:
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
-      - run: cabal build && cabal test
+      - run: cabal test
