@@ -107,10 +107,8 @@ instance Pretty AttributeNames where
   pretty (AttributeNames attrNames) = prettyBracesList (S.toList attrNames)
   pretty (InvertedAttributeNames attrNames) = braces $ "all but" <+> concatWith (surround ", ") (map pretty (S.toList attrNames))
   pretty (RelationalExprAttributeNames relExpr) = braces $ "all from" <+> pretty relExpr
-  pretty a = error $ show a ++ " is not implemented yet."
---  YuMing L.: I guess these two are used in evaluating relational expressions. So we won't be using them in pretty printer.
---  pretty (UnionAttributeNames aAttrNames bAttrNames) = prettyBracesList (S.toList (aAttrNames `union` bAttrNames))
---  pretty (IntersectAttributeNames aAttrNames bAttrNames) = prettyBracesList (S.toList (aAttrNames `intersection` bAttrNames))
+  pretty (UnionAttributeNames aAttrNames bAttrNames) = braces ("union of" <+> pretty aAttrNames <+> pretty bAttrNames)
+  pretty (IntersectAttributeNames aAttrNames bAttrNames) = braces ("intersection of" <+> pretty aAttrNames <+> pretty bAttrNames)
 
 instance Pretty AttributeExpr where
   pretty (NakedAttributeExpr attr) = pretty attr

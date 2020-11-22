@@ -20,9 +20,18 @@ attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
 attributeListP =
   (reservedOp "all but" >>
    InvertedAttributeNames . S.fromList <$> sepBy attributeNameP comma) <|>
+
   (reservedOp "all from" >>
    RelationalExprAttributeNames <$> relExprP) <|>
-  (AttributeNames . S.fromList <$> sepBy attributeNameP comma)
+
+  (reservedOp "union of" >>
+   UnionAttributeNames <$> braces attributeListP <*> braces attributeListP) <|>
+
+  (reservedOp "intersection of" >>
+  IntersectAttributeNames <$> braces attributeListP <*> braces attributeListP) <|>
+   
+  (AttributeNames . S.fromList <$> sepBy attributeNameP comma) 
+  
 
 makeRelationP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 makeRelationP = do

@@ -80,7 +80,8 @@ main = do
       testBasicList,
       testRelationDeclarationMismatch,
       testInvalidTuples,
-      testSelfReferencingUncommittedContext
+      testSelfReferencingUncommittedContext,
+      testUnionAndIntersectionAttributeExprs
       ]
 
 simpleRelTests :: Test
@@ -711,3 +712,15 @@ testSelfReferencingUncommittedContext = TestCase $ do
   _ <- rollback sessionId dbconn
   eSorig <- executeRelationalExpr sessionId dbconn (RelationVariable "s" ())  
   assertEqual "s=s'" eSorig eS
+
+testUnionAndIntersectionAttributeExprs :: Test
+testUnionAndIntersectionAttributeExprs = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=s{intersection of {all but sname} {sname}}"
+  xRel <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  assertEqual "intersection attrs" (Right relationTrue) xRel
+
+  executeTutorialD sessionId dbconn "y:=s{union of {all but sname} {sname}}"
+  yRel <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  assertEqual "union attrs" (Right suppliersRel) yRel
+  
