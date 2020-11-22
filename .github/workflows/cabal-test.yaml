@@ -1,0 +1,21 @@
+name: "cabal build+test"
+on:
+  pull_request:
+  push:
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ['8.6.5', '8.4.4', '8.8.3']
+	cabal: ['latest']
+	os: [ubuntu-latest, macOS-latest, windows-latest]
+    name: GHC ${{ matrix.ghc }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Haskell
+        uses: actions/setup-haskell@v1.1
+	with:
+	  ghc-version: ${{ matrix.ghc }}
+	  cabal-version: ${{ matrix.cabal }}
+      - run: cabal build && cabal test
