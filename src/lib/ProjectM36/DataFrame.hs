@@ -4,7 +4,6 @@ module ProjectM36.DataFrame where
 import ProjectM36.Base
 import ProjectM36.Attribute as A
 import ProjectM36.Error
-import ProjectM36.Serialise.Base
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
 import qualified ProjectM36.Relation.Show.HTML as RelHTML
@@ -30,7 +29,6 @@ data AttributeOrder = AttributeOrder AttributeName Order
 
 data Order = AscendingOrder | DescendingOrder
   deriving (Eq, Show, Generic)
-
 
 ascending :: T.Text
 ascending = "⬆"
@@ -132,7 +130,6 @@ data DataFrameExpr = DataFrameExpr {
   limit :: Maybe Integer
   }
   deriving (Show, Generic)
- 
 
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser

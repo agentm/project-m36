@@ -3,6 +3,7 @@
 module ProjectM36.Serialise.DataFrame where
 import Codec.Winery
 import ProjectM36.DataFrame
+import ProjectM36.Serialise.Base ()
   
 deriving via WineryVariant AttributeOrderExpr instance Serialise AttributeOrderExpr
 deriving via WineryVariant AttributeOrder instance Serialise AttributeOrder

@@ -103,7 +103,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleExprsReferenceMultipleMarkersError
 
                      | MerkleHashValidationError TransactionId MerkleHash MerkleHash
-                       
+
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Typeable, NFData) 
 
@@ -145,8 +145,3 @@ data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarOutReferencedMoreThanOnce RelVarName
                    deriving (Show, Eq, Generic, Typeable, NFData)
                            
-                                               
--- errors returned from the distributed-process call handlers
-data ServerError = RequestTimeoutError |
-                   ProcessDiedError String
-                   deriving (Generic, Eq)

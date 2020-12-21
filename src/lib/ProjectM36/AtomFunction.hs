@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 module ProjectM36.AtomFunction where
 import ProjectM36.Base
-import ProjectM36.Serialise.Base
+import ProjectM36.Serialise.Base ()
 import ProjectM36.Error
 import ProjectM36.Relation
 import ProjectM36.AtomType
@@ -11,7 +11,6 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
-import Data.Binary as B
 import Codec.Winery
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]

@@ -36,7 +36,6 @@ import Foreign.C
 #endif
 
 import System.IO (withFile, IOMode(WriteMode), Handle)
-import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString as BS'
 import qualified Data.Text.Encoding as TE
 

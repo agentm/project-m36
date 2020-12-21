@@ -7,7 +7,6 @@ import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.Relation
 import qualified Data.ByteString.Lazy as BL
-import Data.Binary as B
 import ProjectM36.AtomFunction as AF
 import ProjectM36.DatabaseContextFunction as DBCF
 import Codec.Winery

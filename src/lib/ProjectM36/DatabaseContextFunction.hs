@@ -3,7 +3,7 @@ module ProjectM36.DatabaseContextFunction where
 --implements functions which operate as: [Atom] -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Serialise.Base
+import ProjectM36.Serialise.Base ()
 import ProjectM36.Attribute as A
 import ProjectM36.Relation
 import ProjectM36.AtomType

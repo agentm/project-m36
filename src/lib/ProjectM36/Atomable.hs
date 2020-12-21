@@ -21,19 +21,6 @@ import Data.Proxy
 import qualified Data.List.NonEmpty as NE
 import Codec.Winery
 
---also add haskell scripting atomable support
---rename this module to Atomable along with test
-
-{-
-data Test1T = Test1C Int
-            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
-                     
-data Test2T = Test2C Int Int                     
-            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
-                     
-data Test3T = Test3Ca | Test3Cb                     
-            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
--}
 -- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
 class (Eq a, NFData a, Serialise a, Show a) => Atomable a where
   toAtom :: a -> Atom
@@ -164,10 +151,6 @@ instance Atomable a => Atomable (NE.NonEmpty a) where
 
   toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
-
-#if !MIN_VERSION_binary(0,8,4)
-instance Binary a => Binary (NE.NonEmpty a)  
-#endif
 
 -- Generics
 class AtomableG g where

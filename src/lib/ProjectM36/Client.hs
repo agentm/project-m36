@@ -43,6 +43,7 @@ module ProjectM36.Client
        defaultDatabaseName,
        defaultRemoteConnectionInfo,
        defaultHeadName,
+       addClientNode,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -104,6 +105,7 @@ module ProjectM36.Client
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
+import ProjectM36.Serialise.Error ()
 import ProjectM36.Error
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
@@ -124,6 +126,7 @@ import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalEx
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
 import ProjectM36.NormalizeExpr
+import ProjectM36.Server.Types
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
@@ -154,17 +157,13 @@ import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
 import Data.Time.Clock
-import Data.Typeable
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
-import Network.Socket (PortNumber, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
-import Data.Word
+import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 
 type Hostname = String
 
 type Port = Word16
-
-type DatabaseName = String
 
 -- | The type for notifications callbacks in the client. When a registered notification fires due to a changed relational expression evaluation, the server propagates the notifications to the clients in the form of the callback.
 type NotificationCallback = NotificationName -> EvaluatedNotification -> IO ()
@@ -226,22 +225,7 @@ defaultRemoteConnectionInfo =
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
 
--- | The 'Connection' represents either local or remote access to a database. All operations flow through the connection.
-type ClientNodes = StmSet.Set RPCConnection -- not correct- we need an object to represent all client connection on the server side - this is missing in Curryer
-
--- internal structure specific to in-process connections
-data InProcessConnectionConf = InProcessConnectionConf {
-  ipPersistenceStrategy :: PersistenceStrategy, 
-  ipClientNodes :: ClientNodes, 
-  ipSessions :: Sessions, 
-  ipTransactionGraph :: TVar TransactionGraph,
-  ipScriptSession :: Maybe ScriptSession,
-  ipLocks :: Maybe (LockFile, MVar LockFileHash) -- nothing when NoPersistence
-  }
-
-data RemoteConnectionConf = RemoteConnectionConf {
-  rConn :: RPCConnection
-  }
+data RemoteConnectionConf = RemoteConnectionConf RPC.Connection
   
 data Connection = InProcessConnection InProcessConnectionConf |
                   RemoteConnection RemoteConnectionConf
@@ -291,8 +275,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
         
-connectProjectM36 (RemoteConnectionInfo databaseName hostName servicePort notificationCallback) = do
-  --putStrLn $ "Connecting to " ++ show serverNodeId ++ " " ++ dbName
+connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notificationCallback) = do
   --TODO- add notification callback thread
   let resolutionHints = defaultHints { addrFlags = [AI_NUMERICHOST, AI_NUMERICSERV],
                                        addrSocketType = Stream
@@ -303,9 +286,16 @@ connectProjectM36 (RemoteConnectionInfo databaseName hostName servicePort notifi
     addrInfo:_ -> do
       --supports IPv4 only for now
       let (SockAddrInet port addr) = addrAddress addrInfo
-      conn <- RPC.connect (const (pure ())) (hostAddressToTuple addr) port
+-- TODO  missing async callback
+      conn <- RPC.connect [] (hostAddressToTuple addr) port
+      eRet <- RPC.call conn (Login dbName)
+-- TODO handle connection errors              
+      case eRet of
+        Left err -> error (show err)
+        Right False -> error "wtf"
+        Right True ->
       --TODO handle connection errors!
-      pure (Right (RemoteConnection (RemoteConnectionConf conn)))
+          pure (Right (RemoteConnection (RemoteConnectionConf conn)))
   {-
     mServerProcessId <- whereisRemote serverNodeId dbName
     case mServerProcessId of
@@ -318,6 +308,12 @@ connectProjectM36 (RemoteConnectionInfo databaseName hostName servicePort notifi
           liftIO $ putMVar connStatus (Right $ RemoteProcessConnection RemoteProcessConnectionConf {rConn = )
   takeMVar connStatus
 -}
+
+addClientNode :: DatabaseName ->Connection -> RPC.Locking Socket -> IO ()
+addClientNode _ (RemoteConnection _) _ = error "addClientNode called on remote connection"
+addClientNode dbName (InProcessConnection conf) lockSock = atomically (StmSet.insert clientInfo (ipClientNodes conf))
+  where
+    clientInfo = ClientInfo dbName lockSock
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -441,7 +437,12 @@ safeLogin login procId = do
 
 remoteCall :: (Serialise a, Serialise b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ ) _ = error "remoteCall called on local connection"
-remoteCall (RemoteConnection conf) arg = error "not implemented"
+remoteCall (RemoteConnection (RemoteConnectionConf rpcConn)) arg = do
+  eRet <- RPC.call rpcConn arg
+  case eRet of
+    Left err -> error ("connection died " <> show err) --TODO: throw some more specific exceptions
+    Right val -> pure val
+  
 
 
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)

@@ -18,14 +18,12 @@ import GHC.Stack
 import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text,unpack)
-import Data.Vector.Binary()
 import Data.Time.Clock
 import Data.Hashable.Time ()
 import Data.Time.Calendar (Day)
 import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
---import Codec.Winery
 
 type StringType = Text
   
