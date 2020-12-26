@@ -22,7 +22,7 @@ import qualified Data.Text as T
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> many parseGhcPkgPath <*> parseCheckFS <|>
-            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS
+            RemoteInterpreterConfig <$> parseHostname "127.0.0.1" <*> parsePort defaultServerPort <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS
 
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
@@ -31,19 +31,6 @@ parseHeadName = option auto (long "head" <>
                              value "master"
                             )
 
-parseNodeId :: Parser NodeId
-parseNodeId = createNodeId <$> 
-              strOption (long "host" <> 
-                         short 'h' <>
-                         help "Remote host name" <>
-                         metavar "HOSTNAME" <>
-                         value "127.0.0.1") <*> 
-              option auto (long "port" <>
-                           metavar "PORT NUMBER" <>
-                           short 'p' <>
-                      help "Remote port" <>
-                      value defaultServerPort)
-              
 --just execute some tutd and exit
 parseTutDExec :: Parser (Maybe TutorialDExec)
 parseTutDExec = optional $ strOption (long "exec-tutd" <>
@@ -57,19 +44,19 @@ opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _ _ _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
+connectionInfoForConfig (RemoteInterpreterConfig remoteHost remotePort remoteDBName _ _ _) = RemoteConnectionInfo remoteDBName remoteHost (show remotePort) outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn _ _ _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ headn _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ _ headn _ _) = headn
 
 execTutDForConfig :: InterpreterConfig -> Maybe String
 execTutDForConfig (LocalInterpreterConfig _ _ t _ _) = t
-execTutDForConfig (RemoteInterpreterConfig _ _ _ t _) = t
+execTutDForConfig (RemoteInterpreterConfig _ _ _ _ t _) = t
 
 checkFSForConfig :: InterpreterConfig -> Bool
 checkFSForConfig (LocalInterpreterConfig _ _ _ _ c) = c
-checkFSForConfig (RemoteInterpreterConfig _ _ _ _ c) = c
+checkFSForConfig (RemoteInterpreterConfig _ _ _ _ _ c) = c
 
 persistenceStrategyForConfig :: InterpreterConfig -> Maybe PersistenceStrategy
 persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _) = Just strat

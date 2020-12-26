@@ -50,7 +50,7 @@ parseHostname defHostname = strOption (short 'h' <>
                            metavar "HOST_NAME" <>
                            value defHostname)
                 
-parsePort :: Port -> Parser Port                
+parsePort :: Port -> Parser Port
 parsePort defPort = option auto (short 'p' <>
                          long "port" <>
                          metavar "PORT_NUMBER" <>

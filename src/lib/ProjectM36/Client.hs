@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, MonoLocalBinds, DerivingVia, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, MonoLocalBinds, DerivingVia, GeneralizedNewtypeDeriving, PackageImports #-}
 {-|
 Module: ProjectM36.Client
 
@@ -9,6 +9,7 @@ module ProjectM36.Client
        Connection(..),
        Port,
        Hostname,
+       ServiceName,
        DatabaseName,
        ConnectionError(..),
        connectProjectM36,
@@ -141,7 +142,7 @@ import Data.UUID.V4 (nextRandom)
 import Data.Word
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
-import Codec.Winery hiding (Schema)
+import Codec.Winery hiding (Schema, schema)
 import qualified Data.Map as M
 #if MIN_VERSION_stm_containers(1,0,0)
 import qualified StmContainers.Map as StmMap
@@ -191,7 +192,7 @@ data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCa
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
 -- | Used for callbacks from the server when monitored changes have been made.
-newtype NotificationMessage = NotificationMessage EvaluatedNotifications
+data NotificationMessage = NotificationMessage EvaluatedNotifications
                            deriving (Eq, Show, Generic)
                            deriving Serialise via WineryVariant NotificationMessage
 
@@ -206,8 +207,8 @@ data EvaluatedNotification = EvaluatedNotification {
                       
 
 -- | Use this for connecting to remote servers on the default port.
-defaultServerPort :: ServiceName
-defaultServerPort = "6543"
+defaultServerPort :: Port
+defaultServerPort = 6543
 
 -- | Use this for connecting to remote servers with the default database name.
 defaultDatabaseName :: DatabaseName
@@ -220,7 +221,7 @@ defaultHeadName = "master"
 -- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo =
-  RemoteConnectionInfo defaultDatabaseName defaultServerHostname defaultServerPort emptyNotificationCallback
+  RemoteConnectionInfo defaultDatabaseName defaultServerHostname (show defaultServerPort) emptyNotificationCallback
 
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
@@ -286,8 +287,14 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
     addrInfo:_ -> do
       --supports IPv4 only for now
       let (SockAddrInet port addr) = addrAddress addrInfo
+          notificationHandlers =
+            [RPC.ClientAsyncRequestHandler $
+             \(NotificationMessage notifications') ->
+               forM_ (M.toList notifications') (\(notName, notInfo) ->
+                 notificationCallback notName notInfo)
+            ]
 -- TODO  missing async callback
-      conn <- RPC.connect [] (hostAddressToTuple addr) port
+      conn <- RPC.connect notificationHandlers (hostAddressToTuple addr) port
       eRet <- RPC.call conn (Login dbName)
 -- TODO handle connection errors              
       case eRet of
@@ -296,18 +303,6 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
         Right True ->
       --TODO handle connection errors!
           pure (Right (RemoteConnection (RemoteConnectionConf conn)))
-  {-
-    mServerProcessId <- whereisRemote serverNodeId dbName
-    case mServerProcessId of
-      Nothing -> liftIO $ putMVar connStatus $ Left (NoSuchDatabaseByNameError databaseName)
-      Just serverProcessId -> do
-        loginConfirmation <- safeLogin (Login notificationListenerPid) serverProcessId
-        if not loginConfirmation then
-          liftIO $ putMVar connStatus (Left LoginError)
-          else
-          liftIO $ putMVar connStatus (Right $ RemoteProcessConnection RemoteProcessConnectionConf {rConn = )
-  takeMVar connStatus
--}
 
 addClientNode :: DatabaseName ->Connection -> RPC.Locking Socket -> IO ()
 addClientNode _ (RemoteConnection _) _ = error "addClientNode called on remote connection"
@@ -771,13 +766,11 @@ commit :: SessionId -> Connection -> IO (Either RelationalError ())
 commit sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Commit 
 commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
 
-{-  
-sendNotifications :: EvaluatedNotifications -> IO ()
-sendNotifications nots = mapM_ sendNots pids
-  where
-    sendNots remoteClientPid =
-      unless (M.null nots) $ runProcess localNode $ send remoteClientPid (NotificationMessage nots)
-  -}        
+sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
+sendNotifications clients notifs =
+  unless (M.null notifs) $
+    forM_ (map clientSocket clients) $ \sock -> RPC.sendMessage sock (NotificationMessage notifs)
+
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
 rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Rollback      
@@ -1076,7 +1069,7 @@ commitLock_ sessionId conf stmBlock = do
     Right (notsToFire, nodesToNotify, newGraph, transactionIdsToPersist) -> do
       --update filesystem database, if necessary
       processTransactionGraphPersistence strat transactionIdsToPersist newGraph
-      --sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
+      sendNotifications nodesToNotify notsToFire
       pure (Right ())
 {-
 writeDisconAndGraph_ :: TVar TransactionGraph -> SessionId -> Session -> Sessions -> DisconnectedTransaction -> TransactionGraph  -> STM ()

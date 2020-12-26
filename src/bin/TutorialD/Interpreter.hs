@@ -227,7 +227,7 @@ type TutorialDExec = String
 type CheckFS = Bool
 
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] CheckFS |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
+                         RemoteInterpreterConfig C.Hostname C.Port C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot

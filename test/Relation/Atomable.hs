@@ -1,8 +1,7 @@
 --Test Atomable typeclass which allows users to use existing Haskell datatypes to marshal them to and from the database as ConstructedAtoms.
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, TypeApplications #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, TypeApplications, DerivingVia #-}
 import Test.HUnit
 import ProjectM36.Client
-import Data.Binary
 import Control.DeepSeq
 import System.Exit
 import TutorialD.Interpreter.TestBase
@@ -13,52 +12,65 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Text
 import qualified Data.Map as M
 import Data.Proxy
+import Codec.Winery
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 data Test1T = Test1C Integer
-            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
+            deriving (Generic, Show, Eq, NFData, Atomable)
+            deriving Serialise via WineryVariant Test1T
                     
 data Test2T x = Test2C x
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryVariant (Test2T x)
                        
 data Test3T = Test3C Integer Integer                        
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryVariant Test3T
                        
 data Test4T = Test4Ca Integer |                       
               Test4Cb Integer 
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryVariant Test4T
                        
 data TestListT = TestListC [Integer]
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryVariant TestListT
                        
 data TestNonEmptyT = TestNonEmptyC [Integer]
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryVariant TestNonEmptyT
 
 data Test5T = Test5C {
   con1 :: Integer,
   con2 :: Integer
-  } deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+  } deriving (Show, Generic, Eq, NFData, Atomable)
+  deriving Serialise via WineryRecord Test5T
              
 data Test6T = Test6C (Maybe Integer)             
-            deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+            deriving (Show, Generic, Eq, NFData, Atomable)
+            deriving Serialise via WineryVariant Test6T
 
 data Test7T = Test7C (Either Integer Integer)
-            deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+            deriving (Show, Generic, Eq, NFData, Atomable)
+            deriving Serialise via WineryVariant Test7T
 
 data Test8T = Test8C Test1T
-            deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+            deriving (Show, Generic, Eq, NFData, Atomable)
+            deriving Serialise via WineryVariant Test8T
 
 data User = User
   { userFirstName :: Text
   , userLastName :: Text
-  } deriving (Eq, Ord, Show, Generic, NFData, Binary, Atomable)
+  } deriving (Eq, Ord, Show, Generic, NFData, Atomable)
+    deriving Serialise via WineryRecord User
 
 data Test9_4T = Test9_4C {
   f9_41 :: Int,
   f9_42 :: Int,
   f9_43 :: Int,
   f9_44 :: Int }
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryRecord Test9_4T
 
 data Test9_5T = Test9_5C {
     f9_51 :: Int,
@@ -67,7 +79,8 @@ data Test9_5T = Test9_5C {
     f9_54 :: Int,
     f9_55 :: Int
     }
-              deriving (Show, Generic, Eq, Binary, NFData, Atomable)  
+              deriving (Show, Generic, Eq, NFData, Atomable)
+              deriving Serialise via WineryRecord Test9_5T
 
 main :: IO ()
 main = do

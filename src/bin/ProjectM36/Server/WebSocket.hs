@@ -85,7 +85,7 @@ notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (o
 
 --this creates a new database for each connection- perhaps not what we want (?)
 createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (Either ConnectionError Connection)
-createConnection wsconn dbname port host = connectProjectM36 (RemoteProcessConnectionInfo dbname (createNodeId host port) (notificationCallback wsconn))
+createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionInfo dbname host port (notificationCallback wsconn))
 
 sendError :: (ToJSON a) => WS.Connection -> a -> IO ()
 sendError conn err = WS.sendTextData conn (encode (object ["displayerror" .= err]))

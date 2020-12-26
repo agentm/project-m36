@@ -3,16 +3,15 @@
 import ProjectM36.Tupleable.Deriving
 import ProjectM36.Atomable (Atomable)
 import Control.DeepSeq (NFData)
-import Data.Binary (Binary)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 
 newtype BlogId = BlogId { getBlogId :: Int }
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num)
+  deriving Serialise via WineryRecord BlogId
 
 instance NFData BlogId
-instance Binary BlogId
 instance Atomable BlogId
 
 data Blog = Blog
@@ -23,6 +22,7 @@ data Blog = Blog
   deriving stock (Show, Generic)
   deriving (Tupleable)
     via Codec (Field (DropPrefix "blog" >>> CamelCase)) Blog
+  deriving Serialise via WineryRecord Blog
 
 data Comment = Comment
   { commentAuthorName :: Text
@@ -32,6 +32,7 @@ data Comment = Comment
   deriving stock (Show, Generic)
   deriving (Tupleable)
     via Codec (Field (DropPrefix "comment" >>> CamelCase)) Comment
+  deriving Serialise via WineryRecord Comment
 
 main :: IO ()
 main = do

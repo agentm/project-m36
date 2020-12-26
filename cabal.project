@@ -11,7 +11,7 @@ source-repository-package
 source-repository-package
   type:     git
   location: https://github.com/agentm/curryer.git
-  tag:      f67c45d1bfcb753d32ed3fe51b8e07b4c021c9bb
+  tag:      1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
 
 source-repository-package
   type: git

@@ -28,7 +28,7 @@ data InProcessConnectionConf = InProcessConnectionConf {
   }
 
 -- clients may connect associate one socket with one database
-data ClientInfo = ClientInfo { databaseName :: DatabaseName,
+data ClientInfo = ClientInfo { clientDatabaseName :: DatabaseName,
                                clientSocket :: RPC.Locking Socket }
 
 instance Eq ClientInfo where
