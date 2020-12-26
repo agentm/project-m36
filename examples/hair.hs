@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, DerivingVia #-}
 import ProjectM36.Client
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
@@ -7,9 +7,11 @@ import Control.DeepSeq
 import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import Data.Proxy
+import Codec.Winery
 
 data Hair = Bald | Brown | Blond | OtherColor Text
    deriving (Generic, Show, Eq, NFData, Atomable)
+   deriving Serialise via WineryVariant Hair
 
 main :: IO ()
 main = do

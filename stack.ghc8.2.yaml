@@ -7,18 +7,17 @@ resolver: lts-11.20
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
+- git: https://github.com/agentm/curryer.git
+  commit: 1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
 - data-accessor-transformers-0.2.1.7
 - data-interval-1.2.0
 - extended-reals-0.2.1.0
 - gnuplot-0.5.4.1
 - text-1.2.2.1
 - aeson-1.2.1.00
-- distributed-process-0.7.3
-- distributed-process-async-0.2.4.1
-- distributed-process-client-server-0.2.3
-- distributed-process-extras-0.3.2
 - rset-1.0.0
 
 # Override default flag values for local packages and extra-deps

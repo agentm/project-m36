@@ -185,7 +185,7 @@ data RequestTimeoutException = RequestTimeoutException
 
 instance Exception RequestTimeoutException
 
--- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via distributed-process.
+-- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] |
                       RemoteConnectionInfo DatabaseName Hostname ServiceName NotificationCallback
                       

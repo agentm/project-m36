@@ -9,12 +9,10 @@ packages:
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
+- git: https://github.com/agentm/curryer.git
+  commit: 1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
 - data-interval-1.3.0
 - extended-reals-0.2.3.0
-- distributed-process-0.7.4
-- distributed-process-async-0.2.6
-- distributed-process-client-server-0.2.5.1
-- distributed-process-extras-0.3.5
 - rset-1.0.0
 - hashable-time-0.2.0.2
 - network-transport-tcp-0.6.0

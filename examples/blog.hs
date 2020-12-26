@@ -1,5 +1,5 @@
 -- a simple example of a blog schema
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP, DerivingVia #-}
 
 import ProjectM36.Client
 import ProjectM36.Base
@@ -10,7 +10,6 @@ import ProjectM36.Tuple (atomForAttributeName)
 
 import Data.Either
 import GHC.Generics
-import Data.Binary
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
@@ -22,6 +21,7 @@ import Data.Monoid
 #endif
 import Data.List
 import Control.Monad (when, forM_)
+import Codec.Winery
 
 import Web.Scotty as S
 import Text.Blaze.Html5 (h1, h2, h3, p, form, input, (!), toHtml, Html, a, toValue, hr, textarea)
@@ -52,7 +52,8 @@ data Comment = Comment {
 instance Tupleable Comment             
 
 data Category = Food | Cats | Photos | Other T.Text -- note that this data type could not be represented by an "enumeration" as found in SQL databases
-              deriving (Atomable, Eq, Show, NFData, Binary, Generic) -- derive Atomable so that values of this type can be stored as a database value
+              deriving (Atomable, Eq, Show, NFData, Generic) -- derive Atomable so that values of this type can be stored as a database value
+              deriving Serialise via WineryVariant Category -- derive Serialisable to be able to transmit this data remotely
                        
 -- add some short-hand error handling- your application should have proper handling
 handleIOError :: Show e => IO (Either e a) -> IO a

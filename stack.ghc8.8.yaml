@@ -9,16 +9,12 @@ packages:
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- git: https://github.com/agentm/distributed-process.git
-  commit: 688a5b96d4b7b36d90c3db676230b2c943604288
+- git: https://github.com/agentm/curryer.git
+  commit: 1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
 - extended-reals-0.2.3.0
 - data-interval-2.0.1
 - stm-containers-1.1.0.4
-- distributed-static-0.3.9
 - stm-hamt-1.2.0.4
-- distributed-process-async-0.2.6
-- distributed-process-client-server-0.2.5.1
-- distributed-process-extras-0.3.5
 - rset-1.0.0
 - hashable-time-0.2.0.2
 - network-transport-tcp-0.7.0

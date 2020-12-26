@@ -16,8 +16,6 @@ import Network.Socket
 import qualified StmContainers.Map as StmMap
 import Control.Concurrent.STM
 
--- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
---trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
 type TestMode = Bool
 
 requestHandlers :: TestMode -> Maybe Timeout -> RequestHandlers ServerState

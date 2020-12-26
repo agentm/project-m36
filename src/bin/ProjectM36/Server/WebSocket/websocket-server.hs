@@ -5,14 +5,8 @@ import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import Control.Concurrent
 import qualified Network.WebSockets as WS
-
-#if MIN_VERSION_network_transport_tcp(0,6,0)                
-import Network.Transport.TCP.Internal (decodeEndPointAddress)
-#else
-import Network.Transport.TCP (decodeEndPointAddress)
-#endif
-
 import Control.Exception
+import Network.Socket
 
 main :: IO ()
 main = do
@@ -26,8 +20,11 @@ main = do
       serverConfig' = serverConfig {bindPort = 0, bindHost = serverHost}
   _ <- forkFinally (launchServer serverConfig' (Just addressMVar) >> pure ()) (either throwIO pure)
   --wait for server to be listening
-  address <- takeMVar addressMVar
-  let Just (_, serverPort, _) = decodeEndPointAddress address
+  addr <- takeMVar addressMVar
+  let port =
+        case addr of
+          SockAddrInet port' _ -> fromIntegral port'
+          _ -> error "unsupported socket address (IPv4 only currently)"
   --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
-  WS.runServer wsHost (fromIntegral wsPort) (websocketProxyServer (read serverPort) serverHost)
+  WS.runServer wsHost (fromIntegral wsPort) (websocketProxyServer port serverHost)
 
