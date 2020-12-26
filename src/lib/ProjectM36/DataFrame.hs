@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingVia #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia #-}
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base

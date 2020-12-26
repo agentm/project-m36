@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module ProjectM36.Server where
 
 import ProjectM36.Client

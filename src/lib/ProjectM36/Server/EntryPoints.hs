@@ -13,10 +13,8 @@ import Control.Exception
 timeoutOrDie :: Maybe Timeout -> IO a -> IO (Maybe a)
 timeoutOrDie mMicros act = 
   case mMicros of
-    Nothing -> do
-      ret <- act
-      pure (Just ret)
-    Just micros -> do
+    Nothing -> Just <$> act
+    Just micros ->
       timeout (fromIntegral micros) act
 
 timeoutRelErr :: Maybe Timeout -> IO (Either RelationalError a) -> IO (Either RelationalError a)
@@ -53,7 +51,7 @@ handleLogin dbName conn lockSock = do
   pure True
   
 handleExecuteGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
-handleExecuteGraphExpr ti sessionId conn graphExpr = do
+handleExecuteGraphExpr ti sessionId conn graphExpr =
   timeoutRelErr ti (executeGraphExpr sessionId conn graphExpr)
   
 handleExecuteTransGraphRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
@@ -65,11 +63,11 @@ handleExecuteTypeForRelationalExpr ti sessionId conn relExpr =
   timeoutRelErr ti (typeForRelationalExpr sessionId conn relExpr)
   
 handleRetrieveInclusionDependencies :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError (Map IncDepName InclusionDependency))
-handleRetrieveInclusionDependencies ti sessionId conn = do
+handleRetrieveInclusionDependencies ti sessionId conn =
   timeoutRelErr ti (inclusionDependencies sessionId conn)
   
 handleRetrievePlanForDatabaseContextExpr :: Maybe Timeout -> SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError GraphRefDatabaseContextExpr)
-handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr = do
+handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr =
   timeoutRelErr ti (planForDatabaseContextExpr sessionId conn dbExpr)
   
 handleRetrieveTransactionGraph :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation) 
@@ -89,16 +87,16 @@ handleCreateSessionAtHead ti conn headn =
   timeoutRelErr ti (createSessionAtHead conn headn)
   
 handleCloseSession :: SessionId -> Connection -> IO ()   
-handleCloseSession sessionId conn =
-  closeSession sessionId conn
+handleCloseSession  =
+  closeSession
   
 handleRetrieveAtomTypesAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
-handleRetrieveAtomTypesAsRelation ti sessionId conn = do
+handleRetrieveAtomTypesAsRelation ti sessionId conn =
   timeoutRelErr ti (atomTypesAsRelation sessionId conn)
   
 -- | Returns a relation which lists the names of relvars in the current session as well as  its types.  
 handleRetrieveRelationVariableSummary :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
-handleRetrieveRelationVariableSummary ti sessionId conn = do
+handleRetrieveRelationVariableSummary ti sessionId conn =
   timeoutRelErr ti (relationVariablesAsRelation sessionId conn)
   
 handleRetrieveAtomFunctionSummary :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
@@ -110,11 +108,11 @@ handleRetrieveDatabaseContextFunctionSummary ti sessionId conn =
   timeoutRelErr ti (databaseContextFunctionsAsRelation sessionId conn)
   
 handleRetrieveCurrentSchemaName :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError SchemaName)
-handleRetrieveCurrentSchemaName ti sessionId conn = do
+handleRetrieveCurrentSchemaName ti sessionId conn =
   timeoutRelErr ti (currentSchemaName sessionId conn)
 
 handleExecuteSchemaExpr :: Maybe Timeout -> SessionId -> Connection -> SchemaExpr -> IO (Either RelationalError ())
-handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
+handleExecuteSchemaExpr ti sessionId conn schemaExpr =
   timeoutRelErr ti (executeSchemaExpr sessionId conn schemaExpr)
   
 handleLogout :: Maybe Timeout -> Connection -> IO Bool
@@ -128,17 +126,17 @@ handleTestTimeout ti _ _ = do
   pure True
 
 handleRetrieveSessionIsDirty :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Bool)
-handleRetrieveSessionIsDirty ti sessionId conn = do
+handleRetrieveSessionIsDirty ti sessionId conn =
   timeoutRelErr ti (disconnectedTransactionIsDirty sessionId conn)
   
 handleExecuteAutoMergeToHead :: Maybe Timeout -> SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
-handleExecuteAutoMergeToHead ti sessionId conn strat headName' = do
+handleExecuteAutoMergeToHead ti sessionId conn strat headName' =
   timeoutRelErr ti (autoMergeToHead sessionId conn strat headName')
 
 handleRetrieveTypeConstructorMapping :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError TypeConstructorMapping)  
-handleRetrieveTypeConstructorMapping ti sessionId conn = do
+handleRetrieveTypeConstructorMapping ti sessionId conn =
   timeoutRelErr ti (C.typeConstructorMapping sessionId conn)
  
 handleValidateMerkleHashes :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError ())
-handleValidateMerkleHashes ti sessionId conn = do
+handleValidateMerkleHashes ti sessionId conn = 
   timeoutRelErr ti (C.validateMerkleHashes sessionId conn)

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, DerivingVia, DerivingStrategies, DeriveGeneric, CPP #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, CPP #-}
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, CPP, FlexibleContexts, DerivingVia #-}
+{-# LANGUAGE DeriveGeneric, CPP, FlexibleContexts, DerivingVia #-}
 module ProjectM36.TransactionGraph where
 import ProjectM36.Base
 import ProjectM36.Error

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, ScopedTypeVariables, MonoLocalBinds, DerivingVia, GeneralizedNewtypeDeriving, PackageImports #-}
+{-# LANGUAGE DeriveGeneric, ScopedTypeVariables, MonoLocalBinds, DerivingVia #-}
 {-|
 Module: ProjectM36.Client
 
@@ -192,7 +192,7 @@ data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCa
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
 -- | Used for callbacks from the server when monitored changes have been made.
-data NotificationMessage = NotificationMessage EvaluatedNotifications
+newtype NotificationMessage = NotificationMessage EvaluatedNotifications
                            deriving (Eq, Show, Generic)
                            deriving Serialise via WineryVariant NotificationMessage
 
@@ -226,7 +226,7 @@ defaultRemoteConnectionInfo =
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
 
-data RemoteConnectionConf = RemoteConnectionConf RPC.Connection
+newtype RemoteConnectionConf = RemoteConnectionConf RPC.Connection
   
 data Connection = InProcessConnection InProcessConnectionConf |
                   RemoteConnection RemoteConnectionConf
@@ -290,8 +290,7 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
           notificationHandlers =
             [RPC.ClientAsyncRequestHandler $
              \(NotificationMessage notifications') ->
-               forM_ (M.toList notifications') (\(notName, notInfo) ->
-                 notificationCallback notName notInfo)
+               forM_ (M.toList notifications') (uncurry notificationCallback)
             ]
 -- TODO  missing async callback
       conn <- RPC.connect notificationHandlers (hostAddressToTuple addr) port
@@ -403,7 +402,7 @@ close (InProcessConnection conf) = do
     Nothing -> pure ()
     Just (lockFileH, _) -> closeLockFile lockFileH
 
-close (RemoteConnection (RemoteConnectionConf conn)) = do
+close (RemoteConnection (RemoteConnectionConf conn)) =
   RPC.close conn
 
 --used only by the server EntryPoints

@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeSynonymInstances, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Serialise.IsomorphicSchema where
 import Codec.Winery

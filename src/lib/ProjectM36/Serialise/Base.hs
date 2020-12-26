@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 --Serialise instances for ProjectM36.Base data types- orphan instance city
 module ProjectM36.Serialise.Base where

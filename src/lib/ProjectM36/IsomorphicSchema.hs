@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, LambdaCase, DerivingVia #-}
+{-# LANGUAGE DeriveGeneric, LambdaCase, DerivingVia #-}
 module ProjectM36.IsomorphicSchema where
 import ProjectM36.Base
 import ProjectM36.Error
