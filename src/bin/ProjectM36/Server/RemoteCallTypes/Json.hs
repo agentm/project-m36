@@ -99,6 +99,8 @@ instance ToJSON Atom where
                                       "val" .= i ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
+  toJSON atom@(RelationalExprAtom i) = object [ "type" .= atomTypeForAtom atom,
+                                            "val" .= i ]
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
     "dataconstructorname" .= dConsName,
     "type" .= toJSON atomtype,
@@ -126,6 +128,7 @@ instance FromJSON Atom where
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)
       BoolAtomType -> BoolAtom <$> o .: "val"
+      RelationalExprAtomType -> RelationalExprAtom <$> o .: "val"
 
 instance ToJSON Notification
 instance FromJSON Notification

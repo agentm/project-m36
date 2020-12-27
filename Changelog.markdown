@@ -1,3 +1,11 @@
+# 2020-11-21 (v0.8.2)
+
+* support multiple extend expressions in TutorialD
+* fix parsing of Bool atoms in TutorialD
+* fix database context expressions which include self-references such as `s:=s union s`
+* show constraints as TutorialD when using tutd console
+* add `RelationalExprAtom` data type useful for storing `RelationalExpr` within the database
+
 # 2020-10-05 (v0.8.1)
 
 * support GHC 8.10

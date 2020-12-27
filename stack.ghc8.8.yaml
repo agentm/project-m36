@@ -11,6 +11,8 @@ packages:
 extra-deps:
 - git: https://github.com/agentm/curryer.git
   commit: 1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
+- git: https://github.com/composewell/streamly.git
+  commit: ac3af8749194f1788704dda8667d0b3807075cc2
 - extended-reals-0.2.3.0
 - data-interval-2.0.1
 - stm-containers-1.1.0.4

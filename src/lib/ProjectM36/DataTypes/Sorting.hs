@@ -24,6 +24,7 @@ isSortableAtomType typ = case typ of
   DateTimeAtomType -> True
   ByteStringAtomType -> False
   BoolAtomType -> True
+  RelationalExprAtomType -> False
   RelationAtomType _ -> False
   ConstructedAtomType _ _ -> False
   TypeVariableType _ -> False

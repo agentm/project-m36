@@ -137,9 +137,9 @@ semi = symbol ";"
 
 integer :: Parser Integer
 #if MIN_VERSION_megaparsec(6,0,0)
-integer = Lex.signed spaceConsumer Lex.decimal
+integer = Lex.signed (pure ()) Lex.decimal <* spaceConsumer
 #else
-integer = Lex.signed spaceConsumer Lex.integer
+integer = Lex.signed (pure ()) Lex.integer <* spaceConsumer
 #endif
 
 natural :: Parser Integer
@@ -222,3 +222,9 @@ utcTimeP = do
   case parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S" (T.unpack timeStr) of
     Nothing -> fail "invalid datetime input, use \"YYYY-MM-DD HH:MM:SS\""
     Just stamp' -> pure stamp'
+
+
+colonOp :: Text -> Parser ()
+colonOp opStr = do
+  _ <- string opStr <* (void spaceChar <|> eof) <* spaceConsumer
+  pure ()

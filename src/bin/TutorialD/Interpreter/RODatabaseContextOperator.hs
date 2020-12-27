@@ -1,13 +1,16 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
+import ProjectM36.Relation
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.Error
+import ProjectM36.Tuple
 import ProjectM36.InclusionDependency
 import qualified ProjectM36.Client as C
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
+import TutorialD.Printer
 import Control.Monad.State
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Gnuplot
@@ -19,7 +22,7 @@ data RODatabaseContextOperator where
   ShowRelation :: RelationalExpr -> RODatabaseContextOperator
   PlotRelation :: RelationalExpr -> RODatabaseContextOperator
   ShowRelationType :: RelationalExpr -> RODatabaseContextOperator
-  ShowConstraint :: StringType -> RODatabaseContextOperator
+  ShowConstraints :: StringType -> RODatabaseContextOperator
   ShowPlan :: DatabaseContextExpr -> RODatabaseContextOperator
   ShowTypes :: RODatabaseContextOperator
   ShowRelationVariables :: RODatabaseContextOperator
@@ -31,44 +34,44 @@ data RODatabaseContextOperator where
 
 typeP :: Parser RODatabaseContextOperator
 typeP = do
-  reservedOp ":type"
+  colonOp ":type"
   ShowRelationType <$> relExprP
 
 showRelP :: Parser RODatabaseContextOperator
 showRelP = do
-  reservedOp ":showexpr"
+  colonOp ":showexpr"
   ShowRelation <$> relExprP
 
 showPlanP :: Parser RODatabaseContextOperator
 showPlanP = do
-  reservedOp ":showplan"
+  colonOp ":showplan"
   ShowPlan <$> databaseContextExprP
 
 showTypesP :: Parser RODatabaseContextOperator
-showTypesP = reserved ":showtypes" >> pure ShowTypes
+showTypesP = colonOp ":showtypes" >> pure ShowTypes
 
 showRelationVariables :: Parser RODatabaseContextOperator
-showRelationVariables = reserved ":showrelvars" >> pure ShowRelationVariables
+showRelationVariables = colonOp ":showrelvars" >> pure ShowRelationVariables
 
 showAtomFunctionsP :: Parser RODatabaseContextOperator
-showAtomFunctionsP = reserved ":showatomfunctions" >> pure ShowAtomFunctions
+showAtomFunctionsP = colonOp ":showatomfunctions" >> pure ShowAtomFunctions
 
 showDatabaseContextFunctionsP :: Parser RODatabaseContextOperator
-showDatabaseContextFunctionsP = reserved ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
+showDatabaseContextFunctionsP = colonOp ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
 
 quitP :: Parser RODatabaseContextOperator
 quitP = do
-  reservedOp ":quit"
+  colonOp ":quit"
   return Quit
 
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
-  reservedOp ":constraints"
-  ShowConstraint <$> option "" identifier
+  colonOp ":constraints"
+  ShowConstraints <$> option "" identifier
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
-  reserved ":plotexpr"
+  colonOp ":plotexpr"
   PlotRelation <$> relExprP
 
 roDatabaseContextOperatorP :: Parser RODatabaseContextOperator
@@ -106,15 +109,16 @@ evalRODatabaseContextOp sessionId conn (PlotRelation expr) = do
       err <- plotRelation rel
       when (isJust err) $ print err
 
-evalRODatabaseContextOp sessionId conn (ShowConstraint name) = do
+evalRODatabaseContextOp sessionId conn (ShowConstraints name) = do
   eIncDeps <- C.inclusionDependencies sessionId conn
   let val = case eIncDeps of
         Left err -> Left err
         Right incDeps -> case name of
-          "" -> inclusionDependenciesAsRelation incDeps
+          "" -> inclusionDependenciesAsRelation incDeps >>= renderRelExprsInIncDeps
           depName -> case M.lookup depName incDeps of
             Nothing -> Left (InclusionDependencyNameNotInUseError depName)
-            Just dep -> inclusionDependenciesAsRelation (M.singleton depName dep)
+            Just dep -> 
+              inclusionDependenciesAsRelation (M.singleton depName dep) >>= renderRelExprsInIncDeps
   pure $ case val of
      Left err -> DisplayErrorResult (T.pack (show err))
      Right rel -> DisplayRelationResult rel
@@ -164,7 +168,7 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
   
 showDataFrameP :: Parser RODatabaseContextOperator
 showDataFrameP = do
-  reservedOp ":showdataframe"
+  colonOp ":showdataframe"
   relExpr <- relExprP
   reservedOp "orderby"
   attrOrdersExpr <- attrOrdersExprP
@@ -191,3 +195,16 @@ attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP
 
 orderP :: Parser DF.Order
 orderP = try (reservedOp "ascending" >> pure DF.AscendingOrder) <|> try (reservedOp "descending" >> pure DF.DescendingOrder) <|> pure DF.AscendingOrder
+
+-- render RelationalExprAtoms as TutorialD
+renderRelExprsInIncDeps :: Relation -> Either RelationalError Relation
+renderRelExprsInIncDeps = relMogrify tupMapper attrs
+  where
+    tupMapper tup = pure $ mkRelationTupleFromMap (M.map mapper (tupleToMap tup))
+    mapper (RelationalExprAtom expr) = TextAtom (T.pack (show (prettyRelationalExpr expr)))
+    mapper atom = atom
+    attrs = C.attributesFromList [Attribute "name" TextAtomType,
+                                  Attribute "sub" TextAtomType,
+                                  Attribute "super" TextAtomType
+                                 ]
+    

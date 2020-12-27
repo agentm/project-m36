@@ -367,8 +367,9 @@ evalRelationalExpr (Extend tupleExpression relExpr) = do
 setRelVar :: RelVarName -> GraphRefRelationalExpr -> DatabaseContextEvalMonad ()
 setRelVar relVarName relExpr = do
   currentContext <- getStateContext
-  --prevent recursive relvar definition
-  let newRelVars = M.insert relVarName relExpr $ relationVariables currentContext
+  --prevent recursive relvar definition by resolving references to relvars in previous states
+  relExpr' <- resolve relExpr
+  let newRelVars = M.insert relVarName relExpr' $ relationVariables currentContext
       potentialContext = currentContext { relationVariables = newRelVars }
   --optimization: if the relexpr is unchanged, skip the update      
   if M.lookup relVarName (relationVariables currentContext) == Just relExpr then
@@ -1544,3 +1545,71 @@ relVarByName rvName = do
     Nothing -> throwError (RelVarNotDefinedError rvName)
     Just gfexpr -> pure gfexpr
   
+-- | resolve UncommittedTransactionMarker whenever possible- this is important in the DatabaseContext in order to mitigate self-referencing loops for updates
+class ResolveGraphRefTransactionMarker a where
+  resolve :: a -> DatabaseContextEvalMonad a
+
+-- s := s union t
+instance ResolveGraphRefTransactionMarker GraphRefRelationalExpr where
+  resolve (MakeRelationFromExprs mAttrs tupleExprs) =
+    MakeRelationFromExprs mAttrs <$> resolve tupleExprs
+  resolve orig@MakeStaticRelation{} = pure orig
+  resolve orig@ExistingRelation{} = pure orig
+  resolve orig@(RelationVariable rvName UncommittedContextMarker) = do
+    rvMap <- relationVariables <$> getStateContext
+    case M.lookup rvName rvMap of
+      Nothing -> pure orig
+      Just resolvedRv -> resolve resolvedRv
+  resolve orig@RelationVariable{} = pure orig
+  resolve (Project attrNames relExpr) = Project <$> resolve attrNames <*> resolve relExpr
+  resolve (Union exprA exprB) = Union <$> resolve exprA <*> resolve exprB
+  resolve (Join exprA exprB) = Join <$> resolve exprA <*> resolve exprB
+  resolve (Rename attrA attrB expr) = Rename attrA attrB <$> resolve expr
+  resolve (Difference exprA exprB) = Difference <$> resolve exprA <*> resolve exprB
+  resolve (Group namesA nameB expr) = Group <$> resolve namesA <*> pure nameB <*> resolve expr
+  resolve (Ungroup nameA expr) = Ungroup nameA <$> resolve expr
+  resolve (Restrict restrictExpr relExpr) = Restrict <$> resolve restrictExpr <*> resolve relExpr
+  resolve (Equals exprA exprB) = Equals <$> resolve exprA <*> resolve exprB
+  resolve (NotEquals exprA exprB) = NotEquals <$> resolve exprA <*> resolve exprB
+  resolve (Extend extendExpr relExpr) = Extend <$> resolve extendExpr <*> resolve relExpr
+  resolve (With withExprs relExpr) = With <$> mapM (\(nam, expr) -> (,) <$> resolve nam <*> resolve expr) withExprs <*> resolve relExpr
+
+instance ResolveGraphRefTransactionMarker GraphRefTupleExprs where
+  resolve (TupleExprs marker tupleExprs) =
+    TupleExprs marker <$> mapM resolve tupleExprs
+
+instance ResolveGraphRefTransactionMarker GraphRefTupleExpr where
+  resolve (TupleExpr tupMap) = do
+    tupMap' <- mapM (\(attrName, expr) -> (,) attrName <$> resolve expr ) (M.toList tupMap)
+    pure (TupleExpr (M.fromList tupMap'))
+
+instance ResolveGraphRefTransactionMarker GraphRefAttributeNames where
+  resolve orig@AttributeNames{} = pure orig
+  resolve orig@InvertedAttributeNames{} = pure orig
+  resolve (UnionAttributeNames namesA namesB) = UnionAttributeNames <$> resolve namesA <*> resolve namesB
+  resolve (IntersectAttributeNames namesA namesB) = IntersectAttributeNames <$> resolve namesA <*> resolve namesB
+  resolve (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> resolve expr
+
+instance ResolveGraphRefTransactionMarker GraphRefRestrictionPredicateExpr where
+  resolve TruePredicate = pure TruePredicate
+  resolve (AndPredicate exprA exprB) = AndPredicate <$> resolve exprA <*> resolve exprB
+  resolve (OrPredicate exprA exprB) = OrPredicate <$> resolve exprA <*> resolve exprB
+  resolve (NotPredicate expr) = NotPredicate <$> resolve expr
+  resolve (RelationalExprPredicate expr) = RelationalExprPredicate <$> resolve expr
+  resolve (AtomExprPredicate expr) = AtomExprPredicate <$> resolve expr
+  resolve (AttributeEqualityPredicate nam expr)= AttributeEqualityPredicate nam <$> resolve expr
+
+instance ResolveGraphRefTransactionMarker GraphRefExtendTupleExpr where
+  resolve (AttributeExtendTupleExpr nam atomExpr) = AttributeExtendTupleExpr nam <$> resolve atomExpr
+
+instance ResolveGraphRefTransactionMarker GraphRefWithNameExpr where
+  resolve orig@WithNameExpr{} = pure orig -- match uncommitted marker?
+
+instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
+  resolve orig@AttributeAtomExpr{} = pure orig
+  resolve orig@NakedAtomExpr{} = pure orig
+  resolve (FunctionAtomExpr nam atomExprs marker) =
+    FunctionAtomExpr nam <$> mapM resolve atomExprs <*> pure marker
+  resolve (RelationAtomExpr expr) = RelationAtomExpr <$> resolve expr
+  resolve (ConstructedAtomExpr dConsName atomExprs marker) =
+    ConstructedAtomExpr dConsName <$> mapM resolve atomExprs <*> pure marker

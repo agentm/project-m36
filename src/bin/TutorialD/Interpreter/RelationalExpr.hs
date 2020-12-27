@@ -20,9 +20,18 @@ attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
 attributeListP =
   (reservedOp "all but" >>
    InvertedAttributeNames . S.fromList <$> sepBy attributeNameP comma) <|>
+
   (reservedOp "all from" >>
    RelationalExprAttributeNames <$> relExprP) <|>
-  (AttributeNames . S.fromList <$> sepBy attributeNameP comma)
+
+  (reservedOp "union of" >>
+   UnionAttributeNames <$> braces attributeListP <*> braces attributeListP) <|>
+
+  (reservedOp "intersection of" >>
+  IntersectAttributeNames <$> braces attributeListP <*> braces attributeListP) <|>
+   
+  (AttributeNames . S.fromList <$> sepBy attributeNameP comma) 
+  
 
 makeRelationP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 makeRelationP = do
@@ -102,7 +111,11 @@ ungroupP = do
 extendP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 extendP = do
   reservedOp ":"
-  Extend <$> braces extendTupleExpressionP
+  extends <- braces (sepBy extendTupleExpressionP comma)
+  case extends of
+    [] -> pure (Restrict TruePredicate)
+    extends' ->
+      pure $ \expr -> foldl (flip Extend) expr extends'
 
 semijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 semijoinP = do
@@ -129,7 +142,8 @@ relOperators = [
   [InfixL antijoinP],
   [InfixL (reservedOp "union" >> return Union)],
   [InfixL (reservedOp "minus" >> return Difference)],
-  [InfixN (reservedOp "=" >> return Equals)],
+  [InfixN (reservedOp "=" >> return Equals),
+   InfixN (reservedOp "/=" >> return NotEquals)],
   [Postfix extendP]
   ]
 
@@ -200,7 +214,7 @@ consumeAtomExprP consume = try functionAtomExprP <|>
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
             attributeAtomExprP <|>
-            nakedAtomExprP <|>
+            try nakedAtomExprP <|>
             relationalAtomExprP
 
 attributeAtomExprP :: Parser (AtomExprBase a)
@@ -242,8 +256,12 @@ integerAtomP = IntegerAtom <$> integer
 
 boolAtomP :: Parser Atom
 boolAtomP = do
-  val <- char 't' <|> char 'f'
-  return $ BoolAtom (val == 't')
+  v <- identifier
+  if v == "t" || v == "f" then
+    pure $ BoolAtom (v == "t")    
+    else
+    fail "invalid boolAtom"
+    
 
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP

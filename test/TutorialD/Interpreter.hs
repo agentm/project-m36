@@ -79,7 +79,9 @@ main = do
       testInvalidDataConstructor,
       testBasicList,
       testRelationDeclarationMismatch,
-      testInvalidTuples
+      testInvalidTuples,
+      testSelfReferencingUncommittedContext,
+      testUnionAndIntersectionAttributeExprs
       ]
 
 simpleRelTests :: Test
@@ -120,7 +122,8 @@ simpleRelTests = TestCase $ do
                       ("x:=relation{tuple{a 5}} : {b:=6}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 6])]),
                       ("x:=relation{tuple{a 5}} : {b:=add(@a,5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 10])]),
                       ("x:=relation{tuple{a 5}} : {b:=add(@a,\"spam\")}", Left (AtomFunctionTypeError "add" 2 IntegerAtomType TextAtomType)),
-                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 12])])
+                      ("x:=relation{tuple{a 5}} : {b:=add(add(@a,2),5)}", mkRelationFromTuples simpleDAttributes [RelationTuple simpleDAttributes (V.fromList [IntegerAtom 5, IntegerAtom 12])]),
+                      ("x:=false:{a:=1,b:=2}", mkRelationFromTuples simpleDAttributes [])
                      ]
     simpleAAttributes = A.attributesFromList [Attribute "a" IntegerAtomType]
     simpleBAttributes = A.attributesFromList [Attribute "d" IntegerAtomType]
@@ -230,7 +233,7 @@ transactionGraphAddCommitTest = TestCase $ do
           commit sessionId dbconn >>= eitherFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
-          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (RelationVariable "s" UncommittedContextMarker))
+          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
@@ -700,3 +703,24 @@ testInvalidTuples = TestCase $ do
   expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{b 2}}"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{a 2, b 3}}"
 --  expectTutorialDErr sessionId dbconn (T.isPrefixOf "ParseErrorBundle") ":showexpr relation{tuple{a 2, a 3}}" --parse failure can't be validated with this function
+
+testSelfReferencingUncommittedContext :: Test
+testSelfReferencingUncommittedContext = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "s:=s union s"
+  eS <- executeRelationalExpr sessionId dbconn (RelationVariable "s" ())
+  _ <- rollback sessionId dbconn
+  eSorig <- executeRelationalExpr sessionId dbconn (RelationVariable "s" ())  
+  assertEqual "s=s'" eSorig eS
+
+testUnionAndIntersectionAttributeExprs :: Test
+testUnionAndIntersectionAttributeExprs = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x:=s{intersection of {all but sname} {sname}}"
+  xRel <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  assertEqual "intersection attrs" (Right relationTrue) xRel
+
+  executeTutorialD sessionId dbconn "y:=s{union of {all but sname} {sname}}"
+  yRel <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  assertEqual "union attrs" (Right suppliersRel) yRel
+  

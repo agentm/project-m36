@@ -442,6 +442,7 @@ isResolvedType typ =
     DateTimeAtomType -> True
     ByteStringAtomType -> True
     BoolAtomType -> True
+    RelationalExprAtomType -> True
     RelationAtomType attrs -> isResolvedAttributes attrs
     ConstructedAtomType _ tvMap -> all isResolvedType (M.elems tvMap)
     TypeVariableType _ -> False
