@@ -8,13 +8,13 @@
   , DataKinds
   , TypeOperators
   , AllowAmbiguousTypes
+  , DerivingVia
   #-}
 import Test.HUnit
 import ProjectM36.Tupleable.Deriving
 import ProjectM36.Atomable
 import ProjectM36.Attribute
 import ProjectM36.Error
-import Data.Binary
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
 import qualified Data.Vector as V
@@ -23,6 +23,7 @@ import qualified Data.Text as T
 import qualified Data.Set as S
 import System.Exit
 import Data.Proxy
+import Codec.Winery
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 
@@ -30,35 +31,43 @@ data Test1T = Test1C {
   attrA :: Integer
   }
   deriving (Generic, Eq, Show)
+  deriving Serialise via WineryRecord Test1T
            
 data Test2T = Test2C {
   attrB :: Integer,
   attrC :: Integer
   }
   deriving (Generic, Eq, Show)
+  deriving Serialise via WineryRecord Test2T
            
 data Test3T = Test3C Integer            
             deriving (Generic, Eq, Show)
+            deriving Serialise via WineryVariant Test3T
                      
 data Test4T = Test4C                     
               deriving (Generic, Eq, Show)
+              deriving Serialise via WineryVariant Test4T
                        
 data Test5T = Test5C1 Integer |                       
               Test5C2 Integer
               deriving (Generic, Eq, Show)
+              deriving Serialise via WineryVariant Test5T
                        
 data Test6T = Test6C T.Text Integer Double
               deriving (Generic, Eq, Show)
                        
 data Test7A = Test7AC Integer
-            deriving (Generic, Show, Eq, Binary, NFData, Atomable)
+            deriving (Generic, Show, Eq, NFData, Atomable)
+            deriving Serialise via WineryVariant Test7A
                        
                        
 data Test7T = Test7C Test7A                       
               deriving (Generic, Show, Eq)
+              deriving Serialise via WineryVariant Test7T
                        
 data Test8T = Test8C                       
               deriving (Generic, Show, Eq)
+              deriving Serialise via WineryVariant Test8T
                        
 data Test9T = Test9C 
               {                      
@@ -67,6 +76,7 @@ data Test9T = Test9C
                 attr9C :: Double
               }
             deriving (Generic, Show, Eq)
+            deriving Serialise via WineryRecord Test9T
 
 data Test10T = Test10C {
   longAttrNameA10 :: Integer,
@@ -74,6 +84,7 @@ data Test10T = Test10C {
   longMixed_attr_NameC10 :: Integer
   }
   deriving (Generic, Show, Eq)
+  deriving Serialise via WineryRecord Test10T
            
 instance Tupleable Test1T
 

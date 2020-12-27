@@ -24,7 +24,7 @@ requestHandlers testFlag ti =
     RequestHandler (\sState (Login dbName) -> do
                        addClientLogin dbName sState
                        conn <- getConn sState
-                       handleLogin dbName conn (connectionSocket sState)),
+                       handleLogin conn (connectionSocket sState)),
      RequestHandler (\sState Logout -> do
                         conn <- getConn sState                        
                         handleLogout ti conn),

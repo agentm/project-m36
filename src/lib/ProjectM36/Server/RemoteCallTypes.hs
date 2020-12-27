@@ -8,7 +8,6 @@ import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
 import ProjectM36.Serialise.DataFrame ()
 import ProjectM36.Serialise.IsomorphicSchema ()
-import ProjectM36.Server.Types
 import GHC.Generics
 import Codec.Winery
 

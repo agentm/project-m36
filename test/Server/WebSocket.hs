@@ -18,12 +18,6 @@ import Data.Aeson
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
-#if MIN_VERSION_network_transport_tcp(0,6,0)                
-import Network.Transport.TCP.Internal (decodeEndPointAddress)
-#else
-import Network.Transport.TCP (decodeEndPointAddress)
-#endif
-
 
 --start the websocket server
 -- run some tutoriald against it
@@ -37,12 +31,12 @@ launchTestServer = do
       testDatabaseName = "test"
   -- start normal server
   _ <- forkIO (launchServer config (Just addressMVar) >> pure ())
-  serverAddress <- takeMVar addressMVar
+  (SockAddrInet dbPort _) <- takeMVar addressMVar
   let wsServerHost = "127.0.0.1"
       wsServerPort = 8889
-      Just (dbHost, dbPort, _) = decodeEndPointAddress serverAddress      
+      dbHost = "127.0.0.1"
   -- start websocket server proxy -- runServer doesn't support returning an arbitrary socket
-  _ <- forkIO (WS.runServer wsServerHost wsServerPort (websocketProxyServer (read dbPort) dbHost))
+  _ <- forkIO (WS.runServer wsServerHost wsServerPort (websocketProxyServer (fromIntegral dbPort) dbHost))
   --wait for socket to be listening
   waitForListenSocket 5 (fromIntegral wsServerPort)
   pure (fromIntegral wsServerPort, testDatabaseName)

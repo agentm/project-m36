@@ -45,9 +45,9 @@ handleExecuteHeadName :: Maybe Timeout -> SessionId -> Connection -> IO (Either 
 handleExecuteHeadName ti sessionId conn =
   timeoutRelErr ti (headName sessionId conn)
   
-handleLogin :: DatabaseName -> Connection -> Locking Socket -> IO Bool
-handleLogin dbName conn lockSock = do
-  addClientNode dbName conn lockSock
+handleLogin :: Connection -> Locking Socket -> IO Bool
+handleLogin conn lockSock = do
+  addClientNode conn lockSock
   pure True
   
 handleExecuteGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
@@ -122,8 +122,12 @@ handleLogout _ _ =
     
 handleTestTimeout :: Maybe Timeout -> SessionId -> Connection -> IO Bool  
 handleTestTimeout ti _ _ = do
-  _ <- timeoutOrDie ti (threadDelay 100000 >> pure True)
-  pure True
+  ret <- timeoutRelErr ti (threadDelay 100000 >> pure (Right ()))
+  case ret of
+    Right () -> pure True
+    Left _ -> pure False
+
+ 
 
 handleRetrieveSessionIsDirty :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Bool)
 handleRetrieveSessionIsDirty ti sessionId conn =

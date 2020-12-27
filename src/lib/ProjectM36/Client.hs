@@ -127,7 +127,6 @@ import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalEx
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
 import ProjectM36.NormalizeExpr
-import ProjectM36.Server.Types
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
@@ -135,11 +134,13 @@ import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
 import qualified ProjectM36.Relation as R
 import Control.Exception.Base
-import GHC.Conc.Sync
+import Control.Concurrent.STM
+import Control.Concurrent.Async
 
 import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
+import Data.Hashable
 import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import Codec.Winery hiding (Schema, schema)
@@ -161,6 +162,7 @@ import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
+import GHC.Conc (unsafeIOToSTM)
 
 type Hostname = String
 
@@ -249,6 +251,7 @@ createScriptSession ghcPkgPaths = do
     Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
+
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
@@ -264,14 +267,16 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         clientNodes <- StmSet.newIO
         sessions <- StmMap.newIO
         mScriptSession <- createScriptSession ghcPkgPaths
-        
+        notifAsync <- startNotificationListener clientNodes notificationCallback
         let conn = InProcessConnection InProcessConnectionConf {
                                            ipPersistenceStrategy = strat, 
                                            ipClientNodes = clientNodes, 
                                            ipSessions = sessions, 
                                            ipTransactionGraph = graphTvar, 
                                            ipScriptSession = mScriptSession,
-                                           ipLocks = Nothing}
+                                           ipLocks = Nothing,
+                                           ipCallbackAsync = notifAsync
+                                           }
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -303,11 +308,19 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
       --TODO handle connection errors!
           pure (Right (RemoteConnection (RemoteConnectionConf conn)))
 
-addClientNode :: DatabaseName ->Connection -> RPC.Locking Socket -> IO ()
-addClientNode _ (RemoteConnection _) _ = error "addClientNode called on remote connection"
-addClientNode dbName (InProcessConnection conf) lockSock = atomically (StmSet.insert clientInfo (ipClientNodes conf))
+--convert RPC errors into exceptions
+convertRPCErrors :: RPC.ConnectionError -> IO a
+convertRPCErrors err =
+  case err of
+    RPC.TimeoutError -> throw RequestTimeoutException
+    RPC.CodecError msg -> error $ "decoding message failed on server: " <> msg
+    RPC.ExceptionError msg -> error $ "server threw exception: " <> msg
+
+addClientNode :: Connection -> RPC.Locking Socket -> IO ()
+addClientNode (RemoteConnection _) _ = error "addClientNode called on remote connection"
+addClientNode (InProcessConnection conf) lockSock = atomically (StmSet.insert clientInfo (ipClientNodes conf))
   where
-    clientInfo = ClientInfo dbName lockSock
+    clientInfo = RemoteClientInfo lockSock
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -333,17 +346,27 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               sessions <- StmMap.newIO
               clientNodes <- StmSet.newIO
               lockMVar <- newMVar digest
+              notifAsync <- startNotificationListener clientNodes notificationCallback
               let conn = InProcessConnection InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
                                              ipSessions = sessions,
                                              ipTransactionGraph = tvarGraph,
                                              ipScriptSession = mScriptSession,
-                                             ipLocks = Just (lockFileH, lockMVar)
+                                             ipLocks = Just (lockFileH, lockMVar),
+                                             ipCallbackAsync = notifAsync
                                              }
-
               pure (Right conn)
-          
+
+--startup local async process to handle notification callbacks
+startNotificationListener :: ClientNodes -> NotificationCallback -> IO (Async ())
+startNotificationListener cNodes notificationCallback = do
+  inProcessClientInfo@(InProcessClientInfo notifMVar) <- InProcessClientInfo <$> newEmptyMVar          
+  atomically $ StmSet.insert inProcessClientInfo cNodes 
+  async $ forever $ do
+    notifs <- takeMVar notifMVar
+    forM_ (M.toList notifs) $ uncurry notificationCallback
+
 -- | Create a new session at the transaction id and return the session's Id.
 createSessionAtCommit :: Connection -> TransactionId -> IO (Either RelationalError SessionId)
 createSessionAtCommit conn@(InProcessConnection _) commitId = do
@@ -389,6 +412,7 @@ closeSession sessionId conn@(RemoteConnection _) = remoteCall conn (CloseSession
 -- | 'close' cleans up the database access connection and closes any relevant sockets.
 close :: Connection -> IO ()
 close (InProcessConnection conf) = do
+  cancel (ipCallbackAsync conf)
   atomically $ do
     let sessions = ipSessions conf
 #if MIN_VERSION_stm_containers(1,0,0)        
@@ -420,24 +444,14 @@ excEither = handle handler
     handler exc | Just (_ :: AsyncException) <- fromException exc = throwIO exc
                 | otherwise = pure (Left (UnhandledExceptionError (show exc)))
 
-{-                
-safeLogin :: Login -> ProcessId -> Process Bool
-safeLogin login procId = do 
-  ret <- call procId login
-  case ret of
-    Left (_ :: ServerError) -> pure False
-    Right val -> pure val
--}
 
 remoteCall :: (Serialise a, Serialise b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ ) _ = error "remoteCall called on local connection"
 remoteCall (RemoteConnection (RemoteConnectionConf rpcConn)) arg = do
   eRet <- RPC.call rpcConn arg
   case eRet of
-    Left err -> error ("connection died " <> show err) --TODO: throw some more specific exceptions
+    Left err -> convertRPCErrors err
     Right val -> pure val
-  
-
 
 sessionForSessionId :: SessionId -> Sessions -> STM (Either RelationalError Session)
 sessionForSessionId sessionId sessions = 
@@ -599,20 +613,6 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           pure (Right ())
 executeDatabaseContextIOExpr sessionId conn@(RemoteConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
          
-{-
-executeGraphExprSTM_ :: TransactionId -> SessionId -> Session -> Sessions -> TransactionGraphOperator -> TransactionGraph -> TVar TransactionGraph -> STM (Either RelationalError (TransactionGraph, DisconnectedTransaction)
-executeGraphExprSTM_ freshId sessionId session sessions graphExpr graph graphTVar= do
-  case evalGraphOp freshId (Sess.disconnectedTransaction session) graph graphExpr of
-    Left err -> do
-      when updateGraphOnError (writeTVar graphTVar graph)
-      pure $ Left err
-    Right (discon', graph') -> do
-      writeTVar graphTVar graph'
-      let newSession = Session discon' (Sess.schemaName session)
-      STMMap.insert newSession sessionId sessions
-      pure $ Right graph'
--}
-  
 -- process notifications for commits
 executeCommitExprSTM_
   :: TransactionGraph
@@ -653,77 +653,7 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
             --if freshId appears in the graph, then we need to pass it on
             let transIds = [freshId | isRight (RE.transactionForId freshId graph')]
             pure (Right (discon', graph', transIds))
-{-
-executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
-  let strat = ipPersistenceStrategy conf
-      clientNodes = ipClientNodes conf
-      sessions = ipSessions conf
-      graphTvar = ipTransactionGraph conf
-      mLockFileH = ipLocks conf
-      lockHandler body = case graphExpr of
-        Commit -> case mLockFileH of
-          Nothing -> body False
-          Just (lockFileH, lockMVar) -> let acquireLocks = do
-                                              lastWrittenDigest <- takeMVar lockMVar 
-                                              lockFile lockFileH WriteLock
-                                              latestDigest <- readGraphTransactionIdDigest strat
-                                              pure (latestDigest /= lastWrittenDigest)
-                                              
-                                            releaseLocks _ = do
-                                              --still holding the lock- get the latest digest
-                                              gDigest <- readGraphTransactionIdDigest strat
-                                              unlockFile lockFileH 
-                                              putMVar lockMVar gDigest
-                                        in bracket acquireLocks releaseLocks body
-        _ -> body False
-  freshId <- nextRandom
-  lockHandler $ \dbWrittenByOtherProcess -> do
-    --if the database file has been updated since we wrote it last, load it before trying to sync our version done- this can result in TransactionNotAHeadErrors
-    --read transaction data and compare to existing graph
-      --in the future, we can detect if updated transaction graph can be safely merged (such as with a transaction on a separate head) (rebase-able commits should force the user to rebase from the client to confirm that the action makes sense)
-      manip <- atomically $ do
-        eSession <- sessionForSessionId sessionId sessions
-        --handle graph update by other process
-        oldGraph <- readTVar graphTvar
-        case eSession of
-         Left err -> pure (Left err)
-         Right session -> do
-            let mScriptSession = ipScriptSession conf              
-                dbdir = case strat of
-                  MinimalPersistence x -> x
-                  CrashSafePersistence x -> x
-                  _ -> error "accessing dbdir on non-persisted connection"
-            eRefreshedGraph <- if dbWrittenByOtherProcess then
-                               unsafeIOToSTM (transactionGraphLoad dbdir oldGraph mScriptSession)
-                             else
-                               pure (Right oldGraph)
-            case eRefreshedGraph of
-              Left err -> pure (Left (DatabaseLoadError err))
-              Right refreshedGraph -> do
-                   --snip it
-                   eGraph <- executeGraphExprSTM_ dbWrittenByOtherProcess freshId sessionId session sessions graphExpr refreshedGraph graphTvar
-                   --snip it
-                   case eGraph of
-                     Left err -> pure (Left err)
-                     Right newGraph -> do
-                       --handle commit
-                       if isCommit graphExpr then do
-                             case transactionForId (Sess.parentId session) oldGraph of
-                               Left err -> pure $ Left err
-                               Right previousTrans -> do
-                                 (evaldNots, nodes) <- executeCommitExprSTM_ (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                                 nodesToNotify <- toList (StmSet.stream nodes)
-                                 pure $ Right (evaldNots, nodesToNotify, newGraph)
-                             else
-                              pure $ Right (M.empty, [], newGraph)
-      case manip of 
-       Left err -> return $ Just err
-       Right (notsToFire, nodesToNotify, newGraph) -> do
-        --update filesystem database, if necessary
-        processTransactionGraphPersistence strat newGraph
-        sendNotifications nodesToNotify (ipLocalNode conf) notsToFire
-        pure Nothing
--}
+
 executeGraphExpr sessionId conn@(RemoteConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
@@ -732,9 +662,6 @@ executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEit
   let graphTvar = ipTransactionGraph conf
   graph <- readTVar graphTvar
   pure $ force $ optimizeAndEvalTransGraphRelationalExpr graph tgraphExpr
-{-  case runReader (RE.evalRelationalExpr relExpr) (RE.mkRelationalExprState DBC.empty) of
-      Left err -> pure (Left err)
-      Right rel -> pure (force (Right rel))-}
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
 -- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'.
@@ -767,8 +694,10 @@ commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr s
 
 sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
 sendNotifications clients notifs =
-  unless (M.null notifs) $
-    forM_ (map clientSocket clients) $ \sock -> RPC.sendMessage sock (NotificationMessage notifs)
+  unless (M.null notifs) $ forM_ clients sender
+ where
+  sender (RemoteClientInfo sock) = RPC.sendMessage sock (NotificationMessage notifs)
+  sender (InProcessClientInfo tvar) = putMVar tvar notifs
 
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
@@ -1070,13 +999,6 @@ commitLock_ sessionId conf stmBlock = do
       processTransactionGraphPersistence strat transactionIdsToPersist newGraph
       sendNotifications nodesToNotify notsToFire
       pure (Right ())
-{-
-writeDisconAndGraph_ :: TVar TransactionGraph -> SessionId -> Session -> Sessions -> DisconnectedTransaction -> TransactionGraph  -> STM ()
-writeDisconAndGraph_ graphTvar sessionId session sessions discon graph = do
-  writeTVar graphTvar graph
-  let newSession = Session discon (Sess.schemaName session)
-  StmMap.insert newSession sessionId sessions
--}
 
 -- | Runs an IO monad, commits the result when the monad returns no errors, otherwise, rolls back the changes and the error.
 withTransaction :: SessionId -> Connection -> IO (Either RelationalError a) -> IO (Either RelationalError ()) -> IO (Either RelationalError a)
@@ -1143,3 +1065,29 @@ validateMerkleHashes sessionId (InProcessConnection conf) = do
           Left merkleErrs -> pure $ Left $ someErrors (map (\(MerkleValidationError tid expected actual) -> MerkleHashValidationError tid expected actual) merkleErrs)
           Right () -> pure (Right ())
 validateMerkleHashes sessionId conn@RemoteConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)
+
+type ClientNodes = StmSet.Set ClientInfo
+
+-- internal structure specific to in-process connections
+data InProcessConnectionConf = InProcessConnectionConf {
+  ipPersistenceStrategy :: PersistenceStrategy, 
+  ipClientNodes :: ClientNodes, 
+  ipSessions :: Sessions, 
+  ipTransactionGraph :: TVar TransactionGraph,
+  ipScriptSession :: Maybe ScriptSession,
+  ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
+  ipCallbackAsync :: Async ()
+  }
+
+-- clients may connect associate one socket/mvar with the server to register for change callbacks
+data ClientInfo = RemoteClientInfo (RPC.Locking Socket) |
+                  InProcessClientInfo (MVar EvaluatedNotifications)
+
+instance Eq ClientInfo where
+  (RemoteClientInfo a) == (RemoteClientInfo b) = RPC.lockless a == RPC.lockless b
+  (InProcessClientInfo a) == (InProcessClientInfo b) = a == b
+  _ == _ = False
+
+instance Hashable ClientInfo where
+  hashWithSalt salt (RemoteClientInfo sock) = hashWithSalt salt (show (RPC.lockless sock))
+  hashWithSalt salt (InProcessClientInfo _) = hashWithSalt salt (1::Int)

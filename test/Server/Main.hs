@@ -5,7 +5,6 @@ test client/server interaction
 import Test.HUnit
 import ProjectM36.Client
 import qualified ProjectM36.Client as C
-import ProjectM36.Server.EntryPoints
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
@@ -14,16 +13,8 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Base
 
 import System.Exit
-
+import Network.Socket (SockAddr(..))
 import Control.Concurrent
-import Network.Transport (EndPointAddress)
-
-#if MIN_VERSION_network_transport_tcp(0,6,0)                
-import Network.Transport.TCP.Internal (encodeEndPointAddress, decodeEndPointAddress)
-#else
-import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
-#endif
-
 import Data.Either (isRight)
 import Control.Exception
 import System.IO.Temp
@@ -31,6 +22,10 @@ import System.FilePath
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
+
+import Debug.Trace
+
+type Timeout = Int
 
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
@@ -69,11 +64,9 @@ main = do
 testDatabaseName :: DatabaseName
 testDatabaseName = "test"
 
-testConnection :: EndPointAddress -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
-testConnection serverAddress mvar = do
-  let Just (host, service, _) = decodeEndPointAddress serverAddress
-      serverAddress' = encodeEndPointAddress host service 1  
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (NodeId serverAddress') (testNotificationCallback mvar)
+testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
+testConnection serverPort mvar = do
+  let connInfo = RemoteConnectionInfo testDatabaseName "127.0.0.1" (show serverPort) (testNotificationCallback mvar)
   --putStrLn ("testConnection: " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
@@ -85,7 +78,7 @@ testConnection serverAddress mvar = do
         Right sessionId -> pure $ Right (sessionId, conn)
 
 -- | A version of 'launchServer' which returns the port on which the server is listening on a secondary thread
-launchTestServer :: Timeout -> IO (EndPointAddress, ThreadId)
+launchTestServer :: Timeout -> IO (Port, ThreadId)
 launchTestServer ti = do
   addressMVar <- newEmptyMVar
   tid <- forkIO $ 
@@ -99,9 +92,9 @@ launchTestServer ti = do
                                        }
     
       launchServer config (Just addressMVar) >> pure ()
-  endPointAddress <- takeMVar addressMVar
+  (SockAddrInet port _) <- takeMVar addressMVar
   --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
-  pure (endPointAddress, tid)
+  pure (fromIntegral port, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
 testRelationalExpr sessionId conn = TestCase $ do
@@ -216,8 +209,8 @@ testRequestTimeout = TestCase $ do
   case eTestConn of
     Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
     Right (session, testConn) -> do
-      res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
-      assertBool "exception was not thrown" (not res)
+      res <- catchJust (\exc -> if traceShowId exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
+      assertBool "timeout exception was not thrown" (not res)
       killThread serverTid
       
 testFileDescriptorCount :: Test
