@@ -1,3 +1,8 @@
+# 2020-12-27 (v0.9.0)
+
+* replace unmaintained distributed-process-client-server RPC package with new curryer RPC package
+* drop support for GHC 8.2 and GHC 8.4 due to dependency on DerivingVia extension
+
 # 2020-11-21 (v0.8.2)
 
 * support multiple extend expressions in TutorialD

@@ -10,9 +10,13 @@ packages:
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/agentm/curryer.git
-  commit: 1e60c0580ca33d6ae1e97aaddc32189fdfe3ef6c
+  commit: edee978457dc60fa326298d173d64c4f0783ca64
 - git: https://github.com/composewell/streamly.git
   commit: ac3af8749194f1788704dda8667d0b3807075cc2
+- fast-builder-0.1.2.1
+- winery-1.3.2
+- barbies-2.0.2.0
+- barbies-th-0.1.7
 - extended-reals-0.2.3.0
 - data-interval-2.0.1
 - stm-containers-1.1.0.4
@@ -24,6 +28,8 @@ extra-deps:
 - network-2.8.0.1
 - primitive-extras-0.8
 - primitive-unlifted-0.1.3.0
+- prettyprinter-1.7.0
+- prettyprinter-ansi-terminal-1.1.2
 
 # Override default flag values for local packages and extra-deps
 flags:
