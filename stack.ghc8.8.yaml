@@ -10,7 +10,7 @@ packages:
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - git: https://github.com/agentm/curryer.git
-  commit: edee978457dc60fa326298d173d64c4f0783ca64
+  commit: 28ff1d031078af4a17fa326d43340474571df0c3
 - git: https://github.com/composewell/streamly.git
   commit: ac3af8749194f1788704dda8667d0b3807075cc2
 - fast-builder-0.1.2.1
