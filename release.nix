@@ -46,12 +46,47 @@ let
 	     sha256 = "085j4yjr8wimxampxqdrg47p577whwg2mjxgfdl44yfck52fb6an";
           }{};
 
-       curryer =
+       curryer-rpc =
          self.callHackageDirect {
-           pkg = "curryer";
+           pkg = "curryer-rpc";
 	   ver = "0.1";
 	   sha256 = "085j4yjr8wimxampxqdrg47p577whwg2mjxgfdl44yfck52fb6ac";
        }{};
+
+       winery =
+         self.callHackageDirect {
+	   pkg = "winery";
+	   ver = "1.3.2";
+	   sha256 = "1jc7q8m0zd8bziwa3mra44j518ckc566akk7r5hqpf8x5ng0n4vv";
+       }{};
+
+       barbies-th =
+         self.callHackageDirect {
+           pkg = "barbies-th";
+	   ver = "0.1.7";
+	   sha256 = "0gf39kcn6lwqhz888qm3iypma76yrp3zwmif1niry647qq27xp4j";
+       }{};
+
+       barbies =
+         self.callHackageDirect {
+           pkg = "barbies";
+	   ver = "2.0.2.0";
+	   sha256 = "0753rd8pw0x1cgasz8a6633kg83jngwzncp9khbimllvcdqzardh";
+       }{};
+
+       prettyprinter =
+         self.callHackageDirect {
+           pkg = "prettyprinter";
+	   ver = "1.7.0";
+	   sha256 = "17byy08brwcsl5rqdhibq3pcpgx085shizb2ap6s4xy3izdia3cc";
+	 }{};
+
+       prettyprinter-ansi-terminal =
+         self.callHackageDirect {
+           pkg = "prettyprinter-ansi-terminal";
+	   ver = "1.1.2";
+	   sha256 = "0lwcqndppw3jc55rlnn6sp76zmjx2yzl21g9jhg27k2rdnjwd7md";
+	 }{};
       
       project-m36 = dontCheck (self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { });
 
