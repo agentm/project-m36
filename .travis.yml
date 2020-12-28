@@ -16,7 +16,7 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: CACHE_NAME=8.8.4 STACK_YAML=stack.ghc8.4.yaml
+    - env: CACHE_NAME=8.8.4 STACK_YAML=stack.ghc8.8.yaml
       compiler: ": #stack 8.8.4"
 
     - env: CACHE_NAME=8.6.5 STACK_YAML=stack.ghc8.6.yaml
