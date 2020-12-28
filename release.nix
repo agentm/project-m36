@@ -8,6 +8,13 @@ let
   doJailbreak = pkgs.haskell.lib.doJailbreak;
   dontHaddock = pkgs.haskell.lib.dontHaddock;
   dontCheck = pkgs.haskell.lib.dontCheck;
+  streamly-master = pkgs.fetchFromGitHub {
+	   owner = "composewell";
+	   repo = "streamly";
+	   rev = "ac3af8749194f1788704dda8667d0b3807075cc2";
+	   sha256 = "04d8fk654vawdfs0dfidmq2awwgwi8x44iv8r7vqz70zkcsd5fij";
+	   };
+
   distProcessPkg = pkg : dontHaddock (doJailbreak (dontCheck pkg));
   callHackageDirectWithOptions = {pkg,ver, sha256, options}:
   let pkgver = "${pkg}-${ver}";
@@ -50,8 +57,17 @@ let
          self.callHackageDirect {
            pkg = "curryer-rpc";
 	   ver = "0.1";
-	   sha256 = "085j4yjr8wimxampxqdrg47p577whwg2mjxgfdl44yfck52fb6ac";
+	   sha256 = "0vb7q68g4zjm20simnqpjdpvcvh4g8cwlc5b6zjdjpg1rargri41";
        }{};
+
+       streamly = self.callCabal2nix "streamly" streamly-master {};
+
+       fusion-plugin-types =
+         self.callHackageDirect {
+	   pkg = "fusion-plugin-types";
+	   ver = "0.1.0";
+	   sha256 = "17211b80p4zqisghs2j8flm4dj788f9glx2id6nh8f223q4cigc9";
+	 }{};
 
        winery =
          self.callHackageDirect {
