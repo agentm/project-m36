@@ -182,7 +182,7 @@ Executable tutd
                    stm-containers >= 1.0.0,
                    list-t,
                    parser-combinators,
-                   curryer,
+                   curryer-rpc,
                    prettyprinter
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
@@ -264,7 +264,7 @@ Executable bigrel
 
 Common commontest
     Default-Language: Haskell2010 
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer, prettyprinter, base64-bytestring
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, vector-binary-instances, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded
     Hs-Source-Dirs: ./src/bin, ., test/

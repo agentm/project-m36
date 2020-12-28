@@ -4,9 +4,7 @@ Thank you for evaluating Project:M36, a new relational algebra engine written in
 
 ## Prerequisites
 
-* any Linux
-* GHC 8.2 or later version (Haskell compiler)
-* cabal (package downloader) installed
+* any Linux, MacOS, or Windows computer with Docker installed
 
 ## Download and Install
 
@@ -14,13 +12,11 @@ Run a pre-built docker image:
 
 ```docker run -it projectm36/project-m36 tutd```
 
-or build it yourself:
+or build it yourself with GHC >= 8.6:
 
 ```bash
 git clone https://github.com/agentm/project-m36.git
-cabal sandbox init
-cabal install --dependencies-only
-cabal run tutd
+cabal new-run tutd
 ```
 
 ##  Some Basic TutorialD
