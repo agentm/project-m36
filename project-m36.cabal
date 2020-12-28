@@ -1,7 +1,8 @@
 Cabal-Version: 2.2
 Name: project-m36
 Version: 0.9.0
-License: Unlicense
+License: MIT
+--note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain 
 Build-Type: Simple
 Homepage: https://github.com/agentm/project-m36
 Bug-Reports: https://github.com/agentm/project-m36/issues
