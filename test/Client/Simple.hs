@@ -9,7 +9,6 @@ import System.IO.Temp
 import System.FilePath
 import ProjectM36.TupleSet
 import ProjectM36.Attribute
-import qualified Data.Vector as V
 import qualified Data.Map as M
 
 main :: IO ()           
@@ -59,7 +58,7 @@ testSimpleCommitFailure = TestCase $ do
       execute $ Assign "x" (ExistingRelation relationTrue)
       --cause error
       execute $ Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)
-  let expectedErr = Left (RelError (RelationTypeMismatchError V.empty failAttrs))
+  let expectedErr = Left (RelError (RelationTypeMismatchError mempty failAttrs))
   assertEqual "dbc error" expectedErr err
 
 -- #176 default merge couldn't handle Update  

@@ -46,6 +46,8 @@ import Control.Exception
 import GHC.Paths
 #endif
 
+import Debug.Trace
+
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -788,7 +790,7 @@ updateTupleWithAtomExprs exprMap context graph tupIn = do
 -}
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
-checkConstraints context transId graph@(TransactionGraph graphHeads transSet) =
+checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = do
   mapM_ (uncurry checkIncDep) (M.toList deps) 
   where
     potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
@@ -804,6 +806,7 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) =
     deps = inclusionDependencies context
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
+      traceShowM ("incdep", subsetExpr, supersetExpr)
       let process = runProcessExprM UncommittedContextMarker
           gfSubsetExpr = process (processRelationalExpr subsetExpr)
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
@@ -814,11 +817,11 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) =
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
       when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
       let checkExpr = Equals gfSupersetExpr (Union gfSubsetExpr gfSupersetExpr)
-          gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
+          gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr (traceShow ("checkCon", checkExpr) checkExpr))
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
         Left err -> Left err
-        Right resultRel -> if resultRel == relationTrue then
+        Right resultRel -> if traceShow ("result", resultRel, relationTrue) (resultRel == relationTrue) then
                                    pure ()
                                 else 
                                   Left (InclusionDependencyCheckError depName)
@@ -1165,7 +1168,7 @@ evalGraphRefTupleExprs mAttrs (TupleExprs fixedMarker tupleExprL) = do
                   lift $ except $ resolveAttributes accAttr tupAttr 
           mostResolvedTypes <-
                 foldM (\acc tup -> do
-                         let zipped = zip (V.toList $ tupleAttributes tup) acc
+                         let zipped = zip (V.toList . attributesVec $ tupleAttributes tup) acc
                              accNames = S.fromList $ map A.attributeName acc
                              tupNames = A.attributeNameSet (tupleAttributes tup)
                              attrNamesDiff = S.union (S.difference accNames tupNames) (S.difference tupNames accNames)
@@ -1176,7 +1179,7 @@ evalGraphRefTupleExprs mAttrs (TupleExprs fixedMarker tupleExprL) = do
                            pure nextTupleAttrs
                            else
                            throwError (TupleAttributeTypeMismatchError diff)
-                      ) (V.toList $ tupleAttributes headTuple) tailTuples
+                      ) (V.toList . attributesVec $ tupleAttributes headTuple) tailTuples
           pure (A.attributesFromList mostResolvedTypes)
   --strategy: if all the tuple expr transaction markers refer to one location, then we can pass the type constructor mapping from that location, otherwise, we cannot assume that the types are the same
   tConsMap <- case singularTransactions tupleExprL of
@@ -1500,7 +1503,7 @@ relationVariablesAsRelation ctx graph = do
         let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
         gfType <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
         pure (rvName, gfType)
-      relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributes rel)]
+      relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributesVec (attributes rel))]
       attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
         Left err -> error ("relationVariablesAsRelation pooped " ++ show err)

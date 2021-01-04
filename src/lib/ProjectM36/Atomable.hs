@@ -237,7 +237,7 @@ typeToTypeConstructor x@ByteStringAtomType = PrimitiveTypeConstructor "ByteStrin
 typeToTypeConstructor x@BoolAtomType = PrimitiveTypeConstructor "Bool" x
 typeToTypeConstructor x@RelationalExprAtomType = PrimitiveTypeConstructor "RelationalExpr" x
 typeToTypeConstructor (RelationAtomType attrs)
-  = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList attrs
+  = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList (attributesVec attrs)
   where
     attrToAttrExpr (Attribute n t) = AttributeAndTypeNameExpr n (typeToTypeConstructor t) ()
 typeToTypeConstructor (ConstructedAtomType tcName tvMap)

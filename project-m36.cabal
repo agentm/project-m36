@@ -281,6 +281,18 @@ Benchmark basic-benchmark
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
+--benchmark inserts, updates, deletes for a basic use-case to shake out any space leaks  
+Benchmark update-exprs
+  Default-Language: Haskell2010
+  Default-Extensions: OverloadedStrings
+  Build-Depends: base, criterion, project-m36, text, winery
+  Main-Is: benchmark/Server.hs
+  Type: exitcode-stdio-1.0
+  GHC-Options: -Wall -threaded -rtsopts
+  HS-Source-Dirs: ./src/bin
+  if flag(profiler)
+    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+
 Test-Suite test-tutoriald
     import: commontest
     type: exitcode-stdio-1.0

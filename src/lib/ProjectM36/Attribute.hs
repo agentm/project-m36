@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Attribute where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -10,16 +11,45 @@ import qualified Data.Map as M
 import Data.Either
 
 arity :: Attributes -> Int
-arity = V.length
+arity a = V.length (attributesVec a)
+
+instance Semigroup Attributes where
+  attrsA <> attrsB =
+    case joinAttributes attrsA attrsB of
+      Left err -> error (show err)
+      Right attrs' -> attrs'
+    
+instance Monoid Attributes where
+  mempty = Attributes mempty mempty
 
 emptyAttributes :: Attributes
-emptyAttributes = V.empty
+emptyAttributes = mempty
 
 null :: Attributes -> Bool
-null = V.null
+null a = V.null (attributesVec a)
+
+singleton :: Attribute -> Attributes
+singleton attr = Attributes (V.singleton attr) (HS.singleton attr)
+
+toList :: Attributes -> [Attribute]
+toList attrs = V.toList (attributesVec attrs)
 
 attributesFromList :: [Attribute] -> Attributes
-attributesFromList = V.fromList -- . L.nub --too expensive
+attributesFromList attrsL = Attributes vec hset
+  where
+    vec = if length attrsL == HS.size hset then
+      --fast path- no duplicates
+      V.fromList attrsL
+      else
+      --duplicate detected, uniqueify while maintaining original ordering
+      V.fromList uniquedL
+    hset = HS.fromList attrsL
+    uniquedL = fst $ foldr (\attr acc@(l,s) ->
+                              if HS.member attr s then
+                                acc
+                                else
+                                (l ++ [attr], HS.insert attr s))
+                              ([],mempty) attrsL
 
 attributeName :: Attribute -> AttributeName
 attributeName (Attribute name _) = name
@@ -28,17 +58,16 @@ atomType :: Attribute -> AtomType
 atomType (Attribute _ atype) = atype
 
 atomTypes :: Attributes -> V.Vector AtomType
-atomTypes = V.map atomType
+atomTypes attrs = V.map atomType (attributesVec attrs)
 
 atomTypesList :: Attributes -> [AtomType]
 atomTypesList = V.toList . atomTypes 
 
---hm- no error-checking here
 addAttribute :: Attribute -> Attributes -> Attributes
-addAttribute attr attrs = attrs `V.snoc` attr
+addAttribute attr attrs = attrs <> singleton attr
 
 --if some attribute names overlap but the types do not, then spit back an error
-joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
+{-joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
 joinAttributes attrs1 attrs2 | V.length uniqueOverlappingAttributes /= V.length overlappingAttributes = Left (TupleAttributeTypeMismatchError overlappingAttributes)
                              | V.length overlappingAttrsDifferentTypes > 0 = Left (TupleAttributeTypeMismatchError overlappingAttrsDifferentTypes)
                              | otherwise = Right $ vectorUniqueify (attrs1 V.++ attrs2)
@@ -47,20 +76,47 @@ joinAttributes attrs1 attrs2 | V.length uniqueOverlappingAttributes /= V.length 
     attrNames2 = V.map attributeName attrs2
     uniqueOverlappingAttributes = vectorUniqueify overlappingAttributes
     overlappingAttributes = V.filter (`V.elem` attrs2) attrs1
+-}
+joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
+joinAttributes attrs1 attrs2 =
+  if S.size overlappingNames == 0 then -- fast path, no overlapping names
+    pure (concated id)
+  else if attributesForNames overlappingNames attrs1 == attributesForNames overlappingNames attrs2 then -- check that atomtypes match
+    pure (concated vectorUniqueify)
+  else
+    --special handling to validate that overlapping names have the same atom types
+    Left (TupleAttributeTypeMismatchError (attributesForNames overlappingNames attrs1))
+  where
+    nameSet1 = attributeNameSet attrs1
+    nameSet2 = attributeNameSet attrs2
+    overlappingNames = S.intersection nameSet1 nameSet2
+    concated f = Attributes (f (attributesVec attrs1 <> attributesVec attrs2)) (attributesSet attrs1 <> attributesSet attrs2)
 
 addAttributes :: Attributes -> Attributes -> Attributes
-addAttributes = (V.++)
+addAttributes = (<>)
+
+member :: Attribute -> Attributes -> Bool
+member attr attrs = HS.member attr (attributesSet attrs)
 
 deleteAttributeName :: AttributeName -> Attributes -> Attributes
-deleteAttributeName attrName = V.filter (\attr -> attributeName attr /= attrName)
+deleteAttributeName attrName attrs = deleteAttributeNames (S.singleton attrName) attrs
+
+deleteAttributeNames :: S.Set AttributeName -> Attributes -> Attributes
+deleteAttributeNames attrNames attrs = Attributes vec hset
+  where
+    vec = V.filter attrFilter (attributesVec attrs)
+    hset = HS.filter attrFilter (attributesSet attrs)
+    attrFilter attr = S.notMember (attributeName attr) attrNames
 
 renameAttribute :: AttributeName -> Attribute -> Attribute
 renameAttribute newAttrName (Attribute _ typeo) = Attribute newAttrName typeo
 
 renameAttributes :: AttributeName -> AttributeName -> Attributes -> Attributes
-renameAttributes oldAttrName newAttrName = V.map renamer
+renameAttributes oldAttrName newAttrName attrs = Attributes vec hset
   where
-    renamer attr = if attributeName attr == oldAttrName then
+  vec = V.map renamer (attributesVec attrs)
+  hset = HS.map renamer (attributesSet attrs)
+  renamer attr = if attributeName attr == oldAttrName then
                      renameAttribute newAttrName attr
                    else
                      attr
@@ -71,7 +127,7 @@ atomTypeForAttributeName attrName attrs = do
   return atype
 
 attributeForName :: AttributeName -> Attributes -> Either RelationalError Attribute
-attributeForName attrName attrs = case V.find (\attr -> attributeName attr == attrName) attrs of
+attributeForName attrName attrs = case V.find (\attr -> attributeName attr == attrName) (attributesVec attrs) of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just attr -> Right attr
 
@@ -89,15 +145,18 @@ projectionAttributesForNames names attrsIn =
     missingNames = attributeNamesNotContained names (S.fromList (V.toList (attributeNames attrsIn)))
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
-attributesForNames attrNameSet = V.filter filt
+attributesForNames attrNameSet attrs = Attributes vec hset
+
   where
+    vec = V.filter filt (attributesVec attrs)
+    hset = HS.filter filt (attributesSet attrs)
     filt attr = S.member (attributeName attr) attrNameSet
 
 attributeNameSet :: Attributes -> S.Set AttributeName
-attributeNameSet attrVec = S.fromList $ V.toList $ V.map (\(Attribute name _) -> name) attrVec
+attributeNameSet attrs = S.fromList $ V.toList $ V.map (\(Attribute name _) -> name) (attributesVec attrs)
 
 attributeNames :: Attributes -> V.Vector AttributeName
-attributeNames = V.map attributeName
+attributeNames attrs = V.map attributeName (attributesVec attrs)
 
 --checks if set s1 is wholly contained in the set s2
 attributesContained :: Attributes -> Attributes -> Bool
@@ -118,42 +177,70 @@ attributeNamesNotContained subset superset = S.filter (`S.notMember` superset) s
 
 -- useful for display
 orderedAttributes :: Attributes -> [Attribute]
-orderedAttributes attrs = L.sortBy (\a b -> attributeName a `compare` attributeName b) (V.toList attrs)
+orderedAttributes attrs = L.sortBy (\a b -> attributeName a `compare` attributeName b) (V.toList (attributesVec attrs))
 
 orderedAttributeNames :: Attributes -> [AttributeName]
 orderedAttributeNames attrs = map attributeName (orderedAttributes attrs)
 
 -- take two attribute sets and return an attribute set with the attributes which do not match
+--this is the function which benefits the most from the HashSet representation- this turned up in the insert performance test
 attributesDifference :: Attributes -> Attributes -> Attributes
-attributesDifference attrsA attrsB = V.fromList $ diff (V.toList attrsA) (V.toList attrsB)
+{-attributesDifference attrsA attrsB = V.fromList $ diff (V.toList attrsA) (V.toList attrsB)
   where
     diff a b = (a L.\\ b)  ++ (b L.\\ a)
+-}
+attributesDifference attrsA attrsB =
+  if attributesSet attrsA == attributesSet attrsB then
+    mempty
+    else
+    Attributes vec hset
+  where
+    hset = HS.difference setA setB <> HS.difference setB setA
+    setA = attributesSet attrsA
+    setB = attributesSet attrsB
+    vec = V.filter (\attr -> HS.member attr hset) (attributesVec attrsA <> attributesVec attrsB)
 
 vectorUniqueify :: (Hash.Hashable a, Eq a) => V.Vector a -> V.Vector a
 vectorUniqueify vecIn = V.fromList $ HS.toList $ HS.fromList $ V.toList vecIn
 
 --check that each attribute only appears once
 verifyAttributes :: Attributes -> Either RelationalError Attributes
-verifyAttributes attrs = if collapsedAttrs /= attrs then
-                           Left (TupleAttributeTypeMismatchError (attributesDifference collapsedAttrs attrs))
-                         else
-                           Right attrs
+verifyAttributes attrs =
+  if vecSet == attributesSet attrs then
+    pure attrs
+  else
+    Left (TupleAttributeTypeMismatchError diffAttrs)
   where
-    collapsedAttrs = vectorUniqueify attrs
+    vecSet = V.foldr' HS.insert HS.empty (attributesVec attrs)
+    diffSet = HS.difference vecSet (attributesSet attrs) <> HS.difference (attributesSet attrs) vecSet
+    diffAttrs = Attributes (V.fromList (HS.toList diffSet)) diffSet
 
+--used in Generics derivation for ADTs without named attributes- not to be used elsewhere
+--drop first n attributes from vector representation
+drop :: Int -> Attributes -> Attributes
+drop c attrs = Attributes vec hset
+  where
+    droppedAttrs = V.take c (attributesVec attrs)
+    vec = V.drop c (attributesVec attrs)
+    hset = HS.filter (`V.notElem` droppedAttrs) hset
+    
+-- use this in preference to (==) when the attribute ordering matters such as during tuple unions
 attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual attrs1 attrs2 =  V.null (attributesDifference attrs1 attrs2)
+attributesEqual a b = attributesVec a == attributesVec b
 
 attributesAsMap :: Attributes -> M.Map AttributeName Attribute
-attributesAsMap attrs = (M.fromList . V.toList) (V.map (\attr -> (attributeName attr, attr)) attrs)
+attributesAsMap attrs = V.foldr' (\attr acc -> M.insert (attributeName attr) attr acc) mempty (attributesVec attrs)
+
 
 -- | Left-biased union of attributes.
 union :: Attributes -> Attributes -> Attributes
-union attrsA attrsB = V.fromList (M.elems unioned)
+union attrsA attrsB = Attributes vec hset
   where
-    unioned = M.union (attributesAsMap attrsA) (attributesAsMap attrsB)
+    hset = HS.union (attributesSet attrsA) (attributesSet attrsB)
+    vec = HS.foldr (flip V.snoc) mempty hset
                       
 intersection :: Attributes -> Attributes -> Attributes
-intersection attrsA attrsB = V.fromList (M.elems intersected)
+intersection attrsA attrsB = Attributes vec hset
   where
-    intersected = M.intersection (attributesAsMap attrsA) (attributesAsMap attrsB)
+    hset = HS.intersection (attributesSet attrsA) (attributesSet attrsB)
+    vec = HS.foldr (flip V.snoc) mempty hset

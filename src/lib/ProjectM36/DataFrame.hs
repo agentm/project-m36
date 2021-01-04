@@ -2,7 +2,7 @@
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
-import ProjectM36.Attribute as A
+import ProjectM36.Attribute as A hiding (drop)
 import ProjectM36.Error
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
@@ -81,7 +81,7 @@ compareTupleByOneAttributeName attr tuple1 tuple2 =
         Right atom2 -> compareAtoms atom1 atom2
 
 atomForAttributeName :: AttributeName -> DataFrameTuple -> Either RelationalError Atom
-atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) tupAttrs of
+atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) (attributesVec tupAttrs) of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just index -> case tupVec V.!? index of
     Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
@@ -134,12 +134,12 @@ data DataFrameExpr = DataFrameExpr {
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
 dataFrameAsHTML df 
-  | length (tuples df) == 1 && L.null (attributes df) = style <>
+  | length (tuples df) == 1 && A.null (attributes df) = style <>
                           tablestart <>
                           "<tr><th></th></tr>" <>
                           "<tr><td></td></tr>" <> 
                           tablefooter <> "</table>"
-  | L.null (tuples df) && L.null (attributes df) = style <>
+  | L.null (tuples df) && A.null (attributes df) = style <>
                            tablestart <>
                            "<tr><th></th></tr>" <>
                            tablefooter <> 
@@ -162,7 +162,7 @@ tuplesAsHTML = foldr folder ""
     folder tuple acc = acc <> tupleAsHTML tuple
 
 tupleAssocs :: DataFrameTuple -> [(AttributeName, Atom)]
-tupleAssocs (DataFrameTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
+tupleAssocs (DataFrameTuple attrs tupVec) = V.toList $ V.map (first attributeName) (V.zip (attributesVec attrs) tupVec)
     
 
 tupleAsHTML :: DataFrameTuple -> T.Text
@@ -174,7 +174,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
     atomAsHTML atom = atomToText atom
 
 attributesAsHTML :: Attributes -> [AttributeOrder] -> T.Text
-attributesAsHTML attrs orders' = "<tr>" <> T.concat (map oneAttrHTML (V.toList attrs)) <> "</tr>"
+attributesAsHTML attrs orders' = "<tr>" <> T.concat (map oneAttrHTML (A.toList attrs)) <> "</tr>"
   where
     oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (attributeName attr) <> "</th>"
     ordering attrName = " " <> case L.find (\(AttributeOrder nam _) -> nam == attrName) orders' of

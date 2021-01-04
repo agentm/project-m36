@@ -11,6 +11,7 @@ import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.MerkleHash
+import ProjectM36.Attribute as A
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
@@ -44,8 +45,11 @@ instance FromJSON ExecuteRelationalExpr
 instance ToJSON Relation
 instance FromJSON Relation
 
-instance ToJSON Attribute
-instance FromJSON Attribute
+instance ToJSON Attribute where
+  toJSON (Attribute attrName aType) = object [ "name" .= attrName
+                                             , "type" .= toJSON aType ]
+instance FromJSON Attribute where
+  parseJSON = withObject "Attribute" $ \v -> Attribute <$> v .: "name" <*> v .: "type"
 
 instance ToJSON ExtendTupleExpr
 instance FromJSON ExtendTupleExpr
@@ -145,6 +149,12 @@ instance FromJSON MerkleHash where
       Left err -> fail ("Failed to parse merkle hash: " ++ err)
       Right bs -> pure (MerkleHash bs)
 
+instance ToJSON Attributes where
+  toJSON attrs = object ["attributes" .= map toJSON (A.toList attrs)]
+instance FromJSON Attributes where
+  parseJSON = withObject "Attributes" $ \o ->
+    A.attributesFromList <$> o .: "attributes"
+
 instance ToJSON RelationalError
 instance FromJSON RelationalError
 
@@ -168,3 +178,5 @@ instance FromJSON AtomFunctionError
 
 instance ToJSON WithNameExpr
 instance FromJSON WithNameExpr
+
+

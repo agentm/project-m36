@@ -44,7 +44,7 @@ emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet =
   --check that all attributes are unique- this cannot be done when creating attributes because the check can become expensive
-  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList attrs))) in
+  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList (attributesVec attrs)))) in
   if not (null duplicateAttrNames) then
     Left (DuplicateAttributeNamesError (S.fromList duplicateAttrNames))
     else
@@ -154,7 +154,7 @@ group groupAttrNames newAttrName rel = do
   groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
-        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
+        Right rel2 -> RelationTuple (A.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
       mogrifier tupIn = pure (tupleExtend tupIn (matchingRelTuple tupIn))
       newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
