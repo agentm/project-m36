@@ -87,7 +87,8 @@ main = do
 simpleRelTests :: Test
 simpleRelTests = TestCase $ do
   (graph, transId) <- freshTransactionGraph dateExamples  
-  mapM_ (\(tutd, expected) -> assertTutdEqual basicDatabaseContext transId graph expected tutd) testTups
+  mapM_ (\(tutd, expected) ->
+            assertTutdEqual basicDatabaseContext transId graph expected tutd) testTups
   where
     testTups = [("x:=true", Right relationTrue),
                       ("x:=false", Right relationFalse),
@@ -135,7 +136,8 @@ simpleRelTests = TestCase $ do
 dateExampleRelTests :: Test
 dateExampleRelTests = TestCase $ do
   (graph, transId) <- freshTransactionGraph dateExamples
-  mapM_ (\(tutd, expected) -> assertTutdEqual dateExamples transId graph expected tutd) testTups
+  mapM_ (\(tutd, expected) ->
+            assertTutdEqual dateExamples transId graph expected tutd) testTups
   where
     simpleEitherIntTextAttributes = A.attributesFromList [Attribute "a" (eitherAtomType IntegerAtomType TextAtomType)]
     maybeIntegerAtomType = ConstructedAtomType "Maybe" (M.singleton "a" IntegerAtomType)
@@ -543,7 +545,7 @@ testListConstructedAtom = TestCase $ do
 testTypeChecker :: Test  
 testTypeChecker = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
-  let err1 = "AtomFunctionTypeError \"max\" 1 (RelationAtomType [Attribute \"_\" IntegerAtomType]) IntegerAtomType"
+  let err1 = "AtomFunctionTypeError \"max\" 1"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 0}}:{b:=max(@a)}"
   
 --exercise expression parser

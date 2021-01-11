@@ -7,6 +7,8 @@ import qualified Data.Vector as V
 import qualified Control.Parallel.Strategies as P
 import Data.Either
 
+import Debug.Trace
+
 emptyTupleSet :: RelationTupleSet
 emptyTupleSet = RelationTupleSet []
 
@@ -31,3 +33,8 @@ mkTupleSet attrs tuples = verifyTupleSet attrs (RelationTupleSet tuples)
 
 mkTupleSetFromList :: Attributes -> [[Atom]] -> Either RelationalError RelationTupleSet
 mkTupleSetFromList attrs atomMatrix = mkTupleSet attrs $ map (mkRelationTuple attrs . V.fromList) atomMatrix
+
+
+-- | Target attributes must match the first tuple set.
+tupleSetUnion :: Attributes -> RelationTupleSet -> RelationTupleSet -> RelationTupleSet
+tupleSetUnion targetAttrs tupSet1 tupSet2 = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple targetAttrs) (asList tupSet2)

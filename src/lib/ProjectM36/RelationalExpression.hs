@@ -40,13 +40,14 @@ import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
+import qualified Data.Functor.Foldable as Fold
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
 #endif
 
-import Debug.Trace
+--import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -384,6 +385,9 @@ setRelVar relVarName relExpr = do
       Left err -> dbErr err
       Right _ -> putStateContext potentialContext
 
+--fast-path insertion- we already know that the previous relvar validated correctly, so we can validate just the relation that is being inserted for attribute matches- without this, even a single tuple relation inserted causes the entire relation to be re-validated unnecessarily
+--insertIntoRelVar :: RelVarName -> GraphRefRelationalExpr -> DatabaseContextEvalMonad ()
+
 -- it is not an error to delete a relvar which does not exist, just like it is not an error to insert a pre-existing tuple into a relation
 deleteRelVar :: RelVarName -> DatabaseContextEvalMonad ()
 deleteRelVar relVarName = do
@@ -449,10 +453,10 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
 
 evalGraphRefDatabaseContextExpr (Insert relVarName relExpr) = do
   gfExpr <- relVarByName relVarName
-  evalGraphRefDatabaseContextExpr (Assign relVarName
-                                   (Union
-                                    gfExpr
-                                    relExpr))
+  let optExpr = applyStaticUnionCollapse (Union
+                                          gfExpr
+                                          relExpr)
+  evalGraphRefDatabaseContextExpr (Assign relVarName optExpr)
 
 evalGraphRefDatabaseContextExpr (Delete relVarName predicate) = do
   gfExpr <- relVarByName relVarName
@@ -806,7 +810,6 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
     deps = inclusionDependencies context
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
-      traceShowM ("incdep", subsetExpr, supersetExpr)
       let process = runProcessExprM UncommittedContextMarker
           gfSubsetExpr = process (processRelationalExpr subsetExpr)
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
@@ -817,11 +820,11 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
       when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
       let checkExpr = Equals gfSupersetExpr (Union gfSubsetExpr gfSupersetExpr)
-          gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr (traceShow ("checkCon", checkExpr) checkExpr))
+          gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
         Left err -> Left err
-        Right resultRel -> if traceShow ("result", resultRel, relationTrue) (resultRel == relationTrue) then
+        Right resultRel -> if resultRel == relationTrue then
                                    pure ()
                                 else 
                                   Left (InclusionDependencyCheckError depName)
@@ -1616,3 +1619,17 @@ instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
   resolve (RelationAtomExpr expr) = RelationAtomExpr <$> resolve expr
   resolve (ConstructedAtomExpr dConsName atomExprs marker) =
     ConstructedAtomExpr dConsName <$> mapM resolve atomExprs <*> pure marker
+
+--convert series of simple Union queries into MakeStaticRelation
+-- this is especially useful for long, nested applications of Union with simple tuples
+-- Union (MakeRelation x y) (MakeRelation x y') -> MakeRelation x (y + y')
+applyStaticUnionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyStaticUnionCollapse = Fold.cata opt
+  where
+    opt (UnionF
+         a@(MakeStaticRelation attrsA tupsA)
+         b@(MakeStaticRelation attrsB tupsB)) = if attrsA == attrsB then
+                                                MakeStaticRelation attrsA (tupleSetUnion attrsA tupsA tupsB)
+                                                else
+                                                  Union a b
+    opt x = Fold.embed x

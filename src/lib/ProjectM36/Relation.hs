@@ -9,7 +9,6 @@ import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Error
-import ProjectM36.MiscUtils
 --import qualified Control.Parallel.Strategies as P
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
@@ -17,7 +16,8 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
-import Data.List (sort)
+
+--import Debug.Trace
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -43,11 +43,6 @@ emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet =
-  --check that all attributes are unique- this cannot be done when creating attributes because the check can become expensive
-  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList (attributesVec attrs)))) in
-  if not (null duplicateAttrNames) then
-    Left (DuplicateAttributeNamesError (S.fromList duplicateAttrNames))
-    else
     --check that all tuples have the same keys
     --check that all tuples have keys (1-N) where N is the attribute count
     case verifyTupleSet attrs tupleSet of
@@ -93,8 +88,8 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   else
     Right $ Relation attrs1 newtuples
   where
-    newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
-      
+    newtuples = tupleSetUnion attrs1 tupSet1 tupSet2
+
 project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project attrNames rel@(Relation _ tupSet) = do
   newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
@@ -168,7 +163,8 @@ restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
 restrictEq tuple = restrict rfilter
   where
     rfilter :: RelationTuple -> Either RelationalError Bool
-    rfilter tupleIn = pure (tupleIntersection tuple tupleIn == tuple)
+    rfilter tupleIn = do
+      pure (tupleIntersection tuple tupleIn == tuple)
 
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
@@ -193,10 +189,11 @@ tupleUngroup relvalAttrName newAttrs tuple = do
   relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
   where
     nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
-    nonGroupAttrNames = A.attributeNameSet newAttrs
+    nonGroupAttrNames = A.attributeNameSet (A.intersection newAttrs (tupleAttributes tuple))
     folder tupleIn acc = case acc of
       Left err -> Left err
-      Right accRel -> union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
+      Right accRel ->
+        union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
 
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
 attributesForRelval relvalAttrName (Relation attrs _) = do

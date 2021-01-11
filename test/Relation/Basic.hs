@@ -3,8 +3,6 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
-import ProjectM36.TupleSet
-import ProjectM36.Attribute hiding (null, attributeNames)
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
@@ -25,7 +23,6 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "products" productsRel,
                      testRelation "supplierProducts" supplierProductsRel,
                      testMkRelationFromExprsBadAttrs,
-                     testDuplicateAttributes,
                      testExistingRelationType
                     ]
 
@@ -103,13 +100,6 @@ testMkRelationFromExprsBadAttrs = TestCase $ do
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"
 
---creating an empty relation with duplicate attribute names should fail
-testDuplicateAttributes :: Test
-testDuplicateAttributes = TestCase $ do
-  let eRel = mkRelation attrs emptyTupleSet
-      attrs = attributesFromList [Attribute "a" IntAtomType, Attribute "a" TextAtomType]
-  assertEqual "duplicate attribute names" (Left (DuplicateAttributeNamesError (S.singleton "a"))) eRel
-  
 testExistingRelationType :: Test
 testExistingRelationType = TestCase $ do
   (graph, _) <- freshTransactionGraph dateExamples

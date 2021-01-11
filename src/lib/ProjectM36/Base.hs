@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, DeriveFoldable, DeriveTraversable #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -6,6 +6,7 @@ import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import ProjectM36.MerkleHash
 
+import Data.Functor.Foldable.TH
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable, hashWithSalt)
@@ -98,21 +99,23 @@ data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Gene
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
 
+type AttributesHash = Int
+
 -- | 'Attributes' represent the head of a relation.
-data Attributes = Attributes (V.Vector Attribute) (HS.HashSet Attribute)
-  deriving (NFData, Read, Hashable, Generic, Show)
+data Attributes = Attributes {
+  attributesVec :: V.Vector Attribute,
+  attributesSet :: HS.HashSet Attribute
+  }
+  deriving (NFData, Read, Hashable, Generic)
 
-{-instance Show Attributes where
+instance Show Attributes where
   show attrs = "attributesFromList [" <> L.intercalate " " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
--}
-attributesVec :: Attributes -> V.Vector Attribute
-attributesVec (Attributes attrsVec _) = attrsVec
 
-attributesSet :: Attributes -> HS.HashSet Attribute
-attributesSet (Attributes _ hs) = hs
-
+--when attribute ordering is irrelevant
 instance Eq Attributes where
-  (Attributes _ a) == (Attributes _ b) = a == b
+  attrsA == attrsB =
+    attributesVec attrsA == attributesVec attrsB || 
+    attributesSet attrsA == attributesSet attrsB
 
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
 sortedAttributesIndices (Attributes attrs _) = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
@@ -635,8 +638,6 @@ atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam
 
 unimplemented :: HasCallStack => a
-unimplemented = undefined
-
---for serializing GraphRefRelationalExpr as part of transaction serialization
+unimplemented = error "unimplemented"
            
-
+makeBaseFunctor ''RelationalExprBase

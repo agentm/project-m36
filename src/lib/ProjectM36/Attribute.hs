@@ -146,7 +146,6 @@ projectionAttributesForNames names attrsIn =
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
 attributesForNames attrNameSet attrs = Attributes vec hset
-
   where
     vec = V.filter filt (attributesVec attrs)
     hset = HS.filter filt (attributesSet attrs)
@@ -224,9 +223,13 @@ drop c attrs = Attributes vec hset
     vec = V.drop c (attributesVec attrs)
     hset = HS.filter (`V.notElem` droppedAttrs) hset
     
--- use this in preference to (==) when the attribute ordering matters such as during tuple unions
+-- use this in preference to attributesEqual when the attribute ordering matters such as during tuple unions
+attributesAndOrderEqual :: Attributes -> Attributes -> Bool
+attributesAndOrderEqual a b = attributesVec a == attributesVec b
+
+-- use to determine if the same attributes are contained (but ordering is irrelevant)
 attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual a b = attributesVec a == attributesVec b
+attributesEqual = (==)
 
 attributesAsMap :: Attributes -> M.Map AttributeName Attribute
 attributesAsMap attrs = V.foldr' (\attr acc -> M.insert (attributeName attr) attr acc) mempty (attributesVec attrs)

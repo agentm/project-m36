@@ -14,7 +14,7 @@ import Control.Monad
 import Control.Arrow
 import Data.Maybe
 
-import Debug.Trace
+--import Debug.Trace
 
 emptyTuple :: RelationTuple
 emptyTuple = RelationTuple mempty mempty
@@ -154,7 +154,9 @@ tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs 
   where
     deleteIndices = V.findIndices (\attr -> S.notMember (attributeName attr) projectAttrs) (attributesVec attrs)
     indexDeleter = V.ifilter (\index _ -> V.notElem index deleteIndices)
-    newAttrs = deleteAttributeNames projectAttrs attrs
+    newAttrs = case A.projectionAttributesForNames projectAttrs attrs of
+                 Left err -> error (show (err, projectAttrs, attrs))
+                 Right attrs' ->  attrs'
     newTupVec = indexDeleter tupVec
 
 --return the attributes and atoms which are equal in both vectors
@@ -165,9 +167,13 @@ tupleIntersection tuple1 tuple2 = RelationTuple newAttrs newTupVec
     attrs1 = tupleAttributes tuple1
     attrs2 = tupleAttributes tuple2
     intersectAttrs = A.intersection attrs1 attrs2
-    matchingIndices = V.findIndices (\attr -> A.member attr intersectAttrs) (attributesVec attrs1)
+    matchingIndices = V.findIndices (\attr -> A.member attr intersectAttrs &&
+                                    atomForAttributeName (attributeName attr) tuple1 ==
+                                    atomForAttributeName (attributeName attr) tuple2) (attributesVec attrs1)
     indexFilter = V.ifilter (\index _ -> V.elem index matchingIndices)
-    newAttrs = deleteAttributeNames (A.attributeNameSet intersectAttrs) attrs1
+    newAttrs = case A.projectionAttributesForNames (A.attributeNameSet intersectAttrs) attrs1 of
+      Left _ -> mempty
+      Right attrs' -> attrs'
     newTupVec = indexFilter (tupleAtoms tuple1)
 
 -- | An optimized form of tuple update which updates vectors efficiently.
@@ -202,7 +208,7 @@ reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
                              RelationTuple attrs (V.map mapper (attributesVec attrs))
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
-      Left err -> error ("logic bug in reorderTuple: " ++ show err)
+      Left err -> error ("logic bug in reorderTuple: " ++ show err <> show tupIn)
       Right atom -> atom
 
 --used in Generics derivation for ADTs without named attributes
