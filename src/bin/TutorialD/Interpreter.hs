@@ -28,6 +28,7 @@ import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
+import Data.Either
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -77,7 +78,7 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
 promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
 promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
-    transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
+    transInfo = fromRight "<unknown>" eHeadName <> "/" <> fromRight "<no schema>" eSchemaName
 
 parseTutorialD :: T.Text -> Either ParserError ParsedOperation
 parseTutorialD = parse interpreterParserP ""
