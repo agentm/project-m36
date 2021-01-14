@@ -5,8 +5,8 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Client as C
 import Data.Map
 import Control.Concurrent (threadDelay)
-import Network.RPC.Curryer.Server
-import System.Timeout
+import Network.RPC.Curryer.Server 
+import System.Timeout hiding (Timeout)
 import Network.Socket
 import Control.Exception
 
