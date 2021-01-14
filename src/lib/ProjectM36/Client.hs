@@ -248,7 +248,7 @@ createScriptSession :: [String] -> IO (Maybe ScriptSession)
 createScriptSession ghcPkgPaths = do
   eScriptSession <- initScriptSession ghcPkgPaths
   case eScriptSession of
-    Left err -> hPutStrLn stderr ("Failed to load scripting engine- scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
+    Left err -> hPutStrLn stderr ("Warning: Haskell scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
 

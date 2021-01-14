@@ -128,8 +128,6 @@ initScriptSession ghcPkgPaths = do
                              "uuid",
                              "vector",
                              "text",
-                             "binary",
-                             "vector-binary-instances",
                              "time",
                              "project-m36",
                              "bytestring"]
