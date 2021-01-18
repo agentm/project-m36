@@ -44,7 +44,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [testRequestTimeout, testFileDescriptorCount]
+    serverTests = [testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
 
 main :: IO ()
 main = do
@@ -240,3 +240,13 @@ fdCount = do
 --pass on non-linux platforms
 testFileDescriptorCount = TestCase (pure ())
 #endif
+
+testClientConnectFail :: Test
+testClientConnectFail = TestCase $ do
+  let connInfo = RemoteConnectionInfo "nonexistentdb" "127.0.0.1" "7777" emptyNotificationCallback
+  eConn <- connectProjectM36 connInfo
+  case eConn of
+    Left (IOExceptionError _) -> pure ()
+    _ -> assertFailure "connection failure failed"
+  
+  
