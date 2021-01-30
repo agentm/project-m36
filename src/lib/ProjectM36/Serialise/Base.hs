@@ -10,10 +10,10 @@ import ProjectM36.MerkleHash
 import Data.UUID
 import Data.Proxy
 import Data.Word
+import ProjectM36.Attribute as A
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
-import qualified Data.HashSet as HS
 
 deriving via WineryVariant Atom instance Serialise Atom
 deriving via WineryVariant AtomType instance Serialise AtomType
@@ -77,10 +77,9 @@ instance Serialise Attributes where
   schemaGen _ = SVector <$> getSchema (Proxy @Attribute)
   toBuilder attrs = varInt (V.length (attributesVec attrs)) <> foldMap toBuilder (V.toList (attributesVec attrs))
   extractor =
-    let mkAttrs x = Attributes x (HS.fromList (V.toList x)) in
-    mkAttrs <$> extractListBy extractor
+    attributesFromList . V.toList <$> extractListBy extractor
 
   decodeCurrent = do
     n <- decodeVarInt
     l <- replicateM n decodeCurrent
-    pure (Attributes (V.fromList l) (HS.fromList l))
+    pure (A.attributesFromList l)
