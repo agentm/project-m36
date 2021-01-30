@@ -20,7 +20,10 @@ instance Semigroup Attributes where
       Right attrs' -> attrs'
     
 instance Monoid Attributes where
-  mempty = Attributes mempty mempty
+  mempty = Attributes {
+    attributesVec = mempty
+    --,attributeSet = mempty
+    }
 
 emptyAttributes :: Attributes
 emptyAttributes = mempty
@@ -29,13 +32,19 @@ null :: Attributes -> Bool
 null a = V.null (attributesVec a)
 
 singleton :: Attribute -> Attributes
-singleton attr = Attributes (V.singleton attr) (HS.singleton attr)
+singleton attr = Attributes {
+  attributesVec = V.singleton attr
+  --,attributesSet = HS.singleton attr
+  }
 
 toList :: Attributes -> [Attribute]
 toList attrs = V.toList (attributesVec attrs)
 
 attributesFromList :: [Attribute] -> Attributes
-attributesFromList attrsL = Attributes vec hset
+attributesFromList attrsL = Attributes {
+  attributesVec = vec
+  --,attributesSet = hset
+  }
   where
     vec = if length attrsL == HS.size hset then
       --fast path- no duplicates
@@ -90,7 +99,10 @@ joinAttributes attrs1 attrs2 =
     nameSet1 = attributeNameSet attrs1
     nameSet2 = attributeNameSet attrs2
     overlappingNames = S.intersection nameSet1 nameSet2
-    concated f = Attributes (f (attributesVec attrs1 <> attributesVec attrs2)) (attributesSet attrs1 <> attributesSet attrs2)
+    concated f = Attributes {
+      attributesVec = f (attributesVec attrs1 <> attributesVec attrs2)
+      --,attributesSet = attributesSet attrs1 <> attributesSet attrs2
+      }
 
 addAttributes :: Attributes -> Attributes -> Attributes
 addAttributes = (<>)
@@ -102,20 +114,22 @@ deleteAttributeName :: AttributeName -> Attributes -> Attributes
 deleteAttributeName attrName attrs = deleteAttributeNames (S.singleton attrName) attrs
 
 deleteAttributeNames :: S.Set AttributeName -> Attributes -> Attributes
-deleteAttributeNames attrNames attrs = Attributes vec hset
+deleteAttributeNames attrNames attrs = Attributes {
+  attributesVec = vec
+  }
   where
     vec = V.filter attrFilter (attributesVec attrs)
-    hset = HS.filter attrFilter (attributesSet attrs)
     attrFilter attr = S.notMember (attributeName attr) attrNames
 
 renameAttribute :: AttributeName -> Attribute -> Attribute
 renameAttribute newAttrName (Attribute _ typeo) = Attribute newAttrName typeo
 
 renameAttributes :: AttributeName -> AttributeName -> Attributes -> Attributes
-renameAttributes oldAttrName newAttrName attrs = Attributes vec hset
+renameAttributes oldAttrName newAttrName attrs = Attributes {
+  attributesVec = vec
+  }
   where
   vec = V.map renamer (attributesVec attrs)
-  hset = HS.map renamer (attributesSet attrs)
   renamer attr = if attributeName attr == oldAttrName then
                      renameAttribute newAttrName attr
                    else
@@ -145,10 +159,11 @@ projectionAttributesForNames names attrsIn =
     missingNames = attributeNamesNotContained names (S.fromList (V.toList (attributeNames attrsIn)))
 
 attributesForNames :: S.Set AttributeName -> Attributes -> Attributes
-attributesForNames attrNameSet attrs = Attributes vec hset
+attributesForNames attrNameSet attrs = Attributes {
+  attributesVec = vec
+  }
   where
     vec = V.filter filt (attributesVec attrs)
-    hset = HS.filter filt (attributesSet attrs)
     filt attr = S.member (attributeName attr) attrNameSet
 
 attributeNameSet :: Attributes -> S.Set AttributeName
@@ -192,7 +207,10 @@ attributesDifference attrsA attrsB =
   if attributesSet attrsA == attributesSet attrsB then
     mempty
     else
-    Attributes vec hset
+    Attributes {
+    attributesVec = vec
+    --,attributesSet = hset
+    }
   where
     hset = HS.difference setA setB <> HS.difference setB setA
     setA = attributesSet attrsA
@@ -212,16 +230,19 @@ verifyAttributes attrs =
   where
     vecSet = V.foldr' HS.insert HS.empty (attributesVec attrs)
     diffSet = HS.difference vecSet (attributesSet attrs) <> HS.difference (attributesSet attrs) vecSet
-    diffAttrs = Attributes (V.fromList (HS.toList diffSet)) diffSet
+    diffAttrs = Attributes {
+      attributesVec = V.fromList (HS.toList diffSet)
+      --,attributesSet = diffSet
+      }
 
 --used in Generics derivation for ADTs without named attributes- not to be used elsewhere
 --drop first n attributes from vector representation
 drop :: Int -> Attributes -> Attributes
-drop c attrs = Attributes vec hset
+drop c attrs = Attributes { attributesVec = vec
+                          }
   where
-    droppedAttrs = V.take c (attributesVec attrs)
     vec = V.drop c (attributesVec attrs)
-    hset = HS.filter (`V.notElem` droppedAttrs) hset
+
     
 -- use this in preference to attributesEqual when the attribute ordering matters such as during tuple unions
 attributesAndOrderEqual :: Attributes -> Attributes -> Bool
@@ -229,7 +250,9 @@ attributesAndOrderEqual a b = attributesVec a == attributesVec b
 
 -- use to determine if the same attributes are contained (but ordering is irrelevant)
 attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual = (==)
+attributesEqual attrsA attrsB =
+  attributesVec attrsA == attributesVec attrsB || 
+  attributesSet attrsA == attributesSet attrsB
 
 attributesAsMap :: Attributes -> M.Map AttributeName Attribute
 attributesAsMap attrs = V.foldr' (\attr acc -> M.insert (attributeName attr) attr acc) mempty (attributesVec attrs)
@@ -237,13 +260,19 @@ attributesAsMap attrs = V.foldr' (\attr acc -> M.insert (attributeName attr) att
 
 -- | Left-biased union of attributes.
 union :: Attributes -> Attributes -> Attributes
-union attrsA attrsB = Attributes vec hset
+union attrsA attrsB = Attributes {
+  attributesVec = vec
+  --,attributesSet = hset
+  }
   where
     hset = HS.union (attributesSet attrsA) (attributesSet attrsB)
     vec = HS.foldr (flip V.snoc) mempty hset
                       
 intersection :: Attributes -> Attributes -> Attributes
-intersection attrsA attrsB = Attributes vec hset
+intersection attrsA attrsB = Attributes {
+  attributesVec = vec
+  --,attributesSet = hset
+  }
   where
     hset = HS.intersection (attributesSet attrsA) (attributesSet attrsB)
     vec = HS.foldr (flip V.snoc) mempty hset

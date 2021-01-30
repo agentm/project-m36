@@ -17,8 +17,6 @@ import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
 
---import Debug.Trace
-
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
 
@@ -35,7 +33,7 @@ atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
 
 mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
-mkRelationFromList attrs atomMatrix =
+mkRelationFromList attrs atomMatrix = do
   Relation attrs <$> mkTupleSetFromList attrs atomMatrix
   
 emptyRelationWithAttrs :: Attributes -> Relation  
@@ -93,8 +91,7 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
 project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project attrNames rel@(Relation _ tupSet) = do
   newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
-  let newAttrNameSet = A.attributeNameSet newAttrs
-      newTupleList = map (tupleProject newAttrNameSet) (asList tupSet)
+  newTupleList <- mapM (tupleProject newAttrs) (asList tupSet)
   pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
@@ -186,14 +183,13 @@ ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
 tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either RelationalError Relation
 tupleUngroup relvalAttrName newAttrs tuple = do
   relvalRelation <- relationForAttributeName relvalAttrName tuple
+  let nonGroupAttrs = A.intersection newAttrs (tupleAttributes tuple)
+  nonGroupTupleProjection <- tupleProject nonGroupAttrs tuple
+  let folder tupleIn acc = case acc of
+        Left err -> Left err
+        Right accRel ->
+          union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
   relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
-  where
-    nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
-    nonGroupAttrNames = A.attributeNameSet (A.intersection newAttrs (tupleAttributes tuple))
-    folder tupleIn acc = case acc of
-      Left err -> Left err
-      Right accRel ->
-        union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
 
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
 attributesForRelval relvalAttrName (Relation attrs _) = do
@@ -248,7 +244,8 @@ relMap mapper (Relation attrs tupleSet) =
 
 relMogrify :: (RelationTuple -> Either RelationalError RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = do
-  newTuples <- mapM mapper (asList tupSet)  
+  newTuples <- mapM (\tup ->
+                       reorderTuple newAttributes <$> mapper tup) (asList tupSet)
   mkRelationFromTuples newAttributes newTuples
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
@@ -294,7 +291,8 @@ typesAsRelation types = mkRelationFromTuples attrs tuples
     dConsType = RelationAtomType subAttrs
     tuples = map mkTypeConsDescription types
     
-    mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
+    mkTypeConsDescription (tCons, dConsList) =
+      RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
     
     mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " (DCD.name dCons:map (T.pack . show) (DCD.fields dCons)))) dConsList of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)

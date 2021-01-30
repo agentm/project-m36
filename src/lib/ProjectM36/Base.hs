@@ -103,13 +103,16 @@ type AttributesHash = Int
 
 -- | 'Attributes' represent the head of a relation.
 data Attributes = Attributes {
-  attributesVec :: V.Vector Attribute,
-  attributesSet :: HS.HashSet Attribute
+  attributesVec :: V.Vector Attribute
+  --,attributesSet :: HS.HashSet Attribute --compare with this generated in heap profile and benchmarks
   }
   deriving (NFData, Read, Hashable, Generic)
 
+attributesSet :: Attributes -> HS.HashSet Attribute
+attributesSet = HS.fromList . V.toList . attributesVec
+
 instance Show Attributes where
-  show attrs = "attributesFromList [" <> L.intercalate " " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+  show attrs = "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
 
 --when attribute ordering is irrelevant
 instance Eq Attributes where
@@ -118,7 +121,7 @@ instance Eq Attributes where
     attributesSet attrsA == attributesSet attrsB
 
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
-sortedAttributesIndices (Attributes attrs _) = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
+sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
 newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read)
@@ -155,7 +158,7 @@ instance Eq RelationTuple where
   tuple1@(RelationTuple attrs1 _) == tuple2@(RelationTuple attrs2 _) =
     attrs1 == attrs2 && atomsEqual
     where
-      atomForAttribute attr (RelationTuple (Attributes attrs _) tupVec) = case V.findIndex (== attr) attrs of
+      atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) (attributesVec attrs) of
         Nothing -> Nothing
         Just index -> tupVec V.!? index
       atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)

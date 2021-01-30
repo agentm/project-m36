@@ -14,8 +14,6 @@ import Control.Monad
 import Control.Arrow
 import Data.Maybe
 
---import Debug.Trace
-
 emptyTuple :: RelationTuple
 emptyTuple = RelationTuple mempty mempty
 
@@ -148,8 +146,7 @@ tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
   where
     newTup = RelationTuple (A.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
 
---this could be cheaper- it may not be wortwhile to update all the tuples for projection, but then the attribute management must be slightly different- perhaps the attributes should be a vector of association tuples [(name, index)]
-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
+{-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
 tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs newTupVec
   where
     deleteIndices = V.findIndices (\attr -> S.notMember (attributeName attr) projectAttrs) (attributesVec attrs)
@@ -158,7 +155,14 @@ tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs 
                  Left err -> error (show (err, projectAttrs, attrs))
                  Right attrs' ->  attrs'
     newTupVec = indexDeleter tupVec
-
+-}
+-- remember that the attributes order matters
+tupleProject :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
+tupleProject projectAttrs tup = do
+  newTupVec <- foldM (\acc attr ->
+                        V.snoc acc <$> atomForAttributeName (attributeName attr) tup
+                        ) V.empty (attributesVec projectAttrs)
+  pure $ reorderTuple projectAttrs (RelationTuple projectAttrs newTupVec)
 --return the attributes and atoms which are equal in both vectors
 --semi-join
 tupleIntersection :: RelationTuple -> RelationTuple -> RelationTuple
@@ -190,6 +194,7 @@ tupleToMap (RelationTuple attrs tupVec) = M.fromList assocList
   where
     assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed (attributesVec attrs))
 
+-- | Validate that the tuple has the correct attributes in the correct order
 verifyTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
 verifyTuple attrs tuple = let attrsTypes = A.atomTypes attrs
                               tupleTypes = V.map atomTypeForAtom (tupleAtoms tuple) in
@@ -202,7 +207,7 @@ verifyTuple attrs tuple = let attrsTypes = A.atomTypes attrs
 --two tuples can be equal but the vectors of attributes could be out-of-order
 --reorder if necessary- this is useful during relMogrify so that all the relation's tuples have identical atom/attribute ordering
 reorderTuple :: Attributes -> RelationTuple -> RelationTuple
-reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
+reorderTuple attrs tupIn = if attributesAndOrderEqual (tupleAttributes tupIn) attrs then
                              tupIn
                            else
                              RelationTuple attrs (V.map mapper (attributesVec attrs))

@@ -23,7 +23,8 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "products" productsRel,
                      testRelation "supplierProducts" supplierProductsRel,
                      testMkRelationFromExprsBadAttrs,
-                     testExistingRelationType
+                     testExistingRelationType,
+                     testReorderTuple
                     ]
 
 main :: IO ()           
@@ -106,3 +107,13 @@ testExistingRelationType = TestCase $ do
   let typeResult = runRelationalExprM reenv (typeForRelationalExpr (ExistingRelation relationTrue))
       reenv = mkRelationalExprEnv dateExamples graph
   assertEqual "ExistingRelation with tuples type" (Right relationFalse) typeResult
+
+-- | Ensure that tuple reordering honors the 
+testReorderTuple :: Test
+testReorderTuple = TestCase $ do
+  let tup1 = mkRelationTuple attrs1 (V.fromList [IntAtom 4, TextAtom "test"])
+      attrs1 = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" TextAtomType]
+      attrs2 = A.attributesFromList [Attribute "b" TextAtomType, Attribute "a" IntAtomType]
+      actual = reorderTuple attrs2 tup1
+      expected = mkRelationTuple attrs2 (V.fromList [TextAtom "test", IntAtom 4])
+  assertEqual "reorderTuple" expected actual

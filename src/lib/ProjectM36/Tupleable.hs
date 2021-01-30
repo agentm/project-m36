@@ -45,7 +45,6 @@ import           ProjectM36.Error
 import           ProjectM36.Tuple
 import           ProjectM36.TupleSet
 import qualified Data.Set as S
-import qualified Data.HashSet as HS
 
 {-import Data.Binary
 import Control.DeepSeq
@@ -230,7 +229,7 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
     where
       attrsToCheck = toAttributesG opts v
       counter = V.generate (arity attrsToCheck) id
-      attrs = Attributes attrsV (HS.fromList (V.toList attrsV))
+      attrs = attributesFromList (V.toList attrsV)
       attrsV = V.zipWith (\num attr@(Attribute name typ) -> if T.null name then
                                                              Attribute ("attr" <> T.pack (show (num + 1))) typ
                                                            else
