@@ -22,8 +22,6 @@ import qualified Data.Set as S
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
---import Debug.Trace
-
 data GraphRefSOptRelationalExprEnv =
   GraphRefSOptRelationalExprEnv
   {
@@ -179,7 +177,7 @@ fullOptimizeGraphRefRelationalExpr expr = do
 optimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
 optimizeGraphRefRelationalExpr e@(MakeStaticRelation _ _) = pure e
 
-optimizeGraphRefRelationalExpr e@(MakeRelationFromExprs _ _) = pure e
+optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
 
 optimizeGraphRefRelationalExpr e@(ExistingRelation _) = pure e
 
@@ -209,6 +207,8 @@ optimizeGraphRefRelationalExpr (Union exprA exprB) = do
   case (optExprA, optExprB) of 
           (Restrict predA (RelationVariable nameA sA),
            Restrict predB (RelationVariable nameB sB)) | nameA == nameB && sA == sB -> pure (Restrict (AndPredicate predA predB) (RelationVariable nameA sA))
+          (exprA', exprB') | isEmptyRelationExpr exprA' -> pure exprB'
+                           | isEmptyRelationExpr exprB' -> pure exprA'
           _ -> if optExprA == optExprB then           
             pure optExprA
             else
@@ -575,3 +575,4 @@ applyStaticRestrictionPushdown expr = case expr of
 -- no optimizations available  
 optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextIOExpr
 optimizeDatabaseContextIOExpr = pure
+

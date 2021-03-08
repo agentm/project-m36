@@ -23,8 +23,6 @@ import System.FilePath
 import System.Directory
 #endif
 
-import Debug.Trace
-
 type Timeout = Int
 
 testList :: SessionId -> Connection -> MVar () -> Test
@@ -209,7 +207,7 @@ testRequestTimeout = TestCase $ do
   case eTestConn of
     Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
     Right (session, testConn) -> do
-      res <- catchJust (\exc -> if traceShowId exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
+      res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
       assertBool "timeout exception was not thrown" (not res)
       killThread serverTid
       
@@ -248,5 +246,3 @@ testClientConnectFail = TestCase $ do
   case eConn of
     Left (IOExceptionError _) -> pure ()
     _ -> assertFailure "connection failure failed"
-  
-  

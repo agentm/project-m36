@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -6,6 +6,7 @@ import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import ProjectM36.MerkleHash
 
+import Data.Functor.Foldable.TH
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable, hashWithSalt)
@@ -98,17 +99,29 @@ data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Gene
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
 
--- | 'Attributes' represent the head of a relation.
-type Attributes = V.Vector Attribute
+type AttributesHash = Int
 
--- | Equality function for a set of attributes.
-attributesEqual :: Attributes -> Attributes -> Bool
-attributesEqual attrs1 attrs2 = attrsAsSet attrs1 == attrsAsSet attrs2
-  where
-    attrsAsSet = HS.fromList . V.toList
-    
+-- | 'Attributes' represent the head of a relation.
+newtype Attributes = Attributes {
+  attributesVec :: V.Vector Attribute
+  --,attributesSet :: HS.HashSet Attribute --compare with this generated in heap profile and benchmarks
+  }
+  deriving (NFData, Read, Hashable, Generic)
+
+attributesSet :: Attributes -> HS.HashSet Attribute
+attributesSet = HS.fromList . V.toList . attributesVec
+
+instance Show Attributes where
+  show attrs = "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+
+--when attribute ordering is irrelevant
+instance Eq Attributes where
+  attrsA == attrsB =
+    attributesVec attrsA == attributesVec attrsB || 
+    attributesSet attrsA == attributesSet attrsB
+
 sortedAttributesIndices :: Attributes -> [(Int, Attribute)]    
-sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed attrs)
+sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
 newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read)
@@ -127,8 +140,8 @@ instance NFData RelationTupleSet where rnf = genericRnf
 instance Hashable RelationTuple where
   --sanity check the tuple for attribute and tuple counts
   --this bit me when tuples were being hashed before being verified
-  hashWithSalt salt (RelationTuple attrs tupVec) = if V.length attrs /= V.length tupVec then
-                                                     error "invalid tuple: attributes and tuple count mismatch"
+  hashWithSalt salt (RelationTuple attrs tupVec) = if V.length (attributesVec attrs) /= V.length tupVec then
+                                                     error ("invalid tuple: attributes and tuple count mismatch " <> show (attributesVec attrs, tupVec))
                                                    else
                                                      salt `hashWithSalt` 
                                                      sortedAttrs `hashWithSalt`
@@ -142,19 +155,20 @@ instance Hashable RelationTuple where
 data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Read, Generic)
 
 instance Eq RelationTuple where
-  (==) tuple1@(RelationTuple attrs1 _) tuple2@(RelationTuple attrs2 _) = attributesEqual attrs1 attrs2 && atomsEqual
+  tuple1@(RelationTuple attrs1 _) == tuple2@(RelationTuple attrs2 _) =
+    attrs1 == attrs2 && atomsEqual
     where
-      atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) attrs of
+      atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) (attributesVec attrs) of
         Nothing -> Nothing
         Just index -> tupVec V.!? index
-      atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) attrs1
+      atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)
 
 instance NFData RelationTuple where rnf = genericRnf
 
 data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
 
 instance Eq Relation where
-  Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attributesEqual attrs1 attrs2 && tupSet1 == tupSet2
+  Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attrs1 == attrs2 && tupSet1 == tupSet2
 
 instance NFData Relation where rnf = genericRnf
                                
@@ -598,7 +612,7 @@ attrTypeVars (Attribute _ aType) = case aType of
   ByteStringAtomType -> S.empty
   BoolAtomType -> S.empty
   RelationalExprAtomType -> S.empty
-  (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList attrs))
+  (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList (attributesVec attrs)))
   (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
   (TypeVariableType nam) -> S.singleton nam
   
@@ -622,13 +636,11 @@ atomTypeVars DateTimeAtomType = S.empty
 atomTypeVars ByteStringAtomType = S.empty
 atomTypeVars BoolAtomType = S.empty
 atomTypeVars RelationalExprAtomType = S.empty
-atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList attrs))
+atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList (attributesVec attrs)))
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap
 atomTypeVars (TypeVariableType nam) = S.singleton nam
 
 unimplemented :: HasCallStack => a
-unimplemented = undefined
-
---for serializing GraphRefRelationalExpr as part of transaction serialization
+unimplemented = error "unimplemented"
            
-
+makeBaseFunctor ''RelationalExprBase

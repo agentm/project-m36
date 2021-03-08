@@ -12,6 +12,7 @@ module TutorialD.Interpreter.Base (
   where
 import ProjectM36.Base
 import ProjectM36.AtomType
+import ProjectM36.Attribute as A
 import ProjectM36.Relation
 import ProjectM36.DataFrame
 
@@ -30,7 +31,6 @@ import Data.Text hiding (count)
 import System.Random
 import qualified Data.Text as T
 import qualified Data.List as L
-import qualified Data.Vector as V
 import qualified Data.Text.IO as TIO
 import System.IO
 import ProjectM36.Relation.Show.Term
@@ -163,8 +163,8 @@ uncapitalizedIdentifier =
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"
   where
-    showAttribute (Attribute name atomType) = name <> " " <> prettyAtomType atomType
-    attrsL = V.toList attrs
+    showAttribute (Attribute name atomType') = name <> " " <> prettyAtomType atomType'
+    attrsL = A.toList attrs
 
 type PromptLength = Int
 

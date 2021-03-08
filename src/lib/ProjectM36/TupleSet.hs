@@ -31,3 +31,10 @@ mkTupleSet attrs tuples = verifyTupleSet attrs (RelationTupleSet tuples)
 
 mkTupleSetFromList :: Attributes -> [[Atom]] -> Either RelationalError RelationTupleSet
 mkTupleSetFromList attrs atomMatrix = mkTupleSet attrs $ map (mkRelationTuple attrs . V.fromList) atomMatrix
+
+
+-- | Union two tuplesets while reordering their attribute/atom mapping properly.
+tupleSetUnion :: Attributes -> RelationTupleSet -> RelationTupleSet -> RelationTupleSet
+tupleSetUnion targetAttrs tupSet1 tupSet2 = RelationTupleSet $ HS.toList . HS.fromList $ reorder (asList tupSet1) ++ reorder (asList tupSet2)
+  where
+    reorder = map (reorderTuple targetAttrs)

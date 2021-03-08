@@ -22,7 +22,7 @@ import Data.Attoparsec.Text
 import Control.Applicative
 import Text.Megaparsec.Error
 import Data.Functor
-import Data.Either
+import Data.Either (fromRight)
 
 #if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE

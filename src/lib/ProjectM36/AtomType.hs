@@ -211,7 +211,7 @@ isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConst
 
 isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) tConsMap = do
   evaldAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap M.empty) attrExprs
-  mapM_ (uncurry resolveAtomType) (zip (map A.atomType (V.toList attrs)) evaldAtomTypes)
+  mapM_ (uncurry resolveAtomType) (zip (A.atomTypesList attrs) evaldAtomTypes)
 isValidAtomTypeForTypeConstructor aType tCons _ = Left (AtomTypeTypeConstructorReconciliationError aType (TC.name tCons))
 
 findTypeConstructor :: TypeConstructorName -> TypeConstructorMapping -> Maybe (TypeConstructorDef, [DataConstructorDef])
@@ -295,7 +295,7 @@ resolveTypeInAtom _ atom _ = Right atom
 -- Example: "Nothing" does not specify the the argument in "Maybe a", so allow delayed resolution in the tuple before it is added to the relation. Note that this resolution could cause a type error. Hardly a Hindley-Milner system.
 resolveTypesInTuple :: Attributes -> TypeConstructorMapping -> RelationTuple -> Either RelationalError RelationTuple
 resolveTypesInTuple resolvedAttrs tConss (RelationTuple _ tupAtoms) = do
-  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom tConss) (zip (V.toList tupAtoms) $ map A.atomType (V.toList resolvedAttrs))
+  newAtoms <- mapM (\(atom, resolvedType) -> resolveTypeInAtom resolvedType atom tConss) (zip (V.toList tupAtoms) $ A.atomTypesList resolvedAttrs)
   Right (RelationTuple resolvedAttrs (V.fromList newAtoms))
                            
 -- | Validate that the type is provided with complete type variables for type constructors.
@@ -314,7 +314,7 @@ validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
       _ -> Right ()
 validateAtomType (RelationAtomType attrs) tConss =
   mapM_ (\attr ->
-         validateAtomType (A.atomType attr) tConss) (V.toList attrs)
+         validateAtomType (A.atomType attr) tConss) (attributesVec attrs)
 validateAtomType (TypeVariableType x) _ = Left (TypeConstructorTypeVarMissing x)  
 validateAtomType _ _ = pure ()
 
@@ -325,7 +325,7 @@ validateAttributes tConss attrs =
   else
     pure ()
   where
-    errs = lefts $ map ((`validateAtomType` tConss) . A.atomType) (V.toList attrs)
+    errs = lefts $ map (`validateAtomType` tConss) (A.atomTypesList attrs)
 
 --ensure that all type vars are fully resolved
 validateTypeVarMap :: TypeVarMap -> TypeConstructorMapping -> Either RelationalError ()
@@ -358,7 +358,7 @@ atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
                                if notElem "_" [name1, name2] && name1 /= name2 then 
                                  Left $ AtomTypeMismatchError x y
                                else
-                                 atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip attrs1 attrs2)
+                                 atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip (attributesVec attrs1) (attributesVec attrs2))
   return x
 atomTypeVerify x y = if x == y then
                        Right x
@@ -375,7 +375,7 @@ typeVarMapsVerify a b = M.keysSet a == M.keysSet b && (length . rights) zipped =
       (M.toAscList b)
 
 prettyAtomType :: AtomType -> T.Text
-prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList attrs)) `T.append` "}"
+prettyAtomType (RelationAtomType attrs) = "relation {" `T.append` T.intercalate "," (map prettyAttribute (V.toList (attributesVec attrs))) `T.append` "}"
 prettyAtomType (ConstructedAtomType tConsName typeVarMap) = tConsName `T.append` T.concat (map showTypeVars (M.toList typeVarMap))
   where
     showTypeVars (_, TypeVariableType x) = " " <> x
@@ -448,7 +448,7 @@ isResolvedType typ =
     TypeVariableType _ -> False
 
 isResolvedAttributes :: Attributes -> Bool
-isResolvedAttributes attrs = all isResolvedAttribute (V.toList attrs)
+isResolvedAttributes attrs = all isResolvedAttribute (V.toList (attributesVec attrs))
 
 isResolvedAttribute :: Attribute -> Bool
 isResolvedAttribute = isResolvedType . A.atomType

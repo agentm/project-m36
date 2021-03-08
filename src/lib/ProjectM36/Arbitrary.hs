@@ -84,7 +84,7 @@ maybeToRight y Nothing  = Left y
 arbitraryRelationTuple :: Attributes -> WithTCMap Gen (Either RelationalError RelationTuple)
 arbitraryRelationTuple attris = do
   tcMap <- ask
-  listOfMaybeAType <- lift $ mapM ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList attris)
+  listOfMaybeAType <- lift $ mapM ((\aTy -> runReaderT (arbitrary' aTy) tcMap) . atomType) (V.toList (attributesVec attris))
   case sequence listOfMaybeAType of
     Left err -> pure $ Left err
     Right listOfAttr -> do

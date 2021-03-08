@@ -28,13 +28,13 @@ import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
-import Data.Either
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 import Data.List (isPrefixOf)
 import Control.Exception
 import System.Exit
+import Data.Either (fromRight)
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)

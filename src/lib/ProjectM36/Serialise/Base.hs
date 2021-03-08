@@ -10,6 +10,7 @@ import ProjectM36.MerkleHash
 import Data.UUID
 import Data.Proxy
 import Data.Word
+import ProjectM36.Attribute as A
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
@@ -72,5 +73,13 @@ instance Serialise Day where
   extractor = fromGregorianTup <$> extractor
   decodeCurrent = fromGregorianTup <$> decodeCurrent
 
+instance Serialise Attributes where
+  schemaGen _ = SVector <$> getSchema (Proxy @Attribute)
+  toBuilder attrs = varInt (V.length (attributesVec attrs)) <> foldMap toBuilder (V.toList (attributesVec attrs))
+  extractor =
+    attributesFromList . V.toList <$> extractListBy extractor
 
-
+  decodeCurrent = do
+    n <- decodeVarInt
+    l <- replicateM n decodeCurrent
+    pure (A.attributesFromList l)

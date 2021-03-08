@@ -38,8 +38,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
     let strHeader = V.map decodeUtf8 headerRaw
         strMapRecords = V.map convertMap vecMapsRaw
         convertMap hmap = HM.fromList $ L.map (decodeUtf8 *** (T.unpack . decodeUtf8)) (HM.toList hmap)
-        attrNames = V.map A.attributeName attrs
-        attrNameSet = S.fromList (V.toList attrNames)
+        attrNameSet = A.attributeNameSet attrs
         headerSet = S.fromList (V.toList strHeader)
         parseAtom attrName aType textIn = case APT.parseOnly (parseCSVAtomP attrName tConsMap aType <* APT.endOfInput) textIn of
           Left err -> Left (ParseError (T.pack err))
@@ -47,7 +46,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
         makeTupleList tupMap = V.toList $ V.map (\attr -> 
                                                   either (Left . AttributeMappingError) Right $ 
-                                                  parseAtom (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! A.attributeName attr)) attrs
+                                                  parseAtom (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! A.attributeName attr)) (attributesVec attrs)
     if attrNameSet == headerSet then do
       tupleList <- mapM sequence $ V.toList (V.map makeTupleList strMapRecords)
       case mkRelationFromList attrs tupleList of

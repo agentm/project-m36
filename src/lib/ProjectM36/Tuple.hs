@@ -1,7 +1,7 @@
 module ProjectM36.Tuple where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Attribute
+import ProjectM36.Attribute as A
 import ProjectM36.Atom
 import ProjectM36.AtomType
 import ProjectM36.DataTypes.Primitive
@@ -15,19 +15,19 @@ import Control.Arrow
 import Data.Maybe
 
 emptyTuple :: RelationTuple
-emptyTuple = RelationTuple V.empty V.empty
+emptyTuple = RelationTuple mempty mempty
 
 tupleSize :: RelationTuple -> Int
-tupleSize (RelationTuple tupAttrs _) = V.length tupAttrs
+tupleSize (RelationTuple tupAttrs _) = arity tupAttrs
 
 tupleAttributeNameSet :: RelationTuple -> S.Set AttributeName
-tupleAttributeNameSet (RelationTuple tupAttrs _) = S.fromList $ V.toList $ V.map attributeName tupAttrs
+tupleAttributeNameSet (RelationTuple tupAttrs _) = attributeNameSet tupAttrs
 
 tupleAttributes :: RelationTuple -> Attributes
 tupleAttributes (RelationTuple tupAttrs _) = tupAttrs
 
 tupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
-tupleAssocs (RelationTuple attrVec tupVec) = V.toList $ V.map (first attributeName) (V.zip attrVec tupVec)
+tupleAssocs (RelationTuple attrs tupVec) = V.toList $ V.map (first attributeName) (V.zip (attributesVec attrs) tupVec)
 
 orderedTupleAssocs :: RelationTuple -> [(AttributeName, Atom)]
 orderedTupleAssocs tup@(RelationTuple attrVec _) = map (\attr -> (attributeName attr, atomForAttr (attributeName attr))) oAttrs
@@ -42,7 +42,7 @@ tupleAtoms :: RelationTuple -> V.Vector Atom
 tupleAtoms (RelationTuple _ tupVec) = tupVec
 
 atomForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Atom
-atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) tupAttrs of
+atomForAttributeName attrName (RelationTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) (attributesVec tupAttrs) of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just index -> case tupVec V.!? index of
     Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
@@ -59,7 +59,7 @@ vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNa
                                                      Right $ V.map mapper attrNameVec
   where
     unknownAttrNames = V.filter (`V.notElem` attributeNames attrs) attrNameVec
-    mapper attrName = fromMaybe (error "logic failure in vectorIndicesForAttributeNames") (V.elemIndex attrName (V.map attributeName attrs))
+    mapper attrName = fromMaybe (error "logic failure in vectorIndicesForAttributeNames") (V.elemIndex attrName (attributeNames attrs))
 
 
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
@@ -86,10 +86,10 @@ mkRelationTuples attrs = map mapper
     mapper = mkRelationTuple attrs
     
 mkRelationTupleFromMap :: M.Map AttributeName Atom -> RelationTuple
-mkRelationTupleFromMap attrMap = RelationTuple attrs (V.map (attrMap M.!) attrNames)
+mkRelationTupleFromMap attrMap = RelationTuple (attributesFromList attrs) (V.map (attrMap M.!) (V.fromList attrNames))
   where
-    attrNames = V.fromList (M.keys attrMap)
-    attrs = V.map (\attrName -> Attribute attrName (atomTypeForAtom (attrMap M.! attrName))) attrNames
+    attrNames = M.keys attrMap
+    attrs = map (\attrName -> Attribute attrName (atomTypeForAtom (attrMap M.! attrName))) attrNames
 
 --return error if attribute names match but their types do not
 singleTupleSetJoin :: Attributes -> RelationTuple -> RelationTupleSet -> Either RelationalError [RelationTuple]
@@ -120,8 +120,8 @@ singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple
     return $ Just $ RelationTuple joinedAttrs newVec
   where
     keysIntersection = V.map attributeName attrsIntersection
-    attrsIntersection = V.filter (`V.elem` tupAttrs1) tupAttrs2
-    newVec = V.map (findAtomForAttributeName . attributeName) joinedAttrs
+    attrsIntersection = V.filter (`V.elem` attributesVec tupAttrs1) (attributesVec tupAttrs2)
+    newVec = V.map (findAtomForAttributeName . attributeName) (attributesVec joinedAttrs)
     --search both tuples for the attribute
     findAtomForAttributeName attrName = head $ rights $ fmap (atomForAttributeName attrName) [tup1, tup2]
 
@@ -138,23 +138,31 @@ vectorUnion v1 v2 = V.foldr folder v1 v2
 tupleExtend :: RelationTuple -> RelationTuple -> RelationTuple
 tupleExtend (RelationTuple tupAttrs1 tupVec1) (RelationTuple tupAttrs2 tupVec2) = RelationTuple newAttrs newVec
   where
-    newAttrs = tupAttrs1 V.++ tupAttrs2
-    newVec = tupVec1 V.++ tupVec2
+    newAttrs = tupAttrs1 <> tupAttrs2
+    newVec = tupVec1 <> tupVec2
 
 tupleAtomExtend :: AttributeName -> Atom -> RelationTuple -> RelationTuple
 tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
   where
-    newTup = RelationTuple (V.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
+    newTup = RelationTuple (A.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
 
---this could be cheaper- it may not be wortwhile to update all the tuples for projection, but then the attribute management must be slightly different- perhaps the attributes should be a vector of association tuples [(name, index)]
-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
+{-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
 tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs newTupVec
   where
-    deleteIndices = V.findIndices (\attr -> S.notMember (attributeName attr) projectAttrs) attrs
+    deleteIndices = V.findIndices (\attr -> S.notMember (attributeName attr) projectAttrs) (attributesVec attrs)
     indexDeleter = V.ifilter (\index _ -> V.notElem index deleteIndices)
-    newAttrs = indexDeleter attrs
+    newAttrs = case A.projectionAttributesForNames projectAttrs attrs of
+                 Left err -> error (show (err, projectAttrs, attrs))
+                 Right attrs' ->  attrs'
     newTupVec = indexDeleter tupVec
-
+-}
+-- remember that the attributes order matters
+tupleProject :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
+tupleProject projectAttrs tup = do
+  newTupVec <- foldM (\acc attr ->
+                        V.snoc acc <$> atomForAttributeName (attributeName attr) tup
+                        ) V.empty (attributesVec projectAttrs)
+  pure $ reorderTuple projectAttrs (RelationTuple projectAttrs newTupVec)
 --return the attributes and atoms which are equal in both vectors
 --semi-join
 tupleIntersection :: RelationTuple -> RelationTuple -> RelationTuple
@@ -162,12 +170,14 @@ tupleIntersection tuple1 tuple2 = RelationTuple newAttrs newTupVec
   where
     attrs1 = tupleAttributes tuple1
     attrs2 = tupleAttributes tuple2
-    matchingIndices = V.findIndices (\attr -> V.elem attr attrs2 &&
-                                              atomForAttributeName (attributeName attr) tuple1 ==
-                                              atomForAttributeName (attributeName attr) tuple2
-                                    ) attrs1
+    intersectAttrs = A.intersection attrs1 attrs2
+    matchingIndices = V.findIndices (\attr -> A.member attr intersectAttrs &&
+                                    atomForAttributeName (attributeName attr) tuple1 ==
+                                    atomForAttributeName (attributeName attr) tuple2) (attributesVec attrs1)
     indexFilter = V.ifilter (\index _ -> V.elem index matchingIndices)
-    newAttrs = indexFilter attrs1
+    newAttrs = case A.projectionAttributesForNames (A.attributeNameSet intersectAttrs) attrs1 of
+      Left _ -> mempty
+      Right attrs' -> attrs'
     newTupVec = indexFilter (tupleAtoms tuple1)
 
 -- | An optimized form of tuple update which updates vectors efficiently.
@@ -175,19 +185,20 @@ updateTupleWithAtoms :: M.Map AttributeName Atom -> RelationTuple -> RelationTup
 updateTupleWithAtoms updateMap (RelationTuple attrs tupVec) = RelationTuple attrs newVec
   where
     updateKeysSet = M.keysSet updateMap
-    updateKeysIVec = V.filter (\(_,attr) -> S.member (attributeName attr) updateKeysSet) (V.indexed attrs)
+    updateKeysIVec = V.filter (\(_,attr) -> S.member (attributeName attr) updateKeysSet) (V.indexed (attributesVec attrs))
     newVec = V.update tupVec updateVec
     updateVec = V.map (\(index, attr) -> (index, updateMap M.! attributeName attr)) updateKeysIVec
 
 tupleToMap :: RelationTuple -> M.Map AttributeName Atom
 tupleToMap (RelationTuple attrs tupVec) = M.fromList assocList
   where
-    assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed attrs)
+    assocList = V.toList $ V.map (\(index, attr) -> (attributeName attr, tupVec V.! index)) (V.indexed (attributesVec attrs))
 
+-- | Validate that the tuple has the correct attributes in the correct order
 verifyTuple :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
-verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
+verifyTuple attrs tuple = let attrsTypes = A.atomTypes attrs
                               tupleTypes = V.map atomTypeForAtom (tupleAtoms tuple) in
-  if V.length attrs /= V.length tupleTypes then
+  if A.arity attrs /= V.length tupleTypes then
     Left $ TupleAttributeCountMismatchError 0
   else do
     mapM_ (uncurry atomTypeVerify) (V.zip attrsTypes tupleTypes)
@@ -196,15 +207,18 @@ verifyTuple attrs tuple = let attrsTypes = V.map atomType attrs
 --two tuples can be equal but the vectors of attributes could be out-of-order
 --reorder if necessary- this is useful during relMogrify so that all the relation's tuples have identical atom/attribute ordering
 reorderTuple :: Attributes -> RelationTuple -> RelationTuple
-reorderTuple attrs tupIn = if tupleAttributes tupIn == attrs then
+reorderTuple attrs tupIn = if attributesAndOrderEqual (tupleAttributes tupIn) attrs then
                              tupIn
                            else
-                             RelationTuple attrs (V.map mapper attrs)
+                             RelationTuple attrs (V.map mapper (attributesVec attrs))
   where
     mapper attr = case atomForAttributeName (attributeName attr) tupIn of
-      Left err -> error ("logic bug in reorderTuple: " ++ show err)
+      Left err -> error ("logic bug in reorderTuple: " ++ show err <> show tupIn)
       Right atom -> atom
 
 --used in Generics derivation for ADTs without named attributes
 trimTuple :: Int -> RelationTuple -> RelationTuple
-trimTuple index (RelationTuple attrs vals) = RelationTuple (V.drop index attrs) (V.drop index vals)
+trimTuple index (RelationTuple attrs vals) =
+  RelationTuple newAttrs (V.drop index vals)
+  where
+    newAttrs = A.drop index attrs

@@ -5,7 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 module TutorialD.Printer where
 import ProjectM36.Base
-import ProjectM36.Attribute hiding (null)
+import ProjectM36.Attribute as A hiding (null)
 import Data.Text.Prettyprint.Doc 
 import qualified Data.Set as S hiding (fromList)
 import qualified Data.Vector as V
@@ -60,9 +60,9 @@ instance Pretty RelationTuple where
   pretty (RelationTuple attrs atoms) = "tuple" <> bracesList (zipWith (\x y-> pretty x <+> pretty y) (V.toList (attributeNames attrs)) (V.toList atoms))
 
 instance Pretty Relation where
-  pretty (Relation attrs tupSet) | attrs == V.empty && null (asList tupSet) = "false"
-  pretty (Relation attrs tupSet) | attrs == V.empty && asList tupSet == [RelationTuple V.empty V.empty] = "true"
-  pretty (Relation attrs tupSet) = "relation" <> prettyBracesList (V.toList attrs) <> prettyBracesList (asList tupSet)
+  pretty (Relation attrs tupSet) | attrs == mempty && null (asList tupSet) = "false"
+  pretty (Relation attrs tupSet) | attrs == mempty && asList tupSet == [RelationTuple mempty mempty] = "true"
+  pretty (Relation attrs tupSet) = "relation" <> prettyBracesList (A.toList attrs) <> prettyBracesList (asList tupSet)
 
 instance Pretty Attribute where
   pretty (Attribute n aTy) = pretty n <+> pretty (show aTy)  -- workaround
@@ -76,7 +76,7 @@ instance Pretty RelationalExpr where
   pretty (Extend ext r) = collectExtends r <> pretty ext <> "}"
   pretty (MakeRelationFromExprs Nothing (TupleExprs () tupExprs)) = "relation" <> prettyBracesList tupExprs
   pretty (MakeRelationFromExprs (Just attrExprs) (TupleExprs () tupExprs)) = "relation" <> prettyBracesList attrExprs <> prettyBracesList tupExprs
-  pretty (MakeStaticRelation attrs tupSet) = "relation" <> prettyBracesList (V.toList attrs) <> prettyBracesList (asList tupSet)
+  pretty (MakeStaticRelation attrs tupSet) = "relation" <> prettyBracesList (A.toList attrs) <> prettyBracesList (asList tupSet)
   pretty (Union a b) = parens $ pretty' a <+> "union" <+> pretty' b
   pretty (Join a b) = parens $ pretty' a <+> "join" <+> pretty' b
   pretty (Rename n1 n2 relExpr) = parens $ pretty relExpr <+> "rename" <+> braces (pretty n1 <+> "as" <+> pretty n2)
@@ -130,7 +130,7 @@ instance Pretty AtomType where
   pretty DateTimeAtomType = "DateTime"
   pretty ByteStringAtomType = "ByteString"
   pretty BoolAtomType = "Bool"
-  pretty (RelationAtomType attrs) = "relation " <+> prettyBracesList (V.toList attrs)
+  pretty (RelationAtomType attrs) = "relation " <+> prettyBracesList (A.toList attrs)
   pretty (ConstructedAtomType tcName tvMap) = pretty tcName <+> hsep (map pretty (M.toList tvMap)) --order matters
   pretty RelationalExprAtomType = "RelationalExpr"
   pretty (TypeVariableType x) = pretty x

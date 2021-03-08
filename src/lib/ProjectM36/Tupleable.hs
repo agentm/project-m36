@@ -38,7 +38,7 @@ import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
 import           GHC.Generics
 import           ProjectM36.Atomable
-import           ProjectM36.Attribute           hiding (null)
+import           ProjectM36.Attribute           as A hiding (null, toList)
 import           ProjectM36.Base
 import           ProjectM36.DataTypes.Primitive
 import           ProjectM36.Error
@@ -89,7 +89,7 @@ toInsertExpr vals rvName = do
 
 -- | Convert a 'Tupleable' to a create a 'Define' expression which can be used to create an empty relation variable. Use 'toInsertExpr' to insert the actual tuple data. This function is typically used with 'Data.Proxy'.
 toDefineExpr :: forall a proxy. Tupleable a => proxy a -> RelVarName -> DatabaseContextExpr
-toDefineExpr _ rvName = Define rvName (map NakedAttributeExpr (V.toList attrs))
+toDefineExpr _ rvName = Define rvName (map NakedAttributeExpr (V.toList (attributesVec attrs)))
   where
     attrs = toAttributes (Proxy :: Proxy a)
 
@@ -228,11 +228,12 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
   toTupleG opts (M1 v) = RelationTuple attrs atoms
     where
       attrsToCheck = toAttributesG opts v
-      counter = V.generate (V.length attrsToCheck) id
-      attrs = V.zipWith (\num attr@(Attribute name typ) -> if T.null name then
+      counter = V.generate (arity attrsToCheck) id
+      attrs = attributesFromList (V.toList attrsV)
+      attrsV = V.zipWith (\num attr@(Attribute name typ) -> if T.null name then
                                                              Attribute ("attr" <> T.pack (show (num + 1))) typ
                                                            else
-                                                             attr) counter attrsToCheck
+                                                             attr) counter (attributesVec attrsToCheck)
       atoms = V.fromList (toAtomsG v)
   toAttributesG opts (M1 v) = toAttributesG opts v
   fromTupleG opts tup = M1 <$> fromTupleG opts tup
@@ -241,7 +242,7 @@ instance (Constructor c, TupleableG a, AtomableG a) => TupleableG (M1 C c a) whe
 -- product types
 instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
   toTupleG = error "toTupleG"
-  toAttributesG opts ~(x :*: y) = toAttributesG opts x V.++ toAttributesG opts y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
+  toAttributesG opts ~(x :*: y) = toAttributesG opts x <> toAttributesG opts y --a bit of extra laziness prevents whnf so that we can use toAttributes (undefined :: Test2T Int Int) without throwing an exception
   fromTupleG opts tup = (:*:) <$> fromTupleG opts tup <*> fromTupleG opts processedTuple
     where
       processedTuple = if isRecordTypeG (undefined :: a x) then
@@ -253,7 +254,7 @@ instance (TupleableG a, TupleableG b) => TupleableG (a :*: b) where
 --selector/record
 instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
   toTupleG = error "toTupleG"
-  toAttributesG opts m@(M1 v) = V.singleton (Attribute modifiedName aType)
+  toAttributesG opts m@(M1 v) = A.singleton (Attribute modifiedName aType)
    where
      name = T.pack (selName m)
      modifiedName = if T.null name then
@@ -268,7 +269,7 @@ instance (Selector c, AtomableG a) => TupleableG (M1 S c a) where
                      val <- atomv atom
                      pure (M1 val)
    where
-     expectedAtomType = atomType (V.head (toAttributesG opts (undefined :: M1 S c a x)))
+     expectedAtomType = atomType (V.head (attributesVec (toAttributesG opts (undefined :: M1 S c a x))))
      atomv atom = maybe (Left (AtomTypeMismatchError
                                expectedAtomType
                                (atomTypeForAtom atom)

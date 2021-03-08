@@ -13,7 +13,7 @@
 import Test.HUnit
 import ProjectM36.Tupleable.Deriving
 import ProjectM36.Atomable
-import ProjectM36.Attribute
+import ProjectM36.Attribute as A
 import ProjectM36.Error
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
@@ -110,7 +110,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testList :: Test
-testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8, testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr, testReorderedTuple, testAddPrefixField, testDropPrefixField, testAddSuffixField, testDropSuffixField, testUpperCaseField, testLowerCaseField, testTitleCaseField, testCamelCaseField, testPascalCaseField, testSnakeCaseField, testSpinalCaseField, testTrainCaseField, testAsIsCodec, testAsIsField, testComposeRLCodec, testComposeRLField, testComposeLRCodec, testComposeLRField]
+testList = TestList [testADT1, testADT2, testADT3, testADT4, testADT6, testADT7, testADT8  ,testInsertExpr, testDefineExpr, testUpdateExpr, testUpdateExprEmptyAttrs, testDeleteExpr, testUpdateExprWrongAttr, testReorderedTuple, testAddPrefixField, testDropPrefixField, testAddSuffixField, testDropSuffixField, testUpperCaseField, testLowerCaseField, testTitleCaseField, testCamelCaseField, testPascalCaseField, testSnakeCaseField, testSpinalCaseField, testTrainCaseField, testAsIsCodec, testAsIsField, testComposeRLCodec, testComposeRLField, testComposeLRCodec, testComposeLRField]
 
 testADT1 :: Test
 testADT1 = TestCase $ assertEqual "one record constructor" (Right example) (fromTuple (toTuple example))
@@ -148,7 +148,7 @@ testADT7 :: Test
 testADT7 = TestCase $ do
   let example = Test7C (Test7AC 3)
   assertEqual "atom type" (Right example) (fromTuple (toTuple example))
-  let expectedAttrs = V.singleton (Attribute "" (ConstructedAtomType "Test7A" M.empty))
+  let expectedAttrs = A.singleton (Attribute "" (ConstructedAtomType "Test7A" M.empty))
   assertEqual "adt atomtype" expectedAttrs (toAttributes (Proxy :: Proxy Test7T))
     
 testADT8 :: Test    
@@ -222,7 +222,8 @@ testDeleteExpr = TestCase $ do
 testReorderedTuple :: Test
 testReorderedTuple = TestCase $ do
   let tupleRev :: RelationTuple -> RelationTuple
-      tupleRev (RelationTuple v1 v2) = RelationTuple (V.reverse v1) (V.reverse v2)
+      tupleRev (RelationTuple v1 v2) = RelationTuple (revAttrs v1) (V.reverse v2)
+      revAttrs attrs = A.attributesFromList (reverse (A.toList attrs))
       expected = Test2C {attrB = 3, 
                          attrC = 4}
       actual = fromTuple . tupleRev . toTuple $ expected
