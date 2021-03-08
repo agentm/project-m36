@@ -42,6 +42,7 @@ import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
+import Control.Applicative
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
@@ -298,14 +299,15 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
 
 evalGraphRefDatabaseContextExpr (Insert relVarName relExpr) = do
   gfExpr <- relVarByName relVarName
-  let optExpr = applyStaticUnionCollapse (Union
-                                          gfExpr
-                                          relExpr)
+  let optExpr = applyUnionCollapse (Union
+                                    relExpr
+                                     gfExpr)
   evalGraphRefDatabaseContextExpr (Assign relVarName optExpr)
 
 evalGraphRefDatabaseContextExpr (Delete relVarName predicate) = do
   gfExpr <- relVarByName relVarName
-  setRelVar relVarName (Restrict (NotPredicate predicate) gfExpr)
+  let optExpr = applyRestrictionCollapse (Restrict (NotPredicate predicate) gfExpr)
+  setRelVar relVarName optExpr
   
 --union of restricted+updated portion and the unrestricted+unupdated portion
 evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
@@ -1351,13 +1353,40 @@ instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
 --convert series of simple Union queries into MakeStaticRelation
 -- this is especially useful for long, nested applications of Union with simple tuples
 -- Union (MakeRelation x y) (MakeRelation x y') -> MakeRelation x (y + y')
-applyStaticUnionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
-applyStaticUnionCollapse = Fold.cata opt
+
+--MakeRelationFromExprs Nothing (TupleExprs UncommittedContextMarker [TupleExpr (fromList [("name", NakedAtomExpr (TextAtom "steve"))])])
+
+applyUnionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyUnionCollapse = Fold.cata opt
   where
+    opt :: RelationalExprBaseF GraphRefTransactionMarker GraphRefRelationalExpr -> GraphRefRelationalExpr
+    opt (UnionF exprA exprB) | exprA == exprB = exprA
     opt (UnionF
-         a@(MakeStaticRelation attrsA tupsA)
-         b@(MakeStaticRelation attrsB tupsB)) = if attrsA == attrsB then
-                                                MakeStaticRelation attrsA (tupleSetUnion attrsA tupsA tupsB)
-                                                else
-                                                  Union a b
+         exprA@(MakeRelationFromExprs mAttrs1 tupExprs1)
+         exprB@(MakeRelationFromExprs mAttrs2 tupExprs2)) | tupExprs1 == tupExprs2 = MakeRelationFromExprs (mAttrs1 <|> mAttrs2) tupExprs1
+                                                    | tupExprsNull tupExprs1 = exprB
+                                                    | tupExprsNull tupExprs2 = exprA
     opt x = Fold.embed x
+    tupExprsNull (TupleExprs _ []) = True
+    tupExprsNull _ = False
+
+
+--UPDATE optimization- find matching where clause in "lower" levels of renaming
+--update x where y=1 set (x:=5,z:=10); update x where y=1 set(x:=6,z:=11)
+-- =>
+-- update x where y=1 set (x:=6,z:=11)
+-- future opt: match individual attributes update x where y=1 set (x:=5); update x where y=1 set (z:=11) => update x where y=1 set (x:=5,z:=11)
+
+--strategy: try to collapse the top-level update (union (restrict pred MakeRelationFromExpr) expr) if it contains the same predicate and resultant relation
+
+--DELETE optimization
+-- if a restriction matches a previous restriction, combine them
+-- O(1) since it only scans at the top level, critical in benchmarks generating redundant deletions
+applyRestrictionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyRestrictionCollapse orig@(Restrict npred@(NotPredicate _) expr) =
+  case expr of
+    orig'@(Restrict npred'@(NotPredicate _) _) | npred == npred' -> orig'
+    _ -> orig
+applyRestrictionCollapse expr = expr
+
+                                
