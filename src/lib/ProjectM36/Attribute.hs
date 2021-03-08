@@ -87,12 +87,12 @@ joinAttributes attrs1 attrs2 | V.length uniqueOverlappingAttributes /= V.length 
     overlappingAttributes = V.filter (`V.elem` attrs2) attrs1
 -}
 joinAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
-joinAttributes attrs1 attrs2 =
-  if S.size overlappingNames == 0 then -- fast path, no overlapping names
+joinAttributes attrs1 attrs2 
+  | S.size overlappingNames == 0 = -- fast path, no overlapping names
     pure (concated id)
-  else if attributesForNames overlappingNames attrs1 == attributesForNames overlappingNames attrs2 then -- check that atomtypes match
+  | attributesForNames overlappingNames attrs1 == attributesForNames overlappingNames attrs2 = -- that atomtypes match
     pure (concated vectorUniqueify)
-  else
+  | otherwise =
     --special handling to validate that overlapping names have the same atom types
     Left (TupleAttributeTypeMismatchError (attributesForNames overlappingNames attrs1))
   where
@@ -111,7 +111,7 @@ member :: Attribute -> Attributes -> Bool
 member attr attrs = HS.member attr (attributesSet attrs)
 
 deleteAttributeName :: AttributeName -> Attributes -> Attributes
-deleteAttributeName attrName attrs = deleteAttributeNames (S.singleton attrName) attrs
+deleteAttributeName attrName = deleteAttributeNames (S.singleton attrName)
 
 deleteAttributeNames :: S.Set AttributeName -> Attributes -> Attributes
 deleteAttributeNames attrNames attrs = Attributes {
@@ -215,7 +215,7 @@ attributesDifference attrsA attrsB =
     hset = HS.difference setA setB <> HS.difference setB setA
     setA = attributesSet attrsA
     setB = attributesSet attrsB
-    vec = V.filter (\attr -> HS.member attr hset) (attributesVec attrsA <> attributesVec attrsB)
+    vec = V.filter (`HS.member` hset) (attributesVec attrsA <> attributesVec attrsB)
 
 vectorUniqueify :: (Hash.Hashable a, Eq a) => V.Vector a -> V.Vector a
 vectorUniqueify vecIn = V.fromList $ HS.toList $ HS.fromList $ V.toList vecIn

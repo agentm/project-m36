@@ -177,7 +177,7 @@ fullOptimizeGraphRefRelationalExpr expr = do
 optimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
 optimizeGraphRefRelationalExpr e@(MakeStaticRelation _ _) = pure e
 
-optimizeGraphRefRelationalExpr e@(MakeRelationFromExprs{}) = pure e
+optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
 
 optimizeGraphRefRelationalExpr e@(ExistingRelation _) = pure e
 

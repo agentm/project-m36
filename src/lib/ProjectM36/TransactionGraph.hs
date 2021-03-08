@@ -384,7 +384,7 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans' goalTrans trav
     else do
     currentTransChildren <- childTransactions currentTrans' origGraph
     let searchChildren = S.difference (S.insert currentTrans' traverseSet) currentTransChildren
-        searchChild start = pathToTransaction origGraph start goalTrans (S.insert currentTrans' traverseSet)
+        searchChild start' = pathToTransaction origGraph start' goalTrans (S.insert currentTrans' traverseSet)
         childSearches = map searchChild (S.toList searchChildren)
         errors = lefts childSearches
         pathsFound = rights childSearches

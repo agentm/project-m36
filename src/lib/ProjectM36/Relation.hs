@@ -244,8 +244,8 @@ relMap mapper (Relation attrs tupleSet) =
 
 relMogrify :: (RelationTuple -> Either RelationalError RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = do
-  newTuples <- mapM (\tup ->
-                       reorderTuple newAttributes <$> mapper tup) (asList tupSet)
+  newTuples <- mapM (fmap (reorderTuple newAttributes) . mapper) (asList tupSet)
+                    
   mkRelationFromTuples newAttributes newTuples
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a

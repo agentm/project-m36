@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -102,7 +102,7 @@ instance Hashable Attribute where
 type AttributesHash = Int
 
 -- | 'Attributes' represent the head of a relation.
-data Attributes = Attributes {
+newtype Attributes = Attributes {
   attributesVec :: V.Vector Attribute
   --,attributesSet :: HS.HashSet Attribute --compare with this generated in heap profile and benchmarks
   }

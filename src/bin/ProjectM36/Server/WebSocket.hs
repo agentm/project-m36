@@ -22,6 +22,7 @@ import Data.Attoparsec.Text
 import Control.Applicative
 import Text.Megaparsec.Error
 import Data.Functor
+import Data.Either (fromRight)
 
 #if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE
@@ -117,7 +118,7 @@ promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
 promptInfo sessionId conn = do
   eHeadName <- headName sessionId conn
   eSchemaName <- currentSchemaName sessionId conn
-  pure (either (const "<unknown>") id eHeadName, either (const "<no schema>") id eSchemaName)
+  pure (fromRight "<unknown>" eHeadName, fromRight "<no schema>" eSchemaName)
 
 sendPromptInfo :: (HeadName, SchemaName) -> WS.Connection -> IO ()
 sendPromptInfo (hName, sName) conn = WS.sendTextData conn (encode (object ["promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))
