@@ -23,8 +23,6 @@ import System.FilePath
 import System.Directory
 #endif
 
-import Debug.Trace
-
 type Timeout = Int
 
 testList :: SessionId -> Connection -> MVar () -> Test
@@ -44,7 +42,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [testRequestTimeout, testFileDescriptorCount]
+    serverTests = [testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
 
 main :: IO ()
 main = do
@@ -209,7 +207,7 @@ testRequestTimeout = TestCase $ do
   case eTestConn of
     Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
     Right (session, testConn) -> do
-      res <- catchJust (\exc -> if traceShowId exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
+      res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
       assertBool "timeout exception was not thrown" (not res)
       killThread serverTid
       
@@ -240,3 +238,12 @@ fdCount = do
 --pass on non-linux platforms
 testFileDescriptorCount = TestCase (pure ())
 #endif
+
+testClientConnectFail :: Test
+testClientConnectFail = TestCase $ do
+  let connInfo = RemoteConnectionInfo "non-existent-db" "127.0.0.1" "8888" emptyNotificationCallback
+  eConn <- connectProjectM36 connInfo
+  case eConn of
+    Left err -> pure ()
+    Right _ -> assertFailure "unexpected connection success"
+  

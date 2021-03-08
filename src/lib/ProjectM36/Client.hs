@@ -297,16 +297,18 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
              \(NotificationMessage notifications') ->
                forM_ (M.toList notifications') (uncurry notificationCallback)
             ]
--- TODO  missing async callback
-      conn <- RPC.connect notificationHandlers (hostAddressToTuple addr) port
-      eRet <- RPC.call conn (Login dbName)
--- TODO handle connection errors              
-      case eRet of
-        Left err -> error (show err)
-        Right False -> error "wtf"
-        Right True ->
+      let connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
+      eConn <- (Right <$> RPC.connect notificationHandlers (hostAddressToTuple addr) port) `catch` connectExcHandler
+      case eConn of
+        Left err -> pure (Left err)
+        Right conn -> do
+          eRet <- RPC.call conn (Login dbName)
+          case eRet of
+            Left err -> error (show err)
+            Right False -> error "wtf"
+            Right True ->
       --TODO handle connection errors!
-          pure (Right (RemoteConnection (RemoteConnectionConf conn)))
+              pure (Right (RemoteConnection (RemoteConnectionConf conn)))
 
 --convert RPC errors into exceptions
 convertRPCErrors :: RPC.ConnectionError -> IO a
