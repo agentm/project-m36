@@ -1,5 +1,8 @@
 packages: project-m36.cabal
 
+package *
+  split-sections: True
+
 --high-performance streaming library
 source-repository-package
   type: git
