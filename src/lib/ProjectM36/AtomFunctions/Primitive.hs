@@ -2,11 +2,13 @@ module ProjectM36.AtomFunctions.Primitive where
 import ProjectM36.Base
 import ProjectM36.Relation (relFold, oneTuple)
 import ProjectM36.Tuple
+import ProjectM36.Attribute
 import ProjectM36.AtomFunctionError
 import ProjectM36.AtomFunction
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import Control.Monad
+import Data.List (sort)
 
 primitiveAtomFunctions :: AtomFunctions
 primitiveAtomFunctions = HS.fromList [
@@ -50,8 +52,10 @@ primitiveAtomFunctions = HS.fromList [
                                                    pure (IntAtom (fromIntegral v))
                                                  else
                                                    Left InvalidIntBoundError
-                                                   }
-  
+                                                   },
+  AtomFunction { atomFuncName = "groupConsecutiveIntegers",
+                 atomFuncType = foldAtomFuncType IntegerAtomType (RelationAtomType (attributesFromList [Attribute "rel" (RelationAtomType (attributesFromList [Attribute "value" IntegerAtomType]))])),
+                 atomFuncBody = body (\(RelationAtom relIn:_) -> groupConsecutiveIntegers relIn) }
   ]
   where
     body = AtomFunctionBody Nothing
@@ -97,3 +101,25 @@ castInt _ = error "attempted to cast non-IntAtom to Int"
 castInteger :: Atom -> Integer
 castInteger (IntegerAtom i) = i 
 castInteger _ = error "attempted to cast non-IntegerAtom to Int"
+
+--instead of grouping integers by equality, group them in a single group if they are consecutive
+groupConsecutiveIntegers :: Relation -> Either AtomFunctionError Atom
+groupConsecutiveIntegers relIn = 
+  pure $ RelationAtom (Relation relAttrs (RelationTupleSet tups))
+  where
+    sortedInts = sort $ relFold (\tupIn acc -> newVal tupIn : acc) [] relIn
+    consecutiveInts = foldr seqInt [] sortedInts
+    --split up consecutive lists of ints
+    seqInt v [] = [[v]]
+    seqInt v (xs@(x:_):ys) | x == succ v = (v:xs):ys
+                      | x == v = xs:ys
+                      | otherwise = [v]:xs:ys
+    seqInt _ ([]:_) = error "invalid sorted list"
+    newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+    --create relation of split ints
+    relAttrs = attributesFromList [Attribute "rel" (RelationAtomType attrs)]
+    attrs = attributesFromList [Attribute "value" IntegerAtomType]
+    tups = map mapper consecutiveInts
+    mapper vs = RelationTuple relAttrs (V.singleton (RelationAtom (Relation attrs (RelationTupleSet (mkTuplesFromIntList vs)))))
+    mkTuplesFromIntList vs = map (\v -> RelationTuple attrs (V.singleton (IntegerAtom v))) vs
+
