@@ -665,6 +665,10 @@ testWithClause = TestCase $ do
   executeTutorialD sessionId dbconn "x:=with (x as s) x"
   eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
   assertEqual "with x as s" (Right suppliersRel) eX
+
+  executeTutorialD sessionId dbconn "y:=with(a as true) (with (b as a) b)"
+  eY <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  assertEqual "nested with" (Right relationTrue) eY
   
   let err1 = "RelVarAlreadyDefinedError"  
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=with (s as s) s"  

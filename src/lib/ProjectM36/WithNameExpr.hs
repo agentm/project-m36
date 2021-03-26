@@ -42,9 +42,11 @@ substituteWithNameMacros macros (NotEquals exprA exprB) =
 substituteWithNameMacros macros (Extend extendTup expr) =
   Extend (substituteWitNameMacrosExtendTupleExpr macros extendTup) (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (With moreMacros expr) =
-  --collect and override existing macros and recurse
+  --collect and update nested with exprs
   let newMacros = foldr macroFolder macros moreMacros
-      macroFolder (wnexpr, mexpr) acc = filter (\(w,_) -> w /= wnexpr) acc ++ [(wnexpr, mexpr)] in
+      macroFolder (wnexpr, mexpr) acc =
+        let subExpr = substituteWithNameMacros macros mexpr in
+        filter (\(w,_) -> w /= wnexpr) acc ++ [(wnexpr, subExpr)] in
         --scan for a match- if it exists, replace it (representing a with clause at a lower level
   substituteWithNameMacros newMacros expr
 
