@@ -9,7 +9,7 @@ If a relation variable cannot be exported due to data types which are not suppor
 ### Example Export
 
 ```
-TutorialD (master/main): :importexample date
+TutorialD (master/main): :importexample cjdate
 TutorialD (master/main): :exportcsv s "/tmp/csv"
 ```
 ```
@@ -37,7 +37,7 @@ s#,sname,status,city
 S6,Samson,100,New York
 ```
 ```
-TutorialD (master/main): :importexample date
+TutorialD (master/main): :importexample cjdate
 TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────────┐
 │city::Text│s#::Text│sname::Text│status::Integer│

@@ -47,7 +47,7 @@ Database context expressions take the current database context as input and alte
 
 |Database Context Expression                           |Description                            |
 |------------------------------------------------------|---------------------------------------|
-|`:importexample date`|Imports a precooked schema from Chris Date's books resulting in relvars `s`, `sp`, and `p`|
+|`:importexample cjdate`|Imports a precooked schema from Chris Date's books resulting in relvars `s`, `sp`, and `p`|
 |`newrelvar:=relation{tuple{age 3}}`|Assign a new relation variable named `newrelvar`|
 |`undefine s`|Remove a relation variable|
 |`insert s relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}`| Append to an existing relation variable with another relational expression|

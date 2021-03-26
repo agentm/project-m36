@@ -19,7 +19,7 @@ TutorialD (master/main):
 The examples in this tutorial can be executed after loading Chris Date's sample relations using:
 
 ```
-:importexample date
+:importexample cjdate
 ```
 
 Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
