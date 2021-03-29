@@ -362,7 +362,7 @@ testComments :: Test
 testComments = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
   mapM_ (executeTutorialD sessionId dbconn) [
-    ":branch testbranch --test comment\n",
+    ":branch testbranch --test comment",
     ":jumphead {- test comment -} master"]
   
 -- create a graph and query from two disparate contexts  

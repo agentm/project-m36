@@ -44,6 +44,7 @@ import Data.List.NonEmpty as NE
 import Data.Time.Clock
 import Data.Time.Format
 import Control.Monad (void)
+import Data.Char
 
 #if !MIN_VERSION_megaparsec(7,0,0)
 anySingle :: Parsec Void Text (Token Text)
@@ -82,7 +83,13 @@ type ParseStr = String
 #endif
 
 spaceConsumer :: Parser ()
-spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
+spaceConsumer = Lex.space (void sc) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
+  where
+    sc = takeWhile1P (Just "horizontal whitespace") isHSpace'
+
+--backported from megaparsec 9
+isHSpace' :: Char -> Bool
+isHSpace' x = isSpace x && x /= '\n' && x /= '\r'
 
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
@@ -134,6 +141,9 @@ arrow = symbol "->"
 
 semi :: Parser Text
 semi = symbol ";"
+
+nline :: Parser Text
+nline = (T.singleton <$> newline) <|> crlf
 
 integer :: Parser Integer
 #if MIN_VERSION_megaparsec(6,0,0)
@@ -200,6 +210,9 @@ normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 quotedString :: Parser Text
 quotedString = try tripleQuotedString <|> normalQuotedString
 
+quoted :: Parser a -> Parser a
+quoted = between quote quote
+
 uuidP :: Parser U.UUID
 uuidP = do
   uuidStart <- count 8 hexDigitChar
@@ -228,3 +241,10 @@ colonOp :: Text -> Parser ()
 colonOp opStr = do
   _ <- string opStr <* (void spaceChar <|> eof) <* spaceConsumer
   pure ()
+
+hex :: Parser Text
+hex = takeWhileP (Just "hexadecimal")
+         (\c ->
+             (c >= '0' && c <= '9')
+             || (c >= 'a' && c <= 'f'))
+  

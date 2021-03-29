@@ -184,7 +184,12 @@ Executable tutd
                    list-t,
                    parser-combinators,
                    curryer-rpc,
-                   prettyprinter
+                   prettyprinter,
+                   cryptohash-sha256,
+                   base16-bytestring,
+                   http-conduit,
+                   modern-uri,
+                   http-types
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,
@@ -264,7 +269,7 @@ Executable bigrel
 
 Common commontest
     Default-Language: Haskell2010 
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring, modern-uri, http-types, http-conduit, base16-bytestring,cryptohash-sha256
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded
     Hs-Source-Dirs: ./src/bin, ., test/

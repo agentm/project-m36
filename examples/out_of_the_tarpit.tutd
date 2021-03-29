@@ -3,9 +3,9 @@
 data Address = Address Text
 data Agent = Agent Text
 data Name = Name Text
-data Price = Price Double
+data Price = Price Integer --dollars
 data RoomType = Kitchen | Bathroom | LivingRoom
-data PriceBand = Low | Medium | High | Premium
+data PriceBand = Low | Med | High | Premium
 data AreaCode = City | Suburban | Rural
 data SpeedBand = VeryFast | Fast | Medium | Slow
 
@@ -57,9 +57,9 @@ constraint noOffersAfterSale (offer join decision where ^dayEarlierThan(@offerDa
 --1. identify offerPrices > 2000 (arbitrarily-chosen high price band which is not specified in the paper)
 --2. remove the properties which have been sold
 --3. group and count sub-relation and restrict by greater than 50
-constraint noMoreThan50PremiumProperties ((((property where ^gt(offerPrice,2000.0)) minus ((property join decision){address,agent,dateRegistered,photo,price})) group ({} as x) : {z:=gt(count(@x),50)}) {z}){} equals false
+constraint noMoreThan50PremiumProperties ((((property where ^gt(@price,Price 2000)) minus ((property join decision){address,agent,dateRegistered,photo,price})) group ({} as x) : {z:=gt(count(@x),50)}) {z}){} equals false
 
-constraint noBidderCanMakeMoreThan10BidsOnAProperty (((offer group ({all but bidderAddress} as bidder)) : {bidCount:=gt(count(@bidder),10)}) where ^gt(bidCount,10)) {} equals false
+constraint noBidderCanMakeMoreThan10BidsOnAProperty (((offer group ({all but bidderAddress} as bidder)) : {bidCount:=gt(count(@bidder),10)}) where ^gt(@bidCount,10)) {} equals false
 
 -- sample data
 
