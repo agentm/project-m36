@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 module TutorialD.Interpreter.Import.TutorialD where
 import ProjectM36.Base
 import TutorialD.Interpreter.Import.Base
@@ -39,7 +38,7 @@ importTutorialDBytes tutdBytes =
   case TE.decodeUtf8' tutdBytes of
     Left err -> pure (Left (ImportError (ImportFileDecodeError (T.pack (show err)))))
     Right tutdUtf8 -> 
-      case parse (multilineDatabaseContextExprP <* eof) "import" tutdUtf8 of
+      case parse (multipleDatabaseContextExprP <* eof) "import" tutdUtf8 of
         --parseErrorPretty is new in megaparsec 5
         Left err -> pure (Left (PM36E.ParseError (T.pack (errorBundlePretty err))))
         Right expr -> pure (Right expr)

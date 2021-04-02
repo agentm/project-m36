@@ -1,0 +1,2 @@
+x:=relation{ 
+tuple{  x 2}} -- nice

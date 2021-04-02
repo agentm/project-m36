@@ -56,11 +56,6 @@ multipleDatabaseContextExprP :: Parser DatabaseContextExpr
 multipleDatabaseContextExprP = 
   MultipleExpr <$> sepBy1 databaseContextExprP semi
 
---good for reading from files instead of the repl
-multilineDatabaseContextExprP :: Parser DatabaseContextExpr
-multilineDatabaseContextExprP =
-  MultipleExpr <$> sepBy1 databaseContextExprP (nline <|> semi)
-
 insertP :: Parser DatabaseContextExpr
 insertP = do
   reservedOp "insert"

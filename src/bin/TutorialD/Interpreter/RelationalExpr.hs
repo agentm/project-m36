@@ -212,7 +212,6 @@ atomExprP = consumeAtomExprP True
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
             try (parens (constructedAtomExprP True)) <|>
-            try (parens relationalAtomExprP) <|>            
             constructedAtomExprP consume <|>
             attributeAtomExprP <|>
             try nakedAtomExprP <|>

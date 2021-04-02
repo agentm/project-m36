@@ -17,7 +17,7 @@ import ProjectM36.Relation
 import ProjectM36.DataFrame
 
 #if MIN_VERSION_megaparsec(6,0,0)
-import Text.Megaparsec.Char
+import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
 import Data.Void
@@ -82,14 +82,9 @@ type ParseStr = Text
 type ParseStr = String
 #endif
 
+-- consumes only horizontal spaces
 spaceConsumer :: Parser ()
-spaceConsumer = Lex.space (void sc) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
-  where
-    sc = takeWhile1P (Just "horizontal whitespace") isHSpace'
-
---backported from megaparsec 9
-isHSpace' :: Char -> Bool
-isHSpace' x = isSpace x && x /= '\n' && x /= '\r'
+spaceConsumer = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
 
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
@@ -245,6 +240,6 @@ colonOp opStr = do
 hex :: Parser Text
 hex = takeWhileP (Just "hexadecimal")
          (\c ->
-             (c >= '0' && c <= '9')
+             isDigit c
              || (c >= 'a' && c <= 'f'))
   
