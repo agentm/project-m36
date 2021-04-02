@@ -1,3 +1,7 @@
+# 2021-04-01 (v0.9.3)
+
+* add new ":importtutd <URI> <SHA256 hash>" feature to import TutorialD from a local file or a HTTP/HTTPS URI	
+	
 # 2020-12-27 (v0.9.0)
 
 * replace unmaintained distributed-process-client-server RPC package with new curryer RPC package
