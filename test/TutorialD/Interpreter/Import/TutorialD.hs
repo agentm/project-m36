@@ -33,7 +33,7 @@ testTutdFileImport = TestCase $
 testTutdHTTPSImport :: Test
 testTutdHTTPSImport = TestCase $ do
   uri <- mkURI "https://raw.githubusercontent.com/agentm/project-m36/master/test/TutorialD/Interpreter/Import/httpimporttest.tutd"
-  let hash = "bae2e29414d9d72e920182185d2b62aefc12aed1cc47b3b330b0e7de7432d831"
+  let hash = "effe32b247586dc3ac0079fc241b9618d41d189afcaeb7907edbe5a8b45992a4"
       expected = Right (MultipleExpr [Assign "x" (RelationVariable "true" ()),Assign "y" (RelationVariable "false" ())])
   actual <- importTutorialDViaHTTP uri (Just hash)
   assertEqual "github https" expected actual
