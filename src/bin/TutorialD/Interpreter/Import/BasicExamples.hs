@@ -20,7 +20,7 @@ importBasicExampleOperatorP :: Parser ImportBasicExampleOperator
 importBasicExampleOperatorP = do 
   reservedOp ":importexample"
   example <- identifier
-  if example == "date" then
+  if example == "cjdate" then
     pure ImportBasicDateExampleOperator
     else
     fail "Unknown example name"

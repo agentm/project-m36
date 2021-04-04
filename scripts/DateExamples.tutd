@@ -20,7 +20,7 @@ sp := relation{tuple{s# "S1",p# "P1",qty 300},
 	       tuple{s# "S3",p# "P2",qty 200}, 
 	       tuple{s# "S4",p# "P4",qty 300}, 
 	       tuple{s# "S4",p# "P5",qty 400}};
-key s_pkey {s#} s
-key p_key {p#} p
+key s_pkey {s#} s;
+key p_key {p#} p;
 foreign key s_sp_fk sp{s#} in s{s#};
 foreign key p_sp_fk sp{p#} in p{p#};

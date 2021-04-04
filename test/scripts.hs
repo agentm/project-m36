@@ -4,6 +4,8 @@ import TutorialD.Interpreter.Import.TutorialD
 import System.Directory
 import Data.List (isSuffixOf)
 import System.Exit
+import qualified Data.Text as T
+import Text.URI
 
 testList :: IO Test
 testList = do
@@ -20,7 +22,8 @@ main = do
   
 testScript :: FilePath -> Test
 testScript tutdFile = TestCase $ do
-  eImport <- importTutorialD tutdFile 
+  fileURI <- mkURI (T.pack ("file://" <> tutdFile))
+  eImport <- importTutorialDFromFile fileURI Nothing
   case eImport of
     Left err -> assertFailure ("tutd import failure in " ++ tutdFile ++ ": " ++ show err)
     Right _ -> pure ()

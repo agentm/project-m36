@@ -81,7 +81,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName
-                     | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
+                     | ImportError ImportError'
                      | ExportError T.Text
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
@@ -144,4 +144,12 @@ data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |
                    RelVarOutReferencedMoreThanOnce RelVarName
                    deriving (Show, Eq, Generic, Typeable, NFData)
-                           
+
+
+data ImportError' = InvalidSHA256Error T.Text
+                  | SHA256MismatchError T.Text T.Text
+                  | InvalidFileURIError T.Text
+                  | ImportFileDecodeError T.Text
+                  | ImportFileError T.Text
+                  | ImportDownloadError T.Text
+                  deriving (Show, Eq, Generic, Typeable, NFData)

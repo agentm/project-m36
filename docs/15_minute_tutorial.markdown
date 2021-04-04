@@ -28,7 +28,7 @@ Note that TutorialD is strongly-typed- no type coercions take place automaticall
 ### Load the Canonical Chris Date Example
 
 ```
-TutorialD (master/main): :importexample date
+TutorialD (master/main): :importexample cjdate
 ```
 
 ```:importexample``` (do not skip typing the preceding colon), loads a built-in example schema and executes it to change the state of the database. In this case, the relations "s" (supplier), "p" (product), and "sp" (suppliers-products) are now loaded.

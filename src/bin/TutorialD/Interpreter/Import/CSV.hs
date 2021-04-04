@@ -14,10 +14,10 @@ importCSVRelation relVarName tConsMap attrs pathIn = do
   --TODO: handle filesystem errors
   csvData <- try (BS.readFile pathIn) :: IO (Either IOError BS.ByteString)
   case csvData of 
-    Left err -> return $ Left (ImportError $ T.pack (show err))
+    Left err -> pure $ Left (ImportError (ImportFileError (T.pack (show err))))
     Right csvData' -> case csvAsRelation attrs tConsMap csvData' of
-      Left err -> return $ Left (ParseError $ T.pack (show err))
-      Right csvRel -> return $ Right (Insert relVarName (ExistingRelation csvRel))
+      Left err -> pure $ Left (ParseError $ T.pack (show err))
+      Right csvRel -> pure $ Right (Insert relVarName (ExistingRelation csvRel))
 
 importCSVP :: Parser RelVarDataImportOperator
 importCSVP = do

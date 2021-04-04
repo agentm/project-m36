@@ -216,6 +216,7 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
     barf :: RelationalError -> IO TutorialDOperatorResult
     barf (ScriptError (OtherScriptCompilationError errStr)) = pure (DisplayErrorResult (T.pack errStr))
+    barf (ParseError err) = pure (DisplayErrorResult err)
     barf err = return $ DisplayErrorResult (T.pack (show err))
     eHandler io = do
       eErr <- io

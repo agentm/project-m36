@@ -164,6 +164,9 @@ instance FromJSON SchemaError
 instance ToJSON MergeError
 instance FromJSON MergeError
 
+instance ToJSON ImportError'
+instance FromJSON ImportError'
+
 instance ToJSON DatabaseContextFunctionError
 instance FromJSON DatabaseContextFunctionError
 

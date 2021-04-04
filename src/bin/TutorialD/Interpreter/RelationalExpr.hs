@@ -216,6 +216,7 @@ consumeAtomExprP consume = try functionAtomExprP <|>
             attributeAtomExprP <|>
             try nakedAtomExprP <|>
             relationalAtomExprP
+            
 
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do

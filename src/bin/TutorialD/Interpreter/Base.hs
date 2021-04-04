@@ -17,7 +17,7 @@ import ProjectM36.Relation
 import ProjectM36.DataFrame
 
 #if MIN_VERSION_megaparsec(6,0,0)
-import Text.Megaparsec.Char
+import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
 import Data.Void
@@ -44,6 +44,7 @@ import Data.List.NonEmpty as NE
 import Data.Time.Clock
 import Data.Time.Format
 import Control.Monad (void)
+import Data.Char
 
 #if !MIN_VERSION_megaparsec(7,0,0)
 anySingle :: Parsec Void Text (Token Text)
@@ -81,8 +82,9 @@ type ParseStr = Text
 type ParseStr = String
 #endif
 
+-- consumes only horizontal spaces
 spaceConsumer :: Parser ()
-spaceConsumer = Lex.space (void spaceChar) (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
+spaceConsumer = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
 
 opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
@@ -134,6 +136,9 @@ arrow = symbol "->"
 
 semi :: Parser Text
 semi = symbol ";"
+
+nline :: Parser Text
+nline = (T.singleton <$> newline) <|> crlf
 
 integer :: Parser Integer
 #if MIN_VERSION_megaparsec(6,0,0)
@@ -200,6 +205,9 @@ normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 quotedString :: Parser Text
 quotedString = try tripleQuotedString <|> normalQuotedString
 
+quoted :: Parser a -> Parser a
+quoted = between quote quote
+
 uuidP :: Parser U.UUID
 uuidP = do
   uuidStart <- count 8 hexDigitChar
@@ -228,3 +236,10 @@ colonOp :: Text -> Parser ()
 colonOp opStr = do
   _ <- string opStr <* (void spaceChar <|> eof) <* spaceConsumer
   pure ()
+
+hex :: Parser Text
+hex = takeWhileP (Just "hexadecimal")
+         (\c ->
+             isDigit c
+             || (c >= 'a' && c <= 'f'))
+  

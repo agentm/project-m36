@@ -2,6 +2,8 @@
 module TutorialD.Interpreter.Import.Base where
 import ProjectM36.Base
 import ProjectM36.Error
+import Text.URI (URI)
+import Data.Text (Text)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -12,11 +14,14 @@ data RelVarDataImportOperator = RelVarDataImportOperator RelVarName FilePath (Re
 instance Show RelVarDataImportOperator where
   show (RelVarDataImportOperator rv path _) = "RelVarDataImportOperator " <> show rv <> " " <> path
 
+type HashVerification = Maybe Text
+
 -- | import data into a database context
-data DatabaseContextDataImportOperator = DatabaseContextDataImportOperator FilePath (FilePath -> IO (Either RelationalError DatabaseContextExpr))
+data DatabaseContextDataImportOperator = DatabaseContextDataImportOperator URI HashVerification (URI -> HashVerification -> IO (Either RelationalError DatabaseContextExpr))
 
 instance Show DatabaseContextDataImportOperator where
-  show (DatabaseContextDataImportOperator path _) = "DatabaseContextDataImportOperator " <> path
+  show (DatabaseContextDataImportOperator uri hash _) =
+    "DatabaseContextDataImportOperator " <> show uri <> " " <> show hash
 
 -- perhaps create a structure to import a whole transaction graph section in the future
 
@@ -24,4 +29,4 @@ evalRelVarDataImportOperator :: RelVarDataImportOperator -> TypeConstructorMappi
 evalRelVarDataImportOperator (RelVarDataImportOperator relVarName path importFunc) tConsMap attrs = importFunc relVarName tConsMap attrs path 
         
 evalDatabaseContextDataImportOperator :: DatabaseContextDataImportOperator -> IO (Either RelationalError DatabaseContextExpr)        
-evalDatabaseContextDataImportOperator (DatabaseContextDataImportOperator path importFunc) = importFunc path
+evalDatabaseContextDataImportOperator (DatabaseContextDataImportOperator uri hash importFunc) = importFunc uri hash

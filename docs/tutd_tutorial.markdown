@@ -19,7 +19,7 @@ TutorialD (master/main):
 The examples in this tutorial can be executed after loading Chris Date's sample relations using:
 
 ```
-:importexample date
+:importexample cjdate
 ```
 
 Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
@@ -29,6 +29,24 @@ Each section assumes a fresh instance of the Date examples. The relation variabl
 |s|suppliers|
 |p|parts|
 |sp|contains mapping of which suppliers supply which parts|
+
+### Importing TutorialD from Other Sources
+
+The `tutd` console can also run TutorialD from a local file or from a web server.
+
+To import TutorialD from a file:
+
+```
+:importtutd "file:///home/agentm/project-m36/scripts/emp.tutd"
+```
+
+or from a web server:
+
+```
+:importtutd "https://raw.githubusercontent.com/agentm/project-m36/master/scripts/DateExamples.tutd" "db9f3d9fe06d0a29b8355e045b89ec94d6428e3a3de93def7ca77bf0298b7010"
+```
+
+The second argument is an optional SHA256 hash in hexadecimal form. This can be used to validate that the script has not changed since the last import. Importing TutorialD from the web is in general safe because it is effectively sandboxed with "Safe Haskell" for functions, so the script is contained security-wise, however, nothing prevents the script from running forever. Downloading a schema from the web is a great way to share schemas and to kick start your project without starting from scratch.
 
 ### Types
 
