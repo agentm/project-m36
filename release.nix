@@ -119,7 +119,7 @@ let
          distProcessPkg(self.callHackageDirect {
            pkg = "cryptohash-md5";
 	   ver = "0.11.100.1";
-	   sha256 = "0sl41rfai346j45475hldzp857s6h28ryxyn6xgrkm8js9yzfkd7";
+	   sha256 = "1l9l3c5x4759pa0ah48skzrkakb5738n6cw60ksj8pmzf68f428a";
        }{});
 
        cryptohash-sha1 =
