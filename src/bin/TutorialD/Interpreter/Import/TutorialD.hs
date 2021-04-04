@@ -78,10 +78,9 @@ tutdImportP = do
   uri <- quoted URI.parser
   spaceConsumer
   mhash <- optional (quoted hex)
-  let handler =
-        case URI.unRText <$> URI.uriScheme uri of
-          Nothing -> fail "URI scheme missing"
-          Just "file" -> importTutorialDFromFile
-          Just scheme | scheme `elem` ["http", "https"] -> importTutorialDViaHTTP
-                      | otherwise -> fail ("unsupported URI scheme: " <> show scheme)
+  handler <- case URI.unRText <$> URI.uriScheme uri of
+               Nothing -> fail "URI scheme missing"
+               Just "file" -> pure importTutorialDFromFile
+               Just scheme | scheme `elem` ["http", "https"] -> pure importTutorialDViaHTTP
+                           | otherwise -> fail ( "unsupported URI scheme: " <> show scheme)
   pure $ DatabaseContextDataImportOperator uri mhash handler
