@@ -37,6 +37,7 @@ deriving via WineryVariant (DatabaseContextIOExprBase a) instance Serialise a =>
 deriving via WineryVariant (RestrictionPredicateExprBase a) instance Serialise a => Serialise (RestrictionPredicateExprBase a)
 deriving via WineryVariant TransactionInfo instance Serialise TransactionInfo
 deriving via WineryVariant (AtomExprBase a) instance Serialise a => Serialise (AtomExprBase a)
+deriving via WineryVariant DataConstructorCaseMatch instance Serialise DataConstructorCaseMatch
 deriving via WineryVariant MerkleHash instance Serialise MerkleHash
 deriving via WineryVariant (AttributeExprBase a) instance Serialise a => Serialise (AttributeExprBase a)
 deriving via WineryVariant (TupleExprsBase a) instance Serialise a => Serialise (TupleExprsBase a)

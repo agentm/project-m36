@@ -22,7 +22,10 @@ typeConstructorDefP :: Parser TypeConstructorDef
 typeConstructorDefP = ADTypeConstructorDef <$> typeConstructorNameP <*> typeVarNamesP
 
 typeVarNamesP :: Parser [TypeVarName]
-typeVarNamesP = many uncapitalizedIdentifier 
+typeVarNamesP = many uncapitalizedIdentifier
+
+dataConstructorVarNameP :: Parser DataConstructorVariable
+dataConstructorVarNameP = uncapitalizedIdentifer
   
 -- data Either a b = *Left a* | *Right b*
 dataConstructorDefP :: Parser DataConstructorDef

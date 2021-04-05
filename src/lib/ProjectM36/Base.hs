@@ -465,8 +465,16 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       NakedAtomExpr Atom |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
-                      ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
+                      ConstructedAtomExpr DataConstructorName [AtomExprBase a] a |
+                      Case (AtomExprBase a) [(DataConstructorCaseMatch, AtomExprBase a)]
                     deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+
+data DataConstructorCaseMatch =
+  DataConstructorCaseMatch DataConstructorName [DataConstructorCaseMatch] |
+  VariableCaseMatch DataConstructorVariable
+  deriving (Eq, Show, Read, Generic, NFData, Hashable)
+  
+type DataConstructorVariable = StringType
                        
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)

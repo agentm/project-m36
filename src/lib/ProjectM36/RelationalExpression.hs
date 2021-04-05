@@ -847,6 +847,7 @@ evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do
   argAtoms <- local mergeEnv $
     mapM (evalGraphRefAtomExpr tupIn) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
+evalGraphRefAtomExpr tupIn (Case expr matchCases) = unimplemented  
 
 typeForGraphRefAtomExpr :: Attributes -> GraphRefAtomExpr -> GraphRefRelationalExprM AtomType
 typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
