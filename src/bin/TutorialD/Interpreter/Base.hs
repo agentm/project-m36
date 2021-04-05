@@ -155,7 +155,7 @@ natural = Lex.integer <* spaceConsumer
 #endif
 
 float :: Parser Double
-float = Lex.float
+float = Lex.float <* spaceConsumer
 
 capitalizedIdentifier :: Parser Text
 capitalizedIdentifier =

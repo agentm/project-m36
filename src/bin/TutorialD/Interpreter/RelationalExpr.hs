@@ -235,7 +235,7 @@ constructedAtomExprP consume = do
 -- used only for primitive type parsing ?
 atomP :: Parser Atom
 atomP = stringAtomP <|>
-        doubleAtomP <|>
+        try doubleAtomP <|>
         integerAtomP <|>
         boolAtomP
 
@@ -250,7 +250,7 @@ stringAtomP :: Parser Atom
 stringAtomP = TextAtom <$> quotedString
 
 doubleAtomP :: Parser Atom
-doubleAtomP = DoubleAtom <$> try float
+doubleAtomP = DoubleAtom <$> float
 
 integerAtomP :: Parser Atom
 integerAtomP = IntegerAtom <$> integer
