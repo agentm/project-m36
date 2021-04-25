@@ -1,0 +1,22 @@
+#!/usr/bin/python3
+# this can be replaced with the path to your python executable
+# this is a vary hacky script just for visualisation of the json response
+import json
+import sys
+import re
+
+for line in sys.stdin:
+    parsed = json.loads(line)
+    jstr = json.dumps(parsed, indent=4, sort_keys=True)
+    leng = len(re.findall(r"((?: )*\"stage\": \")", jstr)[0])
+    l = jstr.encode('utf-8').decode('unicode_escape')
+    ls = l.split("\n")
+    res = ""
+    for i in ls:
+        if not re.match(r"(?: )*(?:{|\"\w|}|\[|\])", i):
+            spaces = leng
+            if re.match(r"(?: )*\",$", i):
+                spaces -= 1
+            i = " " * spaces + i
+        res += i + "\n"
+    print(res)
