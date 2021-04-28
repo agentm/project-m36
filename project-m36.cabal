@@ -129,6 +129,7 @@ Library
                      ProjectM36.NormalizeExpr,
                      ProjectM36.TransactionInfo,
                      ProjectM36.WithNameExpr
+                     ProjectM36.ShortCut
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.5.4.1
