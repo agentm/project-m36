@@ -16,6 +16,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
                      | EmptyAttributesError
                      | DuplicateAttributeNamesError (S.Set AttributeName)
+                     | NoMatchingCaseExpr 
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNamesMismatchError (S.Set AttributeName)
@@ -68,6 +69,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | EmptyCommitError
                      | FunctionArgumentCountMismatchError Int Int
                      | ConstructedAtomArgumentCountMismatchError Int Int
+                     | CaseMatchesExhausted
                      | NoSuchDataConstructorError DataConstructorName
                      | NoSuchTypeConstructorError TypeConstructorName
                      | InvalidAtomTypeName AtomTypeName

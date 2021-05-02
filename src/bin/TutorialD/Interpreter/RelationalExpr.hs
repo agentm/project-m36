@@ -211,6 +211,7 @@ atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
+            try caseP <|>
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
             attributeAtomExprP <|>
@@ -218,6 +219,20 @@ consumeAtomExprP consume = try functionAtomExprP <|>
             relationalAtomExprP
             
 
+caseP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+caseP = do
+  reserved "case"
+  expr <- atomExprP
+  reserved "of"
+  matches <- braces $ (,) <$> caseMatchP <*> atomExprB
+
+caseMatchP :: Parser CaseMatch
+caseMatchP =
+  (NakedAtomExprCaseMatch atomP) <|>
+  (DataConstructorCaseMatch <$> dataConstructorNameP <*> many caseMatchP) <|>
+  (VariableCaseMatch <$> dataConstructorVarNameP)
+  
+  
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
   _ <- string "@"

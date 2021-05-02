@@ -847,7 +847,37 @@ evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do
   argAtoms <- local mergeEnv $
     mapM (evalGraphRefAtomExpr tupIn) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
-evalGraphRefAtomExpr tupIn (Case expr matchCases) = unimplemented  
+evalGraphRefAtomExpr tupIn (Case expr matchCases) = do
+  expectedType <- typeForGraphRefAtomExpr (tupleAttributes tupIn) expr
+  --validate that the CaseMatches type match the expected type
+  --get transactionid for expr context
+  caseTypes <- mapM (typeForCaseMatch . fst) matchCases
+  let mMatchingCase = foldr (\case' acc -> acc <|> caseMatches expr case') Nothing matchCases
+  case mMatchingCase of
+    Nothing -> throwError NoMatchingCaseExpr
+    Just (atomExprMatch, caseMatchAttrs) ->
+      evalGraphRefAtomExpr atomExprMatch
+
+type CaseMatchAttributes a = M.Map AttributeName (AtomExprBase a)
+
+-- if the CaseMatch matches the AtomExpr, then fill in the attributes and return a complete AtomExpr
+caseMatches :: AtomExprBase a -> (CaseMatch, AtomExprBase a) -> Maybe (AtomExprBase a, CaseMatchAttributes a)
+caseMatches atomExpr (DataConstructorCaseMatch dName cmatches, _) = unimplemented
+caseMatches atomExpr (VariableCaseMatch dConsName, res) = 
+caseMatches m@(NakedAtomExpr a) (NakedAtomExprCaseMatch b, res) =
+  if a == b then
+    pure (res, mempty)
+    else
+    Nothing
+
+-- | determine if the first argument decomposes to the matching case match
+typeForCaseMatch :: GraphRefRelationalExpr -> (CaseMatch, GraphRefRelationalExpr) -> GraphRefRelationalExprM AtomType
+typeForCaseMatch deconsExpr (DataConstructorCaseMatch dConsName matchArgs) = do
+  tConsMap <- typeConstructorMapping tid
+  argTypes <- mapM (typeForCaseMatch tid) matchArgs
+  lift $ except $ atomTypeForDataConstructor tConsMap dConsName argsTypes
+typeForCaseMatch (VariableCaseMatch n) = pure (TypeVariableType n)
+typeForCaseMatch (NakedAtomExprCaseMatch atom) = pure (atomTypeForAtom atom)
 
 typeForGraphRefAtomExpr :: Attributes -> GraphRefAtomExpr -> GraphRefRelationalExprM AtomType
 typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do

@@ -466,12 +466,13 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a |
-                      Case (AtomExprBase a) [(DataConstructorCaseMatch, AtomExprBase a)]
+                      Case (AtomExprBase a) [(CaseMatch, AtomExprBase a)]
                     deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
-data DataConstructorCaseMatch =
-  DataConstructorCaseMatch DataConstructorName [DataConstructorCaseMatch] |
-  VariableCaseMatch DataConstructorVariable
+data CaseMatch =
+  DataConstructorCaseMatch DataConstructorName [CaseMatch] | -- ^ _Color a_
+  VariableCaseMatch DataConstructorVariable | -- ^ Color _a_
+  NakedAtomExprCaseMatch Atom -- ^ 3
   deriving (Eq, Show, Read, Generic, NFData, Hashable)
   
 type DataConstructorVariable = StringType

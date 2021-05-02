@@ -33,7 +33,7 @@ singularTransaction expr
   where
     transSet = foldr S.insert S.empty expr
 
--- | Return True if two 'GraphRefRelationalExpr's both refer exclusively to the same transaction (or none at all).
+-- | Return transaction marker if two 'GraphRefRelationalExpr's both refer exclusively to the same transaction (or none at all).
 inSameTransaction :: GraphRefRelationalExpr -> GraphRefRelationalExpr -> Maybe GraphRefTransactionMarker
 inSameTransaction exprA exprB = case (stA, stB) of
   (SingularTransactionRef tA, SingularTransactionRef tB) | tA == tB -> Just tA
