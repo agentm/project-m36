@@ -59,43 +59,11 @@ import qualified Web.Scotty as S
 --      with the help of plants. \\
 --      This is a very simple example and of course not how
 --      plants grow in nature. \\
---      The main goal of this example is to showcas the updating
---      of data and the different options of persistance.
-
-
-
--- |    Here is a python script for pretty printing the output \
---      if you include the acii:
-{-|
-#!/usr/bin/python3
-# this can be replaced with the path to your python executable
-# this is a vary hacky script just for visualisation of the json response
-import json
-import sys
-import re
-
-for line in sys.stdin:
-    parsed = json.loads(line)
-    jstr = json.dumps(parsed, indent=4, sort_keys=True)
-    leng = len(re.findall(r"((?: )*\"stage\": \")", jstr)[0])
-    l = jstr.encode('utf-8').decode('unicode_escape')
-    ls = l.split("\n")
-    res = ""
-    for i in ls:
-        if not re.match(r"(?: )*(?:{|\"\w|}|\[|\])", i):
-            spaces = leng
-            if re.match(r"(?: )*\",$", i):
-                spaces -= 1
-            i = " " * spaces + i
-        res += i + "\n"
-    print(res)
--}
---      Either you make it executable with chmod +x scriptfilename or you \
---      execute it with python3 scriptfilename. \
---      Either way you then can use it to prettyprint when making a request. \
---      You can just pipe the putput form culr for eamxple into this command:
+--      The main goal of this example is to showcase the updating
+--      of data and the different options of persistence.
+--      You can just pipe the output from curl into jq:
 --
---      curl -X POST -H 'Accept: application/json' localhost:8001/plant/water/angu | python3 scriptfilename
+--      curl -X POST -H 'Accept: application/json' http://localhost:8001/plant/water/angu | jq -r '.stage'
 
 
 data Stage = Seed | Sprout | Seedling | Adult | Dead
@@ -176,7 +144,7 @@ main = do
   putStrLn $ "Started Plant farm at " <> show port
   S.scotty port $ do
 
-    --  retive a plant by name
+    --  retrieve a plant by name
     S.get "/plant/:name" $ do
         n <- S.param "name"
         e <- liftIO $ getPlant c n
@@ -199,7 +167,7 @@ main = do
         S.json p
 
     --  watering the plant having the provided name.
-    --  This will water the plant and migth let it progress to the next stage. It might also die.
+    --  This will water the plant and might let it progress to the next stage. It might also die.
     S.post "/plant/water/:name" $ do
       n <- S.param "name"
       e <- liftIO $ waterPlant c n
@@ -219,14 +187,14 @@ main = do
         p <- handleWebError e
         S.json p
 
-    --  deleting all plants at a speciffic stage
+    --  deleting all plants at a specific stage
     S.delete "/plants?stage=:stage" $ do
       s <- S.param "stage"
       e <- liftIO $ deletePlantsByStage c s
       p <- handleWebError e
       S.json p
 
-    --  deleting all plants at a speciffic stage
+    --  deleting all plants at a specific stage
     S.delete "/plants" $ do
       s <- S.param "name"
       e <- liftIO $ deletePlantByName c s
@@ -240,17 +208,17 @@ main = do
       S.json ps
 
 handleWebError :: Either Err b -> S.ActionM b
-handleWebError (Left e) = S.raise (TL.pack $ "An error Orrcured:\n" <> show e)
+handleWebError (Left e) = S.raise (TL.pack $ "An error occurred:\n" <> show e)
 handleWebError (Right v) = pure v
 
 handleWebErrors :: [Either Err b] -> S.ActionM [b]
 handleWebErrors e = do
   case lefts e of
     [] -> pure (rights e)
-    l -> S.raise (TL.pack $ "Errors Orrcured:\n" <> concatMap ((<>"\n") . show)l)
+    l -> S.raise (TL.pack $ "Errors occurred:\n" <> concatMap ((<>"\n") . show) l)
 
 
--- |    watering a plant and therby possibly updating its stage
+-- |    watering a plant and thereby possibly updating its stage
 waterPlant :: DBConnection -> Text -> IO (Either Err Plant)
 waterPlant db n = do
   p <- getPlant db n
@@ -271,9 +239,9 @@ updateStage db p = do
   case tmp of
     Left e  -> pure $ Left e
     Right _ -> pure $ Right res
-  where calculateStage p = do
+  where calculateStage p' = do
           r1 <- R.randomRIO (1, 10) :: IO Integer
-          let np = if r1 < waterings p then p { stage = next $ stage p, waterings = 0 } else p
+          let np = if r1 < waterings p' then p' { stage = next $ stage p', waterings = 0 } else p'
           r2 <- R.randomRIO (1, 20)
           pure $ if r2 < waterings np then np { stage = Dead, waterings = 0 } else np
 
@@ -419,7 +387,7 @@ update db rlv attr rlvName = executeWithTransaction db $ toUpdateExpr rlvName at
 delete :: (Tupleable a) => DBConnection -> a -> [AttributeName]-> Base.RelVarName -> IO (Either Err ())
 delete db rlv attr rlvName = executeWithTransaction db $ toDeleteExpr rlvName attr rlv
 
--- |    A convinience function to make executing DBContextExpr with commiting simpler. \\
+-- |    A convenience function to make executing DBContextExpr with commiting simpler. \\
 --      In particular for expr that just insert, delete and update.
 --      Therefor ultimately return Either _ ()
 executeWithTransaction :: DBConnection -> Either RelationalError DatabaseContextExpr -> IO (Either Err ())
@@ -448,7 +416,7 @@ closeConn (DB _ conn) = close conn
 
 -- |    Error handling is heavily inspired by 'blog.hs' the blog example \\
 --      by (agentm)[https://github.com/agentm] (https://github.com/agentm/project-m36, commit: f8432522adaafeae7c32bc2b8b6cb09c00396fc6). \\
---      As stated there your application should have propper error handling.
+--      As stated there, your application should have proper error handling.
 handleIOErrorAndQuit :: Show e => IO (Either e a) -> IO a
 handleIOErrorAndQuit m = do
   v <- m

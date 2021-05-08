@@ -404,7 +404,7 @@ Executable Example-Plantfarm
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends:  aeson, barbies, base, binary, containers, deepseq, hashable, project-m36, random, scotty, text, winery
-    Main-Is: examples/Plantfarm/Plantfarm.hs
+    Main-Is: examples/Plantfarm.hs
     GHC-Options: -Wall -threaded
 
 Executable Example-CustomTupleable
