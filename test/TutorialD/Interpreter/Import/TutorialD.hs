@@ -31,7 +31,7 @@ testTutdFileImport = TestCase $
           Assign "y" (MakeRelationFromExprs Nothing 
                       $ TupleExprs () [TupleExpr (M.fromList [("b", NakedAtomExpr (TextAtom "漢字"))])])]
     --on Windows, the file URI should not include the drive letter "/c/Users..." -> "/Users"
-    let uri = "file://" <> map (\c -> if c == '\\' then '/' else c) ( joinDrive "/" (dropDrive (tempPath)))
+    let uri = "file://" <> map (\c -> if c == '\\' then '/' else c) ( joinDrive "/" (dropDrive tempPath))
     fileURI <- mkURI (T.pack uri)
     imported <- importTutorialDFromFile fileURI Nothing
     assertEqual "import tutd" (Right expectedExpr) imported
