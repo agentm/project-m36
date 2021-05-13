@@ -60,7 +60,7 @@ instance KnownSymbol x => IsLabel x RelationalExpr where
 --
 -- ps. I don't understand the usage of "AttributeAndTypeNameExpr AttributeName TypeConstructor a"
 instance (KnownSymbol x, Atomable a)=> IsLabel x (HaskAtomType a -> AttributeExpr) where
-  fromLabel atyn = NakedAttributeExpr (Attribute name atyn) . toAtomType''
+  fromLabel = (NakedAttributeExpr . Attribute name) . toAtomType''
     where name = T.pack $ symbolVal @x Proxy
 
 -- (#a 1) :: ExtendTupleExpr
