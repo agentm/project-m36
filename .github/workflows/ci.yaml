@@ -48,10 +48,10 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.stack
-          key: ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
+          key: ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}-${{ hashFiles(env.STACK_YAML) }}
-            ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}
+            ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}
+            ${{ runner.os }}-build-stack-${{ matrix.ghc }}
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
