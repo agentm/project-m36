@@ -40,23 +40,22 @@ jobs:
         include:
           - os: macos-latest
             ghc: ghc8.10
+    env:
+      STACK_YAML: stack.${{ matrix.ghc }}.yaml
     steps:
-      - name: Setup
-        run: |
-          echo "::set-env name=stack-yaml::stack.${{ matrix.ghc }}.yaml"
       - uses: actions/checkout@v2
       - name: Cache
         uses: actions/cache@v1
         with:
           path: ~/.stack
-          key: ${{ runner.os }}-build-stack-${{ env.stack-yaml }}-${{ hashFiles(env.stack-yaml) }}-${{ hashFiles('**/*.cabal') }}
+          key: ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-build-stack-${{ env.stack-yaml }}-${{ hashFiles(env.stack-yaml) }}
-            ${{ runner.os }}-build-stack-${{ env.stack-yaml }}
+            ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}-${{ hashFiles(env.STACK_YAML) }}
+            ${{ runner.os }}-build-stack-${{ env.STACK_YAML }}
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
-        run: stack test --stack-yaml=${{ env.stack-yaml }}
+        run: stack test --stack-yaml=${{ env.STACK_YAML }}
       - name: HLint
         run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Haddock
