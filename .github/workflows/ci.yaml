@@ -18,6 +18,7 @@ jobs:
       - name: docker load
         run: docker load < $(nix-build docker.nix)
       - name: docker login
+        if: ${{ github.ref == 'refs/heads/master' }}
         run: echo ${{secrets.DOCKERHUB_PASSWORD}} | docker login --username ${{secrets.DOCKERHUB_USER}} --password-stdin
       - name: docker tag with version
         run: docker tag project-m36:latest projectm36/project-m36:$(awk '/^Version:/ {print $2}' project-m36.cabal)
