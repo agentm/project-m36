@@ -4,7 +4,7 @@
 }:
 let
   release = import ./release.nix { inherit pkgs compiler sources; };
-  static-project-m36 = pkgs.haskell.lib.justStaticExecutables release.project;
+  static-project-m36 = pkgs.haskell.lib.dontCheck (pkgs.haskell.lib.justStaticExecutables release.project);
 in
 pkgs.dockerTools.buildImage {
   name = "project-m36";
