@@ -202,7 +202,7 @@ Join (Instructor relation)
 
 (Course Relation)
 
-|(Course Name, Course Name Type)|(Instructor, Instructor Name Type)|(Course Room Number, Room Number Type)|
+|(Course Name, Course Name Type)|(Instructor Name, Instructor Name Type)|(Course Room Number, Room Number Type)|
 |-------------------------------|----------------------------------|--------------------------------------|
 |English 1|Steve|Room 104|
 |French 2|Bob|Room 103|
