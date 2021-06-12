@@ -53,6 +53,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}
             ${{ runner.os }}-build-stack-${{ matrix.ghc }}
+      - name: Fix macOS cache bug
+        run: rm -rf ~/.stack/setup-exe-cache
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
