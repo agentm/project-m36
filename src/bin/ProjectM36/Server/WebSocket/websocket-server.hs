@@ -1,18 +1,24 @@
 {-# LANGUAGE CPP #-}
-import ProjectM36.Server.WebSocket
+
+import Control.Concurrent
+import Control.Exception
+import Data.String (fromString)
+import Network.HTTP.Types (status400)
+import Network.Socket
+import Network.Wai (Application, responseLBS)
+import Network.Wai.Handler.Warp
+import qualified Network.Wai.Handler.WebSockets as WS
+import Network.WebSockets (defaultConnectionOptions)
+import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Server.ParseArgs
-import ProjectM36.Server
-import Control.Concurrent
-import qualified Network.WebSockets as WS
-import Control.Exception
-import Network.Socket
+import ProjectM36.Server.WebSocket
 
 main :: IO ()
 main = do
   -- launch normal project-m36-server
   addressMVar <- newEmptyMVar
-  serverConfig <- parseConfigWithDefaults (defaultServerConfig { bindPort = 8000, bindHost = "127.0.0.1" })
+  serverConfig <- parseConfigWithDefaults (defaultServerConfig {bindPort = 8000, bindHost = "127.0.0.1"})
   --usurp the serverConfig for our websocket server and make the proxied server run locally
   let wsHost = bindHost serverConfig
       wsPort = bindPort serverConfig
@@ -25,6 +31,19 @@ main = do
         case addr of
           SockAddrInet port' _ -> fromIntegral port'
           _ -> error "unsupported socket address (IPv4 only currently)"
-  --this built-in server is apparently not meant for production use, but it's easier to test than starting up the wai or snap interfaces
-  WS.runServer wsHost (fromIntegral wsPort) (websocketProxyServer port serverHost)
+      wsApp = websocketProxyServer port serverHost
+      waiApp = WS.websocketsOr defaultConnectionOptions wsApp backupApp
+      settings = warpSettings wsHost (fromIntegral wsPort)
+  runSettings settings waiApp
 
+backupApp :: Application
+backupApp _ respond = respond $ responseLBS status400 [] "Not a WebSocket request"
+
+warpSettings :: HostName -> Port -> Settings
+warpSettings host port =
+  setHost (fromString host)
+    . setPort port
+    . setServerName "project-m36"
+    . setTimeout 3600
+    . setGracefulShutdownTimeout (Just 5)
+    $ defaultSettings
