@@ -431,6 +431,7 @@ isStaticAtomExpr ConstructedAtomExpr{} = True
 isStaticAtomExpr AttributeAtomExpr{} = False
 isStaticAtomExpr FunctionAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
+isStaticAtomExpr CaseAtomExpr{} = False
 
 --if the projection of a join only uses the attributes from one of the expressions and there is a foreign key relationship between the expressions, we know that the join is inconsequential and can be removed
 applyStaticJoinElimination :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr

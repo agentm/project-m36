@@ -128,6 +128,10 @@ processTransGraphAtomExpr (RelationAtomExpr expr) =
   RelationAtomExpr <$> processTransGraphRelationalExpr expr
 processTransGraphAtomExpr (ConstructedAtomExpr dConsName args tLookup) =
   ConstructedAtomExpr dConsName <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
+processTransGraphAtomExpr (CaseAtomExpr matchExpr caseMatches) =
+  CaseAtomExpr <$> processTransGraphAtomExpr matchExpr
+               <*> mapM (\(cMatch, resultExpr) -> (,) cMatch <$> processTransGraphAtomExpr resultExpr) caseMatches
+  
 evalTransGraphRestrictionPredicateExpr :: TransGraphRestrictionPredicateExpr -> TransGraphEvalMonad GraphRefRestrictionPredicateExpr
 evalTransGraphRestrictionPredicateExpr TruePredicate = pure TruePredicate
 evalTransGraphRestrictionPredicateExpr (AndPredicate exprA exprB) = do

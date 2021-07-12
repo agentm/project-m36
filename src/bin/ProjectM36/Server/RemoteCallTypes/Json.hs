@@ -33,6 +33,9 @@ instance FromJSON RestrictionPredicateExpr
 instance ToJSON AtomExpr
 instance FromJSON AtomExpr
 
+instance ToJSON CaseMatch
+instance FromJSON CaseMatch
+
 instance ToJSON RelationTupleSet
 instance FromJSON RelationTupleSet
 

@@ -1,5 +1,6 @@
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
+import qualified Data.List.NonEmpty as NE
 
 -- substitute all instances of With-based macros to remove macro context
 -- ideally, we would use a different relational expr type to "prove" that the with macros can no longer exist
@@ -84,3 +85,4 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
+    CaseAtomExpr matchAtomExpr caseMatches -> CaseAtomExpr (substituteWithNameMacrosAtomExpr macros matchAtomExpr) (NE.map (\(match, atomExpr') -> (match, substituteWithNameMacrosAtomExpr macros atomExpr')) caseMatches)

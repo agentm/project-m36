@@ -14,6 +14,7 @@ import Data.Time.Calendar
 import Data.Time.Clock.POSIX
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text.Encoding as TE
+import qualified Data.List.NonEmpty as NE
 
 instance Pretty Atom where
   pretty (IntegerAtom x) = pretty x
@@ -37,6 +38,14 @@ instance Pretty AtomExpr where
   pretty (RelationAtomExpr relExpr) = pretty relExpr
   pretty (ConstructedAtomExpr dName [] _) = pretty dName
   pretty (ConstructedAtomExpr dName atomExprs _) = pretty dName <+> hsep (map prettyAtomExpr atomExprs)
+  pretty (CaseAtomExpr atomExpr matches) = "case" <+> pretty atomExpr <+> "of" <+> bracesList (map prettyMatch (NE.toList matches))
+    where
+      prettyMatch (cMatch, atomExprResult) = pretty cMatch <+> "->" <+> pretty atomExprResult
+
+instance Pretty CaseMatch where
+  pretty (DataConstructorCaseMatch dConsName args) = pretty dConsName <+> prettyList args
+  pretty (VariableCaseMatch nam) = pretty nam
+  pretty (NakedAtomExprCaseMatch atom) = pretty atom
                                            
 prettyAtomExpr :: AtomExpr -> Doc ann
 prettyAtomExpr atomExpr =

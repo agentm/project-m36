@@ -34,6 +34,7 @@ import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Calendar (fromGregorian)
+import Data.Either
 
 main :: IO ()
 main = do
@@ -81,7 +82,8 @@ main = do
       testRelationDeclarationMismatch,
       testInvalidTuples,
       testSelfReferencingUncommittedContext,
-      testUnionAndIntersectionAttributeExprs
+      testUnionAndIntersectionAttributeExprs,
+      testCaseExprs
       ]
 
 simpleRelTests :: Test
@@ -729,4 +731,41 @@ testUnionAndIntersectionAttributeExprs = TestCase $ do
   executeTutorialD sessionId dbconn "y:=s{union of {all but sname} {sname}}"
   yRel <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
   assertEqual "union attrs" (Right suppliersRel) yRel
+
+testCaseExprs :: Test
+testCaseExprs = TestCase $ do 
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  --test negative cases:
+  -- fail to make a case with no matching exprs
+  let case1 = parseTutorialD ":showexpr relation{tuple{a case 5 of {}}}"
+  assertBool "case 1" (isLeft case1)
   
+  -- fail to make a case with mismatching outcome atom types
+  let case2Err = T.isPrefixOf "AtomTypeMismatch"
+  expectTutorialDErr sessionId dbconn case2Err ":showexpr relation{tuple{a case 5 of { 5 -> 5; 4 -> \"x\"}}}"
+  -- fail to make a case with ambiguous outcome atom type
+  let case3Err = T.isPrefixOf "TypeConstructorTypeVarMissing"
+  expectTutorialDErr sessionId dbconn case3Err ":showexpr relation{tuple{a case 5 of { 5 -> Nothing}}}"
+
+  --test positive cases:
+  -- match Integers
+  let getX = executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+      xAttrs = attributesFromList [Attribute "a" TextAtomType]
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case 5 of {5 -> \"a\"; 6 -> \"b\"}}}"
+  eX <- getX
+  
+  assertEqual "integer case match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX
+
+  -- match text
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case \"test\" of { \"dud\" -> \"b\"; \"test\" -> \"a\" }}}"
+  eX2 <- getX
+  assertEqual "text case match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX2
+  
+  -- match first outcome when matching overlaps
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case 5 of { 5 -> \"a\"; 5 -> \"b\" }}}"
+  eX3 <- getX
+  assertEqual "overlapping case match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX3 
+  
+  -- match Maybe a
+  
+  -- match custom deconstructed ADT

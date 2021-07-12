@@ -14,6 +14,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
+import qualified Data.List.NonEmpty as NE
 
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
@@ -211,7 +212,7 @@ atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
-            try caseP <|>
+            caseP <|>
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
             attributeAtomExprP <|>
@@ -224,13 +225,16 @@ caseP = do
   reserved "case"
   expr <- atomExprP
   reserved "of"
-  matches <- braces $ (,) <$> caseMatchP <*> atomExprB
+  matches <- braces $
+    sepBy1 ((,) <$> (caseMatchP <* reserved "->") <*> atomExprP) semi
+  pure (CaseAtomExpr expr (NE.fromList matches))
 
 caseMatchP :: Parser CaseMatch
 caseMatchP =
-  (NakedAtomExprCaseMatch atomP) <|>
+  (NakedAtomExprCaseMatch <$> atomP) <|>
   (DataConstructorCaseMatch <$> dataConstructorNameP <*> many caseMatchP) <|>
-  (VariableCaseMatch <$> dataConstructorVarNameP)
+  (VariableCaseMatch <$> dataConstructorVarNameP) <|>
+  (reserved "_" *> pure AnyCaseMatch)
   
   
 attributeAtomExprP :: Parser (AtomExprBase a)

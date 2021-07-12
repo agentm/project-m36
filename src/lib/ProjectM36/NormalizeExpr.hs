@@ -114,6 +114,7 @@ processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
   FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askMarker
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
 processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askMarker
+processAtomExpr (CaseAtomExpr atomExpr matches) = CaseAtomExpr <$> processAtomExpr atomExpr <*> mapM (\(m,resultExpr) -> (,) m <$> processAtomExpr resultExpr) matches
 
 processTupleExprs :: TupleExprs -> ProcessExprM GraphRefTupleExprs
 processTupleExprs (TupleExprs () tupleExprs) = do

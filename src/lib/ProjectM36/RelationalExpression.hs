@@ -42,6 +42,7 @@ import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
+import Data.Foldable
 import Control.Applicative
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
@@ -847,37 +848,46 @@ evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do
   argAtoms <- local mergeEnv $
     mapM (evalGraphRefAtomExpr tupIn) dConsArgs
   pure (ConstructedAtom dConsName aType argAtoms)
-evalGraphRefAtomExpr tupIn (Case expr matchCases) = do
-  expectedType <- typeForGraphRefAtomExpr (tupleAttributes tupIn) expr
+evalGraphRefAtomExpr tupIn (CaseAtomExpr atomExpr matchCases) = do
   --validate that the CaseMatches type match the expected type
   --get transactionid for expr context
-  caseTypes <- mapM (typeForCaseMatch . fst) matchCases
-  let mMatchingCase = foldr (\case' acc -> acc <|> caseMatches expr case') Nothing matchCases
+  --caseTypes <- mapM typeForCaseMatch matchCases
+  let matchFolder (Just acc) _ = Just acc
+      matchFolder Nothing case' = caseMatches atomExpr case'
+      mMatchingCase = foldl' matchFolder Nothing matchCases
   case mMatchingCase of
     Nothing -> throwError NoMatchingCaseExpr
-    Just (atomExprMatch, caseMatchAttrs) ->
-      evalGraphRefAtomExpr atomExprMatch
+    Just (atomExprMatch, _) ->
+      evalGraphRefAtomExpr tupIn atomExprMatch
 
 type CaseMatchAttributes a = M.Map AttributeName (AtomExprBase a)
 
 -- if the CaseMatch matches the AtomExpr, then fill in the attributes and return a complete AtomExpr
 caseMatches :: AtomExprBase a -> (CaseMatch, AtomExprBase a) -> Maybe (AtomExprBase a, CaseMatchAttributes a)
-caseMatches atomExpr (DataConstructorCaseMatch dName cmatches, _) = unimplemented
-caseMatches atomExpr (VariableCaseMatch dConsName, res) = 
-caseMatches m@(NakedAtomExpr a) (NakedAtomExprCaseMatch b, res) =
+caseMatches _atomExpr (DataConstructorCaseMatch _dName _cmatches, _) = unimplemented
+caseMatches _atomExpr (VariableCaseMatch _dConsName, _res) = unimplemented
+caseMatches (NakedAtomExpr a) (NakedAtomExprCaseMatch b, res) =
   if a == b then
     pure (res, mempty)
     else
     Nothing
+caseMatches _ (NakedAtomExprCaseMatch _ , _) = Nothing
+caseMatches _ (AnyCaseMatch, result) = Just (result, mempty)
 
 -- | determine if the first argument decomposes to the matching case match
-typeForCaseMatch :: GraphRefRelationalExpr -> (CaseMatch, GraphRefRelationalExpr) -> GraphRefRelationalExprM AtomType
-typeForCaseMatch deconsExpr (DataConstructorCaseMatch dConsName matchArgs) = do
-  tConsMap <- typeConstructorMapping tid
-  argTypes <- mapM (typeForCaseMatch tid) matchArgs
-  lift $ except $ atomTypeForDataConstructor tConsMap dConsName argsTypes
-typeForCaseMatch (VariableCaseMatch n) = pure (TypeVariableType n)
-typeForCaseMatch (NakedAtomExprCaseMatch atom) = pure (atomTypeForAtom atom)
+typeForCaseMatch :: (CaseMatch, GraphRefAtomExpr) -> GraphRefRelationalExprM AtomType
+typeForCaseMatch (DataConstructorCaseMatch dConsName matchArgs, aExpr) =
+  case singularTransaction aExpr of
+    NoTransactionsRef -> throwError TupleExprsReferenceMultipleMarkersError -- perhaps this warrants a new error
+    MultipleTransactionsRef -> throwError TupleExprsReferenceMultipleMarkersError -- perhaps this warrants a new error
+    SingularTransactionRef tid -> do
+      tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker tid
+      argTypes <- mapM (\a -> (typeForCaseMatch (a, aExpr))) matchArgs
+      lift $ except $ atomTypeForDataConstructor tConsMap dConsName argTypes
+      
+typeForCaseMatch (VariableCaseMatch n, _) = pure (TypeVariableType n)
+typeForCaseMatch (NakedAtomExprCaseMatch atom, _) = pure (atomTypeForAtom atom)
+typeForCaseMatch (AnyCaseMatch, atomExpr) = typeForGraphRefAtomExpr mempty atomExpr
 
 typeForGraphRefAtomExpr :: Attributes -> GraphRefAtomExpr -> GraphRefRelationalExprM AtomType
 typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
@@ -917,6 +927,12 @@ typeForGraphRefAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs tid) =
     argsTypes <- mapM (typeForGraphRefAtomExpr attrs) dConsArgs
     tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker tid
     lift $ except $ atomTypeForDataConstructor tConsMap dConsName argsTypes
+typeForGraphRefAtomExpr attrs (CaseAtomExpr _ matches) = do
+  let typeFolder acc (_, atomExpr) = do
+        nextType <- typeForGraphRefAtomExpr attrs atomExpr
+        lift $ except $ atomTypeVerify acc nextType
+  startType <- typeForGraphRefAtomExpr attrs (snd (NE.head matches))
+  foldM typeFolder startType (NE.tail matches)
 
 -- | Validate that the type of the AtomExpr matches the expected type.
 verifyGraphRefAtomExprTypes :: Relation -> GraphRefAtomExpr -> AtomType -> GraphRefRelationalExprM AtomType
@@ -959,6 +975,13 @@ verifyGraphRefAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType =
 verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do
   cType <- typeForGraphRefAtomExpr (attributes rel) cons
   lift $ except $ atomTypeVerify expectedType cType
+verifyGraphRefAtomExprTypes relIn (CaseAtomExpr _matchExpr matches) expectedType = do
+  mapM_
+    (\(_,resultExpr) -> do        
+        oneType <- typeForGraphRefAtomExpr (attributes relIn) resultExpr
+        lift $ except $ atomTypeVerify expectedType oneType
+    ) matches
+  pure expectedType
 
 -- | Look up the type's name and create a new attribute.
 evalGraphRefAttrExpr :: GraphRefAttributeExpr -> GraphRefRelationalExprM Attribute
@@ -1380,6 +1403,7 @@ instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
   resolve (RelationAtomExpr expr) = RelationAtomExpr <$> resolve expr
   resolve (ConstructedAtomExpr dConsName atomExprs marker) =
     ConstructedAtomExpr dConsName <$> mapM resolve atomExprs <*> pure marker
+  resolve (CaseAtomExpr atomExpr caseMatches') = CaseAtomExpr <$> resolve atomExpr <*> mapM (\(cMatch, resultExpr) -> (,) cMatch <$> resolve resultExpr) caseMatches'
 
 --convert series of simple Union queries into MakeStaticRelation
 -- this is especially useful for long, nested applications of Union with simple tuples
