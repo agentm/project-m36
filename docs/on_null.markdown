@@ -92,13 +92,13 @@ postgres=# select * from x natural join x as y;
 ```
 Example 6: Return rows in x where the same row appears in x.
 ```
-postgres=# select * from x where exists (SELECT * FROM x as y where (a,b) = (y.a,y.b));
- a |   b   
----+-------
+postgres=# select * from x as z where exists (SELECT * FROM x as y where (z.a,z.b) = (y.a,y.b));
+ a |  b  
+---+-----
  1 | one
  2 | two
-   | three
-(3 rows)
+(2 rows)
+
 ````
 
 All of the above query examples conform to the SQL standard with regards to NULL handling.
