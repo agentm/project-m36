@@ -767,5 +767,20 @@ testCaseExprs = TestCase $ do
   assertEqual "overlapping case match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX3 
   
   -- match Maybe a
-  
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just 6 -> \"b\"; Just 5 -> \"a\"; Nothing -> \"c\"}}}"
+  eX4 <- getX
+  assertEqual "maybe type case match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX4 
+
   -- match custom deconstructed ADT
+  executeTutorialD sessionId dbconn "data Hair = Blond | Color Text; x:=relation{tuple{a case Color \"Test\" of { Blond -> \"a\"; Color v -> @v }}}"
+  eX5 <- getX
+  assertEqual "ADT attribute match" (mkRelationFromList xAttrs [[TextAtom "Test"]]) eX5
+
+{-  -- match variable
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just a -> @a }}}"
+  eX6 <- getX
+  -}
+  --match anything
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just 6 -> \"b\"; _ -> \"a\" }}}"
+  eX7 <- getX
+  assertEqual "anything match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX7

@@ -7,7 +7,6 @@ import Control.Monad.Except hiding (join)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
-import Control.Monad (foldM)
 import qualified Data.HashSet as HS
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither

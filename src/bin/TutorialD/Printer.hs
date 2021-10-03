@@ -45,7 +45,8 @@ instance Pretty AtomExpr where
 instance Pretty CaseMatch where
   pretty (DataConstructorCaseMatch dConsName args) = pretty dConsName <+> prettyList args
   pretty (VariableCaseMatch nam) = pretty nam
-  pretty (NakedAtomExprCaseMatch atom) = pretty atom
+  pretty (AtomCaseMatch atom) = pretty atom
+  pretty AnyCaseMatch = "_"
                                            
 prettyAtomExpr :: AtomExpr -> Doc ann
 prettyAtomExpr atomExpr =

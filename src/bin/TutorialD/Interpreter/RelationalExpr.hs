@@ -214,7 +214,7 @@ consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
             caseP <|>
             try (parens (constructedAtomExprP True)) <|>
-            constructedAtomExprP consume <|>
+            try (constructedAtomExprP consume) <|>
             attributeAtomExprP <|>
             try nakedAtomExprP <|>
             relationalAtomExprP
@@ -231,7 +231,7 @@ caseP = do
 
 caseMatchP :: Parser CaseMatch
 caseMatchP =
-  (NakedAtomExprCaseMatch <$> atomP) <|>
+  (AtomCaseMatch <$> try atomP) <|>
   (DataConstructorCaseMatch <$> dataConstructorNameP <*> many caseMatchP) <|>
   (VariableCaseMatch <$> dataConstructorVarNameP) <|>
   (reserved "_" *> pure AnyCaseMatch)
@@ -248,7 +248,7 @@ nakedAtomExprP = NakedAtomExpr <$> atomP
 constructedAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 constructedAtomExprP consume = do
   dConsName <- dataConstructorNameP
-  dConsArgs <- if consume then sepBy (consumeAtomExprP False) spaceConsumer else pure []
+  dConsArgs <- if consume then sepBy (try (consumeAtomExprP False)) spaceConsumer else pure []
   ConstructedAtomExpr dConsName dConsArgs <$> parseMarkerP
 
 -- used only for primitive type parsing ?

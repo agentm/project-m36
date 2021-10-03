@@ -472,7 +472,7 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
 data CaseMatch =
   DataConstructorCaseMatch DataConstructorName [CaseMatch] | -- ^ _Color a_
   VariableCaseMatch DataConstructorVariable | -- ^ Color _a_
-  NakedAtomExprCaseMatch Atom | -- ^ 3
+  AtomCaseMatch Atom | -- ^ 3
   AnyCaseMatch -- ^ underscore- match anything
   deriving (Eq, Show, Read, Generic, NFData, Hashable)
   

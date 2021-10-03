@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, CPP #-}
+{-# LANGUAGE DeriveGeneric, CPP, OverloadedStrings #-}
 module TutorialD.Interpreter.Base (
   module TutorialD.Interpreter.Base,
   module Text.Megaparsec,
@@ -90,7 +90,8 @@ opChar :: Parser Char
 opChar = oneOf (":!#$%&*+./<=>?\\^|-~" :: String)-- remove "@" so it can be used as attribute marker without spaces
 
 reserved :: ParseStr -> Parser ()
-reserved word = try (string word *> notFollowedBy opChar *> spaceConsumer)
+reserved word =
+  string word *> notFollowedBy opChar *> spaceConsumer
 
 reservedOp :: ParseStr -> Parser ()
 reservedOp op = try (spaceConsumer *> string op *> notFollowedBy opChar *> spaceConsumer)
@@ -158,12 +159,23 @@ float :: Parser Double
 float = Lex.float <* spaceConsumer
 
 capitalizedIdentifier :: Parser Text
-capitalizedIdentifier =
-  upperChar >>= identifierRemainder
+capitalizedIdentifier = do
+  word <- upperChar >>= identifierRemainder
+  if word `elem` reservedWordList then
+    fail . T.unpack $ "\"" <> word <> "\" is a reserved word"
+    else
+    pure word
 
 uncapitalizedIdentifier :: Parser Text
-uncapitalizedIdentifier =
-  lowerChar >>= identifierRemainder
+uncapitalizedIdentifier = do
+  word <- lowerChar >>= identifierRemainder
+  if word `elem` reservedWordList then
+    fail . T.unpack $ "\"" <> word <> "\" is a reserved word"
+    else
+    pure word
+
+reservedWordList :: [Text]
+reservedWordList = ["case", "of"]
 
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"

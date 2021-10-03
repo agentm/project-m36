@@ -31,7 +31,6 @@ module ProjectM36.Client.Simple (
   ) where
 
 import Control.Exception.Base
-import Control.Monad ((<=<))
 import Control.Monad.Reader
 import ProjectM36.Base
 import qualified ProjectM36.Client as C
