@@ -133,7 +133,7 @@ addBranch stamp' newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) graph = addTransactionToGraph headName newTrans graph
+addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName newTrans
   where
     newTrans = Transaction newId newTInfo schemas'
     newTInfo = TI.singleParent parentId stamp'
