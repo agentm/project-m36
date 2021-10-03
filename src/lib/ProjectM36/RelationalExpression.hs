@@ -922,7 +922,7 @@ verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName funcArgExprs tid) e
       lift $ except $ atomTypeVerify expectedType (last expectedArgTypes)
 verifyGraphRefAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType =
   do
-    let mergedAttrsEnv e = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn) e
+    let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn)
     relType <- R.local mergedAttrsEnv (typeForGraphRefRelationalExpr relationExpr)
     lift $ except $ atomTypeVerify expectedType (RelationAtomType (attributes relType))
 verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do
