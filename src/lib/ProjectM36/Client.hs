@@ -141,7 +141,6 @@ import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
 import Data.Hashable
-import Control.Exception (IOException, handle, AsyncException, throwIO, fromException, Exception)
 import Control.Concurrent.MVar
 import Codec.Winery hiding (Schema, schema)
 import qualified Data.Map as M
