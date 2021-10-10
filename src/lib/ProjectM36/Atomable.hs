@@ -132,6 +132,10 @@ instance (Atomable a, Atomable b) => Atomable (Either a b) where
   fromAtom (ConstructedAtom "Right" _ [val]) = Right (fromAtom val)
   fromAtom _ = error "improper fromAtom (Either a b)"
   
+  toAtomType _ = ConstructedAtomType "Either" (M.fromList [("a", toAtomType (Proxy :: Proxy a)),
+                                                           ("b", toAtomType (Proxy :: Proxy b))])
+
+  
 --convert to ADT list  
 instance Atomable a => Atomable [a] where
   toAtom [] = ConstructedAtom "Empty" (listAtomType (toAtomType (Proxy :: Proxy a))) []
