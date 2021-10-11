@@ -30,7 +30,19 @@ import Data.Vector.Instances ()
 type StringType = Text
 
 type DatabaseName = String
-  
+
+#if !(MIN_VERSION_hashable(1,3,4))
+--support for hashable < 1.3, hashable 1.3+ includes instance for containers
+instance Hashable (M.Map TypeVarName AtomType) where 
+  hashWithSalt salt tvmap = hashWithSalt salt (M.keys tvmap)
+
+instance Hashable (M.Map AttributeName AtomExpr) where
+  hashWithSalt salt m = salt `hashWithSalt` M.toList m
+
+instance Hashable (S.Set AttributeName) where
+  hashWithSalt salt s = salt `hashWithSalt` S.toList s
+#endif
+
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom Integer |
             IntAtom Int |
@@ -637,15 +649,3 @@ unimplemented = error "unimplemented"
 makeBaseFunctor ''RelationalExprBase
 
 
-#if !MIN_VERSION_hashable(1,3,0)
---support for hashable < 1.3
-instance Hashable TypeVarMap where 
-  hashWithSalt salt tvmap = hashWithSalt salt (M.keys tvmap)
-
-instance Hashable (M.Map AttributeName AtomExpr) where
-  hashWithSalt salt m = salt `hashWithSalt` M.toList m
-
-instance Hashable (S.Set AttributeName) where
-  hashWithSalt salt s = salt `hashWithSalt` S.toList s
-                               
-#endif
