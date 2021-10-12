@@ -150,10 +150,6 @@ relOperators = [
 relExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relExprP = try withMacroExprP <|> makeExprParser relTerm relOperators
 
---allow for additional characters
-attributeNameP :: Parser AttributeName
-attributeNameP = uncapitalizedIdentifier
-
 relVarNameP :: Parser RelVarName
 relVarNameP = uncapitalizedIdentifier
 
@@ -241,7 +237,7 @@ atomP = stringAtomP <|>
 
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =
-  FunctionAtomExpr <$> uncapitalizedIdentifier <*> parens (sepBy atomExprP comma) <*> parseMarkerP
+  FunctionAtomExpr <$> functionNameP <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationalAtomExprP = RelationAtomExpr <$> relExprP

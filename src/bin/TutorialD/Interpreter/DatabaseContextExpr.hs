@@ -179,9 +179,6 @@ removeDatabaseContextFunctionP = do
   reserved "removedatabasecontextfunction"
   RemoveDatabaseContextFunction <$> quotedString
 
-functionNameP :: Parser AtomFunctionName
-functionNameP = uncapitalizedIdentifier
-
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"

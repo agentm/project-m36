@@ -16,13 +16,19 @@ typeConstructorNameP = capitalizedIdentifier
 dataConstructorNameP :: Parser DataConstructorName
 dataConstructorNameP = capitalizedIdentifier
 
+attributeNameP :: Parser AttributeName
+attributeNameP = uncapitalizedIdentifier
+
+functionNameP :: Parser AtomFunctionName
+functionNameP = uncapitalizedIdentifier
+
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
 typeConstructorDefP :: Parser TypeConstructorDef
 typeConstructorDefP = ADTypeConstructorDef <$> typeConstructorNameP <*> typeVarNamesP
 
 typeVarNamesP :: Parser [TypeVarName]
-typeVarNamesP = many uncapitalizedIdentifier 
+typeVarNamesP = many typeVariableIdentifierP
   
 -- data Either a b = *Left a* | *Right b*
 dataConstructorDefP :: Parser DataConstructorDef
@@ -31,7 +37,7 @@ dataConstructorDefP = DataConstructorDef <$> typeConstructorNameP <*> many dataC
 -- data *Either a b* = Left *a* | Right *b*
 dataConstructorDefArgP :: Parser DataConstructorDefArg
 dataConstructorDefArgP = DataConstructorDefTypeConstructorArg <$> (monoTypeConstructorP <|> parens typeConstructorP) <|>
-                         DataConstructorDefTypeVarNameArg <$> uncapitalizedIdentifier
+                         DataConstructorDefTypeVarNameArg <$> typeConstructorNameP
   
 -- relation{a Int} in type construction (no tuples parsed)
 relationTypeConstructorP :: Parser TypeConstructor
@@ -44,17 +50,23 @@ makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
 makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
 
 attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
-attributeAndTypeNameP = AttributeAndTypeNameExpr <$> identifier <*> typeConstructorP <*> parseMarkerP
+attributeAndTypeNameP = AttributeAndTypeNameExpr <$> attributeNameP <*> typeConstructorP <*> parseMarkerP
+
+typeIdentifierP :: Parser TypeConstructorName
+typeIdentifierP = capitalizedIdentifier
+
+typeVariableIdentifierP :: Parser TypeVarName
+typeVariableIdentifierP = uncapitalizedIdentifier
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
 typeConstructorP = relationTypeConstructorP <|>
-                   ADTypeConstructor <$> capitalizedIdentifier <*> many (monoTypeConstructorP <|> parens typeConstructorP) <|>
+                   ADTypeConstructor <$> typeIdentifierP <*> many (monoTypeConstructorP <|> parens typeConstructorP) <|>
                    monoTypeConstructorP
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
 monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|>
-                       TypeVariable <$> uncapitalizedIdentifier
+                       TypeVariable <$> typeVariableIdentifierP
                    
 
 
