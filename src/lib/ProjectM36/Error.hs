@@ -25,7 +25,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
                      | RelationTypeMismatchError Attributes Attributes --expected, found
-                     | InclusionDependencyCheckError IncDepName
+                     | InclusionDependencyCheckError IncDepName (Maybe RelationalError)
                      | InclusionDependencyNameInUseError IncDepName
                      | InclusionDependencyNameNotInUseError IncDepName
                      | ParseError T.Text
