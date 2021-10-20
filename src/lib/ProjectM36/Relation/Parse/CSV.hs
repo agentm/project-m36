@@ -22,6 +22,7 @@ import Control.Arrow
 import Text.Read hiding (parens)
 import Control.Applicative
 import Data.Either
+import Control.Monad (void)
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
