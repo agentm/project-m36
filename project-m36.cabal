@@ -213,7 +213,10 @@ Executable tutd
                    TutorialD.Printer
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    GHC-Options: -Wall -threaded -rdynamic
+    if os(windows)
+      GHC-Options: -Wall -threaded
+    else
+      GHC-Options: -Wall -threaded -rdynamic
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -249,7 +252,10 @@ Executable project-m36-server
                    list-t,
                    base64-bytestring
     Main-Is: ./src/bin/ProjectM36/Server/project-m36-server.hs
-    GHC-Options: -Wall -threaded -rtsopts
+    if os(windows)
+      GHC-Options: -Wall -threaded -rtsopts
+    else
+      GHC-Options: -Wall -threaded -rtsopts -rdynamic      
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     Default-Language: Haskell2010
