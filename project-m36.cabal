@@ -213,7 +213,7 @@ Executable tutd
                    TutorialD.Printer
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    GHC-Options: -Wall -threaded
+    GHC-Options: -Wall -threaded -rdynamic
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
