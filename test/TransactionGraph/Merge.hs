@@ -15,17 +15,6 @@ import ProjectM36.StaticOptimizer
 
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
-
-
-
-
-
-
-
-
-
-
-
 import Data.Word
 import qualified Data.UUID as U
 import qualified Data.Set as S
@@ -290,7 +279,7 @@ testUnionMergeIncDepViolation = TestCase $ do
   let eMerge = runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
       env = freshGraphRefRelationalExprEnv Nothing graph''
   case eMerge of
-    Left (InclusionDependencyCheckError incDepName') -> assertEqual "incdep violation name" incDepName incDepName'
+    Left (InclusionDependencyCheckError incDepName' Nothing) -> assertEqual "incdep violation name" incDepName incDepName'
     Left err -> assertFailure ("other error: " ++ show err)
     Right _ -> assertFailure "constraint violation missing"
 

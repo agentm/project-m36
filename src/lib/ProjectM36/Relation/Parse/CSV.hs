@@ -22,6 +22,7 @@ import Control.Arrow
 import Text.Read hiding (parens)
 import Control.Applicative
 import Data.Either
+import Control.Monad (void)
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -141,17 +142,18 @@ takeToEndOfData = APT.takeWhile (APT.notInClass ",)]")
   
 parens :: APT.Parser a -> APT.Parser a  
 parens p = do
-  APT.skip (== '(')
+  APT.char '('
   APT.skipSpace
   v <- p
   APT.skipSpace
-  APT.skip (== ')')
+  APT.char ')'
   pure v
   
 quotedString :: APT.Parser T.Text
 quotedString = do
   let escapeMap = [('"','"'), ('n', '\n'), ('r', '\r')]
-  APT.skip (== '"')
+      doubleQuote = void $ APT.char '"'
+  doubleQuote      
   (_, s) <- APT.runScanner [] (\prevl nextChar -> case prevl of
                              [] -> Just [nextChar]
                              chars | last chars == '\\' ->
@@ -160,6 +162,6 @@ quotedString = do
                                           Just escapeVal -> Just (init chars ++ [escapeVal]) -- nuke the backslash and add the escapeVal
                                    | nextChar == '"' -> Nothing
                                    | otherwise -> Just (chars ++ [nextChar]))
-  APT.skip (== '"')
+  doubleQuote
   pure (T.pack s)
   

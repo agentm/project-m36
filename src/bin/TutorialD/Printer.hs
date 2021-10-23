@@ -6,7 +6,7 @@
 module TutorialD.Printer where
 import ProjectM36.Base
 import ProjectM36.Attribute as A hiding (null)
-import Data.Text.Prettyprint.Doc 
+import Prettyprinter
 import qualified Data.Set as S hiding (fromList)
 import qualified Data.Vector as V
 import qualified Data.Map.Strict as M

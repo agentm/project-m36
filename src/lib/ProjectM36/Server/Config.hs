@@ -12,6 +12,12 @@ data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    }
                     deriving (Show)
 
+data WebsocketServerConfig = WebsocketServerConfig { wsServerConfig :: ServerConfig,
+                                                     tlsCertificatePath :: Maybe String,
+                                                     tlsKeyPath :: Maybe String
+                                                     }
+                              deriving (Show)
+
 defaultServerConfig :: ServerConfig
 defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
                                      checkFS = True,

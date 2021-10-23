@@ -247,8 +247,12 @@ deleteRelVar relVarName = do
     else do
     let newRelVars = M.delete relVarName relVars
         newContext = currContext { relationVariables = newRelVars }
-    putStateContext newContext
-    pure ()
+    graph <- dbcGraph
+    tid <- dbcTransId
+    case checkConstraints newContext tid graph of
+      Left err -> dbErr err
+      Right _ ->
+        putStateContext newContext
 
 evalGraphRefDatabaseContextExpr :: GraphRefDatabaseContextExpr -> DatabaseContextEvalMonad ()
 evalGraphRefDatabaseContextExpr NoOperation = pure ()
@@ -668,7 +672,9 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
       let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
-          runGfRel = runGraphRefRelationalExprM gfEnv
+          runGfRel e = case runGraphRefRelationalExprM gfEnv e of
+            Left err -> Left (InclusionDependencyCheckError depName (Just err))
+            Right v -> Right v
       typeSub <- runGfRel (typeForGraphRefRelationalExpr gfSubsetExpr)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
       when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
@@ -680,7 +686,7 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
         Right resultRel -> if resultRel == relationTrue then
                                    pure ()
                                 else 
-                                  Left (InclusionDependencyCheckError depName)
+                                  Left (InclusionDependencyCheckError depName Nothing)
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
@@ -1039,7 +1045,7 @@ verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName funcArgExprs tid) e
       lift $ except $ atomTypeVerify expectedType (last expectedArgTypes)
 verifyGraphRefAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType =
   do
-    let mergedAttrsEnv e = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn) e
+    let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn)
     relType <- R.local mergedAttrsEnv (typeForGraphRefRelationalExpr relationExpr)
     lift $ except $ atomTypeVerify expectedType (RelationAtomType (attributes relType))
 verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do

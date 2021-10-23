@@ -81,7 +81,7 @@ testImpossiblePredicates = TestCase $ do
       tautFalse2 = Restrict (NotPredicate TruePredicate) rel
       emptyRel = MakeStaticRelation (attributes suppliersRel) emptyTupleSet
       rel = RelationVariable "s" UncommittedContextMarker
-      optRelExpr expr = optimizeGraphRefRelationalExpr' (Just dateExamples) graph expr      
+      optRelExpr = optimizeGraphRefRelationalExpr' (Just dateExamples) graph
   assertEqual "remove tautology where true" (Right rel) (optRelExpr tautTrue)
   assertEqual "remove tautology where true2" (Right rel) (optRelExpr tautTrue2)
   assertEqual "remove tautology where false" (Right emptyRel) (optRelExpr tautFalse)

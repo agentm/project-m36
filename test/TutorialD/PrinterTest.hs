@@ -2,7 +2,7 @@
 import Test.HUnit
 import ProjectM36.Base
 import System.Exit
-import Data.Text.Prettyprint.Doc
+import Prettyprinter
 import Data.Map (fromList)
 import TutorialD.Printer ()
 import TutorialD.Interpreter.RelationalExpr

@@ -83,7 +83,8 @@ main = do
       testInvalidTuples,
       testSelfReferencingUncommittedContext,
       testUnionAndIntersectionAttributeExprs,
-      testCaseExprs
+      testCaseExprs,
+      testUndefineConstraints
       ]
 
 simpleRelTests :: Test
@@ -102,7 +103,7 @@ simpleRelTests = TestCase $ do
                       ("x:=relation{c Integer}{} rename {c as d}", mkRelation simpleBAttributes emptyTupleSet),
                       ("y:=relation{b Integer, c Integer}{}; x:=y{c}", mkRelation simpleProjectionAttributes emptyTupleSet),
                       ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntegerAtom 5])]),
-                      ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc"),
+                      ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc" Nothing),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
                       ("x:=relation{}{}", Right relationFalse),
                       ("x:=relation{tuple{}}", Right relationTrue),
@@ -182,7 +183,7 @@ dateExampleRelTests = TestCase $ do
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
                            --test key syntax
-                           ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint")),
+                           ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint" Nothing)),
                            ("y:=s; key testconstraint {s#} y; insert y relation{tuple{city \"London\", s# \"S6\", sname \"gonk\", status 50}}; x:=y{s#} = s{s#} union relation{tuple{s# \"S6\"}}", Right relationTrue),
                            --test binary bytestring data type
                            ("x:=relation{tuple{y bytestring(\"dGVzdGRhdGE=\")}}", mkRelationFromList byteStringAttributes [[ByteStringAtom (TE.encodeUtf8 "testdata")]]),
@@ -784,3 +785,11 @@ testCaseExprs = TestCase $ do
   executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just 6 -> \"b\"; _ -> \"a\" }}}"
   eX7 <- getX
   assertEqual "anything match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX7
+
+-- ensure that an undefined table triggers constraint validation #306
+testUndefineConstraints :: Test
+testUndefineConstraints = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let expectedErr = InclusionDependencyCheckError "bad" (Just (RelVarNotDefinedError "x"))
+  expectTutorialDErr sessionId dbconn (== T.pack (show expectedErr)) "x:=true;constraint bad x equals true;undefine x"
+

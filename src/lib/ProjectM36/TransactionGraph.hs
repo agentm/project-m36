@@ -133,13 +133,11 @@ addBranch stamp' newId newBranchName branchPointId graph = do
 
 --adds a disconnected transaction to a transaction graph at some head
 addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
-addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) graph = addTransactionToGraph headName newTrans' graph
+addDisconnectedTransaction stamp' newId headName (DisconnectedTransaction parentId schemas' _) = addTransactionToGraph headName newTrans
   where
     newTrans = Transaction newId newTInfo schemas'
     newTInfo = TI.singleParent parentId stamp'
-    newTrans' = Transaction newId (newTInfo { merkleHash = newHash }) schemas'
-    newHash = calculateMerkleHash newTrans graph--lookup parents in graph to calculate
---LOOP
+
 addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
 addTransactionToGraph headName newTrans graph = do
   let parentIds' = parentIds newTrans
@@ -159,9 +157,13 @@ addTransactionToGraph headName newTrans graph = do
   when (isRight (transactionForId newId graph)) (Left (TransactionIdInUseError newId))
   --replace all references to UncommittedTransactionMarker to new transaction id
   let newTrans' = newTransUncommittedReplace newTrans
-      updatedTransSet = S.insert newTrans' (transactionsForGraph graph)
-      updatedHeads = M.insert headName newTrans' (transactionHeadsForGraph graph)
-  pure (newTrans', TransactionGraph updatedHeads updatedTransSet)
+      --add merkle hash to all new transactions
+      hashedTransactionInfo = (transactionInfo newTrans')
+                              { merkleHash = calculateMerkleHash newTrans' graph }
+      hashedTrans = Transaction (transactionId newTrans') hashedTransactionInfo (schemas newTrans')
+      updatedTransSet = S.insert hashedTrans (transactionsForGraph graph)
+      updatedHeads = M.insert headName hashedTrans (transactionHeadsForGraph graph)
+  pure (hashedTrans, TransactionGraph updatedHeads updatedTransSet)
 
 --replace all occurrences of the uncommitted context marker
 newTransUncommittedReplace :: Transaction -> Transaction
@@ -596,10 +598,15 @@ addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas t
   
 -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
 calculateMerkleHash :: Transaction -> TransactionGraph -> MerkleHash
-calculateMerkleHash trans graph = MerkleHash $ hashlazy (BL.fromChunks [transIds,
-                                                                        schemasBytes
-                                                                       ] <>                                                      dbcBytes <> parentMerkleHashes)
+calculateMerkleHash trans graph = 
+  MerkleHash newHash
   where
+    newHash = hashlazy (BL.fromChunks [transIdsBytes,
+                                         schemasBytes,
+                                         tstampBytes
+                                       ] <> dbcBytes <> parentMerkleHashes)
+    tstamp = stamp (transactionInfo trans)
+    tstampBytes = serialise tstamp
     parentMerkleHashes = BL.fromChunks $ map (_unMerkleHash . getMerkleHash) parentTranses
     parentTranses =
       case transactionsForIds (parentIds trans) graph of
@@ -607,7 +614,8 @@ calculateMerkleHash trans graph = MerkleHash $ hashlazy (BL.fromChunks [transIds
         Left e -> error ("failed to find transaction in Merkle hash construction: " ++ show e)
         Right t -> S.toList t
     getMerkleHash t = merkleHash (transactionInfo t)
-    transIds = serialise (transactionId trans : S.toList (parentIds trans))
+    transIds = transactionId trans : S.toAscList (parentIds trans)
+    transIdsBytes = serialise transIds
     dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
     schemasBytes = serialise (subschemas trans)
 
@@ -622,7 +630,7 @@ validateMerkleHash trans graph =
     actualHash = calculateMerkleHash trans graph
 
 data MerkleValidationError = MerkleValidationError TransactionId MerkleHash MerkleHash
-  deriving (Show, Eq, Generic)
+  deriving (Show,Eq, Generic)
 
 validateMerkleHashes :: TransactionGraph -> Either [MerkleValidationError] ()
 validateMerkleHashes graph =

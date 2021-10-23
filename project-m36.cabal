@@ -213,7 +213,10 @@ Executable tutd
                    TutorialD.Printer
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    GHC-Options: -Wall -threaded
+    if os(windows)
+      GHC-Options: -Wall -threaded
+    else
+      GHC-Options: -Wall -threaded -rdynamic
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
@@ -249,7 +252,10 @@ Executable project-m36-server
                    list-t,
                    base64-bytestring
     Main-Is: ./src/bin/ProjectM36/Server/project-m36-server.hs
-    GHC-Options: -Wall -threaded -rtsopts
+    if os(windows)
+      GHC-Options: -Wall -threaded -rtsopts
+    else
+      GHC-Options: -Wall -threaded -rtsopts -rdynamic      
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     Default-Language: Haskell2010
@@ -433,7 +439,7 @@ Test-Suite test-scripts
 
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
-    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, semigroups, attoparsec, parser-combinators, prettyprinter, network, modern-uri, http-conduit, base16-bytestring, http-types, cryptohash-sha256
+    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, semigroups, attoparsec, parser-combinators, prettyprinter, network, modern-uri, http-conduit, base16-bytestring, http-types, cryptohash-sha256, wai, wai-websockets, warp, warp-tls
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
     GHC-Options: -Wall -threaded

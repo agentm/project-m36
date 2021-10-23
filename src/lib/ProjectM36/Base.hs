@@ -30,7 +30,19 @@ import Data.Vector.Instances ()
 type StringType = Text
 
 type DatabaseName = String
-  
+
+#if !(MIN_VERSION_hashable(1,3,4))
+--support for hashable < 1.3, hashable 1.3+ includes instance for containers
+instance Hashable (M.Map TypeVarName AtomType) where 
+  hashWithSalt salt tvmap = hashWithSalt salt (M.keys tvmap)
+
+instance Hashable (M.Map AttributeName AtomExpr) where
+  hashWithSalt salt m = salt `hashWithSalt` M.toList m
+
+instance Hashable (S.Set AttributeName) where
+  hashWithSalt salt s = salt `hashWithSalt` S.toList s
+#endif
+
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom Integer |
             IntAtom Int |
@@ -82,9 +94,6 @@ instance Ord AtomType where
 -- this should probably be an ordered dictionary in order to be able to round-trip these arguments  
 type TypeVarMap = M.Map TypeVarName AtomType
 
-instance Hashable TypeVarMap where 
-  hashWithSalt salt tvmap = hashWithSalt salt (M.keys tvmap)
-                       
 -- | Return True iff the atom type argument is relation-valued. If True, this indicates that the Atom contains a relation.
 isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
@@ -361,9 +370,6 @@ data DatabaseContextExprBase a =
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Read, Eq, Generic, NFData)
 
-instance Hashable (M.Map AttributeName AtomExpr) where
-  hashWithSalt salt m = salt `hashWithSalt` M.toList m
-
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
 type Range = (Int,Int)  
@@ -535,12 +541,9 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
                       deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable AttributeNames
-
-instance Hashable (S.Set AttributeName) where
-  hashWithSalt salt s = salt `hashWithSalt` S.toList s
-                               
 type AttributeNames = AttributeNamesBase ()
+
+instance Hashable AttributeNames
 
 type GraphRefAttributeNames = AttributeNamesBase GraphRefTransactionMarker
 
@@ -654,3 +657,5 @@ unimplemented :: HasCallStack => a
 unimplemented = error "unimplemented"
            
 makeBaseFunctor ''RelationalExprBase
+
+

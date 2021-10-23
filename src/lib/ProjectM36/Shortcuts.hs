@@ -35,7 +35,7 @@ instance IsList (AttributeNamesBase ()) where
 
 instance IsList (TupleExprsBase ()) where
   type Item TupleExprs = TupleExpr
-  fromList ts = TupleExprs () ts
+  fromList = TupleExprs ()
   toList (TupleExprs _ ts) = ts
 
 instance IsList TupleExpr where
@@ -157,7 +157,7 @@ a #: b = Extend b a
 infix 8 #:
 
 instance Convertible AtomExpr AtomExpr where
-  safeConvert n = Right n
+  safeConvert = Right
 
 instance Convertible RelVarName AtomExpr where
   safeConvert n = Right $ RelationAtomExpr (RelationVariable n ()) 
@@ -234,7 +234,7 @@ instance {-# Incoherent #-} Convertible AtomExpr RestrictionPredicateExpr where
   safeConvert a = Right $ AtomExprPredicate a
 
 instance {-# Incoherent #-} Convertible RestrictionPredicateExpr RestrictionPredicateExpr where
-  safeConvert a = Right a
+  safeConvert = Right
 
 instance {-# Incoherent #-} Atomable a => Convertible a AtomExpr where
   safeConvert n = Right $ toAtomExpr . toAtom $ n 
