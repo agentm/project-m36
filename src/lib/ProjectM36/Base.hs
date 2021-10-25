@@ -493,16 +493,28 @@ type AtomFunctionBodyScript = StringType
 
 type AtomFunctionBodyType = [Atom] -> Either AtomFunctionError Atom
 
-data AtomFunctionBody = AtomFunctionBody (Maybe AtomFunctionBodyScript) AtomFunctionBodyType
+data AtomFunctionBody =
+  AtomFunctionScriptBody AtomFunctionBodyScript AtomFunctionBodyType
+  | AtomFunctionBuiltInBody AtomFunctionBodyType
+  | AtomFunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName AtomFunctionBodyType
   deriving Generic
 
+type ObjectFileEntryFunctionName = String
+
+type ObjectFilePath = FilePath
+
+type ObjectModuleName = String
+
 instance NFData AtomFunctionBody where
-  rnf (AtomFunctionBody mScript _) = rnf mScript
+  rnf (AtomFunctionScriptBody script _) = rnf script
+  rnf (AtomFunctionBuiltInBody _) = rnf ()
+  rnf (AtomFunctionObjectLoadedBody path obj nam _) = rnf path `seq` rnf nam `seq` rnf obj
                         
 instance Show AtomFunctionBody where
-  show (AtomFunctionBody mScript _) = case mScript of
-    Just script -> show (unpack script)
-    Nothing -> "<compiled>"
+  show (AtomFunctionScriptBody script _) = show (unpack script)
+  show (AtomFunctionBuiltInBody _) = "<built-in+compiled>"
+  show (AtomFunctionObjectLoadedBody path obj nam _) =
+    "<object:\"" <> path <> "\":\"" <> obj <> "." <> nam <> "\""
 
 -- | An AtomFunction has a name, a type, and a function body to execute when called.
 data AtomFunction = AtomFunction {

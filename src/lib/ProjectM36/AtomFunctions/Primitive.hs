@@ -54,7 +54,7 @@ primitiveAtomFunctions = HS.fromList [
   
   ]
   where
-    body = AtomFunctionBody Nothing
+    body = AtomFunctionBuiltInBody
                          
 integerAtomFuncLessThan :: Bool -> [Atom] -> Either AtomFunctionError Atom
 integerAtomFuncLessThan equality (IntegerAtom i1:IntegerAtom i2:_) = pure (BoolAtom (i1 `op` i2))

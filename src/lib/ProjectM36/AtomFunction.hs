@@ -29,19 +29,18 @@ atomFunctionForName funcName funcSet = if HS.null foundFunc then
 emptyAtomFunction :: AtomFunctionName -> AtomFunction
 emptyAtomFunction name = AtomFunction { atomFuncName = name,
                                         atomFuncType = [TypeVariableType "a", TypeVariableType "a"],
-                                        atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> pure x) }
+                                        atomFuncBody = AtomFunctionBuiltInBody (\(x:_) -> pure x) }
                                           
                                           
 -- | AtomFunction constructor for compiled-in functions.
 compiledAtomFunction :: AtomFunctionName -> [AtomType] -> AtomFunctionBodyType -> AtomFunction
 compiledAtomFunction name aType body = AtomFunction { atomFuncName = name,
                                                       atomFuncType = aType,
-                                                      atomFuncBody = AtomFunctionBody Nothing body }
+                                                      atomFuncBody = AtomFunctionBuiltInBody body }
 
 --the atom function really should offer some way to return an error
 evalAtomFunction :: AtomFunction -> [Atom] -> Either AtomFunctionError Atom
-evalAtomFunction func args = case atomFuncBody func of
-  (AtomFunctionBody _ f) -> f args
+evalAtomFunction func args = (function (atomFuncBody func)) args
 
 --expect "Int -> Either AtomFunctionError Int"
 --return "Int -> Int" for funcType
@@ -60,12 +59,13 @@ extractAtomFunctionType typeIn = do
     
 isScriptedAtomFunction :: AtomFunction -> Bool    
 isScriptedAtomFunction func = case atomFuncBody func of
-  AtomFunctionBody (Just _) _ -> True
-  AtomFunctionBody Nothing _ -> False
+  AtomFunctionScriptBody{} -> True
+  _ -> False
   
 atomFunctionScript :: AtomFunction -> Maybe AtomFunctionBodyScript
 atomFunctionScript func = case atomFuncBody func of
-  AtomFunctionBody script _ -> script
+  AtomFunctionScriptBody script _ -> Just script
+  _ -> Nothing
   
 -- | Create a 'DatabaseContextIOExpr' which can be used to load a new atom function written in Haskell and loaded at runtime.
 createScriptedAtomFunction :: AtomFunctionName -> [TypeConstructor] -> TypeConstructor -> AtomFunctionBodyScript -> DatabaseContextIOExpr
@@ -98,4 +98,20 @@ hashBytes func = BL.fromChunks [serialise (atomFuncName func),
                                ]
   where
     bodyBin = case atomFuncBody func of
-                AtomFunctionBody mScript _ -> serialise mScript
+                AtomFunctionScriptBody mScript _ -> serialise mScript
+                AtomFunctionBuiltInBody _ -> ""
+                AtomFunctionObjectLoadedBody f m n _ -> serialise (f,m,n)
+
+-- | Return the underlying function to run the AtomFunction.
+function :: AtomFunctionBody -> AtomFunctionBodyType
+function (AtomFunctionScriptBody _ f) = f
+function (AtomFunctionBuiltInBody f) = f
+function (AtomFunctionObjectLoadedBody _ _ _ f) = f
+  
+-- | Change atom function definition to reference proper object file source. Useful when moving the object file into the database directory.
+processObjectLoadedFunctionBody :: ObjectModuleName -> ObjectFileEntryFunctionName -> FilePath -> AtomFunctionBody -> AtomFunctionBody
+processObjectLoadedFunctionBody modName fentry objPath body =
+  AtomFunctionObjectLoadedBody objPath modName fentry f
+  where
+    f = function body
+      

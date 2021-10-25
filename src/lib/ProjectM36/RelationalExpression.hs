@@ -546,7 +546,7 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = d
                     newContext = currentContext { atomFunctions = updatedFuncs }
                     newAtomFunc = AtomFunction { atomFuncName = funcName,
                                                  atomFuncType = funcAtomType,
-                                                 atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
+                                                 atomFuncBody = AtomFunctionScriptBody script compiledFunc }
                -- check if the name is already in use
                 if HS.member funcName (HS.map atomFuncName atomFuncs) then
                   Left (FunctionNameInUseError funcName)
@@ -598,14 +598,17 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
           Right eContext -> case eContext of
             Left err -> pure (Left err)
             Right context' -> putDBCIOContext context'
+-- #312- if we can successfully load the functions and record how to load the object file- we could consider copying the object file but that might have other implications, for example, how would we load the "same" file if it gets recompiled- can we toss the old one?
 evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName funcName modPath) = do
   currentContext <- getDBCIOContext
   eLoadFunc <- liftIO $ loadAtomFunctions (T.unpack modName) (T.unpack funcName) modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
-    Right atomFunctionListFunc -> let newContext = currentContext { atomFunctions = mergedFuncs }
-                                      mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList atomFunctionListFunc)
-                                  in putDBCIOContext newContext
+    Right atomFunctionListFunc -> do
+      let newContext = currentContext { atomFunctions = mergedFuncs }
+          processedAtomFunctions = processObjectAtomFunctios
+          mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList processedAtomFunctions)
+      putDBCIOContext newContext
 evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName modPath) = do
   currentContext <- getDBCIOContext
   eLoadFunc <- liftIO $ loadDatabaseContextFunctions (T.unpack modName) (T.unpack funcName) modPath

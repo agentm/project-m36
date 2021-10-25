@@ -37,13 +37,13 @@ listAtomFunctions = HS.fromList [
   AtomFunction {
      atomFuncName = "length",
      atomFuncType = [listAtomType (TypeVariableType "a"), IntAtomType],
-     atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) ->
+     atomFuncBody = AtomFunctionBuiltInBody (\(listAtom:_) ->
                                                  IntAtom . fromIntegral <$> listLength listAtom)
      },
   AtomFunction {
     atomFuncName = "maybeHead",
     atomFuncType = [listAtomType (TypeVariableType "a"), maybeAtomType (TypeVariableType "a")],
-    atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) -> listMaybeHead listAtom)
+    atomFuncBody = AtomFunctionBuiltInBody (\(listAtom:_) -> listMaybeHead listAtom)
     }
   ]
                     

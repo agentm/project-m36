@@ -140,7 +140,7 @@ loadAtomFunc precompiledFuncs _mScriptSession funcName _funcType mFuncScript = c
             Left err -> throwIO err
             Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
                                                         atomFuncType = _funcType,
-                                                        atomFuncBody = AtomFunctionBody (Just _funcScript) compiledScript }
+                                                        atomFuncBody = AtomFunctionScriptBody _funcScript compiledScript }
 #else
       error "Haskell scripting is disabled"
 #endif                                    
@@ -174,7 +174,7 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
             Left err -> throwIO err
             Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
                                                          atomFuncType = funcType,
-                                                         atomFuncBody = AtomFunctionBody (Just funcScript) compiledScript }
+                                                         atomFuncBody = AtomFunctionScriptBody funcScript compiledScript }
 #endif
 
 

@@ -142,11 +142,11 @@ takeToEndOfData = APT.takeWhile (APT.notInClass ",)]")
   
 parens :: APT.Parser a -> APT.Parser a  
 parens p = do
-  APT.char '('
+  void (APT.char '(')
   APT.skipSpace
   v <- p
   APT.skipSpace
-  APT.char ')'
+  void (APT.char ')')
   pure v
   
 quotedString :: APT.Parser T.Text

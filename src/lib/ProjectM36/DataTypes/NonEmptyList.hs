@@ -42,12 +42,12 @@ nonEmptyListAtomFunctions = HS.fromList [
   AtomFunction {
      atomFuncName = "nonEmptyListLength",
      atomFuncType = [nonEmptyListAtomType (TypeVariableType "a"), IntAtomType],
-     atomFuncBody = AtomFunctionBody Nothing (\(nonEmptyListAtom:_) ->
+     atomFuncBody = AtomFunctionBuiltInBody (\(nonEmptyListAtom:_) ->
                                                  IntAtom . fromIntegral <$> nonEmptyListLength nonEmptyListAtom)
      },
   AtomFunction {
     atomFuncName = "nonEmptyListHead",
     atomFuncType = [nonEmptyListAtomType (TypeVariableType "a"), TypeVariableType "a"],
-    atomFuncBody = AtomFunctionBody Nothing (\(nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom)
+    atomFuncBody = AtomFunctionBuiltInBody (\(nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom)
     }
   ]
