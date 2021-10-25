@@ -84,10 +84,10 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
     header = map prettyAttribute oAttrs
     body :: [[Cell]]
     body = L.foldr tupleFolder [] (asList tupleSet)
-    tupleFolder tuple acc = (map (\attrName -> case atomForAttributeName attrName tuple of
+    tupleFolder tuple acc = map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom 0 atom
-                                            ) oAttrNames) : acc
+                                            ) oAttrNames : acc
 
 showParens :: Bool -> StringType -> StringType
 showParens predicate f = if predicate then
