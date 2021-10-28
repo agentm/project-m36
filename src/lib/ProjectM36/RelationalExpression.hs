@@ -599,14 +599,18 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
             Left err -> pure (Left err)
             Right context' -> putDBCIOContext context'
 -- #312- if we can successfully load the functions and record how to load the object file- we could consider copying the object file but that might have other implications, for example, how would we load the "same" file if it gets recompiled- can we toss the old one?
-evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName funcName modPath) = do
+evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modPath) = do
   currentContext <- getDBCIOContext
-  eLoadFunc <- liftIO $ loadAtomFunctions (T.unpack modName) (T.unpack funcName) modPath
+  let sModName = T.unpack modName
+      sEntrypointName = T.unpack entrypointName
+  eLoadFunc <- liftIO $ loadAtomFunctions sModName sEntrypointName modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
     Right atomFunctionListFunc -> do
       let newContext = currentContext { atomFunctions = mergedFuncs }
-          processedAtomFunctions = processObjectAtomFunctios
+          processedAtomFunctions =
+            map (\af -> af { atomFuncBody =
+                   processObjectLoadedFunctionBody sModName sEntrypointName modPath (atomFuncBody af)}) atomFunctionListFunc
           mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList processedAtomFunctions)
       putDBCIOContext newContext
 evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName modPath) = do

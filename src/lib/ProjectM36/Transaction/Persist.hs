@@ -107,7 +107,15 @@ readRelVars transDir =
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
-  let atomFuncPath = atomFuncsPath transDir 
+  --copy in object file, if necessary, and alter AtomFunctionBody to point to database-specific version of object file
+  let atomFuncPath = atomFuncsPath transDir
+      unresolvedObjectFuncs =
+        filter (\af ->
+                  case atomFuncBody af of
+                    AtomFunctionObjectLoadedBody objPath ->
+                      --if a hash of the object file is not in our own obj directory, the we need to copy it
+                    _ -> False
+                   ) func
   writeBSFileSync sync atomFuncPath (serialise $ map (\f -> (atomFuncType f, atomFuncName f, atomFunctionScript f)) (HS.toList funcs))
 
 --all the atom functions are in one file
