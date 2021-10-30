@@ -1,0 +1,298 @@
+cradle:
+  stack:
+    - path: "./src/lib"
+      component: "lib:project-m36"
+
+    - path: "./src/bin/TutorialD/tutd.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Base.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextExpr.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/RODatabaseContextOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransactionGraphOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/BasicExamples.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/InformationOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/Base.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/CSV.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextIOOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/Base.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/CSV.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/TutorialD.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/RelationalExpr.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/Types.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/SchemaOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransGraphRelationalOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Interpreter/SchemaOperator.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "./src/bin/TutorialD/Printer.hs"
+      component: "project-m36:exe:tutd"
+
+    - path: "././src/bin/ProjectM36/Server/project-m36-server.hs"
+      component: "project-m36:exe:project-m36-server"
+
+    - path: "./src/bin/benchmark/bigrel.hs"
+      component: "project-m36:exe:bigrel"
+
+    - path: "./src/bin/TutorialD/Interpreter/Base.hs"
+      component: "project-m36:exe:bigrel"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextExpr.hs"
+      component: "project-m36:exe:bigrel"
+
+    - path: "./src/bin/TutorialD/Interpreter/RelationalExpr.hs"
+      component: "project-m36:exe:bigrel"
+
+    - path: "./src/bin/TutorialD/Interpreter/Types.hs"
+      component: "project-m36:exe:bigrel"
+
+    - path: "./src/bin/benchmark/Basic.hs"
+      component: "project-m36:bench:basic-benchmark"
+
+    - path: "./src/bin/benchmark/Server.hs"
+      component: "project-m36:bench:update-exprs"
+
+    - path: "./"
+      component: "project-m36:test:test-tutoriald"
+
+    - path: "./"
+      component: "project-m36:test:test-tutoriald-atomfunctionscript"
+
+    - path: "./"
+      component: "project-m36:test:test-tutoriald-databasecontextfunctionscript"
+
+    - path: "./"
+      component: "project-m36:test:test-relation"
+
+    - path: "./"
+      component: "project-m36:test:test-static-optimizer"
+
+    - path: "./"
+      component: "project-m36:test:test-transactiongraph-persist"
+
+    - path: "./"
+      component: "project-m36:test:test-relation-import-csv"
+
+    - path: "./"
+      component: "project-m36:test:test-tutoriald-import-tutoriald"
+
+    - path: "./"
+      component: "project-m36:test:test-relation-export-csv"
+
+    - path: "./"
+      component: "project-m36:test:test-transactiongraph-merge"
+
+    - path: "./"
+      component: "project-m36:test:test-prettyprinter"
+
+    - path: "./benchmark/Relation.hs"
+      component: "project-m36:bench:bench"
+
+    - path: "./"
+      component: "project-m36:test:test-server"
+
+    - path: "./examples/SimpleClient.hs"
+      component: "project-m36:exe:Example-SimpleClient"
+
+    - path: "./examples/out_of_the_tarpit.hs"
+      component: "project-m36:exe:Example-OutOfTheTarpit"
+
+    - path: "./examples/blog.hs"
+      component: "project-m36:exe:Example-Blog"
+
+    - path: "./examples/hair.hs"
+      component: "project-m36:exe:Example-Hair"
+
+    - path: "./examples/Plantfarm.hs"
+      component: "project-m36:exe:Example-Plantfarm"
+
+    - path: "./examples/CustomTupleable.hs"
+      component: "project-m36:exe:Example-CustomTupleable"
+
+    - path: "./examples/DerivingCustomTupleable.hs"
+      component: "project-m36:exe:Example-DerivingCustomTupleable"
+
+    - path: "./"
+      component: "project-m36:test:test-scripts"
+
+    - path: "./src/bin/ProjectM36/Server/WebSocket/websocket-server.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/ProjectM36/Client/Json.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/ProjectM36/Server/RemoteCallTypes/Json.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/ProjectM36/Server/WebSocket.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Base.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextExpr.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextIOOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/Base.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/CSV.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/Base.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/BasicExamples.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/CSV.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/TutorialD.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/InformationOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/RODatabaseContextOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/RelationalExpr.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransactionGraphOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/Types.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransGraphRelationalOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Interpreter/SchemaOperator.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./src/bin/TutorialD/Printer.hs"
+      component: "project-m36:exe:project-m36-websocket-server"
+
+    - path: "./"
+      component: "project-m36:test:test-websocket-server"
+
+    - path: "./"
+      component: "project-m36:test:test-isomorphic-schemas"
+
+    - path: "./"
+      component: "project-m36:test:test-atomable"
+
+    - path: "./"
+      component: "project-m36:test:test-multiprocess-access"
+
+    - path: "./"
+      component: "project-m36:test:test-transactiongraph-automerge"
+
+    - path: "./"
+      component: "project-m36:test:test-tupleable"
+
+    - path: "./"
+      component: "project-m36:test:test-client-simple"
+
+    - path: "./src/bin/benchmark/Handles.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Base.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextExpr.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/DatabaseContextIOOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/Base.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Export/CSV.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/Base.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/BasicExamples.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/CSV.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Import/TutorialD.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/InformationOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/RODatabaseContextOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/RelationalExpr.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/SchemaOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransGraphRelationalOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/TransactionGraphOperator.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Interpreter/Types.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./src/bin/TutorialD/Printer.hs"
+      component: "project-m36:exe:handles"
+
+    - path: "./"
+      component: "project-m36:test:test-dataframe"
