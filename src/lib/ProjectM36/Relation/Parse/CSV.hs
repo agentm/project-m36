@@ -78,11 +78,16 @@ parseCSVAtomP _ _ ByteStringAtomType = do
   case readMaybe bsString of
     Nothing -> fail ("invalid ByteString string: " ++ bsString)
     Just bs -> pure (Right (ByteStringAtom bs))
-parseCSVAtomP _ _ BoolAtomType = do    
+parseCSVAtomP _ _ BoolAtomType = do
   bString <- T.unpack <$> takeToEndOfData
   case readMaybe bString of
     Nothing -> fail ("invalid BoolAtom string: " ++ bString)
     Just b -> pure (Right (BoolAtom b))
+parseCSVAtomP _ _ UUIDAtomType = do
+  uString <- T.unpack <$> takeToEndOfData
+  case readMaybe uString of
+    Nothing -> fail ("invalid UUIDAtom string: " ++ uString)
+    Just u -> pure (Right (UUIDAtom u))
 parseCSVAtomP _ _ RelationalExprAtomType = do
   reString <- T.unpack <$> takeToEndOfData      
   case readMaybe reString of

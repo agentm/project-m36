@@ -52,6 +52,7 @@ data Atom = IntegerAtom Integer |
             DateTimeAtom UTCTime |
             ByteStringAtom ByteString |
             BoolAtom Bool |
+            UUIDAtom UUID |
             RelationAtom Relation |
             RelationalExprAtom RelationalExpr | --used for returning inc deps
             ConstructedAtom DataConstructorName AtomType [Atom]
@@ -68,6 +69,7 @@ instance Hashable Atom where
   hashWithSalt salt (DateTimeAtom dt) = salt `hashWithSalt` dt
   hashWithSalt salt (ByteStringAtom bs) = salt `hashWithSalt` bs
   hashWithSalt salt (BoolAtom b) = salt `hashWithSalt` b
+  hashWithSalt salt (UUIDAtom u) = salt `hashWithSalt` u
   hashWithSalt salt (RelationAtom r) = salt `hashWithSalt` r
   hashWithSalt salt (RelationalExprAtom re) = salt `hashWithSalt` re
 
@@ -81,6 +83,7 @@ data AtomType = IntAtomType |
                 DateTimeAtomType |
                 ByteStringAtomType |
                 BoolAtomType |
+                UUIDAtomType |
                 RelationAtomType Attributes |
                 ConstructedAtomType TypeConstructorName TypeVarMap |
                 RelationalExprAtomType |
@@ -614,6 +617,7 @@ attrTypeVars (Attribute _ aType) = case aType of
   DateTimeAtomType -> S.empty
   ByteStringAtomType -> S.empty
   BoolAtomType -> S.empty
+  UUIDAtomType -> S.empty
   RelationalExprAtomType -> S.empty
   (RelationAtomType attrs) -> S.unions (map attrTypeVars (V.toList (attributesVec attrs)))
   (ConstructedAtomType _ tvMap) -> M.keysSet tvMap
@@ -638,6 +642,7 @@ atomTypeVars DayAtomType = S.empty
 atomTypeVars DateTimeAtomType = S.empty
 atomTypeVars ByteStringAtomType = S.empty
 atomTypeVars BoolAtomType = S.empty
+atomTypeVars UUIDAtomType = S.empty
 atomTypeVars RelationalExprAtomType = S.empty
 atomTypeVars (RelationAtomType attrs) = S.unions (map attrTypeVars (V.toList (attributesVec attrs)))
 atomTypeVars (ConstructedAtomType _ tvMap) = M.keysSet tvMap

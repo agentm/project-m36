@@ -7,6 +7,8 @@ import ProjectM36.AtomFunction
 import qualified Data.HashSet as HS
 import qualified Data.Vector as V
 import Control.Monad
+import qualified Data.UUID as U
+import qualified Data.Text as T
 
 primitiveAtomFunctions :: AtomFunctions
 primitiveAtomFunctions = HS.fromList [
@@ -50,8 +52,14 @@ primitiveAtomFunctions = HS.fromList [
                                                    pure (IntAtom (fromIntegral v))
                                                  else
                                                    Left InvalidIntBoundError
+                                                   },
+  AtomFunction { atomFuncName = "uuid",
+                 atomFuncType = [TextAtomType, UUIDAtomType],
+                 atomFuncBody = body $ \(TextAtom v:_) -> let mUUID = U.fromString (T.unpack v) in
+                   case mUUID of
+                     Just u -> pure $ UUIDAtom u
+                     Nothing -> Left $ InvalidUUIDString v
                                                    }
-  
   ]
   where
     body = AtomFunctionBody Nothing
