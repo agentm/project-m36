@@ -105,15 +105,36 @@ readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = 
   readFileDeserialise (relvarsPath transDir)
 
+-- we store runtime-loaded object files with their names as hashes of the contents to know when we need to copy and load a new object file
+loadObjectFileHashes :: FilePath -> IO (S.Set FilePath)
+loadObjectFileHashes objDir = do
+  files <- listDirectory objDir
+  pure (map (dropExtension . takeFileName) files)
+
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
   --copy in object file, if necessary, and alter AtomFunctionBody to point to database-specific version of object file
+  let objFilesPath = objectFilesPath transDir
+  existingObjHashes <- loadObjectFileHashes objFilePath
   let atomFuncPath = atomFuncsPath transDir
+
       unresolvedObjectFuncs =
-        filter (\af ->
+        filterM (\af ->
                   case atomFuncBody af of
-                    AtomFunctionObjectLoadedBody objPath ->
+                    AtomFunctionObjectLoadedBody objPath _ _ _-> 
+                      <- canonicalizePath objPath
                       --if a hash of the object file is not in our own obj directory, the we need to copy it
+                      --copy the object file to reduce race condition potential
+                      withSystemTempDirectory "pm36object" $ \tmpdir -> do
+                        let tempObjPath = tmpdir </> "object.o"
+                        copyFile objPath tempObjPath
+                        --hash the file
+                        lbytes <- BSL.readFile tempObjPath
+                        let objectFileHash = TE.decodeUtf8 (B64.encode (hashlazy lbytes))
+                            objectFileDest = objFilesPath </> (objectFileHash <> ".o")
+                        --check if we already have the hash in our objects directory
+                        when (not (doesFileExist objectFileDest)) $ do
+                          
                     _ -> False
                    ) func
   writeBSFileSync sync atomFuncPath (serialise $ map (\f -> (atomFuncType f, atomFuncName f, atomFunctionScript f)) (HS.toList funcs))
