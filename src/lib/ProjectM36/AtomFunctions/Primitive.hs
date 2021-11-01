@@ -50,8 +50,10 @@ primitiveAtomFunctions = HS.fromList [
                                                    pure (IntAtom (fromIntegral v))
                                                  else
                                                    Left InvalidIntBoundError
-                                                   }
-  
+                                                   },
+  AtomFunction { atomFuncName = "integer",
+                 atomFuncType = [IntAtomType, IntegerAtomType],
+                 atomFuncBody = body $ \(IntAtom v:_) -> Right $ IntegerAtom $ fromIntegral v}
   ]
   where
     body = AtomFunctionBody Nothing
