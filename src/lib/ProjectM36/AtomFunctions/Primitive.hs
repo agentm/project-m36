@@ -59,7 +59,10 @@ primitiveAtomFunctions = HS.fromList [
                    case mUUID of
                      Just u -> pure $ UUIDAtom u
                      Nothing -> Left $ InvalidUUIDString v
-                                                   }
+                                                   },
+  AtomFunction { atomFuncName = "integer",
+                 atomFuncType = [IntAtomType, IntegerAtomType],
+                 atomFuncBody = body $ \(IntAtom v:_) -> Right $ IntegerAtom $ fromIntegral v}
   ]
   where
     body = AtomFunctionBody Nothing
