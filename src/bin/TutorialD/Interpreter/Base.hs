@@ -174,7 +174,7 @@ quotedIdentifier =
   T.pack <$> backticks (many (escapedBacktick <|> notBacktickChar))
   where
     escapedBacktick = char '\\' >> char '`'
-    notBacktickChar = satisfy ((/=) '`')
+    notBacktickChar = satisfy ('`' /=)
 
 backticks :: Parser a -> Parser a
 backticks = between backtick backtick
