@@ -165,6 +165,16 @@ uncapitalizedIdentifier :: Parser Text
 uncapitalizedIdentifier =
   lowerChar >>= identifierRemainder
 
+quotedIdentifierRemainder :: Char -> Parser Text
+quotedIdentifierRemainder c = do
+  rest <- many (alphaNumChar <|> opChar)
+  spaceConsumer
+  pure (pack (c:rest))
+
+quotedIdentifier :: Parser Text
+quotedIdentifier =
+  quoted $ lowerChar >>= quotedIdentifierRemainder
+
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"
   where
