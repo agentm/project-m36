@@ -76,7 +76,7 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
 
 loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
 #ifdef PM36_HASKELL_SCRIPTING
-loadAtomFunctions = loadFunction
+loadAtomFunctions = loadFunction LoadAutoObjectFile
 #else
 loadAtomFunctions _ _ _ = pure (Left LoadSymbolError)
 #endif

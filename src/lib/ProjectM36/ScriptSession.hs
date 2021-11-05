@@ -248,20 +248,42 @@ mangleSymbol pkg module' valsym =
       maybe "" (\p -> zEncodeString p ++ "_") pkg ++
       zEncodeString module' ++ "_" ++ zEncodeString valsym ++ "_closure"
 
-loadFunction :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
-loadFunction modName funcName objPath = do
+data ObjectLoadMode = LoadObjectFile | -- ^ load .o files only
+                      LoadDLLFile | -- ^ load .so .dynlib .dll files only
+                      LoadAutoObjectFile -- ^ determine which object mode to use based on the file name's extension
+
+-- | Load either a .o or dynamic library based on the file name's extension.
+
+
+-- | Load a function from an relocatable object file (.o)
+loadFunction :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
+loadFunction loadMode modName funcName objPath = do
 #if __GLASGOW_HASKELL__ >= 802
   initObjLinker RetainCAFs
 #else
   initObjLinker
 #endif
-  loadObj objPath
-  _ <- resolveObjs
-  ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)
-  case ptr of
-    Nothing -> pure (Left LoadSymbolError)
-    Just (Ptr addr) -> case addrToAny# addr of
-      (# hval #) -> pure (Right hval)
+  let loadFuncForSymbol = do    
+        _ <- resolveObjs
+        ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)
+        case ptr of
+          Nothing -> pure (Left LoadSymbolError)
+          Just (Ptr addr) -> case addrToAny# addr of
+            (# hval #) -> pure (Right hval)
+  case loadMode of
+    LoadAutoObjectFile ->
+      if takeExtension objPath == ".o" then
+       loadFunction LoadObjectFile modName funcName objPath
+      else
+       loadFunction LoadDLLFile modName funcName objPath
+    LoadObjectFile -> do
+      loadObj objPath
+      loadFuncForSymbol
+    LoadDLLFile -> do
+      mErr <- loadDLL objPath
+      case mErr of
+        Just _ -> pure (Left LoadSymbolError)
+        Nothing -> loadFuncForSymbol
 
 prefixUnderscore :: String
 prefixUnderscore =

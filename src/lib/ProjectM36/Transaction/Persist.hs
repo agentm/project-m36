@@ -15,12 +15,20 @@ import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
 import Codec.Winery
+import qualified Data.Set as S
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text.Encoding as TE
+import Data.ByteString.Base64 as B64
+import System.IO.Temp
+import Crypto.Hash.SHA256
 
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC
 import Control.Exception
 import GHC.Paths
 #endif
+
+import Debug.Trace
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path =
@@ -53,6 +61,10 @@ typeConsPath transdir = transdir </> "typecons"
 
 subschemasPath :: FilePath -> FilePath
 subschemasPath transdir = transdir </> "schemas"
+
+-- | where compiled modules are stored within the database directory
+objectFilesPath :: FilePath -> FilePath
+objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
 
 readTransaction :: FilePath -> TransactionId -> Maybe ScriptSession -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transId mScriptSession = do
@@ -92,8 +104,7 @@ writeTransaction sync dbdir trans = do
     writeDBCFuncs sync tempTransDir (dbcFunctions context)
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     writeSubschemas sync tempTransDir (subschemas trans)
-    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
-    --move the temp directory to final location
+    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)    --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
 
 writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
@@ -108,70 +119,105 @@ readRelVars transDir =
 -- we store runtime-loaded object files with their names as hashes of the contents to know when we need to copy and load a new object file
 loadObjectFileHashes :: FilePath -> IO (S.Set FilePath)
 loadObjectFileHashes objDir = do
-  files <- listDirectory objDir
-  pure (map (dropExtension . takeFileName) files)
+  print ("spam", objDir)
+  files <- getDirectoryNames objDir
+  print files
+  pure (S.fromList (map (dropExtension . takeFileName) files))
 
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
   --copy in object file, if necessary, and alter AtomFunctionBody to point to database-specific version of object file
   let objFilesPath = objectFilesPath transDir
-  existingObjHashes <- loadObjectFileHashes objFilePath
+  existingObjHashes <- loadObjectFileHashes objFilesPath
   let atomFuncPath = atomFuncsPath transDir
-
-      unresolvedObjectFuncs =
-        filterM (\af ->
-                  case atomFuncBody af of
-                    AtomFunctionObjectLoadedBody objPath _ _ _-> 
-                      <- canonicalizePath objPath
-                      --if a hash of the object file is not in our own obj directory, the we need to copy it
-                      --copy the object file to reduce race condition potential
-                      withSystemTempDirectory "pm36object" $ \tmpdir -> do
-                        let tempObjPath = tmpdir </> "object.o"
-                        copyFile objPath tempObjPath
-                        --hash the file
-                        lbytes <- BSL.readFile tempObjPath
-                        let objectFileHash = TE.decodeUtf8 (B64.encode (hashlazy lbytes))
-                            objectFileDest = objFilesPath </> (objectFileHash <> ".o")
-                        --check if we already have the hash in our objects directory
-                        when (not (doesFileExist objectFileDest)) $ do
-                          
-                    _ -> False
-                   ) func
-  writeBSFileSync sync atomFuncPath (serialise $ map (\f -> (atomFuncType f, atomFuncName f, atomFunctionScript f)) (HS.toList funcs))
+  funcs' <- forM (HS.toList funcs) $ \af ->
+    case atomFuncBody af of
+      AtomFunctionScriptBody{} -> pure af
+      AtomFunctionBuiltInBody{} -> pure af
+      AtomFunctionObjectLoadedBody objPath a b c -> do
+        --if a hash of the object file is not in our own obj directory, the we need to copy it, so return true
+        let bname = takeBaseName objPath 
+        if S.notMember bname existingObjHashes ||
+              traceShowId (takeDirectory objPath) /= objFilesPath then
+          do
+          --copy the object file to reduce race condition and merkle tree corruption potential
+            withSystemTempDirectory "pm36object" $ \tmpdir -> do
+              let ext = takeExtension objPath
+              objPathAbs <- canonicalizePath objPath
+              let tempObjPath = tmpdir </> addExtension "object" ext
+              copyFile objPathAbs tempObjPath
+              --hash the file
+              lbytes <- BSL.readFile tempObjPath
+              let objectFileHash = T.unpack (TE.decodeUtf8 (B64.encode (hashlazy lbytes)))
+                  objectFileDest = objFilesPath </> addExtension objectFileHash ext
+                  newFuncBody = traceShow ("writeFBody",objectFileDest,a,b) $ AtomFunctionObjectLoadedBody objectFileDest a b c
+              copyFile objPath objectFileDest
+              pure (af { atomFuncBody = newFuncBody })
+         else
+           pure af
+  --write additional data for object-loaded functions (which are not built-in or scripted)
+  let functionData f =
+          (atomFuncType f, atomFuncName f, atomFunctionScript f, objInfo f)
+      objInfo :: AtomFunction -> Maybe ObjectFileInfo
+      objInfo f =
+        case atomFuncBody f of
+          AtomFunctionObjectLoadedBody objPath modName entryFunc _ ->
+            traceShow ("write tup", objPath, modName, entryFunc) $ Just (objPath, modName, entryFunc)
+          AtomFunctionScriptBody{} -> Nothing
+          AtomFunctionBuiltInBody{} -> Nothing
+  writeBSFileSync sync atomFuncPath (serialise $ map functionData funcs')
 
 --all the atom functions are in one file
 readAtomFuncs :: FilePath -> Maybe ScriptSession -> IO AtomFunctions
 readAtomFuncs transDir mScriptSession = do
   atomFuncsList <- readFileDeserialise (atomFuncsPath transDir)
-  --only Haskell script functions can be serialized
   --we always return the pre-compiled functions
-  funcs <- mapM (\(funcType, funcName, mFuncScript) -> loadAtomFunc precompiledAtomFunctions mScriptSession funcName funcType mFuncScript) atomFuncsList
+  --load object files and functions in objects (shared libraries or flat object files)
+  let objFilesDir = objectFilesPath transDir
+  funcs <- mapM (\(funcType, funcName, mFuncScript, mObjInfo) -> 
+                    loadAtomFunc objFilesDir precompiledAtomFunctions mScriptSession funcName funcType mFuncScript mObjInfo) atomFuncsList
   pure (HS.union precompiledAtomFunctions (HS.fromList funcs))
-  
-loadAtomFunc :: AtomFunctions -> Maybe ScriptSession -> AtomFunctionName -> [AtomType] -> Maybe AtomFunctionBodyScript -> IO AtomFunction
-loadAtomFunc precompiledFuncs _mScriptSession funcName _funcType mFuncScript = case mFuncScript of
-    --handle pre-compiled case- pull it from the precompiled list
-    Nothing -> case atomFunctionForName funcName precompiledFuncs of
-      --WARNING: possible landmine here if we remove a precompiled atom function in the future, then the transaction cannot be restored
-      Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
-      Right realFunc -> pure realFunc
-    --handle a real Haskell scripted function- compile and load
-    Just _funcScript ->
+
+type ObjectFileInfo = (FilePath, String, String)
+
+loadAtomFunc :: FilePath -> AtomFunctions -> Maybe ScriptSession -> AtomFunctionName -> [AtomType] -> Maybe AtomFunctionBodyScript -> Maybe ObjectFileInfo -> IO AtomFunction
+loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName _funcType mFuncScript mObjInfo = do
+  case mObjInfo of
+    --load from shared or static object library
+    Just (path, modName, entryFunc) -> do
+      traceShowM ("loadAtomFunc", path, modName, entryFunc, funcName)
+      eAtomFuncs <- loadAtomFunctions modName entryFunc path
+      case eAtomFuncs of
+        Left _ -> error $ "Failed to load " <> path
+        Right atomFuncs -> 
+          case filter (\f -> atomFuncName f == funcName) atomFuncs of
+            [f] -> pure f
+            [] -> error $ "Failed to find function \"" <> T.unpack funcName <> "\" in " <> path
+            _ -> error $ "impossible error in loading \"" <> T.unpack funcName <> "\""
+    Nothing -> 
+      case mFuncScript of
+        --handle pre-compiled case- pull it from the precompiled list
+        Nothing -> case atomFunctionForName funcName precompiledFuncs of
+          --WARNING: possible landmine here if we remove a precompiled atom function in the future, then the transaction cannot be restored
+          Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
+          Right realFunc -> pure realFunc
+        --handle a real Haskell scripted function- compile and load
+        Just _funcScript ->
 #ifdef PM36_HASKELL_SCRIPTING
-      case _mScriptSession of
-        Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
-        Just scriptSession -> do
-          --risk of GHC exception during compilation here
-          eCompiledScript <- runGhc (Just libdir) $ do
-            setSession (hscEnv scriptSession)
-            compileScript (atomFunctionBodyType scriptSession) _funcScript
-          case eCompiledScript of
-            Left err -> throwIO err
-            Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
-                                                        atomFuncType = _funcType,
-                                                        atomFuncBody = AtomFunctionScriptBody _funcScript compiledScript }
+          case _mScriptSession of
+            Nothing -> error "attempted to read serialized AtomFunction without scripting enabled"
+            Just scriptSession -> do
+              --risk of GHC exception during compilation here
+              eCompiledScript <- runGhc (Just libdir) $ do
+                setSession (hscEnv scriptSession)
+                compileScript (atomFunctionBodyType scriptSession) _funcScript
+              case eCompiledScript of
+                Left err -> throwIO err
+                Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
+                                                            atomFuncType = _funcType,
+                                                            atomFuncBody = AtomFunctionScriptBody _funcScript compiledScript }
 #else
-      error "Haskell scripting is disabled"
+         error "Haskell scripting is disabled"
 #endif                                    
 
 --if the script session is enabled, compile the script, otherwise, hard error!  

@@ -66,7 +66,7 @@ createScriptedDatabaseContextFunction funcName argsIn retArg = AddDatabaseContex
 
 loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
 #ifdef PM36_HASKELL_SCRIPTING
-loadDatabaseContextFunctions = loadFunction
+loadDatabaseContextFunctions = loadFunction LoadAutoObjectFile
 #else
 loadDatabaseContextFunctions _ _ _ = pure (Left LoadSymbolError)
 #endif
