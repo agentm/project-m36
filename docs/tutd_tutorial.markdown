@@ -63,6 +63,7 @@ TutorialD is strongly-typed. The basic built-in types are:
 |Bool|boolean value|t|
 |Bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
 |Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
+|UUID|128 bit uuid|uuid("3494c720-14e7-40f4-bc34-eae4ad4c2f7a")|
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
