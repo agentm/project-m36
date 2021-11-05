@@ -43,7 +43,7 @@ Relational expressions query database state without being able to change it.
 
 ## Database Context Expressions
 
-Database context expressions take the current database context as input and alter it to create a new 
+Database context expressions take the current database context as input and alter it to create a new context.
 
 |Database Context Expression                           |Description                            |
 |------------------------------------------------------|---------------------------------------|
@@ -62,6 +62,8 @@ Database context expressions take the current database context as input and alte
 |`notify steve_change person where name="Steve" true (person where name="Steve"){address}`|Notify the current connection with an asynchronous event if any committed tuples matching `person where name="Steve"` with `true` for the pre-change state and `person where name="Steve"){address}` for the post-change state- these states will be sent along with the notification|
 |`data Hair = Bald | Brown | Blond | OtherColor Text`|Create a new algebraic data type for use with values inside tuples|
 |`undata Hair`|Delete the `Hair` custom type|
+
+Relation variable and attribute names must begin with a lowercase letter unless quoted with backticks.
 
 
 ## Transaction Graph Expressions

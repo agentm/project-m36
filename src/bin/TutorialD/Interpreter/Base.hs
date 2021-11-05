@@ -128,6 +128,9 @@ pipe = symbol "|"
 quote :: Parser Text
 quote = symbol "\""
 
+backtick :: Parser Text
+backtick = symbol "`"
+
 tripleQuote :: Parser Text
 tripleQuote = symbol "\"\"\""
 
@@ -165,16 +168,17 @@ uncapitalizedIdentifier :: Parser Text
 uncapitalizedIdentifier =
   lowerChar >>= identifierRemainder
 
-quotedIdentifierRemainder :: Char -> Parser Text
-quotedIdentifierRemainder c = do
-  rest <- many (alphaNumChar <|> opChar)
-  spaceConsumer
-  pure (pack (c:rest))
-
+-- | When an identifier is quoted, it can contain any string.
 quotedIdentifier :: Parser Text
 quotedIdentifier =
-  quoted $ lowerChar >>= quotedIdentifierRemainder
+  T.pack <$> backticks (many (escapedBacktick <|> notBacktickChar))
+  where
+    escapedBacktick = char '\\' >> char '`'
+    notBacktickChar = satisfy ((/=) '`')
 
+backticks :: Parser a -> Parser a
+backticks = between backtick backtick
+  
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"
   where

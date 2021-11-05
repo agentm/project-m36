@@ -103,6 +103,19 @@ Chris Date refers to these relations as "TABLE_DUM" and "TABLE_DEE" but such arb
 products{}
 ```
 
+Relation variables and attribute names must begin with a lowercase letter unless quoted with backticks:
+
+```
+`TestRelVar`:=relation{tuple{`漢字` "test"}}
+:showexpr `TestRelVar`
+┌──────────┐
+│漢字::Text│
+├──────────┤
+│"test"    │
+└──────────┘
+
+```
+
 ### Relational Expressions
 
 A relational expression combines relational operators to create a new relation. ```tutd``` can display the result of executing a relational expression with ":showexpr".
