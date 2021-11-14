@@ -66,9 +66,15 @@ Finally, connect to your Project:M36 database using the `tutd` client and run:
 
 `TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "examples/DynamicAtomFunctions.o"`
 
+Note that persistent databases (which keep the database on disk) include an additional security feature which ensures that the object file is present within the database directory. This ensures that only the database owner can load object modules and also that the module does not get lost elsewhere in the filesystem. 
+
+If your database is running in persistent mode, then loading the object modules is slightly different. First, copy the compiled object file into  `<database directory>/compiled_modules`, then:
+
+`TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "DynamicAtomFunctions.o"`
+
 If you see an error such as "unknown symbol", the version of the "project-m36" library installed in your sandbox is different from that with which you linked the object file. Make sure that the same versions are used in linking the server and object file.
 
-The atom function is now loaded and ready-to-use. Note, however, that the function must be added every time the project-m36-server starts. This will probably be improved in a future release.
+The atom function is now loaded and ready-to-use.
 
 ## Differences when compared to other DBMSes
 

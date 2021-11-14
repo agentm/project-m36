@@ -18,7 +18,7 @@ import GHC.Generics (Generic)
 import GHC.Stack
 import qualified Data.Vector as V
 import qualified Data.List as L
-import Data.Text (Text,unpack)
+import Data.Text (Text)
 import Data.Time.Clock
 import Data.Hashable.Time ()
 import Data.Time.Calendar (Day)
@@ -361,11 +361,11 @@ data DatabaseContextExprBase a =
   RemoveTypeConstructor TypeConstructorName |
 
   --adding an AtomFunction is not a pure operation (required loading GHC modules)
-  RemoveAtomFunction AtomFunctionName |
+  RemoveAtomFunction FunctionName |
   
-  RemoveDatabaseContextFunction DatabaseContextFunctionName |
+  RemoveDatabaseContextFunction FunctionName |
   
-  ExecuteDatabaseContextFunction DatabaseContextFunctionName [AtomExprBase a] |
+  ExecuteDatabaseContextFunction FunctionName [AtomExprBase a] |
   
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Read, Eq, Generic, NFData)
@@ -375,9 +375,9 @@ type ObjFunctionName = StringType
 type Range = (Int,Int)  
 -- | Adding an atom function should be nominally a DatabaseExpr except for the fact that it cannot be performed purely. Thus, we create the DatabaseContextIOExpr.
 data DatabaseContextIOExprBase a =
-  AddAtomFunction AtomFunctionName [TypeConstructor] AtomFunctionBodyScript |
+  AddAtomFunction FunctionName [TypeConstructor] FunctionBodyScript |
   LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
-  AddDatabaseContextFunction DatabaseContextFunctionName [TypeConstructor] DatabaseContextFunctionBodyScript |
+  AddDatabaseContextFunction FunctionName [TypeConstructor] FunctionBodyScript |
   LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
   CreateArbitraryRelation RelVarName [AttributeExprBase a] Range
                            deriving (Show, Eq, Generic)
@@ -469,7 +469,7 @@ type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
                       NakedAtomExpr Atom |
-                      FunctionAtomExpr AtomFunctionName [AtomExprBase a] a |
+                      FunctionAtomExpr FunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
                     deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
@@ -486,59 +486,14 @@ type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
 
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
-
-type AtomFunctionName = StringType
-
-type AtomFunctionBodyScript = StringType
-
 type AtomFunctionBodyType = [Atom] -> Either AtomFunctionError Atom
-
-data AtomFunctionBody =
-  AtomFunctionScriptBody AtomFunctionBodyScript AtomFunctionBodyType
-  | AtomFunctionBuiltInBody AtomFunctionBodyType
-  | AtomFunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName AtomFunctionBodyType
-  deriving Generic
-
-instance Hashable AtomFunctionBody where
-  salt `hashWithSalt` (AtomFunctionScriptBody script _) = salt `hashWithSalt` script
-  salt `hashWithSalt` (AtomFunctionBuiltInBody _) = salt
-  salt `hashWithSalt` (AtomFunctionObjectLoadedBody fp modName entryFunc _) = salt `hashWithSalt` (fp, modName, entryFunc)
-
 type ObjectFileEntryFunctionName = String
 
 type ObjectFilePath = FilePath
 
 type ObjectModuleName = String
 
-instance NFData AtomFunctionBody where
-  rnf (AtomFunctionScriptBody script _) = rnf script
-  rnf (AtomFunctionBuiltInBody _) = rnf ()
-  rnf (AtomFunctionObjectLoadedBody path obj nam _) = rnf path `seq` rnf nam `seq` rnf obj
-                        
-instance Show AtomFunctionBody where
-  show (AtomFunctionScriptBody script _) = show (unpack script)
-  show (AtomFunctionBuiltInBody _) = "<built-in+compiled>"
-  show (AtomFunctionObjectLoadedBody path obj nam _) =
-    "<object:\"" <> path <> "\":\"" <> obj <> "." <> nam <> "\""
-
 -- | An AtomFunction has a name, a type, and a function body to execute when called.
-data AtomFunction = AtomFunction {
-  atomFuncName :: AtomFunctionName,
-  atomFuncType :: [AtomType], 
-  atomFuncBody :: AtomFunctionBody
-  } deriving (Generic, NFData)
-                          
-instance Hashable AtomFunction where
-  hashWithSalt salt func = salt `hashWithSalt` atomFuncName func `hashWithSalt` atomFuncType func `hashWithSalt` atomFuncBody func
-                           
-instance Eq AtomFunction where                           
-  f1 == f2 = atomFuncName f1 == atomFuncName f2 
-  
-instance Show AtomFunction where  
-  show aFunc = unpack (atomFuncName aFunc) ++ "::" ++ showArgTypes ++ "; " ++ body
-   where
-     body = show (atomFuncBody aFunc)
-     showArgTypes = L.intercalate "->" (map show (atomFuncType aFunc))
      
 -- | The 'AttributeNames' structure represents a set of attribute names or the same set of names but inverted in the context of a relational expression. For example, if a relational expression has attributes named "a", "b", and "c", the 'InvertedAttributeNames' of ("a","c") is ("b").
 data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
@@ -601,30 +556,49 @@ data MergeStrategy =
   SelectedBranchMergeStrategy HeadName
                      deriving (Eq, Show, Generic, NFData)
 
-type DatabaseContextFunctionName = StringType
 
-type DatabaseContextFunctionBodyScript = StringType
 
 type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
-
-data DatabaseContextFunctionBody = DatabaseContextFunctionBody (Maybe DatabaseContextFunctionBodyScript) DatabaseContextFunctionBodyType 
-
-instance NFData DatabaseContextFunctionBody where
-  rnf (DatabaseContextFunctionBody mScript _) = rnf mScript
-
-data DatabaseContextFunction = DatabaseContextFunction {
-  dbcFuncName :: DatabaseContextFunctionName,
-  dbcFuncType :: [AtomType],
-  dbcFuncBody :: DatabaseContextFunctionBody
-  } deriving (Generic, NFData)
-                               
 type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
 
-instance Hashable DatabaseContextFunction where
-  hashWithSalt salt func = salt `hashWithSalt` dbcFuncName func
-                           
-instance Eq DatabaseContextFunction where                           
-  f1 == f2 = dbcFuncName f1 == dbcFuncName f2 
+type FunctionName = StringType
+type FunctionBodyScript = StringType
+
+-- | Represents stored, user-created or built-in functions which can operates of types such as Atoms or DatabaseContexts.
+data Function a = Function {
+  funcName :: FunctionName,
+  funcType :: [AtomType],
+  funcBody :: FunctionBody a
+  }
+  deriving (Generic, NFData)
+
+instance Eq (Function a) where                           
+  f1 == f2 = funcName f1 == funcName f2
+
+instance Hashable (Function a) where
+  hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` funcBody func
+
+data FunctionBody a =
+  FunctionScriptBody FunctionBodyScript a |
+  FunctionBuiltInBody a |
+  FunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName a
+  deriving Generic
+
+instance Hashable (FunctionBody a) where
+  salt `hashWithSalt` (FunctionScriptBody script _) = salt `hashWithSalt` script
+  salt `hashWithSalt` (FunctionBuiltInBody _) = salt
+  salt `hashWithSalt` (FunctionObjectLoadedBody fp modName entryFunc _) = salt `hashWithSalt` (fp, modName, entryFunc)
+
+instance NFData a => NFData (FunctionBody a) where
+  rnf (FunctionScriptBody script _) = rnf script
+  rnf (FunctionBuiltInBody _) = rnf ()
+  rnf (FunctionObjectLoadedBody fp mod' entryf _) = rnf (fp, mod', entryf)
+
+type AtomFunction = Function AtomFunctionBodyType
+type AtomFunctionBody = FunctionBody AtomFunctionBodyType
+
+type DatabaseContextFunction = Function DatabaseContextFunctionBodyType
+type DatabaseContextFunctionBody = FunctionBody DatabaseContextFunctionBodyType
 
 attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of

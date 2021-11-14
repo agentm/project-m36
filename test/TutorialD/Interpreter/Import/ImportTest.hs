@@ -7,7 +7,6 @@ import System.IO.Temp
 import System.FilePath
 import qualified Data.Map as M
 import System.IO
-import System.Directory
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Text.URI hiding (makeAbsolute)

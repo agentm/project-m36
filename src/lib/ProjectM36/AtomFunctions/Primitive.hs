@@ -11,50 +11,52 @@ import Control.Monad
 primitiveAtomFunctions :: AtomFunctions
 primitiveAtomFunctions = HS.fromList [
   --match on any relation type
-  AtomFunction { atomFuncName = "add",
-                 atomFuncType = [IntegerAtomType, IntegerAtomType, IntegerAtomType],
-                 atomFuncBody = body (\(IntegerAtom i1:IntegerAtom i2:_) -> pure (IntegerAtom (i1 + i2)))},
-  AtomFunction { atomFuncName = "id",
-                 atomFuncType = [TypeVariableType "a", TypeVariableType "a"],
-                 atomFuncBody = body (\(x:_) -> pure x)},
-  AtomFunction { atomFuncName = "sum",
-                 atomFuncType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-                 atomFuncBody = body (\(RelationAtom rel:_) -> relationSum rel)},
-  AtomFunction { atomFuncName = "count",
-                 atomFuncType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
-                 atomFuncBody = body (\(RelationAtom relIn:_) -> relationCount relIn)},
-  AtomFunction { atomFuncName = "max",
-                 atomFuncType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-                 atomFuncBody = body (\(RelationAtom relIn:_) -> relationMax relIn)},
-  AtomFunction { atomFuncName = "min",
-                 atomFuncType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-                 atomFuncBody = body (\(RelationAtom relIn:_) -> relationMin relIn)},
-  AtomFunction { atomFuncName = "lt",
-                 atomFuncType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-                 atomFuncBody = body $ integerAtomFuncLessThan False},
-  AtomFunction { atomFuncName = "lte",
-                 atomFuncType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-                 atomFuncBody = body $ integerAtomFuncLessThan True},
-  AtomFunction { atomFuncName = "gte",
-                 atomFuncType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-                 atomFuncBody = body $ integerAtomFuncLessThan False >=> boolAtomNot},
-  AtomFunction { atomFuncName = "gt",
-                 atomFuncType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-                 atomFuncBody = body $ integerAtomFuncLessThan True >=> boolAtomNot},
-  AtomFunction { atomFuncName = "not",
-                 atomFuncType = [BoolAtomType, BoolAtomType],
-                 atomFuncBody = body $ \(b:_) -> boolAtomNot b },
-  AtomFunction { atomFuncName = "int",
-                 atomFuncType = [IntegerAtomType, IntAtomType],
-                 atomFuncBody = body $ \(IntegerAtom v:_) -> if v < fromIntegral (maxBound :: Int) then
-                                                   pure (IntAtom (fromIntegral v))
-                                                 else
-                                                   Left InvalidIntBoundError
-                                                   }
-  
+  Function { funcName = "add",
+             funcType = [IntegerAtomType, IntegerAtomType, IntegerAtomType],
+             funcBody = body (\(IntegerAtom i1:IntegerAtom i2:_) -> pure (IntegerAtom (i1 + i2)))},
+    Function { funcName = "id",
+               funcType = [TypeVariableType "a", TypeVariableType "a"],
+               funcBody = body (\(x:_) -> pure x)},
+    Function { funcName = "sum",
+               funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
+               funcBody = body (\(RelationAtom rel:_) -> relationSum rel)},
+    Function { funcName = "count",
+               funcType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
+               funcBody = body (\(RelationAtom relIn:_) -> relationCount relIn)},
+    Function { funcName = "max",
+               funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
+               funcBody = body (\(RelationAtom relIn:_) -> relationMax relIn)},
+    Function { funcName = "min",
+               funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
+               funcBody = body (\(RelationAtom relIn:_) -> relationMin relIn)},
+    Function { funcName = "lt",
+               funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
+               funcBody = body $ integerAtomFuncLessThan False},
+    Function { funcName = "lte",
+               funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
+               funcBody = body $ integerAtomFuncLessThan True},
+    Function { funcName = "gte",
+               funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
+               funcBody = body $ integerAtomFuncLessThan False >=> boolAtomNot},
+    Function { funcName = "gt",
+               funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
+               funcBody = body $ integerAtomFuncLessThan True >=> boolAtomNot},
+    Function { funcName = "not",
+               funcType = [BoolAtomType, BoolAtomType],
+               funcBody = body $ \(b:_) -> boolAtomNot b },
+    Function { funcName = "int",
+               funcType = [IntegerAtomType, IntAtomType],
+               funcBody =
+                 body $ \(IntegerAtom v:_) ->
+                          if v < fromIntegral (maxBound :: Int) then
+                            
+                            pure (IntAtom (fromIntegral v))
+                          else
+                            Left InvalidIntBoundError
+             }
   ]
   where
-    body = AtomFunctionBuiltInBody
+    body = FunctionBuiltInBody
                          
 integerAtomFuncLessThan :: Bool -> [Atom] -> Either AtomFunctionError Atom
 integerAtomFuncLessThan equality (IntegerAtom i1:IntegerAtom i2:_) = pure (BoolAtom (i1 `op` i2))

@@ -45,7 +45,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchSessionError TransactionId
                      | FailedToFindTransactionError TransactionId
                      | TransactionIdInUseError TransactionId
-                     | NoSuchFunctionError AtomFunctionName
+                     | NoSuchFunctionError FunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
                      | AtomTypeMismatchError AtomType AtomType
@@ -57,14 +57,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TypeConstructorTypeVarMissing TypeVarName
                      | TypeConstructorTypeVarsTypesMismatch TypeConstructorName TypeVarMap TypeVarMap
                      | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
-                     | AtomFunctionTypeVariableResolutionError AtomFunctionName TypeVarName
+                     | AtomFunctionTypeVariableResolutionError FunctionName TypeVarName
                      | AtomFunctionTypeVariableMismatch TypeVarName AtomType AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
                      | AttributeNotSortableError Attribute
-                     | FunctionNameInUseError AtomFunctionName
-                     | FunctionNameNotInUseError AtomFunctionName
+                     | FunctionNameInUseError FunctionName
+                     | FunctionNameNotInUseError FunctionName
                      | EmptyCommitError
                      | FunctionArgumentCountMismatchError Int Int
                      | ConstructedAtomArgumentCountMismatchError Int Int
@@ -75,9 +75,9 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomOperatorNotSupported T.Text --used by persistent driver
                      | EmptyTuplesError -- used by persistent driver
                      | AtomTypeCountError [AtomType] [AtomType]
-                     | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
+                     | AtomFunctionTypeError FunctionName Int AtomType AtomType --arg number
                      | AtomFunctionUserError AtomFunctionError
-                     | PrecompiledFunctionRemoveError AtomFunctionName -- pre-compiled atom functions cannot be serialized, so they cannot change over time- they are referred to in perpetuity
+                     | PrecompiledFunctionRemoveError FunctionName -- pre-compiled atom functions cannot be serialized, so they cannot change over time- they are referred to in perpetuity
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName

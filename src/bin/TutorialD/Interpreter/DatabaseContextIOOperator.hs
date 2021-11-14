@@ -24,9 +24,9 @@ createArbitraryRelationP = do
 dbioexprP :: ParseStr -> (Text -> [TypeConstructor] -> Text -> DatabaseContextIOExpr) -> Parser DatabaseContextIOExpr
 dbioexprP res adt = do
   reserved res
-  funcName <- quotedString
-  funcType <- atomTypeSignatureP
-  adt funcName funcType <$> quotedString
+  funcName' <- quotedString
+  funcType' <- atomTypeSignatureP
+  adt funcName' funcType' <$> quotedString
 
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow

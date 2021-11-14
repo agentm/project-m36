@@ -19,7 +19,7 @@ dataConstructorNameP = capitalizedIdentifier
 attributeNameP :: Parser AttributeName
 attributeNameP = uncapitalizedIdentifier
 
-functionNameP :: Parser AtomFunctionName
+functionNameP :: Parser FunctionName
 functionNameP = uncapitalizedIdentifier
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.

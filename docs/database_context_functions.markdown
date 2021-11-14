@@ -127,7 +127,7 @@ import qualified Data.Map as M
 
 
 someDBCFunctions :: [DatabaseContextFunction]
-someDBCFunctions = [DatabaseContextFunction {
+someDBCFunctions = [tFunction {
                        dbcFuncName = "addtestrel",
                        dbcFuncType = [],
                        dbcFuncBody = DatabaseContextFunctionBody Nothing addTestRel
@@ -158,9 +158,13 @@ Finally, connect to your database with `tutd` and load the module:
 TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "examples/DynamicDatabaseContextFunctions.o"
 ```
 
-If the load reports an "unknown symbol" error, double check that the installed "project-m36" package is identical to one used to link the Haskell module.
+or, if running the database in persistent mode, copy the compiled module ".o" file into `<database directory>/compiled_modules/`, then:
 
-Note that such functions do not survive a server restart; this will likely be improved in a future release.
+```
+TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "DynamicDatabaseContextFunctions.o"
+```
+
+If the load reports an "unknown symbol" error, double check that the installed "project-m36" package is identical to one used to link the Haskell module.
 
 ## Future Improvements
 

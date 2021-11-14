@@ -8,6 +8,7 @@ import ProjectM36.Transaction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
+import ProjectM36.Function
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import System.FilePath
@@ -115,22 +116,22 @@ writeAtomFuncs sync transDir funcs = do
   --copy in object file, if necessary, and alter AtomFunctionBody to point to database-specific version of object file
   let atomFuncPath = atomFuncsPath transDir
   funcs' <- forM (HS.toList funcs) $ \af ->
-    case atomFuncBody af of
-      AtomFunctionScriptBody{} -> pure af
-      AtomFunctionBuiltInBody{} -> pure af
-      AtomFunctionObjectLoadedBody objPath a b c -> do
-         let newFuncBody = AtomFunctionObjectLoadedBody objPath a b c
-         pure (af { atomFuncBody = newFuncBody })
+    case funcBody af of
+      FunctionScriptBody{} -> pure af
+      FunctionBuiltInBody{} -> pure af
+      FunctionObjectLoadedBody objPath a b c -> do
+         let newFuncBody = FunctionObjectLoadedBody objPath a b c
+         pure (af { funcBody = newFuncBody })
   --write additional data for object-loaded functions (which are not built-in or scripted)
   let functionData f =
-          (atomFuncType f, atomFuncName f, atomFunctionScript f, objInfo f)
+          (funcType f, funcName f, functionScript f, objInfo f)
       objInfo :: AtomFunction -> Maybe ObjectFileInfo
       objInfo f =
-        case atomFuncBody f of
-          AtomFunctionObjectLoadedBody objPath modName entryFunc _ ->
+        case funcBody f of
+          FunctionObjectLoadedBody objPath modName entryFunc _ ->
             Just (ObjectFileInfo (objPath, modName, entryFunc))
-          AtomFunctionScriptBody{} -> Nothing
-          AtomFunctionBuiltInBody{} -> Nothing
+          FunctionScriptBody{} -> Nothing
+          FunctionBuiltInBody{} -> Nothing
   writeBSFileSync sync atomFuncPath (serialise $ map functionData funcs')
 
 --all the atom functions are in one file
@@ -140,16 +141,16 @@ readAtomFuncs transDir mScriptSession = do
   --we always return the pre-compiled functions
   --load object files and functions in objects (shared libraries or flat object files)
   let objFilesDir = objectFilesPath transDir
-  funcs <- mapM (\(funcType, funcName, mFuncScript, mObjInfo) -> 
-                    loadAtomFunc objFilesDir precompiledAtomFunctions mScriptSession funcName funcType mFuncScript mObjInfo) atomFuncsList
+  funcs <- mapM (\(funcType', funcName', mFuncScript, mObjInfo) -> 
+                    loadAtomFunc objFilesDir precompiledAtomFunctions mScriptSession funcName' funcType' mFuncScript mObjInfo) atomFuncsList
   pure (HS.union precompiledAtomFunctions (HS.fromList funcs))
 
 newtype ObjectFileInfo = ObjectFileInfo { _unFileInfo :: (FilePath, String, String) }
  deriving (Show, Serialise)
 -- deriving Serialise via WineryVariant ObjectFileInfo
 
-loadAtomFunc :: FilePath -> AtomFunctions -> Maybe ScriptSession -> AtomFunctionName -> [AtomType] -> Maybe AtomFunctionBodyScript -> Maybe ObjectFileInfo -> IO AtomFunction
-loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName _funcType mFuncScript mObjInfo = do
+loadAtomFunc :: FilePath -> AtomFunctions -> Maybe ScriptSession -> FunctionName -> [AtomType] -> Maybe FunctionBodyScript -> Maybe ObjectFileInfo -> IO AtomFunction
+loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName' _funcType mFuncScript mObjInfo = do
   case mObjInfo of
     --load from shared or static object library
     Just (ObjectFileInfo (path, modName, entryFunc)) -> do
@@ -157,16 +158,17 @@ loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName _funcType mFu
       case eAtomFuncs of
         Left _ -> error $ "Failed to load " <> path
         Right atomFuncs -> 
-          case filter (\f -> atomFuncName f == funcName) atomFuncs of
+          case filter (\f -> funcName f == funcName'
+                      ) atomFuncs of
             [f] -> pure f
-            [] -> error $ "Failed to find function \"" <> T.unpack funcName <> "\" in " <> path
-            _ -> error $ "impossible error in loading \"" <> T.unpack funcName <> "\""
+            [] -> error $ "Failed to find function \"" <> T.unpack funcName' <> "\" in " <> path
+            _ -> error $ "impossible error in loading \"" <> T.unpack funcName' <> "\""
     Nothing -> 
       case mFuncScript of
         --handle pre-compiled case- pull it from the precompiled list
-        Nothing -> case atomFunctionForName funcName precompiledFuncs of
+        Nothing -> case atomFunctionForName funcName' precompiledFuncs of
           --WARNING: possible landmine here if we remove a precompiled atom function in the future, then the transaction cannot be restored
-          Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
+          Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName')
           Right realFunc -> pure realFunc
         --handle a real Haskell scripted function- compile and load
         Just _funcScript ->
@@ -180,27 +182,27 @@ loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName _funcType mFu
                 compileScript (atomFunctionBodyType scriptSession) _funcScript
               case eCompiledScript of
                 Left err -> throwIO err
-                Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
-                                                            atomFuncType = _funcType,
-                                                            atomFuncBody = AtomFunctionScriptBody _funcScript compiledScript }
+                Right compiledScript -> pure Function { funcName = funcName',
+                                                        funcType = _funcType,
+                                                        funcBody = FunctionScriptBody _funcScript compiledScript }
 #else
          error "Haskell scripting is disabled"
 #endif                                    
 
 --if the script session is enabled, compile the script, otherwise, hard error!  
   
-readAtomFunc :: FilePath -> AtomFunctionName -> Maybe ScriptSession -> AtomFunctions -> IO AtomFunction
+readAtomFunc :: FilePath -> FunctionName -> Maybe ScriptSession -> AtomFunctions -> IO AtomFunction
 #if !defined(PM36_HASKELL_SCRIPTING)
 readAtomFunc _ _ _ _ = error "Haskell scripting is disabled"
 #else
-readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
+readAtomFunc transDir funcName' mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsPath transDir
-  (funcType, mFuncScript) <- readFileDeserialise @([AtomType],Maybe T.Text) atomFuncPath
+  (funcType', mFuncScript) <- readFileDeserialise @([AtomType],Maybe T.Text) atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
-    Nothing -> case atomFunctionForName funcName precompiledFuncs of
+    Nothing -> case atomFunctionForName funcName' precompiledFuncs of
       --WARNING: possible landmine here if we remove a precompiled atom function in the future, then the transaction cannot be restored
-      Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName)
+      Left _ -> error ("expected precompiled atom function: " ++ T.unpack funcName')
       Right realFunc -> pure realFunc
     --handle a real Haskell scripted function- compile and load
     Just funcScript ->
@@ -214,9 +216,9 @@ readAtomFunc transDir funcName mScriptSession precompiledFuncs = do
             compileScript (atomFunctionBodyType scriptSession) funcScript
           case eCompiledScript of
             Left err -> throwIO err
-            Right compiledScript -> pure AtomFunction { atomFuncName = funcName,
-                                                         atomFuncType = funcType,
-                                                         atomFuncBody = AtomFunctionScriptBody funcScript compiledScript }
+            Right compiledScript -> pure Function { funcName = funcName',
+                                                    funcType = funcType',
+                                                    funcBody = FunctionScriptBody funcScript compiledScript }
 #endif
 
 
@@ -225,8 +227,8 @@ writeDBCFuncs sync transDir funcs = mapM_ (writeDBCFunc sync transDir) (HS.toLis
   
 writeDBCFunc :: DiskSync -> FilePath -> DatabaseContextFunction -> IO ()
 writeDBCFunc sync transDir func = do
-  let dbcFuncPath = dbcFuncsDir transDir </> T.unpack (dbcFuncName func)  
-  writeBSFileSync sync dbcFuncPath (serialise (dbcFuncType func, databaseContextFunctionScript func))
+  let dbcFuncPath = dbcFuncsDir transDir </> T.unpack (funcName func)  
+  writeBSFileSync sync dbcFuncPath (serialise (funcType func, functionScript func))
 
 readDBCFuncs :: FilePath -> Maybe ScriptSession -> IO DatabaseContextFunctions
 readDBCFuncs transDir mScriptSession = do
@@ -236,17 +238,17 @@ readDBCFuncs transDir mScriptSession = do
   let funcs = mapM ((\name -> readDBCFunc transDir name mScriptSession precompiledDatabaseContextFunctions) . T.pack) funcNames
   HS.union basicDatabaseContextFunctions . HS.fromList <$> funcs
   
-readDBCFunc :: FilePath -> DatabaseContextFunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction
+readDBCFunc :: FilePath -> FunctionName -> Maybe ScriptSession -> DatabaseContextFunctions -> IO DatabaseContextFunction
 #if !defined(PM36_HASKELL_SCRIPTING)
-readDBCFunc transDir funcName _ precompiledFuncs = do
+readDBCFunc transDir funcName' _ precompiledFuncs = do
 #else
-readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
+readDBCFunc transDir funcName' mScriptSession precompiledFuncs = do
 #endif
-  let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName
+  let dbcFuncPath = dbcFuncsDir transDir </> T.unpack funcName'
   (_funcType, mFuncScript) <- readFileDeserialise @([AtomType], Maybe T.Text) dbcFuncPath
   case mFuncScript of
-    Nothing -> case databaseContextFunctionForName funcName precompiledFuncs of
-      Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName)
+    Nothing -> case databaseContextFunctionForName funcName' precompiledFuncs of
+      Left _ -> error ("expected precompiled dbc function: " ++ T.unpack funcName')
       Right realFunc -> pure realFunc --return precompiled function
     Just _funcScript ->
 #ifdef PM36_HASKELL_SCRIPTING
@@ -258,9 +260,9 @@ readDBCFunc transDir funcName mScriptSession precompiledFuncs = do
             compileScript (dbcFunctionBodyType scriptSession) _funcScript
           case eCompiledScript of
             Left err -> throwIO err
-            Right compiledScript -> pure DatabaseContextFunction { dbcFuncName = funcName,
-                                                                    dbcFuncType = _funcType,
-                                                                    dbcFuncBody = DatabaseContextFunctionBody (Just _funcScript) compiledScript}
+            Right compiledScript -> pure Function { funcName = funcName',
+                                                    funcType = _funcType,
+                                                    funcBody = FunctionScriptBody _funcScript compiledScript}
 #else
       error "Haskell scripting is disabled"
 #endif

@@ -4,4 +4,4 @@ module ProjectM36.AtomFunctionBody where
 import ProjectM36.Base
 
 compiledAtomFunctionBody :: AtomFunctionBodyType -> AtomFunctionBody  
-compiledAtomFunctionBody = AtomFunctionBuiltInBody
+compiledAtomFunctionBody = FunctionBuiltInBody

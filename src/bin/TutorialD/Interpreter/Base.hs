@@ -43,7 +43,6 @@ import Control.Monad.Random
 import Data.List.NonEmpty as NE
 import Data.Time.Clock
 import Data.Time.Format
-import Control.Monad (void)
 import Data.Char
 
 #if !MIN_VERSION_megaparsec(7,0,0)
