@@ -483,7 +483,8 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArg
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
-    dbcio_mScriptSession :: Maybe ScriptSession
+    dbcio_mScriptSession :: Maybe ScriptSession,
+    dbcio_mModulesDirectory :: Maybe FilePath -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
   }
 
 type DatabaseContextIOEvalMonad a = RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState IO a
@@ -598,14 +599,17 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
           Right eContext -> case eContext of
             Left err -> pure (Left err)
             Right context' -> putDBCIOContext context'
--- #312- if we can successfully load the functions and record how to load the object file- we could consider copying the object file but that might have other implications, for example, how would we load the "same" file if it gets recompiled- can we toss the old one?
 evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modPath) = do
+
+  -- when running an in-memory database, we are willing to load object files from any path- when running in persistent mode, we load modules only from the modules directory so that we can be reasonbly sure that these same modules will exist when the database is restarted from the same directory
+  mModDir <- dbcio_mModulesDirectory <$> ask
   currentContext <- getDBCIOContext
   let sModName = T.unpack modName
       sEntrypointName = T.unpack entrypointName
-  eLoadFunc <- liftIO $ loadAtomFunctions sModName sEntrypointName modPath
+  eLoadFunc <- liftIO $ loadAtomFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
+    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
     Right atomFunctionListFunc -> do
       let newContext = currentContext { atomFunctions = mergedFuncs }
           processedAtomFunctions =
@@ -618,6 +622,7 @@ evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName
   eLoadFunc <- liftIO $ loadDatabaseContextFunctions (T.unpack modName) (T.unpack funcName) modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
+    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
                                   in putDBCIOContext newContext

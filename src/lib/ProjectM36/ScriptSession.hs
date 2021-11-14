@@ -44,7 +44,6 @@ import GHC.Ptr (Ptr(..))
 import Encoding
 #endif
 
-
 data ScriptSession = ScriptSession {
 #ifdef PM36_HASKELL_SCRIPTING
   hscEnv :: HscEnv,
@@ -62,7 +61,7 @@ data ScriptSessionError = ScriptingDisabled
   deriving (Show)
 #endif
 
-data LoadSymbolError = LoadSymbolError
+data LoadSymbolError = LoadSymbolError | SecurityLoadSymbolError
 type ModName = String
 type FuncName = String
 
@@ -126,6 +125,7 @@ initScriptSession ghcPkgPaths = do
                              "unordered-containers",
                              "hashable",
                              "uuid",
+                             "mtl",
                              "vector",
                              "text",
                              "time",
@@ -255,7 +255,20 @@ data ObjectLoadMode = LoadObjectFile | -- ^ load .o files only
 -- | Load either a .o or dynamic library based on the file name's extension.
 
 
--- | Load a function from an relocatable object file (.o)
+-- | Load a function from an relocatable object file (.o or .so)
+--   If a modulesDir is specified, only load a path relative to the modulesDir (no ..)
+
+type ModuleDirectory = FilePath
+
+loadFunctionFromDirectory :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> FilePath -> IO (Either LoadSymbolError a)
+loadFunctionFromDirectory mode modName funcName modDir objPath =
+  if takeFileName objPath /= objPath then
+    pure (Left SecurityLoadSymbolError)
+  else
+    let fullObjPath = modDir </> objPath in
+      loadFunction mode modName funcName fullObjPath
+
+
 loadFunction :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
 loadFunction loadMode modName funcName objPath = do
 #if __GLASGOW_HASKELL__ >= 802
@@ -273,9 +286,9 @@ loadFunction loadMode modName funcName objPath = do
   case loadMode of
     LoadAutoObjectFile ->
       if takeExtension objPath == ".o" then
-       loadFunction LoadObjectFile modName funcName objPath
-      else
-       loadFunction LoadDLLFile modName funcName objPath
+          loadFunction LoadObjectFile modName funcName objPath
+        else
+          loadFunction LoadDLLFile modName funcName objPath
     LoadObjectFile -> do
       loadObj objPath
       loadFuncForSymbol

@@ -477,7 +477,7 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
                      deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
-                              
+
 type ExtendTupleExpr = ExtendTupleExprBase ()
 
 instance Hashable ExtendTupleExpr
@@ -498,6 +498,11 @@ data AtomFunctionBody =
   | AtomFunctionBuiltInBody AtomFunctionBodyType
   | AtomFunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName AtomFunctionBodyType
   deriving Generic
+
+instance Hashable AtomFunctionBody where
+  salt `hashWithSalt` (AtomFunctionScriptBody script _) = salt `hashWithSalt` script
+  salt `hashWithSalt` (AtomFunctionBuiltInBody _) = salt
+  salt `hashWithSalt` (AtomFunctionObjectLoadedBody fp modName entryFunc _) = salt `hashWithSalt` (fp, modName, entryFunc)
 
 type ObjectFileEntryFunctionName = String
 
@@ -524,7 +529,7 @@ data AtomFunction = AtomFunction {
   } deriving (Generic, NFData)
                           
 instance Hashable AtomFunction where
-  hashWithSalt salt func = salt `hashWithSalt` atomFuncName func
+  hashWithSalt salt func = salt `hashWithSalt` atomFuncName func `hashWithSalt` atomFuncType func `hashWithSalt` atomFuncBody func
                            
 instance Eq AtomFunction where                           
   f1 == f2 = atomFuncName f1 == atomFuncName f2 
@@ -554,6 +559,11 @@ data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory
                            MinimalPersistence FilePath | -- ^ fsync off, not crash-safe
                            CrashSafePersistence FilePath -- ^ full fsync to disk (flushes kernel and physical drive buffers to ensure that the transaction is on non-volatile storage)
                            deriving (Show, Read)
+
+persistenceDirectory :: PersistenceStrategy -> Maybe FilePath
+persistenceDirectory NoPersistence = Nothing
+persistenceDirectory (MinimalPersistence f) = Just f
+persistenceDirectory (CrashSafePersistence f) = Just f
                                     
 type AttributeExpr = AttributeExprBase ()
 type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker

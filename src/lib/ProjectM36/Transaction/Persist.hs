@@ -1,4 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -15,20 +17,12 @@ import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
 import Codec.Winery
-import qualified Data.Set as S
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Text.Encoding as TE
-import Data.ByteString.Base64 as B64
-import System.IO.Temp
-import Crypto.Hash.SHA256
 
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC
 import Control.Exception
 import GHC.Paths
 #endif
-
-import Debug.Trace
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path =
@@ -116,45 +110,17 @@ readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = 
   readFileDeserialise (relvarsPath transDir)
 
--- we store runtime-loaded object files with their names as hashes of the contents to know when we need to copy and load a new object file
-loadObjectFileHashes :: FilePath -> IO (S.Set FilePath)
-loadObjectFileHashes objDir = do
-  print ("spam", objDir)
-  files <- getDirectoryNames objDir
-  print files
-  pure (S.fromList (map (dropExtension . takeFileName) files))
-
 writeAtomFuncs :: DiskSync -> FilePath -> AtomFunctions -> IO ()
 writeAtomFuncs sync transDir funcs = do
   --copy in object file, if necessary, and alter AtomFunctionBody to point to database-specific version of object file
-  let objFilesPath = objectFilesPath transDir
-  existingObjHashes <- loadObjectFileHashes objFilesPath
   let atomFuncPath = atomFuncsPath transDir
   funcs' <- forM (HS.toList funcs) $ \af ->
     case atomFuncBody af of
       AtomFunctionScriptBody{} -> pure af
       AtomFunctionBuiltInBody{} -> pure af
       AtomFunctionObjectLoadedBody objPath a b c -> do
-        --if a hash of the object file is not in our own obj directory, the we need to copy it, so return true
-        let bname = takeBaseName objPath 
-        if S.notMember bname existingObjHashes ||
-              traceShowId (takeDirectory objPath) /= objFilesPath then
-          do
-          --copy the object file to reduce race condition and merkle tree corruption potential
-            withSystemTempDirectory "pm36object" $ \tmpdir -> do
-              let ext = takeExtension objPath
-              objPathAbs <- canonicalizePath objPath
-              let tempObjPath = tmpdir </> addExtension "object" ext
-              copyFile objPathAbs tempObjPath
-              --hash the file
-              lbytes <- BSL.readFile tempObjPath
-              let objectFileHash = T.unpack (TE.decodeUtf8 (B64.encode (hashlazy lbytes)))
-                  objectFileDest = objFilesPath </> addExtension objectFileHash ext
-                  newFuncBody = traceShow ("writeFBody",objectFileDest,a,b) $ AtomFunctionObjectLoadedBody objectFileDest a b c
-              copyFile objPath objectFileDest
-              pure (af { atomFuncBody = newFuncBody })
-         else
-           pure af
+         let newFuncBody = AtomFunctionObjectLoadedBody objPath a b c
+         pure (af { atomFuncBody = newFuncBody })
   --write additional data for object-loaded functions (which are not built-in or scripted)
   let functionData f =
           (atomFuncType f, atomFuncName f, atomFunctionScript f, objInfo f)
@@ -162,7 +128,7 @@ writeAtomFuncs sync transDir funcs = do
       objInfo f =
         case atomFuncBody f of
           AtomFunctionObjectLoadedBody objPath modName entryFunc _ ->
-            traceShow ("write tup", objPath, modName, entryFunc) $ Just (objPath, modName, entryFunc)
+            Just (ObjectFileInfo (objPath, modName, entryFunc))
           AtomFunctionScriptBody{} -> Nothing
           AtomFunctionBuiltInBody{} -> Nothing
   writeBSFileSync sync atomFuncPath (serialise $ map functionData funcs')
@@ -178,15 +144,16 @@ readAtomFuncs transDir mScriptSession = do
                     loadAtomFunc objFilesDir precompiledAtomFunctions mScriptSession funcName funcType mFuncScript mObjInfo) atomFuncsList
   pure (HS.union precompiledAtomFunctions (HS.fromList funcs))
 
-type ObjectFileInfo = (FilePath, String, String)
+newtype ObjectFileInfo = ObjectFileInfo { _unFileInfo :: (FilePath, String, String) }
+ deriving (Show, Serialise)
+-- deriving Serialise via WineryVariant ObjectFileInfo
 
 loadAtomFunc :: FilePath -> AtomFunctions -> Maybe ScriptSession -> AtomFunctionName -> [AtomType] -> Maybe AtomFunctionBodyScript -> Maybe ObjectFileInfo -> IO AtomFunction
 loadAtomFunc objFilesDir precompiledFuncs _mScriptSession funcName _funcType mFuncScript mObjInfo = do
   case mObjInfo of
     --load from shared or static object library
-    Just (path, modName, entryFunc) -> do
-      traceShowM ("loadAtomFunc", path, modName, entryFunc, funcName)
-      eAtomFuncs <- loadAtomFunctions modName entryFunc path
+    Just (ObjectFileInfo (path, modName, entryFunc)) -> do
+      eAtomFuncs <- loadAtomFunctions modName entryFunc (Just objFilesDir) path
       case eAtomFuncs of
         Left _ -> error $ "Failed to load " <> path
         Right atomFuncs -> 

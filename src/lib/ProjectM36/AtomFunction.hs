@@ -74,11 +74,24 @@ createScriptedAtomFunction funcName argsType retType = AddAtomFunction funcName 
                 ADTypeConstructor "AtomFunctionError" [],                     
                 retType]])
 
-loadAtomFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
+loadAtomFunctions :: ModName -> FuncName -> Maybe FilePath -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
 #ifdef PM36_HASKELL_SCRIPTING
-loadAtomFunctions = loadFunction LoadAutoObjectFile
+loadAtomFunctions modName funcName mModDir objPath =
+  case mModDir of
+    Just modDir -> do
+      eNewFs <- loadFunctionFromDirectory LoadAutoObjectFile modName funcName modDir objPath
+      case eNewFs of
+        Left err -> pure (Left err)
+        Right newFs ->
+          pure (Right (processFuncs newFs))
+    Nothing -> do
+      loadFunction LoadAutoObjectFile modName funcName objPath
+ where
+   --functions inside object files probably won't have the right function body metadata
+   processFuncs = map processor
+   processor newF = newF { atomFuncBody = processObjectLoadedFunctionBody modName funcName objPath (atomFuncBody newF)}
 #else
-loadAtomFunctions _ _ _ = pure (Left LoadSymbolError)
+loadAtomFunctions _ _ _ _ = pure (Left LoadSymbolError)
 #endif
 
 atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
@@ -115,3 +128,5 @@ processObjectLoadedFunctionBody modName fentry objPath body =
   where
     f = function body
       
+externalAtomFunction :: AtomFunctionBodyType -> AtomFunctionBody
+externalAtomFunction = AtomFunctionBuiltInBody
