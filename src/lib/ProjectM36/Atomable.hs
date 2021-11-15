@@ -20,6 +20,7 @@ import Data.Time.Clock
 import Data.Proxy
 import qualified Data.List.NonEmpty as NE
 import Codec.Winery
+import Data.UUID
 
 -- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
 class (Eq a, NFData a, Serialise a, Show a) => Atomable a where
@@ -100,7 +101,14 @@ instance Atomable Bool where
   fromAtom _ = error "improper fromAtom"
   toAtomType _ = BoolAtomType
   toAddTypeExpr _ = NoOperation
-  
+
+instance Atomable UUID where
+  toAtom = UUIDAtom
+  fromAtom (UUIDAtom u) = u
+  fromAtom _ = error "UUID: Improper fromAtom"
+  toAtomType _ = UUIDAtomType
+  toAddTypeExpr _ = NoOperation
+
 {-
 instance Atomable Relation where
   toAtom = RelationAtom
@@ -239,6 +247,7 @@ typeToTypeConstructor x@DayAtomType = PrimitiveTypeConstructor "Day" x
 typeToTypeConstructor x@DateTimeAtomType = PrimitiveTypeConstructor "DateTime" x
 typeToTypeConstructor x@ByteStringAtomType = PrimitiveTypeConstructor "ByteString" x
 typeToTypeConstructor x@BoolAtomType = PrimitiveTypeConstructor "Bool" x
+typeToTypeConstructor x@UUIDAtomType = PrimitiveTypeConstructor "UUID" x
 typeToTypeConstructor x@RelationalExprAtomType = PrimitiveTypeConstructor "RelationalExpr" x
 typeToTypeConstructor (RelationAtomType attrs)
   = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList (attributesVec attrs)

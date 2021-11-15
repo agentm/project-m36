@@ -17,6 +17,7 @@ import Data.Aeson
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding
 import Data.Time.Calendar
+import Data.UUID
 
 instance ToJSON RelationalExpr
 instance FromJSON RelationalExpr
@@ -104,6 +105,8 @@ instance ToJSON Atom where
                                             "val" .= decodeUtf8 (B64.encode i) ]
   toJSON atom@(BoolAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
+  toJSON atom@(UUIDAtom u) = object [ "type" .= atomTypeForAtom atom,
+                                      "val" .= u ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
   toJSON atom@(RelationalExprAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -135,6 +138,11 @@ instance FromJSON Atom where
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)
       BoolAtomType -> BoolAtom <$> o .: "val"
+      UUIDAtomType -> do
+        mUUID <- fromString <$> o .: "val"
+        case mUUID of
+          Just u -> pure $ UUIDAtom u
+          Nothing -> fail "Invalid UUID String"
       RelationalExprAtomType -> RelationalExprAtom <$> o .: "val"
 
 instance ToJSON Notification

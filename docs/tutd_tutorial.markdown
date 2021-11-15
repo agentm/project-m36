@@ -63,6 +63,7 @@ TutorialD is strongly-typed. The basic built-in types are:
 |Bool|boolean value|t|
 |Bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
 |Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
+|UUID|128 bit uuid|uuid("3494c720-14e7-40f4-bc34-eae4ad4c2f7a")|
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
@@ -100,6 +101,19 @@ This expression assigns a relation containing two tuples to the previously-defin
 Chris Date refers to these relations as "TABLE_DUM" and "TABLE_DEE" but such arbitrary names are not so recognizable. ```true``` and ```false``` can be easily remembered as the answer to the question: "Does this relation have any tuples?" which can be formulated in TutorialD as the projection of a relation asking for no attributes:
 ```
 products{}
+```
+
+Relation variables and attribute names must begin with a lowercase letter unless quoted with backticks:
+
+```
+`TestRelVar`:=relation{tuple{`漢字` "test"}}
+:showexpr `TestRelVar`
+┌──────────┐
+│漢字::Text│
+├──────────┤
+│"test"    │
+└──────────┘
+
 ```
 
 ### Relational Expressions

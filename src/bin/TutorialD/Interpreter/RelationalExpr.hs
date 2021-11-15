@@ -152,7 +152,7 @@ relExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relExprP = try withMacroExprP <|> makeExprParser relTerm relOperators
 
 relVarNameP :: Parser RelVarName
-relVarNameP = uncapitalizedIdentifier
+relVarNameP = try uncapitalizedIdentifier <|> quotedIdentifier
 
 relVarP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relVarP = RelationVariable <$> relVarNameP <*> parseMarkerP

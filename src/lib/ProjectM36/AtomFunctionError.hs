@@ -9,6 +9,7 @@ data AtomFunctionError = AtomFunctionUserError String |
                          InvalidIntervalOrderingError |
                          InvalidIntervalBoundariesError |
                          InvalidIntBoundError |
+                         InvalidUUIDString Text |
                          AtomFunctionEmptyRelationError |
                          AtomTypeDoesNotSupportOrderingError Text |
                          AtomTypeDoesNotSupportIntervalError Text |

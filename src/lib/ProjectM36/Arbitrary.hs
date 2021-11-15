@@ -17,6 +17,7 @@ import Test.QuickCheck.Instances ()
 import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
+import Data.UUID
 
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
 arbitrary' IntegerAtomType = 
@@ -49,6 +50,9 @@ arbitrary' ByteStringAtomType =
 
 arbitrary' BoolAtomType = 
   Right . BoolAtom <$> lift (arbitrary :: Gen Bool)
+
+arbitrary' UUIDAtomType = 
+  Right . UUIDAtom <$> lift (arbitrary :: Gen UUID)
 
 arbitrary' RelationalExprAtomType =
   pure (Right (RelationalExprAtom (ExistingRelation relationTrue))) -- don't bother with arbitrary relational expressions

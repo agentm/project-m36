@@ -84,7 +84,9 @@ main = do
       testSelfReferencingUncommittedContext,
       testUnionAndIntersectionAttributeExprs,
       testCaseExprs,
-      testUndefineConstraints
+      testUndefineConstraints,
+      testUndefineConstraints,
+      testQuotedRelVarNames      
       ]
 
 simpleRelTests :: Test
@@ -793,3 +795,14 @@ testUndefineConstraints = TestCase $ do
   let expectedErr = InclusionDependencyCheckError "bad" (Just (RelVarNotDefinedError "x"))
   expectTutorialDErr sessionId dbconn (== T.pack (show expectedErr)) "x:=true;constraint bad x equals true;undefine x"
 
+testQuotedRelVarNames :: Test
+testQuotedRelVarNames = TestCase $ do
+  let parseDBExpr = parse databaseContextExprP ""
+      true = RelationVariable "true" ()
+      assign rv = Right (Assign rv true)
+  assertEqual "quoted rv" (assign "TEST") (parseDBExpr "`TEST` := true")
+  assertEqual "quoted backtick rv" (assign "TEST`TEST") (parseDBExpr "`TEST\\`TEST`:=true")
+  assertEqual "multibyte rv" (assign "漢字") (parseDBExpr "`漢字`:=true")
+  let qAttrExpected = Right (Assign "test" (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "\28450\23383" (NakedAtomExpr (TextAtom "test")))])))
+  assertEqual "quoted attribute" qAttrExpected (parseDBExpr "test:=relation{tuple{`漢字` \"test\"}}")
+  assertBool "invalid quoted rv" (isLeft (parseDBExpr "`TEST:=true"))

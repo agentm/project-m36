@@ -129,6 +129,9 @@ pipe = symbol "|"
 quote :: Parser Text
 quote = symbol "\""
 
+backtick :: Parser Text
+backtick = symbol "`"
+
 tripleQuote :: Parser Text
 tripleQuote = symbol "\"\"\""
 
@@ -177,6 +180,17 @@ uncapitalizedIdentifier = do
 reservedWordList :: [Text]
 reservedWordList = ["case", "of"]
 
+-- | When an identifier is quoted, it can contain any string.
+quotedIdentifier :: Parser Text
+quotedIdentifier =
+  T.pack <$> backticks (many (escapedBacktick <|> notBacktickChar))
+  where
+    escapedBacktick = char '\\' >> char '`'
+    notBacktickChar = satisfy ('`' /=)
+
+backticks :: Parser a -> Parser a
+backticks = between backtick backtick
+  
 showRelationAttributes :: Attributes -> Text
 showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showAttribute attrsL) <> "}"
   where
