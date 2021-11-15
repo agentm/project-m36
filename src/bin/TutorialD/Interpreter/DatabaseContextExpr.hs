@@ -39,7 +39,7 @@ databaseContextExprP = choice [insertP,
                                nothingP]
             
 nothingP :: Parser DatabaseContextExpr            
-nothingP = spaceConsumer >> pure NoOperation
+nothingP = spaceConsumer <* eof >> pure NoOperation
 
 assignP :: Parser DatabaseContextExpr
 assignP = do

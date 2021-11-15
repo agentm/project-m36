@@ -10,6 +10,7 @@ compareAtoms (DayAtom d1) (DayAtom d2) = compare d1 d2
 compareAtoms (DateTimeAtom d1) (DateTimeAtom d2) = compare d1 d2
 compareAtoms (ByteStringAtom b1) (ByteStringAtom b2) = compare b1 b2
 compareAtoms (BoolAtom b1) (BoolAtom b2) = compare b1 b2
+compareAtoms (UUIDAtom u1) (UUIDAtom u2) = compare u1 u2
 compareAtoms (RelationAtom _) _ = EQ
 compareAtoms ConstructedAtom{} _ = EQ
 compareAtoms _ _ = EQ
@@ -24,6 +25,7 @@ isSortableAtomType typ = case typ of
   DateTimeAtomType -> True
   ByteStringAtomType -> False
   BoolAtomType -> True
+  UUIDAtomType -> False
   RelationalExprAtomType -> False
   RelationAtomType _ -> False
   ConstructedAtomType _ _ -> False

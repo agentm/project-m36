@@ -14,6 +14,7 @@ import Data.Time.Calendar
 import Data.Time.Clock.POSIX
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text.Encoding as TE
+import Data.UUID hiding (null)
 
 instance Pretty Atom where
   pretty (IntegerAtom x) = pretty x
@@ -26,6 +27,7 @@ instance Pretty Atom where
   pretty (DateTimeAtom time) = "dateTimeFromEpochSeconds" <> parensList [pretty @Integer (round (utcTimeToPOSIXSeconds time))]
   pretty (ByteStringAtom bs) = "bytestring" <> parensList [dquotes (pretty (TE.decodeUtf8 (B64.encode bs)))]
   pretty (BoolAtom x) = if x then "t" else "f"
+  pretty (UUIDAtom u) = pretty u
   pretty (RelationAtom x) = pretty x
   pretty (RelationalExprAtom re) = pretty re
   pretty (ConstructedAtom n _ as) = pretty n <+> prettyList as
@@ -52,6 +54,9 @@ prettyAtomExprsAsArguments = align . parensList . map addAt
           case atomExpr of
             AttributeAtomExpr attrName -> "@" <> pretty attrName
             _ -> pretty atomExpr
+
+instance Pretty UUID where
+  pretty = pretty . show
 
 instance Pretty TupleExpr where
   pretty (TupleExpr map') = "tuple" <> bracesList (Prelude.map (\(attrName,atom)-> pretty attrName <+> pretty atom) (M.toList map'))
@@ -130,6 +135,7 @@ instance Pretty AtomType where
   pretty DateTimeAtomType = "DateTime"
   pretty ByteStringAtomType = "ByteString"
   pretty BoolAtomType = "Bool"
+  pretty UUIDAtomType = "UUID"
   pretty (RelationAtomType attrs) = "relation " <+> prettyBracesList (A.toList attrs)
   pretty (ConstructedAtomType tcName tvMap) = pretty tcName <+> hsep (map pretty (M.toList tvMap)) --order matters
   pretty RelationalExprAtomType = "RelationalExpr"

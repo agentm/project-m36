@@ -17,10 +17,10 @@ dataConstructorNameP :: Parser DataConstructorName
 dataConstructorNameP = capitalizedIdentifier
 
 attributeNameP :: Parser AttributeName
-attributeNameP = uncapitalizedIdentifier
+attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier
 
 functionNameP :: Parser FunctionName
-functionNameP = uncapitalizedIdentifier
+functionNameP = try uncapitalizedIdentifier <|> quotedIdentifier
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
