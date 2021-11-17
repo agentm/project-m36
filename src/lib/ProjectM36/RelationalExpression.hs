@@ -888,15 +888,17 @@ type CaseMatchAttributes a = M.Map AttributeName Atom
 caseMatches (ConstructedAtom "Color" (ConstructedAtomType "Hair" (fromList [])) [TextAtom "Spam"]) (DataConstructorCaseMatch "Color" [VariableCaseMatch "v"],AttributeAtomExpr "v")
 -}
 caseMatches :: Atom -> (CaseMatch, AtomExprBase a) -> Maybe (AtomExprBase a, CaseMatchAttributes a)
-caseMatches (ConstructedAtom dNameA _ args) (DataConstructorCaseMatch dNameB cmatches, result) =
+caseMatches (ConstructedAtom dNameA _ args) (DataConstructorCaseMatch dNameB cmatches, result) = do
  if dNameA == dNameB && length args == length cmatches then
    -- extract new attributes from VariableCaseMatches
-   case foldr collectMatchAttrs Nothing (zip args cmatches) of
+   case foldr collectMatchAttrs Nothing (traceShow ("zipArgs", zipArgs) zipArgs) of
      Nothing -> Nothing
-     Just matchAttrs -> Just (result, matchAttrs)
+     Just matchAttrs ->
+       Just (result, matchAttrs)
  else
    Nothing
   where
+    zipArgs = zip args cmatches
     unionNothing Nothing m = Just m
     unionNothing (Just m) m' = Just (M.union m m')
     collectMatchAttrs :: (Atom, CaseMatch) -> Maybe (CaseMatchAttributes a) -> Maybe (CaseMatchAttributes a)
@@ -912,7 +914,8 @@ caseMatches (ConstructedAtom dNameA _ args) (DataConstructorCaseMatch dNameB cma
           acc' <- mapM ((flip collectMatchAttrs) Nothing) (zip args' caseArgs)
           traceShowM ("collectMatchAttrs", acc')
           unionNothing acc (M.unions acc')
-    collectMatchAttrs (atomA, AtomCaseMatch atomB) acc = unionNothing acc mempty
+    collectMatchAttrs (atomA, AtomCaseMatch atomB) acc | atomA == atomB = unionNothing acc mempty
+    collectMatchAttrs (_, AtomCaseMatch _) acc = Nothing
     collectMatchAttrs x y = traceShow ("collectNothing", x, y) $ Nothing
 caseMatches atom (VariableCaseMatch varName, _res) = Just (NakedAtomExpr atom, M.singleton varName atom)
 caseMatches atomA (AtomCaseMatch atomB, res) =

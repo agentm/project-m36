@@ -125,6 +125,7 @@ initScriptSession ghcPkgPaths = do
                              "directory",
                              "unordered-containers",
                              "hashable",
+                             "mtl",
                              "uuid",
                              "vector",
                              "text",
