@@ -383,7 +383,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
     case RE.transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) False
+            let freshDiscon = DisconnectedTransaction commitId (Discon.loadGraphRefRelVarsOnly commitId (Trans.schemas transaction)) False
             keyDuplication <- StmMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
