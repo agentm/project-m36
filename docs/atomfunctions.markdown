@@ -43,6 +43,8 @@ addatomfunction "idTest" a -> Either AtomFunctionError a "(\(x:_) -> pure x) :: 
 
 ## Pre-compiled Atom Functions
 
+*WARNING* Loading object files into the database can be a security and/or and database integrity issue. Project:M36 relies on calculating past states of the database. For this reason, it is inadvisable to alter object files once they are loaded into a database. Changing these object files could corrupt the database. Treat object files loaded as read-only. Use version numbers in the object file names to allow for future revisions.
+
 Compiling atom functions at runtime can incur a performance cost. To mitigate this, atom functions can be compiled by GHC to object files and then loaded into the Project:M36 server. Let's look at an [example](https://github.com/agentm/project-m36/):
 
 ```haskell
@@ -60,17 +62,25 @@ Any function inside any module which returns a list of `AtomFunction`s can be us
 
 `cabal exec ghc -- examples/DynamicAtomFunctions.hs -package project-m36`
 
+If you wish to link against libraries which Project:M36 does not include, then you may create a shared object file:
+
+`cabal exec ghc -- examples/DynamicAtomFunctions.hs -package project-m36 -package <extra pkg if necessary> -dynamic -shared -fPIC -o examples/DynamicAtomFunctions.so`
+
 Use cabal or stack to invoke ghc so that the project-m36 installed package will be found.
 
 Finally, connect to your Project:M36 database using the `tutd` client and run:
 
 `TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "examples/DynamicAtomFunctions.o"`
 
+or replace the `.o` with `.so` if you built a shared object.
+
 Note that persistent databases (which keep the database on disk) include an additional security feature which ensures that the object file is present within the database directory. This ensures that only the database owner can load object modules and also that the module does not get lost elsewhere in the filesystem. 
 
 If your database is running in persistent mode, then loading the object modules is slightly different. First, copy the compiled object file into  `<database directory>/compiled_modules`, then:
 
 `TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "DynamicAtomFunctions.o"`
+
+or `DynamicAtomFunctions.so` if you built a shared object file.
 
 If you see an error such as "unknown symbol", the version of the "project-m36" library installed in your sandbox is different from that with which you linked the object file. Make sure that the same versions are used in linking the server and object file.
 
