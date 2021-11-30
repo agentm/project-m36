@@ -455,3 +455,19 @@ isResolvedAttribute :: Attribute -> Bool
 isResolvedAttribute = isResolvedType . A.atomType
 
 --given two AtomTypes x,y
+
+-- | get AtomType of a given Atom
+getAtomType :: Atom -> AtomType
+getAtomType (IntegerAtom _) = IntegerAtomType
+getAtomType (IntAtom _) = IntAtomType
+getAtomType (DoubleAtom _) = DoubleAtomType
+getAtomType (TextAtom _) = TextAtomType
+getAtomType (DayAtom _) = DayAtomType
+getAtomType (DateTimeAtom _) = DateTimeAtomType
+getAtomType (ByteStringAtom _) = ByteStringAtomType
+getAtomType (BoolAtom _) = BoolAtomType
+getAtomType (UUIDAtom _) = UUIDAtomType
+getAtomType (RelationAtom (Relation attrs _)) = RelationAtomType attrs
+getAtomType (RelationalExprAtom _) = RelationalExprAtomType
+getAtomType (ConstructedAtom _ a2 _) = a2
+
