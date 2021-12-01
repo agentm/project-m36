@@ -75,8 +75,8 @@ processDatabaseContextExpr expr =
     RemoveTypeConstructor tyName -> pure (RemoveTypeConstructor tyName)
 
     RemoveAtomFunction aFuncName -> pure (RemoveAtomFunction aFuncName)
-    RemoveDatabaseContextFunction funcName -> pure (RemoveDatabaseContextFunction funcName)
-    ExecuteDatabaseContextFunction funcName atomExprs -> ExecuteDatabaseContextFunction funcName <$> mapM processAtomExpr atomExprs
+    RemoveDatabaseContextFunction funcName' -> pure (RemoveDatabaseContextFunction funcName')
+    ExecuteDatabaseContextFunction funcName' atomExprs -> ExecuteDatabaseContextFunction funcName' <$> mapM processAtomExpr atomExprs
     MultipleExpr exprs -> MultipleExpr <$> mapM processDatabaseContextExpr exprs
 
 processDatabaseContextIOExpr :: DatabaseContextIOExpr -> ProcessExprM GraphRefDatabaseContextIOExpr

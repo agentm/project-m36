@@ -94,25 +94,25 @@ intervalAtomType typ = ConstructedAtomType "Interval" (M.singleton "a" typ)
 
 intervalAtomFunctions :: AtomFunctions
 intervalAtomFunctions = HS.fromList [
-  AtomFunction { atomFuncName = "interval",
-                 atomFuncType = [TypeVariableType "a",
-                                 TypeVariableType "a",
-                                 BoolAtomType,
-                                 BoolAtomType,
-                                 intervalAtomType (TypeVariableType "a")],
-                 atomFuncBody = compiledAtomFunctionBody $ \(atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
+  Function { funcName = "interval",
+             funcType = [TypeVariableType "a",
+                          TypeVariableType "a",
+                          BoolAtomType,
+                          BoolAtomType,
+                          intervalAtomType (TypeVariableType "a")],
+             funcBody = compiledAtomFunctionBody $ \(atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
                    let aType = atomTypeForAtom atom1 
                    if supportsInterval aType then
                      createInterval atom1 atom2 bopen eopen
                      else
                      Left (AtomTypeDoesNotSupportIntervalError (prettyAtomType aType))
                },
-  AtomFunction {
-    atomFuncName = "interval_overlaps",
-    atomFuncType = [intervalAtomType (TypeVariableType "a"),
+  Function {
+    funcName = "interval_overlaps",
+    funcType = [intervalAtomType (TypeVariableType "a"),
                     intervalAtomType (TypeVariableType "a"),
                     BoolAtomType],
-    atomFuncBody = compiledAtomFunctionBody $ \(i1@ConstructedAtom{}:i2@ConstructedAtom{}:_) -> 
+    funcBody = compiledAtomFunctionBody $ \(i1@ConstructedAtom{}:i2@ConstructedAtom{}:_) -> 
       BoolAtom <$> intervalOverlaps i1 i2
     }]
                         

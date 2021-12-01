@@ -182,9 +182,9 @@ removeDatabaseContextFunctionP = do
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"
-  funcName <- functionNameP
+  funcName' <- functionNameP
   args <- parens (sepBy atomExprP comma)
-  pure (ExecuteDatabaseContextFunction funcName args)
+  pure (ExecuteDatabaseContextFunction funcName' args)
   
 databaseExprOpP :: Parser DatabaseContextExpr
 databaseExprOpP = multipleDatabaseContextExprP

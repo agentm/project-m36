@@ -39,15 +39,15 @@ listMaybeHead _ = Left AtomFunctionTypeMismatchError
 
 nonEmptyListAtomFunctions :: AtomFunctions
 nonEmptyListAtomFunctions = HS.fromList [
-  AtomFunction {
-     atomFuncName = "nonEmptyListLength",
-     atomFuncType = [nonEmptyListAtomType (TypeVariableType "a"), IntAtomType],
-     atomFuncBody = AtomFunctionBody Nothing (\(nonEmptyListAtom:_) ->
+  Function {
+     funcName = "nonEmptyListLength",
+     funcType = [nonEmptyListAtomType (TypeVariableType "a"), IntAtomType],
+     funcBody = FunctionBuiltInBody (\(nonEmptyListAtom:_) ->
                                                  IntAtom . fromIntegral <$> nonEmptyListLength nonEmptyListAtom)
      },
-  AtomFunction {
-    atomFuncName = "nonEmptyListHead",
-    atomFuncType = [nonEmptyListAtomType (TypeVariableType "a"), TypeVariableType "a"],
-    atomFuncBody = AtomFunctionBody Nothing (\(nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom)
+  Function {
+    funcName = "nonEmptyListHead",
+    funcType = [nonEmptyListAtomType (TypeVariableType "a"), TypeVariableType "a"],
+    funcBody = FunctionBuiltInBody (\(nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom)
     }
   ]

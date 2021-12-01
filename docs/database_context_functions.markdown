@@ -114,12 +114,15 @@ from the same module.
 
 ## Loading Precompiled Modules
 
+*WARNING* Loading object files into the database can be a security and/or and database integrity issue. Project:M36 relies on calculating past states of the database. For this reason, it is inadvisable to alter object files once they are loaded into a database. Changing these object files could corrupt the database. Treat object files loaded as read-only. Use version numbers in the object file names to allow for future revisions.
+
 Database context functions compiled with GHC to object files can be loaded at runtime. Let's walk through an example:
 
 ```haskell
 module DynamicDatabaseContextFunctions where
 import ProjectM36.Base
 import ProjectM36.Relation
+import ProjectM36.DatabaseContextFunction
 import ProjectM36.DatabaseContextFunctionError
 import qualified ProjectM36.Attribute as A
 
@@ -127,19 +130,19 @@ import qualified Data.Map as M
 
 
 someDBCFunctions :: [DatabaseContextFunction]
-someDBCFunctions = [DatabaseContextFunction {
-                       dbcFuncName = "addtestrel",
-                       dbcFuncType = [],
-                       dbcFuncBody = DatabaseContextFunctionBody Nothing addTestRel
+someDBCFunctions = [Function {
+                       funcName = "addtestrel",
+                       funcType = [],
+                       funcBody = externalDatabaseContextFunction addTestRel
                        }]
   where
     addTestRel _ ctx = do
-      let attrs = A.attributesFromList [Attribute "word" TextAtomType]
-          eRel = mkRelationFromList attrs [[TextAtom "nice"]]
-      case eRel of
-        Left err -> Left (DatabaseContextFunctionUserError (show err))
-        Right testRel ->
-          pure $ ctx { relationVariables = M.insert "testRel" testRel (relationVariables ctx) }
+      let attrExprs = [NakedAttributeExpr (Attribute "word" TextAtomType)]
+          newRelExpr = MakeRelationFromExprs (Just attrExprs) (TupleExprs UncommittedContextMa\
+rker [TupleExpr (M.singleton "word" (NakedAtomExpr (TextAtom "nice")))])
+      pure $ ctx { relationVariables =
+                       M.insert "testRel" (newRelExpr) (relationVariables ctx) }
+
 ```
 
 The function returns a list of `DatabaseContextFunction`s (just one in this case). The function adds a relation variable to the current database context.
@@ -150,7 +153,15 @@ Compile it with GHC:
 cabal exec ghc -- examples/DynamicDatabaseContextFunctions.hs -package project-m36
 ```
 
-or invoked GHC via stack.
+or invoke GHC via stack.
+
+You can also compile it into a shared object file if you link against modules which do not ship with Project:M36.
+
+```
+cabal exec ghc -- examples/DynamicDatabaseContextFunctions.hs -package project-m36 -package <another package> -fPIC -shared -dynamic -o examples/DynamicDatabaseContextFunctions.so
+```
+
+
 
 Finally, connect to your database with `tutd` and load the module:
 
@@ -158,9 +169,13 @@ Finally, connect to your database with `tutd` and load the module:
 TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "examples/DynamicDatabaseContextFunctions.o"
 ```
 
-If the load reports an "unknown symbol" error, double check that the installed "project-m36" package is identical to one used to link the Haskell module.
+or, if running the database in persistent mode, copy the compiled module ".o" file into `<database directory>/compiled_modules/`, then:
 
-Note that such functions do not survive a server restart; this will likely be improved in a future release.
+```
+TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "DynamicDatabaseContextFunctions.o"
+```
+
+If the load reports an "unknown symbol" error, double check that the installed "project-m36" package is identical to one used to link the Haskell module.
 
 ## Future Improvements
 

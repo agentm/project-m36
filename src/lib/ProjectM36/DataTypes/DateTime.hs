@@ -5,10 +5,10 @@ import qualified Data.HashSet as HS
 import Data.Time.Clock.POSIX
 
 dateTimeAtomFunctions :: AtomFunctions
-dateTimeAtomFunctions = HS.fromList [ AtomFunction {
-                                     atomFuncName = "dateTimeFromEpochSeconds",
-                                     atomFuncType = [IntegerAtomType, DateTimeAtomType],
-                                     atomFuncBody = compiledAtomFunctionBody $ \(IntegerAtom epoch:_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
+dateTimeAtomFunctions = HS.fromList [ Function {
+                                     funcName = "dateTimeFromEpochSeconds",
+                                     funcType = [IntegerAtomType, DateTimeAtomType],
+                                     funcBody = compiledAtomFunctionBody $ \(IntegerAtom epoch:_) -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
                                                                                                        }]
 
                                                  

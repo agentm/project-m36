@@ -43,7 +43,7 @@ Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
 
 expectedVersion :: Int
-expectedVersion = 5
+expectedVersion = 6
 
 transactionLogFileName :: FilePath 
 transactionLogFileName = "m36v" ++ show expectedVersion
@@ -98,9 +98,12 @@ bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   locker <- openLockFile (lockFilePath dbdir)
   let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
+  createDirectoryIfMissing False (ProjectM36.TransactionGraph.Persist.objectFilesPath dbdir)
   digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
   pure (locker, digest)
-  
+
+objectFilesPath :: FilePath -> FilePath
+objectFilesPath dbdir = dbdir </> "compiled_modules"
 {- 
 incrementally updates an existing database directory
 --algorithm: 
