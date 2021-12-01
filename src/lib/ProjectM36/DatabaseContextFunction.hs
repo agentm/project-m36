@@ -14,6 +14,9 @@ import ProjectM36.ScriptSession
 import qualified Data.Text as T
 import Data.Maybe (isJust)
 
+externalDatabaseContextFunction :: DatabaseContextFunctionBodyType -> DatabaseContextFunctionBody
+externalDatabaseContextFunction = FunctionBuiltInBody
+
 emptyDatabaseContextFunction :: FunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = Function { 
   funcName = name,
@@ -59,13 +62,6 @@ databaseContextFunctionReturnType tCons = ADTypeConstructor "Either" [
                                           
 createScriptedDatabaseContextFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr
 createScriptedDatabaseContextFunction funcName' argsIn retArg = AddDatabaseContextFunction funcName' (argsIn ++ [databaseContextFunctionReturnType retArg])
-
-loadDatabaseContextFunctions :: ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError [DatabaseContextFunction])
-#ifdef PM36_HASKELL_SCRIPTING
-loadDatabaseContextFunctions = loadFunction LoadAutoObjectFile
-#else
-loadDatabaseContextFunctions _ _ _ = pure (Left LoadSymbolError)
-#endif
 
 databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
 databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups

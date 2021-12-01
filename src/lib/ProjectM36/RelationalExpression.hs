@@ -40,6 +40,7 @@ import Control.Monad.Trans.Except (except)
 import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
+import ProjectM36.Function
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
@@ -606,25 +607,27 @@ evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modP
   currentContext <- getDBCIOContext
   let sModName = T.unpack modName
       sEntrypointName = T.unpack entrypointName
-  eLoadFunc <- liftIO $ loadAtomFunctions sModName sEntrypointName mModDir modPath
+  eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
     Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
     Right atomFunctionListFunc -> do
       let newContext = currentContext { atomFunctions = mergedFuncs }
-          processedAtomFunctions =
-            map (\af -> af { funcBody =
-                   processObjectLoadedFunctionBody sModName sEntrypointName modPath (funcBody af)}) atomFunctionListFunc
+          processedAtomFunctions = processObjectLoadedFunctions sModName sEntrypointName modPath atomFunctionListFunc
           mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList processedAtomFunctions)
       putDBCIOContext newContext
-evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName' modPath) = do
+evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName entrypointName modPath) = do
   currentContext <- getDBCIOContext
-  eLoadFunc <- liftIO $ loadDatabaseContextFunctions (T.unpack modName) (T.unpack funcName') modPath
+  let sModName = T.unpack modName
+      sEntrypointName = T.unpack entrypointName
+  mModDir <- dbcio_mModulesDirectory <$> ask      
+  eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
     Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
-                             mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
+                             mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList processedDBCFuncs)
+                             processedDBCFuncs = processObjectLoadedFunctions sModName sEntrypointName modPath dbcListFunc
                                   in putDBCIOContext newContext
 #endif
 evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs range) = do

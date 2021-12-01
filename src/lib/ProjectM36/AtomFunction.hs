@@ -6,7 +6,6 @@ import ProjectM36.Error
 import ProjectM36.Relation
 import ProjectM36.AtomType
 import ProjectM36.AtomFunctionError
-import ProjectM36.ScriptSession
 import ProjectM36.Function
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
@@ -70,9 +69,10 @@ createScriptedAtomFunction funcName' argsType retType = AddAtomFunction funcName
                 ADTypeConstructor "AtomFunctionError" [],                     
                 retType]])
 
+{-
 loadAtomFunctions :: ModName -> FuncName -> Maybe FilePath -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
 #ifdef PM36_HASKELL_SCRIPTING
-loadAtomFunctions modName funcName' mModDir objPath =
+Loadatomfunctions modName funcName' mModDir objPath =
   case mModDir of
     Just modDir -> do
       eNewFs <- loadFunctionFromDirectory LoadAutoObjectFile modName funcName' modDir objPath
@@ -89,6 +89,7 @@ loadAtomFunctions modName funcName' mModDir objPath =
 #else
 loadAtomFunctions _ _ _ _ = pure (Left LoadSymbolError)
 #endif
+-}
 
 atomFunctionsAsRelation :: AtomFunctions -> Either RelationalError Relation
 atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
@@ -111,13 +112,6 @@ hashBytes func = BL.fromChunks [serialise (funcName func),
                 FunctionBuiltInBody _ -> ""
                 FunctionObjectLoadedBody f m n _ -> serialise (f,m,n)
   
--- | Change atom function definition to reference proper object file source. Useful when moving the object file into the database directory.
-processObjectLoadedFunctionBody :: ObjectModuleName -> ObjectFileEntryFunctionName -> FilePath -> AtomFunctionBody -> AtomFunctionBody
-processObjectLoadedFunctionBody modName fentry objPath body =
-  FunctionObjectLoadedBody objPath modName fentry f
-  where
-    f = function body
-
 -- | Used to mark functions which are loaded externally from the server.      
 externalAtomFunction :: AtomFunctionBodyType -> AtomFunctionBody
 externalAtomFunction = FunctionBuiltInBody
