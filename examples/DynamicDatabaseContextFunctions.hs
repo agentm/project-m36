@@ -22,6 +22,6 @@ someDBCFunctions = [Function {
       let attrExprs = [NakedAttributeExpr (Attribute "word" TextAtomType)]
           newRelExpr = MakeRelationFromExprs (Just attrExprs) (TupleExprs UncommittedContextMarker [TupleExpr (M.singleton "word" (NakedAtomExpr (TextAtom "nice")))])
       pure $ ctx { relationVariables =
-                       M.insert "testRel" (newRelExpr) (relationVariables ctx) }      
+                       M.insert "testRel" newRelExpr (relationVariables ctx) }      
 
 

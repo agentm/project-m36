@@ -10,7 +10,6 @@ import ProjectM36.AtomType
 import ProjectM36.Function
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import ProjectM36.ScriptSession
 import qualified Data.Text as T
 import Data.Maybe (isJust)
 

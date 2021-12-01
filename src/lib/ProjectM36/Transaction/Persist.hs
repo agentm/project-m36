@@ -1,7 +1,9 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+#ifdef PM36_HASKELL_SCRIPTING
+{-# LANGUAGE TypeApplications #-}
+#endif
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Base
 import ProjectM36.Error
