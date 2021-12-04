@@ -16,7 +16,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
                      | EmptyAttributesError
                      | DuplicateAttributeNamesError (S.Set AttributeName)
-                     | NoMatchingCaseExpr 
+                     | NoMatchingCaseExprError
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNamesMismatchError (S.Set AttributeName)

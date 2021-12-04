@@ -42,15 +42,12 @@ import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
-import Data.Foldable
 import Control.Applicative
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
 #endif
-
-import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -860,72 +857,44 @@ evalGraphRefAtomExpr tupIn (CaseAtomExpr atomExpr matchCases) = do
   --validate that the CaseMatches type match the expected type
   --get transactionid for expr context
   --caseTypes <- mapM typeForCaseMatch matchCases
-  matchAtom <- evalGraphRefAtomExpr tupIn atomExpr
-  traceShowM ("matchAtom"::String, matchAtom)
-  let matchFolder (Just acc) _ = Just acc
-      matchFolder Nothing case' = traceShow ("callCaseMatch", matchAtom, case') $ caseMatches matchAtom case'
-      mMatchingCase = foldl' matchFolder Nothing matchCases
-  case mMatchingCase of
-    Nothing -> throwError NoMatchingCaseExpr
-    Just (matchAtomExpr, casePlaceholders) -> do
-      --convert placeholders into attributes+atoms to merge into tuple in gfEnv
+  atomToMatch <- evalGraphRefAtomExpr tupIn atomExpr
+  let folder Nothing cMatchRes =
+        evalCaseMatcher tupIn atomToMatch cMatchRes    
+      folder res _ = pure res
+  mres <- foldM folder Nothing (NE.toList matchCases)
+  case mres of
+    Nothing -> throwError NoMatchingCaseExprError
+    Just atomRes -> pure atomRes
+
+-- | Match the target atom in a case expression to a pattern match to return attributes to be available in the result atom.
+matchAtomPattern :: Atom -> CaseMatch -> Maybe CaseMatchAttributes
+matchAtomPattern (ConstructedAtom dConsName _ args) (DataConstructorCaseMatch cConsName cArgs)
+ | dConsName == cConsName && length args == length cArgs = do
+     let folder :: CaseMatchAttributes -> (Atom, CaseMatch) -> Maybe CaseMatchAttributes
+         folder m (arg, cArg) = do
+           match <- matchAtomPattern arg cArg
+           Just (match <> m)
+     foldM folder mempty (zip args cArgs)
+matchAtomPattern targetAtom (VariableCaseMatch varName) = Just $ M.singleton varName targetAtom
+matchAtomPattern targetAtom (AtomCaseMatch matchAtom) | targetAtom == matchAtom = Just mempty
+matchAtomPattern _ AnyCaseMatch = Just mempty
+matchAtomPattern _ _ = Nothing   
+
+evalCaseMatcher :: RelationTuple -> Atom -> (CaseMatch, GraphRefAtomExpr) -> GraphRefRelationalExprM (Maybe Atom)
+evalCaseMatcher tupIn atomToMatch (cmatch, resultAtomExpr) =
+  case matchAtomPattern atomToMatch cmatch of
+    Nothing -> pure Nothing
+    Just newAttrMap -> do
+      --setup the new attributes
+      --return the atom result
       let matchEnv = mergeTuplesIntoGraphRefRelationalExprEnv singletonTup
           singletonTup = mkRelationTuple tupAttrs tupAtoms
-          caseMatches' = M.toAscList casePlaceholders
-          tupAttrs = attributesFromList $ map (\(name', atom) -> Attribute name' (atomTypeForAtom atom)) caseMatches'
-          tupAtoms = V.fromList $ map snd caseMatches'
-      traceShowM ("caseMatches"::String, caseMatches')
-      local matchEnv (evalGraphRefAtomExpr tupIn matchAtomExpr)
+          tupAtoms = V.fromList $ map snd (M.toList newAttrMap)
+          tupAttrs = attributesFromList $ map (\(name', atom) -> Attribute name' (atomTypeForAtom atom)) (M.toList newAttrMap)
+      atomRes <- local matchEnv (evalGraphRefAtomExpr tupIn resultAtomExpr)
+      pure (Just atomRes)
 
-type CaseMatchAttributes a = M.Map AttributeName Atom
-
--- if the CaseMatch matches the Atom, then fill in the attributes and return a complete AtomExpr
--- case 5 of { 5 -> "a" }
--- caseMatches 5 (AtomCaseMatch 5, NakedAtomExpr (TextAtom "a")) --> Just
-
--- TODO: this is not returning the match attributes for sub expressions
-{-
-caseMatches (ConstructedAtom "Color" (ConstructedAtomType "Hair" (fromList [])) [TextAtom "Spam"]) (DataConstructorCaseMatch "Color" [VariableCaseMatch "v"],AttributeAtomExpr "v")
--}
-caseMatches :: Atom -> (CaseMatch, AtomExprBase a) -> Maybe (AtomExprBase a, CaseMatchAttributes a)
-caseMatches (ConstructedAtom dNameA _ args) (DataConstructorCaseMatch dNameB cmatches, result) = do
- if dNameA == dNameB && length args == length cmatches then
-   -- extract new attributes from VariableCaseMatches
-   case foldr collectMatchAttrs Nothing (traceShow ("zipArgs", zipArgs) zipArgs) of
-     Nothing -> Nothing
-     Just matchAttrs ->
-       Just (result, matchAttrs)
- else
-   Nothing
-  where
-    zipArgs = zip args cmatches
-    unionNothing Nothing m = Just m
-    unionNothing (Just m) m' = Just (M.union m m')
-    collectMatchAttrs :: (Atom, CaseMatch) -> Maybe (CaseMatchAttributes a) -> Maybe (CaseMatchAttributes a)
-    collectMatchAttrs (arg, VariableCaseMatch var) acc =
-      unionNothing acc (M.singleton var arg)
-
-    collectMatchAttrs (ConstructedAtom dConsName _ args', DataConstructorCaseMatch dConsName' caseArgs) acc =
-      if dConsName /= dConsName' then
-        Nothing
-      else -- matching data constructor names
-        do
-          traceShowM ("collectMatchAttrs1", zip args' caseArgs)
-          acc' <- mapM ((flip collectMatchAttrs) Nothing) (zip args' caseArgs)
-          traceShowM ("collectMatchAttrs", acc')
-          unionNothing acc (M.unions acc')
-    collectMatchAttrs (atomA, AtomCaseMatch atomB) acc | atomA == atomB = unionNothing acc mempty
-    collectMatchAttrs (_, AtomCaseMatch _) acc = Nothing
-    collectMatchAttrs x y = traceShow ("collectNothing", x, y) $ Nothing
-caseMatches atom (VariableCaseMatch varName, _res) = Just (NakedAtomExpr atom, M.singleton varName atom)
-caseMatches atomA (AtomCaseMatch atomB, res) =
-  if atomA == atomB then
-    pure (res, mempty)
-    else
-    Nothing
---caseMatches _ (AtomCaseMatch _ , _) = Nothing
-caseMatches _ (AnyCaseMatch, result) = Just (result, mempty)
-caseMatches _ _ = Nothing
+type CaseMatchAttributes = M.Map AttributeName Atom
 
 -- | determine if the first argument decomposes to the matching case match
 --TODO: detect and fail for duplicate variable case matches: "Blob v v -> @v"
@@ -936,12 +905,11 @@ typeForCaseMatch (DataConstructorCaseMatch dConsName matchArgs, aExpr) =
     MultipleTransactionsRef -> throwError TupleExprsReferenceMultipleMarkersError -- perhaps this warrants a new error
     SingularTransactionRef tid -> do
       tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker tid
-      argTypes <- mapM (\a -> (typeForCaseMatch (a, aExpr))) matchArgs
+      argTypes <- mapM (\a -> typeForCaseMatch (a, aExpr)) matchArgs
       lift $ except $ atomTypeForDataConstructor tConsMap dConsName argTypes
       
-typeForCaseMatch (VariableCaseMatch n, atomExpr) = do
+typeForCaseMatch (VariableCaseMatch n, _) = do
   --add name to tuple env
-  traceShowM ("typeForCM"::String, atomExpr)
   pure (TypeVariableType n)
 typeForCaseMatch (AtomCaseMatch atom, _) = pure (atomTypeForAtom atom)
 typeForCaseMatch (AnyCaseMatch, atomExpr) = typeForGraphRefAtomExpr mempty atomExpr
@@ -953,13 +921,12 @@ typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
     Right aType -> pure aType
     Left err@(NoSuchAttributeNamesError _) ->
       let envTup = envTuple renv
-          envAttrs = envAttributes renv in
+          envAttrs = envAttributes renv in        
       case A.attributeForName attrName envAttrs of
         Right attr -> pure (A.atomType attr)
         Left _ -> case atomForAttributeName attrName envTup of
           Right atom -> pure (atomTypeForAtom atom)
-          Left _ -> --throwError (traceStack (show ("typeForGRAtomExpr", attrs, envTup)) err)
-            throwError err
+          Left _ -> throwError err
     Left err -> throwError err
 
 typeForGraphRefAtomExpr _ (NakedAtomExpr atom) = pure (atomTypeForAtom atom)
@@ -986,30 +953,28 @@ typeForGraphRefAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs tid) =
     lift $ except $ atomTypeForDataConstructor tConsMap dConsName argsTypes
 typeForGraphRefAtomExpr attrs (CaseAtomExpr deconstructExpr matches) = do
   let typeFolder acc e@(_, atomExpr) = do
-        traceShowM ("typeFolder"::String, e, attrs)
         --these attrs need new attributes added from case match
-        nextType <- typeForGraphRefAtomExpr attrs atomExpr
-        lift $ except $ atomTypeVerify acc nextType
+        newAttrs <- A.attributesFromList <$> newAttributesForCaseMatch attrs deconstructExpr e
+        let matchEnv = mergeAttributesIntoGraphRefRelationalExprEnv newAttrs
+        local matchEnv $ do
+          nextType <- typeForGraphRefAtomExpr attrs atomExpr
+          lift $ except $ atomTypeVerify acc nextType
   --algo: retrieve first item in matches to get type, but this is a shortcut- we need to get the type for each match first and include the proper attribute which could be added by VariableCaseMatch
-  
-  let firstMatch = NE.head matches
-  traceShowM ("typeForGraphRefAtomExpr"::String, attrs, firstMatch, deconstructExpr)
-  newAttrs <- attributesFromList <$> newAttributesForCaseMatch attrs deconstructExpr firstMatch
-  traceShowM ("newAttrs"::String, newAttrs)
-  let totalAttrs = attrs <> newAttrs
-  startType <- typeForGraphRefAtomExpr totalAttrs (snd (NE.head matches))
-  x <- foldM typeFolder startType (NE.tail matches)
-  pure x
 
+  let (firstMatch, firstExprRes) = NE.head matches
+  newAttrs <- A.attributesFromList <$> newAttributesForCaseMatch attrs deconstructExpr (firstMatch, firstExprRes)
+  let matchEnv = mergeAttributesIntoGraphRefRelationalExprEnv newAttrs
+  firstType <- local matchEnv $ do
+    typeForGraphRefAtomExpr attrs firstExprRes
+  foldM typeFolder firstType (NE.tail matches)
 
 newAttributesForCaseMatch :: Attributes -> GraphRefAtomExpr -> (CaseMatch, GraphRefAtomExpr) -> GraphRefRelationalExprM [Attribute]
 newAttributesForCaseMatch attrs deconstructExpr (VariableCaseMatch v, _) = do
   deconsType <- typeForGraphRefAtomExpr attrs deconstructExpr
   pure [Attribute v deconsType]
 newAttributesForCaseMatch attrs (ConstructedAtomExpr dConsName args _) (DataConstructorCaseMatch dConsName' cmatches, ret) | dConsName == dConsName' = do
-  traceShowM ("newAttrsDecons"::String, dConsName, dConsName', args)
   concat <$> mapM (\(match,arg) -> newAttributesForCaseMatch attrs arg (match, ret)) (zip cmatches args)
-newAttributesForCaseMatch _ _ x@(DataConstructorCaseMatch{},_) = traceShow ("dconsmatchnothing"::String,x) $ pure []  
+newAttributesForCaseMatch _ _ (DataConstructorCaseMatch{},_) = pure []  
 newAttributesForCaseMatch _ _ (AtomCaseMatch{},_) = pure []
 newAttributesForCaseMatch _ _ (AnyCaseMatch,_) = pure []
 
@@ -1057,7 +1022,7 @@ verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do
 verifyGraphRefAtomExprTypes relIn (CaseAtomExpr _matchExpr matches) expectedType = do
   mapM_
     (\(_,resultExpr) -> do        
-        oneType <- traceShow ("verify"::String) $ typeForGraphRefAtomExpr (attributes relIn) resultExpr
+        oneType <- typeForGraphRefAtomExpr (attributes relIn) resultExpr
         lift $ except $ atomTypeVerify expectedType oneType
     ) matches
   pure expectedType

@@ -779,10 +779,11 @@ testCaseExprs = TestCase $ do
   eX5 <- getX
   assertEqual "ADT attribute match" (mkRelationFromList xAttrs [[TextAtom "Test"]]) eX5
 
-{-  -- match variable
-  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just a -> @a }}}"
+  -- match variable
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just \"Test\" of { Just a -> @a }}}"
   eX6 <- getX
-  -}
+  assertEqual "return matched attribute" (mkRelationFromList xAttrs [[TextAtom "Test"]]) eX6
+  
   --match anything
   executeTutorialD sessionId dbconn "x:=relation{tuple{a case Just 5 of { Just 6 -> \"b\"; _ -> \"a\" }}}"
   eX7 <- getX

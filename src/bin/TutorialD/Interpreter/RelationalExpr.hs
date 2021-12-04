@@ -15,6 +15,7 @@ import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
 import qualified Data.List.NonEmpty as NE
+import Data.Functor (($>))
 
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
@@ -230,7 +231,7 @@ caseMatchP =
   (AtomCaseMatch <$> try atomP) <|>
   (DataConstructorCaseMatch <$> dataConstructorNameP <*> many caseMatchP) <|>
   (VariableCaseMatch <$> dataConstructorVarNameP) <|>
-  (reserved "_" *> pure AnyCaseMatch)
+  (reserved "_" $> AnyCaseMatch)
   
   
 attributeAtomExprP :: Parser (AtomExprBase a)
