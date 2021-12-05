@@ -60,12 +60,12 @@ TutorialD is strongly-typed. The basic built-in types are:
 |DateTime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
 |Date|calendar date|fromGregorian(2017,05,30)|
 |Double|floating point number|3.1459|
-|Bool|boolean value|t|
+|Bool|boolean value|True|
 |Bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
-|Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
+|Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,False,False)|
 |UUID|128 bit uuid|uuid("3494c720-14e7-40f4-bc34-eae4ad4c2f7a")|
 
-With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
+With regards to boolean values, be sure not to conflate ```True``` or ```False``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
 The ```interval``` function last two arguments are boolean values indicating whether the interval is open at the start point and end point respectively.
 
@@ -77,6 +77,19 @@ ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
 ```
 
 The integer "10" cannot be added to the string sname value.
+
+## Case Expression Pattern Matching
+
+Pattern matching can be used to implement conditional logic using case expressions using the Haskell syntax.
+
+```
+TutorialD (master/main): :showexpr relation{tuple{a case Just 5 of { Nothing -> 0; Just v -> @v }}}
+┌──────────┐
+│a::Integer│
+├──────────┤
+│5         │
+└──────────┘
+```
 
 ### Using Relation Variables
 

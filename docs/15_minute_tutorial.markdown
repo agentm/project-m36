@@ -126,6 +126,23 @@ TutorialD (master/main): :showexpr s rename {city as town}
 
 Renaming attributes is equivalent to "SELECT city AS town..." in SQL.
 
+### Conditional Pattern Matching
+
+```
+TutorialD (master/main): :showexpr s : { xstatus := case @status of { 10 -> "low" ; _ -> "ok" }} 
+┌──────────┬────────┬───────────┬───────────────┬─────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│xstatus::Text│
+├──────────┼────────┼───────────┼───────────────┼─────────────┤
+│"Paris"   │"S3"    │"Blake"    │30             │"ok"         │
+│"Athens"  │"S5"    │"Adams"    │30             │"ok"         │
+│"London"  │"S4"    │"Clark"    │20             │"ok"         │
+│"Paris"   │"S2"    │"Jones"    │10             │"low"        │
+│"London"  │"S1"    │"Smith"    │20             │"ok"         │
+└──────────┴────────┴───────────┴───────────────┴─────────────┘
+```
+
+Case expressions can be used to implement conditional logic. They follow the Haskell syntax. 
+
 #### Relational "true" and "false"
 
 The relational algebra includes two fundamental named relations: "true" and "false". (Chris Date calls them "TABLE_DUM" and "TABLE_DEE" which are poor names.)

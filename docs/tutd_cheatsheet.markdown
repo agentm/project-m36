@@ -6,7 +6,7 @@ The following tables list examples of expressions for `tutd`, Project:M36's "Tut
 
 Relational expressions query database state without being able to change it.
 
-|Relational Expression                                 |Description                            |
+|Relational Expression                                |Description                            |
 |------------------------------------------------------|---------------------------------------|
 |`:showexpr p`|Display the relation variable `p`|
 |`:showexpr s rename {city as town}`|Display the result after renaming a relational attribute|
@@ -25,6 +25,9 @@ Relational expressions query database state without being able to change it.
 |`:showexpr relation{a Integer, b Text}`|Display an empty-tupled relation of a specified type|
 |`:showexpr relation{a Integer, b Text}{tuple{a 4, b "four"}}`|Display a relation bound by the specified types and containing one or more tuples|
 |`:showexpr s group ({s#,sname,status} as subrel):{citycount:=count(@subrel)}`|Display a result which groups `s` by `city` and extends the relation by a count for each city.|
+|`:showexpr s : { xstatus := if gte(@status, 20) then "good stock" else "low stock" }`|Extend a relational result with a conditional boolean expression|
+|`:showexpr s : { xstatus := case @sname of { "Adams" -> Just "expedited order" ; _ -> Nothing }}`|Extend a relation with a case pattern-matching expression.|
+
 |`:showrelvars`|Display a list of relation variables in the current context along with their types (attributes)|
 
 ## Built-In Types
@@ -39,7 +42,7 @@ Relational expressions query database state without being able to change it.
 |`fromGregorian(2017,05,30)`|Date||
 |`t`|Bool|`t` or `f`|
 |`bytestring("dGVzdGRhdGE=")`|Bytestring|base-64-encoded string of bytes|
-|`interval(3,5,f,f)`|Interval(Integer)|the constructor function includes two bounds and two boolean flags for inclusiveness|
+|`interval(3,5,False,False)`|Interval(Integer)|the constructor function includes two bounds and two boolean flags for inclusiveness|
 
 ## Database Context Expressions
 
