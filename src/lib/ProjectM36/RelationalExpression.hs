@@ -982,14 +982,14 @@ typeForCasePatternMatch attrs matchAtomExpr@(ConstructedAtomExpr dConsName args 
       when (length dConsArgs /= length args') $ do
         throwError (ConstructedAtomArgumentCountMismatchError dConsName' (length dConsArgs) (length args'))
       if dConsName == dConsName' && length args == length args' then do
-        argTypes <- mapM (\(matchArg, cmatch) -> typeForCasePatternMatch attrs matchArg cmatch) (zip args args')
+        argTypes <- zipWithM (typeForCasePatternMatch attrs) args args'
         lift $ except $ atomTypeForDataConstructor tConsMap dConsName argTypes
         else
           typeForGraphRefAtomExpr attrs matchAtomExpr
 --catch mismatched arg count for data constructor case match
 typeForCasePatternMatch attrs matchAtomExpr (VariableCaseMatch _) =
   typeForGraphRefAtomExpr attrs matchAtomExpr
-typeForCasePatternMatch _ (NakedAtomExpr{}) (AtomCaseMatch atom) = pure (atomTypeForAtom atom)
+typeForCasePatternMatch _ NakedAtomExpr{} (AtomCaseMatch atom) = pure (atomTypeForAtom atom)
 typeForCasePatternMatch attrs matchAtomExpr AnyCaseMatch =
   typeForGraphRefAtomExpr attrs matchAtomExpr
 typeForCasePatternMatch attrs matchAtomExpr _ =
@@ -1002,7 +1002,7 @@ newAttributesForCaseMatch attrs deconstructExpr (VariableCaseMatch v, _) = do
 newAttributesForCaseMatch attrs (ConstructedAtomExpr dConsName args _) (DataConstructorCaseMatch dConsName' cmatches, ret) | dConsName == dConsName' = do
   concat <$> mapM (\(match,arg) -> newAttributesForCaseMatch attrs arg (match, ret)) (zip cmatches args)
 newAttributesForCaseMatch _ _ (DataConstructorCaseMatch{},_) = pure []
-newAttributesForCaseMatch _ (NakedAtomExpr{}) (AtomCaseMatch{},_) = pure []
+newAttributesForCaseMatch _ NakedAtomExpr{} (AtomCaseMatch{},_) = pure []
 newAttributesForCaseMatch _ _ (AnyCaseMatch,_) = pure []
 newAttributesForCaseMatch _ _ _ = pure []
 
