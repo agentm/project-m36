@@ -59,6 +59,7 @@ Library
                      ProjectM36.AttributeNames,
                      ProjectM36.Tuple,
                      ProjectM36.TupleSet,
+                     ProjectM36.Function,
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
                      ProjectM36.AtomFunctionError,

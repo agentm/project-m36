@@ -175,7 +175,7 @@ instance Convertible RelVarName RelationalExpr where
 
 -- works in RestrictedPredicateExpr and AttributeExtendTupleExpr 
 -- usage: f "gte" [1]
-f :: Convertible a AtomExpr => AtomFunctionName -> [a] -> AtomExpr
+f :: Convertible a AtomExpr => FunctionName -> [a] -> AtomExpr
 f n as' = FunctionAtomExpr n (map convert as') ()
 
 -- DatabaseContextExpr

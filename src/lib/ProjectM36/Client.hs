@@ -383,7 +383,7 @@ createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
     case RE.transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
-            let freshDiscon = DisconnectedTransaction commitId (Trans.schemas transaction) False
+            let freshDiscon = DisconnectedTransaction commitId (Discon.loadGraphRefRelVarsOnly commitId (Trans.schemas transaction)) False
             keyDuplication <- StmMap.lookup newSessionId sessions
             case keyDuplication of
                 Just _ -> pure $ Left (SessionIdInUseError newSessionId)
@@ -599,7 +599,8 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
     Left err -> pure (Left err)
     Right session -> do
       graph <- readTVarIO (ipTransactionGraph conf)
-      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession
+      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession objFilesPath
+          objFilesPath = objectFilesPath <$> persistenceDirectory (ipPersistenceStrategy conf)
           transId = Sess.parentId session
           context = Sess.concreteDatabaseContext session
       res <- RE.runDatabaseContextIOEvalMonad env context (optimizeAndEvalDatabaseContextIOExpr expr)

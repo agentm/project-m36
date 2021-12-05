@@ -40,6 +40,7 @@ import Control.Monad.Trans.Except (except)
 import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
+import ProjectM36.Function
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
@@ -422,41 +423,41 @@ evalGraphRefDatabaseContextExpr (MultipleExpr exprs) =
   --the multiple expressions must pass the same context around- not the old unmodified context
   mapM_ evalGraphRefDatabaseContextExpr exprs
 
-evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName) = do
+evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName') = do
   currentContext <- getStateContext
   let atomFuncs = atomFunctions currentContext
-  case atomFunctionForName funcName atomFuncs of
+  case atomFunctionForName funcName' atomFuncs of
     Left err -> dbErr err
     Right realFunc ->
       if isScriptedAtomFunction realFunc then do
         let updatedFuncs = HS.delete realFunc atomFuncs
         putStateContext (currentContext {atomFunctions = updatedFuncs })
       else
-        dbErr (PrecompiledFunctionRemoveError funcName)
+        dbErr (PrecompiledFunctionRemoveError funcName')
       
-evalGraphRefDatabaseContextExpr (RemoveDatabaseContextFunction funcName) = do      
+evalGraphRefDatabaseContextExpr (RemoveDatabaseContextFunction funcName') = do      
   context <- getStateContext
   let dbcFuncs = dbcFunctions context
-  case databaseContextFunctionForName funcName dbcFuncs of
+  case databaseContextFunctionForName funcName' dbcFuncs of
     Left err -> dbErr err
     Right realFunc ->
       if isScriptedDatabaseContextFunction realFunc then do
         let updatedFuncs = HS.delete realFunc dbcFuncs
         putStateContext (context { dbcFunctions = updatedFuncs })
       else
-        dbErr (PrecompiledFunctionRemoveError funcName)
+        dbErr (PrecompiledFunctionRemoveError funcName')
       
-evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArgExprs) = do
+evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomArgExprs) = do
   context <- getStateContext
   graph <- dbcGraph
   --resolve atom arguments
   let eAtomTypes = mapM (runGraphRefRelationalExprM gfEnv . typeForGraphRefAtomExpr emptyAttributes) atomArgExprs
-      eFunc = databaseContextFunctionForName funcName (dbcFunctions context)
+      eFunc = databaseContextFunctionForName funcName' (dbcFunctions context)
       gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
   case eFunc of
       Left err -> dbErr err
       Right func -> do
-        let expectedArgCount = length (dbcFuncType func)
+        let expectedArgCount = length (funcType func)
             actualArgCount = length atomArgExprs
         if expectedArgCount /= actualArgCount then
           dbErr (FunctionArgumentCountMismatchError expectedArgCount actualArgCount)
@@ -469,7 +470,7 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArg
                                            -> case atomTypeVerify expType actType of
                                                 Left err -> Just err
                                                 Right _ -> Nothing)
-                                (dbcFuncType func) atomTypes
+                                (funcType func) atomTypes
                   typeErrors = catMaybes mValidTypes
                   eAtomArgs = map (runGraphRefRelationalExprM gfEnv . evalGraphRefAtomExpr emptyTuple) atomArgExprs
               if length (lefts eAtomArgs) > 1 then
@@ -483,7 +484,8 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName atomArg
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
-    dbcio_mScriptSession :: Maybe ScriptSession
+    dbcio_mScriptSession :: Maybe ScriptSession,
+    dbcio_mModulesDirectory :: Maybe FilePath -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
   }
 
 type DatabaseContextIOEvalMonad a = RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState IO a
@@ -524,7 +526,7 @@ evalGraphRefDatabaseContextIOExpr AddDatabaseContextFunction{} = pure (Left (Scr
 evalGraphRefDatabaseContextIOExpr LoadAtomFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
 evalGraphRefDatabaseContextIOExpr LoadDatabaseContextFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
 #else
-evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = do
+evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName' funcType' script) = do
   eScriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
   case eScriptSession of
@@ -533,7 +535,7 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = d
       res <- liftIO $ try $ runGhc (Just libdir) $ do
         setSession (hscEnv scriptSession)
         let atomFuncs = atomFunctions currentContext
-        case extractAtomFunctionType funcType of
+        case extractAtomFunctionType funcType' of
           Left err -> pure (Left err)
           Right adjustedAtomTypeCons -> do
             --compile the function
@@ -544,12 +546,12 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = d
                 funcAtomType <- mapM (\funcTypeArg -> atomTypeForTypeConstructorValidate False funcTypeArg (typeConstructorMapping currentContext) M.empty) adjustedAtomTypeCons
                 let updatedFuncs = HS.insert newAtomFunc atomFuncs
                     newContext = currentContext { atomFunctions = updatedFuncs }
-                    newAtomFunc = AtomFunction { atomFuncName = funcName,
-                                                 atomFuncType = funcAtomType,
-                                                 atomFuncBody = AtomFunctionBody (Just script) compiledFunc }
+                    newAtomFunc = Function { funcName = funcName',
+                                             funcType = funcAtomType,
+                                             funcBody = FunctionScriptBody script compiledFunc }
                -- check if the name is already in use
-                if HS.member funcName (HS.map atomFuncName atomFuncs) then
-                  Left (FunctionNameInUseError funcName)
+                if HS.member funcName' (HS.map funcName atomFuncs) then
+                  Left (FunctionNameInUseError funcName')
                   else 
                   Right newContext
       case res of
@@ -557,18 +559,18 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName funcType script) = d
         Right eContext -> case eContext of
           Left err -> pure (Left err)
           Right context' -> putDBCIOContext context'
-evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType script) = do
+evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType' script) = do
   eScriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
   case eScriptSession of
     Left err -> pure (Left err)
     Right scriptSession -> do
       --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
-      let last2Args = reverse (take 2 (reverse funcType))
-          atomArgs = take (length funcType - 2) funcType
+      let last2Args = reverse (take 2 (reverse funcType'))
+          atomArgs = take (length funcType' - 2) funcType'
           dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "DatabaseContextFunctionError" [], ADTypeConstructor "DatabaseContext" []]
           expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
-          actualType = show funcType
+          actualType = show funcType'
       if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
         pure (Left (ScriptError (TypeCheckCompilationError expectedType actualType)))
         else do
@@ -583,14 +585,14 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
               let updatedDBCFuncs = HS.insert newDBCFunc (dbcFunctions currentContext)
                   newContext = currentContext { dbcFunctions = updatedDBCFuncs }
                   dbcFuncs = dbcFunctions currentContext
-                  newDBCFunc = DatabaseContextFunction {
-                    dbcFuncName = funcName,
-                    dbcFuncType = funcAtomType,
-                    dbcFuncBody = DatabaseContextFunctionBody (Just script) compiledFunc
+                  newDBCFunc = Function {
+                    funcName = funcName',
+                    funcType = funcAtomType,
+                    funcBody = FunctionScriptBody script compiledFunc
                     }
-                -- check if the name is already in use                                              
-              if HS.member funcName (HS.map dbcFuncName dbcFuncs) then
-                Left (FunctionNameInUseError funcName)
+                -- check if the name is already in use
+              if HS.member funcName' (HS.map funcName dbcFuncs) then
+                Left (FunctionNameInUseError funcName')
                 else 
                 Right newContext
         case res of
@@ -598,21 +600,34 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName funcType 
           Right eContext -> case eContext of
             Left err -> pure (Left err)
             Right context' -> putDBCIOContext context'
-evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName funcName modPath) = do
+evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modPath) = do
+
+  -- when running an in-memory database, we are willing to load object files from any path- when running in persistent mode, we load modules only from the modules directory so that we can be reasonbly sure that these same modules will exist when the database is restarted from the same directory
+  mModDir <- dbcio_mModulesDirectory <$> ask
   currentContext <- getDBCIOContext
-  eLoadFunc <- liftIO $ loadAtomFunctions (T.unpack modName) (T.unpack funcName) modPath
+  let sModName = T.unpack modName
+      sEntrypointName = T.unpack entrypointName
+  eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
-    Right atomFunctionListFunc -> let newContext = currentContext { atomFunctions = mergedFuncs }
-                                      mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList atomFunctionListFunc)
-                                  in putDBCIOContext newContext
-evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName funcName modPath) = do
+    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
+    Right atomFunctionListFunc -> do
+      let newContext = currentContext { atomFunctions = mergedFuncs }
+          processedAtomFunctions = processObjectLoadedFunctions sModName sEntrypointName modPath atomFunctionListFunc
+          mergedFuncs = HS.union (atomFunctions currentContext) (HS.fromList processedAtomFunctions)
+      putDBCIOContext newContext
+evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName entrypointName modPath) = do
   currentContext <- getDBCIOContext
-  eLoadFunc <- liftIO $ loadDatabaseContextFunctions (T.unpack modName) (T.unpack funcName) modPath
+  let sModName = T.unpack modName
+      sEntrypointName = T.unpack entrypointName
+  mModDir <- dbcio_mModulesDirectory <$> ask      
+  eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
     Left LoadSymbolError -> pure (Left LoadFunctionError)
+    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
-                             mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList dbcListFunc)
+                             mergedFuncs = HS.union (dbcFunctions currentContext) (HS.fromList processedDBCFuncs)
+                             processedDBCFuncs = processObjectLoadedFunctions sModName sEntrypointName modPath dbcListFunc
                                   in putDBCIOContext newContext
 #endif
 evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs range) = do
@@ -819,19 +834,19 @@ evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
         Just (Right _) -> throwError err
     Left err -> throwError err
 evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
-evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName arguments tid) = do
+evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
   context <- gfDatabaseContextForMarker tid
   let functions = atomFunctions context
-  func <- lift $ except (atomFunctionForName funcName functions)
-  let expectedArgCount = length (atomFuncType func) - 1
+  func <- lift $ except (atomFunctionForName funcName' functions)
+  let expectedArgCount = length (funcType func) - 1
       actualArgCount = length argTypes
       safeInit [] = [] -- different behavior from normal init
       safeInit xs = init xs
   if expectedArgCount /= actualArgCount then
       throwError (FunctionArgumentCountMismatchError expectedArgCount actualArgCount)
     else do
-      let zippedArgs = zip (safeInit (atomFuncType func)) argTypes
+      let zippedArgs = zip (safeInit (funcType func)) argTypes
       mapM_ (\(expType, actType) -> 
                 lift $ except (atomTypeVerify expType actType)) zippedArgs
       evaldArgs <- mapM (evalGraphRefAtomExpr tupIn) arguments
@@ -839,7 +854,7 @@ evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName arguments tid) = do
         Left err -> throwError (AtomFunctionUserError err)
         Right result -> do
           --validate that the result matches the expected type
-          _ <- lift $ except (atomTypeVerify (last (atomFuncType func)) (atomTypeForAtom result))
+          _ <- lift $ except (atomTypeVerify (last (funcType func)) (atomTypeForAtom result))
           pure result
 evalGraphRefAtomExpr tupIn (RelationAtomExpr relExpr) = do
   --merge existing state tuple context into new state tuple context to support an arbitrary number of levels, but new attributes trounce old attributes
@@ -871,18 +886,18 @@ typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
     Left err -> throwError err
 
 typeForGraphRefAtomExpr _ (NakedAtomExpr atom) = pure (atomTypeForAtom atom)
-typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName atomArgs transId) = do
+typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
   funcs <- atomFunctions <$> gfDatabaseContextForMarker transId
-  case atomFunctionForName funcName funcs of
+  case atomFunctionForName funcName' funcs of
     Left err -> throwError err
     Right func -> do
-      let funcRetType = last (atomFuncType func)
-          funcArgTypes = init (atomFuncType func)
+      let funcRetType = last (funcType func)
+          funcArgTypes = init (funcType func)
       argTypes <- mapM (typeForGraphRefAtomExpr attrs) atomArgs
       let eTvMap = resolveTypeVariables funcArgTypes argTypes
       case eTvMap of
             Left err -> throwError err
-            Right tvMap -> lift $ except $ resolveFunctionReturnValue funcName tvMap funcRetType
+            Right tvMap -> lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
 typeForGraphRefAtomExpr attrs (RelationAtomExpr relExpr) = do
   relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)
   pure (RelationAtomType (attributes relType))
@@ -911,14 +926,14 @@ verifyGraphRefAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = do
 
 verifyGraphRefAtomExprTypes _ (NakedAtomExpr atom) expectedType =
   lift $ except $ atomTypeVerify expectedType (atomTypeForAtom atom)
-verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName funcArgExprs tid) expectedType = do
+verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) expectedType = do
   context <- gfDatabaseContextForMarker tid
   let functions = atomFunctions context
-  func <- lift $ except $ atomFunctionForName funcName functions
-  let expectedArgTypes = atomFuncType func
+  func <- lift $ except $ atomFunctionForName funcName' functions
+  let expectedArgTypes = funcType func
       funcArgVerifier (atomExpr, expectedType2, argCount) = do
         let handler :: RelationalError -> GraphRefRelationalExprM AtomType
-            handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName argCount expSubType actSubType)
+            handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
             handler err = throwError err
         verifyGraphRefAtomExprTypes relIn atomExpr expectedType2 `catchError` handler   
   funcArgTypes <- mapM funcArgVerifier $ zip3 funcArgExprs expectedArgTypes [1..]

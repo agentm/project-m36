@@ -7,9 +7,9 @@ import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.Relation
 import qualified Data.ByteString.Lazy as BL
-import ProjectM36.AtomFunction as AF
-import ProjectM36.DatabaseContextFunction as DBCF
+import ProjectM36.DatabaseContextFunction
 import Codec.Winery
+import ProjectM36.Function as F
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -48,7 +48,7 @@ hashBytes ctx = BL.fromChunks [incDeps, rvs, nots, tConsMap] <> atomFs <> dbcFs
   where
     incDeps = serialise (inclusionDependencies ctx)
     rvs = serialise (relationVariables ctx)
-    atomFs = HS.foldr (mappend . AF.hashBytes) mempty (atomFunctions ctx)
-    dbcFs = HS.foldr (mappend . DBCF.hashBytes) mempty (dbcFunctions ctx)
+    atomFs = HS.foldr (mappend . F.hashBytes) mempty (atomFunctions ctx)
+    dbcFs = HS.foldr (mappend . F.hashBytes) mempty (dbcFunctions ctx)
     nots = serialise (notifications ctx)
     tConsMap = serialise (typeConstructorMapping ctx)
