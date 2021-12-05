@@ -91,6 +91,17 @@ TutorialD (master/main): :showexpr relation{tuple{a case Just 5 of { Nothing -> 
 └──────────┘
 ```
 
+The "if-then-else" expression is a shorthand for boolean expressions.
+
+```
+TutorialD (master/main): :showexpr relation{tuple{a if eq(5,5) then 10 else 20}}
+┌──────────┐
+│a::Integer│
+├──────────┤
+│10        │
+└──────────┘
+```
+
 ### Using Relation Variables
 
 Relation Variables are named cells which reference relations within a transaction state. The relation can be replaced with another relation through assignment.
