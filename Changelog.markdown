@@ -1,3 +1,14 @@
+# 2021-12-05 (v0.9.4)
+
+* fix bug which [caused tuple storage to be duplicated unnecessarily](https://github.com/agentm/project-m36/pull/328)
+* add support for `case` and `if-then-else` expressions
+* allow relation variable names and attribute names to be escaped using backticks
+* add UUID primitive type
+* complete implementation of [object and shared object files at runtime](https://github.com/agentm/project-m36/blob/master/docs/atomfunctions.markdown#pre-compiled-atom-functions) in order to compete with Haskell scripting alternative
+* fix constraint checking after undefining a relation variable
+* optionally allow TLS and client certificate authentication in Project:M36 server
+* require GHC >=8.8
+	
 # 2021-04-01 (v0.9.3)
 
 * add new ":importtutd <URI> <SHA256 hash>" feature to import TutorialD from a local file or a HTTP/HTTPS URI	
