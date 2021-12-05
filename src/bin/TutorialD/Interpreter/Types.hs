@@ -14,7 +14,13 @@ typeConstructorNameP :: Parser TypeConstructorName
 typeConstructorNameP = capitalizedIdentifier
 
 dataConstructorNameP :: Parser DataConstructorName
-dataConstructorNameP = capitalizedIdentifier
+dataConstructorNameP = do
+  dCons <- try capitalizedIdentifier
+  let blacklist = ["True", "False"] --certain data constructors are handled specially
+  if dCons `elem` blacklist then
+    fail "blacklisted data constructor name"
+    else
+    pure dCons
 
 attributeNameP :: Parser AttributeName
 attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier

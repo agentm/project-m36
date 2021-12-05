@@ -210,12 +210,12 @@ atomExprP = consumeAtomExprP True
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
             caseP <|>
+            ifThenElseP <|>
             try (parens (constructedAtomExprP True)) <|>
             try (constructedAtomExprP consume) <|>
             attributeAtomExprP <|>
             try nakedAtomExprP <|>
             relationalAtomExprP
-            
 
 caseP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 caseP = do
@@ -232,7 +232,19 @@ caseMatchP =
   (DataConstructorCaseMatch <$> dataConstructorNameP <*> many caseMatchP) <|>
   (VariableCaseMatch <$> dataConstructorVarNameP) <|>
   (reserved "_" $> AnyCaseMatch)
-  
+
+-- a shortcut syntax for case expressions
+ifThenElseP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+ifThenElseP = do
+  reserved "if"
+  conditionalExpr <- atomExprP
+  reserved "then"
+  conditionTrueExpr <- atomExprP
+  reserved "else"
+  conditionFalseExpr <- atomExprP
+  let trueMatch = (AtomCaseMatch (BoolAtom True), conditionTrueExpr)
+      falseMatch = (AtomCaseMatch (BoolAtom False), conditionFalseExpr)
+  pure (CaseAtomExpr conditionalExpr (NE.fromList [trueMatch, falseMatch]))
   
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
@@ -253,7 +265,7 @@ atomP :: Parser Atom
 atomP = stringAtomP <|>
         try doubleAtomP <|>
         integerAtomP <|>
-        boolAtomP
+        try boolAtomP
 
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =
@@ -274,11 +286,10 @@ integerAtomP = IntegerAtom <$> integer
 boolAtomP :: Parser Atom
 boolAtomP = do
   v <- identifier
-  if v == "t" || v == "f" then
-    pure $ BoolAtom (v == "t")    
+  if v == "True" || v == "False" then
+    pure $ BoolAtom (v == "True")    
     else
     fail "invalid boolAtom"
-    
 
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP

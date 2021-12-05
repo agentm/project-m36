@@ -178,7 +178,7 @@ uncapitalizedIdentifier = do
     pure word
 
 reservedWordList :: [Text]
-reservedWordList = ["case", "of"]
+reservedWordList = ["case", "of", "if", "then", "else"]
 
 -- | When an identifier is quoted, it can contain any string.
 quotedIdentifier :: Parser Text
