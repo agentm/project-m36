@@ -856,7 +856,6 @@ evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do
 evalGraphRefAtomExpr tupIn (CaseAtomExpr atomExpr matchCases) = do
   --validate that the CaseMatches type match the expected type
   --get transactionid for expr context
-  --caseTypes <- mapM typeForCaseMatch matchCases
   atomToMatch <- evalGraphRefAtomExpr tupIn atomExpr
   let folder Nothing cMatchRes =
         evalCaseMatcher tupIn atomToMatch cMatchRes    
@@ -960,13 +959,41 @@ typeForGraphRefAtomExpr attrs (CaseAtomExpr deconstructExpr matches) = do
           nextType <- typeForGraphRefAtomExpr attrs atomExpr
           lift $ except $ atomTypeVerify acc nextType
   --algo: retrieve first item in matches to get type, but this is a shortcut- we need to get the type for each match first and include the proper attribute which could be added by VariableCaseMatch
-
+  deconstructExprType <- typeForGraphRefAtomExpr attrs deconstructExpr
   let (firstMatch, firstExprRes) = NE.head matches
+  --validate that the pattern match type is congruent with the deconstructExpr
+  forM_ matches $ \(cmatch,_) -> do
+    cmatchType <- typeForCasePatternMatch attrs deconstructExpr cmatch
+    lift $ except $ atomTypeVerify cmatchType deconstructExprType
+  --collect new attributes from pattern match
   newAttrs <- A.attributesFromList <$> newAttributesForCaseMatch attrs deconstructExpr (firstMatch, firstExprRes)
   let matchEnv = mergeAttributesIntoGraphRefRelationalExprEnv newAttrs
   firstType <- local matchEnv $ do
     typeForGraphRefAtomExpr attrs firstExprRes
   foldM typeFolder firstType (NE.tail matches)
+
+-- return the type of the CaseMatch
+typeForCasePatternMatch :: Attributes -> GraphRefAtomExpr -> CaseMatch -> GraphRefRelationalExprM AtomType
+typeForCasePatternMatch attrs matchAtomExpr@(ConstructedAtomExpr dConsName args marker) (DataConstructorCaseMatch dConsName' args') = do
+  tConsMap <- typeConstructorMapping <$> gfDatabaseContextForMarker marker
+  case findDataConstructor dConsName' tConsMap of
+    Nothing -> throwError (NoSuchDataConstructorError dConsName')
+    Just (_, DataConstructorDef _ dConsArgs) -> do
+      when (length dConsArgs /= length args') $ do
+        throwError (ConstructedAtomArgumentCountMismatchError dConsName' (length dConsArgs) (length args'))
+      if dConsName == dConsName' && length args == length args' then do
+        argTypes <- mapM (\(matchArg, cmatch) -> typeForCasePatternMatch attrs matchArg cmatch) (zip args args')
+        lift $ except $ atomTypeForDataConstructor tConsMap dConsName argTypes
+        else
+          typeForGraphRefAtomExpr attrs matchAtomExpr
+--catch mismatched arg count for data constructor case match
+typeForCasePatternMatch attrs matchAtomExpr (VariableCaseMatch _) =
+  typeForGraphRefAtomExpr attrs matchAtomExpr
+typeForCasePatternMatch _ (NakedAtomExpr{}) (AtomCaseMatch atom) = pure (atomTypeForAtom atom)
+typeForCasePatternMatch attrs matchAtomExpr AnyCaseMatch =
+  typeForGraphRefAtomExpr attrs matchAtomExpr
+typeForCasePatternMatch attrs matchAtomExpr _ =
+  typeForGraphRefAtomExpr attrs matchAtomExpr
 
 newAttributesForCaseMatch :: Attributes -> GraphRefAtomExpr -> (CaseMatch, GraphRefAtomExpr) -> GraphRefRelationalExprM [Attribute]
 newAttributesForCaseMatch attrs deconstructExpr (VariableCaseMatch v, _) = do
@@ -974,9 +1001,10 @@ newAttributesForCaseMatch attrs deconstructExpr (VariableCaseMatch v, _) = do
   pure [Attribute v deconsType]
 newAttributesForCaseMatch attrs (ConstructedAtomExpr dConsName args _) (DataConstructorCaseMatch dConsName' cmatches, ret) | dConsName == dConsName' = do
   concat <$> mapM (\(match,arg) -> newAttributesForCaseMatch attrs arg (match, ret)) (zip cmatches args)
-newAttributesForCaseMatch _ _ (DataConstructorCaseMatch{},_) = pure []  
-newAttributesForCaseMatch _ _ (AtomCaseMatch{},_) = pure []
+newAttributesForCaseMatch _ _ (DataConstructorCaseMatch{},_) = pure []
+newAttributesForCaseMatch _ (NakedAtomExpr{}) (AtomCaseMatch{},_) = pure []
 newAttributesForCaseMatch _ _ (AnyCaseMatch,_) = pure []
+newAttributesForCaseMatch _ _ _ = pure []
 
 -- | Validate that the type of the AtomExpr matches the expected type.
 verifyGraphRefAtomExprTypes :: Relation -> GraphRefAtomExpr -> AtomType -> GraphRefRelationalExprM AtomType

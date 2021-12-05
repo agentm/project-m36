@@ -71,11 +71,11 @@ atomTypeForDataConstructor tConss dConsName atomArgTypes =
       
 -- | Walks the data and type constructors to extract the type variable map.
 resolveDataConstructorTypeVars :: DataConstructorDef -> [AtomType] -> TypeConstructorMapping -> Either RelationalError TypeVarMap
-resolveDataConstructorTypeVars dCons@(DataConstructorDef _ defArgs) aTypeArgs tConss = do
+resolveDataConstructorTypeVars dCons@(DataConstructorDef dConsName defArgs) aTypeArgs tConss = do
   let defCount = length defArgs
       argCount = length aTypeArgs
   if defCount /= argCount then
-    Left (ConstructedAtomArgumentCountMismatchError defCount argCount)
+    Left (ConstructedAtomArgumentCountMismatchError dConsName defCount argCount)
     else do
     maps <- mapM (\(dCons',aTypeArg) -> resolveDataConstructorArgTypeVars dCons' aTypeArg tConss) (zip (DCD.fields dCons) aTypeArgs)
   --if any two maps have the same key and different values, this indicates a type arg mismatch
@@ -167,7 +167,7 @@ validateDataConstructorDefArg (DataConstructorDefTypeConstructorArg tCons) tCons
   Just (ADTypeConstructorDef _ tConsArgs, _) -> do --validate that the argument count matches- type matching can occur later
     let existingCount = length tConsArgs
         newCount = length (TC.arguments tCons) 
-    when (newCount /= existingCount) (Left (ConstructedAtomArgumentCountMismatchError existingCount newCount))
+    when (newCount /= existingCount) (Left (ConstructedAtomArgumentCountMismatchError "<unknown>" existingCount newCount))
   Just (PrimitiveTypeConstructorDef _ _, _) -> pure ()  
 validateDataConstructorDefArg (DataConstructorDefTypeVarNameArg _) _ _ = Right ()
 

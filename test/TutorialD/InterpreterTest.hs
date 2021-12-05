@@ -526,12 +526,12 @@ testIntervalAtom :: Test
 testIntervalAtom = TestCase $ do  
   --test interval creation
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
-  executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,f,f), b interval(4,5,f,f)}, tuple{n 2,a interval(3,4,t,t), b interval(4,5,t,t)}}"
+  executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,False,False), b interval(4,5,False,False)}, tuple{n 2,a interval(3,4,True,True), b interval(4,5,True,True)}}"
   --test failed interval creation
   let err1 = "AtomFunctionUserError InvalidIntervalOrderingError"
       err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportIntervalError \"Text\")"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,f,f)}}"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",f,f)}}"  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,False,False)}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",False,False)}}"  
 
   --test interval_overlaps
   executeTutorialD sessionId dbconn "y:=x:{c:=interval_overlaps(@a,@b)}"
@@ -543,9 +543,9 @@ testListConstructedAtom = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sessionId dbconn "x:=relation{tuple{l Cons 4 (Cons 5 Empty)}}"
   let err1 = "ConstructedAtomArgumentCountMismatchError 2 1"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{l Cons 4}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{l Cons 4 Empty}}"
   let err2 = "TypeConstructorAtomTypeMismatch \"List\" IntegerAtomType"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{l Cons 4 5}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{l Cons 4 (Cons 5 Empty)}}"
   
 testTypeChecker :: Test  
 testTypeChecker = TestCase $ do
@@ -789,6 +789,20 @@ testCaseExprs = TestCase $ do
   eX7 <- getX
   assertEqual "anything match" (mkRelationFromList xAttrs [[TextAtom "a"]]) eX7
 
+  --test "if-then-else" expression syntactic sugar
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a if True then \"Test\" else \"Fail\"}}"
+  eX8 <- getX
+  assertEqual "if-then-else" (mkRelationFromList xAttrs [[TextAtom "Test"]]) eX8
+
+  --test that types must match
+  let typeError = T.isPrefixOf "AtomTypeMismatchError"
+  expectTutorialDErr sessionId dbconn typeError "x:=relation{tuple{a case \"wrong type\" of { 5 -> 5}}}"
+
+  --test Either type
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a case Right 5 of { Left \"nice\" -> \"Bad\"; Right 5 -> \"Test\"}}}"
+  eX9 <- getX
+  assertEqual "Either match" (mkRelationFromList xAttrs [[TextAtom "Test"]]) eX9
+   
 -- ensure that an undefined table triggers constraint validation #306
 testUndefineConstraints :: Test
 testUndefineConstraints = TestCase $ do
