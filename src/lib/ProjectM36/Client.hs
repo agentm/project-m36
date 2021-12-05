@@ -102,7 +102,8 @@ module ProjectM36.Client
        TupleExprsBase(..),
        AtomExprBase(..),
        RestrictionPredicateExprBase(..),
-       withTransaction
+       withTransaction,
+       atomTypeForAtom
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -132,6 +133,7 @@ import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
+import ProjectM36.DataTypes.Primitive (atomTypeForAtom)
 import qualified ProjectM36.Relation as R
 import Control.Exception.Base
 import Control.Concurrent.STM
