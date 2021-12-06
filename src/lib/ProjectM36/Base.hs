@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, DeriveLift #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, DeriveLift, StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -11,7 +11,11 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import Data.Hashable (Hashable, hashWithSalt)
 import qualified Data.Set as S
+#if MIN_VERSION_uuid_types(1,0,5)
 import Data.UUID (UUID)
+#else
+import Data.UUID.Types.Internal (UUID(..))
+#endif
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
@@ -26,7 +30,12 @@ import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
-import Language.Haskell.TH.Syntax (Lift(..), Exp(..), mkName, unsafeTExpCoerce)
+import Language.Haskell.TH.Syntax (Lift(..), Exp(..), mkName)
+#if MIN_VERSION_template_haskell(2,17,0)
+import Language.Haskell.TH.Syntax (unsafeCodeCoerce)
+#elif MIN_VERSION_template_haskell(2,16,0)
+import Language.Haskell.TH.Syntax (unsafeTExpCoerce)
+#endif
 import Instances.TH.Lift ()
 
 type StringType = Text
@@ -66,17 +75,33 @@ instance Lift UTCTime where
         x' <- lift x
         y' <- lift y
         return $ AppE (AppE (ConE (mkName "UTCTime")) x') y'
+#if MIN_VERSION_template_haskell(2,17,0)
+    liftTyped = unsafeCodeCoerce . lift
+#elif MIN_VERSION_template_haskell(2,16,0)
     liftTyped = unsafeTExpCoerce . lift
-
+#endif                
         
 instance Lift Day where
     lift x = [|toEnum $(lift (fromEnum x))|]
-    liftTyped = unsafeTExpCoerce . lift    
+#if MIN_VERSION_template_haskell(2,17,0)
+    liftTyped = unsafeCodeCoerce . lift
+#elif MIN_VERSION_template_haskell(2,16,0)
+    liftTyped = unsafeTExpCoerce . lift
+#endif                    
 
 instance Lift DiffTime where
     lift x = [|toEnum $(lift (fromEnum x))|]
-    liftTyped = unsafeTExpCoerce . lift    
-                     
+#if MIN_VERSION_template_haskell(2,17,0)
+    liftTyped = unsafeCodeCoerce . lift
+#elif MIN_VERSION_template_haskell(2,16,0)
+    liftTyped = unsafeTExpCoerce . lift
+#endif
+
+#if MIN_VERSION_uuid_types(1,0,5)
+#else
+deriving instance Lift UUID
+#endif
+    
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
                                                           `hashWithSalt` dConsName --AtomType is not hashable
