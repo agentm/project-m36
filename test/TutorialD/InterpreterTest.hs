@@ -1,6 +1,8 @@
+{-# LANGUAGE QuasiQuotes #-}
 import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Interpreter.TestBase
 import TutorialD.Interpreter
+import TutorialD.Interpreter.TH
 import TutorialD.Interpreter.Base
 import Test.HUnit
 import ProjectM36.Relation as R
@@ -84,7 +86,8 @@ main = do
       testSelfReferencingUncommittedContext,
       testUnionAndIntersectionAttributeExprs,
       testUndefineConstraints,
-      testQuotedRelVarNames      
+      testQuotedRelVarNames,
+      testTemplateHaskellExprs
       ]
 
 simpleRelTests :: Test
@@ -751,3 +754,15 @@ testQuotedRelVarNames = TestCase $ do
   let qAttrExpected = Right (Assign "test" (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "\28450\23383" (NakedAtomExpr (TextAtom "test")))])))
   assertEqual "quoted attribute" qAttrExpected (parseDBExpr "test:=relation{tuple{`漢字` \"test\"}}")
   assertBool "invalid quoted rv" (isLeft (parseDBExpr "`TEST:=true"))
+
+testTemplateHaskellExprs :: Test
+testTemplateHaskellExprs = TestCase $ do
+  let actualre = [relationalExpr|relation{tuple{a "nice"},tuple{a "test"}}|]
+--      expected = mkRelationFromList (attributesFromList [Attribute "a" TextAtomType]) [[TextAtom "nice"],[TextAtom "test"]]
+      expectedre = MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.fromList [("a",NakedAtomExpr (TextAtom "nice"))]),TupleExpr (M.fromList [("a",NakedAtomExpr (TextAtom "test"))])])
+  assertEqual "relationalExpr" expectedre actualre
+
+  let actualdbce = [dbContextExpr|update s where status=20 (sname := "New")|] :: DatabaseContextExpr
+      expecteddbce = Update "s" (M.singleton "sname" (NakedAtomExpr (TextAtom "New"))) (AttributeEqualityPredicate "status" (NakedAtomExpr (IntegerAtom 20)))
+  assertEqual "dbContextExpr" expecteddbce actualdbce
+  

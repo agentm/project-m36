@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, DeriveLift #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -26,6 +26,8 @@ import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
+import Language.Haskell.TH.Syntax (Lift(..), Exp(..), mkName, unsafeTExpCoerce)
+import Instances.TH.Lift ()
 
 type StringType = Text
 
@@ -56,7 +58,24 @@ data Atom = IntegerAtom Integer |
             RelationAtom Relation |
             RelationalExprAtom RelationalExpr | --used for returning inc deps
             ConstructedAtom DataConstructorName AtomType [Atom]
-            deriving (Eq, Show, Typeable, NFData, Generic, Read)
+            deriving (Eq, Show, Typeable, NFData, Generic, Read, Lift)
+
+-- lift instances missing from th-lift-instances
+instance Lift UTCTime where
+    lift (UTCTime x y) = do
+        x' <- lift x
+        y' <- lift y
+        return $ AppE (AppE (ConE (mkName "UTCTime")) x') y'
+    liftTyped = unsafeTExpCoerce . lift
+
+        
+instance Lift Day where
+    lift x = [|toEnum $(lift (fromEnum x))|]
+    liftTyped = unsafeTExpCoerce . lift    
+
+instance Lift DiffTime where
+    lift x = [|toEnum $(lift (fromEnum x))|]
+    liftTyped = unsafeTExpCoerce . lift    
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -89,7 +108,7 @@ data AtomType = IntAtomType |
                 RelationalExprAtomType |
                 TypeVariableType TypeVarName
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
-              deriving (Eq, NFData, Generic, Show, Read, Hashable)
+              deriving (Eq, NFData, Generic, Show, Read, Hashable, Lift)
 
 instance Ord AtomType where
   compare = undefined
@@ -106,7 +125,7 @@ isRelationAtomType _ = False
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Generic, NFData)
+data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Generic, NFData, Lift)
 
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName
@@ -118,7 +137,7 @@ newtype Attributes = Attributes {
   attributesVec :: V.Vector Attribute
   --,attributesSet :: HS.HashSet Attribute --compare with this generated in heap profile and benchmarks
   }
-  deriving (NFData, Read, Hashable, Generic)
+  deriving (NFData, Read, Hashable, Generic, Lift)
 
 attributesSet :: Attributes -> HS.HashSet Attribute
 attributesSet = HS.fromList . V.toList . attributesVec
@@ -136,7 +155,7 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read, Lift)
 
 instance Read Relation where
   readsPrec = error "relation read not supported"
@@ -164,7 +183,7 @@ instance Hashable RelationTuple where
       sortedTupVec = V.map (\(index, _) -> tupVec V.! index) $ V.fromList sortedAttrsIndices
   
 -- | A tuple is a set of attributes mapped to their 'Atom' values.
-data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Read, Generic)
+data RelationTuple = RelationTuple Attributes (V.Vector Atom) deriving (Show, Read, Generic, Lift)
 
 instance Eq RelationTuple where
   tuple1@(RelationTuple attrs1 _) == tuple2@(RelationTuple attrs2 _) =
@@ -177,7 +196,7 @@ instance Eq RelationTuple where
 
 instance NFData RelationTuple where rnf = genericRnf
 
-data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic,Typeable)
+data Relation = Relation Attributes RelationTupleSet deriving (Show, Generic, Typeable, Lift)
 
 instance Eq Relation where
   Relation attrs1 tupSet1 == Relation attrs2 tupSet2 = attrs1 == attrs2 && tupSet1 == tupSet2
@@ -235,12 +254,12 @@ data RelationalExprBase a =
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
   With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
-  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 instance Hashable RelationalExpr
     
 data WithNameExprBase a = WithNameExpr RelVarName a
-  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable, Lift)
 
 type WithNameExpr = WithNameExprBase ()
 
@@ -262,7 +281,7 @@ type TypeVarName = StringType
 -- | Metadata definition for type constructors such as @data Either a b@.
 data TypeConstructorDef = ADTypeConstructorDef TypeConstructorName [TypeVarName] |
                           PrimitiveTypeConstructorDef TypeConstructorName AtomType
-                        deriving (Show, Generic, Eq, NFData, Hashable, Read)
+                        deriving (Show, Generic, Eq, NFData, Hashable, Read, Lift)
                                  
 -- | Found in data constructors and type declarations: Left (Either Int Text) | Right Int
 type TypeConstructor = TypeConstructorBase ()
@@ -270,7 +289,7 @@ data TypeConstructorBase a = ADTypeConstructor TypeConstructorName [TypeConstruc
                              PrimitiveTypeConstructor TypeConstructorName AtomType |
                              RelationAtomTypeConstructor [AttributeExprBase a] |
                              TypeVariable TypeVarName
-                           deriving (Show, Generic, Eq, NFData, Hashable, Read)
+                           deriving (Show, Generic, Eq, NFData, Hashable, Read, Lift)
             
 type TypeConstructorMapping = [(TypeConstructorDef, DataConstructorDefs)]
 
@@ -280,13 +299,13 @@ type DataConstructorName = StringType
 type AtomTypeName = StringType
 
 -- | Used to define a data constructor in a type constructor context such as @Left a | Right b@
-data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Generic, NFData, Hashable, Read)
+data DataConstructorDef = DataConstructorDef DataConstructorName [DataConstructorDefArg] deriving (Eq, Show, Generic, NFData, Hashable, Read, Lift)
 
 type DataConstructorDefs = [DataConstructorDef]
 
 data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructor | 
                              DataConstructorDefTypeVarNameArg TypeVarName
-                           deriving (Show, Generic, Eq, NFData, Hashable, Read)
+                           deriving (Show, Generic, Eq, NFData, Hashable, Read, Lift)
                                     
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
@@ -331,7 +350,7 @@ data DatabaseContext = DatabaseContext {
 type IncDepName = StringType             
 
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
-data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData, Hashable, Read)
+data InclusionDependency = InclusionDependency RelationalExpr RelationalExpr deriving (Show, Eq, Generic, NFData, Hashable, Read, Lift)
 
 type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 
@@ -371,7 +390,7 @@ data DatabaseContextExprBase a =
   ExecuteDatabaseContextFunction FunctionName [AtomExprBase a] |
   
   MultipleExpr [DatabaseContextExprBase a]
-  deriving (Show, Read, Eq, Generic, NFData)
+  deriving (Show, Read, Eq, Generic, NFData, Lift)
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
@@ -404,7 +423,7 @@ data RestrictionPredicateExprBase a =
   RelationalExprPredicate (RelationalExprBase a) | --type must be same as true and false relations (no attributes)
   AtomExprPredicate (AtomExprBase a) | --atom must evaluate to boolean
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
-  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 -- child + parent links
 -- | A transaction graph's head name references the leaves of the transaction graph and can be used during session creation to indicate at which point in the graph commits should persist.
@@ -475,11 +494,11 @@ data AtomExprBase a = AttributeAtomExpr AttributeName |
                       FunctionAtomExpr FunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
-                    deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+                    deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Lift)
                        
 -- | Used in tuple creation when creating a relation.
 data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBase a)
-                     deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
+                     deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 type ExtendTupleExpr = ExtendTupleExprBase ()
 
@@ -504,7 +523,7 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
                             UnionAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             IntersectAttributeNames (AttributeNamesBase a) (AttributeNamesBase a) |
                             RelationalExprAttributeNames (RelationalExprBase a) -- use attribute names from the relational expression's type
-                      deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+                      deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 type AttributeNames = AttributeNamesBase ()
 
@@ -529,11 +548,11 @@ type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
 -- | Create attributes dynamically.
 data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructor a |
                            NakedAttributeExpr Attribute
-                         deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Hashable)
+                         deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Hashable, Lift)
                               
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
-                 deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+                 deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 instance Hashable TupleExpr
 
@@ -542,7 +561,7 @@ type TupleExpr = TupleExprBase ()
 type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 
 data TupleExprsBase a = TupleExprs a [TupleExprBase a]
-  deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
+  deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Lift)
 
 instance Hashable TupleExprs
 
@@ -579,18 +598,19 @@ instance Eq (Function a) where
   f1 == f2 = funcName f1 == funcName f2
 
 instance Hashable (Function a) where
-  hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` funcBody func
+  hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` hashfuncbody 
+   where
+    hashfuncbody =
+      case funcBody func of
+        (FunctionScriptBody script _) -> salt `hashWithSalt` script
+        (FunctionBuiltInBody _) -> salt
+        (FunctionObjectLoadedBody fp modName entryFunc _) -> salt `hashWithSalt` (fp, modName, entryFunc)
 
 data FunctionBody a =
   FunctionScriptBody FunctionBodyScript a |
   FunctionBuiltInBody a |
   FunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName a
   deriving Generic
-
-instance Hashable (FunctionBody a) where
-  salt `hashWithSalt` (FunctionScriptBody script _) = salt `hashWithSalt` script
-  salt `hashWithSalt` (FunctionBuiltInBody _) = salt
-  salt `hashWithSalt` (FunctionObjectLoadedBody fp modName entryFunc _) = salt `hashWithSalt` (fp, modName, entryFunc)
 
 instance NFData a => NFData (FunctionBody a) where
   rnf (FunctionScriptBody script _) = rnf script
