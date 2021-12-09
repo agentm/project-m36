@@ -27,13 +27,13 @@ import Data.Convertible
 
 default (Text)
 
-instance IsList (AttributeNamesBase ()) where
-  type Item (AttributeNamesBase ()) = AttributeName
+instance IsList AttributeNames where
+  type Item AttributeNames = AttributeName
   fromList = AttributeNames . S.fromList 
   toList (AttributeNames ns) = S.toList ns
   toList _ = error "needs AttributeNames"
 
-instance IsList (TupleExprsBase ()) where
+instance IsList TupleExprs where
   type Item TupleExprs = TupleExpr
   fromList = TupleExprs ()
   toList (TupleExprs _ ts) = ts
@@ -111,7 +111,7 @@ relation' :: [AttributeExprBase ()] -> [TupleExpr] -> RelationalExpr
 relation' as' ts = MakeRelationFromExprs (Just as') (TupleExprs () ts)
 
 -- usage: tuple [#name "Mike",#age 6]
-tuple :: [(AttributeName, AtomExpr)] -> TupleExprBase ()
+tuple :: [(AttributeName, AtomExpr)] -> TupleExpr
 tuple as' = TupleExpr (M.fromList as')
 
 -- #a rename  [#b `as` #c]
@@ -207,10 +207,10 @@ true = ExistingRelation relationTrue
 false :: RelationalExpr
 false = ExistingRelation relationFalse
 
-trueP :: RestrictionPredicateExprBase a
+trueP :: RestrictionPredicateExprBase a p
 trueP = TruePredicate
 
-falseP :: RestrictionPredicateExprBase a
+falseP :: RestrictionPredicateExprBase a p
 falseP = NotPredicate TruePredicate
 
 (?=) :: Convertible a AtomExpr => AttributeName -> a -> RestrictionPredicateExpr

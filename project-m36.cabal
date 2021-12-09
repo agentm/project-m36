@@ -1,4 +1,4 @@
-Cabal-Version: 2.2
+Cabal-Version: 3.0
 Name: project-m36
 Version: 0.9.4
 License: MIT
@@ -147,6 +147,22 @@ Library
     if !flag(stack)
       Build-Depends: deferred-folds
 
+Library tutoriald
+--    Visibility: public
+    Build-depends: project-m36, megaparsec, uuid, base, text, time, MonadRandom, random, modern-uri, bytestring, containers, parser-combinators, template-haskell, http-types, http-conduit, base16-bytestring, cryptohash-sha256, base64-bytestring, vector, prettyprinter, mtl, haskeline, directory
+    Exposed-Modules: TutorialD.Interpreter, TutorialD.Interpreter.TH, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
+    GHC-Options: -Wall -rdynamic
+    if !os(windows)
+      --219-  too many exported symbols under Windows and GHC 8.4
+      GHC-Options: -rdynamic -fexternal-interpreter
+    CC-Options: -fPIC
+    Hs-Source-Dirs: ./src/bin
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings, CPP
+    if !flag(stack)
+      Build-Depends: deferred-folds
+              
+
 Executable tutd
     if flag(haskell-scripting)
         Build-Depends: ghc >= 8.2 && < 8.11
@@ -211,8 +227,8 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.SchemaOperator,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
-                   TutorialD.Interpreter.SchemaOperator
-                   TutorialD.Printer
+                   TutorialD.Interpreter.SchemaOperator,
+                   TutorialD.Printer,
                    TutorialD.Interpreter.TH
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
@@ -399,7 +415,7 @@ Executable Example-OutOfTheTarpit
 Executable Example-Blog
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, scotty, blaze-html, http-types, winery
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, scotty, blaze-html, http-types, winery, tutoriald
     Main-Is: examples/blog.hs
     GHC-Options: -Wall -threaded
 
@@ -509,7 +525,7 @@ Executable handles
       TutorialD.Interpreter.SchemaOperator,
       TutorialD.Interpreter.TransGraphRelationalOperator,
       TutorialD.Interpreter.TransactionGraphOperator,
-      TutorialD.Interpreter.Types
+      TutorialD.Interpreter.Types,
       TutorialD.Printer
     GHC-Options: -Wall -threaded -rtsopts
     HS-Source-Dirs: ./src/bin

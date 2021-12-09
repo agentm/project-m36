@@ -2,8 +2,7 @@ module ProjectM36.GraphRefRelationalExpr where
 --evaluate relational expressions across the entire transaction graph to support cross-transaction referencing
 import ProjectM36.Base
 import qualified Data.Set as S
-
---import Debug.Trace
+import Data.Void
 
 data SingularTransactionRef = SingularTransactionRef GraphRefTransactionMarker |
                               MultipleTransactionsRef |
@@ -25,7 +24,7 @@ instance Monoid SingularTransactionRef where
   mempty = NoTransactionsRef
   
 -- | return `Just transid` if this GraphRefRelationalExpr refers to just one transaction in the graph. This is useful for determining if certain optimizations can apply.
-singularTransaction :: Foldable t => t GraphRefTransactionMarker -> SingularTransactionRef
+singularTransaction :: Foldable f => f GraphRefTransactionMarker -> SingularTransactionRef
 singularTransaction expr
   | S.null transSet = NoTransactionsRef
   | S.size transSet == 1 = SingularTransactionRef (head (S.toList transSet))
@@ -41,5 +40,5 @@ inSameTransaction exprA exprB = case (stA, stB) of
   where stA = singularTransaction exprA
         stB = singularTransaction exprB
 
-singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMarker) -> SingularTransactionRef
+singularTransactions :: (Foldable f, Traversable t) => t (f GraphRefTransactionMarker) -> SingularTransactionRef
 singularTransactions = foldMap singularTransaction

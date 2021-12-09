@@ -783,7 +783,7 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
         if schemaName session == defaultSchemaName then do
           let ctx = Sess.concreteDatabaseContext session
               transId = Sess.parentId session
-              gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr dbExpr)
+              gfExpr = normalize UncommittedContextMarker dbExpr
           pure $ runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeGraphRefDatabaseContextExpr gfExpr)
         else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly-}
           pure (Left NonConcreteSchemaPlanError)

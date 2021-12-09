@@ -75,7 +75,7 @@ askMaybeContext = asks ore_mcontext
 
 optimizeDatabaseContextExpr :: DatabaseContextExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr
 optimizeDatabaseContextExpr expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
+  let gfExpr = normalize UncommittedContextMarker expr
   optimizeGraphRefDatabaseContextExpr gfExpr
   
 optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
@@ -83,7 +83,7 @@ optimizeAndEvalDatabaseContextExpr optimize expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
+  let gfExpr = normalize UncommittedContextMarker expr
       eOptExpr = if optimize then
                    runGraphRefSOptDatabaseContextExprM transId context graph (optimizeGraphRefDatabaseContextExpr gfExpr)
                    else
@@ -105,7 +105,7 @@ optimizeAndEvalDatabaseContextIOExpr expr = do
   transId <- asks dbcio_transId
   ctx <- getDBCIOContext
   graph <- asks dbcio_graph
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
+  let gfExpr = normalize UncommittedContextMarker expr
       eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
     Left err -> pure (Left err)
@@ -175,6 +175,8 @@ fullOptimizeGraphRefRelationalExpr expr = do
 
 --should optimizations offer the possibility to pure errors? If they perform the up-front type-checking, maybe so
 optimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
+optimizeGraphRefRelationalExpr e@(Placeholder{}) = pure e
+
 optimizeGraphRefRelationalExpr e@(MakeStaticRelation _ _) = pure e
 
 optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
@@ -377,19 +379,19 @@ applyStaticPredicateOptimization predi = do
   pure (replaceStaticAtomExprs optPred attrMap)
 
 --determines if an atom expression is tautologically true
-isTrueExpr :: RestrictionPredicateExprBase a -> Bool
+isTrueExpr :: RestrictionPredicateExprBase p a -> Bool
 isTrueExpr TruePredicate = True
 isTrueExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom True))) = True
 isTrueExpr _ = False
 
 --determines if an atom expression is tautologically false
-isFalseExpr :: RestrictionPredicateExprBase a -> Bool
+isFalseExpr :: RestrictionPredicateExprBase p a -> Bool
 isFalseExpr (NotPredicate expr) = isTrueExpr expr
 isFalseExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom False))) = True
 isFalseExpr _ = False
 
 -- determine if the created relation can statically be determined to be empty
-isEmptyRelationExpr :: RelationalExprBase a -> Bool    
+isEmptyRelationExpr :: RelationalExprBase p a -> Bool    
 isEmptyRelationExpr (MakeRelationFromExprs _ (TupleExprs _ [])) = True
 isEmptyRelationExpr (MakeStaticRelation _ tupSet) = null (asList tupSet)
 isEmptyRelationExpr (ExistingRelation rel) = rel == emptyRelationWithAttrs (attributes rel)
@@ -467,10 +469,10 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
              fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
              isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do
-               let gfSubAttrNames = processM (processAttributeNames subAttrNames)
-                   gfSubRv = processM (processRelationalExpr subrv)
-                   gfSuperRv = processM (processRelationalExpr superrv)
-                   processM = runProcessExprM marker
+               let gfSubAttrNames = normalize marker subAttrNames
+                   gfSubRv = processE subrv
+                   gfSuperRv = processE superrv
+                   processE = normalize marker
                case runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames gfSubAttrNames expr) of
                  Left _ -> pure acc
                  Right subAttrNameSet -> 
@@ -494,6 +496,7 @@ applyStaticJoinElimination expr = pure expr
 applyStaticRestrictionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
 applyStaticRestrictionCollapse expr = 
   case expr of
+    Placeholder{} -> expr
     MakeRelationFromExprs _ _ -> expr
     MakeStaticRelation _ _ -> expr
     ExistingRelation _ -> expr
@@ -528,7 +531,7 @@ applyStaticRestrictionCollapse expr =
           andPreds = foldr (\(Restrict subpred _) acc -> AndPredicate acc subpred) firstPred (tail restrictions) in
       Restrict andPreds optFinalExpr
       
-sequentialRestrictions :: RelationalExprBase a -> [RelationalExprBase a]
+sequentialRestrictions :: RelationalExprBase p a -> [RelationalExprBase p a]
 sequentialRestrictions expr@(Restrict _ subexpr) = expr:sequentialRestrictions subexpr
 sequentialRestrictions _ = []
 
@@ -537,6 +540,7 @@ sequentialRestrictions _ = []
 -- (x union y) where c -> (x where c) union (y where c) #with a selective restriction, fewer tuples will need to be joined
 applyStaticRestrictionPushdown :: GraphRefRelationalExpr -> GraphRefRelationalExpr
 applyStaticRestrictionPushdown expr = case expr of
+  Placeholder{} -> expr
   MakeRelationFromExprs _ _ -> expr
   MakeStaticRelation _ _ -> expr
   ExistingRelation _ -> expr

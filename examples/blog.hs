@@ -1,12 +1,12 @@
 -- a simple example of a blog schema
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP, DerivingVia #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP, DerivingVia, QuasiQuotes, ScopedTypeVariables #-}
 
 import ProjectM36.Client
-import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tupleable
 import ProjectM36.Atom (relationForAtom)
 import ProjectM36.Tuple (atomForAttributeName)
+import TutorialD.Interpreter.TH
 
 import Data.Either
 import GHC.Generics
@@ -76,7 +76,7 @@ handleIOErrors m = do
 main :: IO ()                       
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo (MinimalPersistence "/tmp/blogdb") emptyNotificationCallback []
   conn <- handleIOError $ connectProjectM36 connInfo
   
   sessionId <- handleIOError $ createSessionAtHead conn "master"
@@ -154,17 +154,22 @@ render500 msg = do
 --display one blog post along with its comments
 showBlogEntry :: SessionId -> Connection -> ActionM ()
 showBlogEntry sessionId conn = do
-  blogid <- param "blogid"
+  blogid :: String <- param "blogid"
   --query the database to return the blog entry with a relation-valued attribute of the associated comments
-  let blogRestrictionExpr = AttributeEqualityPredicate "title" (NakedAtomExpr (TextAtom blogid))
+  -- here we can either rwite out the full ADT expression using pure Haskell or we can use the TutorialD template haskell parser to generate it for us- consider that the TutorialD method is comparatively concise
+  let
+    {-
+      blogRestrictionExpr = AttributeEqualityPredicate "title" (NakedAtomExpr (TextAtom blogid))
       extendExpr = AttributeExtendTupleExpr "comments" (RelationAtomExpr commentsRestriction)
       commentsRestriction = Restrict
                            (AttributeEqualityPredicate "blogTitle" (AttributeAtomExpr "title"))
                            (RelationVariable "comment" ())
-  eRel <- liftIO $ executeRelationalExpr sessionId conn (Extend extendExpr 
-                                                         (Restrict 
-                                                          blogRestrictionExpr 
-                                                          (RelationVariable "blog" ())))
+      joinExpr = (Extend extendExpr 
+                   (Restrict 
+                     blogRestrictionExpr 
+                     (RelationVariable "blog" ())))-}
+      joinExpr = [relationalExpr|blog where title=$blogid : {comments:=comment where blogTitle=@title}|]
+  eRel <- liftIO $ executeRelationalExpr sessionId conn joinExpr 
   let render = html . renderHtml
       formatStamp = formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S"))
   case eRel of 

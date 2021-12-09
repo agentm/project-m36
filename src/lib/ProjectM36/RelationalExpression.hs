@@ -44,6 +44,7 @@ import ProjectM36.Function
 import Test.QuickCheck
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
+import Data.Void
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
@@ -338,7 +339,7 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
       projectAndRename attr expr = Rename (tmpAttr attr) attr (Project (InvertedAttributeNames (S.singleton attr)) expr)
       restrictedPortion = Restrict pred' rvExpr
       updated = foldr (\(oldname, atomExpr) accum ->
-                                 let procAtomExpr = runProcessExprM UncommittedContextMarker (processAtomExpr atomExpr) in
+                                 let procAtomExpr = normalize UncommittedContextMarker atomExpr in
                                   updateAttr oldname procAtomExpr accum
                               ) restrictedPortion (M.toList atomExprMap)
               -- the atomExprMap could reference other attributes, so we must perform multi-pass folds
@@ -1040,6 +1041,7 @@ evalGraphRefTupleExpr mAttrs (TupleExpr tupMap) = do
 
 --temporary implementation until we have a proper planner+executor
 evalGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
+evalGraphRefRelationalExpr (Placeholder{}) = error "impossible placeholder"
 evalGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
   mAttrs <- case mAttrExprs of
     Just _ ->
@@ -1380,7 +1382,7 @@ instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
 applyUnionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
 applyUnionCollapse = Fold.cata opt
   where
-    opt :: RelationalExprBaseF GraphRefTransactionMarker GraphRefRelationalExpr -> GraphRefRelationalExpr
+    opt :: RelationalExprBaseF Void GraphRefTransactionMarker GraphRefRelationalExpr -> GraphRefRelationalExpr
     opt (UnionF exprA exprB) | exprA == exprB = exprA
     opt (UnionF
          exprA@(MakeRelationFromExprs mAttrs1 tupExprs1)

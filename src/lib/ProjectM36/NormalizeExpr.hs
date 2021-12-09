@@ -16,7 +16,12 @@ askMarker :: ProcessExprM GraphRefTransactionMarker
 askMarker = R.ask
 
 -- convert a RelationalExpr into a GraphRefRelationalExpr using the current trans Id
+
 processRelationalExpr :: RelationalExpr -> ProcessExprM GraphRefRelationalExpr
+processRelationalExpr expr = do
+  marker <- askMarker
+  pure (fmap (const marker) expr)
+{-  
 processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
   mAttrs' <- case mAttrs of
                   Nothing -> pure Nothing
@@ -43,7 +48,8 @@ processRelationalExpr (Extend extendExpr expr) =
   Extend <$> processExtendTupleExpr extendExpr <*> processRelationalExpr expr
 processRelationalExpr (With macros expr) =
   With <$> mapM (\(wnexpr, macroExpr) -> (,) <$> processWithNameExpr wnexpr <*> processRelationalExpr macroExpr) macros <*> processRelationalExpr expr
-
+-}
+{-
 processWithNameExpr :: WithNameExpr -> ProcessExprM GraphRefWithNameExpr
 processWithNameExpr (WithNameExpr rvname ()) =
   WithNameExpr rvname <$> askMarker
@@ -55,8 +61,14 @@ processAttributeNames (InvertedAttributeNames attrNameSet) =
 processAttributeNames (UnionAttributeNames attrNamesA attrNamesB) = UnionAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
 processAttributeNames (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
 processAttributeNames (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> processRelationalExpr expr
-
+-}
+{-
 processDatabaseContextExpr :: DatabaseContextExpr -> ProcessExprM GraphRefDatabaseContextExpr
+processDatabaseContextExpr expr = do
+  marker <- askMarker
+  pure (fmap (const marker) expr)
+-}
+{-  
 processDatabaseContextExpr expr =
   case expr of
     NoOperation -> pure NoOperation
@@ -78,7 +90,8 @@ processDatabaseContextExpr expr =
     RemoveDatabaseContextFunction funcName' -> pure (RemoveDatabaseContextFunction funcName')
     ExecuteDatabaseContextFunction funcName' atomExprs -> ExecuteDatabaseContextFunction funcName' <$> mapM processAtomExpr atomExprs
     MultipleExpr exprs -> MultipleExpr <$> mapM processDatabaseContextExpr exprs
-
+-}
+{-
 processDatabaseContextIOExpr :: DatabaseContextIOExpr -> ProcessExprM GraphRefDatabaseContextIOExpr
 processDatabaseContextIOExpr (AddAtomFunction f tcs sc) =
   pure (AddAtomFunction f tcs sc)
@@ -90,7 +103,16 @@ processDatabaseContextIOExpr (LoadDatabaseContextFunctions mod' fun path) =
   pure (LoadDatabaseContextFunctions mod' fun path)
 processDatabaseContextIOExpr (CreateArbitraryRelation rvName attrExprs range) =
   CreateArbitraryRelation rvName <$> mapM processAttributeExpr attrExprs <*> pure range
+-}
+normalize :: Functor f => GraphRefTransactionMarker -> f () -> f GraphRefTransactionMarker
+normalize marker e = runProcessExprM marker (normalizeM e)
   
+-- | Add a transaction marker to otherwise unmarked expressions.
+normalizeM :: Functor f => f () -> ProcessExprM (f GraphRefTransactionMarker)
+normalizeM expr = do
+  marker <- askMarker
+  pure (fmap (const marker) expr)  
+{-                                                 
 processRestrictionPredicateExpr :: RestrictionPredicateExpr -> ProcessExprM GraphRefRestrictionPredicateExpr
 processRestrictionPredicateExpr TruePredicate = pure TruePredicate
 processRestrictionPredicateExpr (AndPredicate a b) = AndPredicate <$> processRestrictionPredicateExpr a <*> processRestrictionPredicateExpr b
@@ -130,3 +152,4 @@ processAttributeExpr (AttributeAndTypeNameExpr nam tCons ()) =
   AttributeAndTypeNameExpr nam tCons <$> askMarker
 processAttributeExpr (NakedAttributeExpr attr) = pure $ NakedAttributeExpr attr
 
+-}
