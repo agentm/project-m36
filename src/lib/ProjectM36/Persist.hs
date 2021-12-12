@@ -1,13 +1,15 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 --this module is related to persisting Project:M36 structures to disk and not related to the persistent library
 module ProjectM36.Persist (writeFileSync, 
-                           writeBSFileSync,
+                           writeSerialiseSync,
                            renameSync,
                            printFdCount,
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
 import qualified Data.Text as T
-
+import Codec.Winery
+import qualified Data.ByteString.FastBuilder as BB
+import System.IO (withBinaryFile)
 #if defined(linux_HOST_OS)
 # define FDCOUNTSUPPORTED 1
 # define FDDIR "/proc/self/fd"
@@ -36,7 +38,7 @@ import Foreign.C
 #endif
 
 import System.IO (withFile, IOMode(WriteMode), Handle)
-import qualified Data.ByteString as BS'
+import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 
 #if defined(mingw32_HOST_OS)
@@ -52,7 +54,7 @@ writeFileSync :: DiskSync -> FilePath -> T.Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
-      BS'.hPut handle (TE.encodeUtf8 strOut)
+      BS.hPut handle (TE.encodeUtf8 strOut)
       syncHandle sync handle
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()
@@ -99,10 +101,11 @@ syncDirectory :: DiskSync -> FilePath -> IO ()
 syncDirectory FsyncDiskSync path = directoryFsync path 
 syncDirectory NoDiskSync _ = pure ()
 
-writeBSFileSync :: DiskSync -> FilePath -> BS'.ByteString -> IO ()
-writeBSFileSync sync path bstring =
-  withFile path WriteMode $ \handle -> do
-    BS'.hPut handle bstring
+--uses lazy bytestring to write to file
+writeSerialiseSync :: Serialise a => DiskSync -> FilePath -> a -> IO ()
+writeSerialiseSync sync path val = 
+  withBinaryFile path WriteMode $ \handle -> do
+    BB.hPutBuilder handle $ toBuilderWithSchema val
     syncHandle sync handle
   
 directoryFsync :: FilePath -> IO ()

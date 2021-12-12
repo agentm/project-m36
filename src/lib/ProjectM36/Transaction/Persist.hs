@@ -1,16 +1,18 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 #ifdef PM36_HASKELL_SCRIPTING
 {-# LANGUAGE TypeApplications #-}
 #endif
 module ProjectM36.Transaction.Persist where
+import ProjectM36.Trace
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Transaction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.AtomFunction
-import ProjectM36.Persist (writeBSFileSync, DiskSync, renameSync)
+import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
 import ProjectM36.Function
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -109,14 +111,14 @@ writeTransaction sync dbdir trans = do
 writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
 writeRelVars sync transDir relvars = do
   let path = relvarsPath transDir
-  writeBSFileSync sync path (serialise relvars)
+  traceBlock "write relvars" $ writeSerialiseSync sync path relvars
 
 readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = 
   readFileDeserialise (relvarsPath transDir)
 
 writeFuncs :: Traversable t => DiskSync -> FilePath -> t (Function a) -> IO ()
-writeFuncs sync funcWritePath funcs = do
+writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
   funcs' <- forM funcs $ \fun -> do
     case funcBody fun of
       FunctionScriptBody{} -> pure fun
@@ -134,7 +136,7 @@ writeFuncs sync funcWritePath funcs = do
             Just (ObjectFileInfo (objPath, modName, entryFunc))
           FunctionScriptBody{} -> Nothing
           FunctionBuiltInBody{} -> Nothing
-  writeBSFileSync sync funcWritePath (serialise $ fmap functionData (toList funcs'))
+  writeSerialiseSync sync funcWritePath (fmap functionData (toList funcs'))
 
 readFuncs :: FilePath -> FilePath -> HS.HashSet (Function a) -> Maybe ScriptSession -> IO (HS.HashSet (Function a))
 readFuncs transDir funcPath precompiledFunctions mScriptSession = do
@@ -223,11 +225,12 @@ readAtomFunc transDir funcName' mScriptSession precompiledFuncs = do
 #endif
 
 writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
-writeIncDep sync transDir (incDepName, incDep) = 
-  writeBSFileSync sync (incDepsDir transDir </> T.unpack incDepName) $ serialise incDep
+writeIncDep sync transDir (incDepName, incDep) = do
+  writeSerialiseSync sync (incDepsDir transDir </> T.unpack incDepName) incDep
   
 writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
-writeIncDeps sync transDir incdeps = mapM_ (writeIncDep sync transDir) $ M.toList incdeps 
+writeIncDeps sync transDir incdeps = 
+  traceBlock "write incdeps" $ mapM_ (writeIncDep sync transDir) $ M.toList incdeps 
   
 readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
 readIncDep transDir incdepName = do
@@ -249,11 +252,12 @@ readSubschemas transDir = do
 writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
 writeSubschemas sync transDir sschemas = do
   let sschemasPath = subschemasPath transDir
-  writeBSFileSync sync sschemasPath (serialise sschemas)
+  traceBlock "write subschemas" $ writeSerialiseSync sync sschemasPath sschemas
   
 writeTypeConstructorMapping :: DiskSync -> FilePath -> TypeConstructorMapping -> IO ()  
-writeTypeConstructorMapping sync path types = let atPath = typeConsPath path in
-  writeBSFileSync sync atPath $ serialise types
+writeTypeConstructorMapping sync path types = do
+  let atPath = typeConsPath path
+  traceBlock "write tconsmap" $ writeSerialiseSync sync atPath types
 
 readTypeConstructorMapping :: FilePath -> IO TypeConstructorMapping
 readTypeConstructorMapping path = do
