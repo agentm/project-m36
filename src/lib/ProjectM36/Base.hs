@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
@@ -44,18 +44,18 @@ instance Hashable (S.Set AttributeName) where
 #endif
 
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
-data Atom = IntegerAtom Integer |
-            IntAtom Int |
-            DoubleAtom Double |
-            TextAtom Text |
-            DayAtom Day |
-            DateTimeAtom UTCTime |
-            ByteStringAtom ByteString |
-            BoolAtom Bool |
-            UUIDAtom UUID |
-            RelationAtom Relation |
-            RelationalExprAtom RelationalExpr | --used for returning inc deps
-            ConstructedAtom DataConstructorName AtomType [Atom]
+data Atom = IntegerAtom !Integer |
+            IntAtom !Int |
+            DoubleAtom !Double |
+            TextAtom !Text |
+            DayAtom !Day |
+            DateTimeAtom !UTCTime |
+            ByteStringAtom !ByteString |
+            BoolAtom !Bool |
+            UUIDAtom !UUID |
+            RelationAtom !Relation |
+            RelationalExprAtom !RelationalExpr | --used for returning inc deps
+            ConstructedAtom !DataConstructorName !AtomType [Atom]
             deriving (Eq, Show, Typeable, NFData, Generic, Read)
                      
 instance Hashable Atom where                     
@@ -579,18 +579,19 @@ instance Eq (Function a) where
   f1 == f2 = funcName f1 == funcName f2
 
 instance Hashable (Function a) where
-  hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` funcBody func
-
+  hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` hashfuncbody 
+   where
+    hashfuncbody =
+      case funcBody func of
+        (FunctionScriptBody script _) -> salt `hashWithSalt` script
+        (FunctionBuiltInBody _) -> salt
+        (FunctionObjectLoadedBody fp modName entryFunc _) -> salt `hashWithSalt` (fp, modName, entryFunc)
+  
 data FunctionBody a =
   FunctionScriptBody FunctionBodyScript a |
   FunctionBuiltInBody a |
   FunctionObjectLoadedBody FilePath ObjectModuleName ObjectFileEntryFunctionName a
   deriving Generic
-
-instance Hashable (FunctionBody a) where
-  salt `hashWithSalt` (FunctionScriptBody script _) = salt `hashWithSalt` script
-  salt `hashWithSalt` (FunctionBuiltInBody _) = salt
-  salt `hashWithSalt` (FunctionObjectLoadedBody fp modName entryFunc _) = salt `hashWithSalt` (fp, modName, entryFunc)
 
 instance NFData a => NFData (FunctionBody a) where
   rnf (FunctionScriptBody script _) = rnf script
