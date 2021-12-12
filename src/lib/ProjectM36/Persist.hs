@@ -9,7 +9,6 @@ module ProjectM36.Persist (writeFileSync,
 import qualified Data.Text as T
 import Codec.Winery
 import qualified Data.ByteString.FastBuilder as BB
-import System.IO (withBinaryFile)
 #if defined(linux_HOST_OS)
 # define FDCOUNTSUPPORTED 1
 # define FDDIR "/proc/self/fd"
@@ -37,7 +36,7 @@ import System.Posix.IO (handleToFd, closeFd)
 import Foreign.C
 #endif
 
-import System.IO (withFile, IOMode(WriteMode), Handle)
+import System.IO (withFile, IOMode(WriteMode), Handle, withBinaryFile)
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 
