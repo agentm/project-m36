@@ -29,6 +29,7 @@ extra-deps:
   - prettyprinter-ansi-terminal-1.1.2
   - base16-bytestring-1.0.1.0
   - modern-uri-0.3.4.0
+  - unicode-data-0.2.0  
 
 # Override default flag values for local packages and extra-deps
 flags:

@@ -29,7 +29,8 @@ extra-deps:
   - modern-uri-0.3.4.0
   - cryptohash-sha256-0.11.102.0
   - http-types-0.12.3
-  - network-3.1.2.5  
+  - network-3.1.2.5
+  - unicode-data-0.2.0
 
 # Override default flag values for local packages and extra-deps
 flags:
