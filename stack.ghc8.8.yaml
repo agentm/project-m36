@@ -9,9 +9,8 @@ packages:
   - "."
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-  - git: https://github.com/composewell/streamly.git
-    commit: ac3af8749194f1788704dda8667d0b3807075cc2
-  - curryer-rpc-0.1
+  - streamly-0.8.1
+  - curryer-rpc-0.2
   - fast-builder-0.1.2.1
   - winery-1.3.2
   - barbies-2.0.2.0
