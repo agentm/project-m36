@@ -13,8 +13,22 @@ let
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
-      curryer-rpc = self.callCabal2nix "curryer-rpc" sources.curryer { };
-      streamly = doJailbreak (needsCocoa (self.callCabal2nix "streamly" sources.streamly { }));
+      curryer-rpc = self.callHackageDirect {
+                      pkg = "curryer-rpc";
+		      ver = "0.2";
+		      sha256 = "0ylkdwgblsg3wrfc32hpa4c4gw7lcr35g3yiwsaid67mwq5daigm"; } {};
+
+      streamly = self.callHackageDirect {
+                   pkg = "streamly";
+		   ver = "0.8.1";
+		   sha256 = "0ywyy7gxjnp32hx8kki0lfn94bnc9mzjh8g6mg65ff3vv28k2vdr"; } {};
+
+      unicode-data = self.callHackageDirect {
+                      pkg = "unicode-data";
+		      ver = "0.2.0";
+		      sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
+		      } {};
+    
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { }));
     };
   };
