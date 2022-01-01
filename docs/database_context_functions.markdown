@@ -6,7 +6,7 @@ While "atom functions" operate on individual values and return new values (atoms
 
 Other DBMS software may include a similar feature called "stored procedures". However, "stored procedures" are stored outside the transaction stream and are not versioned by the database as in Project:M36.
 
-In order to use this feature in Project:M36, be sure to build your own Project:M36 library so that the optional scripting is enabled.
+In order to use compile functions at runtime in Project:M36, be sure to build your own Project:M36 library so that the optional scripting is enabled. Alternatively, precompiled database context functions can be loaded from object files.
 
 ## Database Context Function Types
 
@@ -111,6 +111,71 @@ The function can be executed using:
 executeDatabaseContextExpr sessionId dbconn (ExecuteDatabaseContextFunction funcName atomArgList)
 ```
 from the same module.
+
+## Loading Precompiled Modules
+
+*WARNING* Loading object files into the database can be a security and/or and database integrity issue. Project:M36 relies on calculating past states of the database. For this reason, it is inadvisable to alter object files once they are loaded into a database. Changing these object files could corrupt the database. Treat object files loaded as read-only. Use version numbers in the object file names to allow for future revisions.
+
+Database context functions compiled with GHC to object files can be loaded at runtime. Let's walk through an example:
+
+```haskell
+module DynamicDatabaseContextFunctions where
+import ProjectM36.Base
+import ProjectM36.Relation
+import ProjectM36.DatabaseContextFunction
+import ProjectM36.DatabaseContextFunctionError
+import qualified ProjectM36.Attribute as A
+
+import qualified Data.Map as M
+
+
+someDBCFunctions :: [DatabaseContextFunction]
+someDBCFunctions = [Function {
+                       funcName = "addtestrel",
+                       funcType = [],
+                       funcBody = externalDatabaseContextFunction addTestRel
+                       }]
+  where
+    addTestRel _ ctx = do
+      let attrExprs = [NakedAttributeExpr (Attribute "word" TextAtomType)]
+          newRelExpr = MakeRelationFromExprs (Just attrExprs) (TupleExprs UncommittedContextMa\
+rker [TupleExpr (M.singleton "word" (NakedAtomExpr (TextAtom "nice")))])
+      pure $ ctx { relationVariables =
+                       M.insert "testRel" (newRelExpr) (relationVariables ctx) }
+
+```
+
+The function returns a list of `DatabaseContextFunction`s (just one in this case). The function adds a relation variable to the current database context.
+
+Compile it with GHC:
+
+```
+cabal exec ghc -- examples/DynamicDatabaseContextFunctions.hs -package project-m36
+```
+
+or invoke GHC via stack.
+
+You can also compile it into a shared object file if you link against modules which do not ship with Project:M36.
+
+```
+cabal exec ghc -- examples/DynamicDatabaseContextFunctions.hs -package project-m36 -package <another package> -fPIC -shared -dynamic -o examples/DynamicDatabaseContextFunctions.so
+```
+
+
+
+Finally, connect to your database with `tutd` and load the module:
+
+```
+TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "examples/DynamicDatabaseContextFunctions.o"
+```
+
+or, if running the database in persistent mode, copy the compiled module ".o" file into `<database directory>/compiled_modules/`, then:
+
+```
+TutorialD (master/main): loaddatabasecontextfunctions "DynamicDatabaseContextFunctions" "someDBCFunctions" "DynamicDatabaseContextFunctions.o"
+```
+
+If the load reports an "unknown symbol" error, double check that the installed "project-m36" package is identical to one used to link the Haskell module.
 
 ## Future Improvements
 

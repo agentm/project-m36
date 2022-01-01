@@ -3,16 +3,18 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.Atom
+import ProjectM36.Attribute as A
 import ProjectM36.AtomType
 import qualified Data.List as L
 import Data.Text (Text, pack)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
-import qualified Data.Vector as V
+#endif
 
 attributesAsHTML :: Attributes -> Text
-attributesAsHTML attrs = "<tr>" <> T.concat (map oneAttrHTML (V.toList attrs)) <> "</tr>"
+attributesAsHTML attrs = "<tr>" <> T.concat (map oneAttrHTML (A.toList attrs)) <> "</tr>"
   where
     oneAttrHTML attr = "<th>" <> prettyAttribute attr <> "</th>"
 
@@ -51,6 +53,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
   where
     tupleFrag tup = "<td>" <> atomAsHTML (snd tup) <> "</td>"
     atomAsHTML (RelationAtom rel) = relationAsHTML rel
+    atomAsHTML (TextAtom t) = "&quot;" <> t <> "&quot;"
     atomAsHTML atom = atomToText atom
 
 tupleSetAsHTML :: RelationTupleSet -> Text

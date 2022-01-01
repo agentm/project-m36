@@ -4,14 +4,11 @@ import qualified Data.Set as S
 import qualified Data.HashSet as HS
 import Control.Monad
 import qualified Data.Vector as V
-import qualified Data.Map as M
-import ProjectM36.AtomType
 import ProjectM36.Base
 import ProjectM36.Tuple
 import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Error
-import ProjectM36.MiscUtils
 --import qualified Control.Parallel.Strategies as P
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified ProjectM36.DataConstructorDef as DCD
@@ -19,7 +16,6 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
-import Data.List (sort)
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -37,7 +33,7 @@ atomTypeForName :: AttributeName -> Relation -> Either RelationalError AtomType
 atomTypeForName attrName (Relation attrs _) = A.atomTypeForAttributeName attrName attrs
 
 mkRelationFromList :: Attributes -> [[Atom]] -> Either RelationalError Relation
-mkRelationFromList attrs atomMatrix =
+mkRelationFromList attrs atomMatrix = do
   Relation attrs <$> mkTupleSetFromList attrs atomMatrix
   
 emptyRelationWithAttrs :: Attributes -> Relation  
@@ -45,11 +41,6 @@ emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet =
-  --check that all attributes are unique- this cannot be done when creating attributes because the check can become expensive
-  let duplicateAttrNames = dupes (sort (map A.attributeName (V.toList attrs))) in
-  if not (null duplicateAttrNames) then
-    Left (DuplicateAttributeNamesError (S.fromList duplicateAttrNames))
-    else
     --check that all tuples have the same keys
     --check that all tuples have keys (1-N) where N is the attribute count
     case verifyTupleSet attrs tupleSet of
@@ -64,6 +55,10 @@ mkRelationDeferVerify :: Attributes -> RelationTupleSet -> Either RelationalErro
 mkRelationDeferVerify attrs tupleSet = return $ Relation attrs (RelationTupleSet (filter tupleFilter (asList tupleSet)))
   where
     tupleFilter tuple = isRight (verifyTuple attrs tuple)
+    
+--return a relation of the same type except without any tuples
+relationWithEmptyTupleSet :: Relation -> Relation    
+relationWithEmptyTupleSet (Relation attrs _) = emptyRelationWithAttrs attrs
 
 mkRelationFromTuples :: Attributes -> [RelationTuple] -> Either RelationalError Relation
 mkRelationFromTuples attrs tupleSetList = do
@@ -91,13 +86,12 @@ union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
   else
     Right $ Relation attrs1 newtuples
   where
-    newtuples = RelationTupleSet $ HS.toList . HS.fromList $ asList tupSet1 ++ map (reorderTuple attrs1) (asList tupSet2)
-      
-project :: S.Set AttributeName -> Relation -> Either RelationalError Relation      
+    newtuples = tupleSetUnion attrs1 tupSet1 tupSet2
+
+project :: S.Set AttributeName -> Relation -> Either RelationalError Relation
 project attrNames rel@(Relation _ tupSet) = do
   newAttrs <- A.projectionAttributesForNames attrNames (attributes rel)  
-  let newAttrNameSet = A.attributeNameSet newAttrs
-      newTupleList = map (tupleProject newAttrNameSet) (asList tupSet)
+  newTupleList <- mapM (tupleProject newAttrs) (asList tupSet)
   pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
@@ -152,7 +146,7 @@ group groupAttrNames newAttrName rel = do
   groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
   let groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       matchingRelTuple tupIn = case imageRelationFor tupIn rel of
-        Right rel2 -> RelationTuple (V.singleton groupAttr) (V.singleton (RelationAtom rel2))
+        Right rel2 -> RelationTuple (A.singleton groupAttr) (V.singleton (RelationAtom rel2))
         Left _ -> undefined
       mogrifier tupIn = pure (tupleExtend tupIn (matchingRelTuple tupIn))
       newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
@@ -166,7 +160,8 @@ restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
 restrictEq tuple = restrict rfilter
   where
     rfilter :: RelationTuple -> Either RelationalError Bool
-    rfilter tupleIn = pure (tupleIntersection tuple tupleIn == tuple)
+    rfilter tupleIn = do
+      pure (tupleIntersection tuple tupleIn == tuple)
 
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
@@ -188,13 +183,13 @@ ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
 tupleUngroup :: AttributeName -> Attributes -> RelationTuple -> Either RelationalError Relation
 tupleUngroup relvalAttrName newAttrs tuple = do
   relvalRelation <- relationForAttributeName relvalAttrName tuple
+  let nonGroupAttrs = A.intersection newAttrs (tupleAttributes tuple)
+  nonGroupTupleProjection <- tupleProject nonGroupAttrs tuple
+  let folder tupleIn acc = case acc of
+        Left err -> Left err
+        Right accRel ->
+          union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
   relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
-  where
-    nonGroupTupleProjection = tupleProject nonGroupAttrNames tuple
-    nonGroupAttrNames = A.attributeNameSet newAttrs
-    folder tupleIn acc = case acc of
-      Left err -> Left err
-      Right accRel -> union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
 
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
 attributesForRelval relvalAttrName (Relation attrs _) = do
@@ -249,7 +244,8 @@ relMap mapper (Relation attrs tupleSet) =
 
 relMogrify :: (RelationTuple -> Either RelationalError RelationTuple) -> Attributes -> Relation -> Either RelationalError Relation
 relMogrify mapper newAttributes (Relation _ tupSet) = do
-  newTuples <- mapM mapper (asList tupSet)  
+  newTuples <- mapM (fmap (reorderTuple newAttributes) . mapper) (asList tupSet)
+                    
   mkRelationFromTuples newAttributes newTuples
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
@@ -295,35 +291,22 @@ typesAsRelation types = mkRelationFromTuples attrs tuples
     dConsType = RelationAtomType subAttrs
     tuples = map mkTypeConsDescription types
     
-    mkTypeConsDescription (tCons, dConsList) = RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
+    mkTypeConsDescription (tCons, dConsList) =
+      RelationTuple attrs (V.fromList [TextAtom (TCD.name tCons), mkDataConsRelation dConsList])
     
     mkDataConsRelation dConsList = case mkRelationFromTuples subAttrs $ map (\dCons -> RelationTuple subAttrs (V.singleton $ TextAtom $ T.intercalate " " (DCD.name dCons:map (T.pack . show) (DCD.fields dCons)))) dConsList of
       Left err -> error ("mkRelationFromTuples pooped " ++ show err)
       Right rel -> RelationAtom rel
-
--- | Return a Relation describing the relation variables.
-relationVariablesAsRelation :: M.Map RelVarName Relation -> Either RelationalError Relation
-relationVariablesAsRelation relVarMap = mkRelationFromList attrs tups
-  where
-    subrelAttrs = A.attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
-    attrs = A.attributesFromList [Attribute "name" TextAtomType,
-                                  Attribute "attributes" (RelationAtomType subrelAttrs)]
-    tups = map relVarToAtomList (M.toList relVarMap)
-    relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributes rel)]
-    attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
-      Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
-      Right rel -> RelationAtom rel
-    attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       
 -- | Randomly resort the tuples. This is useful for emphasizing that two relations are equal even when they are printed to the console in different orders.
 randomizeTupleOrder :: MonadRandom m => Relation -> m Relation
-randomizeTupleOrder (Relation attrs tupSet) = do
-  newTupSet <- shuffleM (asList tupSet)
-  pure (Relation attrs (RelationTupleSet newTupSet))
+randomizeTupleOrder (Relation attrs tupSet) = 
+  Relation attrs . RelationTupleSet <$> shuffleM (asList tupSet)
 
 -- returns a tuple from the tupleset- this is useful for priming folds over the tuples
 oneTuple :: Relation -> Maybe RelationTuple
 oneTuple (Relation _ (RelationTupleSet [])) = Nothing
 oneTuple (Relation _ (RelationTupleSet (x:_))) = Just x
 
-  
+tuplesList :: Relation -> [RelationTuple]
+tuplesList (Relation _ tupleSet) = asList tupleSet

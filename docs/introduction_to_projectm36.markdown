@@ -1,7 +1,7 @@
 # Introduction to Project:M36
 
 ## What is Project:M36?
-Project:M36 is a relational-algebra-based database management system. It can be used a production-level database backend or for learning more about the relational algebra.
+Project:M36 is a relational-algebra-based database management system. It can be used as a production-level database backend or for learning more about the relational algebra.
 
 The principled mathematical approach to Project:M36's design sets it apart from competing DBMSs. Specifically, Project:M36 adheres strongly to the mathematics of the relational algebra and makes no compromises nor apologies in doing so. To that end, Project:M36 is implemented in the programming language "Haskell" which is itself based on the lambda calculus.
 
@@ -15,38 +15,59 @@ The relational algebra is the mathematical model underpinning Project:M36. When 
 
 ## Binary Releases
 
-### Windows
-Project:M36 now provides binary installations for Windows. Check the (releases page)[https://github.com/agentm/project-m36/releases] for downloads.
+The quickest and preferred method of installation is via docker, which works on Linux, macOS, and Windows. Docker downloads and runs preconfigured software in secure, sandboxed containers, preventing third-party software from altering the host system without your permission.
 
-### MacOS X
+### Install Docker:
 
-Binary releases are not yet available for MacOS X, but compiling from source is easy.
+* [Windows 10 Docker Installation](https://docs.docker.com/docker-for-windows/wsl/)
+* [MacOS Docker Installation](https://docs.docker.com/docker-for-mac/install/)
+* [Linux Docker Installation](https://docs.docker.com/engine/install/#server)
 
-### Linux
+### Run TutorialD from Docker Image
 
-The currently-preferred method of installation is from source. A future enhancement would be installation from deb or rpm.
+This downloads the docker image tagged "latest" and runs `tutd`, the TutorialD command line interface. Try the [15-Minute TutorialD Tutorial](15_minute_tutorial.markdown) and try some expressions.
+
+```bash
+docker run -it projectm36/project-m36 tutd
+```
+
+### Run Project:M36 Server
+
+The default port for the project-m36 server is 6543.
+
+```bash
+docker run --network host projectm36/project-m36 project-m36-server -n <database_name>
+```
+
+### Connect to Project:M36 Server
+
+```bash
+docker run --network host projectm36/project-m36
+```
 
 ## Source Installation
 
 Requirements:
 
-* [GHC 7.10 or greater](https://www.haskell.org/downloads)
+To build with stack:
+
+* [GHC 8.6.5 or greater](https://www.haskell.org/downloads)
 * [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
-* Linux, MacOS X, or Windows OS
+* Linux, macOS, or Microsoft Windows
 
 Compilation steps:
 
 * ```git clone https://github.com/agentm/project-m36```
 * ```cd project-m36```
-* ```stack build```
+* ```stack --stack-yaml stack.ghc8.6.yaml build```
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.0.x:
+Alternative building with GHC 8.6.5 or greater:
 
 * ```cabal new-build```
 
-The resultant binaries can be found in ```./dist-newstyle/build/project-m36-0.1/build```.
+The resultant binaries can be found in ```./dist-newstyle/build/project-m36-<version>/build```.
 
 ## Accessing Project:M36 Databases
 
@@ -65,7 +86,7 @@ In addition to being a relational algebra engine, Project:M36 supports features 
 
 Most DBMSs provide a way to allow the user to specify atomic database state changes. These changes are often wrapped up as "transactions" which, when applied to the database state, offer the illusion of sequential and grouped, atomic changes applied to the databases. Often the only state which can be queried is the snapshot at the time the transaction is opened.
 
-Project:M36 extends this transaction model with the "transaction graph". This feture can be adequately described as version control for transactions. In the legacy DBMS model, the transactions are added to a linear transaction stream where each client is contending over the "head" of the stream- the latest transactions. In the transaction graph model, clients can add named branches and add transactions to the branches, then merge changes back, if necessary.
+Project:M36 extends this transaction model with the "transaction graph". This feature can be adequately described as version control for transactions. In the legacy DBMS model, the transactions are added to a linear transaction stream where each client is contending over the "head" of the stream- the latest transactions. In the transaction graph model, clients can add named branches and add transactions to the branches, then merge changes back, if necessary.
 
 This feature is useful, for example:
 * during testing- create a testing branch which production will never see. This obviates the need for a separate production data set.
@@ -87,7 +108,7 @@ Decreasing a transaction's durability can reduce IO contention at the cost of re
 
 ### Native Haskell Compatibility
 
-Any Haskell data type which implements the ```Atom``` typeclass can be manipulated as a value in the database.
+Any Haskell data type which implements the ```Atomable``` typeclass can be manipulated as a value in the database.
 
 Haskell functions which operate on those values can also be added to the database.
 

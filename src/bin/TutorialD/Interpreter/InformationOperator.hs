@@ -2,7 +2,6 @@
 module TutorialD.Interpreter.InformationOperator where
 import Data.Text
 import Text.Megaparsec
-import Text.Megaparsec.Text
 import TutorialD.Interpreter.Base
 -- older versions of stack fail to
 #if !defined(VERSION_project_m36) 

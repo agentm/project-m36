@@ -3,13 +3,11 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
-import ProjectM36.TupleSet
-import ProjectM36.Attribute hiding (null, attributeNames)
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph
 import ProjectM36.Tuple
 import qualified ProjectM36.DatabaseContext as DBC
-import Control.Monad.Trans.Reader
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -25,7 +23,8 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "products" productsRel,
                      testRelation "supplierProducts" supplierProductsRel,
                      testMkRelationFromExprsBadAttrs,
-                     testDuplicateAttributes
+                     testExistingRelationType,
+                     testReorderTuple
                     ]
 
 main :: IO ()           
@@ -63,8 +62,8 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple
     tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
     attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
                                  Left _ -> False
-                                 Right atom -> (Right $ atomTypeForAtom atom) ==
-                                  A.atomTypeForAttributeName (A.attributeName attr) attrs) (attributes rel)
+                                 Right atom -> Right (atomTypeForAtom atom) ==
+                                  A.atomTypeForAttributeName (A.attributeName attr) attrs) (attributesVec (attributes rel))
     
 simpleRel :: Relation    
 simpleRel = case mkRelation attrs tupleSet of
@@ -93,14 +92,28 @@ testMkRelation1 = TestCase $ assertEqual "key mismatch" expectedError (mkRelatio
 
 testMkRelationFromExprsBadAttrs :: Test
 testMkRelationFromExprsBadAttrs = TestCase $ do
-  let context = DBC.empty
-  case runReader (evalRelationalExpr (MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])) (mkRelationalExprState context) of
+  let context = DBC.empty 
+  (graph,_) <- freshTransactionGraph context  
+  let reenv = mkRelationalExprEnv context graph
+      reExpr = MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) (TupleExprs () [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])
+      evald = runRelationalExprM reenv (evalRelationalExpr reExpr)
+  case evald of
     Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
     Right _ -> assertFailure "expected tuple type mismatch"
 
---creating an empty relation with duplicate attribute names should fail
-testDuplicateAttributes :: Test
-testDuplicateAttributes = TestCase $ do
-  let eRel = mkRelation attrs emptyTupleSet
-      attrs = attributesFromList [Attribute "a" IntAtomType, Attribute "a" TextAtomType]
-  assertEqual "duplicate attribute names" (Left (DuplicateAttributeNamesError (S.singleton "a"))) eRel
+testExistingRelationType :: Test
+testExistingRelationType = TestCase $ do
+  (graph, _) <- freshTransactionGraph dateExamples
+  let typeResult = runRelationalExprM reenv (typeForRelationalExpr (ExistingRelation relationTrue))
+      reenv = mkRelationalExprEnv dateExamples graph
+  assertEqual "ExistingRelation with tuples type" (Right relationFalse) typeResult
+
+-- | Ensure that tuple reordering honors the 
+testReorderTuple :: Test
+testReorderTuple = TestCase $ do
+  let tup1 = mkRelationTuple attrs1 (V.fromList [IntAtom 4, TextAtom "test"])
+      attrs1 = A.attributesFromList [Attribute "a" IntAtomType, Attribute "b" TextAtomType]
+      attrs2 = A.attributesFromList [Attribute "b" TextAtomType, Attribute "a" IntAtomType]
+      actual = reorderTuple attrs2 tup1
+      expected = mkRelationTuple attrs2 (V.fromList [TextAtom "test", IntAtom 4])
+  assertEqual "reorderTuple" expected actual

@@ -6,7 +6,7 @@ import Data.Text.IO as TIO
 main :: IO ()
 main = do
   -- 1. create a ConnectionInfo
-  let connInfo = RemoteProcessConnectionInfo "mytestdb" (createNodeId "127.0.0.1" defaultServerPort) emptyNotificationCallback
+  let connInfo = RemoteConnectionInfo "mytestdb" "127.0.0.1" (show defaultServerPort) emptyNotificationCallback
   -- 2. conncted to the remote database
   eConn <- connectProjectM36 connInfo
   case eConn of

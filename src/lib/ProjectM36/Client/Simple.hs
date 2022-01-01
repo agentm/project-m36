@@ -25,12 +25,12 @@ module ProjectM36.Client.Simple (
   C.PersistenceStrategy(..),
   C.NotificationCallback,
   C.emptyNotificationCallback,
-  C.DatabaseContextExpr(..),
+  C.DatabaseContextExprBase(..),
+  C.DatabaseContextExpr,  
   C.RelationalExprBase(..)
   ) where
 
 import Control.Exception.Base
-import Control.Monad ((<=<))
 import Control.Monad.Reader
 import ProjectM36.Base
 import qualified ProjectM36.Client as C

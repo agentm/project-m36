@@ -1,25 +1,32 @@
 --create a bunch of orphan instances for use with the websocket server
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Server.RemoteCallTypes.Json where
 import ProjectM36.AtomFunctionError
 import ProjectM36.Base
+import ProjectM36.DataFrame
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.MerkleHash
+import ProjectM36.Attribute as A
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
 import Data.Text.Encoding
 import Data.Time.Calendar
+import Data.UUID
 
 instance ToJSON RelationalExpr
 instance FromJSON RelationalExpr
 
 instance ToJSON TupleExpr
 instance FromJSON TupleExpr
+
+instance ToJSON TupleExprs
+instance FromJSON TupleExprs
 
 instance ToJSON RestrictionPredicateExpr
 instance FromJSON RestrictionPredicateExpr
@@ -39,8 +46,11 @@ instance FromJSON ExecuteRelationalExpr
 instance ToJSON Relation
 instance FromJSON Relation
 
-instance ToJSON Attribute
-instance FromJSON Attribute
+instance ToJSON Attribute where
+  toJSON (Attribute attrName aType) = object [ "name" .= attrName
+                                             , "type" .= toJSON aType ]
+instance FromJSON Attribute where
+  parseJSON = withObject "Attribute" $ \v -> Attribute <$> v .: "name" <*> v .: "type"
 
 instance ToJSON ExtendTupleExpr
 instance FromJSON ExtendTupleExpr
@@ -63,6 +73,18 @@ instance FromJSON SchemaExpr
 instance ToJSON SchemaIsomorph
 instance FromJSON SchemaIsomorph
 
+instance ToJSON DataFrame
+instance FromJSON DataFrame
+
+instance ToJSON DataFrameTuple
+instance FromJSON DataFrameTuple
+
+instance ToJSON AttributeOrder
+instance FromJSON AttributeOrder
+
+instance ToJSON Order
+instance FromJSON Order
+
 instance ToJSON Atom where
   toJSON atom@(IntegerAtom i) = object [ "type" .= atomTypeForAtom atom,
                                      "val" .= i ]  
@@ -80,17 +102,12 @@ instance ToJSON Atom where
                                             "val" .= decodeUtf8 (B64.encode i) ]
   toJSON atom@(BoolAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
-
-  toJSON atom@(IntervalAtom b e i1 i2) = object [ "type" .= atomTypeForAtom atom,
-                                                  "val" .= object [
-                                                    "begin" .= toJSON b,
-                                                    "end" .= toJSON e,
-                                                    "beginopen" .= i1,
-                                                    "endopen" .= i2
-                                                    ]
-                                                ]
+  toJSON atom@(UUIDAtom u) = object [ "type" .= atomTypeForAtom atom,
+                                      "val" .= u ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
+  toJSON atom@(RelationalExprAtom i) = object [ "type" .= atomTypeForAtom atom,
+                                            "val" .= i ]
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
     "dataconstructorname" .= dConsName,
     "type" .= toJSON atomtype,
@@ -103,9 +120,7 @@ instance FromJSON Atom where
     case atype of
       TypeVariableType _ -> fail "cannot pass TypeVariableType over the wire"
       caType@(ConstructedAtomType _ _) -> ConstructedAtom <$> o .: "dataconstructorname" <*> pure caType <*> o .: "atom"
-      RelationAtomType _ -> do
-        rel <- o .: "val"
-        pure $ RelationAtom rel
+      RelationAtomType _ -> RelationAtom <$> o .: "val"
       IntAtomType -> IntAtom <$> o .: "val"
       IntegerAtomType -> IntegerAtom <$> o .: "val"
       DoubleAtomType -> DoubleAtom <$> o .: "val"
@@ -120,18 +135,33 @@ instance FromJSON Atom where
           Left err -> fail ("Failed to parse base64-encoded ByteString: " ++ err)
           Right bs -> pure (ByteStringAtom bs)
       BoolAtomType -> BoolAtom <$> o .: "val"
-      IntervalAtomType _ -> IntervalAtom <$>
-                              ((o .: "val") >>= (.: "begin")) <*>
-                              ((o .: "val") >>= (.: "end")) <*>
-                              ((o .: "val") >>= (.: "beginopen")) <*>
-                              ((o .: "val") >>= (.: "endopen"))
-
+      UUIDAtomType -> do
+        mUUID <- fromString <$> o .: "val"
+        case mUUID of
+          Just u -> pure $ UUIDAtom u
+          Nothing -> fail "Invalid UUID String"
+      RelationalExprAtomType -> RelationalExprAtom <$> o .: "val"
 
 instance ToJSON Notification
 instance FromJSON Notification
 
 instance ToJSON ScriptCompilationError
 instance FromJSON ScriptCompilationError
+
+instance ToJSON MerkleHash where
+  toJSON h = object [ "merklehash" .= decodeUtf8 (B64.encode (_unMerkleHash h))]
+instance FromJSON MerkleHash where
+  parseJSON = withObject "merklehash" $ \o -> do
+    b64bs <- encodeUtf8 <$> o .: "merklehash"
+    case B64.decode b64bs of
+      Left err -> fail ("Failed to parse merkle hash: " ++ err)
+      Right bs -> pure (MerkleHash bs)
+
+instance ToJSON Attributes where
+  toJSON attrs = object ["attributes" .= map toJSON (A.toList attrs)]
+instance FromJSON Attributes where
+  parseJSON = withObject "Attributes" $ \o ->
+    A.attributesFromList <$> o .: "attributes"
 
 instance ToJSON RelationalError
 instance FromJSON RelationalError
@@ -141,6 +171,9 @@ instance FromJSON SchemaError
 
 instance ToJSON MergeError
 instance FromJSON MergeError
+
+instance ToJSON ImportError'
+instance FromJSON ImportError'
 
 instance ToJSON DatabaseContextFunctionError
 instance FromJSON DatabaseContextFunctionError
@@ -153,3 +186,8 @@ instance FromJSON PersistenceError
 
 instance ToJSON AtomFunctionError
 instance FromJSON AtomFunctionError
+
+instance ToJSON WithNameExpr
+instance FromJSON WithNameExpr
+
+

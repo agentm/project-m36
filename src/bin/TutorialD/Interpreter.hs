@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, LambdaCase #-}
+{-# LANGUAGE GADTs, LambdaCase, CPP #-}
 module TutorialD.Interpreter where
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
@@ -24,16 +24,17 @@ import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
-import Text.Megaparsec
-import Text.Megaparsec.Text
 import System.Console.Haskeline
 import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
 import System.IO (hPutStrLn, stderr)
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.List (isPrefixOf)
 import Control.Exception
 import System.Exit
+import Data.Either (fromRight)
 
 {-
 context ops are read-only operations which only operate on the database context (relvars and constraints)
@@ -61,7 +62,7 @@ interpreterParserP = safeInterpreterParserP <|>
                      fmap ImportDBContextOp (tutdImportP <* eof) <|>
                      fmap RelVarExportOp (exportCSVP <* eof) <|>
                      fmap DatabaseContextIOExprOp (dbContextIOExprP <* eof)
-                     
+
 -- the safe interpreter never reads or writes the file system
 safeInterpreterParserP :: Parser ParsedOperation
 safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
@@ -77,13 +78,13 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
 promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
 promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
-    transInfo = either (const "<unknown>") id eHeadName <> "/" <> either (const "<no schema>") id eSchemaName
-          
-parseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+    transInfo = fromRight "<unknown>" eHeadName <> "/" <> fromRight "<no schema>" eSchemaName
+
+parseTutorialD :: T.Text -> Either ParserError ParsedOperation
 parseTutorialD = parse interpreterParserP ""
 
 --only parse tutoriald which doesn't result in file I/O
-safeParseTutorialD :: T.Text -> Either (ParseError Char Dec) ParsedOperation
+safeParseTutorialD :: T.Text -> Either ParserError ParsedOperation
 safeParseTutorialD = parse safeInterpreterParserP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
@@ -106,20 +107,20 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
                     else
                       pure res
       _ -> pure res
-    
-  (DatabaseContextExprOp execOp) -> 
-    eHandler $ C.executeDatabaseContextExpr sessionId conn execOp 
-      
-  (DatabaseContextIOExprOp execOp) -> 
+
+  (DatabaseContextExprOp execOp) ->
+    eHandler $ C.executeDatabaseContextExpr sessionId conn execOp
+
+  (DatabaseContextIOExprOp execOp) ->
     if needsSafe then
       unsafeError
       else
       eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
-    
+
   (GraphOp execOp) -> do
     -- warn if the graph op could cause uncommited changes to be discarded
     eIsDirty <- C.disconnectedTransactionIsDirty sessionId conn
-    let runGraphOp = eHandler $ C.executeGraphExpr sessionId conn execOp    
+    let runGraphOp = eHandler $ C.executeGraphExpr sessionId conn execOp
         settings = Settings {complete = noCompletion,
                              historyFile = Nothing,
                              autoAddHistory = False}
@@ -143,20 +144,20 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
           pure (DisplayErrorResult "Graph operation cancelled.")
           else
           runGraphOp
-    
+
   (ConvenienceGraphOp execOp) ->
     eHandler $ evalConvenienceGraphOp sessionId conn execOp
 
   (ROGraphOp execOp) -> do
     opResult <- evalROGraphOp sessionId conn execOp
-    case opResult of 
+    case opResult of
       Left err -> barf err
       Right rel -> pure (DisplayRelationResult rel)
-      
+
   (SchemaOp execOp) ->
     eHandler $ evalSchemaOperator sessionId conn execOp
-      
-  (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) -> 
+
+  (ImportRelVarOp execOp@(RelVarDataImportOperator relVarName _ _)) ->
     if needsSafe then
       unsafeError
       else do
@@ -174,8 +175,8 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
               case exprErr of
                 Left err -> barf err
                 Right dbexpr -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexpr)
-  
-  (ImportDBContextOp execOp) -> 
+
+  (ImportDBContextOp execOp) ->
     if needsSafe then
       unsafeError
       else do
@@ -183,15 +184,15 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
       case eErr of
         Left err -> barf err
         Right dbexprs -> evalTutorialD sessionId conn safe (DatabaseContextExprOp dbexprs)
-      
-  (InfoOp execOp) -> 
+
+  (InfoOp execOp) ->
     if needsSafe then
       unsafeError
       else
       case evalInformationOperator execOp of
         Left err -> pure (DisplayErrorResult err)
         Right info -> pure (DisplayResult info)
-      
+
   (RelVarExportOp execOp@(RelVarDataExportOperator relExpr _ _)) ->
     --eval relexpr to relation and pass to export function
     if needsSafe then
@@ -215,19 +216,20 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
     barf :: RelationalError -> IO TutorialDOperatorResult
     barf (ScriptError (OtherScriptCompilationError errStr)) = pure (DisplayErrorResult (T.pack errStr))
+    barf (ParseError err) = pure (DisplayErrorResult err)
     barf err = return $ DisplayErrorResult (T.pack (show err))
     eHandler io = do
       eErr <- io
       case eErr of
         Left err -> barf err
         Right () -> return QuietSuccessResult
-      
-type GhcPkgPath = String  
+
+type GhcPkgPath = String
 type TutorialDExec = String
 type CheckFS = Bool
-  
+
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] CheckFS |
-                         RemoteInterpreterConfig C.NodeId C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
+                         RemoteInterpreterConfig C.Hostname C.Port C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -256,12 +258,12 @@ reprLoop config sessionId conn = do
     Just line -> do
       runTutorialD sessionId conn (Just (T.length prompt)) (T.pack line)
       reprLoop config sessionId conn
-      
+
 
 runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
-runTutorialD sessionId conn mPromptLength tutd = 
+runTutorialD sessionId conn mPromptLength tutd =
   case parseTutorialD tutd of
-    Left err -> 
+    Left err ->
       displayOpResult $ DisplayParseErrorResult mPromptLength err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do

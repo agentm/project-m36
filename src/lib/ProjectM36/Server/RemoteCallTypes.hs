@@ -1,64 +1,103 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, CPP #-}
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
 import ProjectM36.TransactionGraph
+import ProjectM36.DataFrame
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
+import ProjectM36.Serialise.DataFrame ()
+import ProjectM36.Serialise.IsomorphicSchema ()
 import GHC.Generics
-import Data.Binary
-import Control.Distributed.Process (ProcessId)
+import Codec.Winery
+
+#define RPCData(typeName) deriving Generic \
+  deriving Serialise via WineryVariant typeName
 
 {-# ANN module ("HLint: ignore Use newtype instead of data" :: String) #-}
 -- | The initial login message. The argument should be the process id of the initiating client. This ProcessId will receive notification callbacks.
-data Login = Login ProcessId
-           deriving (Binary, Generic)
+data Login = Login DatabaseName
+  RPCData(Login)
                     
 data Logout = Logout
-            deriving (Binary, Generic)
-data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr 
-                           deriving (Binary, Generic)
+  RPCData(Logout)
+
+data ExecuteRelationalExpr = ExecuteRelationalExpr SessionId RelationalExpr
+  RPCData(ExecuteRelationalExpr)
+
+data ExecuteDataFrameExpr = ExecuteDataFrameExpr SessionId DataFrameExpr
+  RPCData(ExecuteDataFrameExpr)
+  
 data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseContextExpr
-                                deriving (Binary, Generic)
+  RPCData(ExecuteDatabaseContextExpr)
+  
 data ExecuteDatabaseContextIOExpr = ExecuteDatabaseContextIOExpr SessionId DatabaseContextIOExpr
-                                deriving (Binary, Generic)                                         
+  RPCData(ExecuteDatabaseContextIOExpr)
+  
 data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphOperator 
-                      deriving (Binary, Generic)
+  RPCData(ExecuteGraphExpr)
+  
 data ExecuteTransGraphRelationalExpr = ExecuteTransGraphRelationalExpr SessionId TransGraphRelationalExpr                               
-                                     deriving (Binary, Generic)
+  RPCData(ExecuteTransGraphRelationalExpr)
+  
 data ExecuteHeadName = ExecuteHeadName SessionId
-                     deriving (Binary, Generic)
+  RPCData(ExecuteHeadName)
+  
 data ExecuteTypeForRelationalExpr = ExecuteTypeForRelationalExpr SessionId RelationalExpr
-                                  deriving (Binary, Generic)
-data ExecuteSchemaExpr = ExecuteSchemaExpr SessionId SchemaExpr                                 
-                         deriving (Binary, Generic)
+  RPCData(ExecuteTypeForRelationalExpr)
+  
+data ExecuteSchemaExpr = ExecuteSchemaExpr SessionId SchemaExpr                            RPCData(ExecuteSchemaExpr)     
+  
 data ExecuteSetCurrentSchema = ExecuteSetCurrentSchema SessionId SchemaName
-                               deriving (Binary, Generic)
+  RPCData(ExecuteSetCurrentSchema)
+  
 data RetrieveInclusionDependencies = RetrieveInclusionDependencies SessionId
-                                   deriving (Binary, Generic)
+  RPCData(RetrieveInclusionDependencies)
+  
 data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr SessionId DatabaseContextExpr
-                                        deriving (Binary, Generic)
+  RPCData(RetrievePlanForDatabaseContextExpr)
+  
 data RetrieveTransactionGraph = RetrieveTransactionGraph SessionId
-                              deriving (Binary, Generic)
+  RPCData(RetrieveTransactionGraph)
+  
 data RetrieveHeadTransactionId = RetrieveHeadTransactionId SessionId
-                                 deriving (Binary, Generic)
+  RPCData(RetrieveHeadTransactionId)
+  
 data CreateSessionAtCommit = CreateSessionAtCommit TransactionId
-                                    deriving (Binary, Generic)
+  RPCData(CreateSessionAtCommit)
+  
 data CreateSessionAtHead = CreateSessionAtHead HeadName
-                                  deriving (Binary, Generic)
+  RPCData(CreateSessionAtHead)
+  
 data CloseSession = CloseSession SessionId
-                    deriving (Binary, Generic)
+  RPCData(CloseSession)
+  
 data RetrieveAtomTypesAsRelation = RetrieveAtomTypesAsRelation SessionId
-                                   deriving (Binary, Generic)
+  RPCData(RetrieveAtomTypesAsRelation)
+  
 data RetrieveRelationVariableSummary = RetrieveRelationVariableSummary SessionId
-                                     deriving (Binary, Generic)
+  RPCData(RetrieveRelationVariableSummary)
+  
+data RetrieveAtomFunctionSummary = RetrieveAtomFunctionSummary SessionId
+  RPCData(RetrieveAtomFunctionSummary)
+  
+data RetrieveDatabaseContextFunctionSummary = RetrieveDatabaseContextFunctionSummary SessionId
+  RPCData(RetrieveDatabaseContextFunctionSummary)
+  
 data RetrieveCurrentSchemaName = RetrieveCurrentSchemaName SessionId
-                                 deriving (Binary, Generic)
+  RPCData(RetrieveCurrentSchemaName)
+  
 data TestTimeout = TestTimeout SessionId                                          
-                   deriving (Binary, Generic)
-data RetrieveSessionIsDirty = RetrieveSessionIsDirty SessionId                            
-                            deriving (Binary, Generic)
+  RPCData(TestTimeout)
+  
+data RetrieveSessionIsDirty = RetrieveSessionIsDirty SessionId
+  RPCData(RetrieveSessionIsDirty)
+  
 data ExecuteAutoMergeToHead = ExecuteAutoMergeToHead SessionId MergeStrategy HeadName
-                              deriving (Binary, Generic)
+  RPCData(ExecuteAutoMergeToHead)
+  
 data RetrieveTypeConstructorMapping = RetrieveTypeConstructorMapping SessionId 
-                                      deriving (Binary, Generic)
+  RPCData(RetrieveTypeConstructorMapping)
+
+data ExecuteValidateMerkleHashes = ExecuteValidateMerkleHashes SessionId
+  RPCData(ExecuteValidateMerkleHashes)

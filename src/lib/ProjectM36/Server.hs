@@ -7,73 +7,119 @@ import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
 
-import Control.Monad.IO.Class (liftIO)
-import Network.Transport.TCP (createTransport, defaultTCPParameters)
-import Network.Transport (EndPointAddress(..), newEndPoint, address)
-import Control.Distributed.Process.Node (initRemoteTable, runProcess, newLocalNode, initRemoteTable)
-import Control.Distributed.Process.Extras.Time (Delay(..))
-import Control.Distributed.Process (Process, register, getSelfPid)
-import Control.Distributed.Process.ManagedProcess (defaultProcess, UnhandledMessagePolicy(..), ProcessDefinition(..), handleCall, serve, InitHandler, InitResult(..))
-import Control.Concurrent.MVar (putMVar, MVar)
+import Control.Concurrent.MVar (MVar)
 import System.IO (stderr, hPutStrLn)
 import System.FilePath (takeDirectory)
 import System.Directory (doesDirectoryExist)
+import Network.RPC.Curryer.Server
+import Network.Socket
+import qualified StmContainers.Map as StmMap
+import Control.Concurrent.STM
 
--- the state should be a mapping of remote connection to the disconnected transaction- the graph should be the same, so discon must be removed from the stm tuple
---trying to refactor this for less repetition is very challenging because the return type cannot be polymorphic or the distributed-process call gets confused and drops messages
-serverDefinition :: Bool -> Timeout -> ProcessDefinition Connection
-serverDefinition testBool ti = defaultProcess {
-  apiHandlers = [                 
-     handleCall (\conn (ExecuteHeadName sessionId) -> handleExecuteHeadName ti sessionId conn),
-     handleCall (\conn (ExecuteRelationalExpr sessionId expr) -> handleExecuteRelationalExpr ti sessionId conn expr),
-     handleCall (\conn (ExecuteDatabaseContextExpr sessionId expr) -> handleExecuteDatabaseContextExpr ti sessionId conn expr),
-     handleCall (\conn (ExecuteDatabaseContextIOExpr sessionId expr) -> handleExecuteDatabaseContextIOExpr ti sessionId conn expr),
-     handleCall (\conn (ExecuteGraphExpr sessionId expr) -> handleExecuteGraphExpr ti sessionId conn expr),
-     handleCall (\conn (ExecuteTransGraphRelationalExpr sessionId expr) -> handleExecuteTransGraphRelationalExpr ti sessionId conn expr),     
-     handleCall (\conn (ExecuteTypeForRelationalExpr sessionId expr) -> handleExecuteTypeForRelationalExpr ti sessionId conn expr),
-     handleCall (\conn (RetrieveInclusionDependencies sessionId) -> handleRetrieveInclusionDependencies ti sessionId conn),
-     handleCall (\conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr),
-     handleCall (\conn (RetrieveHeadTransactionId sessionId) -> handleRetrieveHeadTransactionId ti sessionId conn),
-     handleCall (\conn (RetrieveTransactionGraph sessionId) -> handleRetrieveTransactionGraph ti sessionId conn),
-     handleCall (\conn (Login procId) -> handleLogin ti conn procId),
-     handleCall (\conn (CreateSessionAtHead headn) -> handleCreateSessionAtHead ti conn headn),
-     handleCall (\conn (CreateSessionAtCommit commitId) -> handleCreateSessionAtCommit ti conn commitId),
-     handleCall (\conn (CloseSession sessionId) -> handleCloseSession ti sessionId conn),
-     handleCall (\conn (RetrieveAtomTypesAsRelation sessionId) -> handleRetrieveAtomTypesAsRelation ti sessionId conn),
-     handleCall (\conn (RetrieveRelationVariableSummary sessionId) -> handleRetrieveRelationVariableSummary ti sessionId conn),
-     handleCall (\conn (RetrieveCurrentSchemaName sessionId) -> handleRetrieveCurrentSchemaName ti sessionId conn),
-     handleCall (\conn (ExecuteSchemaExpr sessionId schemaExpr) -> handleExecuteSchemaExpr ti sessionId conn schemaExpr),
-     handleCall (\conn (RetrieveSessionIsDirty sessionId) -> handleRetrieveSessionIsDirty ti sessionId conn),
-     handleCall (\conn (ExecuteAutoMergeToHead sessionId strat headName') -> handleExecuteAutoMergeToHead ti sessionId conn strat headName'),
-     handleCall (\conn (RetrieveTypeConstructorMapping sessionId) -> handleRetrieveTypeConstructorMapping ti sessionId conn),
-     handleCall (\conn Logout -> handleLogout ti conn)
-     ] ++ testModeHandlers,
-  unhandledMessagePolicy = Terminate
-  --unhandledMessagePolicy = Log
-  }
-  where
-    testModeHandlers = if not testBool then
-                         []
-                       else
-                         [handleCall (\conn (TestTimeout sessionId) -> handleTestTimeout ti sessionId conn)]
-                               
+type TestMode = Bool
+
+requestHandlers :: TestMode -> Maybe Timeout -> RequestHandlers ServerState
+requestHandlers testFlag ti =
+  [
+    RequestHandler (\sState (Login dbName) -> do
+                       addClientLogin dbName sState
+                       conn <- getConn sState
+                       handleLogin conn (connectionSocket sState)),
+     RequestHandler (\sState Logout -> do
+                        conn <- getConn sState                        
+                        handleLogout ti conn),
+    RequestHandler $ \sState (ExecuteHeadName sessionId) -> do
+      --socket -> dbname --maybe create a socket->client state mapping in the server state, too
+      conn <- getConn sState
+      handleExecuteHeadName ti sessionId conn,
+    RequestHandler (\sState (ExecuteRelationalExpr sessionId expr) -> do
+                       conn <- getConn sState                        
+                       handleExecuteRelationalExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteDataFrameExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteDataFrameExpr ti sessionId conn expr),     
+     RequestHandler (\sState (ExecuteDatabaseContextExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteDatabaseContextExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteDatabaseContextIOExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteDatabaseContextIOExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteGraphExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteGraphExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteTransGraphRelationalExpr sessionId expr) -> do
+                       conn <- getConn sState
+                       handleExecuteTransGraphRelationalExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteTypeForRelationalExpr sessionId expr) -> do
+                       conn <- getConn sState                        
+                       handleExecuteTypeForRelationalExpr ti sessionId conn expr),
+     RequestHandler (\sState (RetrieveInclusionDependencies sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveInclusionDependencies ti sessionId conn),
+     RequestHandler (\sState (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> do
+                       conn <- getConn sState                        
+                       handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr),
+     RequestHandler (\sState (RetrieveHeadTransactionId sessionId) -> do
+                       conn <- getConn sState                        
+                       handleRetrieveHeadTransactionId ti sessionId conn),
+     RequestHandler (\sState (RetrieveTransactionGraph sessionId) -> do
+                       conn <- getConn sState                        
+                       handleRetrieveTransactionGraph ti sessionId conn),
+     RequestHandler (\sState (CreateSessionAtHead headn) -> do
+                       conn <- getConn sState                        
+                       handleCreateSessionAtHead ti conn headn),
+     RequestHandler (\sState (CreateSessionAtCommit commitId) -> do
+                        conn <- getConn sState
+                        handleCreateSessionAtCommit ti conn commitId),
+     RequestHandler (\sState (CloseSession sessionId) -> do
+                        conn <- getConn sState                 
+                        handleCloseSession sessionId conn),
+     RequestHandler (\sState (RetrieveAtomTypesAsRelation sessionId) -> do
+                        conn <- getConn sState                                         
+                        handleRetrieveAtomTypesAsRelation ti sessionId conn),
+     RequestHandler (\sState (RetrieveRelationVariableSummary sessionId) -> do
+                        conn <- getConn sState                        
+                        handleRetrieveRelationVariableSummary ti sessionId conn),
+     RequestHandler (\sState (RetrieveAtomFunctionSummary sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveAtomFunctionSummary ti sessionId conn),
+     RequestHandler (\sState (RetrieveDatabaseContextFunctionSummary sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveDatabaseContextFunctionSummary ti sessionId conn),     RequestHandler (\sState (RetrieveCurrentSchemaName sessionId) -> do
+                       conn <- getConn sState
+                       handleRetrieveCurrentSchemaName ti sessionId conn),
+     RequestHandler (\sState (ExecuteSchemaExpr sessionId schemaExpr) -> do
+                        conn <- getConn sState
+                        handleExecuteSchemaExpr ti sessionId conn schemaExpr),
+     RequestHandler (\sState (RetrieveSessionIsDirty sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveSessionIsDirty ti sessionId conn),
+     RequestHandler (\sState (ExecuteAutoMergeToHead sessionId strat headName') -> do
+                        conn <- getConn sState                        
+                        handleExecuteAutoMergeToHead ti sessionId conn strat headName'),
+     RequestHandler (\sState (RetrieveTypeConstructorMapping sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveTypeConstructorMapping ti sessionId conn),
+     RequestHandler (\sState (ExecuteValidateMerkleHashes sessionId) -> do
+                        conn <- getConn sState                        
+                        handleValidateMerkleHashes ti sessionId conn)
+     ] ++ if testFlag then testModeHandlers ti else []
+
+getConn :: ConnectionState ServerState -> IO Connection
+getConn connState = do
+  let sock = lockless (connectionSocket connState)
+      sState = connectionServerState connState
+  mConn <- connectionForClient sock sState
+  case mConn of
+    Nothing -> error "failed to find socket in client map"
+    Just conn -> pure conn
+
+testModeHandlers :: Maybe Timeout -> RequestHandlers ServerState
+testModeHandlers ti = [RequestHandler (\sState (TestTimeout sessionId) -> do
+                                          conn <- getConn sState
+                                          handleTestTimeout ti sessionId conn)]
+
                  
-initServer :: InitHandler (Connection, DatabaseName, Maybe (MVar EndPointAddress), EndPointAddress) Connection
-initServer (conn, dbname, mAddressMVar, saddress) = do
-  registerDB dbname
-  case mAddressMVar of
-       Nothing -> pure ()
-       Just addressMVar -> liftIO $ putMVar addressMVar saddress
-  --traceShowM ("server started on " ++ show saddress)
-  pure $ InitOk conn Infinity
-
-registerDB :: DatabaseName -> Process ()
-registerDB dbname = do
-  self <- getSelfPid
-  let dbname' = remoteDBLookupName dbname  
-  register dbname' self
-  --liftIO $ putStrLn $ "registered " ++ (show self) ++ " " ++ dbname'
-  
 -- | A notification callback which logs the notification to stderr and does nothing else.
 loggingNotificationCallback :: NotificationCallback
 loggingNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received \"" ++ show notName ++ "\": " ++ show evaldNot
@@ -98,9 +144,47 @@ checkFSType performCheck strat =
 checkFSErrorMsg :: String        
 checkFSErrorMsg = "The filesystem does not support journaling so writes may not be crash-safe. Use --disable-fscheck to disable this fatal error."
 
+-- Sockets do not implement hashable, so we just use their string values as keys
+type SocketString = String
+
+data ServerState =
+  ServerState {
+  --map available databases to local database configurations
+  stateDBMap :: StmMap.Map DatabaseName Connection,
+  --map clients to database names- after logging in, clients are afixed to specific database names
+  stateClientMap :: StmMap.Map SocketString DatabaseName
+  }
+
+-- add a client socket to the database mapping
+addClientLogin :: DatabaseName -> ConnectionState ServerState -> IO ()
+addClientLogin dbName cState = do
+  let clientMap = stateClientMap (connectionServerState cState)
+      sock = lockless (connectionSocket cState)
+  atomically $ do
+    mVal <- StmMap.lookup (show sock) clientMap
+    case mVal of
+      Nothing -> StmMap.insert dbName (show sock) clientMap
+      Just _ -> pure () --TODO: throw exception- user already logged in
+  
+connectionForClient :: Socket -> ServerState -> IO (Maybe Connection)
+connectionForClient sock sState =
+  atomically $ do
+    mdbname <- StmMap.lookup (show sock) (stateClientMap sState)
+    case mdbname of
+      Nothing -> pure Nothing
+      Just dbname -> 
+        StmMap.lookup dbname (stateDBMap sState)
+
+initialServerState :: DatabaseName -> Connection -> IO ServerState
+initialServerState dbName conn = 
+  atomically $ do
+  dbmap <- StmMap.new
+  clientMap <- StmMap.new
+  StmMap.insert conn dbName dbmap
+  pure (ServerState { stateDBMap = dbmap, stateClientMap = clientMap })
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
-launchServer :: ServerConfig -> Maybe (MVar EndPointAddress) -> IO Bool
-launchServer daemonConfig mAddressMVar = do
+launchServer :: ServerConfig -> Maybe (MVar SockAddr) -> IO Bool
+launchServer daemonConfig mAddr = do
   checkFSResult <- checkFSType (checkFS daemonConfig) (persistenceStrategy daemonConfig)
   if not checkFSResult then do
     hPutStrLn stderr checkFSErrorMsg
@@ -113,21 +197,21 @@ launchServer daemonConfig mAddressMVar = do
           pure False
         Right conn -> do
           let hostname = bindHost daemonConfig
-              port = bindPort daemonConfig
-          etransport <- createTransport hostname (show port) defaultTCPParameters
-          case etransport of
-            Left err -> error ("failed to create transport: " ++ show err)
-            Right transport -> do
-              eEndpoint <- newEndPoint transport
-              case eEndpoint of 
-                Left err -> hPutStrLn stderr ("Failed to create transport: " ++ show err) >> pure False
-                Right endpoint -> do
-                  localTCPNode <- newLocalNode transport initRemoteTable
-                  --traceShowM ("newLocalNode in Server " ++ show (localNodeId localTCPNode))
-                  runProcess localTCPNode $ do
-                    let testBool = testMode daemonConfig
-                        reqTimeout = perRequestTimeout daemonConfig
-                    serve (conn, databaseName daemonConfig, mAddressMVar, address endpoint) initServer (serverDefinition testBool reqTimeout)
-                  liftIO $ putStrLn "serve returned"
-                  pure True
-  
+              port = fromIntegral (bindPort daemonConfig)
+
+
+          --curryer only supports IPv4 for now
+          let addrHints = defaultHints { addrSocketType = Stream, addrFamily = AF_INET }
+          hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) Nothing
+          case hostAddrs of
+            [] -> hPutStrLn stderr ("Failed to resolve: " <> hostname) >> pure False
+            (AddrInfo _ _ _ _ (SockAddrInet _ addr32) _):_ -> do
+              let hostAddr = hostAddressToTuple addr32
+                  mTimeout = fromIntegral <$> case perRequestTimeout daemonConfig of
+                                              0 -> Nothing
+                                              v -> Just v
+                  
+              sState <- initialServerState (databaseName daemonConfig) conn
+              serve (requestHandlers (testMode daemonConfig) mTimeout) sState hostAddr port mAddr
+            _ -> error "unsupported socket addressing mode (IPv4 only currently)"
+

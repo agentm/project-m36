@@ -6,7 +6,24 @@ import ProjectM36.AtomType
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunctionError
 import qualified Data.HashSet as HS
+import qualified Data.Map as M
+import Control.Monad (when)
+import Data.Maybe
 
+type OpenInterval = Bool                     
+
+intervalSubType :: AtomType -> AtomType
+intervalSubType typ = if isIntervalAtomType typ then
+                        case typ of
+                          ConstructedAtomType _ tvMap -> 
+                            fromMaybe err (M.lookup "a" tvMap)
+                          _ -> err
+                        else
+                        err
+  where
+   err = error "intervalSubType on non-interval type"
+  
+                 
 -- in lieu of typeclass support, we just hard-code the types which can be part of an interval
 supportsInterval :: AtomType -> Bool
 supportsInterval typ = case typ of
@@ -17,10 +34,11 @@ supportsInterval typ = case typ of
   DayAtomType -> True               
   DateTimeAtomType -> True
   ByteStringAtomType -> False
-  BoolAtomType -> False                         
-  IntervalAtomType _ -> False
+  BoolAtomType -> False
+  UUIDAtomType -> False
   RelationAtomType _ -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
+  RelationalExprAtomType -> False
   TypeVariableType _ -> False
   
 supportsOrdering :: AtomType -> Bool  
@@ -32,9 +50,10 @@ supportsOrdering typ = case typ of
   DayAtomType -> True               
   DateTimeAtomType -> True
   ByteStringAtomType -> False
-  BoolAtomType -> False                         
-  IntervalAtomType _ -> False
+  BoolAtomType -> False
+  UUIDAtomType -> False
   RelationAtomType _ -> False
+  RelationalExprAtomType -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
   TypeVariableType _ -> False
   
@@ -67,42 +86,63 @@ createInterval atom1 atom2 bopen eopen = do
           else 
             Right valid
     LT -> Right valid
- where valid = IntervalAtom atom1 atom2 bopen eopen
+ where valid = ConstructedAtom "Interval" iType [atom1, atom2, BoolAtom bopen, BoolAtom eopen]
+       iType = intervalAtomType (atomTypeForAtom atom1)
+       
+intervalAtomType :: AtomType -> AtomType       
+intervalAtomType typ = ConstructedAtomType "Interval" (M.singleton "a" typ)
 
 intervalAtomFunctions :: AtomFunctions
 intervalAtomFunctions = HS.fromList [
-  AtomFunction { atomFuncName = "interval",
-                 atomFuncType = [TypeVariableType "a",
-                                 TypeVariableType "a",
-                                 BoolAtomType,
-                                 BoolAtomType,
-                                 IntervalAtomType (TypeVariableType "a")],
-                 atomFuncBody = compiledAtomFunctionBody $ \(atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
+  Function { funcName = "interval",
+             funcType = [TypeVariableType "a",
+                          TypeVariableType "a",
+                          BoolAtomType,
+                          BoolAtomType,
+                          intervalAtomType (TypeVariableType "a")],
+             funcBody = compiledAtomFunctionBody $ \(atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
                    let aType = atomTypeForAtom atom1 
                    if supportsInterval aType then
                      createInterval atom1 atom2 bopen eopen
                      else
                      Left (AtomTypeDoesNotSupportIntervalError (prettyAtomType aType))
                },
-  AtomFunction {
-    atomFuncName = "interval_overlaps",
-    atomFuncType = [IntervalAtomType (TypeVariableType "a"),
-                    IntervalAtomType (TypeVariableType "a"),
+  Function {
+    funcName = "interval_overlaps",
+    funcType = [intervalAtomType (TypeVariableType "a"),
+                    intervalAtomType (TypeVariableType "a"),
                     BoolAtomType],
-    atomFuncBody = compiledAtomFunctionBody $ \(i1@IntervalAtom{}:i2@IntervalAtom{}:_) -> do
-      res <- intervalOverlaps i1 i2
-      pure (BoolAtom res)
+    funcBody = compiledAtomFunctionBody $ \(i1@ConstructedAtom{}:i2@ConstructedAtom{}:_) -> 
+      BoolAtom <$> intervalOverlaps i1 i2
     }]
-
-
+                        
+isIntervalAtomType :: AtomType -> Bool
+isIntervalAtomType (ConstructedAtomType nam tvMap) = 
+  nam == "Interval" && M.keys tvMap == ["a"] && case M.lookup "a" tvMap of
+    Nothing -> False
+    Just subType -> supportsInterval subType || subType == TypeVariableType "a"
+isIntervalAtomType _ = False
+    
 intervalOverlaps :: Atom -> Atom -> Either AtomFunctionError Bool
-intervalOverlaps (IntervalAtom i1start i1end i1startopen i1endopen) (IntervalAtom i2start i2end i2startopen i2endopen) = do
-      cmp1 <- atomCompare i1start i2end
-      cmp2 <- atomCompare i2start i1end
-      let startcmp = if i1startopen || i2endopen then oplt else oplte
-          endcmp = if i2startopen || i1endopen then oplt else oplte
-          oplte op = op == LT || op == EQ
-          oplt op = op == LT
-      pure (startcmp cmp1 && endcmp cmp2)
+intervalOverlaps (ConstructedAtom dCons1 typ1 [i1start,
+                                               i1end,
+                                               BoolAtom i1startopen,
+                                               BoolAtom i1endopen]) (ConstructedAtom dCons2 typ2 
+                                                                     [i2start, 
+                                                                      i2end, 
+                                                                      BoolAtom i2startopen,
+                                                                      BoolAtom i2endopen]) = do
+  when (dCons1 /= "Interval" || dCons2 /= "Interval" || not (isIntervalAtomType typ1) || not (isIntervalAtomType typ2)) (Left AtomFunctionTypeMismatchError)
+  cmp1 <- atomCompare i1start i2end
+  cmp2 <- atomCompare i2start i1end
+  let startcmp = if i1startopen || i2endopen then oplt else oplte
+      endcmp = if i2startopen || i1endopen then oplt else oplte
+      oplte op = op == LT || op == EQ
+      oplt op = op == LT
+  pure (startcmp cmp1 && endcmp cmp2)
 intervalOverlaps _ _ = Left AtomFunctionTypeMismatchError      
   
+intervalTypeConstructorMapping :: TypeConstructorMapping
+intervalTypeConstructorMapping = [(ADTypeConstructorDef "Interval" ["a"], [])]
+                                    
+

@@ -1,157 +1,146 @@
+{-# LANGUAGE MonoLocalBinds #-}
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Client as C
-import ProjectM36.Error
-import Control.Distributed.Process (Process, ProcessId)
-import Control.Distributed.Process.ManagedProcess (ProcessReply)
-import Control.Distributed.Process.ManagedProcess.Server (reply)
-import Control.Distributed.Process.Async (async, task, waitCancelTimeout, AsyncResult(..))
-import Control.Distributed.Process.Serializable (Serializable)
-import Control.Monad.IO.Class (liftIO)
 import Data.Map
 import Control.Concurrent (threadDelay)
+import Network.RPC.Curryer.Server 
+import System.Timeout hiding (Timeout)
+import Network.Socket
+import Control.Exception
 
-timeoutOrDie :: Serializable a => Timeout -> IO a -> Process (Either ServerError a)
-timeoutOrDie micros act = 
-  if micros == 0 then
-    liftIO act >>= \x -> pure (Right x)
-    else do
-    asyncUnit <- async (task (liftIO act))
-    asyncRes <- waitCancelTimeout micros asyncUnit
-    case asyncRes of
-      AsyncDone x -> pure (Right x)
-      AsyncCancelled -> pure (Left RequestTimeoutError)
-      AsyncFailed reason -> pure (Left (ProcessDiedError (show reason)))
-      AsyncLinkFailed reason -> pure (Left (ProcessDiedError (show reason)))
-      AsyncPending -> pure (Left (ProcessDiedError "process pending"))
-    
-type Timeout = Int
+timeoutOrDie :: Maybe Timeout -> IO a -> IO (Maybe a)
+timeoutOrDie mMicros act = 
+  case mMicros of
+    Nothing -> Just <$> act
+    Just micros ->
+      timeout (fromIntegral micros) act
 
-type Reply a = Process (ProcessReply (Either ServerError a) Connection)
-    
-handleExecuteRelationalExpr :: Timeout -> SessionId -> Connection -> RelationalExpr -> Reply (Either RelationalError Relation)
-handleExecuteRelationalExpr ti sessionId conn expr = do
-  ret <- timeoutOrDie ti (executeRelationalExpr sessionId conn expr)
-  reply ret conn
-  
-handleExecuteDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError ())
-handleExecuteDatabaseContextExpr ti sessionId conn dbexpr = do
-  ret <- timeoutOrDie ti (executeDatabaseContextExpr sessionId conn dbexpr)
-  reply ret conn
-  
-handleExecuteDatabaseContextIOExpr :: Timeout -> SessionId -> Connection -> DatabaseContextIOExpr -> Reply (Either RelationalError ())
-handleExecuteDatabaseContextIOExpr ti sessionId conn dbexpr = do
-  ret <- timeoutOrDie ti (executeDatabaseContextIOExpr sessionId conn dbexpr)
-  reply ret conn
-  
-handleExecuteHeadName :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError HeadName)
-handleExecuteHeadName ti sessionId conn = do
-  ret <- timeoutOrDie ti (headName sessionId conn)
-  reply ret conn
-  
-handleLogin :: Timeout -> Connection -> ProcessId -> Reply Bool
-handleLogin ti conn newClientProcessId = do
-  ret <- timeoutOrDie ti (addClientNode conn newClientProcessId)
+timeoutRelErr :: Maybe Timeout -> IO (Either RelationalError a) -> IO (Either RelationalError a)
+timeoutRelErr mMicros act = do
+  ret <- timeoutOrDie mMicros act
   case ret of
-    Right () -> reply (Right True) conn
-    Left err -> reply (Left err) conn
-  
-handleExecuteGraphExpr :: Timeout -> SessionId -> Connection -> TransactionGraphOperator -> Reply (Either RelationalError ())
-handleExecuteGraphExpr ti sessionId conn graphExpr = do
-  ret <- timeoutOrDie ti (executeGraphExpr sessionId conn graphExpr)
-  reply ret conn
-  
-handleExecuteTransGraphRelationalExpr :: Timeout -> SessionId -> Connection -> TransGraphRelationalExpr -> Reply (Either RelationalError Relation)
-handleExecuteTransGraphRelationalExpr ti sessionId conn graphExpr = do
-  ret <- timeoutOrDie ti (executeTransGraphRelationalExpr sessionId conn graphExpr)
-  reply ret conn
+    Nothing -> throw TimeoutException
+    Just v -> pure v
+                                      
 
-handleExecuteTypeForRelationalExpr :: Timeout -> SessionId -> Connection -> RelationalExpr -> Reply (Either RelationalError Relation)
-handleExecuteTypeForRelationalExpr ti sessionId conn relExpr = do
-  ret <- timeoutOrDie ti (typeForRelationalExpr sessionId conn relExpr)
-  reply ret conn
+handleExecuteRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
+handleExecuteRelationalExpr ti sessionId conn expr = 
+  timeoutRelErr ti (executeRelationalExpr sessionId conn expr)
+
+handleExecuteDataFrameExpr :: Maybe Timeout -> SessionId -> Connection -> DataFrameExpr -> IO (Either RelationalError DataFrame)
+handleExecuteDataFrameExpr ti sessionId conn expr =
+  timeoutRelErr ti (executeDataFrameExpr sessionId conn expr)
   
-handleRetrieveInclusionDependencies :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError (Map IncDepName InclusionDependency))
-handleRetrieveInclusionDependencies ti sessionId conn = do
-  ret <- timeoutOrDie ti (inclusionDependencies sessionId conn)
-  reply ret conn
+handleExecuteDatabaseContextExpr :: Maybe Timeout -> SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError ())
+handleExecuteDatabaseContextExpr ti sessionId conn dbexpr =
+  timeoutRelErr ti (executeDatabaseContextExpr sessionId conn dbexpr)
   
-handleRetrievePlanForDatabaseContextExpr :: Timeout -> SessionId -> Connection -> DatabaseContextExpr -> Reply (Either RelationalError DatabaseContextExpr)
-handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr = do
-  ret <- timeoutOrDie ti (planForDatabaseContextExpr sessionId conn dbExpr)
-  reply ret conn
+handleExecuteDatabaseContextIOExpr :: Maybe Timeout -> SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
+handleExecuteDatabaseContextIOExpr ti sessionId conn dbexpr =
+  timeoutRelErr ti (executeDatabaseContextIOExpr sessionId conn dbexpr)
   
-handleRetrieveTransactionGraph :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Relation) 
-handleRetrieveTransactionGraph ti sessionId conn = do  
-  ret <- timeoutOrDie ti (transactionGraphAsRelation sessionId conn)
-  reply ret conn
+handleExecuteHeadName :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError HeadName)
+handleExecuteHeadName ti sessionId conn =
+  timeoutRelErr ti (headName sessionId conn)
   
-handleRetrieveHeadTransactionId :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError TransactionId)
-handleRetrieveHeadTransactionId ti sessionId conn = do
-  ret <- timeoutOrDie ti (headTransactionId sessionId conn)
-  reply ret conn
+handleLogin :: Connection -> Locking Socket -> IO Bool
+handleLogin conn lockSock = do
+  addClientNode conn lockSock
+  pure True
   
-handleCreateSessionAtCommit :: Timeout -> Connection -> TransactionId -> Reply (Either RelationalError SessionId)
-handleCreateSessionAtCommit ti conn commitId = do
-  ret <- timeoutOrDie ti (createSessionAtCommit conn commitId)
-  reply ret conn
+handleExecuteGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
+handleExecuteGraphExpr ti sessionId conn graphExpr =
+  timeoutRelErr ti (executeGraphExpr sessionId conn graphExpr)
   
-handleCreateSessionAtHead :: Timeout -> Connection -> HeadName -> Reply (Either RelationalError SessionId)
-handleCreateSessionAtHead ti conn headn = do
-  ret <- timeoutOrDie ti (createSessionAtHead conn headn)
-  reply ret conn
+handleExecuteTransGraphRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
+handleExecuteTransGraphRelationalExpr ti sessionId conn graphExpr =
+  timeoutRelErr ti (executeTransGraphRelationalExpr sessionId conn graphExpr)
+
+handleExecuteTypeForRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
+handleExecuteTypeForRelationalExpr ti sessionId conn relExpr =
+  timeoutRelErr ti (typeForRelationalExpr sessionId conn relExpr)
   
-handleCloseSession :: Timeout -> SessionId -> Connection -> Reply ()   
-handleCloseSession ti sessionId conn = do
-  ret <- timeoutOrDie ti (closeSession sessionId conn)
-  case ret of
-    Right () -> reply (Right ()) conn
-    Left err -> reply (Left err) conn
+handleRetrieveInclusionDependencies :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError (Map IncDepName InclusionDependency))
+handleRetrieveInclusionDependencies ti sessionId conn =
+  timeoutRelErr ti (inclusionDependencies sessionId conn)
   
-handleRetrieveAtomTypesAsRelation :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Relation)
-handleRetrieveAtomTypesAsRelation ti sessionId conn = do
-  ret <- timeoutOrDie ti (atomTypesAsRelation sessionId conn)
-  reply ret conn
+handleRetrievePlanForDatabaseContextExpr :: Maybe Timeout -> SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError GraphRefDatabaseContextExpr)
+handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr =
+  timeoutRelErr ti (planForDatabaseContextExpr sessionId conn dbExpr)
+  
+handleRetrieveTransactionGraph :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation) 
+handleRetrieveTransactionGraph ti sessionId conn =
+  timeoutRelErr ti (transactionGraphAsRelation sessionId conn)
+  
+handleRetrieveHeadTransactionId :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError TransactionId)
+handleRetrieveHeadTransactionId ti sessionId conn =
+  timeoutRelErr ti (headTransactionId sessionId conn)
+  
+handleCreateSessionAtCommit :: Maybe Timeout -> Connection -> TransactionId -> IO (Either RelationalError SessionId)
+handleCreateSessionAtCommit ti conn commitId =
+  timeoutRelErr ti (createSessionAtCommit conn commitId)
+  
+handleCreateSessionAtHead :: Maybe Timeout -> Connection -> HeadName -> IO (Either RelationalError SessionId)
+handleCreateSessionAtHead ti conn headn = 
+  timeoutRelErr ti (createSessionAtHead conn headn)
+  
+handleCloseSession :: SessionId -> Connection -> IO ()   
+handleCloseSession  =
+  closeSession
+  
+handleRetrieveAtomTypesAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveAtomTypesAsRelation ti sessionId conn =
+  timeoutRelErr ti (atomTypesAsRelation sessionId conn)
   
 -- | Returns a relation which lists the names of relvars in the current session as well as  its types.  
-handleRetrieveRelationVariableSummary :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Relation)
-handleRetrieveRelationVariableSummary ti sessionId conn = do
-  ret <- timeoutOrDie ti (relationVariablesAsRelation sessionId conn)
-  reply ret conn  
+handleRetrieveRelationVariableSummary :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveRelationVariableSummary ti sessionId conn =
+  timeoutRelErr ti (relationVariablesAsRelation sessionId conn)
   
-handleRetrieveCurrentSchemaName :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError SchemaName)
-handleRetrieveCurrentSchemaName ti sessionId conn = do
-  ret <- timeoutOrDie ti (currentSchemaName sessionId conn)
-  reply ret conn  
+handleRetrieveAtomFunctionSummary :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveAtomFunctionSummary ti sessionId conn = 
+  timeoutRelErr ti (atomFunctionsAsRelation sessionId conn)
+  
+handleRetrieveDatabaseContextFunctionSummary :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveDatabaseContextFunctionSummary ti sessionId conn = 
+  timeoutRelErr ti (databaseContextFunctionsAsRelation sessionId conn)
+  
+handleRetrieveCurrentSchemaName :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError SchemaName)
+handleRetrieveCurrentSchemaName ti sessionId conn =
+  timeoutRelErr ti (currentSchemaName sessionId conn)
 
-handleExecuteSchemaExpr :: Timeout -> SessionId -> Connection -> SchemaExpr -> Reply (Either RelationalError ())
-handleExecuteSchemaExpr ti sessionId conn schemaExpr = do
-  ret <- timeoutOrDie ti (executeSchemaExpr sessionId conn schemaExpr)
-  reply ret conn
+handleExecuteSchemaExpr :: Maybe Timeout -> SessionId -> Connection -> SchemaExpr -> IO (Either RelationalError ())
+handleExecuteSchemaExpr ti sessionId conn schemaExpr =
+  timeoutRelErr ti (executeSchemaExpr sessionId conn schemaExpr)
   
-handleLogout :: Timeout -> Connection -> Reply Bool
-handleLogout _ = 
+handleLogout :: Maybe Timeout -> Connection -> IO Bool
+handleLogout _ _ = 
   --liftIO $ closeRemote_ conn
-  reply (pure True)
+  pure True
     
-handleTestTimeout :: Timeout -> SessionId -> Connection -> Reply Bool  
-handleTestTimeout ti _ conn = do
-  ret <- timeoutOrDie ti (threadDelay 100000 >> pure True)
-  reply ret conn
+handleTestTimeout :: Maybe Timeout -> SessionId -> Connection -> IO Bool  
+handleTestTimeout ti _ _ = do
+  ret <- timeoutRelErr ti (threadDelay 100000 >> pure (Right ()))
+  case ret of
+    Right () -> pure True
+    Left _ -> pure False
 
-handleRetrieveSessionIsDirty :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError Bool)
-handleRetrieveSessionIsDirty ti sessionId conn = do
-  ret <- timeoutOrDie ti (disconnectedTransactionIsDirty sessionId conn)
-  reply ret conn
-  
-handleExecuteAutoMergeToHead :: Timeout -> SessionId -> Connection -> MergeStrategy -> HeadName -> Reply (Either RelationalError ())
-handleExecuteAutoMergeToHead ti sessionId conn strat headName' = do
-  ret <- timeoutOrDie ti (autoMergeToHead sessionId conn strat headName')
-  reply ret conn
-
-handleRetrieveTypeConstructorMapping :: Timeout -> SessionId -> Connection -> Reply (Either RelationalError TypeConstructorMapping)  
-handleRetrieveTypeConstructorMapping ti sessionId conn = do
-  ret <- timeoutOrDie ti (C.typeConstructorMapping sessionId conn)
-  reply ret conn
  
+
+handleRetrieveSessionIsDirty :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Bool)
+handleRetrieveSessionIsDirty ti sessionId conn =
+  timeoutRelErr ti (disconnectedTransactionIsDirty sessionId conn)
+  
+handleExecuteAutoMergeToHead :: Maybe Timeout -> SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
+handleExecuteAutoMergeToHead ti sessionId conn strat headName' =
+  timeoutRelErr ti (autoMergeToHead sessionId conn strat headName')
+
+handleRetrieveTypeConstructorMapping :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError TypeConstructorMapping)  
+handleRetrieveTypeConstructorMapping ti sessionId conn =
+  timeoutRelErr ti (C.typeConstructorMapping sessionId conn)
+ 
+handleValidateMerkleHashes :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError ())
+handleValidateMerkleHashes ti sessionId conn = 
+  timeoutRelErr ti (C.validateMerkleHashes sessionId conn)

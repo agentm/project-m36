@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Relation
 import ProjectM36.AtomType
+import ProjectM36.DataTypes.Interval
 import qualified ProjectM36.Attribute as A
 
 import Data.Csv.Parser
@@ -21,6 +22,7 @@ import Control.Arrow
 import Text.Read hiding (parens)
 import Control.Applicative
 import Data.Either
+import Control.Monad (void)
 
 data CsvImportError = CsvParseError String |
                       AttributeMappingError RelationalError |
@@ -37,8 +39,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
     let strHeader = V.map decodeUtf8 headerRaw
         strMapRecords = V.map convertMap vecMapsRaw
         convertMap hmap = HM.fromList $ L.map (decodeUtf8 *** (T.unpack . decodeUtf8)) (HM.toList hmap)
-        attrNames = V.map A.attributeName attrs
-        attrNameSet = S.fromList (V.toList attrNames)
+        attrNameSet = A.attributeNameSet attrs
         headerSet = S.fromList (V.toList strHeader)
         parseAtom attrName aType textIn = case APT.parseOnly (parseCSVAtomP attrName tConsMap aType <* APT.endOfInput) textIn of
           Left err -> Left (ParseError (T.pack err))
@@ -46,7 +47,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
         makeTupleList tupMap = V.toList $ V.map (\attr -> 
                                                   either (Left . AttributeMappingError) Right $ 
-                                                  parseAtom (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! A.attributeName attr)) attrs
+                                                  parseAtom (A.attributeName attr) (A.atomType attr) (T.pack $ tupMap HM.! A.attributeName attr)) (attributesVec attrs)
     if attrNameSet == headerSet then do
       tupleList <- mapM sequence $ V.toList (V.map makeTupleList strMapRecords)
       case mkRelationFromList attrs tupleList of
@@ -60,9 +61,8 @@ parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Pars
 parseCSVAtomP _ _ IntegerAtomType = Right . IntegerAtom <$> APT.decimal
 parseCSVAtomP _ _ IntAtomType = Right . IntAtom <$> APT.decimal
 parseCSVAtomP _ _ DoubleAtomType = Right . DoubleAtom <$> APT.double
-parseCSVAtomP _ _ TextAtomType = do 
-  s <- quotedString <|> takeToEndOfData
-  pure (Right (TextAtom s))
+parseCSVAtomP _ _ TextAtomType = 
+  Right . TextAtom <$> (quotedString <|> takeToEndOfData)
 parseCSVAtomP _ _ DayAtomType = do
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
@@ -78,46 +78,60 @@ parseCSVAtomP _ _ ByteStringAtomType = do
   case readMaybe bsString of
     Nothing -> fail ("invalid ByteString string: " ++ bsString)
     Just bs -> pure (Right (ByteStringAtom bs))
-parseCSVAtomP _ _ BoolAtomType = do    
+parseCSVAtomP _ _ BoolAtomType = do
   bString <- T.unpack <$> takeToEndOfData
   case readMaybe bString of
     Nothing -> fail ("invalid BoolAtom string: " ++ bString)
     Just b -> pure (Right (BoolAtom b))
-parseCSVAtomP attrName tConsMap (IntervalAtomType iType) = do
-  begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)
-  eBeginv <- parseCSVAtomP attrName tConsMap iType
-  case eBeginv of
-    Left err -> pure (Left err)
-    Right beginv -> do
-      _ <- APT.char ','
-      eEndv <- parseCSVAtomP attrName tConsMap iType
-      case eEndv of
-        Left err -> pure (Left err)
-        Right endv -> do
-          end <- (APT.char ']' >> pure False) <|> (APT.char ')' >> pure True)
-          pure (Right (IntervalAtom beginv endv begin end))
-parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) = do
-  dConsName <- capitalizedIdentifier
-  APT.skipSpace
+parseCSVAtomP _ _ UUIDAtomType = do
+  uString <- T.unpack <$> takeToEndOfData
+  case readMaybe uString of
+    Nothing -> fail ("invalid UUIDAtom string: " ++ uString)
+    Just u -> pure (Right (UUIDAtom u))
+parseCSVAtomP _ _ RelationalExprAtomType = do
+  reString <- T.unpack <$> takeToEndOfData      
+  case readMaybe reString of
+    Nothing -> fail ("invalid RelationalExprAtom string: " ++ reString)
+    Just b -> pure (Right (RelationalExprAtom b))
+parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) 
+  | isIntervalAtomType typ = do
+    begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)
+    let iType = intervalSubType typ
+    eBeginv <- parseCSVAtomP attrName tConsMap iType
+    case eBeginv of
+      Left err -> pure (Left err)
+      Right beginv -> do
+        _ <- APT.char ','
+        eEndv <- parseCSVAtomP attrName tConsMap iType
+        case eEndv of
+          Left err -> pure (Left err)
+          Right endv -> do
+            end <- (APT.char ']' >> pure False) <|> 
+                   (APT.char ')' >> pure True)
+            pure (Right (ConstructedAtom "Interval" typ [beginv, endv, 
+                                                         BoolAtom begin, BoolAtom end]))
+  | otherwise = do
+    dConsName <- capitalizedIdentifier
+    APT.skipSpace
   --we need to look up the name right away in order to determine the types of the following arguments
   -- grab the data constructor
-  case findDataConstructor dConsName tConsMap of
-    Nothing -> pure (Left (NoSuchDataConstructorError dConsName))
-    Just (_, dConsDef) -> 
+    case findDataConstructor dConsName tConsMap of
+      Nothing -> pure (Left (NoSuchDataConstructorError dConsName))
+      Just (_, dConsDef) -> 
       -- identify the data constructor's expected atom type args
-      case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
-        Left err -> pure (Left err)
-        Right argAtomTypes -> do
-              atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
-                                 case argTyp of
-                                   ConstructedAtomType _ _ -> 
-                                     parens parseNextAtom <|>
-                                     parseNextAtom
-                                   _ -> parseNextAtom
-                               ) argAtomTypes
-              case lefts atomArgs of
-                [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
-                errs -> pure (Left (someErrors errs))
+        case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
+          Left err -> pure (Left err)
+          Right argAtomTypes -> do
+            atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
+                               case argTyp of
+                                 ConstructedAtomType _ _ -> 
+                                   parens parseNextAtom <|>
+                                   parseNextAtom
+                                 _ -> parseNextAtom
+                             ) argAtomTypes
+            case lefts atomArgs of
+              [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
+              errs -> pure (Left (someErrors errs))
 parseCSVAtomP attrName _ (RelationAtomType _) = pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
 parseCSVAtomP _ _ (TypeVariableType x) = pure (Left (TypeConstructorTypeVarMissing x))
       
@@ -133,17 +147,18 @@ takeToEndOfData = APT.takeWhile (APT.notInClass ",)]")
   
 parens :: APT.Parser a -> APT.Parser a  
 parens p = do
-  APT.skip (== '(')
+  void $ APT.char '('
   APT.skipSpace
   v <- p
   APT.skipSpace
-  APT.skip (== ')')
+  void $ APT.char ')'
   pure v
   
 quotedString :: APT.Parser T.Text
 quotedString = do
   let escapeMap = [('"','"'), ('n', '\n'), ('r', '\r')]
-  APT.skip (== '"')
+      doubleQuote = void $ APT.char '"'
+  doubleQuote      
   (_, s) <- APT.runScanner [] (\prevl nextChar -> case prevl of
                              [] -> Just [nextChar]
                              chars | last chars == '\\' ->
@@ -152,6 +167,6 @@ quotedString = do
                                           Just escapeVal -> Just (init chars ++ [escapeVal]) -- nuke the backslash and add the escapeVal
                                    | nextChar == '"' -> Nothing
                                    | otherwise -> Just (chars ++ [nextChar]))
-  APT.skip (== '"')
+  doubleQuote
   pure (T.pack s)
   

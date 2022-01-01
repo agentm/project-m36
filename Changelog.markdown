@@ -1,3 +1,79 @@
+# 2021-12-05 (v0.9.4)
+
+* fix bug which [caused tuple storage to be duplicated unnecessarily](https://github.com/agentm/project-m36/pull/328)
+* add support for `case` and `if-then-else` expressions
+* allow relation variable names and attribute names to be escaped using backticks
+* add UUID primitive type
+* complete implementation of [object and shared object files at runtime](https://github.com/agentm/project-m36/blob/master/docs/atomfunctions.markdown#pre-compiled-atom-functions) in order to compete with Haskell scripting alternative
+* fix constraint checking after undefining a relation variable
+* optionally allow TLS and client certificate authentication in Project:M36 server
+* require GHC >=8.8
+	
+# 2021-04-01 (v0.9.3)
+
+* add new ":importtutd <URI> <SHA256 hash>" feature to import TutorialD from a local file or a HTTP/HTTPS URI	
+	
+# 2020-12-27 (v0.9.0)
+
+* replace unmaintained distributed-process-client-server RPC package with new curryer RPC package
+* drop support for GHC 8.2 and GHC 8.4 due to dependency on DerivingVia extension
+
+# 2020-11-21 (v0.8.2)
+
+* support multiple extend expressions in TutorialD
+* fix parsing of Bool atoms in TutorialD
+* fix database context expressions which include self-references such as `s:=s union s`
+* show constraints as TutorialD when using tutd console
+* add `RelationalExprAtom` data type useful for storing `RelationalExpr` within the database
+
+# 2020-10-05 (v0.8.1)
+
+* support GHC 8.10
+
+# 2020-05-25 (v0.8)
+
+* refactor backend to maximize laziness: [An Architecture for Data Independence](docs/data_independence.markdown)
+
+# 2019-09-07 (v0.7)
+
+* fix case sensitivity issue with relation variables in tutd
+* fix multibyte escaping in data frames
+* fix broken instances of `Atomable [a]`
+* fix `TypeConstructor` validation of argument count
+* add help option to executables
+
+# 2019-01-08 (v0.6)
+
+* fix atom type parsing to support more complex data types
+* add [data frames](docs/dataframes.markdown) to support server-side sort ordering, limits, and offsets
+
+# 2018-10-03 (v0.5.1)
+
+* fix atom function type validation
+* add support for GHC 8.4 (now we support GHC 8.0, 8.2, and 8.4)
+	
+# 2018-08-10 (v0.5)
+
+* fix critical type bug which allowed unresolved types to be used
+* add full support for GHC 8.2 with stack or cabal (delayed for a long time by dependency version boundaries)
+* drop support for GHC 7.10
+* add support for `with (relexpr as name,...)` syntax for use as tutd macros
+* add `NonEmptyList` list data type
+
+# 2018-06-04 (v0.4)
+
+* add contributed feature to allow users to [create arbitrary relations](https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown#arbitrary-relation-variables)
+* fix type validation bug allowing concrete type with type variables in relations
+* improve usability of `Interval a` data type
+* allow `Integer` to be parsed as negative in `tutd` console
+* support precompiled (Haskell) [`AtomFunction`s](https://github.com/agentm/project-m36/blob/master/docs/atomfunctions.markdown#pre-compiled-atom-functions) and [`DatabaseContextFunction`s](https://github.com/agentm/project-m36/blob/master/docs/database_context_functions.markdown#loading-precompiled-modules)
+* make TutorialD scripts read from the filesystem unconditionally read as UTF-8
+* improve support for display of multibyte characters in `tutd` console, especially Chinese
+* fix file descriptor leak in file sychronization
+* improve reliability by allowing fast-forward commits when using `autoMergeToHead`
+* add [`semijoin` and `anitjoin`](https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown#join) support to `tutd`
+* added various new static optimizations
+
 # 2017-11-14
 
 * alter websocket server API to allow for multiple representations (JSON, text, or HTML) to be selected and returned simultaneously

@@ -6,6 +6,12 @@ The Project:M36 client library is the preferred method for interacting with Proj
 
 The client supports both in-process and remote Project:M36 access.
 
+## Build Configuration
+
+If using cabal to build, run `cabal install --lib` to make Project:M36 a library accessible from other cabal projects.
+
+If using stack to build, copy the `extra-deps` section from the relevant stack.ghc.<ver>.yaml configuration into your own project and run `stack build` to install the Project:M36 library.
+
 ## Setup
 
 1. Import the library's symbols

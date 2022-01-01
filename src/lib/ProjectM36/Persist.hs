@@ -1,14 +1,14 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 --this module is related to persisting Project:M36 structures to disk and not related to the persistent library
 module ProjectM36.Persist (writeFileSync, 
-                           writeBSFileSync,
+                           writeSerialiseSync,
                            renameSync,
                            printFdCount,
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
-import qualified Data.Text.IO as TIO
 import qualified Data.Text as T
-
+import Codec.Winery
+import qualified Data.ByteString.FastBuilder as BB
 #if defined(linux_HOST_OS)
 # define FDCOUNTSUPPORTED 1
 # define FDDIR "/proc/self/fd"
@@ -36,8 +36,9 @@ import System.Posix.IO (handleToFd, closeFd)
 import Foreign.C
 #endif
 
-import System.IO (withFile, IOMode(WriteMode), Handle)
-import qualified Data.ByteString.Lazy as BS
+import System.IO (withFile, IOMode(WriteMode), Handle, withBinaryFile)
+import qualified Data.ByteString as BS
+import qualified Data.Text.Encoding as TE
 
 #if defined(mingw32_HOST_OS)
 import ProjectM36.Win32Handle
@@ -52,7 +53,7 @@ writeFileSync :: DiskSync -> FilePath -> T.Text -> IO()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
-      TIO.hPutStr handle strOut
+      BS.hPut handle (TE.encodeUtf8 strOut)
       syncHandle sync handle
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()
@@ -65,7 +66,13 @@ renameSync sync srcPath dstPath = do
 atomicRename :: FilePath -> FilePath -> IO ()
 atomicRename srcPath dstPath = 
 #if defined(mingw32_HOST_OS)
-  Win32.moveFileEx srcPath dstPath Win32.mOVEFILE_REPLACE_EXISTING
+#if MIN_VERSION_Win32(2,6,0)
+  let dst = Just dstPath
+#else
+  let dst = dstPath
+#endif
+  in
+  Win32.moveFileEx srcPath dst Win32.mOVEFILE_REPLACE_EXISTING
 #else
   Posix.rename srcPath dstPath
 #endif
@@ -93,10 +100,11 @@ syncDirectory :: DiskSync -> FilePath -> IO ()
 syncDirectory FsyncDiskSync path = directoryFsync path 
 syncDirectory NoDiskSync _ = pure ()
 
-writeBSFileSync :: DiskSync -> FilePath -> BS.ByteString -> IO ()
-writeBSFileSync sync path bstring =
-  withFile path WriteMode $ \handle -> do
-    BS.hPut handle bstring
+--uses lazy bytestring to write to file
+writeSerialiseSync :: Serialise a => DiskSync -> FilePath -> a -> IO ()
+writeSerialiseSync sync path val = 
+  withBinaryFile path WriteMode $ \handle -> do
+    BB.hPutBuilder handle $ toBuilderWithSchema val
     syncHandle sync handle
   
 directoryFsync :: FilePath -> IO ()
@@ -118,13 +126,10 @@ printFdCount =
   putStrLn "Fd count not supported on this OS."
 #endif
 
-
-fdCount :: IO Int
 #if FDCOUNTSUPPORTED
+fdCount :: IO Int
 fdCount = do
   fds <- getDirectoryContents FDDIR
   pure ((length fds) - 2)
-#else 
 --not supported on non-linux
-fdCount = pure 0
 #endif

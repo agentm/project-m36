@@ -23,6 +23,25 @@ instance Tupleable Person
 
 Now, ```Person``` values can be marshaled between the database and the client. The attribute names appearing in the Haskell data type will appear identically in the server with the same types.
 
+### Changing Options
+
+If our field names don't exactly match attribute names, but follow a common pattern, we can derive Tupleable with custom options. Let's say each field on person has a prefix "person", but we still want to use the attribute names without the prefix. We can make use of the ProjectM36.Tupleable module to accomplish our goal like so:
+
+```haskell
+import ProjectM36.Tupleable.Deriving
+
+data Person = Person {
+  personName :: Text,
+  personEmployeeNumber :: Int,
+  personLikesHorses :: Bool
+  }
+  deriving stock Generic
+  deriving Tupleable
+    via Codec (Field (DropPrefix "person" >>> CamelCase)) Person
+```
+
+The extensions DerivingGeneric, DerivingVia, TypeOperators, and DataKinds must be enabled for this code to compile. See the documentation on Hackage for all available options.
+
 ## Usage
 
 The ```Tupleable``` module includes the following functions:

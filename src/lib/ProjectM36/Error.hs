@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import ProjectM36.MerkleHash
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import qualified Data.Set as S
@@ -8,7 +9,6 @@ import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
 import GHC.Generics (Generic)
 import qualified Data.Text as T
-import Data.Binary
 import Data.Typeable
 import Control.Exception
 
@@ -25,7 +25,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
                      | RelationTypeMismatchError Attributes Attributes --expected, found
-                     | InclusionDependencyCheckError IncDepName
+                     | InclusionDependencyCheckError IncDepName (Maybe RelationalError)
                      | InclusionDependencyNameInUseError IncDepName
                      | InclusionDependencyNameNotInUseError IncDepName
                      | ParseError T.Text
@@ -45,7 +45,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NoSuchSessionError TransactionId
                      | FailedToFindTransactionError TransactionId
                      | TransactionIdInUseError TransactionId
-                     | NoSuchFunctionError AtomFunctionName
+                     | NoSuchFunctionError FunctionName
                      | NoSuchTypeConstructorName TypeConstructorName
                      | TypeConstructorAtomTypeMismatch TypeConstructorName AtomType
                      | AtomTypeMismatchError AtomType AtomType
@@ -57,13 +57,14 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TypeConstructorTypeVarMissing TypeVarName
                      | TypeConstructorTypeVarsTypesMismatch TypeConstructorName TypeVarMap TypeVarMap
                      | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
-                     | AtomFunctionTypeVariableResolutionError AtomFunctionName TypeVarName
+                     | AtomFunctionTypeVariableResolutionError FunctionName TypeVarName
                      | AtomFunctionTypeVariableMismatch TypeVarName AtomType AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
-                     | FunctionNameInUseError AtomFunctionName
-                     | FunctionNameNotInUseError AtomFunctionName
+                     | AttributeNotSortableError Attribute
+                     | FunctionNameInUseError FunctionName
+                     | FunctionNameNotInUseError FunctionName
                      | EmptyCommitError
                      | FunctionArgumentCountMismatchError Int Int
                      | ConstructedAtomArgumentCountMismatchError Int Int
@@ -74,17 +75,19 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | AtomOperatorNotSupported T.Text --used by persistent driver
                      | EmptyTuplesError -- used by persistent driver
                      | AtomTypeCountError [AtomType] [AtomType]
-                     | AtomFunctionTypeError AtomFunctionName Int AtomType AtomType --arg number
+                     | AtomFunctionTypeError FunctionName Int AtomType AtomType --arg number
                      | AtomFunctionUserError AtomFunctionError
-                     | PrecompiledFunctionRemoveError AtomFunctionName -- pre-compiled atom functions cannot be serialized, so they cannot change over time- they are referred to in perpetuity
+                     | PrecompiledFunctionRemoveError FunctionName -- pre-compiled atom functions cannot be serialized, so they cannot change over time- they are referred to in perpetuity
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName
-                     | ImportError T.Text -- really? This should be broken out into some other error type- this has nothing to do with relational algebra
+                     | ImportError ImportError'
                      | ExportError T.Text
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | ScriptError ScriptCompilationError
+                     | LoadFunctionError
+                     | SecurityLoadFunctionError
                      | DatabaseContextFunctionUserError DatabaseContextFunctionError
                      | DatabaseLoadError PersistenceError
                        
@@ -94,14 +97,21 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | SchemaCreationError SchemaError 
                        
                      | ImproperDatabaseStateError
-                       
+
+                     | NonConcreteSchemaPlanError
+
+                     | NoUncommittedContextInEvalError
+                     | TupleExprsReferenceMultipleMarkersError
+
+                     | MerkleHashValidationError TransactionId MerkleHash MerkleHash
+
                      | MultipleErrors [RelationalError]
-                       deriving (Show,Eq,Generic,Binary,Typeable, NFData) 
+                       deriving (Show,Eq,Generic,Typeable, NFData) 
 
 data PersistenceError = InvalidDirectoryError FilePath | 
                         MissingTransactionError TransactionId |
                         WrongDatabaseFormatVersionError String String
-                      deriving (Show, Eq, Generic, Binary, NFData)
+                      deriving (Show, Eq, Generic, NFData)
 
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      
@@ -119,7 +129,7 @@ data MergeError = SelectedHeadMismatchMergeError |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
                   StrategyViolatesRelationVariableMergeError |
                   StrategyViolatesTypeConstructorMergeError
-                  deriving (Show, Eq, Generic, Binary, Typeable)
+                  deriving (Show, Eq, Generic, Typeable)
                            
 instance NFData MergeError where rnf = genericRnf                           
                                  
@@ -127,7 +137,7 @@ data ScriptCompilationError = TypeCheckCompilationError String String | --expect
                               SyntaxErrorCompilationError String |
                               ScriptCompilationDisabledError |
                               OtherScriptCompilationError String
-                            deriving (Show, Eq, Generic, Binary, Typeable, NFData)
+                            deriving (Show, Eq, Generic, Typeable, NFData)
                                      
 instance Exception ScriptCompilationError
 instance Exception RelationalError
@@ -135,10 +145,13 @@ instance Exception RelationalError
 data SchemaError = RelVarReferencesMissing (S.Set RelVarName) |
                    RelVarInReferencedMoreThanOnce RelVarName |
                    RelVarOutReferencedMoreThanOnce RelVarName
-                   deriving (Show, Eq, Generic, Binary, Typeable, NFData)
-                           
-                                               
--- errors returned from the distributed-process call handlers
-data ServerError = RequestTimeoutError |
-                   ProcessDiedError String
-                   deriving (Generic, Binary, Eq)
+                   deriving (Show, Eq, Generic, Typeable, NFData)
+
+
+data ImportError' = InvalidSHA256Error T.Text
+                  | SHA256MismatchError T.Text T.Text
+                  | InvalidFileURIError T.Text
+                  | ImportFileDecodeError T.Text
+                  | ImportFileError T.Text
+                  | ImportDownloadError T.Text
+                  deriving (Show, Eq, Generic, Typeable, NFData)

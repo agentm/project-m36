@@ -10,7 +10,10 @@ primitiveTypeConstructorMapping = map (\(name, aType) ->
              ("Text", TextAtomType),
              ("Double", DoubleAtomType),
              ("Bool", BoolAtomType),
-             ("ByteString", ByteStringAtomType)
+             ("UUID", UUIDAtomType),
+             ("ByteString", ByteStringAtomType),
+             ("DateTime", DateTimeAtomType),
+             ("Day", DayAtomType)
             ]
             
 intTypeConstructor :: TypeConstructor            
@@ -25,6 +28,12 @@ textTypeConstructor = PrimitiveTypeConstructor "Text" TextAtomType
 dayTypeConstructor :: TypeConstructor
 dayTypeConstructor = PrimitiveTypeConstructor "Day" DayAtomType
 
+dateTimeTypeConstructor :: TypeConstructor
+dateTimeTypeConstructor = PrimitiveTypeConstructor "DateTime" DayAtomType
+
+uUIDTypeConstructor :: TypeConstructor
+uUIDTypeConstructor = PrimitiveTypeConstructor "UUID" UUIDAtomType
+
 -- | Return the type of an 'Atom'.
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
@@ -35,6 +44,7 @@ atomTypeForAtom (DayAtom _) = DayAtomType
 atomTypeForAtom (DateTimeAtom _) = DateTimeAtomType
 atomTypeForAtom (ByteStringAtom _) = ByteStringAtomType
 atomTypeForAtom (BoolAtom _) = BoolAtomType
-atomTypeForAtom (IntervalAtom a _ _ _) = IntervalAtomType (atomTypeForAtom a)
+atomTypeForAtom (UUIDAtom _) = UUIDAtomType
 atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
 atomTypeForAtom (ConstructedAtom _ aType _) = aType
+atomTypeForAtom (RelationalExprAtom _) = RelationalExprAtomType

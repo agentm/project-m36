@@ -8,7 +8,7 @@ While Project:M36 is easy-to-use as an interactive, in-process database manageme
 
 To start the Project:M36 server to serve the local host with a database named "mydbname", run ```cabal run project-m36-server -- --database mydbname --hostname 127.0.0.1``` in the project-m36 source directory. The double-dash indicates that the arguments should be passed to ```project-m36-server``` instead of ```cabal```. Under normal conditions, this command will print nothing and block indefinitely to serve incoming requests on the default port 6543.
 
-Note that the above invocation will serve and in-memory, transient "mydbname" database. The database is deleted when the server exits. To serve a database with filesystem persistence, invoke ```cabal run project-m36-server -- --database mydbname --hostname 127.0.0.1 --database-directory /path/to/dbdirectory --fsync```. 
+Note that the above invocation will serve an in-memory, transient "mydbname" database. The database is deleted when the server exits. To serve a database with filesystem persistence, invoke ```cabal run project-m36-server -- --database mydbname --hostname 127.0.0.1 --database-directory /path/to/dbdirectory --fsync```. 
 
 ## Connecting an Interactive Client
 

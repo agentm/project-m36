@@ -1,8 +1,8 @@
 module ProjectM36.TransactionGraph.Persist where
 import ProjectM36.Error
-import ProjectM36.TransactionGraph
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
+import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
 import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)
@@ -21,9 +21,12 @@ import Data.Either (isRight)
 import Data.Maybe (fromMaybe)
 import qualified Data.List as L
 import Control.Exception.Base
-import qualified Data.Text.IO as TIO
+import qualified Data.ByteString as BS
+import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock
@@ -40,7 +43,7 @@ Persistence requires a POSIX-compliant, journaled-metadata filesystem.
 -}
 
 expectedVersion :: Int
-expectedVersion = 5
+expectedVersion = 6
 
 transactionLogFileName :: FilePath 
 transactionLogFileName = "m36v" ++ show expectedVersion
@@ -83,9 +86,8 @@ setupDatabaseDir sync dbdir bootstrapGraph = do
         locker <- openLockFile (lockFilePath dbdir)
         gDigest <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (readGraphTransactionIdFileDigest dbdir)
         pure (Right (locker, gDigest))
-      else if not m36exists then do
-        locks <- bootstrapDatabaseDir sync dbdir bootstrapGraph
-        pure (Right locks)
+      else if not m36exists then 
+        Right <$> bootstrapDatabaseDir sync dbdir bootstrapGraph
          else
            pure (Left (InvalidDirectoryError dbdir))
 {- 
@@ -96,9 +98,12 @@ bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   locker <- openLockFile (lockFilePath dbdir)
   let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
+  createDirectoryIfMissing False (ProjectM36.TransactionGraph.Persist.objectFilesPath dbdir)
   digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
   pure (locker, digest)
-  
+
+objectFilesPath :: FilePath -> FilePath
+objectFilesPath dbdir = dbdir </> "compiled_modules"
 {- 
 incrementally updates an existing database directory
 --algorithm: 
@@ -192,24 +197,35 @@ writeGraphTransactionIdFile sync destDirectory (TransactionGraph _ transSet) = w
     uuidInfo = T.intercalate "\n" graphLines
     digest = SHA256.hash (encodeUtf8 uuidInfo)
     graphLines = S.toList $ S.map graphLine transSet 
-    epochTime = realToFrac . utcTimeToPOSIXSeconds . transactionTimestamp :: Transaction -> Double
+    epochTime = realToFrac . utcTimeToPOSIXSeconds . timestamp :: Transaction -> Double
     graphLine trans = U.toText (transactionId trans) 
                       <> " " 
                       <> T.pack (show (epochTime trans))
                       <> " "
-                      <> T.intercalate " " (S.toList (S.map U.toText $ transactionParentIds trans))
+                      <> T.intercalate " " (S.toList (S.map U.toText $ parentIds trans))
     
 readGraphTransactionIdFileDigest :: FilePath -> IO LockFileHash
 readGraphTransactionIdFileDigest dbdir = do
-  graphTransactionIdData <- TIO.readFile (transactionLogPath dbdir)
-  pure (SHA256.hash (encodeUtf8 graphTransactionIdData))
+  let graphTransactionIdData = readUTF8FileOrError (transactionLogPath dbdir)
+  SHA256.hash . encodeUtf8 <$> graphTransactionIdData
     
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tid:epochText:parentIds = T.words line in
-        (readUUID tid, readEpoch epochText, map readUUID parentIds)
+  let grapher line = let tid:epochText:parentIds' = T.words line in
+        (readUUID tid, readEpoch epochText, map readUUID parentIds')
       readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
       readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
-  Right . map grapher . T.lines <$> TIO.readFile (transactionLogPath dbdir)
+  Right . map grapher . T.lines <$> readUTF8FileOrError (transactionLogPath dbdir)
+
+--rationale- reading essential database files must fail hard
+readUTF8FileOrError :: FilePath -> IO T.Text
+readUTF8FileOrError pathIn = do
+  eFileBytes <- try (BS.readFile pathIn) :: IO (Either IOError BS.ByteString)
+  case eFileBytes of 
+    Left err -> error (show err)
+    Right fileBytes ->
+      case TE.decodeUtf8' fileBytes of
+        Left err -> error (show err)
+        Right utf8Bytes -> pure utf8Bytes
 

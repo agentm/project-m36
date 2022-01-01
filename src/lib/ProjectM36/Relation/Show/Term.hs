@@ -9,6 +9,12 @@ import ProjectM36.Attribute hiding (null)
 import qualified Data.List as L
 import qualified Data.Text as T
 import Control.Arrow hiding (left)
+import Data.ByteString.Base64 as B64
+import qualified Data.Text.Encoding as TE
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
+import ProjectM36.WCWidth --guess the width that the character will appear as in the terminal
 
 boxV :: StringType
 boxV = "│"
@@ -35,16 +41,6 @@ boxBB = "┴"
 
 boxC :: StringType
 boxC = "┼"
-
-dboxH :: StringType
-dboxH = "═"
-dboxL :: StringType
-dboxL = "╞"
-dboxR :: StringType
-dboxR = "╡"
-
-class TermSize a where
-  termLength :: a -> Int
 
 --represent a relation as a table similar to those drawn by Date
 type Cell = StringType
@@ -77,7 +73,7 @@ cellSizes (header, body) = map (map maxRowWidth &&& map (length . breakLines)) a
                          0
                       else
                         L.maximum (lengths row)
-    lengths row = map T.length (breakLines row)
+    lengths row = map stringDisplayLength (breakLines row)
     allRows = header : body
     
 relationAsTable :: Relation -> Table
@@ -87,11 +83,11 @@ relationAsTable rel@(Relation _ tupleSet) = (header, body)
     oAttrNames = orderedAttributeNames (attributes rel)
     header = map prettyAttribute oAttrs
     body :: [[Cell]]
-    body = L.foldl' tupleFolder [] (asList tupleSet)
-    tupleFolder acc tuple = acc ++ [map (\attrName -> case atomForAttributeName attrName tuple of
+    body = L.foldr tupleFolder [] (asList tupleSet)
+    tupleFolder tuple acc = map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom 0 atom
-                                            ) oAttrNames]
+                                            ) oAttrNames : acc
 
 showParens :: Bool -> StringType -> StringType
 showParens predicate f = if predicate then
@@ -102,6 +98,8 @@ showParens predicate f = if predicate then
 showAtom :: Int -> Atom -> StringType
 showAtom _ (RelationAtom rel) = renderTable $ relationAsTable rel
 showAtom level (ConstructedAtom dConsName _ atoms) = showParens (level >= 1 && not (null atoms)) $ T.concat (L.intersperse " " (dConsName : map (showAtom 1) atoms))
+showAtom _ (TextAtom t) = "\"" <> t <> "\""
+showAtom _ (ByteStringAtom bs) = TE.decodeUtf8 (B64.encode bs)
 showAtom _ atom = atomToText atom
 
 renderTable :: Table -> StringType
@@ -120,13 +118,14 @@ renderHeader (header, body) columnLocations = renderTopBar `T.append` renderHead
 renderHBar :: StringType -> StringType -> StringType -> [Int] -> StringType
 renderHBar left middle end columnLocations = left `T.append` T.concat (L.intersperse middle (map (`repeatString` boxH) columnLocations)) `T.append` end
 
+--pad a block of potentially multi-lined text
 leftPaddedString :: Int -> Int -> StringType -> StringType
 leftPaddedString lineNum size str = if lineNum > length paddedLines -1 then
                                       repeatString size " "
                                     else
                                       paddedLines !! lineNum
   where
-    paddedLines = map (\line -> line `T.append` repeatString (size - T.length line) " ") (breakLines str)
+    paddedLines = map (\line -> line `T.append` repeatString (size - stringDisplayLength line) " ") (breakLines str)
 
 renderRow :: [Cell] -> [Int] -> Int -> StringType -> StringType
 renderRow cells columnLocations rowHeight interspersed = T.unlines $ map renderOneLine [0..rowHeight-1]
@@ -147,3 +146,14 @@ repeatString c s = T.concat (replicate c s)
 
 showRelation :: Relation -> StringType
 showRelation rel = renderTable (relationAsTable rel)
+
+--use wcwidth to guess the string width in the terminal- many CJK characters can take multiple columns in a fixed width font
+stringDisplayLength :: StringType -> Int
+stringDisplayLength = T.foldr charSize 0 
+  where
+    charSize char accum = let w = wcwidth char in
+      accum + if w < 0 then
+        1 
+      else
+        w 
+                                             

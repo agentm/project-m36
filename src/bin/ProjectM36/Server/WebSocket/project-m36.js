@@ -55,9 +55,10 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
 * @param {Object} acknowledgementresult - The status update containing an acknowledgement that the query was executed or null.
 * @param {Object} errorResult - The status update containing the error information or null.
 */
-var ProjectM36Status = function (relationResult, acknowledgementResult, errorResult)
+var ProjectM36Status = function (relationResult, dataFrameResult, acknowledgementResult, errorResult)
 {
     this.relation = relationResult;
+    this.dataframe = dataFrameResult;
     this.acknowledgement = acknowledgementResult;
     this.error = errorResult;
 }
@@ -75,6 +76,7 @@ ProjectM36Connection.prototype.readyState = function()
 ProjectM36Connection.prototype.handleResponse = function(message)
 {
     var relation = message["displayrelation"];
+    var dataframe = message["displaydataframe"];
     var acknowledged = message["acknowledged"];
     var error = message["displayerror"];
     var prompt = message["promptInfo"];
@@ -82,12 +84,17 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 
     if(relation)
     {
-        this.statuscallback(new ProjectM36Status(relation['json'], null, null));
+        this.statuscallback(new ProjectM36Status(relation['json'], null, null, null));
+    }
+
+    if(dataframe)
+    {
+	this.statuscallback(new ProjectM36Status(null, dataframe['json'], null, null));
     }
     
     if(acknowledged)
     {
-	this.statuscallback(new ProjectM36Status(null, true, null));
+	this.statuscallback(new ProjectM36Status(null, null, true, null));
     }
     
     if(error)
@@ -96,7 +103,7 @@ ProjectM36Connection.prototype.handleResponse = function(message)
 	{
 	    error=error.tag; // for error objects
 	}
-	this.statuscallback(new ProjectM36Status(null, null, error['json']));
+	this.statuscallback(new ProjectM36Status(null, null, null, error['json']));
     }
 
     if(prompt)
@@ -161,6 +168,7 @@ ProjectM36Connection.prototype.generateAtomType = function(attr)
 {
     var atomType = attr[1]["tag"];
     var attrName = attr[0];
+    var accessory = attr[2];
     var element = document.createElement("span");
     element.textContent = attrName + "::";
     if (atomType == "RelationAtomType")
@@ -185,7 +193,11 @@ ProjectM36Connection.prototype.generateAtomType = function(attr)
 	var readableType = atomType.slice(0,-8);
 	element.textContent += readableType;
     }
-    return element
+    if(accessory)
+    {
+	element.textContent += accessory;
+    }
+    return element;
 }
 
 ProjectM36Connection.prototype.generateRelationBody = function (body)
@@ -228,6 +240,33 @@ ProjectM36Connection.prototype.generateAtom = function(atom)
 	element.textContent = atom["val"];
     }
     return element;
+}
+
+ProjectM36Connection.prototype.generateDataFrame = function(dataframe)
+{
+    for(var attrIndex=0; attrIndex < dataframe.attributes.length; attrIndex++)
+    {
+	var attr = dataframe.attributes[attrIndex];
+	var ordering = "↕";
+	for(var orderIndex=0; orderIndex < dataframe.orders.length; orderIndex++)
+	{
+	    var order = dataframe.orders[orderIndex];
+	    if(order[0] == attr[0])
+	    {
+		if(order[1] == "AscendingOrder")
+		{
+		    ordering = "⬆";
+		}
+		else if(order[1] == "DescendingOrder")
+		{
+		    ordering = "⬇";
+		}
+	    }
+	}
+	dataframe.attributes[attrIndex].push(ordering);   
+    }
+    return this.generateRelation([dataframe.attributes,
+				  {asList:dataframe.tuples}]);
 }
 
 //special case to make sure that a table appears for "true" and "false"

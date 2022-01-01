@@ -3,13 +3,20 @@ import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.Error
-import Control.Monad.State
-import Control.Monad.Trans.Reader
+import ProjectM36.StaticOptimizer
 
-executeDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
-executeDatabaseContextExpr expr context = case runState (evalDatabaseContextExpr expr) (freshDatabaseState context) of
-  (Right (), (context', _, _)) -> pure context'
-  (Left err, _) -> error (show err)
+executeDatabaseContextExpr :: DatabaseContextExpr -> TransactionId -> TransactionGraph -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+executeDatabaseContextExpr expr transId graph context' =
+  case run of
+    Right st -> pure (dbc_context st)
+    Left err -> error (show err)
+  where
+    env = mkDatabaseContextEvalEnv transId graph
+    run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr True expr)
   
-executeRelationalExpr :: RelationalExpr -> DatabaseContext -> Either RelationalError Relation
-executeRelationalExpr expr context = runReader (evalRelationalExpr expr) (mkRelationalExprState context)
+executeRelationalExpr :: RelationalExpr -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation
+executeRelationalExpr expr context graph =
+  run
+  where
+    env = mkRelationalExprEnv context graph
+    run = optimizeAndEvalRelationalExpr env expr

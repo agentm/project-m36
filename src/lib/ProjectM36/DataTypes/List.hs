@@ -34,17 +34,16 @@ listMaybeHead _ = Left AtomFunctionTypeMismatchError
 
 listAtomFunctions :: AtomFunctions
 listAtomFunctions = HS.fromList [
-  AtomFunction {
-     atomFuncName = "length",
-     atomFuncType = [listAtomType (TypeVariableType "a"), IntAtomType],
-     atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) -> do
-                                                 c <- listLength listAtom
-                                                 pure (IntAtom (fromIntegral c)))
+  Function {
+     funcName = "length",
+     funcType = [listAtomType (TypeVariableType "a"), IntAtomType],
+     funcBody = FunctionBuiltInBody (\(listAtom:_) ->
+                                                 IntAtom . fromIntegral <$> listLength listAtom)
      },
-  AtomFunction {
-    atomFuncName = "maybeHead",
-    atomFuncType = [listAtomType (TypeVariableType "a"), maybeAtomType (TypeVariableType "a")],
-    atomFuncBody = AtomFunctionBody Nothing (\(listAtom:_) -> listMaybeHead listAtom)
+  Function {
+    funcName = "maybeHead",
+    funcType = [listAtomType (TypeVariableType "a"), maybeAtomType (TypeVariableType "a")],
+    funcBody = FunctionBuiltInBody (\(listAtom:_) -> listMaybeHead listAtom)
     }
   ]
                     

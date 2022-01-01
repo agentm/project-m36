@@ -14,20 +14,56 @@ TutorialD (master/main):
 
 "master" refers to the name of the branch to which the current transaction will be potentially committing.
 
+### Date's Sample Relations
+
+The examples in this tutorial can be executed after loading Chris Date's sample relations using:
+
+```
+:importexample cjdate
+```
+
+Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
+
+|Relation Variable Name|Description|
+|----------------------|-----------|
+|s|suppliers|
+|p|parts|
+|sp|contains mapping of which suppliers supply which parts|
+
+### Importing TutorialD from Other Sources
+
+The `tutd` console can also run TutorialD from a local file or from a web server.
+
+To import TutorialD from a file:
+
+```
+:importtutd "file:///home/agentm/project-m36/scripts/emp.tutd"
+```
+
+or from a web server:
+
+```
+:importtutd "https://raw.githubusercontent.com/agentm/project-m36/master/scripts/DateExamples.tutd" "db9f3d9fe06d0a29b8355e045b89ec94d6428e3a3de93def7ca77bf0298b7010"
+```
+
+The second argument is an optional SHA256 hash in hexadecimal form. This can be used to validate that the script has not changed since the last import. Importing TutorialD from the web is in general safe because it is effectively sandboxed with "Safe Haskell" for functions, so the script is contained security-wise, however, nothing prevents the script from running forever. Downloading a schema from the web is a great way to share schemas and to kick start your project without starting from scratch.
+
 ### Types
 
 TutorialD is strongly-typed. The basic built-in types are:
 
 |Type Name|Explanation|Example|
 |---------|-----------|-------|
-|text|arbitrary text|"The Old Man and the Sea"|
-|int|any integer|-4|
-|datetime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
-|date|calendar date|fromGregorian(2017,05,30)|
-|double|floating point number|3.1459|
-|bool|boolean value|t|
-|bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
-|interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
+|Text|arbitrary text|"The Old Man and the Sea"|
+|Integer|arbitarily-sized integer|-4|
+|Int|machine word integer|int(10)|
+|DateTime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
+|Date|calendar date|fromGregorian(2017,05,30)|
+|Double|floating point number|3.1459|
+|Bool|boolean value|t|
+|Bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
+|Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
+|UUID|128 bit uuid|uuid("3494c720-14e7-40f4-bc34-eae4ad4c2f7a")|
 
 With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
@@ -36,7 +72,7 @@ The ```interval``` function last two arguments are boolean values indicating whe
 Project:M36 will complain loudly if the expected types do not match. Automatic type coercion does not exist.
 
 ```
-TutorialD (master/main): :showexpr S:{more:=add(10,@sname)}
+TutorialD (master/main): :showexpr s:{more:=add(10,@sname)}
 ERR: AtomFunctionTypeError "add" 2 IntAtomType StringAtomType
 ```
 
@@ -48,7 +84,7 @@ Relation Variables are named cells which reference relations within a transactio
 
 Definition of a relation variable:
 ```
-products :: {name char, age int}
+products :: {name Text, age Integer}
 ```
 This expression creates a new relation variable in the current context which can refer to any relation with the header of "name" of type "char" and "age" of type int.
 
@@ -67,21 +103,18 @@ Chris Date refers to these relations as "TABLE_DUM" and "TABLE_DEE" but such arb
 products{}
 ```
 
-### Date's Sample Relations
-
-The examples in this tutorial can be executed after loading Chris Date's sample relations using:
+Relation variables and attribute names must begin with a lowercase letter unless quoted with backticks:
 
 ```
-:importexample date
+`TestRelVar`:=relation{tuple{`漢字` "test"}}
+:showexpr `TestRelVar`
+┌──────────┐
+│漢字::Text│
+├──────────┤
+│"test"    │
+└──────────┘
+
 ```
-
-Each section assumes a fresh instance of the Date examples. The relation variables created in the script are:
-
-|Relation Variable Name|Description|
-|----------------------|-----------|
-|s|suppliers|
-|p|parts|
-|sp|contains mapping of which suppliers supply which parts|
 
 ### Relational Expressions
 
@@ -151,15 +184,15 @@ The unary rename operator outputs a new relation with chosen attributes renamed.
 
 ```
 TutorialD (master/main): :showexpr s rename {city as town}
-┌──┬─────┬──────┬──────┐
-│s#│sname│status│town  │
-├──┼─────┼──────┼──────┤
-│S3│Blake│30    │Paris │
-│S4│Clark│20    │London│
-│S5│Adams│30    │Athens│
-│S1│Smith│20    │London│
-│S2│Jones│10    │Paris │
-└──┴─────┴──────┴──────┘
+┌────────┬───────────┬───────────────┬──────────┐
+│s#::Text│sname::Text│status::Integer│town::Text│
+├────────┼───────────┼───────────────┼──────────┤
+│"S3"    │"Blake"    │30             │"Paris"   │
+│"S4"    │"Clark"    │20             │"London"  │
+│"S5"    │"Adams"    │30             │"Athens"  │
+│"S1"    │"Smith"    │20             │"London"  │
+│"S2"    │"Jones"    │10             │"Paris"   │
+└────────┴───────────┴───────────────┴──────────┘
 ```
 
 #### Projection
@@ -170,14 +203,15 @@ For example:
 
 ```
 TutorialD (master/main): :showexpr p{color,city}
-┌──────┬─────┐
-│city  │color│
-├──────┼─────┤
-│London│Red  │
-│Paris │Blue │
-│Oslo  │Blue │
-│Paris │Green│
-└──────┴─────┘
+┌──────────┬───────────┐
+│city::Text│color::Text│
+├──────────┼───────────┤
+│"London"  │"Red"      │
+│"Paris"   │"Green"    │
+│"Oslo"    │"Blue"     │
+│"Paris"   │"Blue"     │
+└──────────┴───────────┘
+
 ```
 
 Projection attributes can also be inverted using `all but`:
@@ -195,7 +229,7 @@ TutorialD (master/main): :showexpr s{all but city}
 └────────┴───────────┴───────────────┘
 ```
 
-Projection attributes can also be derived from a relational expression using `all from`:
+Projection attributes can be derived from a relational expression using `all from`:
 
 ```
 TutorialD (master/main): :showexpr (s join sp){all from s}
@@ -211,28 +245,64 @@ TutorialD (master/main): :showexpr (s join sp){all from s}
 
 Above, we join `s` and `sp` but project the result back onto the attributes of `s`.
 
+Projection attributes can be unioned from multiple sources using `union of`:
+
+```
+TutorialD (master/main): :showexpr (s join sp){union of {all from s} {all but p#}}
+┌──────────┬────────────┬────────┬───────────┬───────────────┐
+│city::Text│qty::Integer│s#::Text│sname::Text│status::Integer│
+├──────────┼────────────┼────────┼───────────┼───────────────┤
+│"Paris"   │400         │"S2"    │"Jones"    │10             │
+│"London"  │400         │"S1"    │"Smith"    │20             │
+│"Paris"   │200         │"S3"    │"Blake"    │30             │
+│"London"  │200         │"S4"    │"Clark"    │20             │
+│"London"  │200         │"S1"    │"Smith"    │20             │
+│"Paris"   │300         │"S2"    │"Jones"    │10             │
+│"London"  │100         │"S1"    │"Smith"    │20             │
+│"London"  │300         │"S4"    │"Clark"    │20             │
+│"London"  │300         │"S1"    │"Smith"    │20             │
+│"London"  │400         │"S4"    │"Clark"    │20             │
+└──────────┴────────────┴────────┴───────────┴───────────────┘
+```
+
+Here, after joining `s` and `p`, the union of all attributes from `s` and all attributes from `p` except for `p#` are returned.all
+
+Finally, projection attributes can be intersected using `intersection of`:
+
+```
+TutorialD (master/main): :showexpr (s join sp){intersection of {all from s} {all from p}}
+┌──────────┐
+│city::Text│
+├──────────┤
+│"London"  │
+│"Paris"   │
+└──────────┘
+```
+
+Here, after joining `s` and `p`, we project on the intersection of attributes from `s` and `p` which happens to be `city`.
+
 #### Restriction
 
 Restriction is applied using a "where" clause, much like in SQL.
 
 ```
 TutorialD (master/main): :showexpr p where color="Blue" and city="Paris"
-┌─────┬─────┬──┬─────┬──────┐
-│city │color│p#│pname│weight│
-├─────┼─────┼──┼─────┼──────┤
-│Paris│Blue │P5│Cam  │12    │
-└─────┴─────┴──┴─────┴──────┘
+┌──────────┬───────────┬────────┬───────────┬───────────────┐
+│city::Text│color::Text│p#::Text│pname::Text│weight::Integer│
+├──────────┼───────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"Blue"     │"P5"    │"Cam"      │12             │
+└──────────┴───────────┴────────┴───────────┴───────────────┘
 ```
 
 The restriction predicate can be built from "and", "not", and "or". Boolean atom functions can also appear in a restriction as long as they are preceded by "^". For example:
 
 ```
 TutorialD (master/main): :showexpr s where ^lt(@status,20)
-┌─────┬──┬─────┬──────┐
-│city │s#│sname│status│
-├─────┼──┼─────┼──────┤
-│Paris│S2│Jones│10    │
-└─────┴──┴─────┴──────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+└──────────┴────────┴───────────┴───────────────┘
 ```
 
 #### Join
@@ -241,21 +311,22 @@ Joins are binary operators and are applied with the "join" keyword. The equivale
 
 ```
 TutorialD (master/main): :showexpr s join sp
-┌──────┬──┬───┬──┬─────┬──────┐
-│city  │p#│QTY│s#│sname│status│
-├──────┼──┼───┼──┼─────┼──────┤
-│London│P6│100│S1│Smith│20    │
-│London│P3│400│S1│Smith│20    │
-│London│P5│400│S4│Clark│20    │
-│London│P1│300│S1│Smith│20    │
-│Paris │P2│200│S3│Blake│30    │
-│Paris │P1│300│S2│Jones│10    │
-│London│P5│100│S1│Smith│20    │
-│London│P4│300│S4│Clark│20    │
-│Paris │P2│400│S2│Jones│10    │
-│London│P2│200│S1│Smith│20    │
-│London│P4│200│S1│Smith│20    │
-└──────┴──┴───┴──┴─────┴──────┘
+┌──────────┬────────┬────────────┬────────┬───────────┬───────────────┐
+│city::Text│p#::Text│qty::Integer│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼────────────┼────────┼───────────┼───────────────┤
+│"London"  │"P2"    │200         │"S1"    │"Smith"    │20             │
+│"London"  │"P6"    │100         │"S1"    │"Smith"    │20             │
+│"London"  │"P3"    │400         │"S1"    │"Smith"    │20             │
+│"Paris"   │"P2"    │400         │"S2"    │"Jones"    │10             │
+│"London"  │"P5"    │400         │"S4"    │"Clark"    │20             │
+│"Paris"   │"P1"    │300         │"S2"    │"Jones"    │10             │
+│"London"  │"P1"    │300         │"S1"    │"Smith"    │20             │
+│"Paris"   │"P2"    │200         │"S3"    │"Blake"    │30             │
+│"London"  │"P4"    │300         │"S4"    │"Clark"    │20             │
+│"London"  │"P2"    │200         │"S4"    │"Clark"    │20             │
+│"London"  │"P4"    │200         │"S1"    │"Smith"    │20             │
+│"London"  │"P5"    │100         │"S1"    │"Smith"    │20             │
+└──────────┴────────┴────────────┴────────┴───────────┴───────────────┘
 ```
 
 As a convenience, `tutd` also supports semijoin (`matching`) and antijoin (`not matching`) syntax.
@@ -269,16 +340,16 @@ As a convenience, `tutd` also supports semijoin (`matching`) and antijoin (`not 
 The binary union operator merges tuples from both relations if-and-only-if the attributes of both relations are identical. The SQL equivalent is the "UNION" operator. Unlike SQL, however, duplicate tuples are not tolerated, so there is no "UNION ALL" equivalent in the relational algebra.
 
 ```
-TutorialD (master/main): :showexpr S union S
-┌──────┬──┬─────┬──────┐
-│city  │s#│sname│status│
-├──────┼──┼─────┼──────┤
-│Paris │S3│Blake│30    │
-│London│S4│Clark│20    │
-│Athens│S5│Adams│30    │
-│London│S1│Smith│20    │
-│Paris │S2│Jones│10    │
-└──────┴──┴─────┴──────┘
+TutorialD (master/main): :showexpr s union s
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"London"  │"S4"    │"Clark"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
 ```
 
 The union of any relation with itself is itself.
@@ -289,15 +360,15 @@ The extend unary operator adds an attribute to a relation's header and body and 
 
 ```
 TutorialD (master/main): :showexpr s:{status2:=add(10,@status)}
-┌──────┬──┬─────┬──────┬───────┐
-│city  │s#│sname│status│status2│
-├──────┼──┼─────┼──────┼───────┤
-│Paris │S2│Jones│10    │20     │
-│Athens│S5│Adams│30    │40     │
-│Paris │S3│Blake│30    │40     │
-│London│S1│Smith│20    │30     │
-│London│S4│Clark│20    │30     │
-└──────┴──┴─────┴──────┴───────┘
+┌──────────┬────────┬───────────┬───────────────┬────────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│status2::Integer│
+├──────────┼────────┼───────────┼───────────────┼────────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │20              │
+│"Athens"  │"S5"    │"Adams"    │30             │40              │
+│"London"  │"S4"    │"Clark"    │20             │30              │
+│"Paris"   │"S3"    │"Blake"    │30             │40              │
+│"London"  │"S1"    │"Smith"    │20             │30              │
+└──────────┴────────┴───────────┴───────────────┴────────────────┘
 ```
 
 The "@" is required in the above query in order to distinguish the attribute's name from a relation's name.
@@ -323,27 +394,27 @@ The group operator can also be used to emulate functionality similar to SQL's OU
 
 ```
 TutorialD (master/main): :showexpr s group ({sname,status,s#} as subrel)
-┌──────┬─────────────────┐
-│city  │subrel           │
-├──────┼─────────────────┤
-│Athens│┌──┬─────┬──────┐│
-│      ││s#│sname│status││
-│      │├──┼─────┼──────┤│
-│      ││S5│Adams│30    ││
-│      │└──┴─────┴──────┘│
-│London│┌──┬─────┬──────┐│
-│      ││s#│sname│status││
-│      │├──┼─────┼──────┤│
-│      ││S1│Smith│20    ││
-│      ││S4│Clark│20    ││
-│      │└──┴─────┴──────┘│
-│Paris │┌──┬─────┬──────┐│
-│      ││s#│sname│status││
-│      │├──┼─────┼──────┤│
-│      ││S3│Blake│30    ││
-│      ││S2│Jones│10    ││
-│      │└──┴─────┴──────┘│
-└──────┴─────────────────┘
+┌──────────┬───────────────────────────────────────────────────────┐
+│city::Text│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼───────────────────────────────────────────────────────┤
+│"Athens"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S5"    │"Adams"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"Paris"   │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S2"    │"Jones"    │10             │                 │
+│          ││"S3"    │"Blake"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"London"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S4"    │"Clark"    │20             │                 │
+│          ││"S1"    │"Smith"    │20             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+└──────────┴───────────────────────────────────────────────────────┘
 ```
 
 #### Ungroup
@@ -352,15 +423,15 @@ The unary ungroup operator "unwraps" subrelations in a relation-valued attribute
 
 ```
 TutorialD (master/main): :showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel
-┌──────┬──┬─────┬──────┐
-│city  │s#│sname│status│
-├──────┼──┼─────┼──────┤
-│Paris │S3│Blake│30    │
-│London│S4│Clark│20    │
-│Athens│S5│Adams│30    │
-│London│S1│Smith│20    │
-│Paris │S2│Jones│10    │
-└──────┴──┴─────┴──────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+└──────────┴────────┴───────────┴───────────────┘
 ```
 
 #### Minus
@@ -393,11 +464,11 @@ The relation variable assignment mentioned above certainly changes the state of 
 ```
 TutorialD (master/main): newrelvar:=relation{tuple{age 3}}
 TutorialD (master/main): :showexpr newrelvar
-┌───┐
-│age│
-├───┤
-│3  │
-└───┘
+┌────────────┐
+│age::Integer│
+├────────────┤
+│3           │
+└────────────┘
 ```
 
 All further operators are convenience operators and could be implemented with simple assignment. SQL has no equivalent to relational assignment; instead, one must issue "CREATE TABLE" commands and insert rows into the resultant tables.
@@ -419,16 +490,16 @@ The insert operators accepts a relation variable and a relation of the same type
 ```
 TutorialD (master/main): insert s relation{tuple{city "Boston",s# "S10",sname "Gonzalez",status 10}}
 TutorialD (master/main): :showexpr s
-┌──────┬───┬────────┬──────┐
-│city  │s# │sname   │status│
-├──────┼───┼────────┼──────┤
-│Paris │S3 │Blake   │30    │
-│London│S4 │Clark   │20    │
-│Athens│S5 │Adams   │30    │
-│London│S1 │Smith   │20    │
-│Paris │S2 │Jones   │10    │
-│Boston│S10│Gonzalez│10    │
-└──────┴───┴────────┴──────┘
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Boston"  │"S10"   │"Gonzalez" │10             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+└──────────┴────────┴───────────┴───────────────┘
 ```
 
 This insertion operation is equivalent to:
@@ -443,15 +514,15 @@ The update operator accepts a relation argument and a predicate, optionally filt
 ```
 TutorialD (master/main): update s where status=20 (sname:="Mr. Twenty")
 TutorialD (master/main): :showexpr s
-┌──────┬──┬──────────┬──────┐
-│city  │s#│sname     │status│
-├──────┼──┼──────────┼──────┤
-│Paris │S3│Blake     │30    │
-│London│S1│Mr. Twenty│20    │
-│Athens│S5│Adams     │30    │
-│Paris │S2│Jones     │10    │
-│London│S4│Mr. Twenty│20    │
-└──────┴──┴──────────┴──────┘
+┌──────────┬────────┬────────────┬───────────────┐
+│city::Text│s#::Text│sname::Text │status::Integer│
+├──────────┼────────┼────────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"     │10             │
+│"London"  │"S1"    │"Mr. Twenty"│20             │
+│"Paris"   │"S3"    │"Blake"     │30             │
+│"London"  │"S4"    │"Mr. Twenty"│20             │
+│"Athens"  │"S5"    │"Adams"     │30             │
+└──────────┴────────┴────────────┴───────────────┘
 ```
 
 This is logically equivalent to:
@@ -459,15 +530,15 @@ This is logically equivalent to:
 ```
 TutorialD (master/main): s:=(((s where status=20){city,s#,status}):{sname:="Mr. Twenty"}) union (s where not status=20)
 TutorialD (master/main): :showexpr s
-┌──────┬──┬──────────┬──────┐
-│city  │s#│sname     │status│
-├──────┼──┼──────────┼──────┤
-│Paris │S3│Blake     │30    │
-│London│S1│Mr. Twenty│20    │
-│Athens│S5│Adams     │30    │
-│Paris │S2│Jones     │10    │
-│London│S4│Mr. Twenty│20    │
-└──────┴──┴──────────┴──────┘
+┌──────────┬────────┬────────────┬───────────────┐
+│city::Text│s#::Text│sname::Text │status::Integer│
+├──────────┼────────┼────────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"     │10             │
+│"London"  │"S1"    │"Mr. Twenty"│20             │
+│"Paris"   │"S3"    │"Blake"     │30             │
+│"London"  │"S4"    │"Mr. Twenty"│20             │
+│"Athens"  │"S5"    │"Adams"     │30             │
+└──────────┴────────┴────────────┴───────────────┘
 ```
 
 This query means: "Drop the sname attribute from S filtered where status equals 20, extend the resultant relation by sname with value 'Mr. Twenty', then union the resultant relation with S filtered by status not equaling 20, and assign that to S."
@@ -479,19 +550,19 @@ The delete operator accepts a relation argument and a filtering predicate, creat
 ```
 TutorialD (master/main): delete sp where s#="S4"
 TutorialD (master/main): :showexpr sp
-┌──┬───┬──┐
-│p#│QTY│s#│
-├──┼───┼──┤
-│P3│400│S1│
-│P4│200│S1│
-│P2│400│S2│
-│P2│200│S1│
-│P6│100│S1│
-│P1│300│S1│
-│P2│200│S3│
-│P1│300│S2│
-│P5│100│S1│
-└──┴───┴──┘
+┌────────┬────────────┬────────┐
+│p#::Text│qty::Integer│s#::Text│
+├────────┼────────────┼────────┤
+│"P2"    │200         │"S3"    │
+│"P2"    │400         │"S2"    │
+│"P1"    │300         │"S1"    │
+│"P5"    │100         │"S1"    │
+│"P4"    │200         │"S1"    │
+│"P1"    │300         │"S2"    │
+│"P3"    │400         │"S1"    │
+│"P2"    │200         │"S1"    │
+│"P6"    │100         │"S1"    │
+└────────┴────────────┴────────┘
 ```
 
 This is logically equivalent to:
@@ -526,7 +597,7 @@ Foreign keys are constraints which require that certain values appearing in one 
 TutorialD (master/main): foreign key s#_in_sp sp{s#} in s{s#}
 ```
 
-This expression ensure that any sp{s#} must also appear as a value in s{s#}. Note that the sub-expression (on the left of "in") and the super-expression (on the right) must be of the same relation type- the generated relation values' attribute names and types must be equal. Use `rename` to make attribute names identical. 
+This expression ensure that any sp{s#} must also appear as a value in s{s#}. Note that the sub-expression (on the left of "in") and the super-expression (on the right) must be of the same relation type- the generated relation values' attribute names and types must be equal. Use `rename` to make attribute names identical.
 
 #### Functional dependencies
 
@@ -560,27 +631,27 @@ SQL supports aggregate queries using aggregate functions (SUM(), COUNT(), AVERAG
 
 ```
 TutorialD (master/main): :showexpr s group ({s#,sname,status} as subrel):{citycount:=count(@subrel)}
-┌──────┬─────────┬─────────────────┐
-│city  │citycount│subrel           │
-├──────┼─────────┼─────────────────┤
-│Paris │2        │┌──┬─────┬──────┐│
-│      │         ││s#│sname│status││
-│      │         │├──┼─────┼──────┤│
-│      │         ││S3│Blake│30    ││
-│      │         ││S2│Jones│10    ││
-│      │         │└──┴─────┴──────┘│
-│London│2        │┌──┬─────┬──────┐│
-│      │         ││s#│sname│status││
-│      │         │├──┼─────┼──────┤│
-│      │         ││S1│Smith│20    ││
-│      │         ││S4│Clark│20    ││
-│      │         │└──┴─────┴──────┘│
-│Athens│1        │┌──┬─────┬──────┐│
-│      │         ││s#│sname│status││
-│      │         │├──┼─────┼──────┤│
-│      │         ││S5│Adams│30    ││
-│      │         │└──┴─────┴──────┘│
-└──────┴─────────┴─────────────────┘
+┌──────────┬──────────────────┬───────────────────────────────────────────────────────┐
+│city::Text│citycount::Integer│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼──────────────────┼───────────────────────────────────────────────────────┤
+│"Athens"  │1                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S5"    │"Adams"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"Paris"   │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S2"    │"Jones"    │10             │                 │
+│          │                  ││"S3"    │"Blake"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"London"  │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S4"    │"Clark"    │20             │                 │
+│          │                  ││"S1"    │"Smith"    │20             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+└──────────┴──────────────────┴───────────────────────────────────────────────────────┘
 ```
 
 In this query result, we can simultaneously answer how many suppliers are located in each city and which suppliers they are. The expression is constructed by first grouping to isolate the city, then extending the query to add a attribute containing the tuple count for each subrelation.
@@ -591,3 +662,28 @@ In this query result, we can simultaneously answer how many suppliers are locate
 |sum(relation{int})|return the int sum of the relation's values|
 |max(relation{int})|return the maximum int from all the relation's values|
 |min(relation{int})|return the minimum int from all the relation's values|
+
+#### Arbitrary Relation Variables
+
+For testing purposes, it can be useful to populate a database with randomly generated data. Project:M36 can automatically create such data based solely on the type of the relation.
+
+```
+TutorialD (master/main): createarbitraryrelation employee {name Text, empid Int, hired DateTime} 3-100
+TutorialD (master/main): :showexpr employee
+┌──────────┬───────────────────────┬──────────┐
+│empid::Int│hired::DateTime        │name::Text│
+├──────────┼───────────────────────┼──────────┤
+│23        │1858-11-04 10:50:14 UTC│"LLL"     │
+│22        │1858-12-10 14:53:37 UTC│"LLL"     │
+│25        │1858-11-07 01:14:15 UTC│"SSS"     │
+│-12       │1858-11-06 06:20:57 UTC│"VVV"     │
+│-6        │1858-11-01 16:26:38 UTC│"SSS"     │
+│-1        │1858-10-31 14:41:26 UTC│"DDD"     │
+│-15       │1858-11-26 04:14:03 UTC│"VVV"     │
+│-18       │1858-12-17 00:01:09 UTC│"AAA"     │
+│-9        │1858-10-31 08:36:53 UTC│"XXX"     │
+│4         │1858-11-23 01:48:04 UTC│"VVV"     │
+└──────────┴───────────────────────┴──────────┘
+```
+
+The `createarbitraryrelation` syntax specifies the name of the relation variable, the type for the relation, and then an acceptable range for the tuple count.

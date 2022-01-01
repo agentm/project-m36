@@ -1,49 +1,72 @@
 --parse type and data constructors
 module TutorialD.Interpreter.Types where
 import ProjectM36.Base
-import Text.Megaparsec.Text
 import Text.Megaparsec
 import TutorialD.Interpreter.Base
-import ProjectM36.DataTypes.Primitive
-import qualified Data.Text as T
+
+class RelationalMarkerExpr a where
+  parseMarkerP :: Parser a
+
+instance RelationalMarkerExpr () where
+  parseMarkerP = pure ()
+
+typeConstructorNameP :: Parser TypeConstructorName
+typeConstructorNameP = capitalizedIdentifier
+
+dataConstructorNameP :: Parser DataConstructorName
+dataConstructorNameP = capitalizedIdentifier
+
+attributeNameP :: Parser AttributeName
+attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+
+functionNameP :: Parser FunctionName
+functionNameP = try uncapitalizedIdentifier <|> quotedIdentifier
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
 typeConstructorDefP :: Parser TypeConstructorDef
-typeConstructorDefP = ADTypeConstructorDef <$> capitalizedIdentifier <*> typeVarNamesP
+typeConstructorDefP = ADTypeConstructorDef <$> typeConstructorNameP <*> typeVarNamesP
 
 typeVarNamesP :: Parser [TypeVarName]
-typeVarNamesP = many uncapitalizedIdentifier 
+typeVarNamesP = many typeVariableIdentifierP
   
 -- data Either a b = *Left a* | *Right b*
 dataConstructorDefP :: Parser DataConstructorDef
-dataConstructorDefP = DataConstructorDef <$> capitalizedIdentifier <*> many dataConstructorDefArgP
+dataConstructorDefP = DataConstructorDef <$> typeConstructorNameP <*> many dataConstructorDefArgP
 
 -- data *Either a b* = Left *a* | Right *b*
 dataConstructorDefArgP :: Parser DataConstructorDefArg
-dataConstructorDefArgP = parens (DataConstructorDefTypeConstructorArg <$> typeConstructorP) <|>
-                         DataConstructorDefTypeConstructorArg <$> typeConstructorP <|>
-                         DataConstructorDefTypeVarNameArg <$> uncapitalizedIdentifier
+dataConstructorDefArgP = DataConstructorDefTypeConstructorArg <$> (monoTypeConstructorP <|> parens typeConstructorP) <|>
+                         DataConstructorDefTypeVarNameArg <$> typeConstructorNameP
   
---built-in, nullary type constructors
--- Int, Text, etc.
-primitiveTypeConstructorP :: Parser TypeConstructor
-primitiveTypeConstructorP = choice (map (\(PrimitiveTypeConstructorDef name typ, _) -> do
-                                               tName <- try $ symbol (T.unpack name)
-                                               pure $ PrimitiveTypeConstructor tName typ)
-                                       primitiveTypeConstructorMapping)
+-- relation{a Int} in type construction (no tuples parsed)
+relationTypeConstructorP :: Parser TypeConstructor
+relationTypeConstructorP = do
+  reserved "relation"
+  RelationAtomTypeConstructor <$> makeAttributeExprsP
+  
+--used in relation creation
+makeAttributeExprsP :: RelationalMarkerExpr a => Parser [AttributeExprBase a]
+makeAttributeExprsP = braces (sepBy attributeAndTypeNameP comma)
+
+attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
+attributeAndTypeNameP = AttributeAndTypeNameExpr <$> attributeNameP <*> typeConstructorP <*> parseMarkerP
+
+typeIdentifierP :: Parser TypeConstructorName
+typeIdentifierP = capitalizedIdentifier
+
+typeVariableIdentifierP :: Parser TypeVarName
+typeVariableIdentifierP = uncapitalizedIdentifier
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
-typeConstructorP = primitiveTypeConstructorP <|>
-                   TypeVariable <$> uncapitalizedIdentifier <|>
-                   ADTypeConstructor <$> capitalizedIdentifier <*> many (parens typeConstructorP <|>
-                                                                         monoTypeConstructorP)
+typeConstructorP = relationTypeConstructorP <|>
+                   ADTypeConstructor <$> typeIdentifierP <*> many (monoTypeConstructorP <|> parens typeConstructorP) <|>
+                   monoTypeConstructorP
                    
 monoTypeConstructorP :: Parser TypeConstructor                   
-monoTypeConstructorP = primitiveTypeConstructorP <|>
-  ADTypeConstructor <$> capitalizedIdentifier <*> pure [] <|>
-  TypeVariable <$> uncapitalizedIdentifier
+monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|>
+                       TypeVariable <$> typeVariableIdentifierP
                    
 
 

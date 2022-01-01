@@ -16,9 +16,9 @@ dateExamples = empty { inclusionDependencies = dateIncDeps,
                                  atomFunctions = basicAtomFunctions,
                                  typeConstructorMapping = basicTypeConstructorMapping }
   where -- these must be lower case now that data constructors are in play
-    dateRelVars = M.fromList [("s", suppliers),
-                              ("p", products),
-                              ("sp", supplierProducts)]
+    dateRelVars = M.fromList [("s", ExistingRelation suppliers),
+                              ("p", ExistingRelation products),
+                              ("sp", ExistingRelation supplierProducts)]
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel

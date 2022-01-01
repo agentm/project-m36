@@ -5,9 +5,13 @@ import ProjectM36.Client
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
 import System.IO
+import GHC.IO.Encoding
 import Options.Applicative
 import System.Exit
+import Control.Monad
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -18,50 +22,41 @@ import qualified Data.Text as T
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseTutDExec <*> many parseGhcPkgPath <*> parseCheckFS <|>
-            RemoteInterpreterConfig <$> parseNodeId <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS
+            RemoteInterpreterConfig <$> parseHostname "127.0.0.1" <*> parsePort defaultServerPort <*> parseDatabaseName <*> parseHeadName <*> parseTutDExec <*> parseCheckFS
 
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
                              help "Start session at head name." <>
+                             metavar "GRAPH HEAD NAME" <>
                              value "master"
                             )
 
-parseNodeId :: Parser NodeId
-parseNodeId = createNodeId <$> 
-              strOption (long "host" <> 
-                         short 'h' <>
-                         help "Remote host name" <>
-                         value "127.0.0.1") <*> 
-              option auto (long "port" <>
-                           short 'p' <>
-                      help "Remote port" <>
-                      value defaultServerPort)
-              
 --just execute some tutd and exit
 parseTutDExec :: Parser (Maybe TutorialDExec)
 parseTutDExec = optional $ strOption (long "exec-tutd" <>
                            short 'e' <>
+                           metavar "TUTORIALD" <>
                            help "Execute TutorialD expression and exit"
                            )
 
 opts :: ParserInfo InterpreterConfig            
-opts = info parseArgs idm
+opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
-connectionInfoForConfig (RemoteInterpreterConfig remoteNodeId remoteDBName _ _ _) = RemoteProcessConnectionInfo remoteDBName remoteNodeId outputNotificationCallback
+connectionInfoForConfig (RemoteInterpreterConfig remoteHost remotePort remoteDBName _ _ _) = RemoteConnectionInfo remoteDBName remoteHost (show remotePort) outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn _ _ _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ headn _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ _ headn _ _) = headn
 
 execTutDForConfig :: InterpreterConfig -> Maybe String
 execTutDForConfig (LocalInterpreterConfig _ _ t _ _) = t
-execTutDForConfig (RemoteInterpreterConfig _ _ _ t _) = t
+execTutDForConfig (RemoteInterpreterConfig _ _ _ _ t _) = t
 
 checkFSForConfig :: InterpreterConfig -> Bool
 checkFSForConfig (LocalInterpreterConfig _ _ _ _ c) = c
-checkFSForConfig (RemoteInterpreterConfig _ _ _ _ c) = c
+checkFSForConfig (RemoteInterpreterConfig _ _ _ _ _ c) = c
 
 persistenceStrategyForConfig :: InterpreterConfig -> Maybe PersistenceStrategy
 persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _) = Just strat
@@ -80,8 +75,15 @@ printWelcome = do
   putStrLn "A full tutorial is available at:"
   putStrLn "https://github.com/agentm/project-m36/blob/master/docs/tutd_tutorial.markdown"
 
+-- | If the locale is set to ASCII, upgrade it to UTF-8 because tutd outputs UTF-8-encoded attributes. This is especially important in light docker images where the locale data may be missing.
+setLocaleIfNecessary :: IO ()
+setLocaleIfNecessary = do
+  l <- getLocaleEncoding
+  when (textEncodingName l == "ASCII") (setLocaleEncoding utf8)
+    
 main :: IO ()
 main = do
+  setLocaleIfNecessary
   interpreterConfig <- execParser opts
   let connInfo = connectionInfoForConfig interpreterConfig
   fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))

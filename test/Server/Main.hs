@@ -5,7 +5,6 @@ test client/server interaction
 import Test.HUnit
 import ProjectM36.Client
 import qualified ProjectM36.Client as C
-import ProjectM36.Server.EntryPoints
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
@@ -14,16 +13,17 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Base
 
 import System.Exit
-
+import Network.Socket (SockAddr(..))
 import Control.Concurrent
-import Network.Transport (EndPointAddress)
-import Network.Transport.TCP (encodeEndPointAddress, decodeEndPointAddress)
 import Data.Either (isRight)
 import Control.Exception
---import Control.Monad.IO.Class
+import System.IO.Temp
+import System.FilePath
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
+
+type Timeout = Int
 
 testList :: SessionId -> Connection -> MVar () -> Test
 testList sessionId conn notificationTestMVar = TestList $ serverTests ++ sessionTests
@@ -42,8 +42,8 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [testRequestTimeout, testFileDescriptorCount]
-           
+    serverTests = [testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
+
 main :: IO ()
 main = do
   (serverAddress, _) <- launchTestServer 0
@@ -62,11 +62,9 @@ main = do
 testDatabaseName :: DatabaseName
 testDatabaseName = "test"
 
-testConnection :: EndPointAddress -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
-testConnection serverAddress mvar = do
-  let Just (host, service, _) = decodeEndPointAddress serverAddress
-      serverAddress' = encodeEndPointAddress host service 1  
-  let connInfo = RemoteProcessConnectionInfo testDatabaseName (NodeId serverAddress') (testNotificationCallback mvar)
+testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
+testConnection serverPort mvar = do
+  let connInfo = RemoteConnectionInfo testDatabaseName "127.0.0.1" (show serverPort) (testNotificationCallback mvar)
   --putStrLn ("testConnection: " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
@@ -78,18 +76,23 @@ testConnection serverAddress mvar = do
         Right sessionId -> pure $ Right (sessionId, conn)
 
 -- | A version of 'launchServer' which returns the port on which the server is listening on a secondary thread
-launchTestServer :: Timeout -> IO (EndPointAddress, ThreadId)
+launchTestServer :: Timeout -> IO (Port, ThreadId)
 launchTestServer ti = do
-  let config = defaultServerConfig { databaseName = testDatabaseName, 
-                                     perRequestTimeout = ti,
-                                     testMode = True,
-                                     bindPort = 0
-                                   }
   addressMVar <- newEmptyMVar
-  tid <- forkIO $ launchServer config (Just addressMVar) >> pure ()
-  endPointAddress <- takeMVar addressMVar
+  tid <- forkIO $ 
+    withSystemTempDirectory "projectm36test" $ \tempdir -> do
+      let config = defaultServerConfig { databaseName = testDatabaseName, 
+                                         persistenceStrategy = CrashSafePersistence (tempdir </> "db"),
+                                         perRequestTimeout = ti,
+                                         testMode = True,
+                                         bindPort = 0,
+                                         checkFS = False --not stricly needed for these tests
+                                       }
+    
+      launchServer config (Just addressMVar) >> pure ()
+  (SockAddrInet port _) <- takeMVar addressMVar
   --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
-  pure (endPointAddress, tid)
+  pure (fromIntegral port, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
 testRelationalExpr sessionId conn = TestCase $ do
@@ -135,10 +138,11 @@ testPlanForDatabaseContextExpr sessionId conn = TestCase $ do
   let attrExprs = [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType) ()]
       testrv = "testrv"
       dbExpr = Define testrv attrExprs
+      expected = Define testrv [AttributeAndTypeNameExpr "x" (PrimitiveTypeConstructor "Int" IntAtomType) UncommittedContextMarker]
   planResult <- planForDatabaseContextExpr sessionId conn dbExpr
   case planResult of
     Left err -> assertFailure (show err)
-    Right plan -> assertEqual "planForDatabaseContextExpr failure" dbExpr plan
+    Right plan -> assertEqual "planForDatabaseContextExpr failure" expected plan
         
 testTransactionGraphAsRelation :: SessionId -> Connection -> Test    
 testTransactionGraphAsRelation sessionId conn = TestCase $ do
@@ -204,28 +208,41 @@ testRequestTimeout = TestCase $ do
     Left err -> putStrLn ("failed to connect: " ++ show err) >> exitFailure
     Right (session, testConn) -> do
       res <- catchJust (\exc -> if exc == RequestTimeoutException then Just exc else Nothing) (callTestTimeout_ session testConn) (const (pure False))
-      assertBool "exception was not thrown" (not res)
+      assertBool "timeout exception was not thrown" (not res)
       killThread serverTid
       
 testFileDescriptorCount :: Test
 #if defined(linux_HOST_OS)
 --validate that creating a server, connecting a client, and then disconnecting doesn't leak file descriptors
 testFileDescriptorCount = TestCase $ do
-  (serverAddress, serverTid) <- launchTestServer 1000
-  startCount <- fdCount
+  (serverAddress, serverTid) <- launchTestServer 0
   unusedMVar <- newEmptyMVar
-  Right (_, testConn) <- testConnection serverAddress unusedMVar
+  startCount <- fdCount  
+  Right (sess, testConn) <- testConnection serverAddress unusedMVar
+  --add a test commit to trigger the fsync machinery
+  executeDatabaseContextExpr sess testConn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
+  commit sess testConn >>= eitherFail
   close testConn
   endCount <- fdCount
-  assertBool "fd leak" (endCount - startCount <= 1)
+  let fd_diff = endCount - startCount
+  assertBool ("fd leak: " ++ show fd_diff) (fd_diff <= 0)
   killThread serverTid
+
   
 -- returns the number of open file descriptors -- linux only /proc usage
 fdCount :: IO Int
 fdCount = do
   fds <- getDirectoryContents "/proc/self/fd"
-  pure ((length fds) - 2)
+  pure (length fds)
 #else 
 --pass on non-linux platforms
 testFileDescriptorCount = TestCase (pure ())
 #endif
+
+testClientConnectFail :: Test
+testClientConnectFail = TestCase $ do
+  let connInfo = RemoteConnectionInfo "nonexistentdb" "127.0.0.1" "7777" emptyNotificationCallback
+  eConn <- connectProjectM36 connInfo
+  case eConn of
+    Left (IOExceptionError _) -> pure ()
+    _ -> assertFailure "connection failure failed"

@@ -1,5 +1,5 @@
 -- the Out-of-the-Tarpit example in Haskell and Project:M36
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, DerivingVia #-}
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Tupleable
@@ -7,11 +7,11 @@ import ProjectM36.Relation
 import ProjectM36.Error
 import Data.Either
 import GHC.Generics
-import Data.Binary
 import Control.DeepSeq
 import qualified Data.Text as T
 import Data.Time.Calendar
 import Data.Proxy
+import Codec.Winery
 
 --create various database value (atom) types
 type Price = Double
@@ -21,16 +21,20 @@ type Name = T.Text
 type Address = T.Text
 
 data RoomType = Kitchen | Bathroom | LivingRoom
-          deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+          deriving (Generic, Atomable, Eq, Show, NFData)
+          deriving Serialise via WineryVariant RoomType
                    
 data PriceBand = Low | Medium | High | Premium
-               deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+               deriving (Generic, Atomable, Eq, Show, NFData)
+               deriving Serialise via WineryVariant PriceBand
                         
 data AreaCode = City | Suburban | Rural
-              deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+              deriving (Generic, Atomable, Eq, Show, NFData)
+              deriving Serialise via WineryVariant AreaCode
 
 data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand 
-               deriving (Generic, Atomable, Eq, Show, Binary, NFData)
+               deriving (Generic, Atomable, Eq, Show, NFData)
+               deriving Serialise via WineryVariant SpeedBand
 
 main :: IO ()
 main = do

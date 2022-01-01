@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Relation.Show.CSV where
 import ProjectM36.Base
-import ProjectM36.Attribute
+import ProjectM36.Attribute as A
 import Data.Csv
 import ProjectM36.Tuple
 import qualified Data.ByteString.Lazy as BS
@@ -17,13 +17,13 @@ relationAsCSV (Relation attrs tupleSet)
   | relValAttrs /= [] = 
     Left $ RelationValuedAttributesNotSupportedError (map attributeName relValAttrs)
  --check that there is at least one attribute    
-  | V.null attrs =
+  | A.null attrs =
       Left $ TupleAttributeCountMismatchError 0
   | otherwise = 
     Right $ encodeByName bsAttrNames $ map RecordRelationTuple (asList tupleSet)
   where
-    relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) attrs
-    bsAttrNames = V.map (TE.encodeUtf8 . attributeName) attrs
+    relValAttrs = V.toList $ V.filter (isRelationAtomType . atomType) (attributesVec attrs)
+    bsAttrNames = V.map (TE.encodeUtf8 . attributeName) (attributesVec attrs)
 
 {-
 instance ToRecord RelationTuple where
@@ -36,12 +36,12 @@ instance ToNamedRecord RecordRelationTuple where
   toNamedRecord rTuple = namedRecord $ map (\(k,v) -> TE.encodeUtf8 k .= RecordAtom v) (tupleAssocs $ unTuple rTuple)
   
 instance DefaultOrdered RecordRelationTuple where  
-  headerOrder (RecordRelationTuple tuple) = V.map (TE.encodeUtf8 . attributeName) (tupleAttributes tuple)
+  headerOrder (RecordRelationTuple tuple) = V.map (TE.encodeUtf8 . attributeName) (attributesVec (tupleAttributes tuple))
   
 newtype RecordAtom = RecordAtom {unAtom :: Atom}
       
 instance ToField RecordAtom where
-  toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --squelch extraneous quotes for text type- the CSV library will add them if necessary
+  toField (RecordAtom (TextAtom atomVal)) = TE.encodeUtf8 atomVal --without this, CSV text atoms are doubly quoted
   toField (RecordAtom atomVal) = (TE.encodeUtf8 . atomToText) atomVal
 
                

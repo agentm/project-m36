@@ -6,7 +6,7 @@ While Project:M36 includes a set of basic function which operate on relational v
 
 Other DBMSes also include this feature by way of stored functions such as with PL/pgsql, T-SQL, or PL/SQL.
 
-Project:M36 allows users to implement strongly-typed and pure atom functions in the Haskell language at runtime. This facility makes use of GHC, the Haskell compiler, as a runtime service.
+Project:M36 allows users to implement strongly-typed and pure atom functions in the Haskell language at runtime. This facility makes use of GHC, the Haskell compiler, as a runtime service. Alternatively, Haskell-based atom functions can be pre-compiled and loaded at runtime.
 
 ## Atom Function Example
 
@@ -15,7 +15,7 @@ In this example, we install an atom function to convert between Fahrenheit and C
 We write the function giving it the name "celsiusToFahrenheit" with type ```Int -> Int``` which indicates to the compiler that the function take one ```Int``` argument value and returns one ```Int``` value. Finally, the body of the function is implemented in quotes or triple-quotes. Note that the function makes use of the "[ProjectM36.Base](/src/lib/ProjectM36/Base.hs)" module to handle the Atom type. The function must take a list of Atoms as arguments and return an Atom. The standard GHC Prelude is available in this AtomFunctionBody context.
 
 ```
-TutorialD (master/main): addatomfunction "celsiusToFahrenheit" Int -> Either AtomFunctionError Int """(\\((IntAtom c):_) -> pure $ IntAtom ( (c * 9 `div` 5) + 32)) :: [Atom] -> Either AtomFunctionError Atom"""
+TutorialD (master/main): addatomfunction "celsiusToFahrenheit" Int -> Either AtomFunctionError Int """(\((IntAtom c):_) -> pure $ IntAtom ( (c * 9 `div` 5) + 32)) :: [Atom] -> Either AtomFunctionError Atom"""
 ```
 
 Using triple-quotes allows quotes to be used inside the string without backslash escaping, which can become tedious. The sum type using ```Either``` allows the function to return an error, if necessary.
@@ -40,6 +40,51 @@ Project:M36 also supports polymorphic types when used with atom functions. Here 
 ```
 addatomfunction "idTest" a -> Either AtomFunctionError a "(\(x:_) -> pure x) :: [Atom] -> Either AtomFunctionError Atom"
 ```
+
+## Pre-compiled Atom Functions
+
+*WARNING* Loading object files into the database can be a security and/or and database integrity issue. Project:M36 relies on calculating past states of the database. For this reason, it is inadvisable to alter object files once they are loaded into a database. Changing these object files could corrupt the database. Treat object files loaded as read-only. Use version numbers in the object file names to allow for future revisions.
+
+Compiling atom functions at runtime can incur a performance cost. To mitigate this, atom functions can be compiled by GHC to object files and then loaded into the Project:M36 server. Let's look at an [example](https://github.com/agentm/project-m36/):
+
+```haskell
+module DynamicAtomFunctions where
+import ProjectM36.Base
+
+someAtomFunctions :: [AtomFunction]
+someAtomFunctions = [AtomFunction{
+                    atomFuncName = "constTrue",
+                    atomFuncType = [TypeVariableType "a", BoolAtomType],
+                    atomFuncBody = AtomFunctionBody Nothing (\(x:_) -> pure (BoolAtom True))}]
+```
+
+Any function inside any module which returns a list of `AtomFunction`s can be used to load more atom functions. First, create the Haskell object file:
+
+`cabal exec ghc -- examples/DynamicAtomFunctions.hs -package project-m36`
+
+If you wish to link against libraries which Project:M36 does not include, then you may create a shared object file:
+
+`cabal exec ghc -- examples/DynamicAtomFunctions.hs -package project-m36 -package <extra pkg if necessary> -dynamic -shared -fPIC -o examples/DynamicAtomFunctions.so`
+
+Use cabal or stack to invoke ghc so that the project-m36 installed package will be found.
+
+Finally, connect to your Project:M36 database using the `tutd` client and run:
+
+`TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "examples/DynamicAtomFunctions.o"`
+
+or replace the `.o` with `.so` if you built a shared object.
+
+Note that persistent databases (which keep the database on disk) include an additional security feature which ensures that the object file is present within the database directory. This ensures that only the database owner can load object modules and also that the module does not get lost elsewhere in the filesystem. 
+
+If your database is running in persistent mode, then loading the object modules is slightly different. First, copy the compiled object file into  `<database directory>/compiled_modules`, then:
+
+`TutorialD (master/main): loadatomfunctions "DynamicAtomFunctions" "someFunctions" "DynamicAtomFunctions.o"`
+
+or `DynamicAtomFunctions.so` if you built a shared object file.
+
+If you see an error such as "unknown symbol", the version of the "project-m36" library installed in your sandbox is different from that with which you linked the object file. Make sure that the same versions are used in linking the server and object file.
+
+The atom function is now loaded and ready-to-use.
 
 ## Differences when compared to other DBMSes
 

@@ -1,5 +1,5 @@
 -- a simple example of a blog schema
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, OverloadedStrings, CPP, DerivingVia #-}
 
 import ProjectM36.Client
 import ProjectM36.Base
@@ -10,16 +10,18 @@ import ProjectM36.Tuple (atomForAttributeName)
 
 import Data.Either
 import GHC.Generics
-import Data.Binary
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
 import Data.Proxy
+#if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
+#endif
 import Data.List
 import Control.Monad (when, forM_)
+import Codec.Winery
 
 import Web.Scotty as S
 import Text.Blaze.Html5 (h1, h2, h3, p, form, input, (!), toHtml, Html, a, toValue, hr, textarea)
@@ -33,7 +35,7 @@ import Data.Time.Format
 data Blog = Blog {
   title :: T.Text,
   entry :: T.Text,
-  stamp :: UTCTime,
+  tstamp :: UTCTime,
   category :: Category --note that this type is an algebraic data type
   }
           deriving (Generic, Show) --derive Generic so that Tupleable can use default instances
@@ -50,7 +52,8 @@ data Comment = Comment {
 instance Tupleable Comment             
 
 data Category = Food | Cats | Photos | Other T.Text -- note that this data type could not be represented by an "enumeration" as found in SQL databases
-              deriving (Atomable, Eq, Show, NFData, Binary, Generic) -- derive Atomable so that values of this type can be stored as a database value
+              deriving (Atomable, Eq, Show, NFData, Generic) -- derive Atomable so that values of this type can be stored as a database value
+              deriving Serialise via WineryVariant Category -- derive Serialisable to be able to transmit this data remotely
                        
 -- add some short-hand error handling- your application should have proper handling
 handleIOError :: Show e => IO (Either e a) -> IO a
@@ -103,11 +106,11 @@ insertSampleData :: SessionId -> Connection -> IO ()
 insertSampleData sessionId conn = do
   let blogs = [Blog { title = "Haskell Lenses",
                       entry = "I wear Haskell rose-colored lenses.",
-                      stamp = UTCTime (fromGregorian 2017 5 8) (secondsToDiffTime 1000),
+                      tstamp = UTCTime (fromGregorian 2017 5 8) (secondsToDiffTime 1000),
                       category = Food },
                Blog { title = "Haskell Monad Analogy",
                       entry = "Monads are like burritos going through intestines.",
-                      stamp = UTCTime (fromGregorian 2017 6 10) (secondsToDiffTime 2000),
+                      tstamp = UTCTime (fromGregorian 2017 6 10) (secondsToDiffTime 2000),
                       category = Cats }
                ]
       comments = [Comment { blogTitle = "Haskell Lenses",
@@ -136,7 +139,7 @@ listBlogs sessionId conn = do
     Left err -> render500 (toHtml (show err))
     Right blogRel -> do
       blogs <- liftIO (toList blogRel) >>= mapM (handleWebError . fromTuple) :: ActionM [Blog]
-      let sortedBlogs = sortBy (\b1 b2 -> stamp b1 `compare` stamp b2) blogs
+      let sortedBlogs = sortBy (\b1 b2 -> tstamp b1 `compare` tstamp b2) blogs
       html . renderHtml $ do
         h1 "Blog Posts"
         forM_ sortedBlogs $ \blog -> a ! href (toValue $ "/blog/" <> title blog) $ h2 (toHtml (title blog))
@@ -182,7 +185,7 @@ showBlogEntry sessionId conn = do
           render $ do
             --show blog details
             h1 (toHtml (title blog))
-            p (toHtml ("Posted at " <> formatStamp (stamp blog) <> " under " <> show (category blog)))
+            p (toHtml ("Posted at " <> formatStamp (tstamp blog) <> " under " <> show (category blog)))
             p (toHtml (entry blog))
             hr
             h3 "Comments"

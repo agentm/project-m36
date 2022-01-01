@@ -1,7 +1,5 @@
 module TutorialD.Interpreter.SchemaOperator where
 import Text.Megaparsec
-import Text.Megaparsec.Text
-
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Session
@@ -44,7 +42,7 @@ isoRestrictP = do
   reserved "isorestrict"
   relVarIn <- qrelVarP
   relvarsOut <- isoRestrictOutRelVarsP
-  IsoRestrict <$> pure relVarIn <*> restrictionPredicateP <*> pure relvarsOut
+  IsoRestrict relVarIn <$> restrictionPredicateP <*> pure relvarsOut
   
 isoRestrictOutRelVarsP :: Parser (RelVarName, RelVarName)  
 isoRestrictOutRelVarsP = (,) <$> qrelVarP <*> qrelVarP
@@ -57,7 +55,7 @@ isoUnionP = do
   reserved "isounion"
   relVarsIn <- isoUnionInRelVarsP
   relVarsOut <- qrelVarP
-  IsoUnion <$> pure relVarsIn <*> restrictionPredicateP <*> pure relVarsOut
+  IsoUnion relVarsIn <$> restrictionPredicateP <*> pure relVarsOut
   
 isoRenameP :: Parser SchemaIsomorph
 isoRenameP = do
