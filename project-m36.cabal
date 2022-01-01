@@ -211,7 +211,7 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.SchemaOperator,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
-                   TutorialD.Interpreter.SchemaOperator
+                   TutorialD.Interpreter.SchemaOperator,
                    TutorialD.Printer
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
@@ -510,7 +510,7 @@ Executable handles
       TutorialD.Interpreter.SchemaOperator,
       TutorialD.Interpreter.TransGraphRelationalOperator,
       TutorialD.Interpreter.TransactionGraphOperator,
-      TutorialD.Interpreter.Types
+      TutorialD.Interpreter.Types,
       TutorialD.Printer
     GHC-Options: -Wall -threaded -rtsopts
     HS-Source-Dirs: ./src/bin
