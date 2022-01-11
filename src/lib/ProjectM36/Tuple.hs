@@ -101,6 +101,7 @@ singleTupleSetJoin joinAttrs tup tupSet =
         Right Nothing -> Right accumulator
         Right (Just relTuple) -> Right $ relTuple : accumulator
         Left err -> Left err
+
             
 {-            
 singleTupleSetJoin :: RelationTuple -> RelationTupleSet -> RelationTupleSet
@@ -146,17 +147,8 @@ tupleAtomExtend newAttrName atom tupIn = tupleExtend tupIn newTup
   where
     newTup = RelationTuple (A.singleton $ Attribute newAttrName (atomTypeForAtom atom)) (V.singleton atom)
 
-{-tupleProject :: S.Set AttributeName -> RelationTuple -> RelationTuple
-tupleProject projectAttrs (RelationTuple attrs tupVec) = RelationTuple newAttrs newTupVec
-  where
-    deleteIndices = V.findIndices (\attr -> S.notMember (attributeName attr) projectAttrs) (attributesVec attrs)
-    indexDeleter = V.ifilter (\index _ -> V.notElem index deleteIndices)
-    newAttrs = case A.projectionAttributesForNames projectAttrs attrs of
-                 Left err -> error (show (err, projectAttrs, attrs))
-                 Right attrs' ->  attrs'
-    newTupVec = indexDeleter tupVec
--}
 -- remember that the attributes order matters
+-- we prefer to pass attributes so that we don't have look up attribute ordering for every tuple (was a bottleneck)
 tupleProject :: Attributes -> RelationTuple -> Either RelationalError RelationTuple
 tupleProject projectAttrs tup = do
   newTupVec <- foldM (\acc attr ->

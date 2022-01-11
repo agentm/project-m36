@@ -39,11 +39,11 @@ type LockFileHash = ByteString
 The "m36vX" file at the top-level of the destination directory contains the the transaction graph as a set of transaction ids referencing their parents (1 or more)
 Each Transaction is written to it own directory named by its transaction id. Partially written transactions ids are prefixed with a "." to indicate incompleteness in the graph.
 
-Persistence requires a POSIX-compliant, journaled-metadata filesystem.
+Persistence requires a POSIX-compliant, journaled-metadata filesystem. Extended attributes (when supported by the filesystem are used to mark which relation variable name maps to which file. Relation variable names may contain arbitrary UTF-8 (such as colons, newlines, etc.) which may not be suitable for direct use in file names.
 -}
 
 expectedVersion :: Int
-expectedVersion = 6
+expectedVersion = 7
 
 transactionLogFileName :: FilePath 
 transactionLogFileName = "m36v" ++ show expectedVersion

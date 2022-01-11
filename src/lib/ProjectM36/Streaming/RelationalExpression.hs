@@ -8,9 +8,16 @@ import Control.Monad.Trans.Reader
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
+type GraphRefRelExprExecPlan = RelExprExecPlanBase TransactionMarker
+
 --this will become more useful once we have multiple join strategies, etc.
-data RelExprExecPlanBase a = StreamTuplesFromFilePlan FilePath |
-                       ReadTuplesFromMemoryPlan RelationTupleSet |
+data RelExprExecPlanBase a =
+  -- | Read relvar expr from transaction graph to generate tuple stream.
+  ReadExprFromTransGraph RelVarName a |
+  -- | Read tuples from a tuple set cache.
+  StreamTuplesFromCacheFilePlan Attributes FilePath |
+  -- | Read tuples from memory.
+  ReadTuplesFromMemoryPlan Attributes RelationTupleSet |
                        
                        RestrictTupleStreamPlan (RestrictionPredicateExprBase a) (RelExprExecPlanBase a) |
                        ProjectTupleStreamPlan (S.Set AttributeName) (RelExprExecPlanBase a) |
@@ -83,3 +90,13 @@ planRelationalExpr (NotEquals relExprA relExprB) rvMap state =
   
 planRelationalExpr (Extend tupleExpression relExpr) rvMap state = 
   ExtendTupleStreamPlan tupleExpression <$> planRelationalExpr relExpr rvMap state
+
+data StreamRelation m = StreamRelation Attributes (AsyncT m RelationTuple)
+
+--until we can stream results to disk or socket, we return a lazy-list-based Relation
+executePlan :: (MonadIO m, MonadAsync m2) => GraphRefRelExprExecPlanBase -> m Relation
+executePlan (ReadTuplesFromMemoryPlan attrs tupSet) =
+  pure (Relation attrs tupSet)
+executePlan (StreamTuplesFromFilePlan attrs path) =
+  --todo: enable streaming tuples from file
+  

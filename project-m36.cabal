@@ -131,7 +131,8 @@ Library
                      ProjectM36.NormalizeExpr,
                      ProjectM36.TransactionInfo,
                      ProjectM36.WithNameExpr, 
-                     ProjectM36.Trace
+                     ProjectM36.Trace,
+                     ProjectM36.Streaming.Tuple
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.5.4.1
@@ -140,7 +141,7 @@ Library
       --219-  too many exported symbols under Windows and GHC 8.4
       GHC-Options: -rdynamic -fexternal-interpreter -eventlog
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
-      Build-Depends: unix
+      Build-Depends: unix, linux-xattr
     CC-Options: -fPIC
     Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010

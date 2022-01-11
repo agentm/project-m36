@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
@@ -24,12 +25,27 @@ import Control.Monad
 import ProjectM36.ScriptSession
 import ProjectM36.AtomFunctions.Basic (precompiledAtomFunctions)
 import Codec.Winery
+import Control.Concurrent.Async
+import GHC.Generics
+import qualified Data.Text.Encoding as TE
+
+
+#if defined(__APPLE__) || defined(linux_HOST_OS)
+#define USE_LINUX_XATTRS 1
+#endif
+
+#ifdef USE_LINUX_XATTRS
+import System.Linux.XAttr
+#endif
 
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC
 import Control.Exception
 import GHC.Paths
 #endif
+
+xattrName :: String
+xattrName = "project-m36.relvarName"
 
 getDirectoryNames :: FilePath -> IO [FilePath]
 getDirectoryNames path =
@@ -45,8 +61,11 @@ transactionDir dbdir transId = dbdir </> show transId
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
 
-relvarsPath :: FilePath -> FilePath        
-relvarsPath transdir = transdir </> "relvars"
+relvarsDir :: FilePath -> FilePath        
+relvarsDir transdir = transdir </> "relvars"
+
+relvarsSimplePath :: FilePath -> FilePath
+relvarsSimplePath transdir = relvarsDir transdir </> "index"
 
 incDepsDir :: FilePath -> FilePath
 incDepsDir transdir = transdir </> "incdeps"
@@ -108,14 +127,67 @@ writeTransaction sync dbdir trans = do
     writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)    --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
 
+
+-- local data structure for serialization, simple relvars (those which merely reference other relvars) are written to one file, wherease everything else (altered relvars) are written to individual files, potentially in parallel
+data SingleFileRelationVariables = SingleFileRelationVariables
+  {
+    simpleRelVars :: RelationVariables,
+    complexRelVarNameMap :: M.Map RelVarName FilePath
+  }
+  deriving (Show, Generic, Eq)
+  deriving Serialise via WineryRecord SingleFileRelationVariables
+  
 writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
 writeRelVars sync transDir relvars = do
-  let path = relvarsPath transDir
-  traceBlock "write relvars" $ writeSerialiseSync sync path relvars
+  let relvarsPath = relvarsDir transDir
+      simpleInfoPath = relvarsSimplePath transDir
+  --write unchanged relvars and file name mapping to "relvars" file
+      (simplervs, complexrvs) = M.partition isSimple relvars
+      isSimple (RelationVariable _ _) = True
+      isSimple _ = False
+      --add incrementing integer to use as file name
+      writeRvMapExprs = snd $ M.mapAccum (\acc rexpr -> (acc + 1, (acc, rexpr))) (0 :: Int) complexrvs
+      writeRvMap = M.map (show . fst) writeRvMapExprs
+      simpleFileInfo = SingleFileRelationVariables {
+        simpleRelVars = simplervs,
+        complexRelVarNameMap = writeRvMap
+        }
+  --parallelization opportunity
+  traceBlock "write relvars" $ do
+    let writeSimple =
+          writeSerialiseSync sync simpleInfoPath simpleFileInfo
+        writeComplex = do
+          forConcurrently_ (M.toList writeRvMapExprs) $ \(rvname, (rvnum,rvExpr)) -> do
+            let rvpath = relvarsPath </> show rvnum
+            writeSerialiseSync sync rvpath rvExpr
+-- Project:M36 does not read these extended attributes, but they might be useful for debugging or database restoration            
+#ifdef USE_LINUX_XATTRS
+            createUserXAttr rvpath xattrName (TE.encodeUtf8 rvname)
+#endif            
+    concurrently_ writeSimple writeComplex
+
+-- | Optimized code path to read one relvar expression from disk instead of all of them for a full transaction- useful for streaming results. Throws exception if the relvar name cannot be found since this function expects the database files to be coherent.
+readOneRelVar :: FilePath -> RelVarName -> IO GraphRefRelationalExpr
+readOneRelVar transDir rvName = do
+  let relvarsIndex = relvarsSimplePath transDir
+  rvindex <- readFileDeserialise relvarsIndex
+  case M.lookup rvName (simpleRelVars rvindex) of
+    Just rvexpr -> pure rvexpr
+    Nothing -> do --look in complex rvs
+      case M.lookup rvName (complexRelVarNameMap rvindex) of
+        Nothing -> error $ "failed to find " <> T.unpack rvName <> " in filesystem."
+        Just rvnum ->
+          readFileDeserialise (relvarsDir transDir </> show rvnum)
+
 
 readRelVars :: FilePath -> IO RelationVariables
-readRelVars transDir = 
-  readFileDeserialise (relvarsPath transDir)
+readRelVars transDir = do
+  let relvarsIndex = relvarsSimplePath transDir
+  rvindex <- readFileDeserialise relvarsIndex
+  complexRvAssocs <- forConcurrently (M.toList (complexRelVarNameMap rvindex)) $ \(rvname, rvpath) -> do
+    rvExpr <- readFileDeserialise (relvarsDir transDir </> rvpath)
+    pure (rvname, rvExpr)
+  pure (simpleRelVars rvindex <> M.fromList complexRvAssocs)
 
 writeFuncs :: Traversable t => DiskSync -> FilePath -> t (Function a) -> IO ()
 writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
