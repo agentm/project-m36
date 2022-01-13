@@ -26,7 +26,7 @@ instance Pretty Atom where
       (a,b,c) = toGregorian x
   pretty (DateTimeAtom time) = "dateTimeFromEpochSeconds" <> parensList [pretty @Integer (round (utcTimeToPOSIXSeconds time))]
   pretty (ByteStringAtom bs) = "bytestring" <> parensList [dquotes (pretty (TE.decodeUtf8 (B64.encode bs)))]
-  pretty (BoolAtom x) = if x then "t" else "f"
+  pretty (BoolAtom x) = if x then "True" else "False"
   pretty (UUIDAtom u) = pretty u
   pretty (RelationAtom x) = pretty x
   pretty (RelationalExprAtom re) = pretty re

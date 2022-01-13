@@ -8,6 +8,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified Data.HashSet as HS
+import qualified Data.Text as T
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
@@ -69,7 +70,7 @@ unionMergeTypeConstructorMapping prefer typesA typesB = do
             let findType tcm = case filter (\(t,_) -> TCD.name t == name) tcm of
                   [] -> Nothing
                   [x] -> Just x
-                  _ -> error "multiple names matching in TypeConstructorMapping"
+                  _ -> error $ "multiple names matching in TypeConstructorMapping for " <> T.unpack name
                 lookupA = findType typesA
                 lookupB = findType typesB
                 cat t = pure (t : acc)

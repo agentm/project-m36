@@ -862,6 +862,9 @@ evalGraphRefAtomExpr tupIn (RelationAtomExpr relExpr) = do
   let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn env
   relAtom <- lift $ except $ runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr relExpr)
   pure (RelationAtom relAtom)
+evalGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _)
+  | tOrF == "True" = pure (BoolAtom True)
+  | tOrF == "False" = pure (BoolAtom False)
 evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do --why is the tid unused here? suspicious
   let mergeEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn
   aType <- local mergeEnv (typeForGraphRefAtomExpr (tupleAttributes tupIn) cons)
@@ -893,15 +896,27 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
     Right func -> do
       let funcRetType = last (funcType func)
           funcArgTypes = init (funcType func)
+          funArgCount = length funcArgTypes
+          inArgCount = length atomArgs
+      when (funArgCount /= inArgCount) (throwError (FunctionArgumentCountMismatchError funArgCount inArgCount))
       argTypes <- mapM (typeForGraphRefAtomExpr attrs) atomArgs
+      mapM_ (\(fArg,arg,argCount) -> do
+                let handler :: RelationalError -> GraphRefRelationalExprM AtomType
+                    handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
+                    handler err = throwError err
+                lift (except $ atomTypeVerify fArg arg) `catchError` handler
+            ) (zip3 funcArgTypes argTypes [1..])
       let eTvMap = resolveTypeVariables funcArgTypes argTypes
       case eTvMap of
             Left err -> throwError err
-            Right tvMap -> lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
+            Right tvMap ->
+              lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
 typeForGraphRefAtomExpr attrs (RelationAtomExpr relExpr) = do
   relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)
   pure (RelationAtomType (attributes relType))
 -- grab the type of the data constructor, then validate that the args match the expected types
+typeForGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _) | tOrF `elem` ["True", "False"] =
+                                                            pure BoolAtomType
 typeForGraphRefAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs tid) =
   do
     argsTypes <- mapM (typeForGraphRefAtomExpr attrs) dConsArgs
