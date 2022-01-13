@@ -1,3 +1,8 @@
+# Not yet released
+  
+* removed necessity for caret "^" when using boolean atom expressions in restriction predicates
+* `True` and `False` are now value constructors for `Bool` atom values (previously `t` and `f); changed for better discoverability by Haskell developers
+	
 # 2021-12-05 (v0.9.4)
 
 * fix bug which [caused tuple storage to be duplicated unnecessarily](https://github.com/agentm/project-m36/pull/328)
