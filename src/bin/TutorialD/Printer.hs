@@ -19,6 +19,7 @@ import Data.UUID hiding (null)
 instance Pretty Atom where
   pretty (IntegerAtom x) = pretty x
   pretty (IntAtom x) = "int" <> parensList [pretty x]
+  pretty (ScientificAtom s) = "scientific" <> parensList [dquotes (pretty (show s))]
   pretty (DoubleAtom x) = pretty x
   pretty (TextAtom x) = dquotes (pretty x)
   pretty (DayAtom x) = "fromGregorian" <> parensList [pretty a, pretty b, pretty c]
@@ -129,6 +130,7 @@ instance Pretty TypeConstructor where
 instance Pretty AtomType where
   pretty IntAtomType = "Int"
   pretty IntegerAtomType = "Integer"
+  pretty ScientificAtomType = "Scientific"
   pretty DoubleAtomType = "Double"
   pretty TextAtomType = "Text"
   pretty DayAtomType = "Day"

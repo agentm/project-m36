@@ -42,6 +42,7 @@ Relational expressions query database state without being able to change it.
 |`True`|Bool|`True` or `False` (not to be conflated with `true` and `false` which are relation variables)|
 |`bytestring("dGVzdGRhdGE=")`|Bytestring|base-64-encoded string of bytes|
 |`interval(3,5,False,False)`|Interval(Integer)|the constructor function includes two bounds and two boolean flags for inclusiveness|
+|`scientific(1,int(100))`|Scientific|1e100|
 
 ## Database Context Expressions
 

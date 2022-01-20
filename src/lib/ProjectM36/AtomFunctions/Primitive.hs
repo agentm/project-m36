@@ -9,6 +9,8 @@ import qualified Data.Vector as V
 import Control.Monad
 import qualified Data.UUID as U
 import qualified Data.Text as T
+import qualified Data.Attoparsec.Text as APT
+import Data.Scientific
 
 primitiveAtomFunctions :: AtomFunctions
 primitiveAtomFunctions = HS.fromList [
@@ -70,7 +72,7 @@ primitiveAtomFunctions = HS.fromList [
                      Just u -> pure $ UUIDAtom u
                      Nothing -> Left $ InvalidUUIDString v
              }
-  ]
+  ] <> scientificAtomFunctions
   where
     body = FunctionBuiltInBody
                          
@@ -115,3 +117,38 @@ castInt _ = error "attempted to cast non-IntAtom to Int"
 castInteger :: Atom -> Integer
 castInteger (IntegerAtom i) = i 
 castInteger _ = error "attempted to cast non-IntegerAtom to Int"
+
+
+scientificAtomFunctions :: AtomFunctions
+scientificAtomFunctions = HS.fromList [
+  Function { funcName = "read_scientific",
+             funcType = [TextAtomType, ScientificAtomType],
+             funcBody = body $ \(TextAtom t:_) ->
+                                 case APT.parseOnly (APT.scientific <* APT.endOfInput) t of
+                                   Left err -> Left (AtomFunctionParseError err)
+                                   Right sci -> pure (ScientificAtom sci)
+           },
+  Function { funcName = "scientific",
+             funcType = [IntegerAtomType, IntAtomType, ScientificAtomType],
+             funcBody = body $ \(IntegerAtom c:IntAtom e:_) -> pure (ScientificAtom $ scientific c e)
+           },
+  Function { funcName = "scientific_add",
+             funcType = binaryFuncType,
+             funcBody = binaryFuncBody (+)
+           },
+  Function { funcName = "scientific_subtract",
+             funcType = binaryFuncType,
+             funcBody = binaryFuncBody (-)
+           },
+  Function { funcName = "scientific_multiply",
+             funcType = binaryFuncType,
+             funcBody = binaryFuncBody (*)
+           },
+  Function { funcName = "scientific_divide",
+             funcType = binaryFuncType,
+             funcBody = binaryFuncBody (/)
+           }
+  ]
+  where body = FunctionBuiltInBody
+        binaryFuncType = [ScientificAtomType, ScientificAtomType, ScientificAtomType]
+        binaryFuncBody op = body $ \(ScientificAtom s1:ScientificAtom s2:_) -> pure (ScientificAtom (s1 `op` s2))

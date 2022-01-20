@@ -29,6 +29,7 @@ supportsInterval :: AtomType -> Bool
 supportsInterval typ = case typ of
   IntAtomType -> True
   IntegerAtomType -> True
+  ScientificAtomType -> True
   DoubleAtomType -> True
   TextAtomType -> False -- just because it supports ordering, doesn't mean it makes sense in an interval
   DayAtomType -> True               
@@ -44,7 +45,8 @@ supportsInterval typ = case typ of
 supportsOrdering :: AtomType -> Bool  
 supportsOrdering typ = case typ of
   IntAtomType -> True
-  IntegerAtomType -> True  
+  IntegerAtomType -> True
+  ScientificAtomType -> True
   DoubleAtomType -> True
   TextAtomType -> True
   DayAtomType -> True               

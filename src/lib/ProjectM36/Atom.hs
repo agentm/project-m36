@@ -14,6 +14,7 @@ relationForAtom _ = Left $ AttributeIsNotRelationValuedError ""
 atomToText :: Atom -> T.Text
 atomToText (IntegerAtom i) = (T.pack . show) i
 atomToText (IntAtom i) = (T.pack . show) i
+atomToText (ScientificAtom s) = (T.pack . show) s
 atomToText (DoubleAtom i) = (T.pack . show) i
 atomToText (TextAtom i) = (T.pack . show) i --quotes necessary for ConstructedAtom subatoms
 atomToText (DayAtom i) = (T.pack . show) i

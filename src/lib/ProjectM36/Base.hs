@@ -26,6 +26,7 @@ import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
+import Data.Scientific
 
 type StringType = Text
 
@@ -46,6 +47,7 @@ instance Hashable (S.Set AttributeName) where
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom !Integer |
             IntAtom !Int |
+            ScientificAtom !Scientific |
             DoubleAtom !Double |
             TextAtom !Text |
             DayAtom !Day |
@@ -62,7 +64,8 @@ instance Hashable Atom where
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
                                                           `hashWithSalt` dConsName --AtomType is not hashable
   hashWithSalt salt (IntAtom i) = salt `hashWithSalt` i
-  hashWithSalt salt (IntegerAtom i) = salt `hashWithSalt` i  
+  hashWithSalt salt (IntegerAtom i) = salt `hashWithSalt` i
+  hashWithSalt salt (ScientificAtom s) = salt `hashWithSalt` s
   hashWithSalt salt (DoubleAtom d) = salt `hashWithSalt` d
   hashWithSalt salt (TextAtom t) = salt `hashWithSalt` t
   hashWithSalt salt (DayAtom d) = salt `hashWithSalt` d
@@ -77,6 +80,7 @@ instance Hashable Atom where
 -- | The AtomType uniquely identifies the type of a atom.
 data AtomType = IntAtomType |
                 IntegerAtomType |
+                ScientificAtomType |
                 DoubleAtomType |
                 TextAtomType |
                 DayAtomType |
@@ -608,6 +612,7 @@ attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of
   IntAtomType -> S.empty
   IntegerAtomType -> S.empty
+  ScientificAtomType -> S.empty
   DoubleAtomType -> S.empty
   TextAtomType -> S.empty
   DayAtomType -> S.empty
@@ -633,6 +638,7 @@ attrExprTypeVars (NakedAttributeExpr attr) = attrTypeVars attr
 atomTypeVars :: AtomType -> S.Set TypeVarName
 atomTypeVars IntAtomType = S.empty
 atomTypeVars IntegerAtomType = S.empty
+atomTypeVars ScientificAtomType = S.empty
 atomTypeVars DoubleAtomType = S.empty
 atomTypeVars TextAtomType = S.empty
 atomTypeVars DayAtomType = S.empty

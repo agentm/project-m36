@@ -35,6 +35,7 @@ import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Calendar (fromGregorian)
 import Data.Either
+import Data.Scientific
 
 main :: IO ()
 main = do
@@ -84,7 +85,8 @@ main = do
       testSelfReferencingUncommittedContext,
       testUnionAndIntersectionAttributeExprs,
       testUndefineConstraints,
-      testQuotedRelVarNames      
+      testQuotedRelVarNames,
+      testScientific
       ]
 
 simpleRelTests :: Test
@@ -753,3 +755,17 @@ testQuotedRelVarNames = TestCase $ do
   let qAttrExpected = Right (Assign "test" (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "\28450\23383" (NakedAtomExpr (TextAtom "test")))])))
   assertEqual "quoted attribute" qAttrExpected (parseDBExpr "test:=relation{tuple{`漢字` \"test\"}}")
   assertBool "invalid quoted rv" (isLeft (parseDBExpr "`TEST:=true"))
+
+testScientific :: Test
+testScientific = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let getX = executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a scientific(1,int(100))}}"
+  createSciRel <- getX
+  let expectedRel = mkRelationFromList attrs [[ScientificAtom (scientific 1 100)]]
+      attrs = attributesFromList [Attribute "a" ScientificAtomType]
+  assertEqual "scientific creation" expectedRel createSciRel
+  --test some math functions
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a add_scientific(scientific(2,100),scientific(1,int(100)))}}"
+  addSciRel <- getX
+  assertEqual "scientific add" (mkRelationFromList attrs [[ScientificAtom (scientific 1 100)]]) addSciRel

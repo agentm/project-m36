@@ -436,6 +436,7 @@ isResolvedType typ =
   case typ of
     IntAtomType -> True
     IntegerAtomType -> True
+    ScientificAtomType -> True
     DoubleAtomType -> True
     TextAtomType -> True
     DayAtomType -> True

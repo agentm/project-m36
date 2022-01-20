@@ -57,6 +57,7 @@ TutorialD is strongly-typed. The basic built-in types are:
 |Text|arbitrary text|"The Old Man and the Sea"|
 |Integer|arbitarily-sized integer|-4|
 |Int|machine word integer|int(10)|
+|Scientific|large, arbitrary-precision numbers|scientific(1,int(100))|
 |DateTime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
 |Date|calendar date|fromGregorian(2017,05,30)|
 |Double|floating point number|3.1459|

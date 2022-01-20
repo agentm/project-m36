@@ -60,6 +60,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
 parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Parser (Either RelationalError Atom)
 parseCSVAtomP _ _ IntegerAtomType = Right . IntegerAtom <$> APT.decimal
 parseCSVAtomP _ _ IntAtomType = Right . IntAtom <$> APT.decimal
+parseCSVAtomP _ _ ScientificAtomType = Right . ScientificAtom <$> APT.scientific
 parseCSVAtomP _ _ DoubleAtomType = Right . DoubleAtom <$> APT.double
 parseCSVAtomP _ _ TextAtomType = 
   Right . TextAtom <$> (quotedString <|> takeToEndOfData)

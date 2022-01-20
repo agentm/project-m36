@@ -40,6 +40,7 @@ uUIDTypeConstructor = PrimitiveTypeConstructor "UUID" UUIDAtomType
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
 atomTypeForAtom (IntegerAtom _) = IntegerAtomType
+atomTypeForAtom (ScientificAtom _) = ScientificAtomType
 atomTypeForAtom (DoubleAtom _) = DoubleAtomType
 atomTypeForAtom (TextAtom _) = TextAtomType
 atomTypeForAtom (DayAtom _) = DayAtomType
