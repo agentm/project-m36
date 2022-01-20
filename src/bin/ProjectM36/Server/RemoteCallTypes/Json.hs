@@ -18,6 +18,7 @@ import Data.ByteString.Base64 as B64
 import Data.Text.Encoding
 import Data.Time.Calendar
 import Data.UUID
+import Data.Scientific
 
 instance ToJSON RelationalExpr
 instance FromJSON RelationalExpr
@@ -92,6 +93,8 @@ instance ToJSON Atom where
                                      "val" .= i ]
   toJSON atom@(DoubleAtom i) = object [ "type" .= atomTypeForAtom atom,
                                         "val" .= i ]
+  toJSON atom@(ScientificAtom i) = object [ "type" .= atomTypeForAtom atom,
+                                        "val" .= (coefficient i, base10Exponent i) ]
   toJSON atom@(TextAtom i) = object [ "type" .= atomTypeForAtom atom,
                                       "val" .= i ]
   toJSON atom@(DayAtom i) = object [ "type" .= atomTypeForAtom atom,
@@ -123,6 +126,9 @@ instance FromJSON Atom where
       RelationAtomType _ -> RelationAtom <$> o .: "val"
       IntAtomType -> IntAtom <$> o .: "val"
       IntegerAtomType -> IntegerAtom <$> o .: "val"
+      ScientificAtomType -> do
+        (c,e) <- o .: "val"
+        pure (ScientificAtom (scientific c e))
       DoubleAtomType -> DoubleAtom <$> o .: "val"
       TextAtomType -> TextAtom <$> o .: "val"
       DayAtomType -> do
