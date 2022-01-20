@@ -766,6 +766,6 @@ testScientific = TestCase $ do
       attrs = attributesFromList [Attribute "a" ScientificAtomType]
   assertEqual "scientific creation" expectedRel createSciRel
   --test some math functions
-  executeTutorialD sessionId dbconn "x:=relation{tuple{a add_scientific(scientific(2,100),scientific(1,int(100)))}}"
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a scientific_add(scientific(2,int(100)),scientific(1,int(100)))}}"
   addSciRel <- getX
-  assertEqual "scientific add" (mkRelationFromList attrs [[ScientificAtom (scientific 1 100)]]) addSciRel
+  assertEqual "scientific add" (mkRelationFromList attrs [[ScientificAtom (scientific 3 100)]]) addSciRel
