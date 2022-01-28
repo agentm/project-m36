@@ -1,6 +1,6 @@
 # TutorialD Tutorial for Project:M36
 
-TutorialD is an logic language designed by Chris Date for interacting with any relational algebra engine. Project:M36 supports this language for the purposes of learning about the relational algebra. TutorialD is not recommended for use in production systems.
+TutorialD is an logic language designed by Chris Date for interacting with any relational algebra engine. Project:M36 supports this language for the purposes of learning about the relational algebra. For a more type-safe interface to Project:M36, consider using the [Haskell client library](/docs/projectm36_client_library.markdown).
 
 It is presumed that the audience for this tutorial has at least some minimal background with an SQL-based DBMS.
 
