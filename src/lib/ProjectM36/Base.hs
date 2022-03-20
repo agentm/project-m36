@@ -238,6 +238,12 @@ data RelationalExprBase a =
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Hashable RelationalExpr
+
+
+-- | Used for fixed relational expressions (useful for caching).
+type PinnedRelationalExpr = RelationalExprBase TransactionId
+
+instance Hashable PinnedRelationalExpr
     
 data WithNameExprBase a = WithNameExpr RelVarName a
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
@@ -393,6 +399,8 @@ type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
 instance Hashable RestrictionPredicateExpr
 
+instance Hashable (RestrictionPredicateExprBase TransactionId)
+
 type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase GraphRefTransactionMarker
 
 -- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
@@ -467,6 +475,8 @@ type AtomExpr = AtomExprBase ()
 
 instance Hashable AtomExpr
 
+instance Hashable (AtomExprBase TransactionId)
+
 type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
@@ -484,6 +494,8 @@ data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBas
 type ExtendTupleExpr = ExtendTupleExprBase ()
 
 instance Hashable ExtendTupleExpr
+
+instance Hashable (ExtendTupleExprBase TransactionId)
   
 type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
 
@@ -509,6 +521,8 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
 type AttributeNames = AttributeNamesBase ()
 
 instance Hashable AttributeNames
+
+instance Hashable (AttributeNamesBase TransactionId)
 
 type GraphRefAttributeNames = AttributeNamesBase GraphRefTransactionMarker
 
@@ -537,6 +551,8 @@ newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
 
 instance Hashable TupleExpr
 
+instance Hashable (TupleExprBase TransactionId)
+
 type TupleExpr = TupleExprBase ()
 
 type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
@@ -545,6 +561,8 @@ data TupleExprsBase a = TupleExprs a [TupleExprBase a]
   deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Hashable TupleExprs
+
+instance Hashable (TupleExprsBase TransactionId)
 
 type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
 

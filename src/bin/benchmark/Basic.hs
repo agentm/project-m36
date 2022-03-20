@@ -79,7 +79,7 @@ main = do
   where
   createRel = bgroup "create" $ map (\tupCount -> bench ("relation 10x" ++ show tupCount) (nf (createRelation' 10) tupCount)) [100, 1000, 10000]
   bigrel10000 = createRelation' 10 10000
-  bigrel1000 = createRelation' 10 1000
+  biBgrel1000 = createRelation' 10 1000
   bigrel100 = createRelation' 10 100
   
   restrictRel = bgroup "restrict" [restrictOneTupleRel, restrictHalfTuplesRel]

@@ -55,7 +55,7 @@ module ProjectM36.Tupleable.Deriving
 import           Data.Maybe           (fromMaybe)
 import           Data.Proxy
 import qualified Data.Text            as T
-import           Data.Text.Manipulate
+import Data.Text.Manipulate
 import           GHC.TypeLits
 import           GHC.Generics         (Generic, Rep)
 import           ProjectM36.Tupleable
