@@ -63,7 +63,7 @@ parseCSVAtomP _ _ IntAtomType _ = Right . IntAtom <$> APT.decimal
 parseCSVAtomP _ _ ScientificAtomType _ = Right . ScientificAtom <$> APT.scientific
 parseCSVAtomP _ _ DoubleAtomType _ = Right . DoubleAtom <$> APT.double
 parseCSVAtomP _ _ TextAtomType takeToEndOfData = 
-  Right . TextAtom <$> (quotedString <|> takeToEndOfData)
+  Right . TextAtom <$> takeToEndOfData
 parseCSVAtomP _ _ DayAtomType takeToEndOfData = do
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
@@ -143,7 +143,7 @@ capitalizedIdentifier = do
   pure (fletter `T.cons` rest)
   
 takeToEndOfColumnData :: APT.Parser T.Text
-takeToEndOfColumnData = APT.takeWhile (APT.notInClass ",")
+takeToEndOfColumnData = APT.takeWhile (APT.notInClass "")
 
 --read data for Text.Read parser but be wary of end of interval blocks  
 takeToEndOfIntervalBlock :: APT.Parser T.Text
