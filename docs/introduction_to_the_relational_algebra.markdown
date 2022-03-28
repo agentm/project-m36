@@ -1,12 +1,12 @@
 # Introduction to the Relational Algebra
 ## What is the relational algebra?
 ### History
-The relational algebra was originally developed by [E. F. Codd](https://en.wikipedia.org/wiki/Edgar_F._Codd) working at IBM in the late 1960s as a proposed method by which database management system could present a unified interface to organization and querying of data. This relational model has been refined over the decades since and represents the state-of-the-art for modeling data used in computerized information processing.
+The relational algebra was originally developed by [E. F. Codd](https://en.wikipedia.org/wiki/Edgar_F._Codd) working at IBM in the late 1960s as a proposed method by which a database management system could present a unified interface to the organization and querying of data. This relational model has been refined over the decades since and represents the state-of-the-art for modeling data used in computerized information processing.
 
 ### Definition
 As implied by the name "algebra", the relational algebra is a mathematical model for modeling data and the links between data; it is not a specific software design or software product. A specific database management system may choose to label itself "relational", but this need not imply that it adheres to the relational algebra, rather, many existing "relational" software products find a medium ground with legacy features. SQL-based database management systems in particular do not adhere to the relational algebra.
 
-The purpose of a database is to model a small sliver of reality. Data present in the database make boolean logic statements about the nature of our reality, while data not present in the database makes statements to the contrary. This is called the "closed world assumption". For example, if we have a database of employees, the database can unequivocally state whether or not "Steve" is an employee. If that answer does not align with reality, that is because the database's notion of the current state has not been updated. After all, a database can only model reality- it cannot be directly tied into reality.
+The purpose of a database is to model a small sliver of reality. Data present in the database makes boolean logic statements about the nature of our reality, while data not present in the database makes statements to the contrary. This is called the "closed world assumption". For example, if we have a database of employees, the database can unequivocally state whether or not "Steve" is an employee. If that answer does not align with reality, that is because the database's notion of the current state has not been updated. After all, a database can only model reality- it cannot be directly tied into reality.
 
 A relational algebra system must support the notion of relations and relational operators. What makes the relational model "algebraic" is the ability to compose the relational operators to make arbitraily complex operator expressions.
 
@@ -273,7 +273,7 @@ group ("Name") as "SameAgePeople"
 |<table><tr><th>(Name, Name Type)</th></tr><tr><td>Steve</td></tr><tr><td>Cindy</td></tr><tr><td>Tom</td></tr></table>| 12|
 |<table><tr><th>(Name, Name Type)</th></tr><tr><td>Bob</td></tr></table>|45|
 
-Note that the new type of "SameAgePeople" is relation-based type. This can be thought of as a nested relation within a relation.
+Note that the new type of "SameAgePeople" is a relation-based type. This can be thought of as a nested relation within a relation.
 
 ##### Ungroup
 
@@ -362,7 +362,7 @@ In general, an n-dimensional relation can be represented by an n-dimensional gra
 
 ## Why is the relational algebra important?
 
-Unlike hierarchical or "document" databases, the relational algebra offers the best option for managing data sets while allowing queries of arbitrary complexity. The relational algebra is built on solid mathematics instead of design-by-commitee or legacy mistakes. Still, there are many exciting opportunities to expand study of the relational algebra; for example, in query optimization, data modeling principles, and distributed databases.
+Unlike hierarchical or "document" databases, the relational algebra offers the best option for managing data sets while allowing queries of arbitrary complexity. The relational algebra is built on solid mathematics instead of design-by-commitee or legacy mistakes. Still, there are many exciting opportunities to expand the study of the relational algebra; for example, in query optimization, data modeling principles, and distributed databases.
 
 ## Why do existing databases not adhere to the relational algebra?
 
@@ -370,7 +370,7 @@ Database management systems existed before the relational algebra existed or was
 
 ## What is the advantage of adhering to the relational algebra?
 
-For most companies, its data, such as customer, employee, sales, and product information is its lifeblood. To entrust that data to unprincipled database management systems or worse, proprietary database software, is self-defeating. By providing a firm mathematical foundation on which to build their internal information technology infrastructure, the relational algebra reduces cross-product integration headaches, missing feature workarounds, and reliance on proprietary technology.
+For most companies, their data, such as customer, employee, sales, and product information is their lifeblood. To entrust that data to unprincipled database management systems or worse, proprietary database software, is self-defeating. By providing a firm mathematical foundation on which to build their internal information technology infrastructure, the relational algebra reduces cross-product integration headaches, missing feature workarounds, and reliance on proprietary technology.
 
 ## What is the advantage of having relation-valued attributes?
 
@@ -405,7 +405,7 @@ Example:
 
 Chris Date has been researching the relational model and its consequences for over forty years. Date has published his findings in various papers but also summarizes his work in a series of introductory and advanced books. Date freely admits that his work on the relational algebra has been corrected over time, so it is best to read his latest works.
 
-Despite that fact that modern SQL databases do not adhere to the principles of relational algebra doesn't mean that the principles cannot be applied. Date often discusses and compares SQL constructions with his own "TutorialD" language. Project:M36 also supports TutorialD.
+The fact that modern SQL databases do not adhere to the principles of relational algebra doesn't mean that the principles cannot be applied. Date often discusses and compares SQL constructions with his own "TutorialD" language. Project:M36 also supports TutorialD.
 
 Introductory texts:
 * [SQL and Relational Theory:
