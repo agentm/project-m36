@@ -307,7 +307,7 @@ Benchmark basic-benchmark
 Benchmark btree-benchmark
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath
+    Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath, deepseq, byteunits
     Main-Is: benchmark/BTree.hs
     Type: exitcode-stdio-1.0
     GHC-Options: -Wall -threaded -rtsopts
