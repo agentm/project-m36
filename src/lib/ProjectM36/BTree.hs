@@ -1,6 +1,6 @@
 -- implements a write-once, read-many B+tree layed out using the eytzinger format for less CPU cache churn
 {-# LANGUAGE TypeApplications, DeriveAnyClass, DeriveGeneric #-}
-module ProjectM36.BTree (build, member, BTree, Branches, Level, Index, size) where
+module ProjectM36.BTree (build, member, BTree, Branches, Level, Index, size, totalBytes) where
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import Control.Monad
@@ -190,10 +190,9 @@ member needle bt = memberk 0 []
     memberk k _ | k > maxk = False
     memberk k path =
       let startIndex = offsetForPath b path
-      --perform linear search instead of binary search because the list of items is typically small- we may need to address this assumption later
           roots = V.slice startIndex (b - 1) vin
       in 
-        case V.findIndex (>= needle) roots of
+        case gteBinarySearch needle roots of
           Nothing -> -- follow right-most branch
             memberk (k+1) (b - 1 : path)
           Just gteIndex ->
@@ -202,7 +201,43 @@ member needle bt = memberk 0 []
               True
             else
               --search left branch of this root
-              memberk (k + 1) (gteIndex : path) 
+              memberk (k + 1) (gteIndex : path)
+
+-- | Search a sorted vector using binary search to find the first index >= to the needle, but takes into account the sparseVal.
+gteBinarySearch :: Int -> V.Vector Int -> Maybe Int
+gteBinarySearch needle haystack =
+  if V.null haystack then
+    Nothing
+    else
+    bsearch 0 (V.length haystack - 1)
+  where
+    bsearch low high
+      | low == high =
+        if haystack V.! low >= needle then
+          Just low
+          else
+          Nothing
+      | otherwise = 
+        let index = (high + low) `div` 2
+            item = haystack V.! index
+        in
+          if item == needle then
+            Just index
+          else if item < needle && item /= sparseVal then do
+            --we need to search to higher indexes
+            bsearch (index + 1) high
+          else
+            --search lower indexes
+            bsearch low index
 
 size :: BTree -> Int
 size bt = elemCount bt
+
+totalBytes :: BTree -> Int
+totalBytes bt = V.length (vec bt)
+{-
+-- | Useful for joins using two btrees.
+intersect :: BTree -> BTree -> [Int]
+intersect bta btb =
+  go = 
+-}
