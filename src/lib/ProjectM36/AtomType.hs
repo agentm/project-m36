@@ -410,12 +410,15 @@ resolveTypeVariable (ConstructedAtomType _ _) (ConstructedAtomType _ actualTvMap
 resolveTypeVariable _ _ = M.empty
 
 resolveFunctionReturnValue :: FunctionName -> TypeVarMap -> AtomType -> Either RelationalError AtomType
-resolveFunctionReturnValue funcName' tvMap (ConstructedAtomType tCons retMap) = do
-  let diff = M.difference retMap tvMap
-  if M.null diff then
-    pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
-    else
-    Left (AtomFunctionTypeVariableResolutionError funcName' (fst (head (M.toList diff))))
+resolveFunctionReturnValue funcName' tvMap ctype@(ConstructedAtomType tCons retMap) =
+  if isResolvedType ctype then
+    pure ctype
+    else do
+    let diff = M.difference retMap tvMap
+    if M.null diff then
+      pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
+      else
+      Left (AtomFunctionTypeVariableResolutionError funcName' (fst (head (M.toList diff))))
 resolveFunctionReturnValue funcName' tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName' tvName)
   Just typ -> pure typ
