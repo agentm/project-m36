@@ -106,7 +106,7 @@ isRelationAtomType _ = False
 type AttributeName = StringType
 
 -- | A relation's type is composed of attribute names and types.
-data Attribute = Attribute AttributeName AtomType deriving (Eq, Show, Read, Generic, NFData)
+data Attribute = Attribute AttributeName !AtomType deriving (Eq, Show, Read, Generic, NFData)
 
 instance Hashable Attribute where
   hashWithSalt salt (Attribute attrName _) = hashWithSalt salt attrName

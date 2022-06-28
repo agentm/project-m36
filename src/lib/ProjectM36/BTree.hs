@@ -6,7 +6,7 @@ import qualified Data.Vector.Unboxed.Mutable as VM
 import Control.Monad
 import Control.DeepSeq
 import Data.Maybe
-import Text.Printf
+--import Text.Printf
 import GHC.Generics
 
 import Debug.Trace
