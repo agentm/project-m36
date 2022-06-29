@@ -38,13 +38,13 @@ testTupleCacheRoundtripv000 :: Test
 testTupleCacheRoundtripv000 = TestCase $ do
   newTid <- nextRandom
   let tuples = mkRelationTuples attrs (map (\n -> V.fromList [IntegerAtom n, TextAtom (T.pack (show n))]) numbers)
-      numbers = [1 .. 5]
+      numbers = [1 .. 500]
       attrs = attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" TextAtomType]
       expr = RelationVariable "x" newTid
   
   withSystemTempDirectory "pm36tuplecache" $ \tmpdir ->
     withFile (tmpdir </> "pm36tuplecache") ReadWriteMode $ \h -> do
-      writeTupleStream h expr 1 tuples
+      writeTupleStream h expr 100 tuples
       hSeek h AbsoluteSeek 0
       rrTuples <- S.toList (readTupleStream h)
       assertEqual "round-trip tuple cache" tuples rrTuples

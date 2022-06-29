@@ -3,6 +3,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module ProjectM36.Cache.Tuple where
 import ProjectM36.Base
@@ -12,7 +13,7 @@ import qualified Data.Vector as V
 import qualified Data.ByteString as BS
 import Network.ByteOrder
 import Data.Time.Clock
-import Codec.Winery
+import Codec.Winery as W
 import System.IO
 import GHC.Generics
 import Control.Monad (when, foldM)
@@ -20,7 +21,7 @@ import Control.Exception
 import qualified Streamly.Prelude as S
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor
-import Debug.Trace
+import Data.Proxy
 
 {- file format for tuple cache
 -bytecount for info at end of file
@@ -32,9 +33,11 @@ type FileMagic = BS.ByteString
 
 data InvalidFileMagicException = InvalidFileMagicException BS.ByteString deriving (Show)
 data TruncatedFileException = TruncatedFileException ByteCount deriving (Show)
+data SerialisationSchemaMismatch = SerialisationSchemaMismatch deriving (Show)
 
 instance Exception InvalidFileMagicException
 instance Exception TruncatedFileException
+instance Exception SerialisationSchemaMismatch
 
 fileMagic :: FileMagic
 fileMagic = "PM36CacheTuple_v000"
@@ -44,7 +47,8 @@ type ByteOffset = ByteCount
 data TupleCacheInfo =
   TupleCacheInfo { blockSizes :: V.Vector (ByteOffset, ByteCount),
                    representing :: PinnedRelationalExpr,
-                   created :: UTCTime
+                   created :: UTCTime,
+                   tupleSchema :: W.Schema -- the schema is shared amongst all tuples
                  }
   deriving (Generic, Show)
   deriving Serialise via WineryRecord TupleCacheInfo
@@ -89,28 +93,37 @@ writeTupleStream h expr groupSize tuples = do
   --write metadata plus metadata size at end
   now <- getCurrentTime
   BS.hPutStr h fileMagic
-  let --groupSize = 100 * 1024 * 1024 -- 100 MB blocks (could be dynamic)
+  let writeTupleBlock tuples' = do
+          let tupleListBytes = serialiseOnly tuples'
+              bytesCount = fromIntegral (BS.length tupleListBytes)
+          BS.hPutStr h tupleListBytes
+          pure bytesCount
       tupleBlockWriter (accsize, offset', accTuples, metadata) nextTuple = do
         -- add a new grouping, if we go over the size limit
         let estimatedTupleSize = size nextTuple
         if accsize + estimatedTupleSize >= groupSize then do
-          let tupleListBytes = serialise (accTuples <> [nextTuple])
-              tupleListByteCount = fromIntegral (BS.length tupleListBytes)
-          BS.hPutStr h tupleListBytes
+          tupleListByteCount <- writeTupleBlock (accTuples <> [nextTuple])
           pure (0,
-                offset' + accsize + tupleListByteCount,
+                offset' + tupleListByteCount,
                 [],
-                metadata <> [(offset' + accsize, offset' + accsize + tupleListByteCount)])
+                metadata <> [(offset', tupleListByteCount)])
           else do
           pure (accsize + estimatedTupleSize,
                 offset',
                 accTuples <> [nextTuple],
                 metadata)
-  (_, _, _, blockSizeMetadata) <- foldM tupleBlockWriter (0,0,mempty,mempty) tuples
+      writeFinalBlock x@(_, _, [], _) = pure x
+      writeFinalBlock (acc, offset', accTuples, metadata) = do
+        bytesWritten <- writeTupleBlock accTuples
+        pure (acc, offset', [], metadata <> [(offset', bytesWritten)])
+        
+  (_, _, _, blockSizeMetadata) <- foldM tupleBlockWriter (0,0,mempty,mempty) tuples >>= writeFinalBlock
+  --write remaining tuples which didn't get get us over the last threshold
   --create block metadata at end of file, offset by file magic at beginning of file
-  let tupleCacheInfo = TupleCacheInfo { blockSizes = V.fromList (map (bimap offsetByMagic offsetByMagic) blockSizeMetadata),
+  let tupleCacheInfo = TupleCacheInfo { blockSizes = V.fromList (map (bimap offsetByMagic id) blockSizeMetadata),
                                         representing = expr,
-                                        created = now
+                                        created = now,
+                                        tupleSchema = schema (Proxy :: Proxy RelationTuple)
                                         }
       offsetByMagic = (+) (fromIntegral (BS.length fileMagic))
       tInfoData = serialise tupleCacheInfo
@@ -133,16 +146,25 @@ readTupleStream h = do
     tcacheInfo <- deserialise <$> BS.hGet h infoSize
     case tcacheInfo of
       Left err -> throw err
-      Right info -> pure info
+      Right info -> do
+        when (tupleSchema info /= schema (Proxy :: Proxy RelationTuple)) $ throw SerialisationSchemaMismatch
+        --print (blockSizes info)
+        pure info
   let readTupleBlock (offset', byteLength) = liftIO $ do
+--        print ("readTupleBlock", offset', byteLength)
         hSeek h AbsoluteSeek (fromIntegral offset')
-        tuples <- deserialise <$> BS.hGet h (fromIntegral byteLength)
+        tuples <- deserialiseOnly <$> BS.hGet h (fromIntegral byteLength)
         case tuples of
           Left err -> throw err
-          Right tuples' -> pure $ S.fromList tuples'
+          Right tuples' -> do
+--            print ("readTupleBlock", tuples')
+            pure $ S.fromList tuples'
   S.concatMapM readTupleBlock (S.fromList (V.toList (blockSizes tupleCacheInfo)))
-
   
+deserialiseOnly :: forall s. Serialise s => BS.ByteString -> Either WineryException s
+deserialiseOnly bytes = do
+  dec <- getDecoder (schema (Proxy :: Proxy s))
+  pure (evalDecoder dec bytes)
 
     
           
