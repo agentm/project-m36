@@ -394,6 +394,7 @@ Test-Suite test-prettyprinter
 
 benchmark bench
     import: commontest
+    build-depends: criterion
     type: exitcode-stdio-1.0
     main-is: benchmark/Relation.hs
 
