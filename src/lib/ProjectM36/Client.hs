@@ -822,11 +822,7 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
         if Sess.schemaName session == defaultSchemaName then
           pure $ RE.relationVariablesAsRelation context graph
           else
-          case Schema.relationVariablesInSchema schema of
-            Left err -> pure (Left err)
-            Right relvars -> do
-              let schemaContext = context {relationVariables = relvars }
-              pure $ RE.relationVariablesAsRelation schemaContext graph 
+          pure $ Schema.relationVariablesAsRelationInSchema context schema graph
       
 relationVariablesAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
 

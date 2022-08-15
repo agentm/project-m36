@@ -7,10 +7,11 @@ import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.StaticOptimizer
 import qualified ProjectM36.DatabaseContext as DBC
-import qualified ProjectM36.Attribute as A
+import ProjectM36.Attribute (attributesFromList)
 import System.Exit
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Vector as V
 
 testList :: Test
 testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
@@ -67,7 +68,7 @@ testIsoRestrict :: Test
 testIsoRestrict = TestCase $ do
   -- create a emp relation which is restricted into two boss, nonboss rel vars
   -- the virtual schema has an employee
-  let empattrs = A.attributesFromList [Attribute "name" TextAtomType,
+  let empattrs = attributesFromList [Attribute "name" TextAtomType,
                                         Attribute "boss" TextAtomType]
   (graph, transId) <- freshTransactionGraph DBC.empty                 
   emprel <- assertEither $ mkRelationFromList empattrs
@@ -85,6 +86,7 @@ testIsoRestrict = TestCase $ do
                                         ("boss", ExistingRelation bossRel)]
         }
       isomorphsAtoB = [IsoRestrict "employee" predicate ("boss", "nonboss")]
+      schemaB = Schema isomorphsAtoB
       bossq = RelationVariable "boss" ()
       nonbossq = RelationVariable "nonboss" ()
       employeeq = RelationVariable "employee" ()
@@ -108,13 +110,24 @@ testIsoRestrict = TestCase $ do
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
   let processedRel = runRelationalExprM postInsertEnv (evalRelationalExpr processedExpr)
   assertEqual "insert bob boss" expectedRel processedRel
+
+  -- test that we can render isomorphic schema metadata
+  let rvTypes = relationVariablesAsRelationInSchema baseContext schemaB graph
+      rvattrs = attributesFromList [(Attribute "name" TextAtomType), (Attribute "attributes" (RelationAtomType subrelattrs))]
+      subrelattrs = attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
+      expectedTypes = mkRelationFromList rvattrs 
+        [[TextAtom "employee",
+           RelationAtom (Relation subrelattrs
+                          (RelationTupleSet [RelationTuple subrelattrs (V.fromList [TextAtom "boss",TextAtom "Text"]),
+                                             RelationTuple subrelattrs (V.fromList [TextAtom "name",TextAtom "Text"])]))]]
+  assertEqual "relationVariablesAsRelationInSchema" expectedTypes rvTypes
   
 testIsoUnion :: Test  
 testIsoUnion = TestCase $ do
   --create motors relation which is split into low-power (<50 horsepower) and high-power (>=50 horsepower) motors
   --the schema is contains the split relvars
   (graph, _) <- freshTransactionGraph DBC.empty
-  motorsRel <- assertEither $ mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType,
+  motorsRel <- assertEither $ mkRelationFromList (attributesFromList [Attribute "name" TextAtomType,
                                                                         Attribute "power" IntegerAtomType]) 
                [[TextAtom "Puny", IntegerAtom 10],
                 [TextAtom "Scooter", IntegerAtom 49],
@@ -136,3 +149,4 @@ testIsoUnion = TestCase $ do
   highpowerRel <- assertEither (relResult highpowerExpr)
   assertEqual "lowpower relation difference" (Right lowpowerRel) lowmotors
   assertEqual "highpower relation difference" (Right highpowerRel) highmotors
+

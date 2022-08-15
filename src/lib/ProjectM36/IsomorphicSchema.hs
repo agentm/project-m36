@@ -12,9 +12,13 @@ import GHC.Generics
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
+import qualified Data.Vector as V
+import qualified ProjectM36.Attribute as A
+import ProjectM36.AtomType
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
+
 -- isomorphic schemas offer bi-directional functors between two schemas
 
 --TODO: note that renaming a relvar should alter any stored isomorphisms as well
@@ -265,6 +269,24 @@ relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morph
       pure (M.union newRvMap (M.fromList rvAssocs))
 
 
+-- | Show metadata about the relation variables in the isomorphic schema.
+relationVariablesAsRelationInSchema :: DatabaseContext -> Schema -> TransactionGraph -> Either RelationalError Relation
+relationVariablesAsRelationInSchema concreteDbContext schema graph = do
+  rvDefsInConcreteSchema <- relationVariablesInSchema schema
+  let gfEnv = freshGraphRefRelationalExprEnv (Just concreteDbContext) graph
+  typAssocs <- forM (M.toList rvDefsInConcreteSchema) $ \(rv, gfExpr) -> do
+    typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+    pure (rv, typ)
+  let tups = map relVarToAtomList typAssocs
+      subrelAttrs = A.attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
+      attrs = A.attributesFromList [Attribute "name" TextAtomType,
+                                  Attribute "attributes" (RelationAtomType subrelAttrs)]
+      relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributesVec (attributes rel))]
+      attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]  
+      attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
+        Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
+        Right rel -> RelationAtom rel
+  mkRelationFromList attrs tups
 
 {-
 proposal

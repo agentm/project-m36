@@ -128,7 +128,9 @@ attributesSet :: Attributes -> HS.HashSet Attribute
 attributesSet = HS.fromList . V.toList . attributesVec
 
 instance Show Attributes where
-  show attrs = "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+  showsPrec d attrs = showString $ parens $ "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+    where parens x | d > 0 = "(" <> x <> ")"
+          parens x = x
 
 --when attribute ordering is irrelevant
 instance Eq Attributes where
