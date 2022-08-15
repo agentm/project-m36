@@ -54,7 +54,8 @@ instance Serialise TransactionId where
   extractor = fromWordsTup <$> extractor
   decodeCurrent = fromWordsTup <$> decodeCurrent
 
-{-
+#if MIN_VERSION_winery(1,4,0)
+#else
 instance Serialise a => Serialise (NE.NonEmpty a) where
   schemaGen _ = SVector <$> getSchema (Proxy @a)
   toBuilder xs = varInt (length xs) <> foldMap toBuilder xs
@@ -63,7 +64,7 @@ instance Serialise a => Serialise (NE.NonEmpty a) where
     n <- decodeVarInt
     l <- replicateM n decodeCurrent
     pure (NE.fromList l)
--}
+#endif
 
 fromGregorianTup :: (Integer, Int, Int) -> Day
 fromGregorianTup (a, b, c) = fromGregorian a b c
