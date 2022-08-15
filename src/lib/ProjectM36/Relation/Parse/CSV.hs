@@ -41,7 +41,7 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
         convertMap hmap = HM.fromList $ L.map (decodeUtf8 *** (T.unpack . decodeUtf8)) (HM.toList hmap)
         attrNameSet = A.attributeNameSet attrs
         headerSet = S.fromList (V.toList strHeader)
-        parseAtom attrName aType textIn = case APT.parseOnly (parseCSVAtomP attrName tConsMap aType <* APT.endOfInput) textIn of
+        parseAtom attrName aType textIn = case APT.parseOnly (parseCSVAtomP attrName tConsMap aType takeToEndOfColumnData <* APT.endOfInput) textIn of
           Left err -> Left (ParseError (T.pack err))
           Right eAtom -> eAtom 
         makeTupleList :: HM.HashMap AttributeName String -> [Either CsvImportError Atom]
@@ -57,53 +57,53 @@ csvAsRelation attrs tConsMap inString = case APBL.parse (csvWithHeader csvDecode
       Left $ HeaderAttributeMismatchError (S.difference attrNameSet headerSet)
 
 
-parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Parser (Either RelationalError Atom)
-parseCSVAtomP _ _ IntegerAtomType = Right . IntegerAtom <$> APT.decimal
-parseCSVAtomP _ _ IntAtomType = Right . IntAtom <$> APT.decimal
-parseCSVAtomP _ _ ScientificAtomType = Right . ScientificAtom <$> APT.scientific
-parseCSVAtomP _ _ DoubleAtomType = Right . DoubleAtom <$> APT.double
-parseCSVAtomP _ _ TextAtomType = 
-  Right . TextAtom <$> (quotedString <|> takeToEndOfData)
-parseCSVAtomP _ _ DayAtomType = do
+parseCSVAtomP :: AttributeName -> TypeConstructorMapping -> AtomType -> APT.Parser T.Text -> APT.Parser (Either RelationalError Atom)
+parseCSVAtomP _ _ IntegerAtomType _ = Right . IntegerAtom <$> APT.decimal
+parseCSVAtomP _ _ IntAtomType _ = Right . IntAtom <$> APT.decimal
+parseCSVAtomP _ _ ScientificAtomType _ = Right . ScientificAtom <$> APT.scientific
+parseCSVAtomP _ _ DoubleAtomType _ = Right . DoubleAtom <$> APT.double
+parseCSVAtomP _ _ TextAtomType takeToEndOfData = 
+  Right . TextAtom <$> takeToEndOfData
+parseCSVAtomP _ _ DayAtomType takeToEndOfData = do
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
     Nothing -> fail ("invalid Day string: " ++ dString)
     Just date -> pure (Right (DayAtom date))
-parseCSVAtomP _ _ DateTimeAtomType = do    
+parseCSVAtomP _ _ DateTimeAtomType takeToEndOfData = do    
   dString <- T.unpack <$> takeToEndOfData
   case readMaybe dString of
     Nothing -> fail ("invalid Date string: " ++ dString)
     Just date -> pure (Right (DateTimeAtom date))
-parseCSVAtomP _ _ ByteStringAtomType = do    
+parseCSVAtomP _ _ ByteStringAtomType takeToEndOfData = do    
   bsString <- T.unpack <$> takeToEndOfData
   case readMaybe bsString of
     Nothing -> fail ("invalid ByteString string: " ++ bsString)
     Just bs -> pure (Right (ByteStringAtom bs))
-parseCSVAtomP _ _ BoolAtomType = do
+parseCSVAtomP _ _ BoolAtomType takeToEndOfData = do
   bString <- T.unpack <$> takeToEndOfData
   case readMaybe bString of
     Nothing -> fail ("invalid BoolAtom string: " ++ bString)
     Just b -> pure (Right (BoolAtom b))
-parseCSVAtomP _ _ UUIDAtomType = do
+parseCSVAtomP _ _ UUIDAtomType takeToEndOfData = do
   uString <- T.unpack <$> takeToEndOfData
   case readMaybe uString of
     Nothing -> fail ("invalid UUIDAtom string: " ++ uString)
     Just u -> pure (Right (UUIDAtom u))
-parseCSVAtomP _ _ RelationalExprAtomType = do
+parseCSVAtomP _ _ RelationalExprAtomType takeToEndOfData = do
   reString <- T.unpack <$> takeToEndOfData      
   case readMaybe reString of
     Nothing -> fail ("invalid RelationalExprAtom string: " ++ reString)
     Just b -> pure (Right (RelationalExprAtom b))
-parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) 
+parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) takeToEndOfData 
   | isIntervalAtomType typ = do
     begin <- (APT.char '[' >> pure False) <|> (APT.char '(' >> pure True)
     let iType = intervalSubType typ
-    eBeginv <- parseCSVAtomP attrName tConsMap iType
+    eBeginv <- parseCSVAtomP attrName tConsMap iType takeToEndOfIntervalBlock
     case eBeginv of
       Left err -> pure (Left err)
       Right beginv -> do
         _ <- APT.char ','
-        eEndv <- parseCSVAtomP attrName tConsMap iType
+        eEndv <- parseCSVAtomP attrName tConsMap iType takeToEndOfIntervalBlock
         case eEndv of
           Left err -> pure (Left err)
           Right endv -> do
@@ -123,7 +123,7 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap)
         case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
           Left err -> pure (Left err)
           Right argAtomTypes -> do
-            atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp <* APT.skipSpace in
+            atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp takeToEndOfData <* APT.skipSpace in
                                case argTyp of
                                  ConstructedAtomType _ _ -> 
                                    parens parseNextAtom <|>
@@ -133,8 +133,8 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap)
             case lefts atomArgs of
               [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
               errs -> pure (Left (someErrors errs))
-parseCSVAtomP attrName _ (RelationAtomType _) = pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
-parseCSVAtomP _ _ (TypeVariableType x) = pure (Left (TypeConstructorTypeVarMissing x))
+parseCSVAtomP attrName _ (RelationAtomType _) _ = pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
+parseCSVAtomP _ _ (TypeVariableType x) _ = pure (Left (TypeConstructorTypeVarMissing x))
       
 capitalizedIdentifier :: APT.Parser T.Text
 capitalizedIdentifier = do
@@ -142,9 +142,12 @@ capitalizedIdentifier = do
   rest <- APT.takeWhile (\c -> not (isSpace c || c == ')')) APT.<?> "data constructor name"
   pure (fletter `T.cons` rest)
   
+takeToEndOfColumnData :: APT.Parser T.Text
+takeToEndOfColumnData = APT.takeWhile (APT.notInClass "")
+
 --read data for Text.Read parser but be wary of end of interval blocks  
-takeToEndOfData :: APT.Parser T.Text
-takeToEndOfData = APT.takeWhile (APT.notInClass ",)]")
+takeToEndOfIntervalBlock :: APT.Parser T.Text
+takeToEndOfIntervalBlock = APT.takeWhile (APT.notInClass ",)]")
   
 parens :: APT.Parser a -> APT.Parser a  
 parens p = do

@@ -35,7 +35,7 @@ let
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
     
-      project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { }));
+      project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };
   };
 in
