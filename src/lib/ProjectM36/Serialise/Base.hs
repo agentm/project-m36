@@ -13,6 +13,10 @@ import Data.Word
 import ProjectM36.Attribute as A
 import qualified Data.Vector as V
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
+#if MIN_VERSION_winery(1,4,0)
+#else
+import qualified Data.List.NonEmpty as NE
+#endif
 
 deriving via WineryVariant Atom instance Serialise Atom
 deriving via WineryVariant AtomType instance Serialise AtomType
