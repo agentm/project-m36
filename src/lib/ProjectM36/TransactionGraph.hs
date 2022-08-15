@@ -621,10 +621,8 @@ calculateMerkleHash trans graph =
 
 validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()
 validateMerkleHash trans graph = 
-  if expectedHash /= actualHash  then
+  when (expectedHash /= actualHash) $
     Left (MerkleValidationError (transactionId trans) expectedHash actualHash)
-  else
-    pure ()
   where
     expectedHash = merkleHash (transactionInfo trans)
     actualHash = calculateMerkleHash trans graph

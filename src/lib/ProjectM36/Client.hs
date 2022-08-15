@@ -709,8 +709,8 @@ rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
 processTransactionGraphPersistence :: PersistenceStrategy -> [TransactionId] -> TransactionGraph -> IO ()
 processTransactionGraphPersistence NoPersistence _ _ = pure ()
-processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = transactionGraphPersist NoDiskSync dbdir transIds graph >> pure ()
-processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = transactionGraphPersist FsyncDiskSync dbdir transIds graph >> pure ()
+processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = void $ transactionGraphPersist NoDiskSync dbdir transIds graph
+processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = void $ transactionGraphPersist FsyncDiskSync dbdir transIds graph
 
 readGraphTransactionIdDigest :: PersistenceStrategy -> IO LockFileHash
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"

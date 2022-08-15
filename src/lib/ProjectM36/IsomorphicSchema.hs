@@ -83,9 +83,10 @@ isomorphsOutRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
 
 -- | Check that all mentioned relvars are actually present in the current schema.
 validateRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError ()
-validateRelationalExprInSchema schema relExprIn = relExprMogrify (\case
-                                                                     RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
-                                                                     ex -> Right ex) relExprIn >> pure ()
+validateRelationalExprInSchema schema relExprIn =
+  void $ relExprMogrify (\case
+                            RelationVariable rv () | S.notMember rv validRelVarNames -> Left (RelVarNotDefinedError rv)
+                            ex -> Right ex) relExprIn
   where
     validRelVarNames = isomorphsInRelVarNames (isomorphs schema)
   
@@ -97,7 +98,7 @@ processRelationalExprInSchema schema relExprIn = do
   foldM processRelExpr relExprIn (isomorphs schema)
   
 validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError ()  
-validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema) >> pure ()
+validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema)
   
 processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr  
 processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do

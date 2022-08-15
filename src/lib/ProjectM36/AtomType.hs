@@ -204,10 +204,11 @@ atomTypeForAttributeExpr (AttributeAndTypeNameExpr _ tCons _) tConsMap tvMap = a
 
 --reconcile the atom-in types with the type constructors
 isValidAtomTypeForTypeConstructor :: AtomType -> TypeConstructor -> TypeConstructorMapping -> Either RelationalError ()
-isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedAType) _ = if expectedAType /= aType then Left (AtomTypeMismatchError expectedAType aType) else pure ()
+isValidAtomTypeForTypeConstructor aType (PrimitiveTypeConstructor _ expectedAType) _ =
+  when (expectedAType /= aType) $ Left (AtomTypeMismatchError expectedAType aType)
 
 --lookup constructor name and check if the incoming atom types are valid
-isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConstructor expectedTConsName _) _ =  if tConsName /= expectedTConsName then Left (TypeConstructorNameMismatch expectedTConsName tConsName) else pure ()
+isValidAtomTypeForTypeConstructor (ConstructedAtomType tConsName _) (ADTypeConstructor expectedTConsName _) _ =  when (tConsName /= expectedTConsName) $ Left (TypeConstructorNameMismatch expectedTConsName tConsName)
 
 isValidAtomTypeForTypeConstructor (RelationAtomType attrs) (RelationAtomTypeConstructor attrExprs) tConsMap = do
   evaldAtomTypes <- mapM (\expr -> atomTypeForAttributeExpr expr tConsMap M.empty) attrExprs
@@ -320,10 +321,7 @@ validateAtomType _ _ = pure ()
 
 validateAttributes :: TypeConstructorMapping -> Attributes -> Either RelationalError ()
 validateAttributes tConss attrs =
-  if not (null errs) then
-    Left (someErrors errs)
-  else
-    pure ()
+  unless (null errs) $ Left (someErrors errs)
   where
     errs = lefts $ map (`validateAtomType` tConss) (A.atomTypesList attrs)
 

@@ -113,7 +113,7 @@ testIsoRestrict = TestCase $ do
 
   -- test that we can render isomorphic schema metadata
   let rvTypes = relationVariablesAsRelationInSchema baseContext schemaB graph
-      rvattrs = attributesFromList [(Attribute "name" TextAtomType), (Attribute "attributes" (RelationAtomType subrelattrs))]
+      rvattrs = attributesFromList [Attribute "name" TextAtomType, Attribute "attributes" (RelationAtomType subrelattrs)]
       subrelattrs = attributesFromList [Attribute "attribute" TextAtomType, Attribute "type" TextAtomType]
       expectedTypes = mkRelationFromList rvattrs 
         [[TextAtom "employee",

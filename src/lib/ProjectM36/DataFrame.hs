@@ -17,6 +17,7 @@ import qualified Data.Set as S
 import Data.Maybe
 import qualified Data.Text as T
 import Control.Arrow
+import Control.Monad (unless)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -52,10 +53,7 @@ data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
   attrs <- mapM (\(AttributeOrder nam _) -> A.attributeForName nam (attributes frame)) attrOrders 
-  mapM_ (\attr -> if not (isSortableAtomType (atomType attr)) then
-            Left (AttributeNotSortableError attr)
-            else
-            pure ()) attrs
+  mapM_ (\attr -> unless (isSortableAtomType (atomType attr)) $ Left (AttributeNotSortableError attr)) attrs
   pure $ DataFrame attrOrders (attributes frame) (sortTuplesBy (compareTupleByAttributeOrders attrOrders) (tuples frame))
 
 sortTuplesBy :: (DataFrameTuple -> DataFrameTuple -> Ordering) -> [DataFrameTuple] -> [DataFrameTuple]
