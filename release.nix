@@ -27,7 +27,13 @@ let
                       pkg = "unicode-data";
 		      ver = "0.2.0";
 		      sha256 = "14crb68g79yyw87fgh49z2fn4glqx0zr53v6mapihaxzkikhkkc3";
-		      } {};
+		     } {};
+
+      winery = self.callHackageDirect {
+                 pkg = "winery";
+		 ver = "1.4";
+                 sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
+		 } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { }));
     };
