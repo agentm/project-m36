@@ -36,8 +36,8 @@ jobs:
         os: [ubuntu-latest]
         ghc:
           - ghc8.10
-          - ghc8.8
-          - ghc8.6
+          - ghc9.0
+          - ghc9.2
         include:
           - os: macos-latest
             ghc: ghc8.10

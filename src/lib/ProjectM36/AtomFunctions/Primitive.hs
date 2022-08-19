@@ -17,25 +17,37 @@ primitiveAtomFunctions = HS.fromList [
   --match on any relation type
   Function { funcName = "add",
              funcType = [IntegerAtomType, IntegerAtomType, IntegerAtomType],
-             funcBody = body (\(IntegerAtom i1:IntegerAtom i2:_) -> pure (IntegerAtom (i1 + i2)))},
+             funcBody = body (\case
+                                 IntegerAtom i1:IntegerAtom i2:_ -> pure (IntegerAtom (i1 + i2))
+                                 _ -> Left AtomFunctionTypeMismatchError)},
     Function { funcName = "id",
                funcType = [TypeVariableType "a", TypeVariableType "a"],
-               funcBody = body (\(x:_) -> pure x)},
+               funcBody = body (\case
+                                   x:_ -> pure x
+                                   _ -> Left AtomFunctionTypeMismatchError
+                               )},
     Function { funcName = "sum",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body (\(RelationAtom rel:_) -> relationSum rel)},
+               funcBody = body $ relationAtomFunc relationSum
+             },
     Function { funcName = "count",
                funcType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
-               funcBody = body (\(RelationAtom relIn:_) -> relationCount relIn)},
+               funcBody = body $ relationAtomFunc relationCount
+             },
     Function { funcName = "max",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body (\(RelationAtom relIn:_) -> relationMax relIn)},
+               funcBody = body $ relationAtomFunc relationMax 
+             },
     Function { funcName = "min",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body (\(RelationAtom relIn:_) -> relationMin relIn)},
+               funcBody = body $ relationAtomFunc relationMin
+             },
     Function { funcName = "eq",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-               funcBody = body $ \(i1:i2:_) -> pure (BoolAtom (i1 == i2))},
+               funcBody = body $ \case
+                                         [i1,i2] -> pure (BoolAtom (i1 == i2))
+                                         _ -> Left AtomFunctionTypeMismatchError
+             },
     Function { funcName = "lt",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
                funcBody = body $ integerAtomFuncLessThan False},
@@ -50,31 +62,42 @@ primitiveAtomFunctions = HS.fromList [
                funcBody = body $ integerAtomFuncLessThan True >=> boolAtomNot},
     Function { funcName = "not",
                funcType = [BoolAtomType, BoolAtomType],
-               funcBody = body $ \(b:_) -> boolAtomNot b },
+               funcBody = body $ \case
+                                         [b] -> boolAtomNot b
+                                         _ -> Left AtomFunctionTypeMismatchError
+             },
     Function { funcName = "int",
                funcType = [IntegerAtomType, IntAtomType],
                funcBody =
-                 body $ \(IntegerAtom v:_) ->
-                          if v < fromIntegral (maxBound :: Int) then
-                            
-                            pure (IntAtom (fromIntegral v))
-                          else
-                            Left InvalidIntBoundError
+                 body $ \case
+                                [IntegerAtom v] ->
+                                  if v < fromIntegral (maxBound :: Int) then
+                                    pure (IntAtom (fromIntegral v))
+                                  else
+                                    Left InvalidIntBoundError
+                                _ -> Left AtomFunctionTypeMismatchError
              },
     Function { funcName = "integer",
                funcType = [IntAtomType, IntegerAtomType],
-               funcBody = body $ \(IntAtom v:_) -> Right $ IntegerAtom $ fromIntegral v},
+               funcBody = body $ \case
+                 [IntAtom v] -> Right $ IntegerAtom $ fromIntegral v
+                 _ -> Left AtomFunctionTypeMismatchError
+             },
     Function { funcName = "uuid",
                funcType = [TextAtomType, UUIDAtomType],
-               funcBody = body $ \(TextAtom v:_) ->
-                 let mUUID = U.fromString (T.unpack v) in
-                   case mUUID of
-                     Just u -> pure $ UUIDAtom u
-                     Nothing -> Left $ InvalidUUIDString v
+               funcBody = body $ \case
+                 [TextAtom v] ->
+                   let mUUID = U.fromString (T.unpack v) in
+                     case mUUID of
+                       Just u -> pure $ UUIDAtom u
+                       Nothing -> Left $ InvalidUUIDString v
+                 _ -> Left AtomFunctionTypeMismatchError
              }
   ] <> scientificAtomFunctions
   where
     body = FunctionBuiltInBody
+    relationAtomFunc f [RelationAtom x] = f x
+    relationAtomFunc _ _ = Left AtomFunctionTypeMismatchError
                          
 integerAtomFuncLessThan :: Bool -> [Atom] -> Either AtomFunctionError Atom
 integerAtomFuncLessThan equality (IntegerAtom i1:IntegerAtom i2:_) = pure (BoolAtom (i1 `op` i2))
@@ -123,14 +146,18 @@ scientificAtomFunctions :: AtomFunctions
 scientificAtomFunctions = HS.fromList [
   Function { funcName = "read_scientific",
              funcType = [TextAtomType, ScientificAtomType],
-             funcBody = body $ \(TextAtom t:_) ->
-                                 case APT.parseOnly (APT.scientific <* APT.endOfInput) t of
-                                   Left err -> Left (AtomFunctionParseError err)
-                                   Right sci -> pure (ScientificAtom sci)
+             funcBody = body $ \case
+               TextAtom t:_ ->
+                 case APT.parseOnly (APT.scientific <* APT.endOfInput) t of
+                   Left err -> Left (AtomFunctionParseError err)
+                   Right sci -> pure (ScientificAtom sci)
+               _ -> Left AtomFunctionTypeMismatchError
            },
   Function { funcName = "scientific",
              funcType = [IntegerAtomType, IntAtomType, ScientificAtomType],
-             funcBody = body $ \(IntegerAtom c:IntAtom e:_) -> pure (ScientificAtom $ scientific c e)
+             funcBody = body $ \case
+               [IntegerAtom c,IntAtom e] -> pure (ScientificAtom $ scientific c e)
+               _ -> Left AtomFunctionTypeMismatchError
            },
   Function { funcName = "scientific_add",
              funcType = binaryFuncType,
@@ -151,4 +178,6 @@ scientificAtomFunctions = HS.fromList [
   ]
   where body = FunctionBuiltInBody
         binaryFuncType = [ScientificAtomType, ScientificAtomType, ScientificAtomType]
-        binaryFuncBody op = body $ \(ScientificAtom s1:ScientificAtom s2:_) -> pure (ScientificAtom (s1 `op` s2))
+        binaryFuncBody op = body $ \case
+          [ScientificAtom s1, ScientificAtom s2] -> pure (ScientificAtom (s1 `op` s2))
+          _ -> Left AtomFunctionTypeMismatchError

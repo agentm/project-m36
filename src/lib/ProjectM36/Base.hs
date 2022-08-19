@@ -20,7 +20,7 @@ import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text)
 import Data.Time.Clock
-import Data.Hashable.Time ()
+import Data.Time.Clock.Compat ()
 import Data.Time.Calendar (Day)
 import Data.Typeable
 import Data.ByteString (ByteString)

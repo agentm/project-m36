@@ -4,7 +4,6 @@ import ProjectM36.Tupleable.Deriving
 import ProjectM36.Atomable (Atomable)
 import Control.DeepSeq (NFData)
 import Data.Text (Text)
-import GHC.Generics (Generic)
 import Codec.Winery
 
 newtype BlogId = BlogId { getBlogId :: Int }
