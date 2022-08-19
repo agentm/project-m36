@@ -4,7 +4,7 @@ packages:
 
 extra-deps:
   - streamly-0.8.1
-  - curryer-rpc-0.2
+  - curryer-rpc-0.2.2
   - fast-builder-0.1.2.1
   - rset-1.0.0
   - winery-1.4
