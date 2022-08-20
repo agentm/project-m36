@@ -34,6 +34,18 @@ let
 		 ver = "1.4";
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
+      #newer time-compat include hashable instances
+      time-compat = self.callHackageDirect {
+                     pkg = "time-compat";
+		     ver = "1.9.6.1";
+                     sha256 = "sha256-2pXGgM5n2hKh2gvKhGJMKzAwWMEn6KUUz8i5n3pHakY=";
+		     } {};
+
+      hashable = self.callHackageDirect {
+                    pkg = "hashable";
+		    ver = "1.3.2.0";
+		    sha256 = "sha256-aMtNQNykvenduMW99h0ZDuU4kI1fFbIY4m4rRRNAU9o=";
+		    } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { }));
     };
