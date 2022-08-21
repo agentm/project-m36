@@ -219,7 +219,7 @@ Executable tutd
     else
       GHC-Options: -Wall -threaded -rdynamic -eventlog -rtsopts
     if flag(profiler)
-      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -prof
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
