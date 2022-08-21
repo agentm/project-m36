@@ -5,6 +5,7 @@
 * add `Scientific` data type for arbitrary-precision values (backed by Data.Scientific)
 * add support for GHC 9.0 and GHC 9.2
 * drop support for GHC < 8.10.7
+* fix relational equality when the relation includes a nested relation
 	
 # 2021-12-05 (v0.9.4)
 
