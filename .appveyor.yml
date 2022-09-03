@@ -2,7 +2,7 @@ build: off
 
 version: 1.0.{build}-{branch}
 
-image: Visual Studio 2017
+image: Visual Studio 2022
 
 before_test:
 # http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
@@ -10,6 +10,7 @@ before_test:
 
 - curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-x86_64
 - 7z x stack.zip stack.exe
+- powershell .appveyor/preload_certs.ps
 
 clone_folder: "c:\\project-m36"
 clone_depth: 2
@@ -17,7 +18,7 @@ environment:
   global:
     STACK_ROOT: "c:\\sr"
   matrix:
-    - YAML: "stack.ghc8.6.yaml"
+    - YAML: "stack.ghc8.10.yaml"
 
 platform:
  - x64

@@ -102,20 +102,26 @@ intervalAtomFunctions = HS.fromList [
                           BoolAtomType,
                           BoolAtomType,
                           intervalAtomType (TypeVariableType "a")],
-             funcBody = compiledAtomFunctionBody $ \(atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
+             funcBody = compiledAtomFunctionBody $
+             \case
+               (atom1:atom2:BoolAtom bopen:BoolAtom eopen:_) -> do
                    let aType = atomTypeForAtom atom1 
                    if supportsInterval aType then
                      createInterval atom1 atom2 bopen eopen
                      else
                      Left (AtomTypeDoesNotSupportIntervalError (prettyAtomType aType))
+               _ -> Left AtomFunctionTypeMismatchError
                },
   Function {
     funcName = "interval_overlaps",
     funcType = [intervalAtomType (TypeVariableType "a"),
                     intervalAtomType (TypeVariableType "a"),
                     BoolAtomType],
-    funcBody = compiledAtomFunctionBody $ \(i1@ConstructedAtom{}:i2@ConstructedAtom{}:_) -> 
-      BoolAtom <$> intervalOverlaps i1 i2
+    funcBody = compiledAtomFunctionBody $
+      \case
+        i1@ConstructedAtom{}:i2@ConstructedAtom{}:_ -> 
+          BoolAtom <$> intervalOverlaps i1 i2
+        _ -> Left AtomFunctionTypeMismatchError
     }]
                         
 isIntervalAtomType :: AtomType -> Bool

@@ -71,7 +71,7 @@ instance Pretty Relation where
   pretty (Relation attrs tupSet) = "relation" <> prettyBracesList (A.toList attrs) <> prettyBracesList (asList tupSet)
 
 instance Pretty Attribute where
-  pretty (Attribute n aTy) = pretty n <+> pretty (show aTy)  -- workaround
+  pretty (Attribute n aTy) = pretty n <+> pretty aTy
 
 instance Pretty RelationalExpr where
   pretty (RelationVariable n _) = pretty n

@@ -525,7 +525,10 @@ applyStaticRestrictionCollapse expr =
           optFinalExpr = case finalExpr of
                               Restrict _ subexpr -> applyStaticRestrictionCollapse subexpr
                               otherExpr -> otherExpr
-          andPreds = foldr (\(Restrict subpred _) acc -> AndPredicate acc subpred) firstPred (tail restrictions) in
+          andPreds = foldr folder firstPred (tail restrictions)
+          folder (Restrict subpred _) acc = AndPredicate acc subpred
+          folder _ _ = error "unexpected restriction expression in optimization phase"
+      in
       Restrict andPreds optFinalExpr
       
 sequentialRestrictions :: RelationalExprBase a -> [RelationalExprBase a]

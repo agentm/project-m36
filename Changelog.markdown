@@ -1,8 +1,11 @@
-# Not yet released
+# 2022-08-19 (v0.9.5)
   
 * removed necessity for caret "^" when using boolean atom expressions in restriction predicates
 * `True` and `False` are now value constructors for `Bool` atom values (previously `t` and `f); changed for better discoverability by Haskell developers
-* add `Scientific` data type for arbitrary-precision values (backed by Data.Scientific)	
+* add `Scientific` data type for arbitrary-precision values (backed by Data.Scientific)
+* add support for GHC 9.0 and GHC 9.2
+* drop support for GHC < 8.10.7
+* fix relational equality when the relation includes a nested relation
 	
 # 2021-12-05 (v0.9.4)
 

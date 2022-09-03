@@ -290,7 +290,9 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
     [] -> error ("DNS resolution failed for" <> hostName <> ":" <> servicePort)
     addrInfo:_ -> do
       --supports IPv4 only for now
-      let (SockAddrInet port addr) = addrAddress addrInfo
+      let (port, addr) = case addrAddress addrInfo of
+                           SockAddrInet p a -> (p, a)
+                           _ -> error "no IPv4 address available (IPv6 not implemented)"
           notificationHandlers =
             [RPC.ClientAsyncRequestHandler $
              \(NotificationMessage notifications') ->

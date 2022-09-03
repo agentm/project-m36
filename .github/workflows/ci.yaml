@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.3.1
-      - uses: cachix/install-nix-action@v12
+      - uses: cachix/install-nix-action@v17
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: cachix/cachix-action@v10
@@ -36,8 +36,8 @@ jobs:
         os: [ubuntu-latest]
         ghc:
           - ghc8.10
-          - ghc8.8
-          - ghc8.6
+          - ghc9.0
+          - ghc9.2
         include:
           - os: macos-latest
             ghc: ghc8.10

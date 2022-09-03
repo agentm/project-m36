@@ -29,7 +29,11 @@ atomFunctionForName funcName' funcSet = if HS.null foundFunc then
 emptyAtomFunction :: FunctionName -> AtomFunction
 emptyAtomFunction name = Function { funcName = name,
                                     funcType = [TypeVariableType "a", TypeVariableType "a"],
-                                    funcBody = FunctionBuiltInBody (\(x:_) -> pure x) }
+                                    funcBody = FunctionBuiltInBody $
+                                               \case
+                                                 x:_ -> pure x
+                                                 _ -> Left AtomFunctionTypeMismatchError
+                                  }
                                           
                                           
 -- | AtomFunction constructor for compiled-in functions.

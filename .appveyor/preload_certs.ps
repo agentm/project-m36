@@ -1,0 +1,7 @@
+# Windows won't have these certificate CAs preloaded, so we have to do it by accessing hackage
+# https://stackoverflow.com/questions/32654493/stack-haskell-throws-tlsexception-in-windows
+$tls_urls = @("https://github.com", "https://www.hackage.org", "https://stackage.haskell.org", "https://s3.amazonaws.com")
+$tls_urls |`
+  ForEach-Object {
+      Invoke-WebRequest -Uri $_ -UseBasicParsing | out-null
+  }

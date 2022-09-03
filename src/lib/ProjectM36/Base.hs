@@ -20,7 +20,7 @@ import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text)
 import Data.Time.Clock
-import Data.Hashable.Time ()
+import Data.Time.Clock.Compat ()
 import Data.Time.Calendar (Day)
 import Data.Typeable
 import Data.ByteString (ByteString)
@@ -106,6 +106,10 @@ isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
 
+-- subrelations sometimes require special paths
+attributesContainRelationAtomType :: Attributes -> Bool
+attributesContainRelationAtomType attrs = V.null (V.filter (\(Attribute _ t) -> isRelationAtomType t) (attributesVec attrs))
+
 -- | The AttributeName is the name of an attribute in a relation.
 type AttributeName = StringType
 
@@ -142,8 +146,12 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Show, Generic, Read)
 
+-- we cannot derive Hashable for tuplesets; we need to hash the unordered set of tuples
+instance Hashable RelationTupleSet where
+  hashWithSalt s tupSet = hashWithSalt s (HS.fromList (asList tupSet))
+        
 instance Read Relation where
   readsPrec = error "relation read not supported"
 
@@ -193,7 +201,7 @@ instance NFData Relation where rnf = genericRnf
 instance Hashable Relation where                               
   hashWithSalt salt (Relation attrs tupSet) = salt `hashWithSalt` 
                                               sortedAttrs `hashWithSalt`
-                                              asList tupSet
+                                              HS.fromList (asList tupSet)
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
       

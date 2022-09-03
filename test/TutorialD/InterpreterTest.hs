@@ -29,7 +29,7 @@ import qualified Data.Vector as V
 import Data.Text.Encoding as TE
 import Control.Concurrent
 import qualified Data.Set as S
-import Data.Text hiding (map)
+import Data.Text (unpack, Text)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
