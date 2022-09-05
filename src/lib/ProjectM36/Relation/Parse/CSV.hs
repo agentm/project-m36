@@ -123,13 +123,14 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) takeToEndOfDat
         case resolvedAtomTypesForDataConstructorDefArgs tConsMap tvmap dConsDef of
           Left err -> pure (Left err)
           Right argAtomTypes -> do
-            atomArgs <- mapM (\argTyp -> let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp takeToEndOfData <* APT.skipSpace in
-                               case argTyp of
-                                 ConstructedAtomType _ _ -> 
-                                   parens parseNextAtom <|>
-                                   parseNextAtom
-                                 _ -> parseNextAtom
-                             ) argAtomTypes
+            let argMapper argTyp = let parseNextAtom = parseCSVAtomP attrName tConsMap argTyp takeToEndOfData <* APT.skipSpace in
+                                      case argTyp of
+                                        TextAtomType -> pure . TextAtom <$> quotedString <* APT.skipSpace
+                                        ConstructedAtomType _ _ -> 
+                                          parens parseNextAtom <|>
+                                          parseNextAtom
+                                        _ -> parseNextAtom
+            atomArgs <- mapM argMapper argAtomTypes
             case lefts atomArgs of
               [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
               errs -> pure (Left (someErrors errs))
@@ -162,7 +163,7 @@ quotedString :: APT.Parser T.Text
 quotedString = do
   let escapeMap = [('"','"'), ('n', '\n'), ('r', '\r')]
       doubleQuote = void $ APT.char '"'
-  doubleQuote      
+  doubleQuote
   (_, s) <- APT.runScanner [] (\prevl nextChar -> case prevl of
                              [] -> Just [nextChar]
                              chars | last chars == '\\' ->
@@ -173,4 +174,3 @@ quotedString = do
                                    | otherwise -> Just (chars ++ [nextChar]))
   doubleQuote
   pure (T.pack s)
-  
