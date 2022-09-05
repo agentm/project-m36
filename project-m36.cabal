@@ -351,6 +351,7 @@ Test-Suite test-relation-import-csv
 Test-Suite test-tutoriald-import-tutoriald
     import: commontest
     type: exitcode-stdio-1.0
+    build-depends: warp, wai
     main-is: TutorialD/Interpreter/Import/ImportTest.hs
     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
