@@ -18,7 +18,7 @@ environment:
   global:
     STACK_ROOT: "c:\\sr"
   matrix:
-    - YAML: "stack.ghc8.10.yaml"
+    - YAML: "stack.ghc9.0.yaml"
 
 platform:
  - x64
