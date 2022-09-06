@@ -32,7 +32,7 @@ test_script:
  - stack setup > nul
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
- - echo "" | stack --stack-yaml %YAML% --no-terminal project-m36:exe:tutd
+ - echo "" | stack --stack-yaml %YAML% --no-terminal build project-m36:exe:tutd
 # - 7z.exe a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on project-m36.7z .stack-work\install\*\bin\project-m36-server.exe .stack-work\install\*\bin\project-m36-websocket-server.exe .stack-work\install\*\bin\tutd.exe .stack-work\install\*\bin\project-m36-server.exe
 
 #artifacts:
