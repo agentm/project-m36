@@ -187,7 +187,7 @@ instance Eq RelationTuple where
       atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) (attributesVec attrs) of
         Nothing -> Nothing
         Just index -> tupVec V.!? index
-      atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)
+      atomsEqual = V.all id $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)
 
 instance NFData RelationTuple where rnf = genericRnf
 

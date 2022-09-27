@@ -62,7 +62,7 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple
                                                                                 Left $ TupleAttributeTypeMismatchError A.emptyAttributes
                                                                             ) (Right rel) (asList tupSet)
   where
-    tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
+    tupleAtomCheck tuple = V.all id (attrChecks tuple)
     attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
                                  Left _ -> False
                                  Right atom -> Right (atomTypeForAtom atom) ==
