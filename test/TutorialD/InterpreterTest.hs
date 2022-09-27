@@ -86,7 +86,8 @@ main = do
       testUnionAndIntersectionAttributeExprs,
       testUndefineConstraints,
       testQuotedRelVarNames,
-      testScientific
+      testScientific,
+      testExtendProcessorTuplePushdown
       ]
 
 simpleRelTests :: Test
@@ -769,3 +770,17 @@ testScientific = TestCase $ do
   executeTutorialD sessionId dbconn "x:=relation{tuple{a scientific_add(scientific(2,int(100)),scientific(1,int(100)))}}"
   addSciRel <- getX
   assertEqual "scientific add" (mkRelationFromList attrs [[ScientificAtom (scientific 3 100)]]) addSciRel
+
+testExtendProcessorTuplePushdown :: Test
+testExtendProcessorTuplePushdown = TestCase $ do
+  --test that context-based tuples are pushed through to the tuple extend processor used commonly in OUTER-JOIN-equivalent extensions
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x := (relation{tuple{p# \"P7\", city \"Reykjavik\", color \"Beige\", pname \"Widget\", weight 21}} union p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}"
+  {-
+:showexpr relation{tuple{p# "P5", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P4", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P2", suppliers relation{tuple{s# "S1"}, tuple{s# "S2"}, tuple{s# "S3"}, tuple{s# "S4"}}}, tuple{p# "P3", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P6", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P1", suppliers relation{tuple{s# "S1"},tuple{s# "S2"}}}, tuple{p# "P7", suppliers relation{s# Text}}} 
+
+-}
+  executeTutorialD sessionId dbconn "y := relation{tuple{p# \"P5\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P4\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P2\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S2\"}, tuple{s# \"S3\"}, tuple{s# \"S4\"}}}, tuple{p# \"P3\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P6\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P1\", suppliers relation{tuple{s# \"S1\"},tuple{s# \"S2\"}}}, tuple{p# \"P7\", suppliers relation{s# Text}}}"
+  res <- executeRelationalExpr sessionId dbconn (Equals (RelationVariable "x" ()) (RelationVariable "y" ()))
+  assertEqual "outer join grouping" (Right relationTrue) res 
+  

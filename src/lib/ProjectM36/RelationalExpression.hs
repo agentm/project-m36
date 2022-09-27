@@ -764,12 +764,12 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
   let attrs' = A.union attrs (envAttributes env)
       ctxtup' = envTuple env
   atomExprType <- typeForGraphRefAtomExpr attrs' atomExpr
-  attr <- lift $ except $ case A.attributeForName attrName attrs of
+  attr <- lift $ except $ case A.attributeForName attrName attrs' of
       Right attr -> Right attr
-      Left (NoSuchAttributeNamesError _) -> case A.attributeForName attrName (tupleAttributes ctxtup') of
-        Right ctxattr -> Right ctxattr
-        Left err2@(NoSuchAttributeNamesError _) -> Left err2
-        Left err -> Left err
+      Left (NoSuchAttributeNamesError _) -> case A.attributeForName attrName (tupleAttributes ctxtup') of 
+                                              Right ctxattr -> Right ctxattr
+                                              Left err2@(NoSuchAttributeNamesError _) -> Left err2
+                                              Left err -> Left err
       Left err -> Left err
   if atomExprType /= A.atomType attr then
       throwError (TupleAttributeTypeMismatchError (A.attributesFromList [attr]))
@@ -912,7 +912,7 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
             Right tvMap ->
               lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
 typeForGraphRefAtomExpr attrs (RelationAtomExpr relExpr) = do
-  relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)
+  relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)  
   pure (RelationAtomType (attributes relType))
 -- grab the type of the data constructor, then validate that the args match the expected types
 typeForGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _) | tOrF `elem` ["True", "False"] =
@@ -1184,6 +1184,7 @@ typeForGraphRefRelationalExpr (Ungroup groupAttrName expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
   lift $ except $ ungroup groupAttrName expr'
 typeForGraphRefRelationalExpr (Restrict pred' expr) = do
+  ex <- gre_extra <$> askEnv
   expr' <- typeForGraphRefRelationalExpr expr
   filt <- predicateRestrictionFilter (attributes expr') pred'
   lift $ except $ restrict filt expr'
