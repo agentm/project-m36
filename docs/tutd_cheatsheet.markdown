@@ -60,7 +60,7 @@ Database context expressions take the current database context as input and alte
 |`delete sp where s#="S4"`|Remove tuples matching the criteria|
 |`key s_key_constraint {s#} s`|Add a constraint named `s_key_constraint` on relation variable `s` ensuring that `s#` is unique|
 |`foreign key s#_in_sp sp{s#} in s{s#}`|Add a foreign key constraint that ensures that `sp`'s `s#` attribute always references a `s#` value in `s`|
-|`constraint s_status_less_than_50 (s where 50,@status)){} in false`|Add a constraint that stipulates that the `status` values in `s` are less than 50|
+|`constraint s_status_less_than_50 (s where gte(@status,50)){} in false`|Add a constraint that stipulates that the `status` values in `s` are less than 50|
 |`createarbitraryrelation employee {name Text, empid Int, hired DateTime} 3-100`|Create a relation variable with random values with between 3-100 tuples- useful for testing|
 |`notify steve_change person where name="Steve" true (person where name="Steve"){address}`|Notify the current connection with an asynchronous event if any committed tuples matching `person where name="Steve"` with `true` for the pre-change state and `person where name="Steve"){address}` for the post-change state- these states will be sent along with the notification|
 |`data Hair = Bald | Brown | Blond | OtherColor Text`|Create a new algebraic data type for use with values inside tuples|
