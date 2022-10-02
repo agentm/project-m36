@@ -101,3 +101,9 @@ data RetrieveTypeConstructorMapping = RetrieveTypeConstructorMapping SessionId
 
 data ExecuteValidateMerkleHashes = ExecuteValidateMerkleHashes SessionId
   RPCData(ExecuteValidateMerkleHashes)
+
+data GetDDLHash = GetDDLHash SessionId
+  RPCData(GetDDLHash)
+
+data RetrieveDDLAsRelation = RetrieveDDLAsRelation SessionId
+  RPCData(RetrieveDDLAsRelation)

@@ -131,7 +131,9 @@ Library
                      ProjectM36.NormalizeExpr,
                      ProjectM36.TransactionInfo,
                      ProjectM36.WithNameExpr, 
-                     ProjectM36.Trace
+                     ProjectM36.Trace,
+                     ProjectM36.HashBytes,
+                     ProjectM36.DDLType
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12

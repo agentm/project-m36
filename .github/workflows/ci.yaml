@@ -55,8 +55,8 @@ jobs:
             ${{ runner.os }}-build-stack-${{ matrix.ghc }}
       - name: Fix macOS cache bug
         run: rm -rf ~/.stack/setup-exe-cache
-      - name: HLint
-        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
+#      - name: HLint
+#        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test

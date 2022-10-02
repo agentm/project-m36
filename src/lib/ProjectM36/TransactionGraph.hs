@@ -12,6 +12,7 @@ import ProjectM36.TransactionGraph.Merge
 import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
+import ProjectM36.HashBytes
 
 import Codec.Winery
 import Control.Monad.Except hiding (join)
@@ -32,7 +33,6 @@ import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
 import qualified Data.ByteString.Lazy as BL
-import ProjectM36.DatabaseContext as DBC
 import Crypto.Hash.SHA256
 
 -- | Record a lookup for a specific transaction in the graph.
@@ -616,7 +616,7 @@ calculateMerkleHash trans graph =
     getMerkleHash t = merkleHash (transactionInfo t)
     transIds = transactionId trans : S.toAscList (parentIds trans)
     transIdsBytes = serialise transIds
-    dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
+    dbcBytes = hashBytes (concreteDatabaseContext trans)
     schemasBytes = serialise (subschemas trans)
 
 validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()

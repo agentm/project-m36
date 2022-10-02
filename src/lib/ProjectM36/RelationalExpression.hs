@@ -1184,7 +1184,6 @@ typeForGraphRefRelationalExpr (Ungroup groupAttrName expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
   lift $ except $ ungroup groupAttrName expr'
 typeForGraphRefRelationalExpr (Restrict pred' expr) = do
-  ex <- gre_extra <$> askEnv
   expr' <- typeForGraphRefRelationalExpr expr
   filt <- predicateRestrictionFilter (attributes expr') pred'
   lift $ except $ restrict filt expr'
@@ -1426,4 +1425,4 @@ applyRestrictionCollapse orig@(Restrict npred@(NotPredicate _) expr) =
     _ -> orig
 applyRestrictionCollapse expr = expr
 
-                                
+

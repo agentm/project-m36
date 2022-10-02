@@ -35,6 +35,7 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       ddlAsRelation,
        ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
        headName,
@@ -45,6 +46,7 @@ module ProjectM36.Client
        defaultRemoteConnectionInfo,
        defaultHeadName,
        addClientNode,
+       getDDLHash,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -126,6 +128,7 @@ import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
+import ProjectM36.DDLType
 import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
@@ -160,6 +163,7 @@ import System.IO
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
+import qualified Data.ByteString as B
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 
@@ -821,12 +825,23 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
       Left err -> pure (Left err)
       Right (session, schema) -> do
         let context = Sess.concreteDatabaseContext session
-        if Sess.schemaName session == defaultSchemaName then
-          pure $ RE.relationVariablesAsRelation context graph
-          else
-          pure $ Schema.relationVariablesAsRelationInSchema context schema graph
+        pure $ Schema.relationVariablesAsRelationInSchema context schema graph
       
 relationVariablesAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
+
+-- | Returns a relation representing the complete DDL of the current `DatabaseContext`.
+ddlAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+ddlAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    graph <- readTVar (ipTransactionGraph conf)
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) -> do
+        let context = Sess.concreteDatabaseContext session
+        pure (ddlType schema context graph)
+ddlAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveDDLAsRelation sessionId)
 
 -- | Returns the names and types of the atom functions in the current 'Session'.
 atomFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
@@ -1065,6 +1080,22 @@ validateMerkleHashes sessionId (InProcessConnection conf) = do
           Left merkleErrs -> pure $ Left $ someErrors (map (\(MerkleValidationError tid expected actual) -> MerkleHashValidationError tid expected actual) merkleErrs)
           Right () -> pure (Right ())
 validateMerkleHashes sessionId conn@RemoteConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)
+
+-- | Calculate a hash on the DDL of the current database context (not the graph). This is useful for validating on the client that the database schema meets the client's expectation. Any DDL change will change this hash. This hash does not change based on the current isomorphic schema being examined. This function is not affected by the current schema (since they are all isomorphic anyway, they should return the same hash).
+getDDLHash :: SessionId -> Connection -> IO (Either RelationalError B.ByteString)
+getDDLHash sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        let ctx = Sess.concreteDatabaseContext session            
+        graph <- readTVar (ipTransactionGraph conf)
+        pure (ddlHash ctx graph)
+getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
+
+
 
 type ClientNodes = StmSet.Set ClientInfo
 

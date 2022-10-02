@@ -36,6 +36,7 @@ import Data.Time.Clock (getCurrentTime)
 import Data.Time.Calendar (fromGregorian)
 import Data.Either
 import Data.Scientific
+import Data.ByteString.Base64 as B64
 
 main :: IO ()
 main = do
@@ -87,7 +88,9 @@ main = do
       testUndefineConstraints,
       testQuotedRelVarNames,
       testScientific,
-      testExtendProcessorTuplePushdown
+      testExtendProcessorTuplePushdown,
+      testDDLHash,
+      testShowDDL
       ]
 
 simpleRelTests :: Test
@@ -784,3 +787,44 @@ testExtendProcessorTuplePushdown = TestCase $ do
   res <- executeRelationalExpr sessionId dbconn (Equals (RelationVariable "x" ()) (RelationVariable "y" ()))
   assertEqual "outer join grouping" (Right relationTrue) res 
   
+testDDLHash :: Test
+testDDLHash = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  Right hash1 <- getDDLHash sessionId dbconn
+  -- add a new rv
+  executeTutorialD sessionId dbconn "x:=true"
+  Right hash2 <- getDDLHash sessionId dbconn  
+  assertBool "add relvar" (hash1 /= hash2)
+  -- the test should break if the hash is calculated differently
+  assertEqual "static hash check" "8IOTpL8gNwsaQyFatCHpQVQGBx5kvlR9ddkol2/+nsw=" (B64.encode hash1)
+  -- remove an rv
+  executeTutorialD sessionId dbconn "undefine x"
+  Right hash3 <- getDDLHash sessionId dbconn
+  assertEqual "undefine relvar" hash1 hash3
+  -- add a constraint
+  executeTutorialD sessionId dbconn "constraint s_status_less_than_50 (s where gte(@status,50)){} in false"
+  Right hash4 <- getDDLHash sessionId dbconn
+  assertBool "add relvar" (hash4 `notElem` [hash1, hash2, hash3])
+  -- change an rv's attributes
+  executeTutorialD sessionId dbconn "y:=relation{a Integer}"
+  Right hash5 <- getDDLHash sessionId dbconn
+  executeTutorialD sessionId dbconn "undefine y"
+  executeTutorialD sessionId dbconn "y:=relation{b Integer}"
+  Right hash6 <- getDDLHash sessionId dbconn
+  assertBool "change rv attribute" (hash6 `notElem` [hash1, hash2, hash3, hash4, hash5])
+  -- change an rv name
+  executeTutorialD sessionId dbconn "undefine y"
+  executeTutorialD sessionId dbconn "z:=relation{b Integer}"
+  Right hash7 <- getDDLHash sessionId dbconn
+  assertBool "change rv attribute" (hash7 `notElem` [hash1, hash2, hash3, hash4, hash5, hash6])  
+
+testShowDDL :: Test
+testShowDDL = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  Right ddl <- ddlAsRelation sessionId dbconn
+  --save it back to the db to run tutd on it
+  _ <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (ExistingRelation ddl))
+  executeTutorialD sessionId dbconn "y := ((x{relation_variables}) ungroup relation_variables){name}"
+  rel1 <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  let expected = mkRelationFromList (attributesFromList [Attribute "name" TextAtomType]) (map ((:[]) . TextAtom) ["s","p","sp","true", "false"])
+  assertEqual "rv names" expected rel1

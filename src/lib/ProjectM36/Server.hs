@@ -102,7 +102,13 @@ requestHandlers testFlag ti =
                         handleRetrieveTypeConstructorMapping ti sessionId conn),
      RequestHandler (\sState (ExecuteValidateMerkleHashes sessionId) -> do
                         conn <- getConn sState                        
-                        handleValidateMerkleHashes ti sessionId conn)
+                        handleValidateMerkleHashes ti sessionId conn),
+     RequestHandler (\sState (GetDDLHash sessionId) -> do
+                        conn <- getConn sState
+                        handleGetDDLHash ti sessionId conn),
+     RequestHandler (\sState (RetrieveDDLAsRelation sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveDDLAsRelation ti sessionId conn)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection
