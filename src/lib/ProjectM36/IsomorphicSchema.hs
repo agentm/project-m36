@@ -91,6 +91,7 @@ validateRelationalExprInSchema schema relExprIn =
     validRelVarNames = isomorphsInRelVarNames (isomorphs schema)
   
 processRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError RelationalExpr
+processRelationalExprInSchema (Schema []) expr = pure expr
 processRelationalExprInSchema schema relExprIn = do
   --validate that all rvs are present in the virtual schema- this prevents relation variables being referenced in the underlying schema (falling through the transformation)
   let processRelExpr rexpr morph = relExprMogrify (relExprMorph morph) rexpr

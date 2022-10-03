@@ -15,7 +15,8 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           notifications = M.empty,
                           atomFunctions = HS.empty,
                           dbcFunctions = HS.empty,
-                          typeConstructorMapping = [] }
+                          typeConstructorMapping = mempty,
+                          registeredQueries = mempty }
 
   
 -- | Remove TransactionId markers on GraphRefRelationalExpr
@@ -38,6 +39,7 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          atomFunctions = basicAtomFunctions,
                                          dbcFunctions = basicDatabaseContextFunctions,
                                          notifications = M.empty,
-                                         typeConstructorMapping = basicTypeConstructorMapping
+                                         typeConstructorMapping = basicTypeConstructorMapping,
+                                         registeredQueries = M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ()))
                                          }
 

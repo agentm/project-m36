@@ -153,3 +153,7 @@ handleGetDDLHash ti sessionId conn =
 handleRetrieveDDLAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
 handleRetrieveDDLAsRelation ti sessionId conn =
   timeoutRelErr ti (C.ddlAsRelation sessionId conn)
+
+handleRetrieveRegisteredQueries :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveRegisteredQueries ti sessionId conn =
+  timeoutRelErr ti (C.registeredQueriesAsRelation sessionId conn)

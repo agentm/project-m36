@@ -86,6 +86,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Replication](docs/replication.markdown)
 1. [Basic Operator Benchmarks](https://rawgit.com/agentm/project-m36/master/docs/basic_benchmarks.html)
 1. [Merkle Transaction Hashes](docs/merkle_transaction_graph.markdown)
+1. [Handling DDL Changes](docs/Handling_DDL_Changes.markdown)
 
 ### Integrations
 

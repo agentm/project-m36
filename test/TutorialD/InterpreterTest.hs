@@ -90,7 +90,8 @@ main = do
       testScientific,
       testExtendProcessorTuplePushdown,
       testDDLHash,
-      testShowDDL
+      testShowDDL,
+      testRegisteredQueries
       ]
 
 simpleRelTests :: Test
@@ -828,3 +829,20 @@ testShowDDL = TestCase $ do
   rel1 <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
   let expected = mkRelationFromList (attributesFromList [Attribute "name" TextAtomType]) (map ((:[]) . TextAtom) ["s","p","sp","true", "false"])
   assertEqual "rv names" expected rel1
+
+testRegisteredQueries :: Test
+testRegisteredQueries = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  -- test that an invalid query cannot be added
+  Left err <- executeDatabaseContextExpr sessionId dbconn (AddRegisteredQuery "invalid_query" (RelationVariable "x" ()))
+  assertEqual "invalid registered query" (RegisteredQueryValidationError "invalid_query" (RelVarNotDefinedError "x")) err
+  -- add a query, then test that removing the rv triggers an error
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a 5}}"
+  Right () <- executeDatabaseContextExpr sessionId dbconn (AddRegisteredQuery "protect_x" (RelationVariable "x" ()))
+  Left err' <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")
+  assertEqual "prevent x deletion" (RegisteredQueryValidationError "protect_x" (RelVarNotDefinedError "x")) err'
+  -- remove the query
+  Right () <- executeDatabaseContextExpr sessionId dbconn (RemoveRegisteredQuery "protect_x")
+  Right () <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")  
+  pure ()
+  

@@ -107,3 +107,6 @@ data GetDDLHash = GetDDLHash SessionId
 
 data RetrieveDDLAsRelation = RetrieveDDLAsRelation SessionId
   RPCData(RetrieveDDLAsRelation)
+
+data RetrieveRegisteredQueries = RetrieveRegisteredQueries SessionId
+  RPCData(RetrieveRegisteredQueries)

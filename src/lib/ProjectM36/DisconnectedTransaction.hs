@@ -9,9 +9,9 @@ schemas :: DisconnectedTransaction -> Schemas
 schemas (DisconnectedTransaction _ s _) = s
 
 loadGraphRefRelVarsOnly :: TransactionId -> Schemas -> Schemas
-loadGraphRefRelVarsOnly commitId (Schemas ctx@(DatabaseContext _ rv _ _ _ _) subschemas) = 
+loadGraphRefRelVarsOnly commitId (Schemas concreteCtx subschemas) = 
   let f k _ = RelationVariable k (TransactionMarker commitId)
-      ctx' = ctx { relationVariables = mapWithKey f rv}
+      ctx' = concreteCtx { relationVariables = mapWithKey f (relationVariables concreteCtx)}
   in Schemas ctx' subschemas
 
 

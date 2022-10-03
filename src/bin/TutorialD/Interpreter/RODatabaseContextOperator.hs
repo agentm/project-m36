@@ -32,6 +32,7 @@ data RODatabaseContextOperator where
   ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
   GetDDLHash :: RODatabaseContextOperator
   ShowDDL :: RODatabaseContextOperator
+  ShowRegisteredQueries :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -90,6 +91,7 @@ roDatabaseContextOperatorP = typeP
              <|> showDataFrameP
              <|> ddlHashP
              <|> showDDLP
+             <|> showRegisteredQueriesP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -181,6 +183,13 @@ evalRODatabaseContextOp sessionId conn ShowDDL = do
     Left err -> pure (DisplayErrorResult (T.pack (show err)))
     Right ddl ->
       evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation ddl))
+
+evalRODatabaseContextOp sessionId conn ShowRegisteredQueries = do
+  eRv <- C.registeredQueriesAsRelation sessionId conn
+  case eRv of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right rv ->
+      evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rv))      
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
@@ -236,3 +245,6 @@ ddlHashP = colonOp ":ddlhash" $> GetDDLHash
 
 showDDLP :: Parser RODatabaseContextOperator
 showDDLP = colonOp ":showddl" $> ShowDDL
+
+showRegisteredQueriesP :: Parser RODatabaseContextOperator
+showRegisteredQueriesP = colonOp ":showregisteredqueries" $> ShowRegisteredQueries

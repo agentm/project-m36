@@ -481,6 +481,25 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomAr
                      case evalDatabaseContextFunction func (rights eAtomArgs) context of
                        Left err -> dbErr err
                        Right newContext -> putStateContext newContext
+
+evalGraphRefDatabaseContextExpr (AddRegisteredQuery regName regExpr) = do
+  context <- getStateContext
+  tgraph <- dbcGraph
+  tid <- dbcTransId
+  case M.lookup regName (registeredQueries context) of
+    Just _ -> dbErr (RegisteredQueryNameInUseError regName)
+    Nothing -> do
+      let context' = context { registeredQueries = M.insert regName regExpr (registeredQueries context) }
+      case checkConstraints context' tid tgraph of
+        Left err -> dbErr err
+        Right _ -> putStateContext context'
+evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
+  context <- getStateContext  
+  case M.lookup regName (registeredQueries context) of
+    Nothing -> dbErr (RegisteredQueryNameNotInUseError regName)
+    Just _ -> putStateContext (context { registeredQueries = M.delete regName (registeredQueries context) })
+  
+
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
@@ -664,7 +683,8 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
 checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = do
-  mapM_ (uncurry checkIncDep) (M.toList deps) 
+  mapM_ (uncurry checkIncDep) (M.toList deps)
+  mapM_ checkRegisteredQuery (M.toList (registeredQueries context))
   where
     potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
     tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
@@ -677,16 +697,16 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
                                       }
     
     deps = inclusionDependencies context
+    process = runProcessExprM UncommittedContextMarker
+    gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
-      let process = runProcessExprM UncommittedContextMarker
-          gfSubsetExpr = process (processRelationalExpr subsetExpr)
+      let gfSubsetExpr = process (processRelationalExpr subsetExpr)
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
-      let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
-            Left err -> Left (InclusionDependencyCheckError depName (Just err))
-            Right v -> Right v
+                         Left err -> Left (InclusionDependencyCheckError depName (Just err))
+                         Right v -> Right v
       typeSub <- runGfRel (typeForGraphRefRelationalExpr gfSubsetExpr)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
       when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
@@ -699,6 +719,12 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
                                    pure ()
                                 else 
                                   Left (InclusionDependencyCheckError depName Nothing)
+    --registered queries just need to typecheck- think of them as a constraints on the schema/DDL
+    checkRegisteredQuery (qName, relExpr) = do
+      let gfExpr = process (processRelationalExpr relExpr)
+      case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
+        Left err -> Left (RegisteredQueryValidationError qName err)
+        Right _ -> pure ()
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation

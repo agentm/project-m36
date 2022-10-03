@@ -108,7 +108,10 @@ requestHandlers testFlag ti =
                         handleGetDDLHash ti sessionId conn),
      RequestHandler (\sState (RetrieveDDLAsRelation sessionId) -> do
                         conn <- getConn sState
-                        handleRetrieveDDLAsRelation ti sessionId conn)
+                        handleRetrieveDDLAsRelation ti sessionId conn),
+     RequestHandler (\sState (RetrieveRegisteredQueries sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveRegisteredQueries ti sessionId conn)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection

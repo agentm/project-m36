@@ -35,6 +35,7 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       registeredQueriesAsRelation,
        ddlAsRelation,
        ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
@@ -157,6 +158,7 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
+import ProjectM36.RegisteredQuery
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
@@ -1095,7 +1097,17 @@ getDDLHash sessionId (InProcessConnection conf) = do
         pure (ddlHash ctx graph)
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
 
-
+registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) -> do
+        let ctx = Sess.concreteDatabaseContext session        
+        pure $ registeredQueriesAsRelationInSchema schema (registeredQueries ctx)
+registeredQueriesAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveRegisteredQueries sessionId)        
 
 type ClientNodes = StmSet.Set ClientInfo
 

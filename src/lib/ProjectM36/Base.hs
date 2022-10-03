@@ -332,6 +332,10 @@ data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarNam
                       deriving (Generic, Show)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
+
+type RegisteredQueryName = StringType
+
+type RegisteredQueries = M.Map RegisteredQueryName RelationalExpr
                               
 data DatabaseContext = DatabaseContext {
   inclusionDependencies :: InclusionDependencies,
@@ -339,7 +343,8 @@ data DatabaseContext = DatabaseContext {
   atomFunctions :: AtomFunctions,
   dbcFunctions :: DatabaseContextFunctions,
   notifications :: Notifications,
-  typeConstructorMapping :: TypeConstructorMapping
+  typeConstructorMapping :: TypeConstructorMapping,
+  registeredQueries :: RegisteredQueries
   } deriving (NFData, Generic)
              
 type IncDepName = StringType             
@@ -383,6 +388,9 @@ data DatabaseContextExprBase a =
   RemoveDatabaseContextFunction FunctionName |
   
   ExecuteDatabaseContextFunction FunctionName [AtomExprBase a] |
+
+  AddRegisteredQuery RegisteredQueryName RelationalExpr |
+  RemoveRegisteredQuery RegisteredQueryName |
   
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Read, Eq, Generic, NFData)

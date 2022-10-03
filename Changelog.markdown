@@ -1,3 +1,9 @@
+# Future
+
+* fix tuple context passed down to extended expressions
+* add ddl hash- useful for validating that the client supports the current schema
+* add registered queries- useful for constraining what DDL can be applied to the database so as not to break client applications
+	
 # 2022-08-19 (v0.9.5)
   
 * removed necessity for caret "^" when using boolean atom expressions in restriction predicates

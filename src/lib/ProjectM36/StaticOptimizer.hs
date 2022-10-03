@@ -316,7 +316,8 @@ optimizeGraphRefDatabaseContextExpr c@(RemoveTypeConstructor _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(RemoveAtomFunction _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(RemoveDatabaseContextFunction _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(ExecuteDatabaseContextFunction _ _) = pure c
-
+optimizeGraphRefDatabaseContextExpr c@AddRegisteredQuery{} = pure c
+optimizeGraphRefDatabaseContextExpr c@RemoveRegisteredQuery{} = pure c
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 
 --applyStaticDatabaseOptimization (MultipleExpr exprs) = pure $ Right $ MultipleExpr exprs

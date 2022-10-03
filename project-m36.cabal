@@ -133,7 +133,8 @@ Library
                      ProjectM36.WithNameExpr, 
                      ProjectM36.Trace,
                      ProjectM36.HashBytes,
-                     ProjectM36.DDLType
+                     ProjectM36.DDLType,
+                     ProjectM36.RegisteredQuery
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12

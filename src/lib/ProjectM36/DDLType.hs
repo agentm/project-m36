@@ -20,6 +20,7 @@ import ProjectM36.IsomorphicSchema
 ddlHash :: DatabaseContext -> TransactionGraph -> Either RelationalError B.ByteString
 ddlHash ctx tgraph = do
   -- we cannot merely hash the relational representation of the type because the order of items matters when hashing
+  -- registered queries are not included here because a client could be compatible with a schema even if the queries are not registered. The client should validate registered query state up-front. Perhaps there should be another hash for registered queries.
 {-  relType <- ddlType ctx tgraph
   pure (SHA256.hash (serialise relType))
 -}
