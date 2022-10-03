@@ -705,20 +705,21 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
-                         Left err -> Left (InclusionDependencyCheckError depName (Just err))
+                         Left err -> Left (wrapIncDepErr (Just err))
                          Right v -> Right v
+          wrapIncDepErr e = InclusionDependencyCheckError depName e
       typeSub <- runGfRel (typeForGraphRefRelationalExpr gfSubsetExpr)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
-      when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
+      when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))
       let checkExpr = Equals gfSupersetExpr (Union gfSubsetExpr gfSupersetExpr)
           gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
-        Left err -> Left err
+        Left err -> Left (wrapIncDepErr (Just err))
         Right resultRel -> if resultRel == relationTrue then
                                    pure ()
                                 else 
-                                  Left (InclusionDependencyCheckError depName Nothing)
+                                  Left (wrapIncDepErr Nothing)
     --registered queries just need to typecheck- think of them as a constraints on the schema/DDL
     checkRegisteredQuery (qName, relExpr) = do
       let gfExpr = process (processRelationalExpr relExpr)
