@@ -105,6 +105,10 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
 
                      | MerkleHashValidationError TransactionId MerkleHash MerkleHash
 
+                     | RegisteredQueryValidationError RegisteredQueryName RelationalError
+                     | RegisteredQueryNameInUseError RegisteredQueryName
+                     | RegisteredQueryNameNotInUseError RegisteredQueryName
+
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Typeable, NFData) 
 
@@ -128,7 +132,8 @@ data MergeError = SelectedHeadMismatchMergeError |
                   DisconnectedTransactionNotAMergeHeadError TransactionId |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
                   StrategyViolatesRelationVariableMergeError |
-                  StrategyViolatesTypeConstructorMergeError
+                  StrategyViolatesTypeConstructorMergeError |
+                  StrategyViolatesRegisteredQueryMergeError [RegisteredQueryName]
                   deriving (Show, Eq, Generic, Typeable)
                            
 instance NFData MergeError where rnf = genericRnf                           

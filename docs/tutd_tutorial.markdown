@@ -1,6 +1,6 @@
 # TutorialD Tutorial for Project:M36
 
-TutorialD is an logic language designed by Chris Date for interacting with any relational algebra engine. Project:M36 supports this language for the purposes of learning about the relational algebra. TutorialD is not recommended for use in production systems.
+TutorialD is an logic language designed by Chris Date for interacting with any relational algebra engine. Project:M36 supports this language for the purposes of learning about the relational algebra. For a more type-safe interface to Project:M36, consider using the [Haskell client library](/docs/projectm36_client_library.markdown).
 
 It is presumed that the audience for this tutorial has at least some minimal background with an SQL-based DBMS.
 
@@ -57,15 +57,16 @@ TutorialD is strongly-typed. The basic built-in types are:
 |Text|arbitrary text|"The Old Man and the Sea"|
 |Integer|arbitarily-sized integer|-4|
 |Int|machine word integer|int(10)|
+|Scientific|large, arbitrary-precision numbers|scientific(1,int(100))|
 |DateTime|timestamp UTC|dateTimeFromEpochSeconds(1502304846)|
 |Date|calendar date|fromGregorian(2017,05,30)|
 |Double|floating point number|3.1459|
-|Bool|boolean value|t|
+|Bool|boolean value|True|
 |Bytestring|arbitrary-length string of bytes- input is base64-encoded|bytestring("dGVzdGRhdGE=")|
 |Interval x|interval/range type for ints, doubles, datetimes, and dates|interval(3,5,f,f)|
 |UUID|128 bit uuid|uuid("3494c720-14e7-40f4-bc34-eae4ad4c2f7a")|
 
-With regards to boolean values, be sure not to conflate ```t``` or ```f``` as a boolean value with ```true``` and ```false``` which are relation variables.
+With regards to boolean values, be sure not to conflate ```True``` or ```False``` as a boolean value with ```true``` and ```false``` which are relation variables.
 
 The ```interval``` function last two arguments are boolean values indicating whether the interval is open at the start point and end point respectively.
 
@@ -294,10 +295,10 @@ TutorialD (master/main): :showexpr p where color="Blue" and city="Paris"
 └──────────┴───────────┴────────┴───────────┴───────────────┘
 ```
 
-The restriction predicate can be built from "and", "not", and "or". Boolean atom functions can also appear in a restriction as long as they are preceded by "^". For example:
+The restriction predicate can be built from "and", "not", and "or". For example:
 
 ```
-TutorialD (master/main): :showexpr s where ^lt(@status,20)
+TutorialD (master/main): :showexpr s where lt(@status,20)
 ┌──────────┬────────┬───────────┬───────────────┐
 │city::Text│s#::Text│sname::Text│status::Integer│
 ├──────────┼────────┼───────────┼───────────────┤
@@ -377,12 +378,13 @@ Supported atom functions include:
 
 |Function|Purpose|
 |--------|-------|
-|add(int,int)|Return the sum of two integers.|
-|not(bool)|Invert a boolean expression.|
-|lt(int,int)|Returns boolean true atom if he first argument is less than the second argument.|
-|lte(int,int)|Returns boolean true atom if he first argument is less than or equal to the second argument.|
-|gt(int,int)|Returns boolean true atom if he first argument is greater than the second argument.|
-|gte(int,int)|Returns boolean true atom if he first argument is greater than or equal to the second argument.|
+|add(Integer,Integer)|Return the sum of two integers.|
+|eq(Integer,Integer)|Return True if two integers are equal.|
+|not(Bool)|Invert a boolean expression.|
+|lt(Integer,Integer)|Returns boolean true atom if he first argument is less than the second argument.|
+|lte(Integer,Integer)|Returns boolean true atom if he first argument is less than or equal to the second argument.|
+|gt(Integer,Integer)|Returns boolean true atom if he first argument is greater than the second argument.|
+|gte(Integer,Integer)|Returns boolean true atom if he first argument is greater than or equal to the second argument.|
 
 #### Group
 
@@ -616,7 +618,7 @@ In this example, the functional dependency is named "sname_status" and creates a
 All other constraints can be represented by a set of inclusion dependencies.
 
 ```
-TutorialD (master/main): constraint s_status_less_than_50 (s where ^lt(50,@status)){} in false
+TutorialD (master/main): constraint s_status_less_than_50 (s where lt(50,@status)){} in false
 ```
 
 This expression ensures that the relation variable's relation can never include a tuple with status greater than 50.

@@ -69,5 +69,5 @@ monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|
                        TypeVariable <$> typeVariableIdentifierP
                    
 
-
-
+relVarNameP :: Parser RelVarName
+relVarNameP = try uncapitalizedIdentifier <|> quotedIdentifier

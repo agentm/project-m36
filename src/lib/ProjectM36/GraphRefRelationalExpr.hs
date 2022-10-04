@@ -3,8 +3,6 @@ module ProjectM36.GraphRefRelationalExpr where
 import ProjectM36.Base
 import qualified Data.Set as S
 
---import Debug.Trace
-
 data SingularTransactionRef = SingularTransactionRef GraphRefTransactionMarker |
                               MultipleTransactionsRef |
                               NoTransactionsRef

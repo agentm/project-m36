@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import Control.Monad (void)
@@ -6,10 +7,7 @@ import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.Relation
-import qualified Data.ByteString.Lazy as BL
 import ProjectM36.DatabaseContextFunction
-import Codec.Winery
-import ProjectM36.Function as F
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -17,8 +15,10 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           notifications = M.empty,
                           atomFunctions = HS.empty,
                           dbcFunctions = HS.empty,
-                          typeConstructorMapping = [] }
+                          typeConstructorMapping = mempty,
+                          registeredQueries = mempty }
 
+  
 -- | Remove TransactionId markers on GraphRefRelationalExpr
 stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
 stripGraphRefRelationalExpr = void
@@ -39,16 +39,7 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          atomFunctions = basicAtomFunctions,
                                          dbcFunctions = basicDatabaseContextFunctions,
                                          notifications = M.empty,
-                                         typeConstructorMapping = basicTypeConstructorMapping
+                                         typeConstructorMapping = basicTypeConstructorMapping,
+                                         registeredQueries = M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ()))
                                          }
 
---for building the Merkle hash
-hashBytes :: DatabaseContext -> BL.ByteString
-hashBytes ctx = BL.fromChunks [incDeps, rvs, nots, tConsMap] <> atomFs <> dbcFs
-  where
-    incDeps = serialise (inclusionDependencies ctx)
-    rvs = serialise (relationVariables ctx)
-    atomFs = HS.foldr (mappend . F.hashBytes) mempty (atomFunctions ctx)
-    dbcFs = HS.foldr (mappend . F.hashBytes) mempty (dbcFunctions ctx)
-    nots = serialise (notifications ctx)
-    tConsMap = serialise (typeConstructorMapping ctx)

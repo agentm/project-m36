@@ -18,6 +18,8 @@ Relational expressions query database state without being able to change it.
 |`:showexpr s antijoin sp`|Display the result of all tuples in `s` which do not match appear in the result of `s semijoin sp`|
 |`:showexpr s union s`| Display the result of `s` unioned with itself (which is equivalent to `s`)|
 |`:showexpr s:{status2:=add(10,@status)}`| Display the result of extending the `s` relation variable with a new attribute which adds 10 to each `status` attribute|
+|`:showexpr s where lt(@status, 30)`|Display the result of `s` where the `status` is less than 30.|
+|`:showexpr s relwhere (p{})`|Display the result of `s` if the `p` relation variable is non-empty.|
 |`:showexpr s group ({sname,status,s#} as subrel)`| Display the result of grouping the `sname`, `status`, and `s#` into a subrel for each tuple in the `s` relation where the `city` attribute (not mentioned) is the grouping criteria|
 |`:showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel`| Display the result of unwrapping a subrelation to create one new tuple for each subrelation tuple in the result|
 |`:showexpr s minus s`|Display the result after removing all tuples that match the second argument. `x minus x` is equivalent to `x where false`|
@@ -37,9 +39,10 @@ Relational expressions query database state without being able to change it.
 |`12.56`|Double|64-bit IEEE 754 floating point number|
 |`dateTimeFromEpochSeconds(1502304846)`|DateTime||
 |`fromGregorian(2017,05,30)`|Date||
-|`t`|Bool|`t` or `f`|
+|`True`|Bool|`True` or `False` (not to be conflated with `true` and `false` which are relation variables)|
 |`bytestring("dGVzdGRhdGE=")`|Bytestring|base-64-encoded string of bytes|
-|`interval(3,5,f,f)`|Interval(Integer)|the constructor function includes two bounds and two boolean flags for inclusiveness|
+|`interval(3,5,False,False)`|Interval(Integer)|the constructor function includes two bounds and two boolean flags for inclusiveness|
+|`scientific(1,int(100))`|Scientific|1e100|
 
 ## Database Context Expressions
 
@@ -57,7 +60,7 @@ Database context expressions take the current database context as input and alte
 |`delete sp where s#="S4"`|Remove tuples matching the criteria|
 |`key s_key_constraint {s#} s`|Add a constraint named `s_key_constraint` on relation variable `s` ensuring that `s#` is unique|
 |`foreign key s#_in_sp sp{s#} in s{s#}`|Add a foreign key constraint that ensures that `sp`'s `s#` attribute always references a `s#` value in `s`|
-|`constraint s_status_less_than_50 (s where ^lt(50,@status)){} in false`|Add a constraint that stipulates that the `status` values in `s` are less than 50|
+|`constraint s_status_less_than_50 (s where gte(@status,50)){} in false`|Add a constraint that stipulates that the `status` values in `s` are less than 50|
 |`createarbitraryrelation employee {name Text, empid Int, hired DateTime} 3-100`|Create a relation variable with random values with between 3-100 tuples- useful for testing|
 |`notify steve_change person where name="Steve" true (person where name="Steve"){address}`|Notify the current connection with an asynchronous event if any committed tuples matching `person where name="Steve"` with `true` for the pre-change state and `person where name="Steve"){address}` for the post-change state- these states will be sent along with the notification|
 |`data Hair = Bald | Brown | Blond | OtherColor Text`|Create a new algebraic data type for use with values inside tuples|

@@ -29,12 +29,14 @@ import qualified Data.Vector as V
 import Data.Text.Encoding as TE
 import Control.Concurrent
 import qualified Data.Set as S
-import Data.Text hiding (map)
+import Data.Text (unpack, Text)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX hiding (getCurrentTime)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Calendar (fromGregorian)
 import Data.Either
+import Data.Scientific
+import Data.ByteString.Base64 as B64
 
 main :: IO ()
 main = do
@@ -84,7 +86,12 @@ main = do
       testSelfReferencingUncommittedContext,
       testUnionAndIntersectionAttributeExprs,
       testUndefineConstraints,
-      testQuotedRelVarNames      
+      testQuotedRelVarNames,
+      testScientific,
+      testExtendProcessorTuplePushdown,
+      testDDLHash,
+      testShowDDL,
+      testRegisteredQueries
       ]
 
 simpleRelTests :: Test
@@ -113,8 +120,10 @@ simpleRelTests = TestCase $ do
                       ("x:=true where false or false", Right relationFalse),
                       ("x:=true where true and false", Right relationFalse),
                       ("x:=true where false and true", Right relationFalse),                      
-                      ("x:=true where ^t and ^f", Right relationFalse),
+                      ("x:=true where True and False", Right relationFalse),
                       ("x:=true where true and true", Right relationTrue),
+                      ("x:=true where true and True", Right relationTrue),
+                      ("x:=true where True and true", Right relationTrue), -- flip these around to catch parser bugs
                       ("x:=true=true", Right relationTrue),
                       ("x:=true=false", Right relationFalse),
                       ("x:=true; undefine x", Left (RelVarNotDefinedError "x")),
@@ -175,11 +184,11 @@ dateExampleRelTests = TestCase $ do
                            ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
                            ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
                            --boolean function restriction
-                           ("x:=s where ^lt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
-                           ("x:=s where ^gt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
+                           ("x:=s where lt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
+                           ("x:=s where gt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
                                                                                                        [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
-                           ("x:=s where ^sum(@status)", Left $ AtomTypeMismatchError IntegerAtomType BoolAtomType),
-                           ("x:=s where ^not(gte(@status,20))", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
+                           ("x:=s where sum(@status)", Left $ AtomFunctionTypeError "sum" 1 (RelationAtomType (attributesFromList [Attribute "_" IntegerAtomType])) IntegerAtomType),
+                           ("x:=s where not(gte(@status,20))", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
                            --test key syntax
@@ -430,7 +439,7 @@ testSchemaExpr :: Test
 testSchemaExpr = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
   mapM_ (executeTutorialD sessionId dbconn) [
-    ":addschema test (isopassthrough \"true\", isopassthrough \"false\", isorename \"supplier\" \"s\", isorename \"supplier_product\" \"sp\", isounion \"heavy_product\" \"light_product\" \"p\" ^gte(17,@weight))",
+    ":addschema test (isopassthrough \"true\", isopassthrough \"false\", isorename \"supplier\" \"s\", isorename \"supplier_product\" \"sp\", isounion \"heavy_product\" \"light_product\" \"p\" gte(17,@weight))",
     ":setschema test",
     ""
     ]
@@ -524,12 +533,12 @@ testIntervalAtom :: Test
 testIntervalAtom = TestCase $ do  
   --test interval creation
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback  
-  executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,f,f), b interval(4,5,f,f)}, tuple{n 2,a interval(3,4,t,t), b interval(4,5,t,t)}}"
+  executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,False,False), b interval(4,5,False,False)}, tuple{n 2,a interval(3,4,True,True), b interval(4,5,True,True)}}"
   --test failed interval creation
   let err1 = "AtomFunctionUserError InvalidIntervalOrderingError"
       err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportIntervalError \"Text\")"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,f,f)}}"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",f,f)}}"  
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,False,False)}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",False,False)}}"  
 
   --test interval_overlaps
   executeTutorialD sessionId dbconn "y:=x:{c:=interval_overlaps(@a,@b)}"
@@ -681,12 +690,12 @@ testWithClause = TestCase $ do
 testAtomFunctionArgumentMismatch :: Test
 testAtomFunctionArgumentMismatch = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  let err1 = "AtomTypeMismatchError"
+  let err1 = "AtomFunctionTypeError"
   --atom function type mismatch
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 5}} where ^gt(@a,1.5)"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 5}} where gt(@a,1.5)"
   --wrong argument count
   let err2 = "FunctionArgumentCountMismatchError"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "x:=relation{tuple{a 5}} where ^gt(@a,1,3)"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "x:=relation{tuple{a 5}} where gt(@a,1,3)"
 
 testInvalidDataConstructor :: Test
 testInvalidDataConstructor = TestCase $ do
@@ -751,3 +760,89 @@ testQuotedRelVarNames = TestCase $ do
   let qAttrExpected = Right (Assign "test" (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (M.singleton "\28450\23383" (NakedAtomExpr (TextAtom "test")))])))
   assertEqual "quoted attribute" qAttrExpected (parseDBExpr "test:=relation{tuple{`漢字` \"test\"}}")
   assertBool "invalid quoted rv" (isLeft (parseDBExpr "`TEST:=true"))
+
+testScientific :: Test
+testScientific = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  let getX = executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a scientific(1,int(100))}}"
+  createSciRel <- getX
+  let expectedRel = mkRelationFromList attrs [[ScientificAtom (scientific 1 100)]]
+      attrs = attributesFromList [Attribute "a" ScientificAtomType]
+  assertEqual "scientific creation" expectedRel createSciRel
+  --test some math functions
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a scientific_add(scientific(2,int(100)),scientific(1,int(100)))}}"
+  addSciRel <- getX
+  assertEqual "scientific add" (mkRelationFromList attrs [[ScientificAtom (scientific 3 100)]]) addSciRel
+
+testExtendProcessorTuplePushdown :: Test
+testExtendProcessorTuplePushdown = TestCase $ do
+  --test that context-based tuples are pushed through to the tuple extend processor used commonly in OUTER-JOIN-equivalent extensions
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD sessionId dbconn "x := (relation{tuple{p# \"P7\", city \"Reykjavik\", color \"Beige\", pname \"Widget\", weight 21}} union p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}"
+  {-
+:showexpr relation{tuple{p# "P5", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P4", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P2", suppliers relation{tuple{s# "S1"}, tuple{s# "S2"}, tuple{s# "S3"}, tuple{s# "S4"}}}, tuple{p# "P3", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P6", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P1", suppliers relation{tuple{s# "S1"},tuple{s# "S2"}}}, tuple{p# "P7", suppliers relation{s# Text}}} 
+
+-}
+  executeTutorialD sessionId dbconn "y := relation{tuple{p# \"P5\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P4\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P2\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S2\"}, tuple{s# \"S3\"}, tuple{s# \"S4\"}}}, tuple{p# \"P3\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P6\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P1\", suppliers relation{tuple{s# \"S1\"},tuple{s# \"S2\"}}}, tuple{p# \"P7\", suppliers relation{s# Text}}}"
+  res <- executeRelationalExpr sessionId dbconn (Equals (RelationVariable "x" ()) (RelationVariable "y" ()))
+  assertEqual "outer join grouping" (Right relationTrue) res 
+  
+testDDLHash :: Test
+testDDLHash = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  Right hash1 <- getDDLHash sessionId dbconn
+  -- add a new rv
+  executeTutorialD sessionId dbconn "x:=true"
+  Right hash2 <- getDDLHash sessionId dbconn  
+  assertBool "add relvar" (hash1 /= hash2)
+  -- the test should break if the hash is calculated differently
+  assertEqual "static hash check" "8IOTpL8gNwsaQyFatCHpQVQGBx5kvlR9ddkol2/+nsw=" (B64.encode hash1)
+  -- remove an rv
+  executeTutorialD sessionId dbconn "undefine x"
+  Right hash3 <- getDDLHash sessionId dbconn
+  assertEqual "undefine relvar" hash1 hash3
+  -- add a constraint
+  executeTutorialD sessionId dbconn "constraint s_status_less_than_50 (s where gte(@status,50)){} in false"
+  Right hash4 <- getDDLHash sessionId dbconn
+  assertBool "add relvar" (hash4 `notElem` [hash1, hash2, hash3])
+  -- change an rv's attributes
+  executeTutorialD sessionId dbconn "y:=relation{a Integer}"
+  Right hash5 <- getDDLHash sessionId dbconn
+  executeTutorialD sessionId dbconn "undefine y"
+  executeTutorialD sessionId dbconn "y:=relation{b Integer}"
+  Right hash6 <- getDDLHash sessionId dbconn
+  assertBool "change rv attribute" (hash6 `notElem` [hash1, hash2, hash3, hash4, hash5])
+  -- change an rv name
+  executeTutorialD sessionId dbconn "undefine y"
+  executeTutorialD sessionId dbconn "z:=relation{b Integer}"
+  Right hash7 <- getDDLHash sessionId dbconn
+  assertBool "change rv attribute" (hash7 `notElem` [hash1, hash2, hash3, hash4, hash5, hash6])  
+
+testShowDDL :: Test
+testShowDDL = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  Right ddl <- ddlAsRelation sessionId dbconn
+  --save it back to the db to run tutd on it
+  _ <- executeDatabaseContextExpr sessionId dbconn (Assign "x" (ExistingRelation ddl))
+  executeTutorialD sessionId dbconn "y := ((x{relation_variables}) ungroup relation_variables){name}"
+  rel1 <- executeRelationalExpr sessionId dbconn (RelationVariable "y" ())
+  let expected = mkRelationFromList (attributesFromList [Attribute "name" TextAtomType]) (map ((:[]) . TextAtom) ["s","p","sp","true", "false"])
+  assertEqual "rv names" expected rel1
+
+testRegisteredQueries :: Test
+testRegisteredQueries = TestCase $ do
+  (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  -- test that an invalid query cannot be added
+  Left err <- executeDatabaseContextExpr sessionId dbconn (AddRegisteredQuery "invalid_query" (RelationVariable "x" ()))
+  assertEqual "invalid registered query" (RegisteredQueryValidationError "invalid_query" (RelVarNotDefinedError "x")) err
+  -- add a query, then test that removing the rv triggers an error
+  executeTutorialD sessionId dbconn "x:=relation{tuple{a 5}}"
+  Right () <- executeDatabaseContextExpr sessionId dbconn (AddRegisteredQuery "protect_x" (RelationVariable "x" ()))
+  Left err' <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")
+  assertEqual "prevent x deletion" (RegisteredQueryValidationError "protect_x" (RelVarNotDefinedError "x")) err'
+  -- remove the query
+  Right () <- executeDatabaseContextExpr sessionId dbconn (RemoveRegisteredQuery "protect_x")
+  Right () <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")  
+  pure ()
+  

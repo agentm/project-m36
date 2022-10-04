@@ -19,30 +19,47 @@ import Data.Text (Text, unpack)
 import Data.Maybe
 import GHC.Paths (libdir)
 import System.Environment
-#if __GLASGOW_HASKELL__ >= 800
-import GHC.LanguageExtensions
-import GHCi.ObjLink
-#else
-import ObjLink
-#endif
-#if __GLASGOW_HASKELL__ >= 802
-import BasicTypes
-#endif
-import DynFlags
-import Panic
-import Outputable --hiding ((<>))
-import PprTyThing
+
 import Unsafe.Coerce
-#if __GLASGOW_HASKELL__ >= 802
-import Type
-#elif __GLASGOW_HASKELL__ >= 710
-import Type hiding (pprTyThing)
+import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,ImplicitPrelude,ScopedTypeVariables))
+
+#if MIN_VERSION_ghc(9,2,0)
+-- GHC 9.2.2
+import GHC.Utils.Panic (handleGhcException)
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Types.SourceText (SourceText(NoSourceText))
+import GHC.Unit.Types (IsBootInterface(NotBoot))
+import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Core.Type (eqType)
+import GHC.Types.TyThing.Ppr (pprTypeForUser)
+import GHC.Utils.Encoding (zEncodeString)
+import GHC.Unit.State (emptyUnitState)
+#elif MIN_VERSION_ghc(9,0,0)
+-- GHC 9.0.0
+import GHC.Utils.Panic (handleGhcException)
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Types.Basic (SourceText(NoSourceText))
+import GHC.Unit.Types (IsBootInterface(NotBoot))
+import GHC.Core.Type (eqType)
+import GHC.Utils.Outputable (showSDocForUser)
+import GHC.Utils.Encoding (zEncodeString)
+import GHC.Core.Ppr.TyThing (pprTypeForUser)
 #else
+-- GHC 8.10.7
+import BasicTypes (SourceText(NoSourceText))
+import Outputable (showSDocForUser)
+import PprTyThing (pprTypeForUser)
+import Type (eqType)
+import Encoding (zEncodeString)
+import Panic (handleGhcException)
+import DynFlags (projectVersion, PkgConfRef(PkgConfFile), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming), PackageDBFlag(PackageDB))
 #endif
+
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
-import Encoding
+import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, lookupSymbol, loadDLL, loadObj)
 #endif
+-- endif for SCRIPTING FLAG
 
 data ScriptSession = ScriptSession {
 #ifdef PM36_HASKELL_SCRIPTING
@@ -90,33 +107,35 @@ initScriptSession ghcPkgPaths = do
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb"
       --homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
+#if MIN_VERSION_ghc(9,0,0)
+    let pkgConf = PkgDbPath
+#else
+    let pkgConf = PkgConfFile
+#endif
+    let localPkgPaths = map pkgConf (ghcPkgPaths ++ sandboxPkgPaths ++ maybeToList mNixLibDir)
 
-    let localPkgPaths = map PkgConfFile (ghcPkgPaths ++ sandboxPkgPaths ++ maybeToList mNixLibDir)
-
-    let dflags' = applyGopts . applyXopts $ dflags { hscTarget = HscInterpreted ,
+    let dflags' = applyGopts . applyXopts $ dflags {
+#if MIN_VERSION_ghc(9,2,0)
+                           backend = Interpreter,
+#else  
+                           hscTarget = HscInterpreted ,
+#endif
                            ghcLink = LinkInMemory,
                            safeHaskell = Sf_Trustworthy,
                            safeInfer = True,
                            safeInferred = True,
                            --verbosity = 3,
-#if __GLASGOW_HASKELL__ >= 800
-                           trustFlags = map TrustPackage required_packages,
-#endif
-                           packageFlags = packageFlags dflags ++ packages,
-#if __GLASGOW_HASKELL__ >= 802
-                           packageDBFlags = map PackageDB localPkgPaths
-#else
-                           extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
-#endif
 
-                         }
+                           trustFlags = map TrustPackage required_packages,
+                           packageFlags = packageFlags dflags ++ packages,
+                           packageDBFlags = map PackageDB localPkgPaths
+
+--                           extraPkgConfs = const (localPkgPaths ++ [UserPkgConf, GlobalPkgConf])
+        }
+
         applyGopts flags = foldl gopt_set flags gopts
         applyXopts flags = foldl xopt_set flags xopts
-#if __GLASGOW_HASKELL__ >= 800
         xopts = [OverloadedStrings, ExtendedDefaultRules, ImplicitPrelude, ScopedTypeVariables]
-#else
-        xopts = [Opt_OverloadedStrings, Opt_ExtendedDefaultRules, Opt_ImplicitPrelude,  Opt_ScopedTypeVariables]
-#endif
         gopts = [] --[Opt_DistrustAllPackages, Opt_PackageTrust]
         required_packages = ["base",
                              "containers",
@@ -131,42 +150,42 @@ initScriptSession ghcPkgPaths = do
                              "time",
                              "project-m36",
                              "bytestring"]
-#if __GLASGOW_HASKELL__ >= 800
         packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
-#else
-        packages = map TrustPackage required_packages
-#endif
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
-    let safeImportDecl mn mQual = ImportDecl {
-#if __GLASGOW_HASKELL__ >= 802
+    let safeImportDecl :: String -> Maybe String -> ImportDecl (GhcPass 'Parsed)
+        safeImportDecl fullModuleName mQualifiedName = ImportDecl {
           ideclSourceSrc = NoSourceText,
+
+#if MIN_VERSION_ghc(9,2,0)
+          ideclExt = noAnn,
 #else
-          ideclSourceSrc = Nothing,
+          ideclExt = noExtField,
+#endif
+#if MIN_VERSION_ghc(9,2,0)
+          --GenLocated SrcSpanAnnA ModuleName
+          ideclName      = noLocA (mkModuleName fullModuleName),
+#else
+          ideclName      = noLoc (mkModuleName fullModuleName),
+#endif
+          ideclPkgQual   = Nothing,
+#if MIN_VERSION_ghc(9,0,0)
+          ideclSource    = NotBoot,
+#else
+          ideclSource    = False,
 #endif
 
-#if __GLASGOW_HASKELL__ >= 810
-          ideclExt = noExtField,
-#elif __GLASGOW_HASKELL__ >= 806
-          ideclExt = NoExt,
-#endif
-          ideclName      = noLoc mn,
-          ideclPkgQual   = Nothing,
-          ideclSource    = False,
           ideclSafe      = True,
           ideclImplicit  = False,
-#if __GLASGOW_HASKELL__ >= 810
-          ideclQualified = if isJust mQual then QualifiedPre else NotQualified,
+          ideclQualified = if isJust mQualifiedName then QualifiedPre else NotQualified,
+#if MIN_VERSION_ghc(9,2,0)
+          ideclAs        = Just (noLocA (mkModuleName fullModuleName)),
 #else
-          ideclQualified = isJust mQual,
+          ideclAs        = noLoc . mkModuleName <$> mQualifiedName,
 #endif
-          ideclAs        = mQual,
           ideclHiding    = Nothing
           }
-#if __GLASGOW_HASKELL__ >= 806
-          :: ImportDecl (GhcPass (c :: Pass))
-#endif
-        unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl (mkModuleName modn) Nothing) [
+        unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl modn Nothing) [
           "Prelude",
           "Data.Map",
           "Data.Either",
@@ -178,12 +197,7 @@ initScriptSession ghcPkgPaths = do
           "ProjectM36.DatabaseContextFunctionError",
           "ProjectM36.DatabaseContextFunctionUtils",
           "ProjectM36.RelationalExpression"]
-#if __GLASGOW_HASKELL__ >= 802
-        mkModName = noLoc . mkModuleName
-#else
-        mkModName = mkModuleName
-#endif
-        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl (mkModuleName modn) (Just (mkModName qualNam))) [
+        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl modn (Just qualNam)) [
           ("Data.Text", "T")
           ]
     setContext (unqualifiedModules ++ qualifiedModules)
@@ -198,7 +212,11 @@ addImport moduleNam = do
   setContext (IIDecl (simpleImportDecl (mkModuleName moduleNam)) : ctx)
 
 showType :: DynFlags -> Type -> String
+#if MIN_VERSION_ghc(9,2,0)
+showType dflags ty = showSDocForUser dflags emptyUnitState alwaysQualify (pprTypeForUser ty)
+#else
 showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)
+#endif
 
 mkTypeForName :: String -> Ghc Type
 mkTypeForName name = do
@@ -231,11 +249,7 @@ typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)
 typeCheckScript expectedType inp = do
   dflags <- getSessionDynFlags
   --catch exception for SyntaxError
-#if __GLASGOW_HASKELL__ >= 802
   funcType <- GHC.exprType TM_Inst (unpack inp)
-#else
-  funcType <- GHC.exprType (unpack inp)
-#endif
   --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType
   if eqType funcType expectedType then
     pure Nothing
@@ -271,11 +285,7 @@ loadFunctionFromDirectory mode modName funcName modDir objPath =
 
 loadFunction :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
 loadFunction loadMode modName funcName objPath = do
-#if __GLASGOW_HASKELL__ >= 802
   initObjLinker RetainCAFs
-#else
-  initObjLinker
-#endif
   let loadFuncForSymbol = do    
         _ <- resolveObjs
         ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)

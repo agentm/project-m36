@@ -35,6 +35,8 @@ module ProjectM36.Client
        setCurrentSchemaName,
        transactionGraphAsRelation,
        relationVariablesAsRelation,
+       registeredQueriesAsRelation,
+       ddlAsRelation,
        ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
        headName,
@@ -45,6 +47,7 @@ module ProjectM36.Client
        defaultRemoteConnectionInfo,
        defaultHeadName,
        addClientNode,
+       getDDLHash,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -126,6 +129,7 @@ import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr)
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
+import ProjectM36.DDLType
 import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
@@ -154,12 +158,14 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
+import ProjectM36.RegisteredQuery
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
+import qualified Data.ByteString as B
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 
@@ -290,7 +296,9 @@ connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notification
     [] -> error ("DNS resolution failed for" <> hostName <> ":" <> servicePort)
     addrInfo:_ -> do
       --supports IPv4 only for now
-      let (SockAddrInet port addr) = addrAddress addrInfo
+      let (port, addr) = case addrAddress addrInfo of
+                           SockAddrInet p a -> (p, a)
+                           _ -> error "no IPv4 address available (IPv6 not implemented)"
           notificationHandlers =
             [RPC.ClientAsyncRequestHandler $
              \(NotificationMessage notifications') ->
@@ -709,8 +717,8 @@ rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
 processTransactionGraphPersistence :: PersistenceStrategy -> [TransactionId] -> TransactionGraph -> IO ()
 processTransactionGraphPersistence NoPersistence _ _ = pure ()
-processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = transactionGraphPersist NoDiskSync dbdir transIds graph >> pure ()
-processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = transactionGraphPersist FsyncDiskSync dbdir transIds graph >> pure ()
+processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = void $ transactionGraphPersist NoDiskSync dbdir transIds graph
+processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = void $ transactionGraphPersist FsyncDiskSync dbdir transIds graph
 
 readGraphTransactionIdDigest :: PersistenceStrategy -> IO LockFileHash
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
@@ -819,16 +827,23 @@ relationVariablesAsRelation sessionId (InProcessConnection conf) = do
       Left err -> pure (Left err)
       Right (session, schema) -> do
         let context = Sess.concreteDatabaseContext session
-        if Sess.schemaName session == defaultSchemaName then
-          pure $ RE.relationVariablesAsRelation context graph
-          else
-          case Schema.relationVariablesInSchema schema of
-            Left err -> pure (Left err)
-            Right relvars -> do
-              let schemaContext = context {relationVariables = relvars }
-              pure $ RE.relationVariablesAsRelation schemaContext graph 
+        pure $ Schema.relationVariablesAsRelationInSchema context schema graph
       
 relationVariablesAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveRelationVariableSummary sessionId)
+
+-- | Returns a relation representing the complete DDL of the current `DatabaseContext`.
+ddlAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+ddlAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    graph <- readTVar (ipTransactionGraph conf)
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) -> do
+        let context = Sess.concreteDatabaseContext session
+        pure (ddlType schema context graph)
+ddlAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveDDLAsRelation sessionId)
 
 -- | Returns the names and types of the atom functions in the current 'Session'.
 atomFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
@@ -1067,6 +1082,32 @@ validateMerkleHashes sessionId (InProcessConnection conf) = do
           Left merkleErrs -> pure $ Left $ someErrors (map (\(MerkleValidationError tid expected actual) -> MerkleHashValidationError tid expected actual) merkleErrs)
           Right () -> pure (Right ())
 validateMerkleHashes sessionId conn@RemoteConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)
+
+-- | Calculate a hash on the DDL of the current database context (not the graph). This is useful for validating on the client that the database schema meets the client's expectation. Any DDL change will change this hash. This hash does not change based on the current isomorphic schema being examined. This function is not affected by the current schema (since they are all isomorphic anyway, they should return the same hash).
+getDDLHash :: SessionId -> Connection -> IO (Either RelationalError B.ByteString)
+getDDLHash sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        let ctx = Sess.concreteDatabaseContext session            
+        graph <- readTVar (ipTransactionGraph conf)
+        pure (ddlHash ctx graph)
+getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
+
+registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) -> do
+        let ctx = Sess.concreteDatabaseContext session        
+        pure $ registeredQueriesAsRelationInSchema schema (registeredQueries ctx)
+registeredQueriesAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveRegisteredQueries sessionId)        
 
 type ClientNodes = StmSet.Set ClientInfo
 

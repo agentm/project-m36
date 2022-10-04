@@ -19,6 +19,7 @@ import Data.Either (isRight)
 import Control.Exception
 import System.IO.Temp
 import System.FilePath
+import Control.Monad (void)
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
@@ -89,7 +90,7 @@ launchTestServer ti = do
                                          checkFS = False --not stricly needed for these tests
                                        }
     
-      launchServer config (Just addressMVar) >> pure ()
+      void $ launchServer config (Just addressMVar)
   (SockAddrInet port _) <- takeMVar addressMVar
   --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
   pure (fromIntegral port, tid)

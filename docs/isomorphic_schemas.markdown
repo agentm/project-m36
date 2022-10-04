@@ -78,7 +78,7 @@ Full example:
 ```
 TutorialD (master/main): x1:=relation{tuple{y 3}, tuple{y 4}}
 TutorialD (master/main): x2:=relation{tuple{y 5}, tuple{y 6}}
-TutorialD (master/main): :addschema spam (isorestrict "x" "x1" "x2" ^lt(@y,5), isopassthrough "true", isopassthrough "false")
+TutorialD (master/main): :addschema spam (isorestrict "x" "x1" "x2" lt(@y,5), isopassthrough "true", isopassthrough "false")
 TutorialD (master/main): :setschema spam
 TutorialD (master/spam): :showexpr x
 ┌──────────────┐

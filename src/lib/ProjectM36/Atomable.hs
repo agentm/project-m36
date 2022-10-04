@@ -241,6 +241,7 @@ instance (Atomable a) => AtomableG (K1 c a) where
 typeToTypeConstructor :: AtomType -> TypeConstructor
 typeToTypeConstructor x@IntAtomType = PrimitiveTypeConstructor "Int" x
 typeToTypeConstructor x@IntegerAtomType = PrimitiveTypeConstructor "Integer" x
+typeToTypeConstructor x@ScientificAtomType = PrimitiveTypeConstructor "Scientific" x
 typeToTypeConstructor x@DoubleAtomType = PrimitiveTypeConstructor "Double" x
 typeToTypeConstructor x@TextAtomType = PrimitiveTypeConstructor "Text" x
 typeToTypeConstructor x@DayAtomType = PrimitiveTypeConstructor "Day" x

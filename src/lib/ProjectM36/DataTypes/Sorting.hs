@@ -5,6 +5,7 @@ compareAtoms :: Atom -> Atom -> Ordering
 compareAtoms (IntegerAtom i1) (IntegerAtom i2) = compare i1 i2
 compareAtoms (IntAtom i1) (IntAtom i2) = compare i1 i2
 compareAtoms (DoubleAtom d1) (DoubleAtom d2) = compare d1 d2
+compareAtoms (ScientificAtom s1) (ScientificAtom s2) = compare s1 s2
 compareAtoms (TextAtom t1) (TextAtom t2) = compare t1 t2
 compareAtoms (DayAtom d1) (DayAtom d2) = compare d1 d2
 compareAtoms (DateTimeAtom d1) (DateTimeAtom d2) = compare d1 d2
@@ -20,6 +21,7 @@ isSortableAtomType typ = case typ of
   IntAtomType -> True
   IntegerAtomType -> True
   DoubleAtomType -> True
+  ScientificAtomType -> True
   TextAtomType -> True
   DayAtomType -> True
   DateTimeAtomType -> True

@@ -29,7 +29,7 @@ import Text.Blaze.Html5.Attributes (name, href, type_, method, action, value)
 import Text.Blaze.Html.Renderer.Text
 import Control.Monad.IO.Class (liftIO)
 import Network.HTTP.Types.Status
-import Data.Time.Format
+import Data.Time.Format.ISO8601
 
 --define your data types
 data Blog = Blog {
@@ -166,7 +166,7 @@ showBlogEntry sessionId conn = do
                                                           blogRestrictionExpr 
                                                           (RelationVariable "blog" ())))
   let render = html . renderHtml
-      formatStamp = formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S"))
+      formatStamp = iso8601Show --formatTime defaultTimeLocale (iso8601DateFormat (Just "%H:%M:%S"))
   case eRel of 
     Left err -> render500 (toHtml (show err))
     --handle successful query execution

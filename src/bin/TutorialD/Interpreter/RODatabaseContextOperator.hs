@@ -16,6 +16,7 @@ import qualified Data.Text as T
 import ProjectM36.Relation.Show.Gnuplot
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Functor
 
 --operators which only rely on database context reading
 data RODatabaseContextOperator where
@@ -29,6 +30,9 @@ data RODatabaseContextOperator where
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
   ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
+  GetDDLHash :: RODatabaseContextOperator
+  ShowDDL :: RODatabaseContextOperator
+  ShowRegisteredQueries :: RODatabaseContextOperator
   Quit :: RODatabaseContextOperator
   deriving (Show)
 
@@ -85,6 +89,9 @@ roDatabaseContextOperatorP = typeP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
              <|> showDataFrameP
+             <|> ddlHashP
+             <|> showDDLP
+             <|> showRegisteredQueriesP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
@@ -158,6 +165,31 @@ evalRODatabaseContextOp sessionId conn (ShowDataFrame dfExpr) = do
   case eDataFrame of
     Left err -> pure (DisplayErrorResult (T.pack (show err)))
     Right dframe -> pure (DisplayDataFrameResult dframe)
+
+evalRODatabaseContextOp sessionId conn GetDDLHash = do
+  eHash <- C.getDDLHash sessionId conn
+  case eHash of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right h -> do
+      let eRel = mkRelationFromList (C.attributesFromList [Attribute "ddlHash" ByteStringAtomType]) [[ByteStringAtom h]]
+      case eRel of
+        Left err -> pure (DisplayErrorResult (T.pack (show err)))
+        Right rel -> 
+          evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+
+evalRODatabaseContextOp sessionId conn ShowDDL = do
+  eDDL <- C.ddlAsRelation sessionId conn
+  case eDDL of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right ddl ->
+      evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation ddl))
+
+evalRODatabaseContextOp sessionId conn ShowRegisteredQueries = do
+  eRv <- C.registeredQueriesAsRelation sessionId conn
+  case eRv of
+    Left err -> pure (DisplayErrorResult (T.pack (show err)))
+    Right rv ->
+      evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rv))      
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
@@ -208,3 +240,11 @@ renderRelExprsInIncDeps = relMogrify tupMapper attrs
                                   Attribute "super" TextAtomType
                                  ]
     
+ddlHashP :: Parser RODatabaseContextOperator
+ddlHashP = colonOp ":ddlhash" $> GetDDLHash
+
+showDDLP :: Parser RODatabaseContextOperator
+showDDLP = colonOp ":showddl" $> ShowDDL
+
+showRegisteredQueriesP :: Parser RODatabaseContextOperator
+showRegisteredQueriesP = colonOp ":showregisteredqueries" $> ShowRegisteredQueries

@@ -1,3 +1,18 @@
+# Future
+
+* fix tuple context passed down to extended expressions
+* add ddl hash- useful for validating that the client supports the current schema
+* add registered queries- useful for constraining what DDL can be applied to the database so as not to break client applications
+	
+# 2022-08-19 (v0.9.5)
+  
+* removed necessity for caret "^" when using boolean atom expressions in restriction predicates
+* `True` and `False` are now value constructors for `Bool` atom values (previously `t` and `f); changed for better discoverability by Haskell developers
+* add `Scientific` data type for arbitrary-precision values (backed by Data.Scientific)
+* add support for GHC 9.0 and GHC 9.2
+* drop support for GHC < 8.10.7
+* fix relational equality when the relation includes a nested relation
+	
 # 2021-12-05 (v0.9.4)
 
 * fix bug which [caused tuple storage to be duplicated unnecessarily](https://github.com/agentm/project-m36/pull/328)

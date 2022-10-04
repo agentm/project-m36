@@ -10,8 +10,6 @@ import ProjectM36.Function
 import qualified ProjectM36.Attribute as A
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as BL
-import Codec.Winery
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
 --the underscore in the attribute name means that any attributes are acceptable
@@ -29,7 +27,11 @@ atomFunctionForName funcName' funcSet = if HS.null foundFunc then
 emptyAtomFunction :: FunctionName -> AtomFunction
 emptyAtomFunction name = Function { funcName = name,
                                     funcType = [TypeVariableType "a", TypeVariableType "a"],
-                                    funcBody = FunctionBuiltInBody (\(x:_) -> pure x) }
+                                    funcBody = FunctionBuiltInBody $
+                                               \case
+                                                 x:_ -> pure x
+                                                 _ -> Left AtomFunctionTypeMismatchError
+                                  }
                                           
                                           
 -- | AtomFunction constructor for compiled-in functions.
@@ -101,16 +103,6 @@ atomFunctionsAsRelation funcs = mkRelationFromList attrs tups
         atomFuncTypeToText aFunc = T.intercalate " -> " (map prettyAtomType (funcType aFunc))
 
 --for calculating the merkle hash
-hashBytes :: AtomFunction -> BL.ByteString
-hashBytes func = BL.fromChunks [serialise (funcName func),
-                                serialise (funcType func),
-                                bodyBin
-                               ]
-  where
-    bodyBin = case funcBody func of
-                FunctionScriptBody mScript _ -> serialise mScript
-                FunctionBuiltInBody _ -> ""
-                FunctionObjectLoadedBody f m n _ -> serialise (f,m,n)
   
 -- | Used to mark functions which are loaded externally from the server.      
 externalAtomFunction :: AtomFunctionBodyType -> AtomFunctionBody

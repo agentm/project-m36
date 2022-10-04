@@ -150,16 +150,13 @@ relOperators = [
 relExprP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relExprP = try withMacroExprP <|> makeExprParser relTerm relOperators
 
-relVarNameP :: Parser RelVarName
-relVarNameP = try uncapitalizedIdentifier <|> quotedIdentifier
-
 relVarP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relVarP = RelationVariable <$> relVarNameP <*> parseMarkerP
 
 relTerm :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relTerm = parens relExprP
           <|> makeRelationP
-          <|> relVarP
+          <|> (relVarP <* notFollowedBy "(")
 
 restrictionPredicateP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionPredicateP = makeExprParser predicateTerm predicateOperators
@@ -170,14 +167,14 @@ restrictionPredicateP = makeExprParser predicateTerm predicateOperators
       [InfixL (reservedOp "or" >> return OrPredicate)]
       ]
     predicateTerm = try (parens restrictionPredicateP)
-                    <|> try restrictionAtomExprP
                     <|> try restrictionAttributeEqualityP
-                    <|> relationalBooleanExprP
+                    <|> try relationalBooleanExprP
+                    <|> restrictionAtomExprP                                        
+
 
 relationalBooleanExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
-relationalBooleanExprP =
+relationalBooleanExprP = RelationalExprPredicate <$> (parens relExprP <|> relTerm)
   --we can't actually detect if the type is relational boolean, so we just pass it to the next phase
-  RelationalExprPredicate <$> (parens relExprP <|> relTerm)
 
 restrictionAttributeEqualityP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionAttributeEqualityP = do
@@ -185,10 +182,8 @@ restrictionAttributeEqualityP = do
   reservedOp "="
   AttributeEqualityPredicate attributeName <$> atomExprP
 
-restrictionAtomExprP :: RelationalMarkerExpr a=> Parser (RestrictionPredicateExprBase a) --atoms which are of type "boolean"
-restrictionAtomExprP = do
-  _ <- char '^' -- not ideal, but allows me to continue to use a context-free grammar
-  (try (char 't') >> pure TruePredicate) <|> (try (char 'f') >> pure (NotPredicate TruePredicate)) <|> AtomExprPredicate <$> atomExprP
+restrictionAtomExprP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a) --atoms which are of type "boolean"
+restrictionAtomExprP = AtomExprPredicate <$> consumeAtomExprP False
 
 multiTupleExpressionP :: RelationalMarkerExpr a => Parser [ExtendTupleExprBase a]
 multiTupleExpressionP = sepBy extendTupleExpressionP comma
@@ -254,7 +249,7 @@ integerAtomP = IntegerAtom <$> integer
 boolAtomP :: Parser Atom
 boolAtomP = do
   v <- identifier
-  if v == "t" || v == "f" then
+  if v == "True" || v == "False" then
     pure $ BoolAtom (v == "t")    
     else
     fail "invalid boolAtom"

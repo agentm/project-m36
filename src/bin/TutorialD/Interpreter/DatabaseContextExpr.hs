@@ -36,6 +36,8 @@ databaseContextExprP = choice [insertP,
                                removeAtomFunctionP,
                                executeDatabaseContextFunctionP,
                                removeDatabaseContextFunctionP,
+                               addRegisteredQueryP,
+                               removeRegisteredQueryP,
                                nothingP]
             
 nothingP :: Parser DatabaseContextExpr            
@@ -178,6 +180,16 @@ removeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 removeDatabaseContextFunctionP = do
   reserved "removedatabasecontextfunction"
   RemoveDatabaseContextFunction <$> quotedString
+
+addRegisteredQueryP :: Parser DatabaseContextExpr
+addRegisteredQueryP = do
+  reserved "registerquery"
+  AddRegisteredQuery <$> quotedString <*> relExprP
+
+removeRegisteredQueryP :: Parser DatabaseContextExpr
+removeRegisteredQueryP = do
+  reserved "unregisterquery"
+  RemoveRegisteredQuery <$> quotedString
 
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do

@@ -20,12 +20,13 @@ import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text)
 import Data.Time.Clock
-import Data.Hashable.Time ()
+import Data.Time.Clock.Compat ()
 import Data.Time.Calendar (Day)
 import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
+import Data.Scientific
 
 type StringType = Text
 
@@ -46,6 +47,7 @@ instance Hashable (S.Set AttributeName) where
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom !Integer |
             IntAtom !Int |
+            ScientificAtom !Scientific |
             DoubleAtom !Double |
             TextAtom !Text |
             DayAtom !Day |
@@ -62,7 +64,8 @@ instance Hashable Atom where
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
                                                           `hashWithSalt` dConsName --AtomType is not hashable
   hashWithSalt salt (IntAtom i) = salt `hashWithSalt` i
-  hashWithSalt salt (IntegerAtom i) = salt `hashWithSalt` i  
+  hashWithSalt salt (IntegerAtom i) = salt `hashWithSalt` i
+  hashWithSalt salt (ScientificAtom s) = salt `hashWithSalt` s
   hashWithSalt salt (DoubleAtom d) = salt `hashWithSalt` d
   hashWithSalt salt (TextAtom t) = salt `hashWithSalt` t
   hashWithSalt salt (DayAtom d) = salt `hashWithSalt` d
@@ -77,6 +80,7 @@ instance Hashable Atom where
 -- | The AtomType uniquely identifies the type of a atom.
 data AtomType = IntAtomType |
                 IntegerAtomType |
+                ScientificAtomType |
                 DoubleAtomType |
                 TextAtomType |
                 DayAtomType |
@@ -102,6 +106,10 @@ isRelationAtomType :: AtomType -> Bool
 isRelationAtomType (RelationAtomType _) = True
 isRelationAtomType _ = False
 
+-- subrelations sometimes require special paths
+attributesContainRelationAtomType :: Attributes -> Bool
+attributesContainRelationAtomType attrs = V.null (V.filter (\(Attribute _ t) -> isRelationAtomType t) (attributesVec attrs))
+
 -- | The AttributeName is the name of an attribute in a relation.
 type AttributeName = StringType
 
@@ -124,7 +132,9 @@ attributesSet :: Attributes -> HS.HashSet Attribute
 attributesSet = HS.fromList . V.toList . attributesVec
 
 instance Show Attributes where
-  show attrs = "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+  showsPrec d attrs = showString $ parens $ "attributesFromList [" <> L.intercalate ", " (map (\attr -> "(" <> show attr <> ")") (V.toList (attributesVec attrs))) <> "]"
+    where parens x | d > 0 = "(" <> x <> ")"
+          parens x = x
 
 --when attribute ordering is irrelevant
 instance Eq Attributes where
@@ -136,8 +146,12 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Hashable, Show, Generic, Read)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Show, Generic, Read)
 
+-- we cannot derive Hashable for tuplesets; we need to hash the unordered set of tuples
+instance Hashable RelationTupleSet where
+  hashWithSalt s tupSet = hashWithSalt s (HS.fromList (asList tupSet))
+        
 instance Read Relation where
   readsPrec = error "relation read not supported"
 
@@ -173,7 +187,7 @@ instance Eq RelationTuple where
       atomForAttribute attr (RelationTuple attrs tupVec) = case V.findIndex (== attr) (attributesVec attrs) of
         Nothing -> Nothing
         Just index -> tupVec V.!? index
-      atomsEqual = V.all (== True) $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)
+      atomsEqual = V.all id $ V.map (\attr -> atomForAttribute attr tuple1 == atomForAttribute attr tuple2) (attributesVec attrs1)
 
 instance NFData RelationTuple where rnf = genericRnf
 
@@ -187,7 +201,7 @@ instance NFData Relation where rnf = genericRnf
 instance Hashable Relation where                               
   hashWithSalt salt (Relation attrs tupSet) = salt `hashWithSalt` 
                                               sortedAttrs `hashWithSalt`
-                                              asList tupSet
+                                              HS.fromList (asList tupSet)
     where
       sortedAttrs = map snd (sortedAttributesIndices attrs)
       
@@ -324,6 +338,10 @@ data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarNam
                       deriving (Generic, Show)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
+
+type RegisteredQueryName = StringType
+
+type RegisteredQueries = M.Map RegisteredQueryName RelationalExpr
                               
 data DatabaseContext = DatabaseContext {
   inclusionDependencies :: InclusionDependencies,
@@ -331,7 +349,8 @@ data DatabaseContext = DatabaseContext {
   atomFunctions :: AtomFunctions,
   dbcFunctions :: DatabaseContextFunctions,
   notifications :: Notifications,
-  typeConstructorMapping :: TypeConstructorMapping
+  typeConstructorMapping :: TypeConstructorMapping,
+  registeredQueries :: RegisteredQueries
   } deriving (NFData, Generic)
              
 type IncDepName = StringType             
@@ -375,6 +394,9 @@ data DatabaseContextExprBase a =
   RemoveDatabaseContextFunction FunctionName |
   
   ExecuteDatabaseContextFunction FunctionName [AtomExprBase a] |
+
+  AddRegisteredQuery RegisteredQueryName RelationalExpr |
+  RemoveRegisteredQuery RegisteredQueryName |
   
   MultipleExpr [DatabaseContextExprBase a]
   deriving (Show, Read, Eq, Generic, NFData)
@@ -626,6 +648,7 @@ attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of
   IntAtomType -> S.empty
   IntegerAtomType -> S.empty
+  ScientificAtomType -> S.empty
   DoubleAtomType -> S.empty
   TextAtomType -> S.empty
   DayAtomType -> S.empty
@@ -651,6 +674,7 @@ attrExprTypeVars (NakedAttributeExpr attr) = attrTypeVars attr
 atomTypeVars :: AtomType -> S.Set TypeVarName
 atomTypeVars IntAtomType = S.empty
 atomTypeVars IntegerAtomType = S.empty
+atomTypeVars ScientificAtomType = S.empty
 atomTypeVars DoubleAtomType = S.empty
 atomTypeVars TextAtomType = S.empty
 atomTypeVars DayAtomType = S.empty

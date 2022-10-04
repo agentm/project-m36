@@ -481,6 +481,25 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomAr
                      case evalDatabaseContextFunction func (rights eAtomArgs) context of
                        Left err -> dbErr err
                        Right newContext -> putStateContext newContext
+
+evalGraphRefDatabaseContextExpr (AddRegisteredQuery regName regExpr) = do
+  context <- getStateContext
+  tgraph <- dbcGraph
+  tid <- dbcTransId
+  case M.lookup regName (registeredQueries context) of
+    Just _ -> dbErr (RegisteredQueryNameInUseError regName)
+    Nothing -> do
+      let context' = context { registeredQueries = M.insert regName regExpr (registeredQueries context) }
+      case checkConstraints context' tid tgraph of
+        Left err -> dbErr err
+        Right _ -> putStateContext context'
+evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
+  context <- getStateContext  
+  case M.lookup regName (registeredQueries context) of
+    Nothing -> dbErr (RegisteredQueryNameNotInUseError regName)
+    Just _ -> putStateContext (context { registeredQueries = M.delete regName (registeredQueries context) })
+  
+
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
@@ -664,7 +683,8 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
 --run verification on all constraints
 checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
 checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = do
-  mapM_ (uncurry checkIncDep) (M.toList deps) 
+  mapM_ (uncurry checkIncDep) (M.toList deps)
+  mapM_ checkRegisteredQuery (M.toList (registeredQueries context))
   where
     potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
     tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
@@ -677,28 +697,35 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
                                       }
     
     deps = inclusionDependencies context
+    process = runProcessExprM UncommittedContextMarker
+    gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
-      let process = runProcessExprM UncommittedContextMarker
-          gfSubsetExpr = process (processRelationalExpr subsetExpr)
+      let gfSubsetExpr = process (processRelationalExpr subsetExpr)
           gfSupersetExpr = process (processRelationalExpr supersetExpr)
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
-      let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
-            Left err -> Left (InclusionDependencyCheckError depName (Just err))
-            Right v -> Right v
+                         Left err -> Left (wrapIncDepErr (Just err))
+                         Right v -> Right v
+          wrapIncDepErr e = InclusionDependencyCheckError depName e
       typeSub <- runGfRel (typeForGraphRefRelationalExpr gfSubsetExpr)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
-      when (typeSub /= typeSuper) (Left (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))
+      when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))
       let checkExpr = Equals gfSupersetExpr (Union gfSubsetExpr gfSupersetExpr)
           gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
-        Left err -> Left err
+        Left err -> Left (wrapIncDepErr (Just err))
         Right resultRel -> if resultRel == relationTrue then
                                    pure ()
                                 else 
-                                  Left (InclusionDependencyCheckError depName Nothing)
+                                  Left (wrapIncDepErr Nothing)
+    --registered queries just need to typecheck- think of them as a constraints on the schema/DDL
+    checkRegisteredQuery (qName, relExpr) = do
+      let gfExpr = process (processRelationalExpr relExpr)
+      case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
+        Left err -> Left (RegisteredQueryValidationError qName err)
+        Right _ -> pure ()
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
@@ -764,12 +791,12 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
   let attrs' = A.union attrs (envAttributes env)
       ctxtup' = envTuple env
   atomExprType <- typeForGraphRefAtomExpr attrs' atomExpr
-  attr <- lift $ except $ case A.attributeForName attrName attrs of
+  attr <- lift $ except $ case A.attributeForName attrName attrs' of
       Right attr -> Right attr
-      Left (NoSuchAttributeNamesError _) -> case A.attributeForName attrName (tupleAttributes ctxtup') of
-        Right ctxattr -> Right ctxattr
-        Left err2@(NoSuchAttributeNamesError _) -> Left err2
-        Left err -> Left err
+      Left (NoSuchAttributeNamesError _) -> case A.attributeForName attrName (tupleAttributes ctxtup') of 
+                                              Right ctxattr -> Right ctxattr
+                                              Left err2@(NoSuchAttributeNamesError _) -> Left err2
+                                              Left err -> Left err
       Left err -> Left err
   if atomExprType /= A.atomType attr then
       throwError (TupleAttributeTypeMismatchError (A.attributesFromList [attr]))
@@ -862,6 +889,9 @@ evalGraphRefAtomExpr tupIn (RelationAtomExpr relExpr) = do
   let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn env
   relAtom <- lift $ except $ runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr relExpr)
   pure (RelationAtom relAtom)
+evalGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _)
+  | tOrF == "True" = pure (BoolAtom True)
+  | tOrF == "False" = pure (BoolAtom False)
 evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do --why is the tid unused here? suspicious
   let mergeEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn
   aType <- local mergeEnv (typeForGraphRefAtomExpr (tupleAttributes tupIn) cons)
@@ -893,15 +923,27 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
     Right func -> do
       let funcRetType = last (funcType func)
           funcArgTypes = init (funcType func)
+          funArgCount = length funcArgTypes
+          inArgCount = length atomArgs
+      when (funArgCount /= inArgCount) (throwError (FunctionArgumentCountMismatchError funArgCount inArgCount))
       argTypes <- mapM (typeForGraphRefAtomExpr attrs) atomArgs
+      mapM_ (\(fArg,arg,argCount) -> do
+                let handler :: RelationalError -> GraphRefRelationalExprM AtomType
+                    handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
+                    handler err = throwError err
+                lift (except $ atomTypeVerify fArg arg) `catchError` handler
+            ) (zip3 funcArgTypes argTypes [1..])
       let eTvMap = resolveTypeVariables funcArgTypes argTypes
       case eTvMap of
             Left err -> throwError err
-            Right tvMap -> lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
+            Right tvMap ->
+              lift $ except $ resolveFunctionReturnValue funcName' tvMap funcRetType
 typeForGraphRefAtomExpr attrs (RelationAtomExpr relExpr) = do
-  relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)
+  relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)  
   pure (RelationAtomType (attributes relType))
 -- grab the type of the data constructor, then validate that the args match the expected types
+typeForGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _) | tOrF `elem` ["True", "False"] =
+                                                            pure BoolAtomType
 typeForGraphRefAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs tid) =
   do
     argsTypes <- mapM (typeForGraphRefAtomExpr attrs) dConsArgs
@@ -1410,4 +1452,4 @@ applyRestrictionCollapse orig@(Restrict npred@(NotPredicate _) expr) =
     _ -> orig
 applyRestrictionCollapse expr = expr
 
-                                
+

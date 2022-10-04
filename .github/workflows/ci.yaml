@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.3.1
-      - uses: cachix/install-nix-action@v12
+      - uses: cachix/install-nix-action@v17
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: cachix/cachix-action@v10
@@ -36,8 +36,8 @@ jobs:
         os: [ubuntu-latest]
         ghc:
           - ghc8.10
-          - ghc8.8
-          - ghc8.6
+          - ghc9.0
+          - ghc9.2
         include:
           - os: macos-latest
             ghc: ghc8.10
@@ -55,12 +55,12 @@ jobs:
             ${{ runner.os }}-build-stack-${{ matrix.ghc }}
       - name: Fix macOS cache bug
         run: rm -rf ~/.stack/setup-exe-cache
+#      - name: HLint
+#        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
         run: stack test --stack-yaml=${{ env.STACK_YAML }}
-      - name: HLint
-        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Haddock
         run: stack --no-install-ghc --system-ghc --no-haddock-deps haddock
       - uses: actions/upload-artifact@v2

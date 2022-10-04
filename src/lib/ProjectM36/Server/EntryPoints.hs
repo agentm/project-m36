@@ -9,6 +9,7 @@ import Network.RPC.Curryer.Server
 import System.Timeout hiding (Timeout)
 import Network.Socket
 import Control.Exception
+import qualified Data.ByteString as B
 
 timeoutOrDie :: Maybe Timeout -> IO a -> IO (Maybe a)
 timeoutOrDie mMicros act = 
@@ -144,3 +145,15 @@ handleRetrieveTypeConstructorMapping ti sessionId conn =
 handleValidateMerkleHashes :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError ())
 handleValidateMerkleHashes ti sessionId conn = 
   timeoutRelErr ti (C.validateMerkleHashes sessionId conn)
+
+handleGetDDLHash :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError B.ByteString)
+handleGetDDLHash ti sessionId conn =
+  timeoutRelErr ti (C.getDDLHash sessionId conn)
+
+handleRetrieveDDLAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveDDLAsRelation ti sessionId conn =
+  timeoutRelErr ti (C.ddlAsRelation sessionId conn)
+
+handleRetrieveRegisteredQueries :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveRegisteredQueries ti sessionId conn =
+  timeoutRelErr ti (C.registeredQueriesAsRelation sessionId conn)

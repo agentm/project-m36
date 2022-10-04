@@ -19,6 +19,7 @@ import Data.UUID hiding (null)
 instance Pretty Atom where
   pretty (IntegerAtom x) = pretty x
   pretty (IntAtom x) = "int" <> parensList [pretty x]
+  pretty (ScientificAtom s) = "scientific" <> parensList [dquotes (pretty (show s))]
   pretty (DoubleAtom x) = pretty x
   pretty (TextAtom x) = dquotes (pretty x)
   pretty (DayAtom x) = "fromGregorian" <> parensList [pretty a, pretty b, pretty c]
@@ -26,7 +27,7 @@ instance Pretty Atom where
       (a,b,c) = toGregorian x
   pretty (DateTimeAtom time) = "dateTimeFromEpochSeconds" <> parensList [pretty @Integer (round (utcTimeToPOSIXSeconds time))]
   pretty (ByteStringAtom bs) = "bytestring" <> parensList [dquotes (pretty (TE.decodeUtf8 (B64.encode bs)))]
-  pretty (BoolAtom x) = if x then "t" else "f"
+  pretty (BoolAtom x) = if x then "True" else "False"
   pretty (UUIDAtom u) = pretty u
   pretty (RelationAtom x) = pretty x
   pretty (RelationalExprAtom re) = pretty re
@@ -70,7 +71,7 @@ instance Pretty Relation where
   pretty (Relation attrs tupSet) = "relation" <> prettyBracesList (A.toList attrs) <> prettyBracesList (asList tupSet)
 
 instance Pretty Attribute where
-  pretty (Attribute n aTy) = pretty n <+> pretty (show aTy)  -- workaround
+  pretty (Attribute n aTy) = pretty n <+> pretty aTy
 
 instance Pretty RelationalExpr where
   pretty (RelationVariable n _) = pretty n
@@ -129,6 +130,7 @@ instance Pretty TypeConstructor where
 instance Pretty AtomType where
   pretty IntAtomType = "Int"
   pretty IntegerAtomType = "Integer"
+  pretty ScientificAtomType = "Scientific"
   pretty DoubleAtomType = "Double"
   pretty TextAtomType = "Text"
   pretty DayAtomType = "Day"

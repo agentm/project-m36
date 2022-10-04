@@ -82,6 +82,9 @@ typeConsPath transdir = transdir </> "typecons"
 subschemasPath :: FilePath -> FilePath
 subschemasPath transdir = transdir </> "schemas"
 
+registeredQueriesPath :: FilePath -> FilePath
+registeredQueriesPath transdir = transdir </> "registered_queries"
+
 -- | where compiled modules are stored within the database directory
 objectFilesPath :: FilePath -> FilePath
 objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
@@ -100,12 +103,14 @@ readTransaction dbdir transId mScriptSession = do
     sschemas <- readSubschemas transDir
     dbcFuncs <- readFuncs transDir (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession
     atomFuncs <- readFuncs transDir (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession
+    registeredQs <- readRegisteredQueries transDir
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
                                        notifications = M.empty,
                                        atomFunctions = atomFuncs, 
-                                       dbcFunctions = dbcFuncs }
+                                       dbcFunctions = dbcFuncs,
+                                       registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
         
@@ -124,7 +129,9 @@ writeTransaction sync dbdir trans = do
     writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (dbcFunctions context))
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     writeSubschemas sync tempTransDir (subschemas trans)
-    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)    --move the temp directory to final location
+    writeRegisteredQueries sync tempTransDir (registeredQueries context)
+    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
+    --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
 
 
@@ -320,7 +327,7 @@ readSubschemas :: FilePath -> IO Subschemas
 readSubschemas transDir = do
   let sschemasPath = subschemasPath transDir
   readFileDeserialise sschemasPath
-  
+
 writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
 writeSubschemas sync transDir sschemas = do
   let sschemasPath = subschemasPath transDir
@@ -336,4 +343,12 @@ readTypeConstructorMapping path = do
   let atPath = typeConsPath path
   readFileDeserialise atPath
   
-  
+readRegisteredQueries :: FilePath -> IO RegisteredQueries
+readRegisteredQueries transDir = do
+  let regQsPath = registeredQueriesPath transDir
+  readFileDeserialise regQsPath
+
+writeRegisteredQueries :: DiskSync -> FilePath -> RegisteredQueries -> IO ()
+writeRegisteredQueries sync transDir regQs = do
+  let regQsPath = registeredQueriesPath transDir
+  traceBlock "write registered queries" $ writeSerialiseSync sync regQsPath regQs

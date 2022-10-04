@@ -42,12 +42,18 @@ nonEmptyListAtomFunctions = HS.fromList [
   Function {
      funcName = "nonEmptyListLength",
      funcType = [nonEmptyListAtomType (TypeVariableType "a"), IntAtomType],
-     funcBody = FunctionBuiltInBody (\(nonEmptyListAtom:_) ->
-                                                 IntAtom . fromIntegral <$> nonEmptyListLength nonEmptyListAtom)
+     funcBody = FunctionBuiltInBody $
+       \case
+         (nonEmptyListAtom:_) ->
+           IntAtom . fromIntegral <$> nonEmptyListLength nonEmptyListAtom
+         _ -> Left AtomFunctionTypeMismatchError
      },
   Function {
     funcName = "nonEmptyListHead",
     funcType = [nonEmptyListAtomType (TypeVariableType "a"), TypeVariableType "a"],
-    funcBody = FunctionBuiltInBody (\(nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom)
+    funcBody = FunctionBuiltInBody $
+      \case
+        (nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom
+        _ -> Left AtomFunctionTypeMismatchError
     }
   ]

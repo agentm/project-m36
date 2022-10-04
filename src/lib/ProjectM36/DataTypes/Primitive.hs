@@ -2,19 +2,21 @@ module ProjectM36.DataTypes.Primitive where
 import ProjectM36.Base
 
 primitiveTypeConstructorMapping :: TypeConstructorMapping
-primitiveTypeConstructorMapping = map (\(name, aType) ->
+primitiveTypeConstructorMapping = boolMapping : map (\(name, aType) ->
                                   (PrimitiveTypeConstructorDef name aType, [])) prims
   where
     prims = [("Integer", IntegerAtomType),
              ("Int", IntAtomType),
              ("Text", TextAtomType),
              ("Double", DoubleAtomType),
-             ("Bool", BoolAtomType),
              ("UUID", UUIDAtomType),
              ("ByteString", ByteStringAtomType),
              ("DateTime", DateTimeAtomType),
              ("Day", DayAtomType)
             ]
+    boolMapping = (PrimitiveTypeConstructorDef "Bool" BoolAtomType,
+                   [DataConstructorDef "True" [],
+                    DataConstructorDef "False" []])
             
 intTypeConstructor :: TypeConstructor            
 intTypeConstructor = PrimitiveTypeConstructor "Int" IntAtomType
@@ -38,6 +40,7 @@ uUIDTypeConstructor = PrimitiveTypeConstructor "UUID" UUIDAtomType
 atomTypeForAtom :: Atom -> AtomType
 atomTypeForAtom (IntAtom _) = IntAtomType
 atomTypeForAtom (IntegerAtom _) = IntegerAtomType
+atomTypeForAtom (ScientificAtom _) = ScientificAtomType
 atomTypeForAtom (DoubleAtom _) = DoubleAtomType
 atomTypeForAtom (TextAtom _) = TextAtomType
 atomTypeForAtom (DayAtom _) = DayAtomType

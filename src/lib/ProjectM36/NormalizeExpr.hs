@@ -77,6 +77,8 @@ processDatabaseContextExpr expr =
     RemoveAtomFunction aFuncName -> pure (RemoveAtomFunction aFuncName)
     RemoveDatabaseContextFunction funcName' -> pure (RemoveDatabaseContextFunction funcName')
     ExecuteDatabaseContextFunction funcName' atomExprs -> ExecuteDatabaseContextFunction funcName' <$> mapM processAtomExpr atomExprs
+    AddRegisteredQuery n q -> pure (AddRegisteredQuery n q)
+    RemoveRegisteredQuery n -> pure (RemoveRegisteredQuery n)
     MultipleExpr exprs -> MultipleExpr <$> mapM processDatabaseContextExpr exprs
 
 processDatabaseContextIOExpr :: DatabaseContextIOExpr -> ProcessExprM GraphRefDatabaseContextIOExpr

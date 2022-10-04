@@ -13,6 +13,10 @@ import Data.Word
 import ProjectM36.Attribute as A
 import qualified Data.Vector as V
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
+#if MIN_VERSION_winery(1,4,0)
+#else
+import qualified Data.List.NonEmpty as NE
+#endif
 
 deriving via WineryVariant Atom instance Serialise Atom
 deriving via WineryVariant AtomType instance Serialise AtomType
@@ -53,6 +57,18 @@ instance Serialise TransactionId where
   toBuilder uuid = toBuilder (toWords uuid)
   extractor = fromWordsTup <$> extractor
   decodeCurrent = fromWordsTup <$> decodeCurrent
+
+#if MIN_VERSION_winery(1,4,0)
+#else
+instance Serialise a => Serialise (NE.NonEmpty a) where
+  schemaGen _ = SVector <$> getSchema (Proxy @a)
+  toBuilder xs = varInt (length xs) <> foldMap toBuilder xs
+  extractor = NE.fromList . V.toList <$> extractListBy extractor --use nonempty instead to replace error with winery error
+  decodeCurrent = do
+    n <- decodeVarInt
+    l <- replicateM n decodeCurrent
+    pure (NE.fromList l)
+#endif
 
 fromGregorianTup :: (Integer, Int, Int) -> Day
 fromGregorianTup (a, b, c) = fromGregorian a b c

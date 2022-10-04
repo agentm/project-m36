@@ -7,12 +7,14 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.Tuple
+import ProjectM36.Attribute (attributesFromList)
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import System.Exit
+import Data.Hashable (hashWithSalt)
 
 
 testList :: Test
@@ -24,7 +26,8 @@ testList = TestList [testRelation "relationTrue" relationTrue, testRelation "rel
                      testRelation "supplierProducts" supplierProductsRel,
                      testMkRelationFromExprsBadAttrs,
                      testExistingRelationType,
-                     testReorderTuple
+                     testReorderTuple,
+                     testRelationEquality
                     ]
 
 main :: IO ()           
@@ -59,7 +62,7 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple
                                                                                 Left $ TupleAttributeTypeMismatchError A.emptyAttributes
                                                                             ) (Right rel) (asList tupSet)
   where
-    tupleAtomCheck tuple = V.all (== True) (attrChecks tuple)
+    tupleAtomCheck tuple = V.all id (attrChecks tuple)
     attrChecks tuple = V.map (\attr -> case atomForAttributeName (A.attributeName attr) tuple of
                                  Left _ -> False
                                  Right atom -> Right (atomTypeForAtom atom) ==
@@ -117,3 +120,27 @@ testReorderTuple = TestCase $ do
       actual = reorderTuple attrs2 tup1
       expected = mkRelationTuple attrs2 (V.fromList [TextAtom "test", IntAtom 4])
   assertEqual "reorderTuple" expected actual
+
+testRelationEquality :: Test
+testRelationEquality = TestCase $ do
+  -- relations with changed orders of tuples must hash to the same value and be equal, even in lieu of subrelations
+  let r1 = Relation rattrs $ RelationTupleSet {asList = [RelationTuple subrelattrs
+                                                        (V.fromList [RelationAtom subrel1])]
+                                             }
+      rattrs = attributesFromList [Attribute "x" (RelationAtomType subrelattrs)]
+
+      r2 = Relation rattrs $ RelationTupleSet {asList = [RelationTuple subrelattrs
+                                 (V.fromList [RelationAtom subrel2])]
+                      }
+      subrelattrs = attributesFromList [Attribute "y" IntAtomType]           
+      subrel1 = Relation subrelattrs tupset1
+      tupset1 = RelationTupleSet [RelationTuple subrelattrs (V.fromList [IntAtom 3]),
+                                RelationTuple subrelattrs (V.fromList [IntAtom 4])]
+      subrel2 = Relation subrelattrs tupset2
+      tupset2 = RelationTupleSet [RelationTuple subrelattrs (V.fromList [IntAtom 4]),
+                                  RelationTuple subrelattrs (V.fromList [IntAtom 3])]
+
+  assertEqual "relation eq" r1 r2
+  assertEqual "relation hash" (hashWithSalt 0 r1) (hashWithSalt 0 r2)
+  assertEqual "tupset eq" tupset1 tupset2
+  assertEqual "tupset hash" (hashWithSalt 0 tupset1) (hashWithSalt 0 tupset2)

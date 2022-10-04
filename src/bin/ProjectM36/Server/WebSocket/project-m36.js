@@ -234,7 +234,11 @@ ProjectM36Connection.prototype.generateAtom = function(atom)
     {
 	var rel = this.generateRelation(atom["val"]);
         element.appendChild(rel);
-    } 
+    }
+    else if(atomType == "ScientificAtomType")
+    {
+	element.textContent = atom["val"][0] + "*10^" + atom["val"][1];
+    }
     else
     {
 	element.textContent = atom["val"];

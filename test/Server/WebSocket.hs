@@ -18,6 +18,7 @@ import Data.Aeson
 import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
+import Control.Monad (void)
 
 --start the websocket server
 -- run some tutoriald against it
@@ -30,7 +31,7 @@ launchTestServer = do
                                      checkFS = False}
       testDatabaseName = "test"
   -- start normal server
-  _ <- forkIO (launchServer config (Just addressMVar) >> pure ())
+  void $ forkIO (void $ launchServer config (Just addressMVar))
   (SockAddrInet dbPort _) <- takeMVar addressMVar
   let wsServerHost = "127.0.0.1"
       wsServerPort = 8889

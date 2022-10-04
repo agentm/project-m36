@@ -12,6 +12,7 @@ RelatedPapers/
 _shake
 nextsteps
 \#*\#
+.\#*
 view-system-notes
 persistence-notes
 *.pyc
@@ -21,3 +22,4 @@ juyter/dist
 .ipynb_checkpoints
 project-m36.nix
 stack.yaml
+release.nix

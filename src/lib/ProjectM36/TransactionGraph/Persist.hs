@@ -32,6 +32,7 @@ import Control.Arrow
 import Data.Time.Clock
 import Data.Text.Read
 import System.FilePath.Glob
+import Data.Tuple
 
 type LockFileHash = ByteString
 
@@ -143,14 +144,21 @@ transactionGraphHeadsPersist sync dbdir graph = do
         headsStrLines = map headFileStr $ M.toList (transactionHeadsForGraph graph)
     writeFileSync sync tempHeadsPath $ T.intercalate "\n" headsStrLines
     renameSync sync tempHeadsPath (headsPath dbdir)
-                                                             
+
 transactionGraphHeadsLoad :: FilePath -> IO [(HeadName,TransactionId)]
 transactionGraphHeadsLoad dbdir = do
   headsData <- readFile (headsPath dbdir)
-  let headsAssocs = map (\l -> let [headName, uuidStr] = words l in
-                          (headName,uuidStr)
-                          ) (lines headsData)
+  let headsAssocs = map twowords (lines headsData)
   return [(T.pack headName, uuid) | (headName, Just uuid) <- map (second U.fromString) headsAssocs]
+
+data Pos = One | Two
+
+twowords :: String -> (String, String)
+twowords s = swap $ snd $ foldr twowordfolder (One, ("","")) s
+  where
+    twowordfolder ' ' (One, acc) = (Two,acc)
+    twowordfolder c (One, (a, b)) =  (One, (c:a, b))
+    twowordfolder c (Two, (a, b)) = (Two, (a, c:b))
   
 {-  
 load any transactions which are not already part of the incoming transaction graph
@@ -212,7 +220,10 @@ readGraphTransactionIdFileDigest dbdir = do
 readGraphTransactionIdFile :: FilePath -> IO (Either PersistenceError [(TransactionId, UTCTime, [TransactionId])])
 readGraphTransactionIdFile dbdir = do
   --read in all transactions' uuids
-  let grapher line = let tid:epochText:parentIds' = T.words line in
+  let grapher line = let (tid,epochText,parentIds') = case T.words line of
+                           x:y:zs -> (x,y,zs)
+                           _ -> error "failed to parse transaction id file"
+                           in
         (readUUID tid, readEpoch epochText, map readUUID parentIds')
       readUUID uuidText = fromMaybe (error "failed to read uuid") (U.fromText uuidText)
       readEpoch t = posixSecondsToUTCTime (realToFrac (either (error "failed to read epoch") fst (double t)))
@@ -228,4 +239,5 @@ readUTF8FileOrError pathIn = do
       case TE.decodeUtf8' fileBytes of
         Left err -> error (show err)
         Right utf8Bytes -> pure utf8Bytes
+
 

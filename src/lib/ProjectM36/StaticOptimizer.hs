@@ -316,7 +316,8 @@ optimizeGraphRefDatabaseContextExpr c@(RemoveTypeConstructor _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(RemoveAtomFunction _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(RemoveDatabaseContextFunction _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(ExecuteDatabaseContextFunction _ _) = pure c
-
+optimizeGraphRefDatabaseContextExpr c@AddRegisteredQuery{} = pure c
+optimizeGraphRefDatabaseContextExpr c@RemoveRegisteredQuery{} = pure c
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 
 --applyStaticDatabaseOptimization (MultipleExpr exprs) = pure $ Right $ MultipleExpr exprs
@@ -525,7 +526,10 @@ applyStaticRestrictionCollapse expr =
           optFinalExpr = case finalExpr of
                               Restrict _ subexpr -> applyStaticRestrictionCollapse subexpr
                               otherExpr -> otherExpr
-          andPreds = foldr (\(Restrict subpred _) acc -> AndPredicate acc subpred) firstPred (tail restrictions) in
+          andPreds = foldr folder firstPred (tail restrictions)
+          folder (Restrict subpred _) acc = AndPredicate acc subpred
+          folder _ _ = error "unexpected restriction expression in optimization phase"
+      in
       Restrict andPreds optFinalExpr
       
 sequentialRestrictions :: RelationalExprBase a -> [RelationalExprBase a]

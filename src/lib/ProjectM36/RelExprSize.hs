@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MagicHash, TypeApplications #-}
 module ProjectM36.RelExprSize where
 import ProjectM36.Base
 import Data.Int
@@ -9,6 +9,7 @@ import qualified Data.ByteString as BS
 import Data.Time.Calendar
 import GHC.Exts
 import qualified Data.Map as M
+import Data.Scientific
 
 type ByteCount = Int64
 
@@ -65,6 +66,7 @@ instance Size Atom where
     case atom of
       IntegerAtom i -> size i
       IntAtom _ -> 8
+      ScientificAtom s -> size s
       DoubleAtom _ -> 8
       TextAtom t -> fromIntegral $ T.length t * 2 --UTF-16 until text-2.0 is widespread
       DayAtom d -> size (toModifiedJulianDay d)
@@ -89,3 +91,6 @@ instance Size Day where
 
 instance Size DiffTime where
   size d = size $ diffTimeToPicoseconds d
+
+instance Size Scientific where
+  size s = 8 + size (coefficient s)

@@ -2,7 +2,7 @@
 
 import Control.Concurrent
 import Control.Exception
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.Maybe (isJust)
 import Data.String (fromString)
 import Network.HTTP.Types (status400)
@@ -35,7 +35,7 @@ main = do
   when (isJust configCertificateFile /= isJust configKeyFile) $
     throwIO $ ErrorCall "TLS_CERTIFICATE_PATH and TLS_KEY_PATH must be set in tandem"
 
-  _ <- forkFinally (launchServer serverConfig' (Just addressMVar) >> pure ()) (either throwIO pure)
+  _ <- forkFinally (void (launchServer serverConfig' (Just addressMVar))) (either throwIO pure)
   --wait for server to be listening
   addr <- takeMVar addressMVar
   let port =

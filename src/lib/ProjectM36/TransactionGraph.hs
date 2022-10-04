@@ -12,6 +12,7 @@ import ProjectM36.TransactionGraph.Merge
 import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
+import ProjectM36.HashBytes
 
 import Codec.Winery
 import Control.Monad.Except hiding (join)
@@ -32,7 +33,6 @@ import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
 import qualified Data.ByteString.Lazy as BL
-import ProjectM36.DatabaseContext as DBC
 import Crypto.Hash.SHA256
 
 -- | Record a lookup for a specific transaction in the graph.
@@ -500,6 +500,7 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
   notifs <- liftMergeE $ unionMergeMaps preference (notifications contextA) (notifications contextB)
   types <- liftMergeE $ unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   dbcFuncs <- liftMergeE $ unionMergeDatabaseContextFunctions preference (dbcFunctions contextA) (dbcFunctions contextB)
+  registeredQs <- liftMergeE $ unionMergeRegisteredQueries preference (registeredQueries contextA) (registeredQueries contextB)
   -- TODO: add merge of subschemas
   let newContext = DatabaseContext {
         inclusionDependencies = incDeps, 
@@ -507,7 +508,8 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
         atomFunctions = atomFuncs, 
         dbcFunctions = dbcFuncs,
         notifications = notifs,
-        typeConstructorMapping = types
+        typeConstructorMapping = types,
+        registeredQueries = registeredQs
         }
       newSchemas = Schemas newContext (subschemas t1)
   pure $ addMerkleHash graph $
@@ -616,15 +618,13 @@ calculateMerkleHash trans graph =
     getMerkleHash t = merkleHash (transactionInfo t)
     transIds = transactionId trans : S.toAscList (parentIds trans)
     transIdsBytes = serialise transIds
-    dbcBytes = DBC.hashBytes (concreteDatabaseContext trans)
+    dbcBytes = hashBytes (concreteDatabaseContext trans)
     schemasBytes = serialise (subschemas trans)
 
 validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()
 validateMerkleHash trans graph = 
-  if expectedHash /= actualHash  then
+  when (expectedHash /= actualHash) $
     Left (MerkleValidationError (transactionId trans) expectedHash actualHash)
-  else
-    pure ()
   where
     expectedHash = merkleHash (transactionInfo trans)
     actualHash = calculateMerkleHash trans graph

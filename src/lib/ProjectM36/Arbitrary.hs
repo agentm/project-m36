@@ -18,10 +18,14 @@ import qualified Data.ByteString.Char8 as B
 import Data.Time
 import Control.Monad.Reader
 import Data.UUID
+import Data.Scientific
 
 arbitrary' :: AtomType -> WithTCMap Gen (Either RelationalError Atom)
 arbitrary' IntegerAtomType = 
   Right . IntegerAtom <$> lift (arbitrary :: Gen Integer)
+
+arbitrary' ScientificAtomType =
+  Right . ScientificAtom <$> lift (arbitrary :: Gen Scientific)
 
 arbitrary' (RelationAtomType attrs)  = do
   tcMap <-ask

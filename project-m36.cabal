@@ -1,6 +1,6 @@
 Cabal-Version: 2.2
 Name: project-m36
-Version: 0.9.4
+Version: 0.9.5
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
@@ -35,9 +35,9 @@ Flag haskell-scripting
      Default: True
 
 Library
-    Build-Depends: base>=4.8 && < 4.17, ghc-paths, mtl, containers, unordered-containers, hashable, haskeline, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text, text-manipulate, bytestring, deepseq, deepseq-generics, vector, parallel, monad-parallel, exceptions, transformers, gnuplot, filepath, zlib, directory, temporary, stm, time, hashable-time, old-locale, rset, attoparsec, either, base64-bytestring, data-interval, extended-reals, aeson >= 1.1, path-pieces, conduit, resourcet, http-api-data, semigroups, QuickCheck, quickcheck-instances, list-t, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256, winery, curryer-rpc>=0.2, network, async, vector-instances, recursion-schemes, streamly >= 0.7.2, convertible, fast-builder, random, ghc-prim, split, network-byte-order
+    Build-Depends: base>=4.8 && < 4.17, ghc-paths, mtl, containers, unordered-containers, hashable, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text, bytestring, deepseq, deepseq-generics, vector, parallel, exceptions, transformers, gnuplot, filepath, directory, temporary, stm, time, rset, attoparsec, base64-bytestring, QuickCheck, quickcheck-instances, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256, text-manipulate >= 0.2.0.1 && < 0.4, winery >= 1.4, curryer-rpc>=0.2.2, network, async, vector-instances, recursion-schemes, streamly >= 0.7.2, convertible, fast-builder, scientific, time-compat >= 1.9.6.1, random, ghc-prim, network-byte-order
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 8.2 && < 8.11
+        Build-Depends: ghc >= 8.2 && < 9.3
         CPP-Options: -DPM36_HASKELL_SCRIPTING
     if impl(ghc>= 8) && flag(haskell-scripting)
       build-depends:
@@ -140,10 +140,13 @@ Library
                      ProjectM36.Streaming.Tuple,
                      ProjectM36.RelExprCache,
                      ProjectM36.Cache.Tuple,
-                     ProjectM36.RelExprSize
+                     ProjectM36.RelExprSize,
+                     ProjectM36.HashBytes,
+                     ProjectM36.DDLType,
+                     ProjectM36.RegisteredQuery
     GHC-Options: -Wall -rdynamic -Wunused-packages
     if os(windows)
-      Build-Depends: Win32 >= 2.5.4.1
+      Build-Depends: Win32 >= 2.12
       Other-Modules: ProjectM36.Win32Handle
     else
       --219-  too many exported symbols under Windows and GHC 8.4
@@ -153,14 +156,14 @@ Library
     CC-Options: -fPIC
     Hs-Source-Dirs: ./src/lib
     Default-Language: Haskell2010
-    Default-Extensions: OverloadedStrings, CPP
+    Default-Extensions: OverloadedStrings, CPP, LambdaCase
     if !flag(stack)
       Build-Depends: deferred-folds 
 
 Executable tutd
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 8.2 && < 8.11
-    Build-Depends: base >=4.8 && <5.0,
+        Build-Depends: ghc >= 8.2 && < 9.3
+    Build-Depends: base >=4.8,
                    ghc-paths,
                    project-m36,
                    containers,
@@ -175,7 +178,6 @@ Executable tutd
                    vector,
                    text,
                    time,
-                   hashable-time,
                    bytestring,
                    stm,
                    deepseq,
@@ -229,14 +231,14 @@ Executable tutd
     else
       GHC-Options: -Wall -threaded -rdynamic -eventlog -rtsopts
     if flag(profiler)
-      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -prof
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded
     Hs-Source-Dirs: ./src/bin
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 
 Executable project-m36-server
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 8.2 && < 8.11
+        Build-Depends: ghc >= 8.2 && < 9.3
     Build-Depends: base,
                    ghc-paths,
                    transformers,
@@ -251,7 +253,6 @@ Executable project-m36-server
                    parallel,
                    bytestring,
                    optparse-applicative,
-                   hashable-time,
                    time,
                    text,
                    deepseq-generics,
@@ -263,7 +264,8 @@ Executable project-m36-server
                    http-api-data,
                    stm-containers,
                    list-t,
-                   base64-bytestring
+                   base64-bytestring,
+                   scientific
     Main-Is: ./src/bin/ProjectM36/Server/project-m36-server.hs
     if os(windows)
       GHC-Options: -Wall -threaded -rtsopts
@@ -277,7 +279,7 @@ Executable project-m36-server
 Executable bigrel
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators
     Other-Modules: TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,
                    TutorialD.Interpreter.RelationalExpr,
@@ -290,7 +292,7 @@ Executable bigrel
 
 Common commontest
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring, modern-uri, http-types, http-conduit, base16-bytestring,cryptohash-sha256, streamly
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256, scientific, streamly
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded
     Hs-Source-Dirs: test, src/bin
@@ -301,7 +303,7 @@ Benchmark basic-benchmark
     Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath
     Main-Is: benchmark/Basic.hs
     Type: exitcode-stdio-1.0
-    GHC-Options: -Wall -threaded -rtsopts
+    GHC-Options: -Wall -threaded -rtsopts -Wunused-packages
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
@@ -312,7 +314,7 @@ Benchmark btree-benchmark
     Build-Depends: base, criterion, project-m36, text, vector, transformers, containers, temporary, directory, filepath, deepseq, byteunits
     Main-Is: benchmark/BTree.hs
     Type: exitcode-stdio-1.0
-    GHC-Options: -Wall -threaded -rtsopts
+    GHC-Options: -Wall -threaded -rtsopts -Wunused-packages
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
@@ -334,7 +336,7 @@ Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
     main-is: TutorialD/InterpreterTest.hs
     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific
 
 Test-Suite test-tutoriald-atomfunctionscript
     import: commontest
@@ -372,6 +374,7 @@ Test-Suite test-relation-import-csv
 Test-Suite test-tutoriald-import-tutoriald
     import: commontest
     type: exitcode-stdio-1.0
+    build-depends: warp, wai
     main-is: TutorialD/Interpreter/Import/ImportTest.hs
     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
@@ -407,28 +410,28 @@ Test-Suite test-server
 Executable Example-SimpleClient
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, ghc, ghc-paths, project-m36, random, MonadRandom
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, ghc, ghc-paths, project-m36, random, MonadRandom
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall -threaded
 
 Executable Example-OutOfTheTarpit
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
     Main-Is: examples/out_of_the_tarpit.hs
     GHC-Options: -Wall -threaded
 
 Executable Example-Blog
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, scotty, blaze-html, http-types, winery
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, scotty, blaze-html, http-types, winery
     Main-Is: examples/blog.hs
     GHC-Options: -Wall -threaded
 
 Executable Example-Hair
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
     Main-Is: examples/hair.hs
     GHC-Options: -Wall -threaded
 
@@ -442,7 +445,7 @@ Executable Example-Plantfarm
 Executable Example-CustomTupleable
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
     Main-Is: examples/CustomTupleable.hs
     GHC-Options: -Wall -threaded
 
@@ -464,7 +467,7 @@ Test-Suite test-scripts
 
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
-    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, semigroups, attoparsec, parser-combinators, prettyprinter, network, modern-uri, http-conduit, base16-bytestring, http-types, cryptohash-sha256, wai, wai-websockets, warp, warp-tls
+    Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, semigroups, attoparsec, parser-combinators, prettyprinter, network, modern-uri, http-conduit, base16-bytestring, http-types, cryptohash-sha256, wai, wai-websockets, warp, warp-tls, scientific
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
     GHC-Options: -Wall -threaded
@@ -513,7 +516,7 @@ Test-Suite test-client-simple
 Executable handles
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, hashable-time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256
     main-is: benchmark/Handles.hs
     Other-Modules: TutorialD.Interpreter,
       TutorialD.Interpreter.Base,
