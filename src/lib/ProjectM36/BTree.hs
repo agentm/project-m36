@@ -28,7 +28,7 @@ sliceIndexes b n | n == b = [0..b-2]
 sliceIndexes b n = map islice [1 .. nodec]
   where
     nodec = b - 1
-    islice x = ((n * x) `divr` b)
+    islice x = (n * x) `divr` b
      
 divr :: Integral a => a -> a -> a    
 divr a b =
@@ -102,7 +102,7 @@ offsetForPath b path =
     kRootSize l = (b - 1) * (b ^ (l - 1)) -- 0, 3, 3*4, 3*4^2
     levelOffset = kBlockSize pathLen
     intraLevelOffset o ri = --traceShow ("o", o, "ri", ri, "i", i, "kRootSize", kRootSize ri)
-      (o * kRootSize ri)
+      o * kRootSize ri
                        
 -- | uses a sorted list to create a static Eytzinger representation of the b-tree- this structure does not support mutability. Since Project:M36 writes data using a WORM strategy, the Eytzinger is ideal since the structure emphasizes cache locality, reduces pointer indirection, and is quite compact with no need for extraneous padding.
 
@@ -151,7 +151,7 @@ build b sortedList = --input list should be de-duplicated to reduce b-tree size,
             forM_ (zip childSlices [0..]) $ \(childVec, i) -> do
 {-              let childRootOffset = kOffset + i * (b - 1) ^ k
                   kOffset = (0 : availableSizes b) !! (k + 1)-}
-              when (not (V.null childVec)) $
+              unless (V.null childVec) $
                 writelevel (i : path) childVec
       writelevel [] sortedList
       pure v
@@ -231,7 +231,7 @@ gteBinarySearch needle haystack =
             bsearch low index
 
 size :: BTree -> Int
-size bt = elemCount bt
+size = elemCount
 
 totalBytes :: BTree -> Int
 totalBytes bt = V.length (vec bt)

@@ -138,6 +138,7 @@ Library
                      ProjectM36.WithNameExpr, 
                      ProjectM36.Trace,
                      ProjectM36.Streaming.Tuple,
+                     ProjectM36.Streaming.RelationalExpression,                     
                      ProjectM36.RelExprCache,
                      ProjectM36.Cache.Tuple,
                      ProjectM36.RelExprSize,

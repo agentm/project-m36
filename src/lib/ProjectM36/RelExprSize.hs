@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, TypeApplications #-}
+{-# LANGUAGE MagicHash #-}
 module ProjectM36.RelExprSize where
 import ProjectM36.Base
 import Data.Int

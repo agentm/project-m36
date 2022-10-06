@@ -707,7 +707,7 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
                          Left err -> Left (wrapIncDepErr (Just err))
                          Right v -> Right v
-          wrapIncDepErr e = InclusionDependencyCheckError depName e
+          wrapIncDepErr = InclusionDependencyCheckError depName
       typeSub <- runGfRel (typeForGraphRefRelationalExpr gfSubsetExpr)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr gfSupersetExpr)
       when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))

@@ -3,7 +3,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 module ProjectM36.Cache.Tuple where
 import ProjectM36.Base
@@ -31,8 +30,8 @@ TupleCacheInfo
 -}
 type FileMagic = BS.ByteString
 
-data InvalidFileMagicException = InvalidFileMagicException BS.ByteString deriving (Show)
-data TruncatedFileException = TruncatedFileException ByteCount deriving (Show)
+newtype InvalidFileMagicException = InvalidFileMagicException BS.ByteString deriving (Show)
+newtype TruncatedFileException = TruncatedFileException ByteCount deriving (Show)
 data SerialisationSchemaMismatch = SerialisationSchemaMismatch deriving (Show)
 
 instance Exception InvalidFileMagicException
@@ -120,7 +119,7 @@ writeTupleStream h expr groupSize tuples = do
   (_, _, _, blockSizeMetadata) <- foldM tupleBlockWriter (0,0,mempty,mempty) tuples >>= writeFinalBlock
   --write remaining tuples which didn't get get us over the last threshold
   --create block metadata at end of file, offset by file magic at beginning of file
-  let tupleCacheInfo = TupleCacheInfo { blockSizes = V.fromList (map (bimap offsetByMagic id) blockSizeMetadata),
+  let tupleCacheInfo = TupleCacheInfo { blockSizes = V.fromList (map (first offsetByMagic) blockSizeMetadata),
                                         representing = expr,
                                         created = now,
                                         tupleSchema = schema (Proxy :: Proxy RelationTuple)

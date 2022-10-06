@@ -14,10 +14,10 @@ main :: IO ()
 main = do
   let sizes = map (10 ^) [1..7 :: Int]
       prettyBytes x = getShortHand (getAppropriateUnits (ByteValue (fromIntegral x) Bytes))
-  btrees16 <- pure $ force $ map (createBTree 16) sizes
-  btrees64 <- pure $ force $ map (createBTree 64) sizes
-  btrees100 <- pure $ force $ map (createBTree 100) sizes  
-  btrees128 <- pure $ force $ map (createBTree 128) sizes
+      btrees16 = force $ map (createBTree 16) sizes
+      btrees64 = force $ map (createBTree 64) sizes
+      btrees100 = force $ map (createBTree 100) sizes  
+      btrees128 = force $ map (createBTree 128) sizes
 --  gen <- getStdGen
 --  let rands = randomRs gen (0,100)
   

@@ -25,13 +25,13 @@ cardinality s = Finite <$> S.length (S.fromAsync s)
 
 -- error handling needs to happen at type-checking time
 rename :: MonadAsync m => AttributeName -> AttributeName -> AsyncT m RelationTuple -> AsyncT m RelationTuple
-rename attrA attrB s = S.mapM (\tup -> pure (tupleRenameAttribute attrA attrB tup)) s
+rename attrA attrB = S.mapM (pure . tupleRenameAttribute attrA attrB)
 
 project :: MonadAsync m => Attributes -> AsyncT m RelationTuple -> AsyncT m RelationTuple
-project attrs s = S.mapM (\tup ->
-                            case tupleProject attrs tup of
-                              Left err -> throwM err
-                              Right tup' -> pure tup') s
+project attrs = S.mapM (\tup ->
+                           case tupleProject attrs tup of
+                             Left err -> throwM err
+                             Right tup' -> pure tup')
 
 union :: MonadAsync m => AsyncT m RelationTuple -> AsyncT m RelationTuple -> AsyncT m RelationTuple
 union = (<>)
@@ -50,7 +50,7 @@ join joinCondition rt1List rt2 = do
         Right joined -> S.fromFoldable joined <> join joinCondition rt1List s2remainder
 
 difference :: (MonadAsync m) => [RelationTuple] -> AsyncT m RelationTuple -> AsyncT m RelationTuple
-difference filterTuples s = S.filter filt s
+difference filterTuples = S.filter filt
   where
     filt tup = tup `notElem` filterTuples
     
@@ -80,7 +80,8 @@ group groupAttrs newAttrName attrs tupsIn = do
         subRel <- Rel.mkRelationFromTuples newAttrs groups'
         let subTup = RelationTuple (A.singleton groupAttr) (V.singleton (RelationAtom subRel))
         let newTup = tupleExtend nongrouped subTup
-        (:) <$> pure newTup <*> accum
+--        (:) <$> pure newTup <*> accum
+        (newTup:) <$> accum
       
   groupedMap <- lift $ S.foldr groupFolder HM.empty (S.fromAsync tupsIn)
   case HM.foldrWithKey tupleGenerator (Right []) groupedMap of
@@ -98,8 +99,8 @@ ungroup :: MonadAsync m => AttributeName -> Attributes -> AsyncT m RelationTuple
 ungroup ungroupName attrs tupStream = do 
   let newAttrs = A.addAttributes attrs nonGroupAttrs
       nonGroupAttrs = A.deleteAttributeName ungroupName attrs
-      mapper onetup =
-        tupleUngroup ungroupName newAttrs onetup
+      mapper =
+        tupleUngroup ungroupName newAttrs
   S.concatMap mapper tupStream
         
 --take an relval attribute name and a tuple and ungroup the relval

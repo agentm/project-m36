@@ -1,14 +1,16 @@
+{-# LANGUAGE FlexibleContexts #-}
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import qualified Data.Set as S
 import qualified Data.Map as M
-import Control.Monad.Trans.Reader
+import Streamly.Prelude as Stream
+import Control.Monad.IO.Class
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
-type GraphRefRelExprExecPlan = RelExprExecPlanBase TransactionMarker
+type GraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransactionMarker
 
 --this will become more useful once we have multiple join strategies, etc.
 data RelExprExecPlanBase a =
@@ -33,20 +35,20 @@ data RelExprExecPlanBase a =
                        NotEqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        
                        MakeStaticRelationPlan Attributes RelationTupleSet |
-                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase a]) [TupleExprBase a] |
+                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase a]) (TupleExprsBase a) |
                        ExistingRelationPlan Relation
-                      
-planRelationalExpr :: RelationalExpr -> 
-                      M.Map RelVarName RelExprExecPlan -> 
-                      RelationalExprStateElems -> 
-                      Either RelationalError RelExprExecPlan
+
+planRelationalExpr :: GraphRefRelationalExpr -> 
+                      M.Map RelVarName GraphRefRelExprExecPlan -> 
+                      GraphRefRelationalExprEnv -> 
+                      Either RelationalError GraphRefRelExprExecPlan
 planRelationalExpr (RelationVariable name _) rvMap _ = case M.lookup name rvMap of
   Nothing -> Left (RelVarNotDefinedError name)
   Just plan -> Right plan
   
-planRelationalExpr (Project attrNames expr) rvMap state = do
-  attrNameSet <- runReader (evalAttributeNames attrNames expr) state
-  subExpr <- planRelationalExpr expr rvMap state
+planRelationalExpr (Project attrNames expr) rvMap gfEnv = do
+  attrNameSet <- runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames attrNames expr)
+  subExpr <- planRelationalExpr expr rvMap gfEnv
   pure (ProjectTupleStreamPlan attrNameSet subExpr)
   
 planRelationalExpr (Union exprA exprB) rvMap state = do  
@@ -94,9 +96,11 @@ planRelationalExpr (Extend tupleExpression relExpr) rvMap state =
 data StreamRelation m = StreamRelation Attributes (AsyncT m RelationTuple)
 
 --until we can stream results to disk or socket, we return a lazy-list-based Relation
-executePlan :: (MonadIO m, MonadAsync m2) => GraphRefRelExprExecPlanBase -> m Relation
+executePlan :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> StreamRelation m
 executePlan (ReadTuplesFromMemoryPlan attrs tupSet) =
-  pure (Relation attrs tupSet)
-executePlan (StreamTuplesFromFilePlan attrs path) =
+  StreamRelation attrs (Stream.fromList (asList tupSet))
+executePlan (StreamTuplesFromCacheFilePlan attrs path) =
   --todo: enable streaming tuples from file
-  
+  undefined
+--executePlan (RenameTupleStreamPlan oldName newName expr) =
+--  <- executePlan expr
