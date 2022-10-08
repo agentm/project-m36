@@ -1091,8 +1091,8 @@ evalGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
   let attrs = fromMaybe firstTupleAttrs mAttrs
       firstTupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
   lift $ except $ mkRelation attrs (RelationTupleSet tuples)
-evalGraphRefRelationalExpr (MakeStaticRelation attributeSet tupleSet) = 
-  lift $ except $ mkRelation attributeSet tupleSet
+evalGraphRefRelationalExpr (MakeStaticRelation attributeSet tupleSet') = 
+  lift $ except $ mkRelation attributeSet tupleSet'
 evalGraphRefRelationalExpr (ExistingRelation rel) = pure rel
 evalGraphRefRelationalExpr (RelationVariable name tid) = do
   ctx <- gfDatabaseContextForMarker tid

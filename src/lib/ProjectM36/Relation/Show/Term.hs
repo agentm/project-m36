@@ -77,13 +77,13 @@ cellSizes (header, body) = map (map maxRowWidth &&& map (length . breakLines)) a
     allRows = header : body
     
 relationAsTable :: Relation -> Table
-relationAsTable rel@(Relation _ tupleSet) = (header, body)
+relationAsTable rel@(Relation _ tupleSet') = (header, body)
   where
     oAttrs = orderedAttributes (attributes rel)
     oAttrNames = orderedAttributeNames (attributes rel)
     header = map prettyAttribute oAttrs
     body :: [[Cell]]
-    body = L.foldr tupleFolder [] (asList tupleSet)
+    body = L.foldr tupleFolder [] (asList tupleSet')
     tupleFolder tuple acc = map (\attrName -> case atomForAttributeName attrName tuple of
                                             Left _ -> "?"
                                             Right atom -> showAtom 0 atom

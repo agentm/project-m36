@@ -20,6 +20,9 @@ import Control.Monad.Random
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
 
+tupleSet :: Relation -> RelationTupleSet
+tupleSet (Relation _ tupSet) = tupSet
+
 attributeNames :: Relation -> S.Set AttributeName
 attributeNames (Relation attrs _) = A.attributeNameSet attrs
 
@@ -40,10 +43,10 @@ emptyRelationWithAttrs :: Attributes -> Relation
 emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelation attrs tupleSet =
+mkRelation attrs tupleSet' =
     --check that all tuples have the same keys
     --check that all tuples have keys (1-N) where N is the attribute count
-    case verifyTupleSet attrs tupleSet of
+    case verifyTupleSet attrs tupleSet' of
       Left err -> Left err
       Right verifiedTupleSet -> return $ Relation attrs verifiedTupleSet
     
@@ -52,7 +55,7 @@ mkRelation attrs tupleSet =
 --instead of returning a Left RelationalError, if a tuple does not match the relation's attributes, the tuple is simply removed
 --duplicate tuples are NOT filtered by this creation method
 mkRelationDeferVerify :: Attributes -> RelationTupleSet -> Either RelationalError Relation
-mkRelationDeferVerify attrs tupleSet = return $ Relation attrs (RelationTupleSet (filter tupleFilter (asList tupleSet)))
+mkRelationDeferVerify attrs tupleSet' = return $ Relation attrs (RelationTupleSet (filter tupleFilter (asList tupleSet')))
   where
     tupleFilter tuple = isRight (verifyTuple attrs tuple)
     
@@ -73,8 +76,8 @@ relationFalse = Relation A.emptyAttributes emptyTupleSet
 
 --if the relation contains one tuple, return it, otherwise Nothing
 singletonTuple :: Relation -> Maybe RelationTuple
-singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
-                                         Just $ head $ asList tupleSet
+singletonTuple rel@(Relation _ tupleSet') = if cardinality rel == Finite 1 then
+                                         Just $ head $ asList tupleSet'
                                        else
                                          Nothing
 
@@ -231,8 +234,8 @@ difference relA relB =
       
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> Either RelationalError RelationTuple) -> Relation -> Either RelationalError Relation
-relMap mapper (Relation attrs tupleSet) = 
-  case forM (asList tupleSet) typeMapCheck of
+relMap mapper (Relation attrs tupleSet') = 
+  case forM (asList tupleSet') typeMapCheck of
     Right remappedTupleSet -> mkRelation attrs (RelationTupleSet remappedTupleSet)
     Left err -> Left err
   where
@@ -249,7 +252,7 @@ relMogrify mapper newAttributes (Relation _ tupSet) = do
   mkRelationFromTuples newAttributes newTuples
 
 relFold :: (RelationTuple -> a -> a) -> a -> Relation -> a
-relFold folder acc (Relation _ tupleSet) = foldr folder acc (asList tupleSet)
+relFold folder acc (Relation _ tupleSet') = foldr folder acc (asList tupleSet')
 
 -- | Generate a randomly-ordered list of tuples from the relation.
 toList :: Relation -> IO [RelationTuple]
@@ -309,4 +312,4 @@ oneTuple (Relation _ (RelationTupleSet [])) = Nothing
 oneTuple (Relation _ (RelationTupleSet (x:_))) = Just x
 
 tuplesList :: Relation -> [RelationTuple]
-tuplesList (Relation _ tupleSet) = asList tupleSet
+tuplesList (Relation _ tupleSet') = asList tupleSet'

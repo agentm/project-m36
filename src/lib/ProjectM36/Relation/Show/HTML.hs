@@ -20,7 +20,7 @@ attributesAsHTML attrs = "<tr>" <> T.concat (map oneAttrHTML (A.toList attrs)) <
 
 relationAsHTML :: Relation -> Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
-relationAsHTML rel@(Relation attrNameSet tupleSet) 
+relationAsHTML rel@(Relation attrNameSet tupleSet') 
   | rel == relationTrue = pm36relcss <>
                           tablestart <>
                           "<tr><th></th></tr>" <>
@@ -34,7 +34,7 @@ relationAsHTML rel@(Relation attrNameSet tupleSet)
   | otherwise = pm36relcss <>
                 tablestart <> 
                 attributesAsHTML attrNameSet <> 
-                tupleSetAsHTML tupleSet <> 
+                tupleSetAsHTML tupleSet' <> 
                 tablefooter <> 
                 "</table>"
   where
