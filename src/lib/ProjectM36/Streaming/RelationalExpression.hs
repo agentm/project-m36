@@ -33,11 +33,11 @@ data RelExprExecPlanBase a =
                        RenameTupleStreamPlan AttributeName AttributeName (RelExprExecPlanBase a) |
                        GroupTupleStreamPlan (AttributeNamesBase a) AttributeName (RelExprExecPlanBase a) |
                        UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a) |
-                       ExtendTupleStreamPlan (ExtendTupleExprBase a) (RelExprExecPlanBase a) |
+                       ExtendTupleStreamPlan ExtendTupleProcessor (RelExprExecPlanBase a) |
                        
                        UnionTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
-                       JoinTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
-                       DifferenceStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       DifferenceTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        EqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        NotEqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        
@@ -69,12 +69,12 @@ planRelationalExpr (Union exprA exprB) rvMap state = do
 planRelationalExpr (Join exprA exprB) rvMap state = do  
   planA <- planRelationalExpr exprA rvMap state
   planB <- planRelationalExpr exprB rvMap state
-  pure (JoinTupleStreamsPlan planA planB)
+  pure (NaiveJoinTupleStreamsPlan planA planB)
   
 planRelationalExpr (Difference exprA exprB) rvMap state = do
   planA <- planRelationalExpr exprA rvMap state
   planB <- planRelationalExpr exprB rvMap state
-  pure (DifferenceStreamsPlan planA planB)
+  pure (DifferenceTupleStreamsPlan planA planB)
 
 planRelationalExpr (MakeStaticRelation attributeSet tupSet) _ _ = pure (MakeStaticRelationPlan attributeSet tupSet)
 
@@ -105,8 +105,10 @@ planRelationalExpr (Equals relExprA relExprB) rvMap state =
 planRelationalExpr (NotEquals relExprA relExprB) rvMap state =
   NotEqualTupleStreamsPlan <$> planRelationalExpr relExprA rvMap state <*> planRelationalExpr relExprB rvMap state
   
-planRelationalExpr (Extend tupleExpression relExpr) rvMap state = 
-  ExtendTupleStreamPlan tupleExpression <$> planRelationalExpr relExpr rvMap state
+planRelationalExpr (Extend extendTupleExpr relExpr) rvMap gfEnv = do
+  subExprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr)
+  extendProc <- runGraphRefRelationalExprM gfEnv (extendGraphRefTupleExpressionProcessor (attributes subExprT) extendTupleExpr)
+  ExtendTupleStreamPlan extendProc <$> planRelationalExpr relExpr rvMap gfEnv
 
 planRelationalExpr (With macros expr) rvMap gfEnv = 
   --TODO: determine if macros should be expanded or executed separately- perhaps calculate how many times a macro appears and it's calculation and size cost to determine if it should be precalculated.
@@ -180,6 +182,36 @@ executePlan (MakeStaticRelationPlan attrs tupSet) = do
   pure (StreamRelation attrs (Stream.fromList (asList tupSet)))
 executePlan (ExistingRelationPlan rel) = do
   pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
+executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) expr) = do
+  (StreamRelation _ tupS) <- executePlan expr
+  let tupS' = Stream.map (\t -> case extendProcessor t of
+                        Left err -> throw err
+                        Right t' -> t') tupS
+  pure (StreamRelation newAttrs tupS')
+executePlan (NaiveJoinTupleStreamsPlan exprA exprB) = do
+  --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
+  (StreamRelation attrsA tupSa) <- executePlan exprA
+  (StreamRelation attrsB tupSb) <- executePlan exprB
+  attrsOut <- joinAttributes attrsA attrsB
+  let tupS' = do
+        bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
+        let tupleJoiner :: RelationTuple -> [RelationTuple]
+            tupleJoiner tupleFromA =
+              concatMap (\tupleFromB ->
+                           case singleTupleJoin attrsOut tupleFromA tupleFromB of
+                             Left err -> throw err
+                             Right Nothing -> []
+                             Right (Just joinedTuple) -> [joinedTuple]
+                        ) bTupleList
+        Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
+  pure (StreamRelation attrsOut tupS')
+executePlan (DifferenceTupleStreamsPlan exprA exprB) = do
+  (StreamRelation attrsA tupSa) <- executePlan exprA
+  (StreamRelation _ tupSb) <- executePlan exprB
+  let tupS' = do
+        bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
+        Stream.filter (`elem` bTupleList) tupSa
+  pure (StreamRelation attrsA tupS')
 
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])

@@ -104,6 +104,21 @@ joinAttributes attrs1 attrs2
       --,attributesSet = attributesSet attrs1 <> attributesSet attrs2
       }
 
+{-
+-- | Return the intersection of attributes. If the attributes share the same name, but not the same types, return an error.
+intersection :: Attributes -> Attributes -> Either Relation Attributes
+intersection attrsA attrsB =
+  if overlappingAttrs attrsA  == overlappingAttrs attrsB then
+    pure $ overlappingAttrs attrA
+  else
+    Left (TupleAttributeTypeMismatchError (attributesForNames overlappingNames attrsA))
+  where
+    nameSet1 = attributeNameSet attrsA
+    nameSet2 = attributeNameSet attrsB
+    overlappingNames = S.intersection nameSet1 nameSet2
+    overlappingAttrs = attributesForNames overlappingNames
+-}    
+
 addAttributes :: Attributes -> Attributes -> Attributes
 addAttributes = (<>)
 

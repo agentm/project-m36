@@ -825,30 +825,39 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
                Left err -> Left err
                Right boolAtomValue -> pure (boolAtomValue == BoolAtom True))
 
-tupleExprCheckNewAttrName :: AttributeName -> Relation -> Either RelationalError Relation
-tupleExprCheckNewAttrName attrName rel = if isRight (attributeForName attrName rel) then
+tupleExprCheckNewAttrName :: AttributeName -> Attributes -> Either RelationalError Attributes
+tupleExprCheckNewAttrName attrName attrs = if isRight (A.attributeForName attrName attrs) then
                                            Left (AttributeNameInUseError attrName)
                                          else
-                                           Right rel
+                                           Right attrs
+                                           
+type ExtendTupleProcessor = (Attributes, RelationTuple -> Either RelationalError RelationTuple)
 
-extendGraphRefTupleExpressionProcessor :: Relation -> GraphRefExtendTupleExpr -> GraphRefRelationalExprM (Attributes, RelationTuple -> Either RelationalError RelationTuple)
-extendGraphRefTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrName atomExpr) = 
+extendGraphRefTupleExpressionProcessor :: Attributes -> GraphRefExtendTupleExpr -> GraphRefRelationalExprM ExtendTupleProcessor
+extendGraphRefTupleExpressionProcessor attrsIn (AttributeExtendTupleExpr newAttrName atomExpr) = 
 --  renv <- askEnv
   -- check that the attribute name is not in use
-  case tupleExprCheckNewAttrName newAttrName relIn of
+  case tupleExprCheckNewAttrName newAttrName attrsIn of
     Left err -> throwError err
     Right _ -> do
-      atomExprType <- typeForGraphRefAtomExpr (attributes relIn) atomExpr
-      atomExprType' <- verifyGraphRefAtomExprTypes relIn atomExpr atomExprType
+      atomExprType <- typeForGraphRefAtomExpr attrsIn atomExpr
+      atomExprType' <- verifyGraphRefAtomExprTypes attrsIn atomExpr atomExprType
       let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType']
-          newAndOldAttrs = A.addAttributes (attributes relIn) newAttrs
+          newAndOldAttrs = A.addAttributes attrsIn newAttrs
       env <- ask
       pure (newAndOldAttrs, \tup -> do
                let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tup env
                atom <- runGraphRefRelationalExprM gfEnv (evalGraphRefAtomExpr tup atomExpr)
                Right (tupleAtomExtend newAttrName atom tup)
                )
-
+        
+-- same as above, but without extraneous typechecking which should be done beforehand
+{-extendGraphRefTupleExpressionProcessor' :: Attributes -> GraphRefExtendTupleExpr -> GraphRefRelationalExprM ExtendTupleProcessor
+extendGraphRefTupleExpressionProcessor' existingAttrs (AttributeExtendTupleExpr newAttrName atomExpr) = do
+  atomExprType <- typeForGraphRefAtomExpr (attributes relIn) atomExpr  
+  let newAttrs = typeForGraphRefAtomExpr
+      combinedAttrs = A.addAttributes existingAttrs newAttrs
+-}
 evalGraphRefAtomExpr :: RelationTuple -> GraphRefAtomExpr -> GraphRefRelationalExprM Atom
 evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
   case atomForAttributeName attrName tupIn of
@@ -951,10 +960,10 @@ typeForGraphRefAtomExpr attrs (ConstructedAtomExpr dConsName dConsArgs tid) =
     lift $ except $ atomTypeForDataConstructor tConsMap dConsName argsTypes
 
 -- | Validate that the type of the AtomExpr matches the expected type.
-verifyGraphRefAtomExprTypes :: Relation -> GraphRefAtomExpr -> AtomType -> GraphRefRelationalExprM AtomType
-verifyGraphRefAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = do
+verifyGraphRefAtomExprTypes :: Attributes -> GraphRefAtomExpr -> AtomType -> GraphRefRelationalExprM AtomType
+verifyGraphRefAtomExprTypes attrsIn (AttributeAtomExpr attrName) expectedType = do
   env <- askEnv
-  case A.atomTypeForAttributeName attrName (attributes relIn) of
+  case A.atomTypeForAttributeName attrName attrsIn of
     Right aType -> lift $ except $ atomTypeVerify expectedType aType
     (Left err@(NoSuchAttributeNamesError _)) ->
       let attrs' = envAttributes env in
@@ -968,7 +977,7 @@ verifyGraphRefAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = do
 
 verifyGraphRefAtomExprTypes _ (NakedAtomExpr atom) expectedType =
   lift $ except $ atomTypeVerify expectedType (atomTypeForAtom atom)
-verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) expectedType = do
+verifyGraphRefAtomExprTypes attrsIn (FunctionAtomExpr funcName' funcArgExprs tid) expectedType = do
   context <- gfDatabaseContextForMarker tid
   let functions = atomFunctions context
   func <- lift $ except $ atomFunctionForName funcName' functions
@@ -977,19 +986,19 @@ verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) 
         let handler :: RelationalError -> GraphRefRelationalExprM AtomType
             handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
             handler err = throwError err
-        verifyGraphRefAtomExprTypes relIn atomExpr expectedType2 `catchError` handler   
+        verifyGraphRefAtomExprTypes attrsIn atomExpr expectedType2 `catchError` handler   
   funcArgTypes <- mapM funcArgVerifier $ zip3 funcArgExprs expectedArgTypes [1..]
   if length funcArgTypes /= length expectedArgTypes - 1 then
       throwError (AtomTypeCountError funcArgTypes expectedArgTypes)
       else 
       lift $ except $ atomTypeVerify expectedType (last expectedArgTypes)
-verifyGraphRefAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType =
+verifyGraphRefAtomExprTypes attrsIn (RelationAtomExpr relationExpr) expectedType =
   do
-    let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn)
+    let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv attrsIn
     relType <- R.local mergedAttrsEnv (typeForGraphRefRelationalExpr relationExpr)
     lift $ except $ atomTypeVerify expectedType (RelationAtomType (attributes relType))
-verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do
-  cType <- typeForGraphRefAtomExpr (attributes rel) cons
+verifyGraphRefAtomExprTypes attrsIn cons@ConstructedAtomExpr{} expectedType = do
+  cType <- typeForGraphRefAtomExpr attrsIn cons
   lift $ except $ atomTypeVerify expectedType cType
 
 -- | Look up the type's name and create a new attribute.
@@ -1139,7 +1148,7 @@ evalGraphRefRelationalExpr (NotEquals exprA exprB) = do
   pure $ if relA == relB then relationFalse else relationTrue
 evalGraphRefRelationalExpr (Extend extendTupleExpr expr) = do
   rel <- evalGraphRefRelationalExpr expr
-  (newAttrs, tupProc) <- extendGraphRefTupleExpressionProcessor rel extendTupleExpr
+  (newAttrs, tupProc) <- extendGraphRefTupleExpressionProcessor (attributes rel) extendTupleExpr
   lift $ except $ relMogrify tupProc newAttrs rel
 evalGraphRefRelationalExpr expr@With{} =
   --strategy A: add relation variables to the contexts in the graph
