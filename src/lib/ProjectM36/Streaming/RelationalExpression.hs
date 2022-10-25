@@ -31,7 +31,7 @@ data RelExprExecPlanBase a =
                        RestrictTupleStreamPlan RestrictionFilter (RelExprExecPlanBase a) |
                        ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a) |
                        RenameTupleStreamPlan AttributeName AttributeName (RelExprExecPlanBase a) |
-                       GroupTupleStreamPlan (AttributeNamesBase a) AttributeName (RelExprExecPlanBase a) |
+                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase a) |
                        UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a) |
                        ExtendTupleStreamPlan ExtendTupleProcessor (RelExprExecPlanBase a) |
                        
@@ -212,6 +212,26 @@ executePlan (DifferenceTupleStreamsPlan exprA exprB) = do
         bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
         Stream.filter (`elem` bTupleList) tupSa
   pure (StreamRelation attrsA tupS')
+executePlan (GroupTupleStreamPlan groupAttrs newAttr expr) = do
+  --naive implementation scans for image relation for each grouped value
+  (StreamRelation attrsIn tupS) <- executePlan expr
+  let nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (S.fromList (V.toList (A.attributeNames attrsIn rel)))
+  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel)
+  groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
+  (StreamRelation _ nonGroupProjectionTupS) <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr)
+  let newAttrs = A.addAttribute groupAttr nonGroupProjectionAttribute
+      matchAttrSet = attributeNameSet nonGroupProjectionAttributes
+      tupS' = do
+        origTupList <- liftIO $ Stream.toList tupS
+        -- find matching tuples from list
+        let singleTupleGroupMatcher tup =
+              let matchingTuples =
+                    filter (\groupTup ->
+                              atomsForAttributeNames matchAttrSet tup == atomsForAttributeNames matchAttrSet groupTup) in
+              
+        Stream.map singleTupleGroupMatcher nonGroupProjectionTupS
+  pure (StreamRelation newAttrs tupS')
+  
 
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])
