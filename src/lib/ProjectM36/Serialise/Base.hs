@@ -7,6 +7,9 @@ import Codec.Winery.Internal
 import Control.Monad
 import ProjectM36.Base
 import ProjectM36.MerkleHash
+import ProjectM36.Relation
+import ProjectM36.Tuple
+import ProjectM36.TupleSet
 import Data.UUID
 import Data.Proxy
 import Data.Word
@@ -21,9 +24,7 @@ import qualified Data.List.NonEmpty as NE
 deriving via WineryVariant Atom instance Serialise Atom
 deriving via WineryVariant AtomType instance Serialise AtomType
 deriving via WineryVariant Attribute instance Serialise Attribute
-deriving via WineryVariant RelationTupleSet instance Serialise RelationTupleSet
 deriving via WineryVariant RelationTuple instance Serialise RelationTuple
-deriving via WineryVariant Relation instance Serialise Relation
 deriving via WineryVariant RelationCardinality instance Serialise RelationCardinality
 deriving via WineryVariant (RelationalExprBase a) instance Serialise a => Serialise (RelationalExprBase a)
 deriving via WineryVariant (WithNameExprBase a) instance Serialise a => Serialise (WithNameExprBase a)
@@ -89,3 +90,34 @@ instance Serialise Attributes where
     n <- decodeVarInt
     l <- replicateM n decodeCurrent
     pure (A.attributesFromList l)
+
+-- | A special instance of Serialise which cuts down on duplicate attributes- we should only serialise the attributes at the top-level and not duplicate them per tuple.
+instance Serialise Relation where
+  schemaGen _ = getSchema (Proxy @(Attributes, [V.Vector Atom]))
+  toBuilder rel = toBuilder (attributes rel, map tupleAtoms (tuplesList rel))
+  extractor = makeRelation <$> extractor
+   where
+    makeRelation (attrs, atomList) =  Relation attrs (RelationTupleSet (map (RelationTuple attrs) atomList))
+  decodeCurrent = do
+    (attrs, atomList) <- decodeCurrent
+    pure (Relation attrs (RelationTupleSet (map (RelationTuple attrs) atomList)))   
+
+type SlimTupleSet = Either () (Attributes, [V.Vector Atom])
+
+slimTupleSet :: RelationTupleSet -> SlimTupleSet
+slimTupleSet tupSet =
+  case asList tupSet of
+    [] -> Left ()
+    tup:tups -> Right (tupleAttributes tup, map tupleAtoms (tup:tups))
+
+-- | restore slimmed tuple set to include single shared attributes list
+fattenTupleSet :: SlimTupleSet -> RelationTupleSet
+fattenTupleSet Left{} = emptyTupleSet
+fattenTupleSet (Right (attrs, vtups)) = RelationTupleSet $ map (RelationTuple attrs) vtups
+
+-- | A special instance of Serialise which cuts down on duplicate attributes- we should only serialise the attributes at the top-level and not duplicate them per tuple. If we have an empty tupleset, we lack all attributes which is fine in this case.
+instance Serialise RelationTupleSet where
+  schemaGen _ = getSchema (Proxy @SlimTupleSet)
+  toBuilder tupSet = toBuilder (slimTupleSet tupSet)
+  extractor = fattenTupleSet <$> extractor
+  decodeCurrent = fattenTupleSet <$> decodeCurrent
