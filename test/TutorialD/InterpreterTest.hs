@@ -18,6 +18,7 @@ import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
+import ProjectM36.HashSecurely
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.AttributeNames as AN
 import qualified ProjectM36.Session as Sess
@@ -797,7 +798,7 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "n/aCutGTB78B0W9Vj4yOXancxDoZX7WvuG/SMurg3P8=" (B64.encode hash1)
+  assertEqual "static hash check" "Gu8Uaw7WAl484jAEprlbeXRnF1tKKX4MvYBjL1TPnHI=" (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn

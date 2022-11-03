@@ -48,9 +48,10 @@ main = do
   sessionId <- eCheck $ createSessionAtHead conn "master"
   if writeData opts then do
     putStrLn $ "writing " <> show (tupleCount opts) <> " tuples"
+    let baseUTC = UTCTime { utctDay = fromGregorian 2022 2 22,
+                            utctDayTime = secondsToDiffTime 0 }
     let addData = map (\i ->
-                         WeatherReading { stamp = UTCTime { utctDay = fromGregorian 2022 2 22,
-                                                            utctDayTime = secondsToDiffTime i },
+                         WeatherReading { stamp = addUTCTime (secondsToNominalDiffTime (fromIntegral i)) baseUTC,
                                           temperature = i,
                                           raining = even i,
                                           city = "Mexico City",
