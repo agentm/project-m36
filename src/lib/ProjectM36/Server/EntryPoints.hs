@@ -2,6 +2,7 @@
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
+import ProjectM36.HashSecurely
 import ProjectM36.Client as C
 import Data.Map
 import Control.Concurrent (threadDelay)
@@ -9,7 +10,6 @@ import Network.RPC.Curryer.Server
 import System.Timeout hiding (Timeout)
 import Network.Socket
 import Control.Exception
-import qualified Data.ByteString as B
 
 timeoutOrDie :: Maybe Timeout -> IO a -> IO (Maybe a)
 timeoutOrDie mMicros act = 
@@ -146,7 +146,7 @@ handleValidateMerkleHashes :: Maybe Timeout -> SessionId -> Connection -> IO (Ei
 handleValidateMerkleHashes ti sessionId conn = 
   timeoutRelErr ti (C.validateMerkleHashes sessionId conn)
 
-handleGetDDLHash :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError B.ByteString)
+handleGetDDLHash :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError SecureHash)
 handleGetDDLHash ti sessionId conn =
   timeoutRelErr ti (C.getDDLHash sessionId conn)
 

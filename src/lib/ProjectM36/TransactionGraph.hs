@@ -12,7 +12,7 @@ import ProjectM36.TransactionGraph.Merge
 import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
-import ProjectM36.HashBytes
+import ProjectM36.HashSecurely
 
 import Codec.Winery
 import Control.Monad.Except hiding (join)
@@ -32,8 +32,6 @@ import Data.Monoid
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
-import qualified Data.ByteString.Lazy as BL
-import Crypto.Hash.SHA256
 
 -- | Record a lookup for a specific transaction in the graph.
 data TransactionIdLookup = TransactionIdLookup TransactionId |
@@ -597,29 +595,15 @@ addMerkleHash :: TransactionGraph -> Transaction -> Transaction
 addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas trans)
   where
     newInfo = (transactionInfo trans) { merkleHash = calculateMerkleHash trans graph }
-  
--- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
+  -- the new hash includes the parents' ids, the current id, and the hash of the context, and the merkle hashes of the parent transactions
 calculateMerkleHash :: Transaction -> TransactionGraph -> MerkleHash
-calculateMerkleHash trans graph = 
-  MerkleHash newHash
+calculateMerkleHash trans graph = hashTransaction trans parentTranses
   where
-    newHash = hashlazy (BL.fromChunks [transIdsBytes,
-                                         schemasBytes,
-                                         tstampBytes
-                                       ] <> dbcBytes <> parentMerkleHashes)
-    tstamp = stamp (transactionInfo trans)
-    tstampBytes = serialise tstamp
-    parentMerkleHashes = BL.fromChunks $ map (_unMerkleHash . getMerkleHash) parentTranses
     parentTranses =
       case transactionsForIds (parentIds trans) graph of
-        Left RootTransactionTraversalError -> []
+        Left RootTransactionTraversalError -> mempty
         Left e -> error ("failed to find transaction in Merkle hash construction: " ++ show e)
-        Right t -> S.toList t
-    getMerkleHash t = merkleHash (transactionInfo t)
-    transIds = transactionId trans : S.toAscList (parentIds trans)
-    transIdsBytes = serialise transIds
-    dbcBytes = hashBytes (concreteDatabaseContext trans)
-    schemasBytes = serialise (subschemas trans)
+        Right t -> t
 
 validateMerkleHash :: Transaction -> TransactionGraph -> Either MerkleValidationError ()
 validateMerkleHash trans graph = 

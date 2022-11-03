@@ -158,6 +158,7 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.Sessions
+import ProjectM36.HashSecurely (SecureHash)
 import ProjectM36.RegisteredQuery
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
@@ -165,7 +166,6 @@ import System.IO
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
-import qualified Data.ByteString as B
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 
@@ -1084,7 +1084,7 @@ validateMerkleHashes sessionId (InProcessConnection conf) = do
 validateMerkleHashes sessionId conn@RemoteConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)
 
 -- | Calculate a hash on the DDL of the current database context (not the graph). This is useful for validating on the client that the database schema meets the client's expectation. Any DDL change will change this hash. This hash does not change based on the current isomorphic schema being examined. This function is not affected by the current schema (since they are all isomorphic anyway, they should return the same hash).
-getDDLHash :: SessionId -> Connection -> IO (Either RelationalError B.ByteString)
+getDDLHash :: SessionId -> Connection -> IO (Either RelationalError SecureHash)
 getDDLHash sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
   atomically $ do

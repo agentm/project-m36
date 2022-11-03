@@ -132,7 +132,7 @@ Library
                      ProjectM36.TransactionInfo,
                      ProjectM36.WithNameExpr, 
                      ProjectM36.Trace,
-                     ProjectM36.HashBytes,
+                     ProjectM36.HashSecurely,
                      ProjectM36.DDLType,
                      ProjectM36.RegisteredQuery
     GHC-Options: -Wall -rdynamic

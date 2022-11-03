@@ -14,6 +14,7 @@ import TutorialD.Printer
 import Control.Monad.State
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Gnuplot
+import ProjectM36.HashSecurely
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Functor
@@ -171,7 +172,7 @@ evalRODatabaseContextOp sessionId conn GetDDLHash = do
   case eHash of
     Left err -> pure (DisplayErrorResult (T.pack (show err)))
     Right h -> do
-      let eRel = mkRelationFromList (C.attributesFromList [Attribute "ddlHash" ByteStringAtomType]) [[ByteStringAtom h]]
+      let eRel = mkRelationFromList (C.attributesFromList [Attribute "ddlHash" ByteStringAtomType]) [[ByteStringAtom (_unSecureHash h)]]
       case eRel of
         Left err -> pure (DisplayErrorResult (T.pack (show err)))
         Right rel -> 

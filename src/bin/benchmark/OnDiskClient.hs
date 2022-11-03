@@ -24,11 +24,15 @@ data WeatherReading =
    deriving Serialise via WineryRecord WeatherReading
 
 data Opts = Opts { datadir :: FilePath,
-                   writeData :: Bool --read or write mode
+                   writeData :: Bool, --read or write mode
+                   tupleCount :: Int
                  }
 
 parseOptions :: Parser Opts
-parseOptions = Opts <$> strOption (long "datadir" <> short 'd') <*> switch (long "write-data" <> short 'w')
+parseOptions = Opts <$>
+  strOption (long "datadir" <> short 'd') <*>
+  switch (long "write-data" <> short 'w') <*>
+  option auto (long "tuple-count" <> short 'c' <> value 10000)
 
 main :: IO ()
 main = do
@@ -43,7 +47,7 @@ main = do
   conn <- eCheck $ connectProjectM36 connInfo
   sessionId <- eCheck $ createSessionAtHead conn "master"
   if writeData opts then do
-    putStrLn "writing"
+    putStrLn $ "writing " <> show (tupleCount opts) <> " tuples"
     let addData = map (\i ->
                          WeatherReading { stamp = UTCTime { utctDay = fromGregorian 2022 2 22,
                                                             utctDayTime = secondsToDiffTime i },
@@ -52,7 +56,7 @@ main = do
                                           city = "Mexico City",
                                           latitude = i,
                                           longitude = -i
-                                        }) [1..500000]
+                                        }) [1 .. fromIntegral (tupleCount opts)]
         defineExpr = toDefineExpr (Proxy @WeatherReading) "x"
     insertExpr <- eCheck (pure $ toInsertExpr addData "x")
     eCheck $ executeDatabaseContextExpr sessionId conn defineExpr    

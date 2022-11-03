@@ -493,7 +493,7 @@ type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
-                      NakedAtomExpr Atom |
+                      NakedAtomExpr !Atom |
                       FunctionAtomExpr FunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
