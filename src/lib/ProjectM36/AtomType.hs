@@ -301,9 +301,9 @@ resolveTypesInTuple resolvedAttrs tConss (RelationTuple _ tupAtoms) = do
                            
 -- | Validate that the type is provided with complete type variables for type constructors.
 validateAtomType :: AtomType -> TypeConstructorMapping -> Either RelationalError ()
-validateAtomType typ@(ConstructedAtomType tConsName tVarMap) tConss =
+validateAtomType (ConstructedAtomType tConsName tVarMap) tConss =
   case findTypeConstructor tConsName tConss of 
-    Nothing -> Left (TypeConstructorAtomTypeMismatch tConsName typ)
+    Nothing -> Left (NoSuchTypeConstructorError tConsName)
     Just (tConsDef, _) -> case tConsDef of
       ADTypeConstructorDef _ tVarNames -> let expectedTyVarNames = S.fromList tVarNames
                                               actualTyVarNames = M.keysSet tVarMap
