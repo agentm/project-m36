@@ -384,7 +384,7 @@ benchmark ondiskclient
     import: commontest
     type: exitcode-stdio-1.0
     main-is: benchmark/OnDiskClient.hs
-    GHC-Options: -rtsopts -Wall -threaded -eventlog -O2 -finfo-table-map -fdistinct-constructor-tables
+    GHC-Options: -rtsopts -Wall -threaded -eventlog -finfo-table-map -fdistinct-constructor-tables
 
 Test-Suite test-server
     import: commontest
