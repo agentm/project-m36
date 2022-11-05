@@ -1,8 +1,9 @@
-# Future
+# 2022-11-05 (v0.9.6)
 
 * fix tuple context passed down to extended expressions
 * add ddl hash- useful for validating that the client supports the current schema
 * add registered queries- useful for constraining what DDL can be applied to the database so as not to break client applications
+* reduce memory usage during Merkle hashing by an order of magnitude by using strict serialization and hashing
 	
 # 2022-08-19 (v0.9.5)
   
