@@ -3,7 +3,7 @@ module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
-import ProjectM36.Attribute
+import ProjectM36.Attribute as A
 import ProjectM36.Tuple
 import ProjectM36.Relation hiding (relationTrue, relationFalse)
 import ProjectM36.WithNameExpr
@@ -14,6 +14,7 @@ import Control.Monad.IO.Class
 import qualified Data.Vector as V
 import Control.Exception
 import qualified Data.HashSet as HS
+import qualified Data.Set as S
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -22,7 +23,7 @@ type GraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransactionMarker
 --this will become more useful once we have multiple join strategies, etc.
 data RelExprExecPlanBase a =
   -- | Read relvar expr from transaction graph to generate tuple stream.
-  ReadExprFromTransGraph RelVarName a |
+--  ReadExprFromTransGraph RelVarName a |
   -- | Read tuples from a tuple set cache.
   StreamTuplesFromCacheFilePlan Attributes FilePath |
   -- | Read tuples from memory.
@@ -87,8 +88,11 @@ planRelationalExpr (ExistingRelation rel) _ _ = pure (ExistingRelationPlan rel)
 planRelationalExpr (Rename oldAttrName newAttrName relExpr) rvMap state = 
   RenameTupleStreamPlan oldAttrName newAttrName <$> planRelationalExpr relExpr rvMap state
   
-planRelationalExpr (Group oldAttrNames newAttrName relExpr) rvMap state = 
-  GroupTupleStreamPlan oldAttrNames newAttrName <$> planRelationalExpr relExpr rvMap state
+planRelationalExpr (Group groupAttrNames newAttrName relExpr) rvMap gfEnv = do
+  groupAttrs <- runGraphRefRelationalExprM gfEnv $ do
+    groupTypes <- typeForGraphRefRelationalExpr (Project groupAttrNames relExpr)
+    pure (attributes groupTypes)
+  GroupTupleStreamPlan groupAttrs newAttrName <$> planRelationalExpr relExpr rvMap gfEnv
   
 planRelationalExpr (Ungroup attrName relExpr) rvMap state = 
   UngroupTupleStreamPlan attrName <$> planRelationalExpr relExpr rvMap state
@@ -212,25 +216,48 @@ executePlan (DifferenceTupleStreamsPlan exprA exprB) = do
         bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
         Stream.filter (`elem` bTupleList) tupSa
   pure (StreamRelation attrsA tupS')
-executePlan (GroupTupleStreamPlan groupAttrs newAttr expr) = do
+executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr) = do
   --naive implementation scans for image relation for each grouped value
   (StreamRelation attrsIn tupS) <- executePlan expr
-  let nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (S.fromList (V.toList (A.attributeNames attrsIn rel)))
-  nonGroupProjectionAttributes <- A.projectionAttributesForNames nonGroupAttrNames (attributes rel)
-  groupProjectionAttributes <- A.projectionAttributesForNames groupAttrNames (attributes rel)
+  let nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (A.attributeNameSet attrsIn)
+      groupAttrNames = A.attributeNameSet groupAttrs
+  nonGroupProjectionAttributes <- projectionAttributesForNames nonGroupAttrNames attrsIn
+  groupProjectionAttributes <- projectionAttributesForNames groupAttrNames attrsIn
   (StreamRelation _ nonGroupProjectionTupS) <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr)
-  let newAttrs = A.addAttribute groupAttr nonGroupProjectionAttribute
-      matchAttrSet = attributeNameSet nonGroupProjectionAttributes
+  let outAttrs = addAttribute newAttr nonGroupProjectionAttributes
+      matchAttrs = V.fromList $ S.toList $ attributeNameSet nonGroupProjectionAttributes
+      newAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
       tupS' = do
-        origTupList <- liftIO $ Stream.toList tupS
+        origTupList <- liftIO $ Stream.toList $ Stream.fromAsync tupS
         -- find matching tuples from list
         let singleTupleGroupMatcher tup =
               let matchingTuples =
                     filter (\groupTup ->
-                              atomsForAttributeNames matchAttrSet tup == atomsForAttributeNames matchAttrSet groupTup) in
-              
+                              atomsForAttributeNames matchAttrs tup == atomsForAttributeNames matchAttrs groupTup) origTupList
+                  newtups = RelationTupleSet $ map (ehandler . tupleProject groupProjectionAttributes) matchingTuples 
+                  ehandler (Left err) = throw err
+                  ehandler (Right t) = t
+                  groupedRel = Relation groupProjectionAttributes newtups
+              in
+              tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
         Stream.map singleTupleGroupMatcher nonGroupProjectionTupS
-  pure (StreamRelation newAttrs tupS')
+  pure (StreamRelation outAttrs tupS')
+executePlan (UngroupTupleStreamPlan groupAttrName expr) = do
+  (StreamRelation attrsIn tupS) <- executePlan expr
+  subRelAttrs <- case atomTypeForAttributeName groupAttrName attrsIn of
+    Right (RelationAtomType attrs) -> pure attrs
+    _ -> Left (AttributeIsNotRelationValuedError groupAttrName)
+  let outAttrs = attrsIn <> subRelAttrs
+      ungroup' tup =
+        --unwrap subrelation
+        let subrel = case atomForAttributeName groupAttrName tup of
+              Left err -> throw err
+              Right (RelationAtom r) -> r
+              Right _ -> throw (AttributeIsNotRelationValuedError groupAttrName) --typechecker should ensure that this never happens
+            flattenedTuples = map (tupleExtend tup) (asList (tupleSet subrel))
+        in
+        Stream.fromList flattenedTuples
+  pure (StreamRelation outAttrs (Stream.concatMap ungroup' tupS))
   
 
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
