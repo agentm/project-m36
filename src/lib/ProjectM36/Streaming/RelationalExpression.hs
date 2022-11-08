@@ -15,6 +15,7 @@ import qualified Data.Vector as V
 import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
+import Data.Maybe (fromMaybe)
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -45,81 +46,88 @@ data RelExprExecPlanBase a =
                        MakeStaticRelationPlan Attributes RelationTupleSet |
                        ExistingRelationPlan Relation
 
-planRelationalExpr :: GraphRefRelationalExpr -> 
-                      M.Map RelVarName GraphRefRelExprExecPlan -> 
-                      GraphRefRelationalExprEnv -> 
-                      Either RelationalError GraphRefRelExprExecPlan
-planRelationalExpr (RelationVariable name _) rvMap _ = case M.lookup name rvMap of
-  Nothing -> Left (RelVarNotDefinedError name)
-  Just plan -> Right plan
+planGraphRefRelationalExpr :: GraphRefRelationalExpr -> 
+                              GraphRefRelationalExprEnv -> 
+                              Either RelationalError GraphRefRelExprExecPlan
+planGraphRefRelationalExpr (RelationVariable name _) gfEnv = do
+  let rvMap = fromMaybe mempty (relationVariables <$> gre_context gfEnv)
+  case M.lookup name rvMap of
+    Nothing -> Left (RelVarNotDefinedError name)
+    Just rvExpr -> planGraphRefRelationalExpr rvExpr gfEnv
   
-planRelationalExpr (Project attrNames expr) rvMap gfEnv = do
+planGraphRefRelationalExpr (Project attrNames expr) gfEnv = do
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
   projectionAttrNames <- runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames attrNames expr)
   case projectionAttributesForNames projectionAttrNames (attributes exprT) of
     Left err -> Left err
     Right attrs' -> do
-      subExpr <- planRelationalExpr expr rvMap gfEnv
+      subExpr <- planGraphRefRelationalExpr expr gfEnv
       pure (ProjectTupleStreamPlan attrs' subExpr)
   
-planRelationalExpr (Union exprA exprB) rvMap state = do  
-  planA <- planRelationalExpr exprA rvMap state
-  planB <- planRelationalExpr exprB rvMap state
+planGraphRefRelationalExpr (Union exprA exprB) state = do  
+  planA <- planGraphRefRelationalExpr exprA state
+  planB <- planGraphRefRelationalExpr exprB state
   pure (UnionTupleStreamsPlan planA planB)
   
-planRelationalExpr (Join exprA exprB) rvMap state = do  
-  planA <- planRelationalExpr exprA rvMap state
-  planB <- planRelationalExpr exprB rvMap state
+planGraphRefRelationalExpr (Join exprA exprB) state = do  
+  planA <- planGraphRefRelationalExpr exprA state
+  planB <- planGraphRefRelationalExpr exprB state
   pure (NaiveJoinTupleStreamsPlan planA planB)
   
-planRelationalExpr (Difference exprA exprB) rvMap state = do
-  planA <- planRelationalExpr exprA rvMap state
-  planB <- planRelationalExpr exprB rvMap state
+planGraphRefRelationalExpr (Difference exprA exprB) state = do
+  planA <- planGraphRefRelationalExpr exprA state
+  planB <- planGraphRefRelationalExpr exprB state
   pure (DifferenceTupleStreamsPlan planA planB)
 
-planRelationalExpr (MakeStaticRelation attributeSet tupSet) _ _ = pure (MakeStaticRelationPlan attributeSet tupSet)
+planGraphRefRelationalExpr (MakeStaticRelation attributeSet tupSet) _ = pure (MakeStaticRelationPlan attributeSet tupSet)
 
-planRelationalExpr expr@MakeRelationFromExprs{} _ gfEnv = do
+planGraphRefRelationalExpr expr@MakeRelationFromExprs{} gfEnv = do
   rel <- runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr expr)
   pure (ExistingRelationPlan rel)
   
-planRelationalExpr (ExistingRelation rel) _ _ = pure (ExistingRelationPlan rel)  
+planGraphRefRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelationPlan rel)  
 
-planRelationalExpr (Rename oldAttrName newAttrName relExpr) rvMap state = 
-  RenameTupleStreamPlan oldAttrName newAttrName <$> planRelationalExpr relExpr rvMap state
+planGraphRefRelationalExpr (Rename oldAttrName newAttrName relExpr) state = 
+  RenameTupleStreamPlan oldAttrName newAttrName <$> planGraphRefRelationalExpr relExpr state
   
-planRelationalExpr (Group groupAttrNames newAttrName relExpr) rvMap gfEnv = do
+planGraphRefRelationalExpr (Group groupAttrNames newAttrName relExpr) gfEnv = do
   groupAttrs <- runGraphRefRelationalExprM gfEnv $ do
     groupTypes <- typeForGraphRefRelationalExpr (Project groupAttrNames relExpr)
     pure (attributes groupTypes)
-  GroupTupleStreamPlan groupAttrs newAttrName <$> planRelationalExpr relExpr rvMap gfEnv
+  GroupTupleStreamPlan groupAttrs newAttrName <$> planGraphRefRelationalExpr relExpr gfEnv
   
-planRelationalExpr (Ungroup attrName relExpr) rvMap state = 
-  UngroupTupleStreamPlan attrName <$> planRelationalExpr relExpr rvMap state
+planGraphRefRelationalExpr (Ungroup attrName relExpr) state = 
+  UngroupTupleStreamPlan attrName <$> planGraphRefRelationalExpr relExpr state
   
-planRelationalExpr (Restrict predExpr relExpr) rvMap gfEnv = do
+planGraphRefRelationalExpr (Restrict predExpr relExpr) gfEnv = do
   rfilt <- runGraphRefRelationalExprM gfEnv $ do
     exprT <- typeForGraphRefRelationalExpr relExpr    
     predicateRestrictionFilter (attributes exprT) predExpr
-  RestrictTupleStreamPlan rfilt <$> planRelationalExpr relExpr rvMap gfEnv
+  RestrictTupleStreamPlan rfilt <$> planGraphRefRelationalExpr relExpr gfEnv
   
-planRelationalExpr (Equals relExprA relExprB) rvMap state =   
-  EqualTupleStreamsPlan <$> planRelationalExpr relExprA rvMap state <*> planRelationalExpr relExprB rvMap state
+planGraphRefRelationalExpr (Equals relExprA relExprB) state =   
+  EqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state
   
-planRelationalExpr (NotEquals relExprA relExprB) rvMap state =
-  NotEqualTupleStreamsPlan <$> planRelationalExpr relExprA rvMap state <*> planRelationalExpr relExprB rvMap state
+planGraphRefRelationalExpr (NotEquals relExprA relExprB) state =
+  NotEqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state
   
-planRelationalExpr (Extend extendTupleExpr relExpr) rvMap gfEnv = do
+planGraphRefRelationalExpr (Extend extendTupleExpr relExpr) gfEnv = do
   subExprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr)
   extendProc <- runGraphRefRelationalExprM gfEnv (extendGraphRefTupleExpressionProcessor (attributes subExprT) extendTupleExpr)
-  ExtendTupleStreamPlan extendProc <$> planRelationalExpr relExpr rvMap gfEnv
+  ExtendTupleStreamPlan extendProc <$> planGraphRefRelationalExpr relExpr gfEnv
 
-planRelationalExpr (With macros expr) rvMap gfEnv = 
+planGraphRefRelationalExpr (With macros expr) gfEnv = 
   --TODO: determine if macros should be expanded or executed separately- perhaps calculate how many times a macro appears and it's calculation and size cost to determine if it should be precalculated.
-  planRelationalExpr (substituteWithNameMacros macros expr) rvMap gfEnv
+  planGraphRefRelationalExpr (substituteWithNameMacros macros expr) gfEnv
 
 data StreamRelation m = StreamRelation Attributes (Stream.AsyncT m RelationTuple)
 
+-- | Process a tuple stream into a Relation. This function presumes all validation has already been completed and will not remove duplicate tuples or tuples which do not match the attributes.
+streamRelationAsRelation :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m -> m Relation
+streamRelationAsRelation (StreamRelation attrs tupS) = do
+  tupSet <- Stream.toList $ Stream.fromAsync tupS
+  pure (Relation attrs (RelationTupleSet tupSet))
+  
 --until we can stream results to disk or socket, we return a lazy-list-based Relation
 -- | Build a tuple stream from an execution plan to enable parallel execution.
 executePlan :: (MonadIO m, Stream.MonadAsync m) => GraphRefRelExprExecPlan -> Either RelationalError (StreamRelation m)

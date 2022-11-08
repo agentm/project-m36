@@ -12,6 +12,7 @@ import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
+import ProjectM36.Streaming.RelationalExpression
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -50,6 +51,22 @@ optimizeAndEvalRelationalExpr env expr = do
       gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
   optExpr <- runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
+
+-- | Uses streamly interface for parallel execution.
+optimizeAndEvalRelationalExpr' :: RelationalExprEnv -> RelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalRelationalExpr' env expr = do
+  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+      graph = re_graph env
+      ctx = re_context env
+      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
+  case planGraphRefRelationalExpr gfExpr gfEnv of
+    Left err -> pure (Left err)
+    Right plan ->
+      case executePlan plan of
+        Left err -> pure (Left err)
+        Right resultStream ->
+          --convert tuple stream into relation
+          pure <$> streamRelationAsRelation resultStream
 
 class Monad m => AskGraphContext m where
   askGraph :: m TransactionGraph
