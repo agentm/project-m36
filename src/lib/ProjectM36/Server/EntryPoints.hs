@@ -70,6 +70,10 @@ handleRetrieveInclusionDependencies ti sessionId conn =
 handleRetrievePlanForDatabaseContextExpr :: Maybe Timeout -> SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError GraphRefDatabaseContextExpr)
 handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr =
   timeoutRelErr ti (planForDatabaseContextExpr sessionId conn dbExpr)
+
+handleRetrievePlanForRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError StringType)
+handleRetrievePlanForRelationalExpr ti sessionId conn expr =
+  timeoutRelErr ti (planForRelationalExpr sessionId conn expr)
   
 handleRetrieveTransactionGraph :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation) 
 handleRetrieveTransactionGraph ti sessionId conn =

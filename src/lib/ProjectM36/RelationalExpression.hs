@@ -83,7 +83,11 @@ envTuple :: GraphRefRelationalExprEnv -> RelationTuple
 envTuple e = fromLeft emptyTuple (fromMaybe (Left emptyTuple) (gre_extra e))
 
 envAttributes :: GraphRefRelationalExprEnv -> Attributes
-envAttributes e = fromRight emptyAttributes (fromMaybe (Right emptyAttributes) (gre_extra e))
+envAttributes e =
+  case gre_extra e of
+    Nothing -> mempty
+    Just (Left tup) -> tupleAttributes tup
+    Just (Right attrs) -> attrs
   
 instance Show RelationalExprEnv where
   show e@RelationalExprEnv{} = "RelationalExprEnv " ++ show (re_extra e)
@@ -1221,6 +1225,8 @@ typeForGraphRefRelationalExpr (Ungroup groupAttrName expr) = do
   lift $ except $ ungroup groupAttrName expr'
 typeForGraphRefRelationalExpr (Restrict pred' expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
+  let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes expr')
+  R.local mergedAttrsEnv (typeForGraphRefRestrictionPredicateExpr pred')
   filt <- predicateRestrictionFilter (attributes expr') pred'
   lift $ except $ restrict filt expr'
 typeForGraphRefRelationalExpr Equals{} = 
@@ -1239,6 +1245,33 @@ typeForGraphRefRelationalExpr expr@(With withs _) = do
           Nothing -> pure ()
   mapM_ (checkMacroName . fst) withs
   typeForGraphRefRelationalExpr expr'
+
+-- | Typecheck for restriction predicate- predicates always return Bool, so the return value is nominal.
+typeForGraphRefRestrictionPredicateExpr :: GraphRefRestrictionPredicateExpr -> GraphRefRelationalExprM ()
+typeForGraphRefRestrictionPredicateExpr expr = do
+  extra <- gre_extra <$> ask
+  let attrs = case extra of
+                Nothing -> mempty
+                Just (Right attrs') -> attrs'
+                Just (Left _) -> error "never" -- mempty -- should never happen
+      self = typeForGraphRefRestrictionPredicateExpr                
+  case expr of
+    TruePredicate -> pure ()
+    AndPredicate a b -> do
+      self a
+      self b
+    OrPredicate a b -> do
+      self a
+      self b
+    NotPredicate a -> self a
+    RelationalExprPredicate relExpr -> do
+      rType <- typeForGraphRefRelationalExpr relExpr
+      unless (A.null (attributes rType)) $ throwError (PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'")
+    AtomExprPredicate atomExpr -> do
+      void $ typeForGraphRefAtomExpr attrs atomExpr
+    AttributeEqualityPredicate attrName atomExpr -> do
+      void $ typeForGraphRefAtomExpr attrs atomExpr
+      unless (A.isAttributeNameContained attrName attrs) $ throwError (NoSuchAttributeNamesError (S.singleton attrName))
   
 evalGraphRefAttributeNames :: GraphRefAttributeNames -> GraphRefRelationalExpr -> GraphRefRelationalExprM (S.Set AttributeName)
 evalGraphRefAttributeNames attrNames expr = do

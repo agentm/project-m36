@@ -61,6 +61,13 @@ vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNa
     unknownAttrNames = V.filter (`V.notElem` attributeNames attrs) attrNameVec
     mapper attrName = fromMaybe (error "logic failure in vectorIndicesForAttributeNames") (V.elemIndex attrName (attributeNames attrs))
 
+indicesForAttributeNames :: V.Vector AttributeName -> Attributes -> V.Vector (AttributeName, Maybe Int)
+indicesForAttributeNames attrNamessToFind attrs =
+  V.map finder attrNamessToFind
+  where
+    finder nam =
+      (nam, V.findIndex (\x -> attributeName x == nam) (attributesVec attrs))
+
 
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
 relationForAttributeName attrName tuple = do
@@ -214,3 +221,30 @@ trimTuple index (RelationTuple attrs vals) =
   RelationTuple newAttrs (V.drop index vals)
   where
     newAttrs = A.drop index attrs
+
+-- | Used in tuple context evaluation- the first tuple can replace atoms of the second if the attribute names overlap.
+mergeTuples :: RelationTuple -> RelationTuple -> RelationTuple
+mergeTuples tup1 tup2 =
+  V.foldr folder tup2 attrsToAdd
+  where
+  folder attrAdd acc =
+      case V.find (\x -> fst x == attributeName attrAdd) tup2NameMatches of
+        Nothing -> -- just extend the tuple
+          extendTupleAtom attrAdd (tup1AtomForAttrName (attributeName attrAdd)) acc
+        Just (aName, Nothing) ->
+          extendTupleAtom attrAdd (tup1AtomForAttrName aName) acc
+        Just (aName, Just idx) -> 
+          -- replace existing atom
+          let atom = tup1AtomForAttrName aName in
+              RelationTuple (tupleAttributes acc) (V.update (tupleAtoms acc) (V.singleton (idx, atom)))
+  attrsToAdd = attributesVec (tupleAttributes tup1)
+  tup2NameMatches = indicesForAttributeNames (V.fromList (S.toList (attributeNameSet (tupleAttributes tup2)))) (tupleAttributes tup1)
+  tup1AtomForAttrName nam =
+    case atomForAttributeName nam tup1 of
+      Left err -> error $ "impossible missing attribute in tuple: " <> show err
+      Right atom -> atom
+
+
+extendTupleAtom :: Attribute -> Atom -> RelationTuple -> RelationTuple
+extendTupleAtom attrAdd atomAdd tupIn =
+  RelationTuple (addAttribute attrAdd (tupleAttributes tupIn)) (V.snoc (tupleAtoms tupIn) atomAdd)

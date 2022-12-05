@@ -24,6 +24,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | CouldNotInferAttributes
                      | RelVarNotDefinedError RelVarName
                      | RelVarAlreadyDefinedError RelVarName
+                     | RelVarNameShadowingForbiddenError RelVarName -- can happen with with macro expressions
                      | RelationTypeMismatchError Attributes Attributes --expected, found
                      | InclusionDependencyCheckError IncDepName (Maybe RelationalError)
                      | InclusionDependencyNameInUseError IncDepName

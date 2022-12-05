@@ -29,6 +29,7 @@ module ProjectM36.Client
        ProjectM36.Client.typeConstructorMapping,
        ProjectM36.Client.databaseContextFunctionsAsRelation,      
        planForDatabaseContextExpr,
+       planForRelationalExpr,
        currentSchemaName,
        SchemaName,
        HeadName,
@@ -133,6 +134,7 @@ import ProjectM36.DDLType
 import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.Streaming.RelationalExpression (planGraphRefRelationalExpr)
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
@@ -162,6 +164,7 @@ import ProjectM36.RegisteredQuery
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
+import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
@@ -511,10 +514,11 @@ setCurrentSchemaName sessionId conn@(RemoteConnection _) sname = remoteCall conn
 
 -- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ atomically $ do
-  let sessions = ipSessions conf
-  eSession <- sessionAndSchema sessionId sessions
-  case eSession of
+executeRelationalExpr sessionId (InProcessConnection conf) expr = do
+  res <- excEither $ atomically $ do
+   let sessions = ipSessions conf
+   eSession <- sessionAndSchema sessionId sessions
+   case eSession of
     Left err -> pure $ Left err
     Right (session, schema) -> do
       let expr' = if schemaName session /= defaultSchemaName then
@@ -527,9 +531,14 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = excEither $ at
           let graphTvar = ipTransactionGraph conf
           graph <- readTVar graphTvar
           let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
-          case optimizeAndEvalRelationalExpr reEnv expr'' of
-            Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
-            Left err -> pure (Left err)
+          pure (Right (reEnv, expr''))
+  case res of
+    Left err -> pure (Left err)
+    Right (reEnv, rexpr) -> do
+      qres <- optimizeAndEvalRelationalExpr' reEnv rexpr
+      case qres of
+        Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+        Left err -> pure (Left err)
 
 executeRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
@@ -797,7 +806,26 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
           pure (Left NonConcreteSchemaPlanError)
 
 planForDatabaseContextExpr sessionId conn@(RemoteConnection _) dbExpr = remoteCall conn (RetrievePlanForDatabaseContextExpr sessionId dbExpr)
-             
+
+planForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError T.Text)
+planForRelationalExpr sessionId (InProcessConnection conf) rexpr = do
+  let sessions = ipSessions conf
+  atomically $ do
+    graph <- readTVar (ipTransactionGraph conf)    
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure $ Left err 
+      Right (session, schema) ->
+        case  Schema.processRelationalExprInSchema schema rexpr of
+          Left err -> pure (Left err)
+          Right rexpr' -> do
+            let ctx = Sess.concreteDatabaseContext session
+                gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr rexpr')
+                gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) graph
+            pure (T.pack . show <$> planGraphRefRelationalExpr gfExpr gfEnv)
+
+planForRelationalExpr sessionId conn@RemoteConnection{} expr = remoteCall conn (RetrievePlanForRelationalExpr sessionId expr)
+
 -- | Return a relation which represents the current state of the global transaction graph. The attributes are 
 --    * current- boolean attribute representing whether or not the current session references this transaction
 --    * head- text attribute which is a non-empty 'HeadName' iff the transaction references a head.

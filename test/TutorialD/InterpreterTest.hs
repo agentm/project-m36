@@ -60,7 +60,7 @@ main = do
       failJoinTest, 
       testMultiAttributeRename, 
       testSchemaExpr, 
-      testRelationalExprStateTupleElems, 
+      testContextTuples,
       testFunctionalDependencies, 
       testEmptyCommits,
       testIntervalAtom,
@@ -457,8 +457,8 @@ assertEither x = case x of
   Right val -> pure val
   
 -- | Validate that a tuple passed through the context correctly typechecks and propagates to the AttributeAtomExpr.
-testRelationalExprStateTupleElems :: Test
-testRelationalExprStateTupleElems = TestCase $ do
+testContextTuples :: Test
+testContextTuples = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
   executeTutorialD sessionId dbconn "x := (s : { parts := p rename {city as pcity} where pcity=@city}) : {z:=count(@parts)}"
 
@@ -471,20 +471,20 @@ testRelationalExprStateTupleElems = TestCase $ do
                      [TextAtom "Athens", IntegerAtom 0]]
   assertEqual "validate parts count" expectedRel eRv
   
-  executeTutorialD sessionId dbconn "rv1:=relation{tuple{test 1}}"
-  executeTutorialD sessionId dbconn "rv2:=relation{tuple{val 1},tuple{val 2}}"
+  executeTutorialD sessionId dbconn "rv1:=relation{tuple{val1 1}}"
+  executeTutorialD sessionId dbconn "rv2:=relation{tuple{val2 1},tuple{val2 2}}"
   --check subexpression evaluation in restriction predicate
   -- "rv1 where ((rv2 where val=@test) {})"
-  let correctSubexpr = Restrict (AttributeEqualityPredicate "val" (AttributeAtomExpr "test")) (RelationVariable "rv2" ())
+  let correctSubexpr = Restrict (AttributeEqualityPredicate "val2" (AttributeAtomExpr "val2")) (RelationVariable "rv2" ())
       mainExpr subexpr = Restrict 
                          (RelationalExprPredicate
                           (Project AN.empty subexpr)) (RelationVariable "rv1" ())
   eRv2 <- executeRelationalExpr sessionId dbconn (mainExpr correctSubexpr)
-  let expectedRel2 = mkRelationFromList (attributesFromList [Attribute "test" IntegerAtomType]) [[IntegerAtom 1]]
+  let expectedRel2 = mkRelationFromList (attributesFromList [Attribute "val1" IntegerAtomType]) [[IntegerAtom 1]]
   assertEqual "validate sub-expression attribute" expectedRel2 eRv2
   
   --check error in subexpression
-  let wrongSubexpr = Restrict (AttributeEqualityPredicate "nosuchattr" (AttributeAtomExpr "test")) (RelationVariable "rv2" ())
+  let wrongSubexpr = Restrict (AttributeEqualityPredicate "nosuchattr" (AttributeAtomExpr "val1")) (RelationVariable "rv2" ())
   eRv3 <- executeRelationalExpr sessionId dbconn (mainExpr wrongSubexpr)
   assertEqual "validate missing attribute in subexpression" (Left (NoSuchAttributeNamesError (S.singleton "nosuchattr"))) eRv3
   
@@ -670,11 +670,12 @@ testUnresolvedAtomTypes = TestCase $ do
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "x:=relation{tuple{a Empty}}"
   executeTutorialD sessionId dbconn "x:=relation{a List Int}{tuple{a Empty}}"
 
--- with (x as s) s    
+-- with (x as s) s
+-- TODO: add tests with names shadowing existing with clauses and rv names
 testWithClause :: Test
 testWithClause = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  executeTutorialD sessionId dbconn "x:=with (x as s) x"
+  executeTutorialD sessionId dbconn "x:=with (w as s) w"
   eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
   assertEqual "with x as s" (Right suppliersRel) eX
 
@@ -779,13 +780,16 @@ testExtendProcessorTuplePushdown :: Test
 testExtendProcessorTuplePushdown = TestCase $ do
   --test that context-based tuples are pushed through to the tuple extend processor used commonly in OUTER-JOIN-equivalent extensions
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  putStrLn "q1"
   executeTutorialD sessionId dbconn "x := (relation{tuple{p# \"P7\", city \"Reykjavik\", color \"Beige\", pname \"Widget\", weight 21}} union p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}"
   {-
 :showexpr relation{tuple{p# "P5", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P4", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P2", suppliers relation{tuple{s# "S1"}, tuple{s# "S2"}, tuple{s# "S3"}, tuple{s# "S4"}}}, tuple{p# "P3", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P6", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P1", suppliers relation{tuple{s# "S1"},tuple{s# "S2"}}}, tuple{p# "P7", suppliers relation{s# Text}}} 
 
 -}
+  putStrLn "q2"
   executeTutorialD sessionId dbconn "y := relation{tuple{p# \"P5\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P4\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P2\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S2\"}, tuple{s# \"S3\"}, tuple{s# \"S4\"}}}, tuple{p# \"P3\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P6\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P1\", suppliers relation{tuple{s# \"S1\"},tuple{s# \"S2\"}}}, tuple{p# \"P7\", suppliers relation{s# Text}}}"
   res <- executeRelationalExpr sessionId dbconn (Equals (RelationVariable "x" ()) (RelationVariable "y" ()))
+  putStrLn "extend qp3"
   assertEqual "outer join grouping" (Right relationTrue) res 
   
 testDDLHash :: Test

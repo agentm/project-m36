@@ -59,6 +59,9 @@ requestHandlers testFlag ti =
      RequestHandler (\sState (RetrievePlanForDatabaseContextExpr sessionId dbExpr) -> do
                        conn <- getConn sState                        
                        handleRetrievePlanForDatabaseContextExpr ti sessionId conn dbExpr),
+     RequestHandler (\sState (RetrievePlanForRelationalExpr sessionId expr) -> do
+                       conn <- getConn sState                        
+                       handleRetrievePlanForRelationalExpr ti sessionId conn expr),
      RequestHandler (\sState (RetrieveHeadTransactionId sessionId) -> do
                        conn <- getConn sState                        
                        handleRetrieveHeadTransactionId ti sessionId conn),

@@ -56,6 +56,9 @@ data RetrieveInclusionDependencies = RetrieveInclusionDependencies SessionId
   
 data RetrievePlanForDatabaseContextExpr = RetrievePlanForDatabaseContextExpr SessionId DatabaseContextExpr
   RPCData(RetrievePlanForDatabaseContextExpr)
+
+data RetrievePlanForRelationalExpr = RetrievePlanForRelationalExpr SessionId RelationalExpr
+  RPCData(RetrievePlanForRelationalExpr)
   
 data RetrieveTransactionGraph = RetrieveTransactionGraph SessionId
   RPCData(RetrieveTransactionGraph)

@@ -1,9 +1,13 @@
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, RankNTypes #-}
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
+--import qualified Data.Set as S
+--import ProjectM36.Error
 
 -- substitute all instances of With-based macros to remove macro context
 -- ideally, we would use a different relational expr type to "prove" that the with macros can no longer exist
 type WithNameAssocs = [(GraphRefWithNameExpr, GraphRefRelationalExpr)]
+
 -- | Drop macros into the relational expression wherever they are referenced.
 substituteWithNameMacros ::
   WithNameAssocs ->
@@ -84,3 +88,58 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
+
+{-
+-- | Return error if with clause name is shadowed. We're not sure if name shadowing is a useful feature or a footgun, so disable it for now.
+class ValidateWith a where
+  validate :: S.Set RelVarName -> WithNameAssocs -> a -> Either RelationalError a
+  
+
+instance ValidateWith GraphRefRelationalExpr where
+  validate inUseSet withAssocs expr =
+    case expr of
+      MakeRelationFromExprs mAttrs tupleExprs ->
+        MakeRelationFromExprs mAttrs <$> val tupleExprs
+      rel@MakeStaticRelation{} ->
+        pure expr
+      rel@ExistingRelation{} ->
+        pure expr
+      RelationVariable rvName marker -> do
+        checkName rvName
+      Project attrs exprA ->
+        Project attrs <$> val exprA
+      Union exprA exprB ->
+        Union <$> val exprA <*> val exprB
+      Join exprA exprB ->
+        Join <$> val exprA <*> val exprB
+      Rename nam1 nam2 exprA ->
+        Rename nam1 nam2 <$> val exprA
+      Difference exprA exprB ->
+        Difference <$> val exprA <*> val exprB
+      Group attrs nam exprA ->
+        Group attrs nam <$> val exprA
+      Ungroup nam expr' ->
+        Ungroup nam <$> val expr'
+      Restrict pred exprA ->
+        Restrict <$> val pred <*> val exprA
+      Equals exprA exprB ->
+        Equals <$> val exprA <*> val exprB
+      NotEquals exprA exprB ->
+        NotEquals <$> val exprA <*> val exprB
+      Extend extExpr exprA ->
+        Extend <$> val extExpr <*> val exprA
+      With withAssocs exprA -> do
+        mapM_ checkName (map fst withAssocs)
+        With withAssocs <$> val exprA
+   where
+     val :: forall a. (ValidateWith a) => a -> Either RelationalError a
+     val x = validate inUseSet withAssocs x
+     checkName :: RelVarName -> Either RelationalError GraphRefRelationalExpr
+     checkName nam =
+       if nam S.member inUseSet then
+         Left (RelVarNameShadowingForbiddenError nam)
+         else
+         pure expr
+         
+      
+-}
