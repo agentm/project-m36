@@ -2,12 +2,17 @@
 module ProjectM36.RelExprSize where
 import ProjectM36.Base
 import Data.Int
+#if __GLASGOW_HASKELL__ > 900
+import GHC.Num.Integer
+import GHC.Num.BigNat
+#else
 import GHC.Integer.GMP.Internals
+import GHC.Exts
+#endif
 import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Data.ByteString as BS
 import Data.Time.Calendar
-import GHC.Exts
 import qualified Data.Map as M
 import Data.Scientific
 
@@ -80,11 +85,17 @@ instance Size Atom where
 
 instance Size Relation where
   size (Relation _ tupSet) = size tupSet + ptrSize (length (asList tupSet))
-  
+
 instance Size Integer where
+#if __GLASGOW_HASKELL__ > 900
+  size (IS _) = 8
+  size (IP bn) = fromIntegral (8 + bigNatSize bn)
+  size (IN bn) = fromIntegral (8 + bigNatSize bn)
+#else  
   size (S# _) = 8
   size (Jp# (BN# bytearray)) = fromIntegral (I# (sizeofByteArray# bytearray))
   size (Jn# (BN# bytearray)) = fromIntegral (I# (sizeofByteArray# bytearray))
+#endif
 
 instance Size Day where
   size d = size $ toModifiedJulianDay d
