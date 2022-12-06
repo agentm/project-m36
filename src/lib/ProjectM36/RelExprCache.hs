@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 -- an in-memory cache for relational expression results keyed off of the expressions
 module ProjectM36.RelExprCache where
 import ProjectM36.Base
