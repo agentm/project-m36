@@ -43,8 +43,8 @@ let
 
       hashable = self.callHackageDirect {
                     pkg = "hashable";
-		    ver = "1.3.2.0";
-		    sha256 = "sha256-aMtNQNykvenduMW99h0ZDuU4kI1fFbIY4m4rRRNAU9o=";
+		    ver = "1.3.4.1";
+		    sha256 = "sha256-daGo7TldDW6kd9+gc1qhQRcruoPlzbTtVimULJGHwo0=";
 		    } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
