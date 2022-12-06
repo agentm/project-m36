@@ -196,12 +196,8 @@ member needle bt = memberk 0 []
           Nothing -> -- follow right-most branch
             memberk (k+1) (b - 1 : path)
           Just gteIndex ->
-            if roots V.! gteIndex == needle then
-              --found it!
-              True
-            else
-              --search left branch of this root
-              memberk (k + 1) (gteIndex : path)
+            (roots V.! gteIndex == needle) || -- found it!
+            memberk (k + 1) (gteIndex : path) -- search left branch of this root
 
 -- | Search a sorted vector using binary search to find the first index >= to the needle, but takes into account the sparseVal.
 gteBinarySearch :: Int -> V.Vector Int -> Maybe Int
