@@ -13,6 +13,7 @@ extra-deps:
   - unicode-data-0.2.0
   - stm-containers-1.2
   - stm-hamt-1.2.0.7
+  - linux-xattr-0.1.1.0
   
 flags:
   project-m36:
