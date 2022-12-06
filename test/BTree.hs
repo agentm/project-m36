@@ -19,7 +19,7 @@ testSmallBTrees = TestCase $ do
       assertBool ("missing values " <> show b <> ":" <> show n)  (validate b n)
 
 missingVals :: [Int] -> BTree -> [Int]
-missingVals vals b = filter (`V.notElem` (vec b)) vals
+missingVals vals b = filter (`V.notElem` vec b) vals
     
 validate :: Branches -> Int -> Bool
 validate b n = null $ missingVals [0..n] (build b (V.fromList [0..n]))

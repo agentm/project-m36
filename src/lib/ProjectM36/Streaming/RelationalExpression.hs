@@ -202,10 +202,8 @@ executePlan (EqualTupleStreamsPlan exprA exprB) ctxTup = do
       tupS' = do
         tA <- liftIO hsA
         tcmp <- liftIO hscmp
-        Stream.fromList $ if HS.size tA == HS.size tcmp then
-          [RelationTuple mempty mempty]
-          else
-          []
+        Stream.fromList $ 
+          [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
   pure (StreamRelation mempty tupS')
 
 executePlan (NotEqualTupleStreamsPlan exprA exprB) ctxTup = do
@@ -310,7 +308,7 @@ relationFalse = StreamRelation mempty (Stream.fromList [])
 
 tuplesHashSet :: MonadIO m => Stream.AsyncT m RelationTuple -> m (HS.HashSet RelationTuple)
 tuplesHashSet s =
-  Stream.foldr (\t acc -> HS.insert t acc) mempty (Stream.fromAsync s)  
+  Stream.foldr HS.insert mempty (Stream.fromAsync s)  
 
 test1 :: IO ()
 test1 = do

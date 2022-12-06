@@ -1249,7 +1249,7 @@ typeForGraphRefRelationalExpr expr@(With withs _) = do
 -- | Typecheck for restriction predicate- predicates always return Bool, so the return value is nominal.
 typeForGraphRefRestrictionPredicateExpr :: GraphRefRestrictionPredicateExpr -> GraphRefRelationalExprM ()
 typeForGraphRefRestrictionPredicateExpr expr = do
-  extra <- gre_extra <$> ask
+  extra <- asks gre_extra
   let attrs = case extra of
                 Nothing -> mempty
                 Just (Right attrs') -> attrs'

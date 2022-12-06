@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, RankNTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
 --import qualified Data.Set as S
