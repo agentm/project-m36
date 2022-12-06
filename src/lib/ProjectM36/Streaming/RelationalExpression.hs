@@ -84,6 +84,7 @@ planGraphRefRelationalExpr (Project attrNames expr) gfEnv = do
     Left err -> Left err
     Right attrs' -> do
       subExpr <- planGraphRefRelationalExpr expr gfEnv
+      --if we know that the projection attributes represent a key, then we don't need to run the uniquification
       pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr))
   
 planGraphRefRelationalExpr (Union exprA exprB) state = do  

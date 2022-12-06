@@ -23,3 +23,4 @@ juyter/dist
 project-m36.nix
 stack.yaml
 release.nix
+haddock_hackage.*/
