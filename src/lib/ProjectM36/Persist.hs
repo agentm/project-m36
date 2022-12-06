@@ -43,6 +43,8 @@ import qualified Data.Text.Encoding as TE
 #if defined(mingw32_HOST_OS)
 import ProjectM36.Win32Handle
 #else
+-- maybe this could be "safe" for GC since we only use it with withCString
+-- https://www.reddit.com/r/haskell/comments/xlm4qv/haskell_ffi_call_safety_and_garbage_collection/
 foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO CInt
 #endif
 

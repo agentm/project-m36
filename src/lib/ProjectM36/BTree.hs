@@ -1,6 +1,6 @@
 -- implements a write-once, read-many B+tree layed out using the eytzinger format for less CPU cache churn
 {-# LANGUAGE TypeApplications, DeriveAnyClass, DeriveGeneric #-}
-module ProjectM36.BTree (build, member, BTree, Branches, Level, Index, size, totalBytes) where
+module ProjectM36.BTree (build, member, BTree(..), Branches, Level, Index, size, totalBytes) where
 import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import Control.Monad

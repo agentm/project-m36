@@ -161,7 +161,8 @@ writeRelVars sync transDir relvars = do
         }
   --parallelization opportunity
   traceBlock "write relvars" $ do
-    let writeSimple =
+    createDirectory relvarsPath
+    let writeSimple = do
           writeSerialiseSync sync simpleInfoPath simpleFileInfo
         writeComplex = do
           forConcurrently_ (M.toList writeRvMapExprs) $ \(rvname, (rvnum,rvExpr)) -> do
@@ -173,6 +174,7 @@ writeRelVars sync transDir relvars = do
 #endif            
     concurrently_ writeSimple writeComplex
 
+{-
 -- | Optimized code path to read one relvar expression from disk instead of all of them for a full transaction- useful for streaming results. Throws exception if the relvar name cannot be found since this function expects the database files to be coherent.
 readOneRelVar :: FilePath -> RelVarName -> IO GraphRefRelationalExpr
 readOneRelVar transDir rvName = do
@@ -185,7 +187,7 @@ readOneRelVar transDir rvName = do
         Nothing -> error $ "failed to find " <> T.unpack rvName <> " in filesystem."
         Just rvnum ->
           readFileDeserialise (relvarsDir transDir </> show rvnum)
-
+-}
 
 readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = do
