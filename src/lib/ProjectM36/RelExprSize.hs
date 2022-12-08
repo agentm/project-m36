@@ -2,7 +2,8 @@
 module ProjectM36.RelExprSize where
 import ProjectM36.Base
 import Data.Int
-#if __GLASGOW_HASKELL__ > 900
+--GHC > 9.0
+#if MIN_VERSION_ghc_bignum(1,0,0) 
 import GHC.Num.Integer
 import GHC.Num.BigNat
 #else
@@ -87,7 +88,7 @@ instance Size Relation where
   size (Relation _ tupSet) = size tupSet + ptrSize (length (asList tupSet))
 
 instance Size Integer where
-#if __GLASGOW_HASKELL__ > 900
+#if MIN_VERSION_ghc_bignum(1,0,0)
   size (IS _) = 8
   size (IP bn) = fromIntegral (8 + bigNatSize bn)
   size (IN bn) = fromIntegral (8 + bigNatSize bn)

@@ -25,7 +25,6 @@ import qualified Data.Set as S
 import Data.Time.Calendar
 import Data.Time.Clock
 import Codec.Winery (Serialise)
-import Data.Int (Int64)
 
 newtype SecureHash = SecureHash { _unSecureHash :: B.ByteString }
   deriving (Serialise, Show, Eq)
