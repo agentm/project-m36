@@ -16,7 +16,6 @@ import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 
-import Debug.Trace
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -169,7 +168,6 @@ executePlan (RenameTupleStreamPlan oldName newName expr) ctx = do
   pure $ StreamRelation newAttrs (Stream.mapM (pure . tupleRenameAttribute oldName newName) tupS)
 executePlan (RestrictTupleStreamPlan restrictionFilter expr) ctx = do
   (StreamRelation attrs tupS) <- executePlan expr ctx
-  traceShowM ("restrict exec plan", ctx)
   let tupS' = Stream.filter filt tupS
       -- since we are building up a stream data structure, we can represent in-stream failure using exceptions- we won't be able to execute the stream here to extract errors
       filt t =
@@ -221,7 +219,6 @@ executePlan (MakeStaticRelationPlan attrs tupSet) _ = do
 executePlan (ExistingRelationPlan rel) _ = do
   pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
 executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) expr) ctx = do
-  traceShowM ("extend exec", ctx)
   (StreamRelation _ tupS) <- executePlan expr ctx
   let tupS' = Stream.map (\t ->
                             case extendProcessor t ctx of

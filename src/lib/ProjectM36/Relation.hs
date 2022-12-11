@@ -18,8 +18,6 @@ import System.Random.Shuffle
 import Control.Monad.Random
 import Data.List (foldl')
 
-import Debug.Trace
-
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
 
@@ -227,13 +225,12 @@ contextTupleAtomForAttributeName (ContextTuples tups) attrName =
 
 -- | Scan the context tuples, but first scan an additional tuple.
 contextTupleAtomForAttributeName' :: RelationTuple -> ContextTuples -> AttributeName -> Either RelationalError Atom
-contextTupleAtomForAttributeName' tup ctx attrName =
-  traceShow ("ctupforattrname'", attrName, tup, ctx) $
-  contextTupleAtomForAttributeName (addContextTuple ctx tup) attrName
+contextTupleAtomForAttributeName' tup ctx =
+  contextTupleAtomForAttributeName (addContextTuple ctx tup)
 
 restrict :: RestrictionFilter -> Relation -> Either RelationalError Relation
 restrict rfilter (Relation attrs tupset) = do
-  tuples <- filterM (\t -> rfilter t mempty) (asList tupset)
+  tuples <- filterM (`rfilter` mempty) (asList tupset)
   Right $ Relation attrs (RelationTupleSet tuples)
 
 --joins on columns with the same name- use rename to avoid this- base case: cartesian product

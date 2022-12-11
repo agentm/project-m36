@@ -168,7 +168,7 @@ dateExampleRelTests = TestCase $ do
                                      else Right tuple) suppliersRel
     extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (R.attributes suppliersRel)]
     testTups = [("x:=s where true", Right suppliersRel),
-                           ("x:=s where city = \"London\"", restrict (\tuple -> pure $ atomForAttributeName "city" tuple == Right (TextAtom "London")) suppliersRel),
+                           ("x:=s where city = \"London\"", restrict (\tuple _ -> pure $ atomForAttributeName "city" tuple == Right (TextAtom "London")) suppliersRel),
                            ("x:=s where false", Right $ Relation (R.attributes suppliersRel) emptyTupleSet),
                            ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (R.attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"]]),
                            ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" IntegerAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" IntegerAtomType]) (V.fromList [IntegerAtom 50])])),
@@ -568,7 +568,7 @@ testRestrictionPredicateExprs = TestCase $ do
   -- or
   executeTutorialD sessionId dbconn "x:=s where status=20 or status=10"
   eRvOr <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
-  let expectedRelOr = restrict (\tuple -> 
+  let expectedRelOr = restrict (\tuple _ -> 
                                pure (atomForAttributeName "status" tuple `elem` [Right (IntegerAtom 10), Right (IntegerAtom 20)])) suppliersRel
   assertEqual "status 20 or 10" expectedRelOr eRvOr
   -- and
@@ -781,16 +781,13 @@ testExtendProcessorTuplePushdown :: Test
 testExtendProcessorTuplePushdown = TestCase $ do
   --test that context-based tuples are pushed through to the tuple extend processor used commonly in OUTER-JOIN-equivalent extensions
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  putStrLn "q1"
   executeTutorialD sessionId dbconn "x := (relation{tuple{p# \"P7\", city \"Reykjavik\", color \"Beige\", pname \"Widget\", weight 21}} union p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}"
-  {-
+  {-"
 :showexpr relation{tuple{p# "P5", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P4", suppliers relation{tuple{s# "S1"}, tuple{s# "S4"}}}, tuple{p# "P2", suppliers relation{tuple{s# "S1"}, tuple{s# "S2"}, tuple{s# "S3"}, tuple{s# "S4"}}}, tuple{p# "P3", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P6", suppliers relation{tuple{s# "S1"}}}, tuple{p# "P1", suppliers relation{tuple{s# "S1"},tuple{s# "S2"}}}, tuple{p# "P7", suppliers relation{s# Text}}} 
 
 -}
-  putStrLn "q2"
   executeTutorialD sessionId dbconn "y := relation{tuple{p# \"P5\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P4\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S4\"}}}, tuple{p# \"P2\", suppliers relation{tuple{s# \"S1\"}, tuple{s# \"S2\"}, tuple{s# \"S3\"}, tuple{s# \"S4\"}}}, tuple{p# \"P3\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P6\", suppliers relation{tuple{s# \"S1\"}}}, tuple{p# \"P1\", suppliers relation{tuple{s# \"S1\"},tuple{s# \"S2\"}}}, tuple{p# \"P7\", suppliers relation{s# Text}}}"
   res <- executeRelationalExpr sessionId dbconn (Equals (RelationVariable "x" ()) (RelationVariable "y" ()))
-  putStrLn "extend qp3"
   assertEqual "outer join grouping" (Right relationTrue) res 
   
 testDDLHash :: Test

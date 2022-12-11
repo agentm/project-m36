@@ -51,8 +51,6 @@ import Control.Exception
 import GHC.Paths
 #endif
 
-import Debug.Trace
-
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -813,10 +811,11 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
                                                      Right atomCmp -> atomCmp == atomIn
                                                      Left _ -> False
                                atomEvald = runGraphRefRelationalExprM env (evalGraphRefAtomExpr tupIn atomExpr)
+                               ctx' = addContextTuple ctx ctxtup'
                          in
-                          pure $ case contextTupleAtomForAttributeName' tupIn ctx attrName of
-                            Left _ -> False
-                            Right atomIn -> evalAndCmp atomIn
+                          case contextTupleAtomForAttributeName' tupIn ctx' attrName of
+                            Left err -> Left err
+                            Right atomIn -> pure $ evalAndCmp atomIn
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance
 predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
   --merge attrs into the state attributes
@@ -852,7 +851,7 @@ extendGraphRefTupleExpressionProcessor attrsIn (AttributeExtendTupleExpr newAttr
           newAndOldAttrs = A.addAttributes attrsIn newAttrs
       env <- ask
       pure (newAndOldAttrs, \tupIn (ContextTuples tupsIn) -> do
-               let gfEnv = foldl' (\acc tup -> mergeTuplesIntoGraphRefRelationalExprEnv tup acc) env tupsIn 
+               let gfEnv = foldl' (flip mergeTuplesIntoGraphRefRelationalExprEnv) env tupsIn 
                atom <- runGraphRefRelationalExprM gfEnv (evalGraphRefAtomExpr tupIn atomExpr)
                Right (tupleAtomExtend newAttrName atom tupIn)
                )
@@ -1157,8 +1156,7 @@ evalGraphRefRelationalExpr (Extend extendTupleExpr expr) = do
   (newAttrs, tupProc) <- extendGraphRefTupleExpressionProcessor (attributes rel) extendTupleExpr
   extraTup <- asks envTuple
   let ctx = singletonContextTuple extraTup
-  traceShowM ("eval extend", ctx)
-  lift $ except $ relMogrify (\tup -> tupProc tup ctx) newAttrs rel
+  lift $ except $ relMogrify (`tupProc` ctx) newAttrs rel
 evalGraphRefRelationalExpr expr@With{} =
   --strategy A: add relation variables to the contexts in the graph
   --strategy B: drop in macros in place (easier programmatically)
