@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,ExistentialQuantification #-}
+{-# LANGUAGE GADTs,ExistentialQuantification,GeneralizedNewtypeDeriving #-}
 module ProjectM36.Relation where
 import qualified Data.Set as S
 import qualified Data.HashSet as HS
@@ -16,6 +16,9 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
+import Data.List (foldl')
+
+import Debug.Trace
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs
@@ -162,9 +165,9 @@ group groupAttrNames newAttrName rel = do
 restrictEq :: RelationTuple -> Relation -> Either RelationalError Relation
 restrictEq tuple = restrict rfilter
   where
-    rfilter :: RelationTuple -> Either RelationalError Bool
-    rfilter tupleIn = do
-      pure (tupleIntersection tuple tupleIn == tuple)
+    rfilter :: RestrictionFilter
+    rfilter tupIn _ = do
+      pure (tupleIntersection tuple tupIn == tuple)
 
 -- unwrap relation-valued attribute
 -- return error if relval attrs and nongroup attrs overlap
@@ -201,10 +204,36 @@ attributesForRelval relvalAttrName (Relation attrs _) = do
     (RelationAtomType relAttrs) -> Right relAttrs
     _ -> Left $ AttributeIsNotRelationValuedError relvalAttrName
 
-type RestrictionFilter = RelationTuple -> Either RelationalError Bool
+type RestrictionFilter = RelationTuple -> ContextTuples -> Either RelationalError Bool
+
+-- | ContextTuples allow restriction to receive additional context from which the restriction evaluation may read. This is useful when a restriction occurs in a sub-expression so there is a higher-level context which may be referenced using attribute names. The tuples are scanned from first to last in order to find a matching attribute name, when necessary
+newtype ContextTuples = ContextTuples [RelationTuple]
+  deriving (Semigroup, Monoid, Show, Eq)
+
+singletonContextTuple :: RelationTuple -> ContextTuples
+singletonContextTuple tup = ContextTuples [tup]
+
+addContextTuple :: ContextTuples -> RelationTuple -> ContextTuples
+addContextTuple (ContextTuples tups) tup = ContextTuples (tup : tups)
+
+contextTupleAtomForAttributeName :: ContextTuples -> AttributeName -> Either RelationalError Atom
+contextTupleAtomForAttributeName (ContextTuples tups) attrName =
+  foldl' tupFolder (Left (NoSuchAttributeNamesError (S.singleton attrName))) tups
+  where
+    tupFolder acc tup | isRight acc =
+                        acc
+                      | otherwise =
+      atomForAttributeName attrName tup
+
+-- | Scan the context tuples, but first scan an additional tuple.
+contextTupleAtomForAttributeName' :: RelationTuple -> ContextTuples -> AttributeName -> Either RelationalError Atom
+contextTupleAtomForAttributeName' tup ctx attrName =
+  traceShow ("ctupforattrname'", attrName, tup, ctx) $
+  contextTupleAtomForAttributeName (addContextTuple ctx tup) attrName
+
 restrict :: RestrictionFilter -> Relation -> Either RelationalError Relation
 restrict rfilter (Relation attrs tupset) = do
-  tuples <- filterM rfilter (asList tupset)
+  tuples <- filterM (\t -> rfilter t mempty) (asList tupset)
   Right $ Relation attrs (RelationTupleSet tuples)
 
 --joins on columns with the same name- use rename to avoid this- base case: cartesian product
@@ -230,7 +259,8 @@ difference relA relB =
   where
     attrsA = attributes relA
     attrsB = attributes relB
-    rfilter tupInA = relFold (\tupInB acc -> if acc == Right False then pure False else pure (tupInB /= tupInA)) (Right True) relB
+    rfilter tupInA _ =
+      relFold (\tupInB acc -> if acc == Right False then pure False else pure (tupInB /= tupInA)) (Right True) relB
       
 --a map should NOT change the structure of a relation, so attributes should be constant
 relMap :: (RelationTuple -> Either RelationalError RelationTuple) -> Relation -> Either RelationalError Relation

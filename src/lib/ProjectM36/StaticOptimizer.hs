@@ -7,7 +7,6 @@ import ProjectM36.Relation
 import ProjectM36.RelationalExpression
 import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
 import ProjectM36.Error
-import ProjectM36.Tuple
 import ProjectM36.Transaction
 import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
@@ -71,7 +70,7 @@ optimizeAndEvalRelationalExpr' env expr = do
           case planGraphRefRelationalExpr optGfExpr gfEnv of
             Left err -> pure (Left err)
             Right plan ->
-              case executePlan plan emptyTuple of -- try/catch to handle exceptions
+              case executePlan plan mempty of -- try/catch to handle exceptions
                 Left err -> pure (Left err)
                 Right resultStream ->
                   --convert tuple stream into relation

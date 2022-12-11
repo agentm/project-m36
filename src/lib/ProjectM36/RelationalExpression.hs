@@ -26,6 +26,7 @@ import Control.Monad.State hiding (join)
 import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Either
+import Data.List (foldl')
 import Data.Char (isUpper)
 import Data.Time
 import qualified Data.List.NonEmpty as NE
@@ -49,6 +50,8 @@ import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
 #endif
+
+import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -757,33 +760,34 @@ predicateRestrictionFilter :: Attributes -> GraphRefRestrictionPredicateExpr -> 
 predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = do
   expr1v <- predicateRestrictionFilter attrs expr1
   expr2v <- predicateRestrictionFilter attrs expr2
-  pure (\x -> do
-           ev1 <- expr1v x 
-           ev2 <- expr2v x
+  pure (\tup ctx -> do
+           ev1 <- expr1v tup ctx
+           ev2 <- expr2v tup ctx
            pure (ev1 && ev2))
 
 predicateRestrictionFilter attrs (OrPredicate expr1 expr2) = do
     expr1v <- predicateRestrictionFilter attrs expr1
     expr2v <- predicateRestrictionFilter attrs expr2
-    pure (\x -> do
-                ev1 <- expr1v x 
-                ev2 <- expr2v x
-                pure (ev1 || ev2))
+    pure (\tup ctx -> do
+             ev1 <- expr1v tup ctx
+             ev2 <- expr2v tup ctx
+             pure (ev1 || ev2))
 
-predicateRestrictionFilter _ TruePredicate = pure (\_ -> pure True)
+predicateRestrictionFilter _ TruePredicate = pure (\_ _ -> pure True)
 
 predicateRestrictionFilter attrs (NotPredicate expr) = do
   exprv <- predicateRestrictionFilter attrs expr
-  pure (fmap not . exprv)
+  pure (\tup ctx ->
+          not <$> exprv tup ctx)
 
 --optimization opportunity: if the subexpression does not reference attributes in the top-level expression, then it need only be evaluated once, statically, outside the tuple filter- see historical implementation here
 predicateRestrictionFilter _ (RelationalExprPredicate relExpr) = do
   renv <- askEnv
-  let eval :: RelationTuple -> Either RelationalError Relation
-      eval tup = 
+  let eval :: RelationTuple -> ContextTuples -> Either RelationalError Relation
+      eval tup _ = -- context is ignored because the context is available via a closure
         let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tup renv in
         runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr relExpr)
-  pure (\tup -> case eval tup of
+  pure (\tup ctx -> case eval tup ctx of
     Left err -> Left err
     Right rel -> if arity rel /= 0 then
                    Left (PredicateExpressionError "Relational restriction filter must evaluate to 'true' or 'false'")
@@ -805,15 +809,12 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
   if atomExprType /= A.atomType attr then
       throwError (TupleAttributeTypeMismatchError (A.attributesFromList [attr]))
     else
-      pure $ \tupleIn -> let evalAndCmp atomIn = case atomEvald of
-                               Right atomCmp -> atomCmp == atomIn
-                               Left _ -> False
-                             atomEvald = runGraphRefRelationalExprM env (evalGraphRefAtomExpr tupleIn atomExpr)
+      pure $ \tupIn ctx -> let evalAndCmp atomIn = case atomEvald of
+                                                     Right atomCmp -> atomCmp == atomIn
+                                                     Left _ -> False
+                               atomEvald = runGraphRefRelationalExprM env (evalGraphRefAtomExpr tupIn atomExpr)
                          in
-                          pure $ case atomForAttributeName attrName tupleIn of
-                            Left (NoSuchAttributeNamesError _) -> case atomForAttributeName attrName ctxtup' of
-                              Left _ -> False
-                              Right ctxatom -> evalAndCmp ctxatom
+                          pure $ case contextTupleAtomForAttributeName' tupIn ctx attrName of
                             Left _ -> False
                             Right atomIn -> evalAndCmp atomIn
 -- in the future, it would be useful to do typechecking on the attribute and atom expr filters in advance
@@ -824,8 +825,8 @@ predicateRestrictionFilter attrs (AtomExprPredicate atomExpr) = do
   if aType /= BoolAtomType then
       throwError (AtomTypeMismatchError aType BoolAtomType)
     else
-      pure (\tupleIn ->
-             case runGraphRefRelationalExprM renv (evalGraphRefAtomExpr tupleIn atomExpr) of
+      pure (\tupIn _ ->
+             case runGraphRefRelationalExprM renv (evalGraphRefAtomExpr tupIn atomExpr) of
                Left err -> Left err
                Right boolAtomValue -> pure (boolAtomValue == BoolAtom True))
 
@@ -835,8 +836,9 @@ tupleExprCheckNewAttrName attrName attrs = if isRight (A.attributeForName attrNa
                                          else
                                            Right attrs
                                            
-type ExtendTupleProcessor = (Attributes, RelationTuple -> Either RelationalError RelationTuple)
+type ExtendTupleProcessor = (Attributes, RelationTuple -> ContextTuples -> Either RelationalError RelationTuple)
 
+-- | Pass in existing attributes of the relational expression and the extend expr, return the new attributes and the function which will add the attribute to each tuples
 extendGraphRefTupleExpressionProcessor :: Attributes -> GraphRefExtendTupleExpr -> GraphRefRelationalExprM ExtendTupleProcessor
 extendGraphRefTupleExpressionProcessor attrsIn (AttributeExtendTupleExpr newAttrName atomExpr) = 
 --  renv <- askEnv
@@ -849,10 +851,10 @@ extendGraphRefTupleExpressionProcessor attrsIn (AttributeExtendTupleExpr newAttr
       let newAttrs = A.attributesFromList [Attribute newAttrName atomExprType']
           newAndOldAttrs = A.addAttributes attrsIn newAttrs
       env <- ask
-      pure (newAndOldAttrs, \tup -> do
-               let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tup env
-               atom <- runGraphRefRelationalExprM gfEnv (evalGraphRefAtomExpr tup atomExpr)
-               Right (tupleAtomExtend newAttrName atom tup)
+      pure (newAndOldAttrs, \tupIn (ContextTuples tupsIn) -> do
+               let gfEnv = foldl' (\acc tup -> mergeTuplesIntoGraphRefRelationalExprEnv tup acc) env tupsIn 
+               atom <- runGraphRefRelationalExprM gfEnv (evalGraphRefAtomExpr tupIn atomExpr)
+               Right (tupleAtomExtend newAttrName atom tupIn)
                )
         
 -- same as above, but without extraneous typechecking which should be done beforehand
@@ -1153,7 +1155,10 @@ evalGraphRefRelationalExpr (NotEquals exprA exprB) = do
 evalGraphRefRelationalExpr (Extend extendTupleExpr expr) = do
   rel <- evalGraphRefRelationalExpr expr
   (newAttrs, tupProc) <- extendGraphRefTupleExpressionProcessor (attributes rel) extendTupleExpr
-  lift $ except $ relMogrify tupProc newAttrs rel
+  extraTup <- asks envTuple
+  let ctx = singletonContextTuple extraTup
+  traceShowM ("eval extend", ctx)
+  lift $ except $ relMogrify (\tup -> tupProc tup ctx) newAttrs rel
 evalGraphRefRelationalExpr expr@With{} =
   --strategy A: add relation variables to the contexts in the graph
   --strategy B: drop in macros in place (easier programmatically)
