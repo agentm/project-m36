@@ -7,6 +7,8 @@ import qualified Data.Map as M
 import Data.Either (isRight)
 
 -- | Returns the notifications which should be triggered based on the transition from the first 'DatabaseContext' to the second 'DatabaseContext'.
+
+-- TODO fix to use new optimizer (relies on IO)
 notificationChanges :: Notifications -> TransactionGraph -> DatabaseContext -> DatabaseContext -> Notifications
 notificationChanges nots graph context1 context2 = M.filter notificationFilter nots
   where

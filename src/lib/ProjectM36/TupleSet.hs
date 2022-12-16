@@ -7,11 +7,11 @@ import qualified Data.Vector as V
 import qualified Control.Parallel.Strategies as P
 import Data.Either
 
-emptyTupleSet :: RelationTupleSet
-emptyTupleSet = RelationTupleSet []
+empty :: RelationTupleSet
+empty = RelationTupleSet []
 
-singletonTupleSet :: RelationTupleSet
-singletonTupleSet = RelationTupleSet [emptyTuple]
+emptySingleTuple :: RelationTupleSet
+emptySingleTuple = RelationTupleSet [emptyTuple]
 
 --ensure that all maps have the same keys and key count
 
@@ -21,7 +21,7 @@ verifyTupleSet attrs tupleSet = do
   let tupleList = map (verifyTuple attrs) (asList tupleSet) `P.using` P.parListChunk chunkSize P.r0
       chunkSize = (length . asList) tupleSet `div` 24
   --let tupleList = P.parMap P.rdeepseq (verifyTuple attrs) (HS.toList tupleSet)
-  if not (null (lefts tupleList)) then
+  if not (Prelude.null (lefts tupleList)) then
     Left $ head (lefts tupleList)
    else
      return $ RelationTupleSet $ (HS.toList . HS.fromList) (rights tupleList)
@@ -38,3 +38,6 @@ tupleSetUnion :: Attributes -> RelationTupleSet -> RelationTupleSet -> RelationT
 tupleSetUnion targetAttrs tupSet1 tupSet2 = RelationTupleSet $ HS.toList . HS.fromList $ reorder (asList tupSet1) ++ reorder (asList tupSet2)
   where
     reorder = map (reorderTuple targetAttrs)
+
+null :: RelationTupleSet -> Bool
+null (RelationTupleSet tups) = Prelude.null tups

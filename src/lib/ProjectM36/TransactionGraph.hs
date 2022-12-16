@@ -5,7 +5,7 @@ import ProjectM36.Error
 import ProjectM36.Transaction
 import ProjectM36.TransactionInfo as TI
 import ProjectM36.Relation
-import ProjectM36.TupleSet
+import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Tuple
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
@@ -326,7 +326,7 @@ graphAsRelation (DisconnectedTransaction parentId _ _) graph@(TransactionGraph _
 transactionParentsRelation :: Transaction -> TransactionGraph -> Either RelationalError Relation
 transactionParentsRelation trans graph = 
   if isRootTransaction trans then    
-    mkRelation attrs emptyTupleSet
+    mkRelation attrs TS.empty
     else do
       parentTransSet <- parentTransactions trans graph
       let tuples = map trans2tuple (S.toList parentTransSet)

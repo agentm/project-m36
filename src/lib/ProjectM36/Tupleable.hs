@@ -43,7 +43,7 @@ import           ProjectM36.Base
 import           ProjectM36.DataTypes.Primitive
 import           ProjectM36.Error
 import           ProjectM36.Tuple
-import           ProjectM36.TupleSet
+import qualified ProjectM36.TupleSet as TS
 import qualified Data.Set as S
 
 {-import Data.Binary
@@ -83,7 +83,7 @@ instance Tupleable Test7T
 toInsertExpr :: forall a t. (Tupleable a, Traversable t) => t a -> RelVarName -> Either RelationalError DatabaseContextExpr
 toInsertExpr vals rvName = do
   let attrs = toAttributes (Proxy :: Proxy a)
-  tuples <- mkTupleSet attrs $ toList (fmap toTuple vals)
+  tuples <- TS.mkTupleSet attrs $ toList (fmap toTuple vals)
   let rel = MakeStaticRelation attrs tuples
   pure (Insert rvName rel)
 

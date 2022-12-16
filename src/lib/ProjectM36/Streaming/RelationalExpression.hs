@@ -16,6 +16,8 @@ import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 
+import Debug.Trace
+
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -37,7 +39,7 @@ data RelExprExecPlanBase a =
                        UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a) |
                        ExtendTupleStreamPlan ExtendTupleProcessor (RelExprExecPlanBase a) |
                        
-                       UnionTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
+                       UnionTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
                        NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        DifferenceTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
                        EqualTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
@@ -188,12 +190,8 @@ executePlan (UnionTupleStreamsPlan exprA exprB) ctx = do
   -- glue two streams together, then uniqueify
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
-  
-  let unionedHS = tuplesHashSet (tupSa <> tupSb)
-      tupS' = do
-        uhs <- liftIO unionedHS
-        Stream.fromFoldable uhs
-  pure (StreamRelation attrsA (Stream.fromSerial tupS'))
+  let tupS' = tupSa `Stream.wAsync` tupSb
+  pure (StreamRelation attrsA tupS')
 executePlan (EqualTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation _ tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx

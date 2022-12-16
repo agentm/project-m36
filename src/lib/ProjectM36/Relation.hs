@@ -6,6 +6,7 @@ import Control.Monad
 import qualified Data.Vector as V
 import ProjectM36.Base
 import ProjectM36.Tuple
+import qualified ProjectM36.TupleSet as TS
 import qualified ProjectM36.Attribute as A
 import ProjectM36.TupleSet
 import ProjectM36.Error
@@ -41,7 +42,7 @@ mkRelationFromList attrs atomMatrix = do
   Relation attrs <$> mkTupleSetFromList attrs atomMatrix
   
 emptyRelationWithAttrs :: Attributes -> Relation  
-emptyRelationWithAttrs attrs = Relation attrs emptyTupleSet
+emptyRelationWithAttrs attrs = Relation attrs TS.empty
 
 mkRelation :: Attributes -> RelationTupleSet -> Either RelationalError Relation
 mkRelation attrs tupleSet' =
@@ -70,10 +71,10 @@ mkRelationFromTuples attrs tupleSetList = do
    mkRelation attrs tupSet
 
 relationTrue :: Relation
-relationTrue = Relation A.emptyAttributes singletonTupleSet
+relationTrue = Relation A.emptyAttributes TS.emptySingleTuple
 
 relationFalse :: Relation
-relationFalse = Relation A.emptyAttributes emptyTupleSet
+relationFalse = Relation A.emptyAttributes TS.empty
 
 --if the relation contains one tuple, return it, otherwise Nothing
 singletonTuple :: Relation -> Maybe RelationTuple
@@ -172,7 +173,7 @@ restrictEq tuple = restrict rfilter
 ungroup :: AttributeName -> Relation -> Either RelationalError Relation
 ungroup relvalAttrName rel = case attributesForRelval relvalAttrName rel of
   Left err -> Left err
-  Right relvalAttrs -> relFold relFolder (Right $ Relation newAttrs emptyTupleSet) rel
+  Right relvalAttrs -> relFold relFolder (Right $ Relation newAttrs TS.empty) rel
    where
     newAttrs = A.addAttributes relvalAttrs nonGroupAttrs
     nonGroupAttrs = A.deleteAttributeName relvalAttrName (attributes rel)
@@ -193,7 +194,7 @@ tupleUngroup relvalAttrName newAttrs tuple = do
         Left err -> Left err
         Right accRel ->
           union accRel $ Relation newAttrs (RelationTupleSet [tupleExtend nonGroupTupleProjection tupleIn])
-  relFold folder (Right $ Relation newAttrs emptyTupleSet) relvalRelation
+  relFold folder (Right $ Relation newAttrs TS.empty) relvalRelation
 
 attributesForRelval :: AttributeName -> Relation -> Either RelationalError Attributes
 attributesForRelval relvalAttrName (Relation attrs _) = do

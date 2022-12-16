@@ -9,7 +9,7 @@ import ProjectM36.Base
 import ProjectM36.MerkleHash
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import ProjectM36.TupleSet
+import ProjectM36.TupleSet as TS
 import Data.UUID
 import Data.Proxy
 import Data.Word
@@ -112,7 +112,7 @@ slimTupleSet tupSet =
 
 -- | restore slimmed tuple set to include single shared attributes list
 fattenTupleSet :: SlimTupleSet -> RelationTupleSet
-fattenTupleSet Left{} = emptyTupleSet
+fattenTupleSet Left{} = TS.empty
 fattenTupleSet (Right (attrs, vtups)) = RelationTupleSet $ map (RelationTuple attrs) vtups
 
 -- | A special instance of Serialise which cuts down on duplicate attributes- we should only serialise the attributes at the top-level and not duplicate them per tuple. If we have an empty tupleset, we lack all attributes which is fine in this case.

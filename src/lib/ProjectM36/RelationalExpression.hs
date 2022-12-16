@@ -5,7 +5,7 @@
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import ProjectM36.TupleSet
+import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
 import qualified Data.UUID as U
 import ProjectM36.Error
@@ -61,7 +61,7 @@ databaseContextExprDetailsFunc CountUpdatedTuples _ relIn = Relation attrs newTu
     existingCount = case V.head (tupleAtoms existingTuple) of
       IntAtom v -> v
       _ -> error "impossible counting error in tupleAtoms"
-    newTups = case mkTupleSetFromList attrs [[IntAtom (existingCount + 1)]] of
+    newTups = case TS.mkTupleSetFromList attrs [[IntAtom (existingCount + 1)]] of
       Left err -> error ("impossible counting error in " ++ show err)
       Right ts -> ts
       
@@ -141,6 +141,11 @@ data DatabaseContextEvalState = DatabaseContextEvalState {
   dbc_accum :: M.Map ResultAccumName ResultAccum,
   dbc_dirty :: DirtyFlag
   }
+
+-- | To break the circular dependency loop between StaticOptimizer and RelationalExpression modules, we pass in the optimizer as a function.
+--type DatabaseContextExprOptimizer = TransactionId -> DatabaseContext -> TransactionGraph -> DatabaseContextExpr -> GraphRefDatabaseContextExpr
+
+--type DatabaseContextIOExprOptimizer = TransactionId -> DatabaseContext -> TransactionGraph -> DatabaseContextIOExpr -> GraphRefDatabaseContextIOExpr
 
 data DatabaseContextEvalEnv = DatabaseContextEvalEnv
   { dce_transId :: TransactionId,
@@ -276,7 +281,7 @@ evalGraphRefDatabaseContextExpr (Define relVarName attrExprs) = do
           False -> setRelVar relVarName (ExistingRelation emptyRelation)
             where
               attrs = A.attributesFromList attrsList
-              emptyRelation = Relation attrs emptyTupleSet
+              emptyRelation = Relation attrs TS.empty
 
 evalGraphRefDatabaseContextExpr (Undefine relVarName) = deleteRelVar relVarName
 
@@ -504,7 +509,6 @@ evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
     Nothing -> dbErr (RegisteredQueryNameNotInUseError regName)
     Just _ -> putStateContext (context { registeredQueries = M.delete regName (registeredQueries context) })
   
-
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
@@ -1180,7 +1184,7 @@ transactionForId tid graph
     matchingTrans = S.filter (\(Transaction idMatch _ _) -> idMatch == tid) (transactionsForGraph graph)
 
 typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
-typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs emptyTupleSet
+typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs TS.empty
 typeForGraphRefRelationalExpr (ExistingRelation rel) = pure (emptyRelationWithAttrs (attributes rel))
 typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
   mAttrs <- case mAttrExprs of
@@ -1322,7 +1326,7 @@ mkEmptyRelVars :: RelationVariables -> RelationVariables
 mkEmptyRelVars = M.map mkEmptyRelVar
   where
     mkEmptyRelVar expr@MakeRelationFromExprs{} = expr --do not truncate here because we might lose essential type information in emptying the tuples
-    mkEmptyRelVar (MakeStaticRelation attrs _) = MakeStaticRelation attrs emptyTupleSet
+    mkEmptyRelVar (MakeStaticRelation attrs _) = MakeStaticRelation attrs TS.empty
     mkEmptyRelVar (ExistingRelation rel) = ExistingRelation (emptyRelationWithAttrs (attributes rel))
     mkEmptyRelVar rv@RelationVariable{} = Restrict (NotPredicate TruePredicate) rv
     mkEmptyRelVar (Project attrNames expr) = Project attrNames (mkEmptyRelVar expr)
@@ -1469,6 +1473,8 @@ applyUnionCollapse = Fold.cata opt
   where
     opt :: RelationalExprBaseF GraphRefTransactionMarker GraphRefRelationalExpr -> GraphRefRelationalExpr
     opt (UnionF exprA exprB) | exprA == exprB = exprA
+    opt (UnionF exprA exprB) | isEmptyRelationExpr exprA = exprB
+    opt (UnionF exprA exprB) | isEmptyRelationExpr exprB = exprA
     opt (UnionF
          exprA@(MakeRelationFromExprs mAttrs1 tupExprs1)
          exprB@(MakeRelationFromExprs mAttrs2 tupExprs2)) | tupExprs1 == tupExprs2 = MakeRelationFromExprs (mAttrs1 <|> mAttrs2) tupExprs1
@@ -1498,3 +1504,9 @@ applyRestrictionCollapse orig@(Restrict npred@(NotPredicate _) expr) =
 applyRestrictionCollapse expr = expr
 
 
+-- determine if the created relation can statically be determined to be empty
+isEmptyRelationExpr :: RelationalExprBase a -> Bool    
+isEmptyRelationExpr (MakeRelationFromExprs _ (TupleExprs _ [])) = True
+isEmptyRelationExpr (MakeStaticRelation _ tupSet) = null (asList tupSet)
+isEmptyRelationExpr (ExistingRelation rel) = TS.null (tupleSet rel)
+isEmptyRelationExpr _ = False
