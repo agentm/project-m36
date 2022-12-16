@@ -90,7 +90,7 @@ optimizeAndEvalRelationalExpr' env expr = do
       case runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right optGfExpr -> 
-          case planGraphRefRelationalExpr (traceShow ("optEval", optGfExpr) optGfExpr) gfEnv of
+          case planGraphRefRelationalExpr optGfExpr gfEnv of
             Left err -> pure (Left err)
             Right plan ->
               case executePlan plan mempty of -- try/catch to handle exceptions
@@ -127,12 +127,12 @@ optimizeDatabaseContextExpr expr = do
   optimizeGraphRefDatabaseContextExpr gfExpr
   
 optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
-optimizeAndEvalDatabaseContextExpr optimize expr = do
+optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
-      eOptExpr = if optimize then
+      eOptExpr = if runOpt then
                    runGraphRefSOptDatabaseContextExprM transId context graph (optimizeGraphRefDatabaseContextExpr gfExpr)
                    else
                    pure gfExpr
@@ -252,7 +252,6 @@ optimizeGraphRefRelationalExpr (Union exprA exprB) = do
   optExprA <- optimizeGraphRefRelationalExpr exprA
   optExprB <- optimizeGraphRefRelationalExpr exprB
   -- (x where pred1) union (x where pred2) -> (x where pred1 or pred2)
-  traceShowM ("union opt", optExprA, isEmptyRelationExpr optExprA, optExprB, isEmptyRelationExpr optExprB)
   case (optExprA, optExprB) of 
           (Restrict predA (RelationVariable nameA sA),
            Restrict predB (RelationVariable nameB sB)) | nameA == nameB && sA == sB -> pure (Restrict (AndPredicate predA predB) (RelationVariable nameA sA))
