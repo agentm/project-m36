@@ -7,7 +7,7 @@ import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
 import System.IO.Temp
 import System.FilePath
-import ProjectM36.TupleSet
+import ProjectM36.TupleSet as TS
 import ProjectM36.Attribute
 import qualified Data.Map as M
 
@@ -57,7 +57,7 @@ testSimpleCommitFailure = TestCase $ do
     withTransaction dbconn $ do
       execute $ Assign "x" (ExistingRelation relationTrue)
       --cause error
-      execute $ Assign "x" (MakeStaticRelation failAttrs emptyTupleSet)
+      execute $ Assign "x" (MakeStaticRelation failAttrs TS.empty)
   let expectedErr = Left (RelError (RelationTypeMismatchError mempty failAttrs))
   assertEqual "dbc error" expectedErr err
 
