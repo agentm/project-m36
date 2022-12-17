@@ -15,9 +15,7 @@ import qualified Data.Vector as V
 import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
-
-import Debug.Trace
-
+import GHC.Conc (numCapabilities)
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -151,7 +149,7 @@ data StreamRelation m = StreamRelation Attributes (Stream.AsyncT m RelationTuple
 -- | Process a tuple stream into a Relation. This function presumes all validation has already been completed and will not remove duplicate tuples or tuples which do not match the attributes.
 streamRelationAsRelation :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m -> m Relation
 streamRelationAsRelation (StreamRelation attrs tupS) = do
-  tupSet <- Stream.toList $ Stream.fromAsync tupS
+  tupSet <- Stream.toList $ Stream.fromAsync (Stream.maxThreads numCapabilities tupS)
   pure (Relation attrs (RelationTupleSet tupSet))
 
 

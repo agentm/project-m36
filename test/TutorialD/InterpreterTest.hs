@@ -5,7 +5,7 @@ import TutorialD.Interpreter.Base
 import Test.HUnit
 import ProjectM36.Relation as R
 import ProjectM36.Tuple
-import ProjectM36.TupleSet
+import ProjectM36.TupleSet as TS
 import ProjectM36.Error
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
@@ -107,9 +107,9 @@ simpleRelTests = TestCase $ do
                       ("x:=true minus false", Right relationTrue),
                       ("x:=false minus true", Right relationFalse),                      
                       ("x:=true; x:=false", Right relationFalse),
-                      ("x:=relation{a Integer}{}", mkRelation simpleAAttributes emptyTupleSet),
-                      ("x:=relation{c Integer}{} rename {c as d}", mkRelation simpleBAttributes emptyTupleSet),
-                      ("y:=relation{b Integer, c Integer}{}; x:=y{c}", mkRelation simpleProjectionAttributes emptyTupleSet),
+                      ("x:=relation{a Integer}{}", mkRelation simpleAAttributes TS.empty),
+                      ("x:=relation{c Integer}{} rename {c as d}", mkRelation simpleBAttributes TS.empty),
+                      ("y:=relation{b Integer, c Integer}{}; x:=y{c}", mkRelation simpleProjectionAttributes TS.empty),
                       ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntegerAtom 5])]),
                       ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc" Nothing),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
@@ -169,7 +169,7 @@ dateExampleRelTests = TestCase $ do
     extendTestAttributes = A.attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" $ RelationAtomType (R.attributes suppliersRel)]
     testTups = [("x:=s where true", Right suppliersRel),
                            ("x:=s where city = \"London\"", restrict (\tuple _ -> pure $ atomForAttributeName "city" tuple == Right (TextAtom "London")) suppliersRel),
-                           ("x:=s where false", Right $ Relation (R.attributes suppliersRel) emptyTupleSet),
+                           ("x:=s where false", Right $ Relation (R.attributes suppliersRel) TS.empty),
                            ("x:=p where color=\"Blue\" and city=\"Paris\"", mkRelationFromList (R.attributes productsRel) [[TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"]]),
                            ("a:=s; update a (status:=50); x:=a{status}", mkRelation (A.attributesFromList [Attribute "status" IntegerAtomType]) (RelationTupleSet [mkRelationTuple (A.attributesFromList [Attribute "status" IntegerAtomType]) (V.fromList [IntegerAtom 50])])),
                            ("x:=s minus (s where status=20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"], [TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"], [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),

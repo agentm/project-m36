@@ -8,7 +8,7 @@ import qualified ProjectM36.Client as C
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation
-import ProjectM36.TupleSet
+import ProjectM36.TupleSet as TS
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Base
 
@@ -119,7 +119,7 @@ testDatabaseContextExpr sessionId conn = TestCase $ do
       testrv = "testrv"
   executeDatabaseContextExpr sessionId conn (Define testrv attrExprs) >>= eitherFail
   eRel <- executeRelationalExpr sessionId conn (RelationVariable testrv ())
-  let expected = mkRelation attrs emptyTupleSet
+  let expected = mkRelation attrs TS.empty
   case eRel of
     Left err -> assertFailure (show err)
     Right rel -> assertEqual "dbcontext definition failed" expected (Right rel)
