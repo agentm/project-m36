@@ -2,7 +2,7 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
-import ProjectM36.TupleSet
+import ProjectM36.TupleSet as TS
 import ProjectM36.StaticOptimizer
 import ProjectM36.DatabaseContext as DBC
 import System.Exit
@@ -79,7 +79,7 @@ testImpossiblePredicates = TestCase $ do
       tautTrue2 = Restrict TruePredicate rel
       tautFalse = Restrict (AtomExprPredicate (NakedAtomExpr (BoolAtom False))) rel
       tautFalse2 = Restrict (NotPredicate TruePredicate) rel
-      emptyRel = MakeStaticRelation (attributes suppliersRel) emptyTupleSet
+      emptyRel = MakeStaticRelation (attributes suppliersRel) TS.empty
       rel = RelationVariable "s" UncommittedContextMarker
       optRelExpr = optimizeGraphRefRelationalExpr' (Just dateExamples) graph
   assertEqual "remove tautology where true" (Right rel) (optRelExpr tautTrue)
