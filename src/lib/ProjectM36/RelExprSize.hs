@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MagicHash, FlexibleInstances #-}
 module ProjectM36.RelExprSize where
 import ProjectM36.Base
 import Data.Int
@@ -105,3 +105,7 @@ instance Size DiffTime where
 
 instance Size Scientific where
   size s = 8 + size (coefficient s)
+
+instance Size [RelationTuple] where
+  size tuples = foldr (\t acc -> acc + size t) 0 tuples
+

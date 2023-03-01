@@ -11,6 +11,7 @@ import System.Random
 import Control.Monad
 import qualified ProjectM36.RelExprSize as RE
 import ProjectM36.RelExprSize (ByteCount)
+import qualified Data.List.NonEmpty as NE
 
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
 
@@ -42,10 +43,29 @@ empty upper = do
     currentSize = curSize,
     cacheMap = newMap
     }
+
+-- | Relational results can be represented using multiple representations such as
+-- * unsorted tupleset
+-- * tuples sorted by some ordering
+-- * pinned relational expression (which may have been partially evaluated and could refer to other potentially-cached expressions)
+-- * b+tree with tuples
+-- All representations are immutable and pegged to specific transactions.
+-- These representations are used to cache evaluated relational expressions out of the transaction graph
+data RelationRepresentation =
+  PinnedExpressionRep PinnedRelationalExpr |
+  UnsortedTupleSetRep RelationTupleSet |
+  SortedTuplesRep [RelationTuple] (NE.NonEmpty (AttributeName, SortOrder))
+
+instance RE.Size RelationRepresentation where
+  size (PinnedExpressionRep pRelExpr) = RE.size pRelExpr
+  size (UnsortedTupleSetRep tupSet) = RE.size tupSet
+  size (SortedTuplesRep tups _) = RE.size tups
+
+data SortOrder = AscSortOrder | DescSortOrder  
     
 data RelExprCacheInfo =
   RelExprCacheInfo { calculatedInTime :: !NominalDiffTime, -- ^ the duration of time it took to compute the relational expression without this cache entry. This can be used to determine if using the cache is worthwhile.
-                     result :: PinnedRelationalExpr, -- ^ the cached relational expr (in memory)
+                     result :: RelationRepresentation, -- ^ the cached relational expr (in memory)
                      createTime :: !UTCTime, -- ^ 
                      lastRequestTime :: !(Maybe UTCTime),
                      size :: !ByteCount
@@ -61,7 +81,8 @@ type Probability = Double
 
 -- | Decide probabalistically which cache entries to expunge depending on cache pressure. Any entry has a non-zero chance of being expunged.
 trimCache :: RelExprCache -> STM ()
-trimCache = undefined
+trimCache = do
+  --attribute probability to all cache entries based on cache size, time to compute the entry, last request time
 
   
 probOfRetention :: ByteCount -> -- ^ size of cache entry
@@ -87,7 +108,7 @@ probOfRetention entrySize upperBound' sinceLastReqTime hitCount calcTime =
 add :: RandomGen g 
     => g
     -> PinnedRelationalExpr
-    -> PinnedRelationalExpr
+    -> RelationRepresentation
     -> NominalDiffTime -- ^ time it took to calculate this value
     -> RelExprCache
     -> STM g

@@ -11,6 +11,12 @@ import qualified Data.UUID as U
 import qualified Data.Text as T
 import qualified Data.Attoparsec.Text as APT
 import Data.Scientific
+#ifdef PM36_SELF_TEST  
+import Control.Concurrent (threadDelay)
+import System.IO.Unsafe (unsafePerformIO)
+#endif
+import Crypto.KDF.BCrypt (bcrypt)
+import qualified Data.Text.Encoding as TE
 
 primitiveAtomFunctions :: AtomFunctions
 primitiveAtomFunctions = HS.fromList [
@@ -94,6 +100,9 @@ primitiveAtomFunctions = HS.fromList [
                  _ -> Left AtomFunctionTypeMismatchError
              }
   ] <> scientificAtomFunctions
+#ifdef PM36_SELF_TEST  
+  <> selfTestAtomFunctions
+#endif
   where
     body = FunctionBuiltInBody
     relationAtomFunc f [RelationAtom x] = f x
@@ -141,6 +150,31 @@ castInteger :: Atom -> Integer
 castInteger (IntegerAtom i) = i 
 castInteger _ = error "attempted to cast non-IntegerAtom to Int"
 
+#ifdef PM36_SELF_TEST
+-- functions which should only exist for testing Project:M36
+selfTestAtomFunctions :: AtomFunctions
+selfTestAtomFunctions = HS.fromList [
+  Function { funcName = "test_expensive" --returns the first argument after pausing X microseconds in the second argument to simulate a time-consuming function
+           , funcType = [TypeVariableType "a", IntegerAtomType, TypeVariableType "a"]
+           , funcBody = FunctionBuiltInBody (
+             \case
+               atom:(IntegerAtom microseconds):_ ->
+                 unsafePerformIO $ do
+                   threadDelay (fromIntegral microseconds)
+                   pure (Right atom)
+               _ -> Left AtomFunctionTypeMismatchError)
+           },
+    Function { funcName = "test_bcrypt", -- pass a value through but calculate something expensive, not for actual encryption use since it uses a fixed seed
+               funcType = [IntegerAtomType, TextAtomType, TypeVariableType "a", TypeVariableType "a"],
+               funcBody = FunctionBuiltInBody (
+                 \case
+                   (IntegerAtom costVal):(TextAtom plaintextPassword):atom:_ ->
+                     let hashed = bcrypt (fromIntegral costVal) (TE.encodeUtf8 "1234567890123456") (TE.encodeUtf8 plaintextPassword) in
+                       Right (ByteStringAtom hashed `seq` atom)
+                   _ -> Left AtomFunctionTypeMismatchError)                     
+             }
+  ]
+#endif
 
 scientificAtomFunctions :: AtomFunctions
 scientificAtomFunctions = HS.fromList [

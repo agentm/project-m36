@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingVia, DeriveGeneric, DeriveAnyClass, TypeApplications #-}
 -- create a simple, on-disk database of ~20 MB so that we can get a heap profile
 import ProjectM36.Client
+import TutorialD.Interpreter (parseRelationalExpr)
 import Data.Text (Text)
 import Codec.Winery
 import Options.Applicative
@@ -25,14 +26,16 @@ data WeatherReading =
 
 data Opts = Opts { datadir :: FilePath,
                    writeData :: Bool, --read or write mode
-                   tupleCount :: Int
+                   tupleCount :: Int,
+                   execTutorialD :: Maybe Text
                  }
 
 parseOptions :: Parser Opts
 parseOptions = Opts <$>
   strOption (long "datadir" <> short 'd') <*>
   switch (long "write-data" <> short 'w') <*>
-  option auto (long "tuple-count" <> short 'c' <> value 10000)
+  option auto (long "tuple-count" <> short 'c' <> value 10000) <*>
+  optional (strOption (long "exec-tutd" <> short 'e'))
 
 main :: IO ()
 main = do
@@ -64,11 +67,24 @@ main = do
     eCheck $ executeDatabaseContextExpr sessionId conn insertExpr
     eCheck $ commit sessionId conn
     else do
+    {-
+    --switch to extend to try to exercise parallel mapM (filter is not parallelized in streamly yet)
     putStrLn "reading"
     --read one row to see how heap is affected (will load all rows)
-    let readOneRow = Restrict (AttributeEqualityPredicate "temperature" (NakedAtomExpr (IntegerAtom 900))) (RelationVariable "x" ())
+    let readOneRow = Restrict (AttributeEqualityPredicate "temperature" expensiveMatch) (RelationVariable "x" ())
+        expensiveMatch = FunctionAtomExpr "test_bcrypt" [NakedAtomExpr (IntegerAtom 20), NakedAtomExpr (TextAtom "password"), NakedAtomExpr (IntegerAtom 900)] ()
+        --simpleMatch = NakedAtomExpr (IntegerAtom 900)
     val <- eCheck $ executeRelationalExpr sessionId conn readOneRow
     print val
-    
+    -}
+    let tutd = case execTutorialD opts of
+          Just t -> t
+          Nothing -> "x where temperature = 5"
+    case parseRelationalExpr tutd of
+      Left err -> error (show err)
+      Right parsed -> do
+        val <- eCheck $ executeRelationalExpr sessionId conn parsed
+        print val
+        
   
 

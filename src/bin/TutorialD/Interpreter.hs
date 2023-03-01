@@ -8,6 +8,8 @@ import TutorialD.Interpreter.InformationOperator
 import TutorialD.Interpreter.DatabaseContextIOOperator
 import TutorialD.Interpreter.TransGraphRelationalOperator
 import TutorialD.Interpreter.SchemaOperator
+import TutorialD.Interpreter.RelationalExpr
+import TutorialD.Interpreter.Types
 
 import TutorialD.Interpreter.Import.CSV
 import TutorialD.Interpreter.Import.TutorialD
@@ -86,6 +88,10 @@ parseTutorialD = parse interpreterParserP ""
 --only parse tutoriald which doesn't result in file I/O
 safeParseTutorialD :: T.Text -> Either ParserError ParsedOperation
 safeParseTutorialD = parse safeInterpreterParserP ""
+
+-- | Utility method for external apps such as benchmarks to parse a relational expression for execution.
+parseRelationalExpr :: RelationalMarkerExpr a => T.Text -> Either ParserError (RelationalExprBase a)
+parseRelationalExpr = parse relExprP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
 

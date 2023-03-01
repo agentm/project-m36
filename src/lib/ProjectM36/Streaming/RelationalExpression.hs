@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns #-}
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -15,7 +15,7 @@ import qualified Data.Vector as V
 import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
-import GHC.Conc (numCapabilities)
+import Control.DeepSeq (force)
 
 type RelExprExecPlan = RelExprExecPlanBase ()
 
@@ -144,15 +144,31 @@ planGraphRefRelationalExpr (With macros expr) gfEnv =
   --TODO: determine if macros should be expanded or executed separately- perhaps calculate how many times a macro appears and it's calculation and size cost to determine if it should be precalculated.
   planGraphRefRelationalExpr (substituteWithNameMacros macros expr) gfEnv
 
-data StreamRelation m = StreamRelation Attributes (Stream.AsyncT m RelationTuple)
+data StreamRelation m = StreamRelation {
+  sRelAttributes :: Attributes,
+  sRelTupStream :: Stream.AsyncT m RelationTuple
+  }
 
 -- | Process a tuple stream into a Relation. This function presumes all validation has already been completed and will not remove duplicate tuples or tuples which do not match the attributes.
 streamRelationAsRelation :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m -> m Relation
 streamRelationAsRelation (StreamRelation attrs tupS) = do
-  tupSet <- Stream.toList $ Stream.fromAsync (Stream.maxThreads numCapabilities tupS)
+  tupSet <- Stream.toList $ Stream.fromAsync tupS
   pure (Relation attrs (RelationTupleSet tupSet))
 
 
+-- a local variant of parallel stream map which includes deepseq
+streamRelationMap :: (MonadIO m, Stream.MonadAsync m) =>
+          Attributes ->
+          (RelationTuple -> m RelationTuple) -> StreamRelation m -> StreamRelation m
+streamRelationMap newAttrs fun (StreamRelation _ tupSIn) =
+  StreamRelation newAttrs (Stream.mapM eval tupSIn)
+ where
+   eval tup = do
+        tup' <- fun tup
+        liftIO $ evaluate (force tup')
+
+--parFilter 
+  
 --until we can stream results to disk or socket, we return a lazy-list-based Relation
 -- | Build a tuple stream from an execution plan to enable parallel execution.
 executePlan :: (MonadIO m, Stream.MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> Either RelationalError (StreamRelation m)
@@ -162,18 +178,18 @@ executePlan (StreamTuplesFromCacheFilePlan{}) _ =
   --todo: enable streaming tuples from file
   undefined
 executePlan (RenameTupleStreamPlan oldName newName expr) ctx = do
-  (StreamRelation attrs tupS) <- executePlan expr ctx
-  let newAttrs = renameAttributes oldName newName attrs
+  relS <- executePlan expr ctx
+  let newAttrs = renameAttributes oldName newName (sRelAttributes relS)
   --potential optimization- lookup attrs in advance to rename the correct vector index
-  pure $ StreamRelation newAttrs (Stream.mapM (pure . tupleRenameAttribute oldName newName) tupS)
+  pure $ streamRelationMap newAttrs (pure . tupleRenameAttribute oldName newName) relS
 executePlan (RestrictTupleStreamPlan restrictionFilter expr) ctx = do
   (StreamRelation attrs tupS) <- executePlan expr ctx
-  let tupS' = Stream.filter filt tupS
+  let tupS' = Stream.filterM filt tupS
       -- since we are building up a stream data structure, we can represent in-stream failure using exceptions- we won't be able to execute the stream here to extract errors
       filt t =
-        case restrictionFilter t ctx of
+        pure $ case restrictionFilter t ctx of
         Left err -> throw err -- this will blow up in a separate thread but streamly should shuttle it to the caller (I hope)
-        Right t' -> t'
+        Right !t' -> t'
   pure $ StreamRelation attrs tupS'
 executePlan (ProjectTupleStreamPlan attrs expr) ctx = do
   (StreamRelation _ tupS) <- executePlan expr ctx
@@ -215,12 +231,12 @@ executePlan (MakeStaticRelationPlan attrs tupSet) _ = do
 executePlan (ExistingRelationPlan rel) _ = do
   pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
 executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) expr) ctx = do
-  (StreamRelation _ tupS) <- executePlan expr ctx
-  let tupS' = Stream.map (\t ->
-                            case extendProcessor t ctx of
-                              Left err -> throw err
-                              Right t' -> t') tupS
-  pure (StreamRelation newAttrs tupS')
+  relS <- executePlan expr ctx
+  let extender tup =
+        case extendProcessor tup ctx of
+          Left err -> throw err
+          Right t' -> pure t'
+  pure (streamRelationMap newAttrs extender relS)
 executePlan (NaiveJoinTupleStreamsPlan exprA exprB) ctx = do
   --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
