@@ -80,8 +80,8 @@ type HitCount = Int64
 type Probability = Double
 
 -- | Decide probabalistically which cache entries to expunge depending on cache pressure. Any entry has a non-zero chance of being expunged.
-trimCache :: RelExprCache -> STM ()
-trimCache = do
+--trimCache :: RelExprCache -> STM ()
+--trimCache = do
   --attribute probability to all cache entries based on cache size, time to compute the entry, last request time
 
   

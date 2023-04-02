@@ -1,3 +1,9 @@
+# Future (v0.9.7)
+
+* add result caching layer
+* add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
+* require GHC 9.2+
+
 # 2022-11-05 (v0.9.6)
 
 * fix tuple context passed down to extended expressions

@@ -35,7 +35,7 @@ Flag haskell-scripting
      Default: True
 
 Library
-    Build-Depends: base>=4.8 && < 4.17, ghc-paths, mtl, containers, unordered-containers, hashable, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text, bytestring, deepseq, deepseq-generics, vector, parallel, exceptions, transformers, gnuplot, filepath, directory, temporary, stm, time, rset, attoparsec, base64-bytestring, QuickCheck, quickcheck-instances, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256, text-manipulate >= 0.2.0.1 && < 0.4, winery >= 1.4, curryer-rpc>=0.2.2, network, async, vector-instances, recursion-schemes, streamly >= 0.8.0 && < 0.9.0, convertible, fast-builder, scientific, time-compat >= 1.9.6.1, random, ghc-prim, network-byte-order, cryptonite
+    Build-Depends: base>=4.16 && < 4.18, ghc-paths, mtl, containers, unordered-containers, hashable, directory, MonadRandom, random-shuffle, uuid >= 1.3.12, cassava >= 0.4.5.1 && < 0.6, text >= 2.0.2, bytestring >= 0.11, deepseq, deepseq-generics, vector, parallel, exceptions, transformers, gnuplot, filepath, directory, temporary, stm, time, rset, attoparsec, base64-bytestring, QuickCheck, quickcheck-instances, stm-containers >= 0.2.15, foldl, optparse-applicative, Glob, cryptohash-sha256, text-manipulate >= 0.2.0.1 && < 0.4, winery >= 1.4, curryer-rpc>=0.3.0, network, async, vector-instances, recursion-schemes, streamly >= 0.9.0 && < 1.0.0, convertible, fast-builder, scientific, time-compat >= 1.9.6.1, random, network-byte-order, cryptonite
     CPP-Options: -DPM36_SELF_TEST
     if flag(haskell-scripting)
         Build-Depends: ghc >= 8.2 && < 9.3

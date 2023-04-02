@@ -12,7 +12,7 @@ Run a pre-built docker image:
 
 ```docker run -it projectm36/project-m36 tutd```
 
-or build it yourself with GHC >= 8.10:
+or build it yourself with GHC >= 9.2:
 
 ```bash
 git clone https://github.com/agentm/project-m36.git
