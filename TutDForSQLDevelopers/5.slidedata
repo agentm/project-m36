@@ -1,0 +1,20 @@
+Restriction
+
+TutorialD (master/main): :showexpr s where city="London"
+
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"London"  │"S4"    │"Clark"    │20             │
+│"London"  │"S1"    │"Smith"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
+
+# select * from s where city='London';
+
+s# | sname | status |  city  
+----+-------+--------+--------
+ S1 | Smith |     20 | London
+ S4 | Clark |     20 | London
+(2 rows)
+
+Show me all data available on suppliers in London.

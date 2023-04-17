@@ -1,0 +1,15 @@
+Dealing With "Missing" Data
+
+TutorialD (master/main): data Age = Age Integer | DeclinedToAnswer | Dead
+TutorialD (master/main): e:=relation{tuple{name "Steve", age Age 25},tuple{name "Bob", age DeclinedToAnswer}, tuple{name "Ghostman", age Dead}}
+TutorialD (master/main): :showexpr e
+
+┌────────────────┬──────────┐
+│age::Age        │name::Text│
+├────────────────┼──────────┤
+│DeclinedToAnswer│"Bob"     │
+│Age 25          │"Steve"   │
+│Dead            │"Ghostman"│
+└────────────────┴──────────┘
+
+Create an algebraic data type to represent how an employee may respond to a request for his or her age: the integer age, "declined to answer", or dead.

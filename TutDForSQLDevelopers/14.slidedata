@@ -1,0 +1,15 @@
+Renaming Attributes For Join Conditions
+
+TutorialD (master/main): :showexpr (p{weight} rename {weight as status}) join s{status}
+
+┌───────────────┐
+│status::Integer│
+└───────────────┘
+
+# SELECT status FROM p JOIN s ON status = weight;
+
+ status 
+--------
+(0 rows)
+
+Rename "weight" in relvar "p" to "status" to merge matching tuples in all status values in "s" with all status values in "p" (formerly "weight").

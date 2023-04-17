@@ -1,0 +1,21 @@
+Updating Tuples
+
+TutorialD (master/main): update x where age=30 (age := 31)
+TutorialD (master/main): :showexpr x
+
+┌────────────┬──────────┬──────────┐
+│age::Integer│dept::Text│name::Text│
+├────────────┼──────────┼──────────┤
+│31          │"Sales"   │"Steve"   │
+└────────────┴──────────┴──────────┘
+
+# UPDATE x SET age=31 WHERE age=30;
+UPDATE 2
+# table x;
+
+ age | name  | dept  
+-----+-------+-------
+  31 | Steve | Sales
+  31 | Steve | Sales
+
+Change every age 30 to 31. (Note tuple uniqueness in TutorialD.)

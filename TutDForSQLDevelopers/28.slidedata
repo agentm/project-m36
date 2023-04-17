@@ -1,0 +1,13 @@
+Relational Equality
+
+TutorialD (master/main): :showexpr (s where false){}
+
+┌┐
+││
+└┘
+
+Not supported.
+
+
+
+Show me relvar "s" without any tuples (restriction) and without any attributes (projection). The result has zero tuples, so the result is a relation with zero attributes and zero tuples.

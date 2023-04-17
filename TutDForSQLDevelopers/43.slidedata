@@ -1,0 +1,7 @@
+SQL: Database Constraints (Values)
+
+# CREATE TABLE y (a INTEGER CHECK (a > 5));
+
+CREATE TABLE
+
+Create a table "y" with integer column "a" whose value must always be greater than 5.

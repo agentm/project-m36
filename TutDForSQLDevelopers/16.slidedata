@@ -1,0 +1,26 @@
+Self-Unions
+
+TutorialD (master/main): :showexpr s union s
+
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
+
+SELECT * FROM s UNION SELECT * FROM s;
+
+ s# | sname | status |  city  
+----+-------+--------+--------
+ S3 | Blake |     30 | Paris
+ S2 | Jones |     10 | Paris
+ S4 | Clark |     20 | London
+ S1 | Smith |     20 | London
+ S5 | Adams |     30 | Athens
+(5 rows)
+
+Combine all the tuples from relvar "s" with itself. Note that duplicate tuples appear neither in TutorialD nor SQL.

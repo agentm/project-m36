@@ -1,0 +1,26 @@
+Group and Ungroup
+
+TutorialD (master/main): :showexpr ((p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}) ungroup suppliers
+
+┌────────┬────────┐
+│p#::Text│s#::Text│
+├────────┼────────┤
+│"P2"    │"S4"    │
+│"P2"    │"S2"    │
+│"P1"    │"S2"    │
+│"P5"    │"S4"    │
+│"P2"    │"S1"    │
+│"P3"    │"S1"    │
+│"P6"    │"S1"    │
+│"P1"    │"S1"    │
+│"P4"    │"S4"    │
+│"P2"    │"S3"    │
+│"P4"    │"S1"    │
+│"P5"    │"S1"    │
+└────────┴────────┘
+
+Not supported.
+
+
+
+Map all products to their constituent suppliers (group), then flatten (ungroup) the mapping. Note that product "P7" is missing.

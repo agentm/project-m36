@@ -1,0 +1,26 @@
+Create A Relation Variable (Again)
+
+TutorialD (master/main): x := relation{name Text, age Integer, dept Text}
+TutorialD (master/main): insert x relation{tuple{name "Steve", age 30, dept "Sales"}, tuple{name "Bob", age 20, dept "Engineering"}}
+TutorialD (master/main): :showexpr x
+
+┌────────────┬─────────────┬──────────┐
+│age::Integer│dept::Text   │name::Text│
+├────────────┼─────────────┼──────────┤
+│20          │"Engineering"│"Bob"     │
+│30          │"Sales"      │"Steve"   │
+└────────────┴─────────────┴──────────┘
+
+# CREATE TABLE x(name TEXT, age INTEGER, dept TEXT);
+CREATE TABLE
+# INSERT INTO x(name, age, dept) VALUES ('Steve', 30, 'Sales'),('Bob',20,'Engineering');
+INSERT 0 2
+# table x;
+
+ name  | age |    dept     
+-------+-----+-------------
+ Steve |  30 | Sales
+ Bob   |  20 | Engineering
+(2 rows)
+
+Create a relvar "x" with no tuples but having name, age, and dept properties. Next, insert employee data about Steve and Bob. Finally show me the contents of the relvar named "x".

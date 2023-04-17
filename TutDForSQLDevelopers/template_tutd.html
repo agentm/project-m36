@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {{
+  document.querySelectorAll('code').forEach((el) => {{
+    hljs.highlightElement(el);
+  }});
+}});
+</script>
+<style>
+.hljs {{
+border-radius: 20px;
+}}
+h4,h1{{
+text-align:center;
+}}
+td {{
+vertical-align: top;
+}}
+</style>
+<h1>{title}</h1>
+<table border="0">
+<tr>
+<th width="50%">TutorialD</th>
+</tr>
+<tr>
+<td>
+<code class="language-sql">{tutd}</code>
+<pre>
+{tutd_res}
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+{english}
+</h4>
+</body>
+</html>
+

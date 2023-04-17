@@ -1,0 +1,20 @@
+Projection
+
+TutorialD (master/main): :showexpr s{s#,sname} where city="London"
+
+┌────────┬───────────┐
+│s#::Text│sname::Text│
+├────────┼───────────┤
+│"S4"    │"Clark"    │
+│"S1"    │"Smith"    │
+└────────┴───────────┘
+
+# select "s#",sname from s where city='London';
+
+s# | sname 
+----+-------
+ S1 | Smith
+ S4 | Clark
+(2 rows)
+
+Show me IDs and names of suppliers in London.

@@ -1,0 +1,13 @@
+Relational Equality
+
+TutorialD (master/main): :showexpr sp{s#} = s{s#}
+
+┌┐
+││
+└┘
+
+Not supported.
+
+
+
+Compare all the "s#" values in relvar "sp" to all the "s#" values in relvar "s". The result is relational "false" (the result has zero tuples and zero attributes) so the query results are not equal.

@@ -1,0 +1,11 @@
+SQL: Tables Are Ordered
+
+SELECT * FROM (VALUES (1,2),(2,NULL)) as x(a,b) ORDER BY b NULLS FIRST;
+
+ a | b 
+---+---
+ 2 |  
+ 1 | 2
+(2 rows)
+
+Show me the tuple 1,2 followed by the tuple 2,NULL ordered by the "b" column with NULLs sorted first. Relations are sets of tuples- sets have no ordering. Since these tuples are ordered, we must conclude that SQL does not deal in sets nor relations.

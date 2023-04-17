@@ -1,0 +1,16 @@
+Relational Equality
+
+TutorialD (master/main): :showexpr s = s
+
+┌┐
+││
+├┤
+└┘
+
+# SELECT * FROM s EXCEPT SELECT * FROM s; -- not really relational equality
+
+ s# | sname | status | city 
+----+-------+--------+------
+(0 rows)
+
+Compare two relvars for equality. SQL does not provide such a concept, so we workaround it by asking if the two SELECTs have any different tuples.

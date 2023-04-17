@@ -1,0 +1,14 @@
+Dealing with NULLs #1
+
+NULL not supported
+
+
+
+SELECT * FROM (VALUES (1,NULL)) as t(a,b) UNION SELECT * FROM (VALUES (1,NULL)) as t;
+
+ a | b 
+---+---
+ 1 | 
+(1 row)
+
+How does SQL's NULL function in a union? When does NULL equivalence apply? The addition of NULL in SQL creates ternary instead of boolean logic.

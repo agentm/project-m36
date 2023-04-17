@@ -1,0 +1,12 @@
+Database Constraints
+
+TutorialD (master/main): foreign key s_sp_fk2 sp{s#} in s{s#};
+
+
+
+ALTER TABLE sp ADD CONSTRAINT fk_s FOREIGN KEY ("s#") REFERENCES s ("s#");
+
+ALTER TABLE
+
+
+Add a foreign key constraint between relvar "sp" and relvar "s" on the "s#" attribute. Thus, any value in "s#" from "sp" must also appear in "s#" from "s". Using set notation, this is sp{s#} ⊆ s{s#}

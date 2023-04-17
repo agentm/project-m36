@@ -1,0 +1,12 @@
+SQL: Aggregate Functions
+
+SELECT city,COUNT(*) FROM s GROUP BY city;
+
+  city  | count 
+--------+-------
+ Paris  |     2
+ London |     2
+ Athens |     1
+(3 rows)
+
+Show me in which cities we have suppliers and how many in each city.

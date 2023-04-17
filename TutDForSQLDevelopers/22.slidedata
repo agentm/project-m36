@@ -1,0 +1,19 @@
+Ungroups
+
+TutorialD (master/main): :showexpr (s group ({sname,status,s#} as subrel)) ungroup subrel
+
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+└──────────┴────────┴───────────┴───────────────┘
+
+Not supported.
+
+
+
+Show me a per-city rollup of relvar "s" but then undo it. SQL has no equivalent to grouping tuples into relation-valued attributes.

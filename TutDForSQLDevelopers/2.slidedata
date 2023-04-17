@@ -1,0 +1,27 @@
+Show Relation Variables (Tables)
+
+TutorialD (master/main): :showrelvars
+
+┌─────────────────────────────────────────────────┬──────────┐
+│attributes::relation {attribute::Text,type::Text}│name::Text│
+├─────────────────────────────────────────────────┼──────────┤
+│┌───────────────┬──────────┐                     │"true"    │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"false"   │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+└─────────────────────────────────────────────────┴──────────┘
+
+SELECT 
+t.table_name,
+array_agg((column_name::text,c.data_type::text)) AS column_info FROM information_schema.tables AS t 
+JOIN information_schema.columns as c on c.table_name=t.table_name 
+AND c.table_schema=t.table_schema 
+WHERE t.table_schema='public' group by t.table_name;
+
+ table_name | column_info 
+------------+-------------
+(0 rows)
+
+Show relation variables (called "tables" in SQL) in the current schema.

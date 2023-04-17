@@ -1,0 +1,14 @@
+SQL: Database Constraints
+
+SELECT "s#" FROM s;
+
+ s# 
+----
+ S5
+ S3
+ S1
+ S2
+ S4
+(5 rows)
+
+Show me all "s#" values in table "s".

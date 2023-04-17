@@ -1,0 +1,7 @@
+Database Constraints
+
+TutorialD (master/main): foreign key s_sp_fk2 sp{s#} in s{s#};
+
+
+
+Create a second constraint "s_sp_fk2" which enforces the same foreign key constraint between "sp" and "s". This is redundant, but otherwise fine.

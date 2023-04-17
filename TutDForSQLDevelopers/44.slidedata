@@ -1,0 +1,8 @@
+Database Constraints (Values)
+
+TutorialD (master/main): constraint s_status_less_than_50 (s where gte(@status,50)){} in false
+TutorialD (master/main): insert s relation{tuple{city "Calgary", s# "S9", sname "Stephens", status 51}}
+
+ERR: InclusionDependencyCheckError "s_status_less_than_50" Nothing
+
+Create a constraint to ensure that the status of a supplier must be less than 50.

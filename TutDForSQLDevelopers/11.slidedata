@@ -1,0 +1,20 @@
+Deleting Tuples
+
+TutorialD (master/main): delete x where name = "Bob"
+TutorialD (master/main): :showexpr x
+
+┌────────────┬──────────┬──────────┐
+│age::Integer│dept::Text│name::Text│
+├────────────┼──────────┼──────────┤
+│30          │"Sales"   │"Steve"   │
+└────────────┴──────────┴──────────┘
+
+# DELETE FROM x WHERE name = 'Bob';
+DELETE 2
+# table x;
+
+ age | name  | dept
+-----+-------+-------
+  30 | Steve | Sales
+
+Remove all data in relvar "x" pertaining to any employee named "Bob".

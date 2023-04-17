@@ -1,0 +1,12 @@
+Dealing With "Missing" Data
+
+TutorialD (master/main): :showexpr e minus e where age = Dead
+
+┌────────────────┬──────────┐
+│age::Age        │name::Text│
+├────────────────┼──────────┤
+│DeclinedToAnswer│"Bob"     │
+│Age 25          │"Steve"   │
+└────────────────┴──────────┘
+
+Show me all employees except those who are dead.

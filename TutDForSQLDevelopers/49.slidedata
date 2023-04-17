@@ -1,0 +1,20 @@
+Dataframes
+
+TutorialD (master/main): :showdataframe s{status} orderby {status descending} offset 1 limit 3
+
+┌──┬────────────────┐
+│DF│status::Integer⬇│
+├──┼────────────────┤
+│1 │20              │
+│2 │10              │
+└──┴────────────────┘
+
+# SELECT DISTINCT status FROM s ORDER BY status DESC OFFSET 1 LIMIT 3;
+
+ status 
+--------
+     20
+     10
+(2 rows)
+
+Show me supplier status in descending order but skip the first and one and show me only the next three. In SQL, we must explicitly request that the result of the query be deduplicated with "DISTINCT".

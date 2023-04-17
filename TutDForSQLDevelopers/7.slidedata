@@ -1,0 +1,26 @@
+Projection with Inverted Attributes
+
+TutorialD (master/main): :showexpr s{all but city}
+
+┌────────┬───────────┬───────────────┐
+│s#::Text│sname::Text│status::Integer│
+├────────┼───────────┼───────────────┤
+│"S3"    │"Blake"    │30             │
+│"S5"    │"Adams"    │30             │
+│"S1"    │"Smith"    │20             │
+│"S4"    │"Clark"    │20             │
+│"S2"    │"Jones"    │10             │
+└────────┴───────────┴───────────────┘
+
+# SELECT * EXCEPT city FROM s; --unsupported in ANSI SQL
+
+ s# | sname | status 
+----+-------+--------
+ S5 | Adams |     30
+ S3 | Blake |     30
+ S1 | Smith |     20
+ S2 | Jones |     10
+ S4 | Clark |     20
+(5 rows)
+
+Show me all data available on suppliers except their city info.

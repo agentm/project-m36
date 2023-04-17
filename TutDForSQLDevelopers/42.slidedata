@@ -1,0 +1,19 @@
+Database Constraints (Uniqueness)
+
+TutorialD (master/main): :showexpr true:{a:=s, b:=count(@a)}
+
+┌─────────────────────────────────────────────────────────────┬──────────┐
+│a::relation {s#::Text,sname::Text,status::Integer,city::Text}│b::Integer│
+├─────────────────────────────────────────────────────────────┼──────────┤
+│┌──────────┬────────┬───────────┬───────────────┐            │5         │
+││city::Text│s#::Text│sname::Text│status::Integer│            │          │
+│├──────────┼────────┼───────────┼───────────────┤            │          │
+││"London"  │"S4"    │"Clark"    │20             │            │          │
+││"London"  │"S1"    │"Smith"    │20             │            │          │
+││"Athens"  │"S5"    │"Adams"    │30             │            │          │
+││"Paris"   │"S2"    │"Jones"    │10             │            │          │
+││"Paris"   │"S3"    │"Blake"    │30             │            │          │
+│└──────────┴────────┴───────────┴───────────────┘            │          │
+└─────────────────────────────────────────────────────────────┴──────────┘
+
+Wrap suppliers in a nested relation to count the number of suppliers.

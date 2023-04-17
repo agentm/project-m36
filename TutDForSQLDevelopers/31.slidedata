@@ -1,0 +1,36 @@
+Prelude to Aggregate Functions
+
+TutorialD (master/main): :showexpr s group ({all but city} as subrel)
+
+┌──────────┬───────────────────────────────────────────────────────┐
+│city::Text│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼───────────────────────────────────────────────────────┤
+│"Paris"   │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S2"    │"Jones"    │10             │                 │
+│          ││"S3"    │"Blake"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"Athens"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S5"    │"Adams"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"London"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S1"    │"Smith"    │20             │                 │
+│          ││"S4"    │"Clark"    │20             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+└──────────┴───────────────────────────────────────────────────────┘
+
+# SELECT city,array_agg(ROW("s#",sname,status)) FROM s GROUP BY city; -- a poor approximation of a table within a table
+
+  city  |             array_agg             
+--------+-----------------------------------
+ Paris  | {"(S3,Blake,30)","(S2,Jones,10)"}
+ London | {"(S1,Smith,20)","(S4,Clark,20)"}
+ Athens | {"(S5,Adams,30)"}
+(3 rows)
+
+Show me supplier data grouped by city. Relation-valued attributes are not supported in SQL so we use arrays as a workaround.

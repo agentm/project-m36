@@ -1,0 +1,26 @@
+Show Relation Variable "s"
+
+TutorialD (master/main): :showexpr s
+
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
+
+# table s;
+
+s# | sname | status |  city  
+----+-------+--------+--------
+ S5 | Adams |     30 | Athens
+ S3 | Blake |     30 | Paris
+ S1 | Smith |     20 | London
+ S2 | Jones |     10 | Paris
+ S4 | Clark |     20 | London
+(5 rows)
+
+Show me all data available on suppliers.

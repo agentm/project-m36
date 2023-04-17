@@ -1,0 +1,14 @@
+Transactions
+
+TutorialD (master/main): :commit
+TutorialD (master/main): :rollback
+
+
+
+BEGIN;
+COMMIT;
+ROLLBACK;
+
+
+
+Begin, commit, or rollback (throwaway) a transaction.

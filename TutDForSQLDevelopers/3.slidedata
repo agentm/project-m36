@@ -1,0 +1,59 @@
+Import Example Schema from C.J. Date's Book
+
+TutorialD (master/main): :importexample cjdate
+TutorialD (master/main): :showrelvars
+
+┌─────────────────────────────────────────────────┬──────────┐
+│attributes::relation {attribute::Text,type::Text}│name::Text│
+├─────────────────────────────────────────────────┼──────────┤
+│┌───────────────┬──────────┐                     │"true"    │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"sp"      │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"s#"           │"Text"    │                     │          │
+││"p#"           │"Text"    │                     │          │
+││"qty"          │"Integer" │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"false"   │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"s"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"s#"           │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+││"status"       │"Integer" │                     │          │
+││"sname"        │"Text"    │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"p"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"color"        │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+││"p#"           │"Text"    │                     │          │
+││"pname"        │"Text"    │                     │          │
+││"weight"       │"Integer" │                     │          │
+│└───────────────┴──────────┘                     │          │
+└─────────────────────────────────────────────────┴──────────┘
+
+SELECT table_name, column_name, data_type FROM information_schema.columns AS c WHERE c.table_schema = 'public' AND table_name IN ('s','sp','p');
+
+ table_name | column_name |     data_type     
+------------+-------------+-------------------
+ s          | s#          | character varying
+ s          | sname       | character varying
+ s          | status      | integer
+ s          | city        | character varying
+ p          | p#          | character varying
+ p          | pname       | character varying
+ p          | color       | character varying
+ p          | weight      | real
+ p          | city        | character varying
+ sp         | s#          | character varying
+ sp         | p#          | character varying
+ sp         | qty         | integer
+(12 rows)
+
+Load supplier "s", supplier-product "sp", and product "p" relation variables from C.J. Date's "Database In Depth" (2005).

@@ -1,0 +1,70 @@
+SQL Outer Join Are Actually Groups
+
+TutorialD (master/main): insert p relation{tuple{p# "P7", pname "Widget", color "Beige", weight 21, city "Reykjavik"}}
+TutorialD (master/main): :showexpr (p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}
+
+┌────────┬──────────────────────────────┐
+│p#::Text│suppliers::relation {s#::Text}│
+├────────┼──────────────────────────────┤
+│"P5"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S4"    │                    │
+│        │└────────┘                    │
+│"P6"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P3"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P1"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P2"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S4"    │                    │
+│        ││"S3"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P7"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │└────────┘                    │
+│"P4"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S4"    │                    │
+│        │└────────┘                    │
+└────────┴──────────────────────────────┘
+
+# INSERT INTO p("p#",pname,color,weight,city) VALUES ('P7','Widget','Beige',21,'Reykjavik');
+# SELECT p."p#",sp."s#" FROM p AS p LEFT OUTER JOIN sp AS sp ON p."p#" = sp."p#";
+
+ p# | s# 
+----+----
+ P1 | S2
+ P1 | S1
+ P2 | S2
+ P2 | S4
+ P2 | S3
+ P2 | S1
+ P3 | S1
+ P4 | S1
+ P4 | S4
+ P5 | S4
+ P5 | S1
+ P6 | S1
+ P7 | 
+(13 rows)
+
+Add a product "P7" to relvar "p" representing information about a "Widget". Then, show me all products and their related supplier information. Note that P7 has no supplier.

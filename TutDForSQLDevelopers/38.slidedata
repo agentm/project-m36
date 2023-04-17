@@ -1,0 +1,8 @@
+SQL: Database Constraints
+
+INSERT INTO sp("s#","p#",qty) VALUES ('S9','P4',5000);
+
+ERROR:  insert or update on table "sp" violates foreign key constraint "sp_s#_fkey"
+DETAIL:  Key (s#)=(S9) is not present in table "s".
+
+Insert a row into suppliers-parts which includes a supplier not mentioned in the supplier table. The INSERT is rejected due to the foreign key constraint.

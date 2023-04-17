@@ -1,0 +1,11 @@
+SQL: Tables Are Ordered
+
+SELECT * FROM (VALUES (1,2),(2,NULL)) as x;
+
+ column1 | column2 
+---------+---------
+       1 |       2
+       2 |        
+(2 rows)'
+
+Show me the tuple 1,2 followed by the tuple 2,NULL.

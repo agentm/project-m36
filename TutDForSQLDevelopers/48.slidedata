@@ -1,0 +1,25 @@
+Dataframes
+
+TutorialD (master/main): :showdataframe s orderby {status}
+
+┌──┬───────────┬─────────┬────────────┬────────────────┐
+│DF│city::Text↕│s#::Text↕│sname::Text↕│status::Integer⬆│
+├──┼───────────┼─────────┼────────────┼────────────────┤
+│1 │"Paris"    │"S2"     │"Jones"     │10              │
+│2 │"London"   │"S4"     │"Clark"     │20              │
+│3 │"London"   │"S1"     │"Smith"     │20              │
+│4 │"Athens"   │"S5"     │"Adams"     │30              │
+│5 │"Paris"    │"S3"     │"Blake"     │30              │
+└──┴───────────┴─────────┴────────────┴────────────────┘
+
+# SELECT * FROM s ORDER BY status;
+
+ s# | sname | status |  city  
+----+-------+--------+--------
+ S2 | Jones |     10 | Paris
+ S1 | Smith |     20 | London
+ S4 | Clark |     20 | London
+ S5 | Adams |     30 | Athens
+ S3 | Blake |     30 | Paris
+
+Show me suppliers ordered by status.

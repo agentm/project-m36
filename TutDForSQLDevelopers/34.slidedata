@@ -1,0 +1,22 @@
+Aggregate Functions 4
+
+TutorialD (master/main): :showexpr ((s{city,status} group ({all but city} as subrel)) : {maxstatus := max(@subrel)}) { all but subrel }
+
+┌──────────┬──────────────────┐
+│city::Text│maxstatus::Integer│
+├──────────┼──────────────────┤
+│"Athens"  │30                │
+│"Paris"   │30                │
+│"London"  │20                │
+└──────────┴──────────────────┘
+
+# select city,MAX(status) FROM s GROUP BY city;
+
+  city  | max 
+--------+-----
+ Paris  |  30
+ London |  20
+ Athens |  30
+(3 rows)
+
+Show me cities in which I have suppliers along with the maximum status for all suppliers in each city.

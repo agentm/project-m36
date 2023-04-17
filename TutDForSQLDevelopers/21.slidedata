@@ -1,0 +1,37 @@
+Groups #2
+
+TutorialD (master/main): :showexpr s group ({sname,status,s#} as subrel)
+
+┌──────────┬───────────────────────────────────────────────────────┐
+│city::Text│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼───────────────────────────────────────────────────────┤
+│"Athens"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S5"    │"Adams"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"Paris"   │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S2"    │"Jones"    │10             │                 │
+│          ││"S3"    │"Blake"    │30             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+│"London"  │┌────────┬───────────┬───────────────┐                 │
+│          ││s#::Text│sname::Text│status::Integer│                 │
+│          │├────────┼───────────┼───────────────┤                 │
+│          ││"S4"    │"Clark"    │20             │                 │
+│          ││"S1"    │"Smith"    │20             │                 │
+│          │└────────┴───────────┴───────────────┘                 │
+└──────────┴───────────────────────────────────────────────────────┘
+
+# SELECT * FROM s ORDER BY city;
+
+ s# | sname | status |  city  
+----+-------+--------+--------
+ S5 | Adams |     30 | Athens
+ S1 | Smith |     20 | London
+ S4 | Clark |     20 | London
+ S3 | Blake |     30 | Paris
+ S2 | Jones |     10 | Paris
+
+Show me all supplier information but rolled up on a per-city basis. We can approximate groups of tuples in SQL by ordering them.

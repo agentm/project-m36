@@ -1,0 +1,13 @@
+SQL: Database Constraints
+
+SELECT DISTINCT "s#" FROM sp;
+
+ s# 
+----
+ S1
+ S2
+ S4
+ S3
+(4 rows)
+
+Show me all unique "s#" values in table "s". Thus, if we want a foreign key constraint between "s" and "sp" on column "s#", then we use the set notation: sp{s#} ⊆ s{s#}

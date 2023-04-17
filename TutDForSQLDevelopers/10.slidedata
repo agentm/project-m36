@@ -1,0 +1,24 @@
+A Set of Tuples Cannot Include Duplicate Tuples
+
+TutorialD (master/main): x:=x union x
+TutorialD (master/main): :showexpr x
+
+┌────────────┬─────────────┬──────────┐
+│age::Integer│dept::Text   │name::Text│
+├────────────┼─────────────┼──────────┤
+│30          │"Sales"      │"Steve"   │
+│20          │"Engineering"│"Bob"     │
+└────────────┴─────────────┴──────────┘
+
+# insert into x (SELECT * FROM x);
+# table x;
+
+age | name  |    dept     
+-----+-------+-------------
+  20 | Bob   | Engineering
+  30 | Steve | Sales
+  20 | Bob   | Engineering
+  30 | Steve | Sales
+(4 rows)
+
+If a relation is a set of tuples, it cannot contain duplicate tuples. SQL does not enforce this by default.

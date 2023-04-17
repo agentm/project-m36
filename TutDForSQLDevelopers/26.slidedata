@@ -1,0 +1,14 @@
+Relational Equality
+
+TutorialD (master/main): :showexpr s = sp
+
+┌┐
+││
+└┘
+
+# SELECT * FROM s EXCEPT SELECT * FROM sp;
+
+ERROR:  each EXCEPT query must have the same number of columns
+LINE 1: SELECT * FROM s EXCEPT SELECT * FROM sp;
+
+Are relvars "s" and "sp" equal? No, but TutorialD and SQL provide different results.

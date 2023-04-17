@@ -1,0 +1,14 @@
+Relational Truth
+
+TutorialD (master/main): :showexpr s{}
+
+┌┐
+││
+├┤
+└┘
+
+Not supported.
+
+
+
+Show me relvar "s" without any attributes. Relvar "s" has tuples, so the result is a relation with zero attributes and one tuple because all of its tuples are collapsed (deduplicated) into a single tuple.

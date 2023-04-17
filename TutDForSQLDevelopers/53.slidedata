@@ -1,0 +1,12 @@
+Transactions (Isolation)
+
+Isolated by default.
+
+
+
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+
+
+
+Project:M36 never leaks data from concurrent, in-progress transactions. SQL can do so in "READ COMMITTED" mode.

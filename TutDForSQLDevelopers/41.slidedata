@@ -1,0 +1,20 @@
+Database Constraints
+
+TutorialD (master/main): :constraints
+
+┌──────────┬──────────────────────────────────────────────────────────────────────────────────┬───────────┐
+│name::Text│sub::Text                                                                         │super::Text│
+├──────────┼──────────────────────────────────────────────────────────────────────────────────┼───────────┤
+│"s_pkey"  │"(((true:{a:=s, b:=count(@a)}){b}) != ((true:{a:=s{s#}, b:=count(@a)}){b}))"      │"(false)"  │
+│"s_sp_fk2"│"(sp{s#})"                                                                        │"(s{s#})"  │
+│"sp_pkey" │"(((true:{a:=sp, b:=count(@a)}){b}) != ((true:{a:=sp{p#, s#}, b:=count(@a)}){b}))"│"(false)"  │
+│"p_sp_fk" │"(sp{p#})"                                                                        │"(p{p#})"  │
+│"p_pkey"  │"(((true:{a:=p, b:=count(@a)}){b}) != ((true:{a:=p{p#}, b:=count(@a)}){b}))"      │"(false)"  │
+│"s_sp_fk" │"(sp{s#})"                                                                        │"(s{s#})"  │
+└──────────┴──────────────────────────────────────────────────────────────────────────────────┴───────────┘
+
+No equivalent.
+
+
+
+Database constraints hold logically database wide so we can list them all at once. Here, we see how foreign keys are implemented more generally.

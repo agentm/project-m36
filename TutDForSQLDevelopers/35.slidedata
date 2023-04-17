@@ -1,0 +1,7 @@
+SQL: Database Constraints
+
+ALTER TABLE sp ADD CONSTRAINT fk_s FOREIGN KEY ("s#") REFERENCES s ("s#");
+
+ALTER TABLE
+
+Add a foreign key constraint between tables "s" and "sp" on column "s#".

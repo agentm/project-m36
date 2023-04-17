@@ -1,0 +1,53 @@
+Groups are Related to Joins
+
+TutorialD (master/main): :showexpr (p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}
+
+┌────────┬──────────────────────────────┐
+│p#::Text│suppliers::relation {s#::Text}│
+├────────┼──────────────────────────────┤
+│"P4"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P2"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S3"    │                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P1"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P5"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P3"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P6"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P7"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │└────────┘                    │
+└────────┴──────────────────────────────┘
+
+Not supported.
+
+
+
+Show each product mapped to its suppliers. Note that "P7" does not have any suppliers; this is represented by an empty relation in the "suppliers" column.

@@ -1,0 +1,35 @@
+Aggregate Functions 2
+
+TutorialD (master/main): :showexpr s group ({all but city} as subrel) : {citycount := count(@subrel)}
+
+┌──────────┬──────────────────┬───────────────────────────────────────────────────────┐
+│city::Text│citycount::Integer│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼──────────────────┼───────────────────────────────────────────────────────┤
+│"Athens"  │1                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S5"    │"Adams"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"London"  │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S1"    │"Smith"    │20             │                 │
+│          │                  ││"S4"    │"Clark"    │20             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"Paris"   │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S2"    │"Jones"    │10             │                 │
+│          │                  ││"S3"    │"Blake"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+└──────────┴──────────────────┴───────────────────────────────────────────────────────┘
+
+# SELECT city,COUNT(*),array_agg(ROW("s#",sname,status)) FROM s GROUP BY city;
+
+  city  | count |             array_agg             
+--------+-------+-----------------------------------
+ Paris  |     2 | {"(S3,Blake,30)","(S2,Jones,10)"}
+ London |     2 | {"(S1,Smith,20)","(S4,Clark,20)"}
+ Athens |     1 | {"(S5,Adams,30)"}
+
+Show me supplier data grouped by city along with the counts of suppliers per city. 
