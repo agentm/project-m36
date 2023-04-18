@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {{
+  document.querySelectorAll('code').forEach((el) => {{
+    hljs.highlightElement(el);
+  }});
+}});
+</script>
+<style>
+.hljs {{
+border-radius: 20px;
+}}
+h4,h1{{
+text-align:center;
+}}
+td {{
+vertical-align: top;
+border-collapse: collapse;
+border-width: 1px;
+border-style: solid;
+padding: 15px;
+border-radius: 10px;
+border-color: gray;
+}}
+</style>
+<h1>Bad NULLs</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+  <td>
+    <code class="language-sql">SELECT SUM(a) FROM (VALUES (3),(NULL)) as x(a);</code>
+    <pre>
+-----
+   3
+(1 row)
+</pre>
+  </td>
+</tr>
+<tr><td><code class="language-sql">SELECT COUNT(a) FROM (VALUES (3),(NULL)) as x(a);</code>
+    <pre>
+ count 
+-------
+     1
+ (1 row)
+</pre></td></tr>
+<tr><td><code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a = NULL;
+</code>
+    <pre>
+ a 
+---
+(0 rows)      
+</pre></td></tr>
+<tr><td><code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a IS NULL;
+</code>
+    <pre>
+ a 
+---
+  
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) LEFT OUTER JOIN (VALUES (3),(NULL)) as y(a) ON x.a = y.a;
+</code>
+    <pre>
+ a | a 
+---+---
+ 3 | 3
+   |  
+(2 rows)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT SUM(a) FROM (VALUES (NULL::int)) AS x(a);
+    </code>
+    <pre>
+ sum 
+-----
+    
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT SUM(a) FROM (SELECT status FROM s WHERE false) AS x(a);
+    </code>
+    <pre>
+ sum 
+-----
+    
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT AVG(a) FROM (VALUES (3),(NULL)) as x(a);
+    </code>
+    <pre>
+        avg         
+--------------------
+ 3.0000000000000000
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a IN (NULL,3);
+    </code>
+    <pre>
+ a 
+---
+ 3
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a NOT IN (1);
+
+    </code>
+    <pre>
+ a 
+---
+ 3
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT CONCAT('uh oh', NULL);
+    </code>
+    <pre>
+ concat 
+--------
+ uh oh
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT 'uh oh' || NULL as unfortunate;
+    </code>
+    <pre>
+ unfortunate 
+-------------
+ 
+(1 row)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT DISTINCT(a) FROM (VALUES (3),(NULL),(NULL)) as x(a);
+
+    </code>
+    <pre>
+ a 
+---
+ 3
+  
+(2 rows)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT a FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;
+    </code>
+    <pre>
+ a 
+---
+ 3
+  
+(2 rows)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT CASE WHEN a IS NULL THEN 5 ELSE a END FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;
+    </code>
+    <pre>
+ a 
+---
+ 3
+ 5
+(2 rows)
+</pre></td></tr>
+
+<tr><td><code class="language-sql">SELECT CASE WHEN a = NULL THEN 5 ELSE a END FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;
+    </code>
+    <pre>
+ a 
+---
+ 3
+  
+(2 rows)
+</pre></td></tr>
+
+<tr><td><pre><code class="language-sql">CREATE TABLE y(a INTEGER, UNIQUE(a));
+CREATE TABLE
+INSERT INTO y(a) VALUES (NULL),(NULL),(3);
+INSERT 0 3
+table y;
+    </code></pre>
+    <pre>
+ a 
+---
+  
+  
+ 3
+(3 rows)
+</pre></td></tr>
+
+
+</table>
+</body>
+</html>
+
