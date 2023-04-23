@@ -23,7 +23,6 @@ if __name__ == "__main__":
                 template = template_tutd_sql
             else:
                 if 'SQL:' in vals[0]:
-                    print('sql',vals[0])
                     (title,sql,sql_res,english) = vals
                     tutd = ''
                     tutd_res = ''
