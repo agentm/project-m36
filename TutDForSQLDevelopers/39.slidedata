@@ -1,6 +1,6 @@
 Database Constraints
 
-TutorialD (master/main): foreign key s_sp_fk2 sp{s#} in s{s#};
+TutorialD (master/main): foreign key s_sp_fk sp{s#} in s{s#};
 
 
 

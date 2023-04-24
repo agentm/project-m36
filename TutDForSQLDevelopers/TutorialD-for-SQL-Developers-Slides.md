@@ -122,7 +122,7 @@ In addition, the body data of a relation is a set of rows or "tuples" as called 
 -->
 * show multiple runs of TutorialD evaluation returning different ordering of tuples
 ---
-
+1.html
 ```
 TutorialD (master/main): :showexpr relation{tuple{name "Steve", age 30, dept "Sales"}, tuple{name "Bob", age 20, dept "Engineering"}}
 ┌────────────┬─────────────┬──────────┐
@@ -133,6 +133,7 @@ TutorialD (master/main): :showexpr relation{tuple{name "Steve", age 30, dept "Sa
 └────────────┴─────────────┴──────────┘
 ```
 
+
 ---
 
 <!--
@@ -142,7 +143,7 @@ Like SQL, we can store relations as named tables. In a relational algebra engine
 <!--
 To see which relvars we have defined, use "show relvars" (don't forget the preceding colon):
 -->
-
+2.html
 ```
 TutorialD (master/main): :showrelvars
 ┌─────────────────────────────────────────────────┬──────────┐
@@ -163,7 +164,7 @@ In the default database, we have added two relvars named "true" and "false". We'
 -->
 
 ---
-
+3.html
 
 ```
 TutorialD (master/main): :importexample cjdate
@@ -238,7 +239,7 @@ Ok, so backtracking now, we have a bunch of relvars available. Let's take a look
 -->
 
 ---
-
+4/html
 ```
 TutorialD (master/main): :showexpr s
 ┌──────────┬────────┬───────────┬───────────────┐
@@ -266,7 +267,7 @@ Like SQL, each attribute has a type- here we see "Text" and "Integer" types. Rei
 <!--
 Here is some basic filtering with a where clause:
 -->
-
+5.html
 ```
 TutorialD (master/main): :showexpr s where city="London"
 ┌──────────┬────────┬───────────┬───────────────┐
@@ -284,7 +285,7 @@ Ok, that's quite similar to SQL. This is called "restriction" in relational alge
 ---
 
 # Projection
-
+6.html
 <!--
 How about selecting a subset of attributes:
 -->
@@ -303,6 +304,7 @@ English: show me IDs and names of suppliers in London.
 <!--
 That's a bit different syntax from SQL, but makes sense. By the way, constraining attributes in relational algebra is called "projection". We can also filter out some the attributes we don't want.
 -->
+7.html
 ```
 TutorialD (master/main): :showexpr s{all but city}
 ┌────────┬───────────┬───────────────┐
@@ -330,6 +332,7 @@ Next, let's see how we can modify these relvars.
 <!--
 To create a new relvar, we can simply assign it:
 -->
+8.html
 
 ```
 TutorialD (master/main): x:=relation{tuple{name "Steve", age 30, dept "Sales"}, tuple{name "Bob", age 20, dept "Engineering"}}
@@ -346,7 +349,7 @@ English: create a relation with Bob and Steve's employee information and save it
 <!--
 or we can define it and then insert, like SQL.
 -->
-
+9.html
 ```
 TutorialD (master/main): x := relation{name Text, age Integer, dept Text}
 TutorialD (master/main): insert x relation{tuple{name "Steve", age 30, dept "Sales"}, tuple{name "Bob", age 20, dept "Engineering"}}
@@ -405,7 +408,7 @@ Note that tuplesets in the relational algebra are true sets- that means *no dupl
 
 Here's the same table be inserted into itself in TutorialD:
 -->
-
+10.html
 ```
 TutorialD (master/main): x := x union x
 TutorialD (master/main): :showexpr x
@@ -429,7 +432,7 @@ That's right, `x union x` is effectively a no-op- this means that `x` and `x uni
 <!--
 How about deleting tuples?  How would we go about deleting tuples related to 'Bob'?
 -->
-
+11.html
 ```
 TutorialD (master/main): delete x where name = "Bob"
 TutorialD (master/main): :showexpr x
@@ -457,7 +460,7 @@ table x;
 # Updating Tuples
 
 Finally, we can update existing tuples:
-
+12.html
 ```
 TutorialD (master/main): update x where age=30 (age := 31)
 TutorialD (master/main): :showexpr x
@@ -506,7 +509,7 @@ We've hinted at some relational operators, but let's look at some more detailed 
 <!--
 Let's take a look at the all important join:
 -->
-
+13.html
 ```
 TutorialD (master/main): :showexpr s join sp
 ┌──────────┬────────┬────────────┬────────┬───────────┬───────────────┐
@@ -559,7 +562,7 @@ Not so different after all.
 
 <!-- But wait, what if I need to specify a join condition? No problem, we just need to rename the attributes until the natural join applies. In other words, we need to ensure that the join condition is represented by attributes having the same name.
 -->
-
+14.html
 ```
 TutorialD (master/main): :showexpr (p{weight} rename {weight as status}) join s{status}
 ┌───────────────┐
@@ -587,6 +590,7 @@ SELECT status FROM p JOIN s ON status = weight;
 <!--
 Ok, well how about something more complicated... like an OUTER JOIN! In SQL, if we wanted to see a list of parts along with their destinations, we would use an OUTER JOIN so as not to drop parts which have never been shipped. First, let's add a new part "P7":
 -->
+15.html
 ```SQL
 INSERT INTO p("p#",pname,color,weight,city) VALUES ('P7','Widget','Beige',21,'Reykjavik');
 ```
@@ -688,6 +692,7 @@ So far, we've covered joins and the equivalent to OUTER JOIN in SQL- let's look 
 
 UNION glues two tables together, but in SQL, did you know that UNION deduplicates rows? You would have to use UNION ALL to retain all rows from both tables. Witness:
 -->
+16.html
 
 ```SQL
 SELECT * FROM s UNION SELECT * FROM s;
@@ -725,7 +730,7 @@ However, as we know, relations are sets of tuples, so it doesn't actually make s
 
 In SQL, the notion of equality is muddied by the existence of NULL. For example, what would you expect if we UNION'd two tables with a row which includes a NULL? **Does this expression return one row or two?**
 -->
-
+17.html
 ```SQL
 SELECT * FROM (VALUES (1,NULL)) as t(a,b) UNION SELECT * FROM (VALUES (1,NULL)) as t;
 ```
@@ -741,7 +746,7 @@ By the way, the logic in SQL is called "ternary" in reference to the boolean alg
 ---
 
 # More Unions
-
+18.html
 ```
 TutorialD (master/main): :showexpr s union relation{tuple{city "Beijing", s# "S5", sname "Cui", status 15}}
 ┌──────────┬────────┬───────────┬───────────────┐
@@ -763,7 +768,7 @@ English: show me all supplier info stored in relvar "s" along with an additional
 ---
 
 # More Unions 2
-
+19.html
 <!--
 In fact, in relational algebra, any relation unioned to itself is an identity. Any `x union x` is equivalent to `x`, so the Project:M36 expression optimizer is free to replace any `x union x` with just `x`.
 -->
@@ -785,7 +790,7 @@ English: show me the result of gluing together tuples in relvar "s" with the tup
 --- 
 
 # Group
-
+20.html
 <!--
 Next up are a bunch of operators which SQL can never support. Which operators do you think these are? 
 Let's take a look. First up, the `group` operator rolls up tuples using a nested relation. This means that we look for matching tuples on a tuple-by-tuple basis. Let's look at an example.
@@ -836,7 +841,7 @@ but an array is not a relation- arrays have ordering and the relational operator
 
 The simplest query which gets us close enough uses a simple ORDER BY:
 -->
-
+21.html
 ```SQL
 SELECT * FROM s ORDER BY city;
  s# | sname | status |  city  
@@ -851,7 +856,7 @@ SELECT * FROM s ORDER BY city;
 ---
 
 # Ungroup
-
+22.html
 <!--
 As you can imagine, the TutorialD `group` operator utilizing nested relations is great for representing hierarchical data- the top-level provides summary context while the nested relation provides detail.
 
@@ -879,7 +884,7 @@ Note, however, that this going from a nested relation model to an ungrouped vers
 ---
 
 # P7 is Missing
-
+23.html
 ```
 :showexpr ((p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}) ungroup suppliers
 ┌────────┬────────┐
@@ -902,20 +907,28 @@ Note, however, that this going from a nested relation model to an ungrouped vers
 
 English: for all products, give me matching supplier-product (sp) supplier IDs as attribute "suppliers", then give me just the product ID and suppliers info from that. Finally, unroll the nested data into a flat relation.
 
+
 <!--
 
 "P7" is missing! **Why do you think that is?**
 
 Well, if "P7" has no supplier, what would go into the "s#" attribute for it? Well, there is no concept of NULL, so nothing logical can be placed there. Therefore, the nested relation model actually contains more information than the flattened one. Thus, `group` and `ungroup` are not inverses as they cannot round-trip the data. We must conclude that nested relations are fundamental to the relational algebra since they enable us to answer questions about data associations.
+-->
+24.html
+<--
+Note that if flatten a grouped relation, we lose any mention of P7, just like the SQL version above. This demonstrates that group and ungroup are not inverses of each other and that an ungroup can cause data loss.
+-->
+<--
 
 ~~Finally, you may not have noticed, but SQL does not support relational equality.~~
 **Did you notice SQL does not support relational equality?**
 -->
 
+
 ---
 
 # Equality
-
+25.html
 <!--
 It seems perfectly natural to want to know if the results of two expressions are equal and it is in TutorialD!
 
@@ -930,11 +943,12 @@ TutorialD (master/main): :showexpr s = s
 ```
 English: tell me if relvar "s" has the same data as relvar "s".
 
+26.html
 <!--
 Hm. I expected to see some sort of "true" value, but what is this result? Let's compare to a false result:
 -->
 ```
-TutorialD (master/main): :showexpr s = s where false
+TutorialD (master/main): :showexpr s = sp
 ┌┐
 ││
 └┘
@@ -952,6 +966,7 @@ So, true is two boxes and false is one box? Why? As it turns out, the relational
 
 In order to help you distinguish them, these tables are the result of the query: "does relvar X have any tuples?"
 -->
+27.html
 ```
 TutorialD (master/main): :showexpr s{}
 ┌┐
@@ -960,7 +975,7 @@ TutorialD (master/main): :showexpr s{}
 └┘
 ```
 English: show me the result of relvar "s" if it had no attributes at all. Alternatively, tell me if relvar "s" has any tuples in its body.
-
+28.html
 ```
 TutorialD (master/main): :showexpr (s where false){}
 ┌┐
@@ -975,7 +990,7 @@ Recall that a relvar name followed by braces refers to a projection. In this cas
 ---
 
 # Equality 2
-
+29.html
 <!--
 Now that we have defined some boolean primitives within the algebra, we can use them in relational equality.
 
@@ -1004,7 +1019,7 @@ Ah, it's because supplier "S5" has never shipped a part. As you can guess, relat
 
 <!--
 If you've been paying attention, you might realize that I haven't shown a means of collapsing multiple tuples into one using an aggregation. Aggregations are relatively easy-to-use in SQL:
-
+30.html
 -->
 ```SQL
 SELECT city,COUNT(*) FROM s GROUP BY city;
@@ -1034,7 +1049,7 @@ TutorialD (master/main): :showexpr s{city}
 │"Paris"   │
 └──────────┘
 ```
-
+31.html
 <!--
 Hm, but we do have a tool to break a table into groups- the `group` operator!
 -->
@@ -1070,7 +1085,7 @@ TutorialD (master/main): :showexpr s group ({all but city} as subrel)
 ---
 
 # Aggregate Functions 2
-
+32.html
 <!--
 So, if we had a function which could count the number of tuples in a nested relation, we could count the number of matches. And that is what we can do!
 -->
@@ -1105,7 +1120,7 @@ English (for above): show me complete supplier information grouped by city also 
 <!--
 And, here, we see again something that SQL cannot offer. Not only do we have the per-city aggregate counts, but the detailed supplier data. So we can summarize the data and request the source data in one query. Typically, this same thing would be achieved in two or more SQL queries. Oh, you don't need the original data? No problem, project it away:
 -->
-
+33.html
 *Show me how many suppliers I have in each city.*
 ```
 TutorialD (master/main): :showexpr (s group ({all but city} as subrel) : {citycount := count(@subrel)}) {all but subrel}
@@ -1120,7 +1135,7 @@ TutorialD (master/main): :showexpr (s group ({all but city} as subrel) : {cityco
 ---
 
 # Aggregate Functions 3
-
+34.html
 <!--
 What about if we want to see each city along with its maximum supplier status?:
 -->
@@ -1151,7 +1166,7 @@ As I hinted earlier, relational equality helps us to implement database constrai
 ```
 Constraint: r1 ⊆ r2
 ```
-
+35.html
 <!--
 This is true in SQL, too, except that SQL does not allow one to define the inclusion dependency directly:
 -->
@@ -1161,6 +1176,7 @@ ALTER TABLE sp ADD CONSTRAINT fk_s FOREIGN KEY ("s#") REFERENCES s ("s#");
 <!--
 Here, we define a foreign key constraint. Logically, this means that the set of `s#` values in `sp` must be a subset of the set of `s#` values in `s`.
 -->
+36.html
 *Show me all supplier IDs.*
 ```SQL
 SELECT "s#" FROM s;
@@ -1173,6 +1189,7 @@ SELECT "s#" FROM s;
  S4
 (5 rows)
 ```
+37.html
 *Show me all unique supplier IDs.*
 ```SQL
 SELECT DISTINCT "s#" FROM sp;
@@ -1192,12 +1209,14 @@ sp{s#} ⊆ s{s#}
 By making this a constraint, we are asking the database to ensure that this property holds true at all times. The database must reject attempts to violate this constraint. For example, inserting unknown supplier "S9" into `sp` must fail:
 -->
 *Insert a row into suppliers-parts which includes a supplier not mentioned in the supplier table.*
+38.html
 ```SQL
 INSERT INTO sp("s#","p#",qty) VALUES ('S9','P4',5000);
 ERROR:  insert or update on table "sp" violates foreign key constraint "sp_s#_fkey"
 DETAIL:  Key (s#)=(S9) is not present in table "s".
 ```
-
+39.html
+<!-- Here, we use TutorialD to instruct the database to enforce a foreign key constraint between relvars "s" and "sp".
 ---
 
 # Database Constraints 2
@@ -1206,7 +1225,8 @@ DETAIL:  Key (s#)=(S9) is not present in table "s".
 The SQL standard includes a CREATE ASSERTION expression which could be used to enforce database-wide constraints, but most DBMSes don't support or enforce it. Enforcement of constraints is, however, always database-wide, so it makes sense that TutorialD supports inclusion dependencies directly.
 -->
 
-*Create a foreign key on suppliers-parts which ensures that the supplier ID used is mentioned in the supplier relvar.
+*Create a foreign key on suppliers-parts which ensures that the supplier ID used is mentioned in the supplier relvar.*
+40.html
 ```
 TutorialD (master/main): foreign key s_sp_fk2 sp{s#} in s{s#};
 ```
@@ -1214,6 +1234,7 @@ TutorialD (master/main): foreign key s_sp_fk2 sp{s#} in s{s#};
 Since we already have a foreign key on `s#` in `sp`, here we create a second one. No problem. This is a database wide constraint which happens to apply to one relvar, but we can make constraints across any number of relvars, not limiting us to foreign key constraints.
 -->
 
+41.html
 *Show all constraints.*
 ```
 TutorialD (master/main): :constraints
@@ -1240,6 +1261,7 @@ Take a look at `s_sp_fk2` which we just created. The `sub` attribute indicates t
 But what about those uniqueness (key) constraints? 
 -->
 *Wrap suppliers in a nested relation to count the number of suppliers.*
+42.html
 ```
 TutorialD (master/main): :showexpr true:{a:=s, b:=count(@a)}
 ┌─────────────────────────────────────────────────────────────┬──────────┐
@@ -1261,7 +1283,7 @@ What happening there is that the database counts the number of unique rows and m
 
 Using this scheme, we can create attribute checkers normally used in SQL on a per-column basis:
 --->
-
+43.html
 *Create a new table y with an attribute a which must be greater than five.*
 ```SQL
 CREATE TABLE y (a INTEGER CHECK (a > 5));
@@ -1269,7 +1291,7 @@ CREATE TABLE y (a INTEGER CHECK (a > 5));
 <!--
 But, in the database constraint model, all constraints operate at the same level: database-wide instead of on a per-table basis. 
 -->
-
+44.html
 *Create a constraint to ensure that the status of a supplier must be less than 50.*
 ```
 TutorialD (master/main): constraint s_status_less_than_50 (s where gte(@status,50)){} in false
@@ -1289,6 +1311,7 @@ Try it out! I'm sure there are many more interesting kinds of constraints you ca
 Thus far, we have been focused on relations and the relational algebra- and for good reason! TutorialD captures the mathematics of relational algebra. Recall that a relation is a set of attributes mapped to a set of tuples with those attributes. But it doesn't make sense for a set to have an ordering- any ordering is completely arbitrary. In SQL, the concept of ordering is baked into SELECT statements:
 -->
 *Show me the tuple 1,2 followed by the tuple 2,NULL.*
+45.html
 ```SQL
 SELECT * FROM (VALUES (1,2),(2,NULL)) as x;
  column1 | column2 
@@ -1296,14 +1319,14 @@ SELECT * FROM (VALUES (1,2),(2,NULL)) as x;
        1 |       2
        2 |        
 (2 rows)
-
+46.html
 SELECT * FROM (VALUES (1,2),(2,NULL)) as x(a,b) ORDER BY a DESC;
  a | b 
 ---+---
  2 |  
  1 | 2
 (2 rows)
-
+47.html
 SELECT * FROM (VALUES (1,2),(2,NULL)) as x(a,b) ORDER BY b NULLS FIRST;
  a | b 
 ---+---
@@ -1324,6 +1347,7 @@ Ordered results from a query are valuable, so how can we get such results out of
 # Dataframes 2
 
 *Show me suppliers ordered by status.*
+48.html
 ```
 TutorialD (master/main): :showdataframe s orderby {status}
 ┌──┬───────────┬─────────┬────────────┬────────────────┐
@@ -1340,6 +1364,7 @@ TutorialD (master/main): :showdataframe s orderby {status}
 Note the differences in representation. First, our tuples are numbered, then each attribute includes an additional arrow indicating what sort ordering is on each- the `status` attribute has an "up" arrow only which means we sorted specifically in that direction for it.
 -->
 
+49.html
 *Show me supplier status in descending order but skip the first and one and show me only the next three.*
 ```
 TutorialD (master/main): :showdataframe s{status} orderby {status descending} offset 1 limit 3
@@ -1363,7 +1388,7 @@ Note that the dataframe is a terminal representation- that means that we cannot 
 <!--
 TutorialD covers the relational algebra, but we can extend it to support other database concepts. Let's compare how Project:M36 and SQL support transactions.
 -->
-
+50.html
 ```SQL
 BEGIN;
 COMMIT;
@@ -1379,6 +1404,7 @@ So far, the interfaces look the same, but how they operate is quite different. P
 -->
 
 *Branch the database off the current branch to commit transactions without affecting the original branch.*
+51.html
 ```
 TutorialD (master/main): :branch debug_334
 TutorialD (debug_334/main):
@@ -1387,6 +1413,7 @@ TutorialD (debug_334/main):
 Aha, notice the changed prompt. We have created a new branch and switched to it. Now, if we add commits to the this branch, they won't be seen on the `master` branch. Once our feature branch is complete, we merge our changes back to `master`. We can switch back to the `master` branch with no issue.
 -->
 *Change the current session state to the head of the master branch.*
+52.html
 ```
 TutorialD (debug_334/main): :jumphead master
 TutorialD (master/main): 
@@ -1394,7 +1421,7 @@ TutorialD (master/main):
 <!--
 SQL's transaction model supports only the notion of a single, progressing database state over which all clients are contending to push their updates. In addition, SQL supports the notion of transaction isolation levels whereby the user can choose what sort of changes he might want to see from other transactions in the course of his own transaction progressing.
 -->
-
+53.html
 ```
 begin;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
@@ -1410,7 +1437,7 @@ Project:M36 only supports maximum transaction isolation as is required by any ma
 <!--
 I promised that I would address the issue of a database engine lacking NULLs entirely. Many database developers swear by the value of NULLs, but do they truly understand all the corner cases? Here's a quick quiz:
 -->
-
+54.html
 * show 5 second countdown on each NULL quiz- show answer after x seconds
 ```
 SELECT SUM(a) FROM (VALUES (3),(NULL)) as x(a);
@@ -1536,6 +1563,7 @@ How many of these did you get right? If you got any wrong, you might have left a
 
 # NULLs 2
 
+57.html (reordering hiccup)
 <!--
 So how can we represent missing or otherwise unrepresentable data? With data! Just like in non-SQL programming languages which don't include ternary logic, we can encode optional attributes using simple data types.
 -->
@@ -1555,7 +1583,7 @@ If you are familiar with Haskell, then this should look very familiar. However, 
 ---
 
 # NULLs 3
-
+55.html
 ```
 TutorialD (master/main): data Age = Age Integer | DeclinedToAnswer | Dead
 TutorialD (master/main): e:=relation{tuple{name "Steve", age Age 25},tuple{name "Bob", age DeclinedToAnswer}, tuple{name "Ghostman", age Dead}}
@@ -1568,7 +1596,7 @@ TutorialD (master/main): :showexpr e
 │Dead            │"Ghostman"│
 └────────────────┴──────────┘
 ```
-
+56.html
 *Show me all employees except those who are dead.*
 ```
 TutorialD (master/main): :showexpr e minus e where age = Dead

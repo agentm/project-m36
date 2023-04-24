@@ -1,4 +1,4 @@
-SQL Outer Join Are Actually Groups
+SQL Outer Joins Are Actually Groups
 
 TutorialD (master/main): insert p relation{tuple{p# "P7", pname "Widget", color "Beige", weight 21, city "Reykjavik"}}
 TutorialD (master/main): :showexpr (p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}
