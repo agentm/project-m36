@@ -7,7 +7,7 @@ import Test.HUnit
 import System.Exit
 --import Control.Concurrent.STM
 import Data.UUID.V4
-import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Stream.Prelude as S
 import qualified Data.Vector as V
 import System.IO.Temp
 import System.IO

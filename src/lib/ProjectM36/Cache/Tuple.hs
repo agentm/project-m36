@@ -17,8 +17,9 @@ import System.IO
 import GHC.Generics
 import Control.Monad (when, foldM)
 import Control.Exception
-import qualified Streamly.Prelude as S
-import Control.Monad.IO.Class (liftIO)
+import qualified Streamly.Data.Stream.Prelude as SP
+import qualified Streamly.Internal.Data.Stream.StreamD as SD
+import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.Bifunctor
 import Data.Proxy
 
@@ -130,8 +131,8 @@ writeTupleStream h expr groupSize tuples = do
   BS.hPutStr h (bytestring64 (fromIntegral (BS.length tInfoData)))
   pure ()
 
-readTupleStream :: Handle -> S.Serial RelationTuple
-readTupleStream h = do
+readTupleStream :: MonadIO m => Handle -> SP.Stream m RelationTuple
+readTupleStream h = SD.unCross $ do
   --skip filemagic
   --jump to end to read tuple cache info
   --deserialise blocks from metadata
@@ -157,8 +158,8 @@ readTupleStream h = do
           Left err -> throw err
           Right tuples' -> do
 --            print ("readTupleBlock", tuples')
-            pure $ S.fromList tuples'
-  S.concatMapM readTupleBlock (S.fromList (V.toList (blockSizes tupleCacheInfo)))
+            pure $ SP.fromList tuples'
+  SD.mkCross $ SP.concatMapM readTupleBlock (SP.fromList (V.toList (blockSizes tupleCacheInfo)))
   
 deserialiseOnly :: forall s. Serialise s => BS.ByteString -> Either WineryException s
 deserialiseOnly bytes = do

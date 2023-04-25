@@ -11,6 +11,7 @@ import Control.DeepSeq
 import ProjectM36.Tupleable
 import Data.Time.Calendar
 import Data.Proxy
+import Data.Maybe
 
 data WeatherReading =
   WeatherReading
@@ -77,9 +78,7 @@ main = do
     val <- eCheck $ executeRelationalExpr sessionId conn readOneRow
     print val
     -}
-    let tutd = case execTutorialD opts of
-          Just t -> t
-          Nothing -> "x where temperature = 5"
+    let tutd = fromMaybe "x where temperature = 5" (execTutorialD opts)
     case parseRelationalExpr tutd of
       Left err -> error (show err)
       Right parsed -> do

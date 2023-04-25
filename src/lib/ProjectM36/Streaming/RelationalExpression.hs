@@ -7,9 +7,14 @@ import ProjectM36.Attribute as A
 import ProjectM36.Tuple
 import ProjectM36.Relation hiding (relationTrue, relationFalse)
 import ProjectM36.WithNameExpr
+import Streamly.Data.Stream (Stream)
+import qualified Streamly.Data.Stream as Stream
+import qualified Streamly.Data.Stream.Prelude as Stream
+import Streamly.Internal.Control.Concurrent (MonadAsync)
+import qualified Streamly.Internal.Data.Stream.StreamD as SD
+import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
 
 import qualified Data.Map as M
-import qualified Streamly.Prelude as Stream
 import Control.Monad.IO.Class
 import qualified Data.Vector as V
 import Control.Exception
@@ -146,18 +151,18 @@ planGraphRefRelationalExpr (With macros expr) gfEnv =
 
 data StreamRelation m = StreamRelation {
   sRelAttributes :: Attributes,
-  sRelTupStream :: Stream.AsyncT m RelationTuple
+  sRelTupStream :: Stream m RelationTuple
   }
 
 -- | Process a tuple stream into a Relation. This function presumes all validation has already been completed and will not remove duplicate tuples or tuples which do not match the attributes.
-streamRelationAsRelation :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m -> m Relation
+streamRelationAsRelation :: MonadIO m => StreamRelation m -> m Relation
 streamRelationAsRelation (StreamRelation attrs tupS) = do
-  tupSet <- Stream.toList $ Stream.fromAsync tupS
+  tupSet <- Stream.toList tupS
   pure (Relation attrs (RelationTupleSet tupSet))
 
 
 -- a local variant of parallel stream map which includes deepseq
-streamRelationMap :: (MonadIO m, Stream.MonadAsync m) =>
+streamRelationMap :: MonadIO m =>
           Attributes ->
           (RelationTuple -> m RelationTuple) -> StreamRelation m -> StreamRelation m
 streamRelationMap newAttrs fun (StreamRelation _ tupSIn) =
@@ -171,7 +176,7 @@ streamRelationMap newAttrs fun (StreamRelation _ tupSIn) =
   
 --until we can stream results to disk or socket, we return a lazy-list-based Relation
 -- | Build a tuple stream from an execution plan to enable parallel execution.
-executePlan :: (MonadIO m, Stream.MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> Either RelationalError (StreamRelation m)
+executePlan :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> Either RelationalError (StreamRelation m)
 executePlan (ReadTuplesFromMemoryPlan attrs tupSet) _ =
   pure $ StreamRelation attrs (Stream.fromList (asList tupSet))
 executePlan (StreamTuplesFromCacheFilePlan{}) _ =
@@ -193,7 +198,7 @@ executePlan (RestrictTupleStreamPlan restrictionFilter expr) ctx = do
   pure $ StreamRelation attrs tupS'
 executePlan (ProjectTupleStreamPlan attrs expr) ctx = do
   (StreamRelation _ tupS) <- executePlan expr ctx
-  let tupS' = Stream.map projector tupS
+  let tupS' = fmap projector tupS
       --optimize by projecting on vector indexes instead
       projector t = case tupleProject attrs t of
                       Left err -> throw err
@@ -204,29 +209,29 @@ executePlan (UnionTupleStreamsPlan exprA exprB) ctx = do
   -- glue two streams together, then uniqueify
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
-  let tupS' = tupSa `Stream.wAsync` tupSb
+  let tupS' = Stream.parList id [tupSa, tupSb]
   pure (StreamRelation attrsA tupS')
 executePlan (EqualTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation _ tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
   let hsA = tuplesHashSet tupSa
-      hscmp = tuplesHashSet (tupSa <> tupSb)
-      tupS' = do
+      hscmp = tuplesHashSet (Stream.parList id [tupSa, tupSb])
+      tupS' = SD.unCross $ do
         tA <- liftIO hsA
         tcmp <- liftIO hscmp
-        Stream.fromList $ 
+        SD.mkCross $ Stream.fromList $ 
           [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
   pure (StreamRelation mempty tupS')
 
 executePlan (NotEqualTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation _ tupS) <- executePlan (EqualTupleStreamsPlan exprA exprB) ctx
-  let tupS' = do
-        el <- liftIO $ Stream.head (Stream.fromAsync tupS)
-        Stream.fromList $ case el of
+  let tupS' = SD.unCross $ do
+        el <- liftIO $ SD.head tupS
+        SD.mkCross $ Stream.fromList $ case el of
                             Nothing -> [RelationTuple mempty mempty]
                             Just _ -> []
   pure (StreamRelation mempty tupS')
-executePlan (MakeStaticRelationPlan attrs tupSet) _ = do
+executePlan (MakeStaticRelationPlan attrs tupSet) _ =
   pure (StreamRelation attrs (Stream.fromList (asList tupSet)))
 executePlan (ExistingRelationPlan rel) _ = do
   pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
@@ -242,8 +247,8 @@ executePlan (NaiveJoinTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation attrsB tupSb) <- executePlan exprB ctx
   attrsOut <- joinAttributes attrsA attrsB
-  let tupS' = do
-        bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
+  let tupS' = SD.unCross $ do
+        bTupleList <- liftIO $ Stream.toList tupSb        
         let tupleJoiner :: RelationTuple -> [RelationTuple]
             tupleJoiner tupleFromA =
               concatMap (\tupleFromB ->
@@ -252,14 +257,14 @@ executePlan (NaiveJoinTupleStreamsPlan exprA exprB) ctx = do
                              Right Nothing -> []
                              Right (Just joinedTuple) -> [joinedTuple]
                         ) bTupleList
-        Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
+        SD.mkCross $ Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
   pure (StreamRelation attrsOut tupS')
 executePlan (DifferenceTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
-  let tupS' = do
-        bTupleList <- liftIO $ Stream.toList $ Stream.fromAsync tupSb        
-        Stream.filter (`notElem` bTupleList) tupSa
+  let tupS' = SD.unCross $ do
+        bTupleList <- liftIO $ Stream.toList tupSb        
+        SD.mkCross $ Stream.filter (`notElem` bTupleList) tupSa
   pure (StreamRelation attrsA tupS')
 executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr) ctx = do
   --naive implementation scans for image relation for each grouped value
@@ -272,8 +277,8 @@ executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr) ctx = do
   let outAttrs = addAttribute newAttr nonGroupProjectionAttributes
       matchAttrs = V.fromList $ S.toList $ attributeNameSet nonGroupProjectionAttributes
       newAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
-      tupS' = do
-        origTupList <- liftIO $ Stream.toList $ Stream.fromAsync tupS
+      tupS' = SD.unCross $ do
+        origTupList <- liftIO $ Stream.toList tupS
         -- find matching tuples from list
         let singleTupleGroupMatcher tup =
               let matchingTuples =
@@ -285,7 +290,7 @@ executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr) ctx = do
                   groupedRel = Relation groupProjectionAttributes newtups
               in
               tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
-        Stream.map singleTupleGroupMatcher nonGroupProjectionTupS
+        SD.mkCross $ fmap singleTupleGroupMatcher nonGroupProjectionTupS
   pure (StreamRelation outAttrs tupS')
 executePlan (UngroupTupleStreamPlan groupAttrName expr) ctx = do
   (StreamRelation attrsIn tupS) <- executePlan expr ctx
@@ -305,9 +310,9 @@ executePlan (UngroupTupleStreamPlan groupAttrName expr) ctx = do
   pure (StreamRelation outAttrs (Stream.concatMap ungroup' tupS))
 executePlan (UniqueifyTupleStreamPlan e) ctx = do
   (StreamRelation attrs tupS) <- executePlan e ctx
-  let tupS' = do
+  let tupS' = SD.unCross $ do
         uniqTups <- liftIO $ tuplesHashSet tupS
-        Stream.fromFoldable uniqTups
+        SD.mkCross $ StreamK.toStream (StreamK.fromFoldable uniqTups)
   pure (StreamRelation attrs tupS')
   
 
@@ -317,15 +322,16 @@ relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty memp
 relationFalse :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationFalse = StreamRelation mempty (Stream.fromList [])
 
-tuplesHashSet :: MonadIO m => Stream.AsyncT m RelationTuple -> m (HS.HashSet RelationTuple)
-tuplesHashSet s =
-  Stream.foldr HS.insert mempty (Stream.fromAsync s)  
+tuplesHashSet :: MonadIO m => Stream m RelationTuple -> m (HS.HashSet RelationTuple)
+tuplesHashSet =
+  Stream.foldr HS.insert mempty
 
 test1 :: IO ()
 test1 = do
   let attrs1 = attributesFromList [Attribute "x" IntegerAtomType]
       gfPlan = ReadTuplesFromMemoryPlan attrs1 (RelationTupleSet [RelationTuple attrs1 (V.singleton (IntegerAtom 1))])
-  let Right (StreamRelation attrsOut tupStream) = executePlan gfPlan (singletonContextTuple emptyTuple)
-      
-  _ <- Stream.toList $ Stream.mapM print $ Stream.fromAsync tupStream
+  let (StreamRelation attrsOut tupStream) = case executePlan gfPlan (singletonContextTuple emptyTuple) of
+        Left err -> throw err
+        Right res -> res
+  _ <- Stream.toList $ Stream.mapM print tupStream
   print attrsOut

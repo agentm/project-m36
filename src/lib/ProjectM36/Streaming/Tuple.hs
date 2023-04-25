@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 module ProjectM36.Streaming.Tuple where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -11,22 +11,22 @@ import Streamly.Data.Stream.Prelude (MonadAsync)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Stream.Prelude as SP
+import qualified Streamly.Internal.Data.Stream.StreamD as SD
 import ProjectM36.Tuple
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 import qualified Data.HashMap.Lazy as HM
 import Control.Monad.Trans.Class
-import Control.Monad.IO.Class
 
 type RestrictionFilter = RelationTuple -> Either RelationalError Bool
 
 restrict :: MonadAsync m => RestrictionFilter -> Stream m RelationTuple -> Stream m RelationTuple
-restrict func s = S.filterM filt s
+restrict func = S.filterM filt
   where
     filt tupIn =
       case func tupIn of
         Left err -> throwM err
-        Right filt -> pure filt
+        Right filt' -> pure filt'
   
 cardinality :: MonadAsync m => Stream m RelationTuple -> m RelationCardinality
 cardinality s = Finite <$> S.fold FL.length s
@@ -45,14 +45,14 @@ union :: MonadAsync m => Stream m RelationTuple -> Stream m RelationTuple -> Str
 union s1 s2 = unionMulti [s1,s2]
 
 unionMulti :: MonadAsync m => [Stream m RelationTuple] -> Stream m RelationTuple
-unionMulti sl = SP.parList id sl
+unionMulti = SP.parList id
 
 --nested loop join requires traversing one of the stream n times
 --call S.toList on first tuple stream
 --for error handling, use MonadThrow?
 join :: forall m.(MonadAsync m, MonadThrow m, Applicative m) => Attributes -> [RelationTuple] -> Stream m RelationTuple -> Stream m RelationTuple
-join joinCondition tup1List tupS2 =
-  SP.parConcatMap id naiveJoiner tupS2
+join joinCondition tup1List =
+  SP.parConcatMap id naiveJoiner
   where
     -- O(n^2) scanning join function
     naiveJoiner :: RelationTuple -> Stream m RelationTuple
@@ -66,15 +66,37 @@ difference filterTuples = S.filter filt
   where
     filt tup = tup `notElem` filterTuples
 
+{-
 group :: MonadAsync m => Attributes -> AttributeName -> Attributes -> Stream m RelationTuple -> Stream m RelationTuple
 group groupAttrs newAttrName attrs tupSIn =
   let nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (Set.fromList (V.toList (A.attributeNames attrs)))
       groupAttrNames = A.attributeNameSet groupAttrs
-      nonGroupAttrs = A.attributesForNames nonGroupAttrNames attrs      
+      nonGroupAttrs = A.attributesForNames nonGroupAttrNames attrs
+      handleError val = case val of 
+        Left err -> throwM err
+        Right val' -> pure val'
   in
-  case A.projectionAttributesForNames nonGroupAttrNames attrs of
-    Left err -> throw err
-    Right nonGroupProjectionAttributes ->
+    unCrossStream $ do
+      nonGroupProjectionAttributes <- handleError $ A.projectionAttributesForNames nonGroupAttrNames attrs
+      groupProjectionAttributes <- handleError $ A.projectionAttributesForNames groupAttrNames attrs
+      let newAttrs = A.addAttribute groupAttr nonGroupProjectionAttributes
+          groupAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
+          tupleGenerator nongrouped groups' accum = do
+            subRel <- Rel.mkRelationFromTuples newAttrs groups'
+            let subTup = RelationTuple (A.singleton groupAttr) (V.singleton (RelationAtom subRel))
+            let newTup = tupleExtend nongrouped subTup
+--        (:) <$> pure newTup <*> accum
+        (newTup:) <$> accum
+      
+  groupedMap <- lift $ S.foldr groupFolder HM.empty tupsIn
+  case HM.foldrWithKey tupleGenerator (Right []) groupedMap of
+    Left err -> throwM err
+    Right tuples -> SP.fromList tuples
+
+    
+    case A.projectionAttributesForNames nonGroupAttrNames attrs of
+      Left err -> throwM err
+      Right nonGroupProjectionAttributes ->
       case A.projectionAttributesForNames groupAttrNames attrs of
         Left err -> throw err
         Right groupProjectionAttributes ->
@@ -83,11 +105,11 @@ group groupAttrs newAttrName attrs tupSIn =
                 
           in
             SP.parConcatMap id groupFolder tupSIn
-
+-}
   
 --perhaps the relation atom should also contain a stream of tuples
 group' :: MonadAsync m => Attributes -> AttributeName -> Attributes -> Stream m RelationTuple -> Stream m RelationTuple
-group' groupAttrs newAttrName attrs tupsIn = do
+group' groupAttrs newAttrName attrs tupsIn = SD.unCross $ do
   let groupAttrNames = A.attributeNameSet groupAttrs
       nonGroupAttrNames = A.nonMatchingAttributeNameSet groupAttrNames (Set.fromList (V.toList (A.attributeNames attrs)))
       nonGroupAttrs = A.attributesForNames nonGroupAttrNames attrs
@@ -117,7 +139,7 @@ group' groupAttrs newAttrName attrs tupsIn = do
   groupedMap <- lift $ S.foldr groupFolder HM.empty tupsIn
   case HM.foldrWithKey tupleGenerator (Right []) groupedMap of
     Left err -> throwM err
-    Right tuples -> SP.fromList tuples
+    Right tuples -> SD.mkCross (SP.fromList tuples)
         
 attributesForRelval :: AttributeName -> Attributes -> Either RelationalError Attributes
 attributesForRelval relvalAttrName attrs = do
@@ -138,7 +160,7 @@ ungroup ungroupName attrs tupStream = do
 tupleUngroup :: MonadAsync m => AttributeName -> Attributes -> RelationTuple -> Stream m RelationTuple
 tupleUngroup relvalAttrName newAttrs tuple = 
   case relationForAttributeName relvalAttrName tuple of
-    Left err -> throwM err
+    Left err -> throw err
     Right relvalRelation -> 
       S.mapM mapper (tupleStream relvalRelation)
  where
