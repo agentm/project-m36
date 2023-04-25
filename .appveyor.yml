@@ -19,14 +19,14 @@ environment:
     STACK_ROOT: "c:\\sr"
   matrix:
 # don't forget to also change the cache directory below  
-    - YAML: "stack.ghc9.0.yaml" 
+    - YAML: "stack.ghc9.2.yaml" 
 
 platform:
  - x64
 
 cache:
  - "c:\\sr"
- - "%LocalAppData%\\Programs\\stack\\x86_64-windows\\ghc-9.0.2"
+ - "%LocalAppData%\\Programs\\stack\\x86_64-windows\\ghc-9.2.7"
 # - ".stack-work" # send us over the 1 GB limit
 
 test_script:
