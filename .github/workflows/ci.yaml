@@ -35,12 +35,10 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         ghc:
-          - ghc8.10
-          - ghc9.0
           - ghc9.2
         include:
           - os: macos-latest
-            ghc: ghc8.10
+            ghc: ghc9.2
     env:
       STACK_YAML: stack.${{ matrix.ghc }}.yaml
     steps:
