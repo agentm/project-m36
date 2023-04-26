@@ -20,8 +20,7 @@ import qualified Data.Vector as V
 import qualified Data.List as L
 import Data.Text (Text)
 import Data.Time.Clock
-import Data.Time.Clock.Compat ()
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day(..))
 import Data.Typeable
 import Data.ByteString (ByteString)
 import qualified Data.List.NonEmpty as NE
@@ -43,6 +42,17 @@ instance Hashable (M.Map AttributeName AtomExpr) where
 instance Hashable (S.Set AttributeName) where
   hashWithSalt salt s = salt `hashWithSalt` S.toList s
 #endif
+
+--equivalent to orphan instances from time-compat
+instance Hashable Day where
+  hashWithSalt salt (ModifiedJulianDay d) = hashWithSalt salt d
+
+instance Hashable UTCTime where
+  hashWithSalt salt (UTCTime d dt) =
+    salt `hashWithSalt` d `hashWithSalt` dt
+
+instance Hashable DiffTime where
+  hashWithSalt salt = hashWithSalt salt . toRational
 
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom !Integer |
