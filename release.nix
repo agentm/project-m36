@@ -1,4 +1,4 @@
-{ compiler ? "ghc902"
+{ compiler ? "ghc927"
 , sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 }:
@@ -26,7 +26,22 @@ let
       streamly-core = self.callHackageDirect {
       		   pkg = "streamly-core";
 		   ver = "0.1.0";
-		   sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};		   
+		   sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};
+		   
+      streamly-bytestring = self.callHackageDirect {
+      		   pkg = "streamly-bytestring";
+		   ver = "0.2.0";
+		   sha256 = "sha256-9mZiEVPtB0fU65nTcx2CX/3GoXbpZs5BXOgZyT+R2AY="; } {};
+
+      lockfree-queue = self.callHackageDirect {
+      		   pkg = "lockfree-queue";
+		   ver = "0.2.4";
+		   sha256 = "sha256-h1s/tiBq5Gzl8FtenQacmxJp7zPJPnmZXtKDPvxTSa4="; } {};
+
+#      OneTuple = self.callHackageDirect {
+#       	          pkg = "OneTuple";
+#		  ver = "0.4.1.1";
+#		  sha256 = "sha256-HrRBbxuYuLprv2E+KjXSXDabcS3yi4yigwqA2qrESpM="; } {};
 
       unicode-data = self.callHackageDirect {
                       pkg = "unicode-data";
@@ -39,18 +54,18 @@ let
 		 ver = "1.4";
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
-      #newer time-compat include hashable instances
-      time-compat = self.callHackageDirect {
-                     pkg = "time-compat";
-		     ver = "1.9.6.1";
-                     sha256 = "sha256-2pXGgM5n2hKh2gvKhGJMKzAwWMEn6KUUz8i5n3pHakY=";
-		     } {};
 
       hashable = self.callHackageDirect {
                     pkg = "hashable";
-		    ver = "1.3.4.1";
-		    sha256 = "sha256-daGo7TldDW6kd9+gc1qhQRcruoPlzbTtVimULJGHwo0=";
+		    ver = "1.4.2.0";
+		    sha256 = "sha256-OVHUu/JroAHC3fG/UAZbWNCcV/zq09EBkaHC9ago0tQ=";
 		    } {};
+
+      linux-xattr = self.callHackageDirect {
+      		      pkg = "linux-xattr";
+		      ver = "0.2.4";
+		      sha256 = "sha256-daGo7TldDW6kd9+gc1qhQRcruoPlzbTtVimULJGHwo3=";
+                    } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };
