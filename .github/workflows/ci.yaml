@@ -39,6 +39,7 @@ jobs:
         include:
           - os: macos-latest
             ghc: ghc9.2
+          - os: windows-latest
     env:
       STACK_YAML: stack.${{ matrix.ghc }}.yaml
     steps:
