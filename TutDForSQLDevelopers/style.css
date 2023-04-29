@@ -1,0 +1,33 @@
+.hljs {
+border-radius: 20px;
+}
+h4,h1{
+text-align:center;
+}
+th {
+  font-size: 170%;
+}
+h1 {
+font-size:170%;
+}
+td {
+font-size: 170%;
+vertical-align: top;
+border-collapse: collapse;
+border-width: 1px;
+border-style: solid;
+padding: 15px;
+border-radius: 10px;
+border-color: gray;
+}
+pre {
+white-space: pre-wrap;
+}
+table {
+  border-spacing: 30px 0;
+  border-collapse: separate;
+  margin: auto;
+}
+h4{
+font-size:170%;
+}

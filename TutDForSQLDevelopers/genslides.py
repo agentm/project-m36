@@ -1,4 +1,6 @@
 from glob import glob
+#import imgkit
+#from html2image import Html2Image
 
 def process_template(template, template_variables, result_h):
     template.format(template_variables)
@@ -43,5 +45,12 @@ if __name__ == "__main__":
                          'english':english}
         #process the template with data
         htmlout = template.format(**template_data)
-        with open('{0}.html'.format(slidefile.split('.')[0]), 'w') as proch:
+        htmldest = '{0}.html'.format(slidefile.split('.')[0])
+        with open(htmldest, 'w') as proch:
             proch.write(htmlout)
+        #convert to png
+        imgout = '{0}.png'.format(slidefile.split('.')[0])
+        #img = Html2Image(size=(1092,1080))
+        #img.screenshot(html_file=htmldest,save_as=imgout)
+        #imgkit.from_file(htmldest, imgout)
+        print('Finished {0}'.format(imgout))
