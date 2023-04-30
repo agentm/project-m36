@@ -27,6 +27,7 @@ main = do
 testTutdFileImport :: Test
 testTutdFileImport = TestCase $
   withSystemTempFile "m.tutd" $ \tempPath handle -> do
+    print ("orig", tempPath)
     BS.hPut handle (TE.encodeUtf8 "x:=relation{tuple{a 5,b \"spam\"}}; y:=relation{tuple{b \"漢字\"}}")
     hClose handle
     let expectedExpr = MultipleExpr [
@@ -38,6 +39,7 @@ testTutdFileImport = TestCase $
     --on Windows, the file URI should not include the drive letter "/c/Users..." -> "/Users"
     let uri = "file://" <> map (\c -> if c == '\\' then '/' else c) ( joinDrive "/" (dropDrive tempPath))
     fileURI <- mkURI (T.pack uri)
+    print ("URI", fileURI)
     imported <- importTutorialDFromFile fileURI Nothing
     assertEqual "import tutd" (Right expectedExpr) imported
 
