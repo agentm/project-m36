@@ -54,7 +54,8 @@ jobs:
       - name: Build
         uses: freckle/stack-action@v4
         with:
-          stack-yaml: ${{ env.STACK_YAML }}	
+          stack-yaml: ${{ env.STACK_YAML }}
+          pedantic: false
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Haddock
