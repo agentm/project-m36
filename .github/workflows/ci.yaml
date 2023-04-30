@@ -50,11 +50,11 @@ jobs:
             ${{ runner.os }}-build-stack-${{ matrix.ghc }}
       - name: Fix macOS cache bug
         run: rm -rf ~/.stack/setup-exe-cache
-	if: startsWith(runner.os, 'Mac')
+        if: startsWith(runner.os, 'Mac')
       - name: Build
         uses: freckle/stack-action@v4
-	with:
-	  stack-yaml: ${{ env.STACK_YAML }}	
+        with:
+          stack-yaml: ${{ env.STACK_YAML }}	
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Haddock
