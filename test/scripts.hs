@@ -22,7 +22,7 @@ main = do
   
 testScript :: FilePath -> Test
 testScript tutdFile = TestCase $ do
-  fileURI <- mkURI (T.pack ("file://" <> tutdFile))
+  fileURI <- mkURI (T.pack ("file:" <> tutdFile))
   eImport <- importTutorialDFromFile fileURI Nothing
   case eImport of
     Left err -> assertFailure ("tutd import failure in " ++ tutdFile ++ ": " ++ show err)
