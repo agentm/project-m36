@@ -39,7 +39,7 @@ testTutdFileImport = TestCase $
     --on Windows, the file URI should not include the drive letter "/c/Users..." -> "/Users"
     let uri = "file://" <> map (\c -> if c == '\\' then '/' else c) ( joinDrive "/" (dropDrive tempPath))
     fileURI <- mkURI (T.pack uri)
-    print ("URI", fileURI)
+    print ("URI", fileURI, renderStr fileURI)
     imported <- importTutorialDFromFile fileURI Nothing
     assertEqual "import tutd" (Right expectedExpr) imported
 
