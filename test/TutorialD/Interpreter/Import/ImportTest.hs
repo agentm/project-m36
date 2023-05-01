@@ -28,7 +28,6 @@ main = do
 testTutdFileImport :: Test
 testTutdFileImport = TestCase $
   withSystemTempFile "m.tutd" $ \tempPath handle -> do
-    print ("orig", tempPath)
     BS.hPut handle (TE.encodeUtf8 "x:=relation{tuple{a 5,b \"spam\"}}; y:=relation{tuple{b \"漢字\"}}")
     hClose handle
     let expectedExpr = MultipleExpr [
@@ -44,7 +43,6 @@ testTutdFileImport = TestCase $
     let uri = "file:" <> tempPath   
 #endif
     fileURI <- mkURI (T.pack uri)
-    print ("URI", fileURI, renderStr fileURI)
     imported <- importTutorialDFromFile fileURI Nothing
     assertEqual "import tutd" (Right expectedExpr) imported
 
