@@ -207,7 +207,7 @@ Executable tutd
                    --due to decode signature change
                    base16-bytestring >= 1.0.0.0,
                    http-conduit,
-                   modern-uri,
+                   modern-uri >= 0.3.6.0,
                    http-types
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,

@@ -17,8 +17,6 @@ import Network.HTTP.Simple
 import Network.HTTP.Types
 --import a file containing TutorialD database context expressions via local files or HTTP/HTTPS
 
-import Debug.Trace
-
 importTutorialDFromFile :: URI -> HashVerification -> IO (Either RelationalError DatabaseContextExpr)
 importTutorialDFromFile fileURI mHash = do
   case URI.uriPath fileURI of
@@ -32,7 +30,7 @@ importTutorialDFromFile fileURI mHash = do
             Right tutdBytes' -> importTutorialDBytes tutdBytes'
     _ -> pure (Left (ImportError (InvalidFileURIError (URI.render fileURI))))
   where
-    filePath = traceShowId $ drop (length ("file://" :: String)) (URI.renderStr fileURI)
+    filePath = drop (length ("file:" :: String)) (URI.renderStr fileURI)
         
 
 importTutorialDBytes :: BS.ByteString -> IO (Either RelationalError DatabaseContextExpr)

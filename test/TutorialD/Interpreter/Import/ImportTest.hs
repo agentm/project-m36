@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 import Test.HUnit
 import ProjectM36.Base
 import TutorialD.Interpreter.Import.TutorialD
@@ -37,7 +38,11 @@ testTutdFileImport = TestCase $
           Assign "y" (MakeRelationFromExprs Nothing 
                       $ TupleExprs () [TupleExpr (M.fromList [("b", NakedAtomExpr (TextAtom "漢字"))])])]
     --on Windows, the file URI should not include the drive letter "/c/Users..." -> "/Users"
-    let uri = "file://" <> map (\c -> if c == '\\' then '/' else c) ( joinDrive "/" (dropDrive tempPath))
+#if defined(mingw32_HOST_OS)
+    let uri = "file:" <> map (\c -> if c == '\\' then '/' else c) tempPath
+#else
+    let uri = "file:" <> tempPath   
+#endif
     fileURI <- mkURI (T.pack uri)
     print ("URI", fileURI, renderStr fileURI)
     imported <- importTutorialDFromFile fileURI Nothing
