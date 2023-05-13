@@ -4,7 +4,6 @@
 [![Public Domain](https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg)](http://unlicense.org)
 [![Hackage](https://img.shields.io/hackage/v/project-m36.svg)](http://hackage.haskell.org/package/project-m36)
 [![Hackage dependency status](https://img.shields.io/hackage-deps/v/project-m36.svg)](http://packdeps.haskellers.com/feed?needle=project-m36)
-[![Windows Build status](https://ci.appveyor.com/api/projects/status/q7jyddd6dy1ibqdo/branch/master?svg=true)](https://ci.appveyor.com/project/agentm/project-m36)
 [![Github Workflow status](https://github.com/agentm/project-m36/workflows/CI/badge.svg)](https://github.com/agentm/project-m36/actions?query=workflow%3ACI)
 
 
