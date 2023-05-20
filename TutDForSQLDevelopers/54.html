@@ -11,6 +11,16 @@ document.addEventListener('DOMContentLoaded', (event) => {{
     hljs.highlightElement(el);
   }});
 }});
+document.addEventListener('keyup',(e)=>{{
+if(e.keyCode == 39)
+{{
+  document.location='55.html';
+}}
+if(e.keyCode == 37) {{
+  document.location='53.html';
+}}
+}});
+
 </script>
 <style>
 .hljs {{
@@ -77,7 +87,7 @@ border-color: gray;
 (2 rows)
 </pre></td></tr>
 
-<tr><td><code class="language-sql">SELECT SUM(a) FROM (VALUES (NULL::int)) AS x(a);
+<tr><td><code class="language-sql">SELECT SUM(a) FROM (VALUES (NULL::int)) AS x(a);p
     </code>
     <pre>
  sum 

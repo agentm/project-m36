@@ -11,6 +11,17 @@ document.addEventListener('DOMContentLoaded', (event) => {{
     hljs.highlightElement(el);
   }});
 }});
+document.addEventListener('keyup',(e)=>{{
+if(e.keyCode == 39)
+{{
+  document.location='{next_slidenum}.html';
+}}
+if(e.keyCode == 37) {{
+  if({prev_slidenum})
+  document.location='{prev_slidenum}.html';
+}}
+}});
+
 </script>
 <link href="style.css" rel="stylesheet"/>
 <h1>{title}</h1>

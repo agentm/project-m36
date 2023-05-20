@@ -1,4 +1,5 @@
 from glob import glob
+from pathlib import Path
 #import imgkit
 #from html2image import Html2Image
 
@@ -15,11 +16,19 @@ if __name__ == "__main__":
     with open('template_sql.html', 'r') as template_h:
         template_sql = template_h.read()
     #identify all slides
-    for slidefile in glob('*.slidedata'):
+    slidedatafiles = list(glob('*.slidedata'))
+    for slidefile in slidedatafiles:
         with open(slidefile,'r') as slidef:
             slidedata = slidef.read()
         try:
             vals = slidedata.split('\n\n')
+            slidenum = Path(slidefile).stem
+            next_slidenum = int(slidenum) + 1
+            if next_slidenum > len(slidedatafiles):
+                next_slidenum = None
+            prev_slidenum = int(slidenum) - 1
+            if prev_slidenum < 1:
+                prev_slidenum = None
             if len(vals) == 6: #tutd + sql
                 (title,tutd,tutd_res,sql,sql_res,english) = vals
                 template = template_tutd_sql
@@ -42,6 +51,9 @@ if __name__ == "__main__":
                          'tutd_res':tutd_res,
                          'sql':sql,
                          'sql_res':sql_res,
+                         'slidenum':slidenum,
+                         'next_slidenum':next_slidenum,
+                         'prev_slidenum':prev_slidenum,
                          'english':english}
         #process the template with data
         htmlout = template.format(**template_data)

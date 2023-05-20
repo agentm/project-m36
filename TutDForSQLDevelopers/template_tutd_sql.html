@@ -15,6 +15,17 @@ document.addEventListener('DOMContentLoaded', (event) => {{
     hljs.highlightElement(el);
   }});
 }});
+document.addEventListener('keyup',(e)=>{{
+if(e.keyCode == 39)
+{{
+  if({next_slidenum})
+  document.location='{next_slidenum}.html';
+}}
+if(e.keyCode == 37) {{
+  if({prev_slidenum})
+  document.location='{prev_slidenum}.html';
+}}
+}});
 </script>
 <h1>{title}</h1>
 <table border="0" width="97%">
