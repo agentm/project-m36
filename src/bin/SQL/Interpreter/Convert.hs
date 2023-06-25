@@ -1,54 +1,51 @@
 --convert SQL into relational or database context expressions
-{-# LANGUAGE TypeFamilies, FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables #-}
 module SQL.Interpreter.Convert where
 import ProjectM36.Base
 import SQL.Interpreter.Select
 import Data.Kind (Type)
-import Data.List (foldl')
-import Data.Text as T (pack)
+import Data.Text as T (pack,intercalate,Text)
 import ProjectM36.Relation
 import Control.Monad (foldM)
+import qualified Data.Set as S
 
-data ConvertError = NotSupportedError
+data SQLError = NotSupportedError T.Text |
+                TypeMismatch AtomType AtomType |
+                NoSuchFunction QualifiedName
+  deriving (Show, Eq)
 
 class SQLConvert sqlexpr where
   type ConverterF sqlexpr :: Type
-  convert :: sqlexpr -> Either ConvertError (ConverterF sqlexpr)
+  convert :: sqlexpr -> Either SQLError (ConverterF sqlexpr)
 
 instance SQLConvert Select where
   type ConverterF Select = RelationalExpr
   convert sel = do
-    (extendExprs, attrNames) <- convert (projectionClause sel)
-    let projectionAttrExprs = foldl' UnionAttributeNames (AttributeNames mempty) attrNames
-    relExpr <- case tableExpr sel of
+    projF <- convert (projectionClause sel)
+    case tableExpr sel of
       Nothing -> pure $ ExistingRelation relationTrue
-      Just tExpr -> convert tExpr
-    -- add projection, if necessary
-    let projection =
-          if null attrNames then
-            relExpr
-          else
-            Project projectionAttrExprs relExpr
-        extendedExpr = foldl' (\acc extExpr ->
-                                 Extend extExpr acc) projection extendExprs
-    pure extendedExpr
+      Just tExpr -> projF <$> convert tExpr
 
 instance SQLConvert [SelectItem] where
-  type ConverterF [SelectItem] = ([ExtendTupleExpr],[AttributeNames])
-  convert selItems = 
-    --SQL projections conflate static values to appear in a table with attribute names to include in the resultant relation
-    pure $ foldl' (\(extendExprs', projectionAttrExprs') (c,selItem) ->
-                                      let ext :: Atom -> Maybe AliasName -> ([ExtendTupleExpr], [AttributeNames])
-                                          ext atom mAlias = (extendExprs' <> [AttributeExtendTupleExpr (attrName' mAlias) (NakedAtomExpr atom)], projectionAttrExprs')
-                                          --proj attr mAlias = (extendExprs', projectionAttrExprs' <> [])
-                                          attrName' (Just (AliasName nam)) = nam
-                                          attrName' Nothing = "attr_" <> T.pack (show c)
-                                            in
-                                      case selItem of
-                                        (IntegerLiteral i, mAlias) -> ext (IntegerAtom i) mAlias
-                                        (Identifier (QualifiedName [Asterisk]), Nothing) -> (extendExprs', projectionAttrExprs')
-                                      ) mempty
-                            (zip [1::Int ..] selItems)
+  type ConverterF [SelectItem] = (RelationalExpr -> RelationalExpr)
+  convert selItems = do
+    --SQL projections conflate static values to appear in a table with attribute names to include in the resultant relation    
+    let folder :: (RelationalExpr -> RelationalExpr) -> (Int, SelectItem) -> Either SQLError (RelationalExpr -> RelationalExpr)
+        folder _ (c,selItem) = do
+           let ext atom mAlias = pure $ Extend (AttributeExtendTupleExpr (attrName' mAlias) (NakedAtomExpr atom))
+           --simple projection, no alias
+               proj :: AttributeName -> Maybe AliasName -> (RelationalExpr -> RelationalExpr)
+               proj attr Nothing f = Project (AttributeNames (S.singleton attr)) f
+               proj attr alias f = Rename attr (attrName' alias) (proj attr Nothing f)
+               attrName' (Just (AliasName nam)) = nam
+               attrName' Nothing = "attr_" <> T.pack (show c)
+           case selItem of
+             (IntegerLiteral i, mAlias) -> ext (IntegerAtom i) mAlias
+               -- select * - does nothing 
+             (Identifier (QualifiedProjectionName [Asterisk]), Nothing) -> pure id
+               -- select a, simple, unqualified attribute projection
+             (Identifier (QualifiedProjectionName [ProjectionName nam]), Nothing) -> pure $ proj nam Nothing
+    foldM folder id (zip [1::Int ..] selItems)
 
 instance SQLConvert TableExpr where
   type ConverterF TableExpr = RelationalExpr
@@ -66,6 +63,7 @@ instance SQLConvert TableExpr where
 
 instance SQLConvert [TableRef] where
   type ConverterF [TableRef] = RelationalExpr
+  convert [] = pure (ExistingRelation relationFalse)
   convert (firstRef:trefs) = do
     firstRel <- convert firstRef
     foldM joinTRef firstRel trefs
@@ -74,9 +72,45 @@ instance SQLConvert [TableRef] where
 
 instance SQLConvert TableRef where
   type ConverterF TableRef = RelationalExpr
-  convert (SimpleTableRef (QualifiedName [Name nam])) =
+  convert (SimpleTableRef (QualifiedName [nam])) =
     pure $ RelationVariable nam ()
 
 instance SQLConvert RestrictionExpr where
   type ConverterF RestrictionExpr = RestrictionPredicateExpr
-  convert = undefined
+  convert (RestrictionExpr rexpr) = do
+    let wrongType t = Left $ TypeMismatch t BoolAtomType --must be boolean expression
+        attrName' (QualifiedName ts) = T.intercalate "." ts
+    case rexpr of
+      IntegerLiteral{} -> wrongType IntegerAtomType
+      DoubleLiteral{} -> wrongType DoubleAtomType
+      StringLiteral{} -> wrongType TextAtomType
+      Identifier i -> wrongType TextAtomType -- could be a better error here
+      BinaryOperator (Identifier a) (QualifiedName ["="]) exprMatch -> --we don't know here if this results in a boolean expression, so we pass it down
+        AttributeEqualityPredicate (attrName' a) <$> convert exprMatch
+
+instance SQLConvert ScalarExpr where
+  type ConverterF ScalarExpr = AtomExpr
+  convert expr = do
+    let naked = pure . NakedAtomExpr
+        attrName' (QualifiedName ts) = T.intercalate "." ts
+        sqlFuncs = [(">","gt"),
+                    ("<","lt"),
+                    (">=","gte"),
+                    ("<=","lte"),
+                    ("=","eq"),
+                    ("!=","not_eq"), -- function missing
+                    ("<>", "not_eq") -- function missing
+                    ]
+    case expr of
+      IntegerLiteral i -> naked (IntegerAtom i)
+      DoubleLiteral d -> naked (DoubleAtom d)
+      StringLiteral s -> naked (TextAtom s)
+      Identifier i -> pure $ AttributeAtomExpr (attrName' i)
+      BinaryOperator exprA qn@(QualifiedName [op]) exprB -> do
+        a <- convert exprA
+        b <- convert exprB
+        func <- case lookup op sqlFuncs of
+          Nothing -> Left $ NoSuchFunction qn
+          Just f -> pure f
+        pure $ FunctionAtomExpr func [a,b] ()
+

@@ -76,8 +76,8 @@ integer = Lex.signed (pure ()) Lex.decimal <* spaceConsumer
 natural :: Parser Integer
 natural = Lex.decimal <* spaceConsumer
 
-float :: Parser Double
-float = Lex.float <* spaceConsumer
+double :: Parser Double
+double = Lex.float <* spaceConsumer
 
 -- | When an identifier is quoted, it can contain any string.
 quotedIdentifier :: Parser Text

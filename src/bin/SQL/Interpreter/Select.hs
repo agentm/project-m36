@@ -4,6 +4,7 @@ import Text.Megaparsec.Char
 import Control.Monad.Combinators.Expr as E
 import SQL.Interpreter.Base
 import Data.Text (Text, splitOn)
+import qualified Data.Text as T
 import Data.Functor
 
 -- we use an intermediate data structure because it may need to be probed into order to create a proper relational expression
@@ -29,23 +30,28 @@ data TableRef = SimpleTableRef QualifiedName
               | QueryTableRef Select
               deriving (Show, Eq)
 
-data ScalarExpr = IntegerLiteral Integer
+-- distinguish between projection attributes which may include an asterisk and scalar expressions (such as in a where clause) where an asterisk is invalid
+type ProjectionScalarExpr = ScalarExprBase QualifiedProjectionName
+type ScalarExpr = ScalarExprBase QualifiedName
+
+data ScalarExprBase n = IntegerLiteral Integer
                 | DoubleLiteral Double
+                | StringLiteral Text
                 -- | Interval
-                | Identifier QualifiedName
-                | BinaryOperator ScalarExpr QualifiedName ScalarExpr
-                | PrefixOperator QualifiedName ScalarExpr
-                | PostfixOperator ScalarExpr QualifiedName
-                | BetweenOperator ScalarExpr ScalarExpr ScalarExpr
-                | FunctionApplication QualifiedName ScalarExpr
-                | CaseExpr { caseWhens :: [([ScalarExpr],ScalarExpr)],
-                             caseElse :: Maybe ScalarExpr }
-                | QuantifiedComparison { qcExpr :: ScalarExpr,
+                | Identifier n
+                | BinaryOperator (ScalarExprBase n) QualifiedName (ScalarExprBase n)
+                | PrefixOperator QualifiedName (ScalarExprBase n)
+                | PostfixOperator (ScalarExprBase n) QualifiedName
+                | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
+                | FunctionApplication QualifiedName (ScalarExprBase n)
+                | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
+                             caseElse :: Maybe (ScalarExprBase n) }
+                | QuantifiedComparison { qcExpr :: (ScalarExprBase n),
                                          qcOperator :: ComparisonOperator,
                                          qcPredicate :: QuantifiedComparisonPredicate,
                                          qcQuery :: Select }
                     
-                | InExpr InFlag ScalarExpr InPredicateValue
+                | InExpr InFlag (ScalarExprBase n) InPredicateValue
                 -- | ExistsSubQuery Select
                 -- | UniqueSubQuery Select
                 -- | ScalarSubQuery Select
@@ -78,10 +84,13 @@ data JoinCondition = JoinOn ScalarExpr | JoinUsing [QualifiedName]
 data Alias = Alias QualifiedName (Maybe AliasName)
   deriving (Show, Eq)
 
-data QualifiedName = QualifiedName [Name] --dot-delimited reference
+data QualifiedProjectionName = QualifiedProjectionName [ProjectionName] --dot-delimited reference
   deriving (Show, Eq)
 
-data Name = Name Text | Asterisk
+data ProjectionName = ProjectionName Text | Asterisk
+  deriving (Show, Eq)
+
+data QualifiedName = QualifiedName [Text]
   deriving (Show, Eq)
 
 newtype AliasName = AliasName Text
@@ -100,7 +109,7 @@ selectP = do
                  tableExpr = tExpr
                })
   
-type SelectItem = (ScalarExpr, Maybe AliasName)
+type SelectItem = (ProjectionScalarExpr, Maybe AliasName)
   
 selectItemListP :: Parser [SelectItem]
 selectItemListP = sepBy1 selectItemP comma
@@ -178,13 +187,13 @@ nameP = quotedIdentifier <|> identifier
 aliasNameP :: Parser AliasName
 aliasNameP = AliasName <$> (quotedIdentifier <|> identifier)
 
-qualifiedNameP :: Parser QualifiedName
-qualifiedNameP = QualifiedName <$> sepBy1 (Name <$> nameP) (char '.')
+--qualifiedNameP :: Parser QualifiedName
+--qualifiedNameP = 
 
-scalarExprP :: Parser ScalarExpr
+scalarExprP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarExprP = E.makeExprParser scalarTermP scalarExprOp
 
-scalarExprOp :: [[E.Operator Parser ScalarExpr]]
+scalarExprOp :: QualifiedNameP a => [[E.Operator Parser (ScalarExprBase a)]]
 scalarExprOp =
   [[qComparisonOp],
    [prefixSymbol "+",
@@ -219,17 +228,31 @@ scalarExprOp =
    qComparisonOp = E.Postfix $ try quantifiedComparisonSuffixP
 
 qualifiedOperatorP :: Text -> Parser QualifiedName
-qualifiedOperatorP sym = QualifiedName <$> sequence (map (\s -> (Name <$> qualifiedNameSegment s) <* char '.') (splitOn "." sym))
+qualifiedOperatorP sym =
+  QualifiedName <$> segmentsP (splitOn "." sym)
+  where
+    segmentsP :: [Text] -> Parser [Text]
+    segmentsP segments = case segments of
+      [] -> error "empty operator"
+      [seg] -> do
+        final <- qualifiedNameSegment seg
+        pure [final]
+      (seg:remainder) -> do
+        first <- qualifiedNameSegment seg
+        _ <- char '.'
+        rem' <- segmentsP remainder
+        pure (first:rem')
+    
 
-betweenSuffixP :: Parser (ScalarExpr -> ScalarExpr)
+betweenSuffixP :: QualifiedNameP a => Parser (ScalarExprBase a -> ScalarExprBase a)
 betweenSuffixP = do
   reserved "between"
   arg1 <- scalarExprP
   reserved "and"
   arg2 <- scalarExprP
-  pure (\a -> BetweenOperator a arg1 arg2)
+  pure (\x -> BetweenOperator x arg1 arg2)
 
-inSuffixP :: Parser (ScalarExpr -> ScalarExpr)
+inSuffixP :: QualifiedNameP a => Parser (ScalarExprBase a -> ScalarExprBase a)
 inSuffixP = do
   matchIn <|> matchNotIn
   where
@@ -246,7 +269,7 @@ inSuffixP = do
                        InScalarExpr <$> scalarExprP
 
   
-quantifiedComparisonSuffixP :: Parser (ScalarExpr -> ScalarExpr)
+quantifiedComparisonSuffixP :: QualifiedNameP a => Parser (ScalarExprBase a -> ScalarExprBase a)
 quantifiedComparisonSuffixP = do
   op <- comparisonOperatorP
   quantOp <- (reserved "any" $> QCAny) <|>
@@ -268,20 +291,51 @@ comparisonOperatorP = choice (map (\(match', op) -> reserved match' $> op) ops)
                  ("<>", OpNE),
                  ("!=", OpNE)]
 
-scalarTermP :: Parser ScalarExpr
+simpleLiteralP :: Parser (ScalarExprBase a)
+simpleLiteralP = try doubleLiteralP <|> integerLiteralP <|> stringLiteralP
+
+doubleLiteralP :: Parser (ScalarExprBase a)
+doubleLiteralP = DoubleLiteral <$> double
+
+integerLiteralP :: Parser (ScalarExprBase a)
+integerLiteralP = IntegerLiteral <$> integer
+
+stringLiteralP :: Parser (ScalarExprBase a)
+stringLiteralP = StringLiteral <$> stringP
+  where
+    stringP = do
+      void $ char '\''
+      stringEndP
+    stringEndP = do
+      capture <- T.pack <$> manyTill printChar (char '\'')
+      choice [char '\'' *> (do
+                               rest <- stringEndP
+                               pure $ T.concat [capture, "'",rest]), --quoted quote
+              pure capture
+             ]
+  
+scalarTermP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarTermP = choice [
+  simpleLiteralP,
     --,subQueryExpr
 --    caseExpr,
     --,cast
 --    subquery,
 --    pseudoArgFunc, -- includes NOW, NOW(), CURRENT_USER, TRIM(...), etc.
-    Identifier <$> qualifiedNameInProjectionP]
+    Identifier <$> qualifiedNameP]
   <?> "scalar expression"
 
+-- used to distinguish between sections which may include an asterisk and those which cannot
+class QualifiedNameP a where
+  qualifiedNameP :: Parser a
+
 -- | col, table.col, table.*, *
-qualifiedNameInProjectionP :: Parser QualifiedName
-qualifiedNameInProjectionP =
-  QualifiedName <$> sepBy1 ((Name <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
+instance QualifiedNameP QualifiedProjectionName where
+  qualifiedNameP =
+    QualifiedProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
+
+instance QualifiedNameP QualifiedName where
+  qualifiedNameP = QualifiedName <$> sepBy1 nameP (char '.')
 
 limitP :: Parser (Maybe Integer)
 limitP = optional (reserved "limit" *> integer)
