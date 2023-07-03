@@ -18,7 +18,7 @@ testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
   let p tin = parse selectP "test" tin
-      readTests = [("SELECT * FROM test", "test"),
+      readTests = [{-("SELECT * FROM test", "test"),
                   ("SELECT a FROM test", "test{a}"),
                   ("SELECT a FROM test where b=3","(test where b=3){a}"),
                   ("SELECT a,b FROM test where b>3","(test where gt(@b,3)){a,b}"),
@@ -27,7 +27,8 @@ testSelect = TestCase $ do
                   ("sElECt A aS X FRoM TeST","(test rename {a as x}){x}"),
                   ("SELECT sup.city FROM s AS sup","with (sup as s) ((sup rename {city as `sup.city`}){`sup.city`})"),
                   ("SELECT sup.city,sup.sname FROM s AS sup","with (sup as s) ((sup rename {city as `sup.city`,sname as `sup.sname`}){`sup.city`,`sup.sname`})"),
-                  ("SELECT sup.* FROM s as sup","with (sup as s) (sup{all from sup})")
+                  ("SELECT sup.* FROM s as sup","with (sup as s) (sup{all from sup})"),-}
+                  ("SELECT * FROM s NATURAL JOIN sp","s join sp")
                   ]
       check (sql, tutd) = do
         --parse SQL

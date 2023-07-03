@@ -24,7 +24,12 @@ data QuantifiedComparisonPredicate = QCAny | QCSome | QCAll
   deriving (Show,Eq)
 
 data TableRef = SimpleTableRef QualifiedName
-              | JoinTableRef JoinType TableRef (Maybe JoinCondition)
+              | InnerJoinTableRef TableRef JoinCondition
+              | RightOuterJoinTableRef TableRef JoinCondition
+              | LeftOuterJoinTableRef TableRef JoinCondition
+              | FullOuterJoinTableRef TableRef JoinCondition
+              | CrossJoinTableRef TableRef
+              | NaturalJoinTableRef TableRef
               | AliasedTableRef TableRef AliasName
               | QueryTableRef Select
               deriving (Show, Eq)
@@ -141,7 +146,16 @@ fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
                           try (AliasedTableRef <$> simpleRef <*> (reserved "as" *> aliasNameP)),
                           simpleRef]
     simpleRef = SimpleTableRef <$> qualifiedNameP              
-    joinP = JoinTableRef <$> joinTypeP <*> nonJoinTref <*> optional joinConditionP
+    joinP = do
+      joinType <- joinTypeP
+      tref <- nonJoinTref
+      case joinType of -- certain join types require join conditions, others not
+        InnerJoin -> InnerJoinTableRef tref <$> joinConditionP
+        RightOuterJoin -> RightOuterJoinTableRef tref <$> joinConditionP
+        LeftOuterJoin -> LeftOuterJoinTableRef tref <$> joinConditionP
+        FullOuterJoin -> FullOuterJoinTableRef tref <$> joinConditionP
+        CrossJoin -> pure $ CrossJoinTableRef tref
+        NaturalJoin -> pure $ NaturalJoinTableRef tref
       
 joinConditionP :: Parser JoinCondition
 joinConditionP = do

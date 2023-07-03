@@ -119,11 +119,21 @@ instance SQLConvert [TableRef] where
   convert (firstRef:trefs) = do
     --the first table ref must be a straight RelationVariable
     (firstRel, withRenames) <- convert firstRef
-    expr' <- foldM joinTRef firstRel trefs
-    pure (expr', withRenames)
+    (expr', withRenames') <- foldM joinTRef (firstRel, withRenames) trefs
+    pure (expr', withRenames')
     where
     --TODO: if any of the previous relations have overlap in their attribute names, we must change it to prevent a natural join!      
-      joinTRef = undefined
+      joinTRef (rvA,withRenames) tref =
+        case tref of
+          NaturalJoinTableRef jtref -> do
+            -- then natural join is the only type of join which the relational algebra supports natively
+            (rvB, withRenames') <- convert jtref
+            pure $ (Join rvA rvB, withRenames <> withRenames')
+          --CrossJoinTableRef jtref -> do
+            --rename all columns to prefix them with a generated alias to prevent any natural join occurring, then perform normal join
+            -- we need the type to get all the attribute names for both relexprs
+            --typeForGraphRefRelationalExpr
+            
 
 -- convert a TableRef in isolation- to be used with the first TableRef only
 instance SQLConvert TableRef where
