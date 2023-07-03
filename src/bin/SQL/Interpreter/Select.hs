@@ -26,7 +26,6 @@ data QuantifiedComparisonPredicate = QCAny | QCSome | QCAll
 data TableRef = SimpleTableRef QualifiedName
               | JoinTableRef JoinType TableRef (Maybe JoinCondition)
               | AliasedTableRef TableRef AliasName
-
               | QueryTableRef Select
               deriving (Show, Eq)
 
@@ -85,10 +84,10 @@ data Alias = Alias QualifiedName (Maybe AliasName)
   deriving (Show, Eq)
 
 data QualifiedProjectionName = QualifiedProjectionName [ProjectionName] --dot-delimited reference
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data ProjectionName = ProjectionName Text | Asterisk
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data QualifiedName = QualifiedName [Text]
   deriving (Show, Eq)

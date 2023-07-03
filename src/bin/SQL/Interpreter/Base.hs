@@ -3,7 +3,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Data.Void (Void)
-import Data.Text as T (Text, singleton, pack, splitOn)
+import Data.Text as T (Text, singleton, pack, splitOn, toLower)
 
 
 type Parser = Parsec Void Text
@@ -27,7 +27,7 @@ reserveds words' = do
 
 -- does not consume trailing spaces
 qualifiedNameSegment :: Text -> Parser Text
-qualifiedNameSegment sym = string' sym 
+qualifiedNameSegment sym = T.toLower <$> string' sym 
 
 reservedOp :: Text -> Parser ()
 reservedOp op = try (spaceConsumer *> string op *> notFollowedBy opChar *> spaceConsumer)
@@ -41,7 +41,7 @@ braces = between (symbol "{") (symbol "}")
 identifier :: Parser Text
 identifier = do
   istart <- letterChar <|> char '_'
-  identifierRemainder istart
+  toLower <$> identifierRemainder istart
 
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do

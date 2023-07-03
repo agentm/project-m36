@@ -20,7 +20,7 @@ substituteWithNameMacros macros e@(RelationVariable rvname tid) =
     [(_,replacement)] -> replacement
     _ -> error "more than one macro matched!"
 substituteWithNameMacros macros (Project attrs expr) =
-  Project attrs (substituteWithNameMacros macros expr)
+  Project (substituteWithNameMacrosAttributeNames macros attrs) (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Union exprA exprB) =
   Union (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Join exprA exprB) =
@@ -84,3 +84,16 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
+
+substituteWithNameMacrosAttributeNames :: WithNameAssocs -> GraphRefAttributeNames -> GraphRefAttributeNames
+substituteWithNameMacrosAttributeNames macros attrNames =
+  case attrNames of
+    AttributeNames{} -> attrNames
+    InvertedAttributeNames{} -> attrNames
+    UnionAttributeNames a b ->
+      UnionAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
+    IntersectAttributeNames a b ->
+      IntersectAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
+    RelationalExprAttributeNames relExpr ->
+      RelationalExprAttributeNames (substituteWithNameMacros macros relExpr)
+      

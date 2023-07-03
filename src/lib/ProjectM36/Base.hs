@@ -252,7 +252,9 @@ data RelationalExprBase a =
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Hashable RelationalExpr
-    
+
+type WithNamesBlock = [(WithNameExpr, RelationalExpr)]
+
 data WithNameExprBase a = WithNameExpr RelVarName a
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
 
