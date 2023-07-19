@@ -1,12 +1,18 @@
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
+import Data.List (find)
 
 -- substitute all instances of With-based macros to remove macro context
 -- ideally, we would use a different relational expr type to "prove" that the with macros can no longer exist
-type WithNameAssocs = [(GraphRefWithNameExpr, GraphRefRelationalExpr)]
+
+-- | 
+lookup :: RelVarName -> WithNamesAssocsBase a -> Maybe (RelationalExprBase a)
+lookup matchrv assocs =
+  snd <$> find (\(WithNameExpr rv _, _) -> rv == matchrv) assocs
+
 -- | Drop macros into the relational expression wherever they are referenced.
 substituteWithNameMacros ::
-  WithNameAssocs ->
+  GraphRefWithNameAssocs ->
   GraphRefRelationalExpr ->
   GraphRefRelationalExpr
 substituteWithNameMacros _ e@MakeRelationFromExprs{} = e
@@ -51,7 +57,7 @@ substituteWithNameMacros macros (With moreMacros expr) =
   substituteWithNameMacros newMacros expr
 
 
-substituteWithNameMacrosRestrictionPredicate :: WithNameAssocs -> GraphRefRestrictionPredicateExpr -> GraphRefRestrictionPredicateExpr
+substituteWithNameMacrosRestrictionPredicate :: GraphRefWithNameAssocs -> GraphRefRestrictionPredicateExpr -> GraphRefRestrictionPredicateExpr
 substituteWithNameMacrosRestrictionPredicate macros pred' =
   let sub = substituteWithNameMacrosRestrictionPredicate macros in
   case pred' of
@@ -69,11 +75,11 @@ substituteWithNameMacrosRestrictionPredicate macros pred' =
     AttributeEqualityPredicate attrName atomExpr ->
       AttributeEqualityPredicate attrName (substituteWithNameMacrosAtomExpr macros atomExpr)
 
-substituteWitNameMacrosExtendTupleExpr :: WithNameAssocs -> GraphRefExtendTupleExpr -> GraphRefExtendTupleExpr
+substituteWitNameMacrosExtendTupleExpr :: GraphRefWithNameAssocs -> GraphRefExtendTupleExpr -> GraphRefExtendTupleExpr
 substituteWitNameMacrosExtendTupleExpr macros (AttributeExtendTupleExpr attrName atomExpr) =
   AttributeExtendTupleExpr attrName (substituteWithNameMacrosAtomExpr macros atomExpr)
 
-substituteWithNameMacrosAtomExpr :: WithNameAssocs -> GraphRefAtomExpr -> GraphRefAtomExpr
+substituteWithNameMacrosAtomExpr :: GraphRefWithNameAssocs -> GraphRefAtomExpr -> GraphRefAtomExpr
 substituteWithNameMacrosAtomExpr macros atomExpr =
   case atomExpr of
     e@AttributeAtomExpr{} -> e
@@ -85,7 +91,7 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
 
-substituteWithNameMacrosAttributeNames :: WithNameAssocs -> GraphRefAttributeNames -> GraphRefAttributeNames
+substituteWithNameMacrosAttributeNames :: GraphRefWithNameAssocs -> GraphRefAttributeNames -> GraphRefAttributeNames
 substituteWithNameMacrosAttributeNames macros attrNames =
   case attrNames of
     AttributeNames{} -> attrNames
@@ -96,4 +102,5 @@ substituteWithNameMacrosAttributeNames macros attrNames =
       IntersectAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
     RelationalExprAttributeNames relExpr ->
       RelationalExprAttributeNames (substituteWithNameMacros macros relExpr)
+
       

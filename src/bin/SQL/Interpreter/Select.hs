@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable #-}
 module SQL.Interpreter.Select where
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -6,6 +7,7 @@ import SQL.Interpreter.Base
 import Data.Text (Text, splitOn)
 import qualified Data.Text as T
 import Data.Functor
+import Data.Functor.Foldable.TH
 
 -- we use an intermediate data structure because it may need to be probed into order to create a proper relational expression
 data Select = Select { distinctness :: Maybe Distinctness,
@@ -38,28 +40,29 @@ data TableRef = SimpleTableRef QualifiedName
 type ProjectionScalarExpr = ScalarExprBase QualifiedProjectionName
 type ScalarExpr = ScalarExprBase QualifiedName
 
-data ScalarExprBase n = IntegerLiteral Integer
-                | DoubleLiteral Double
-                | StringLiteral Text
-                -- | Interval
-                | Identifier n
-                | BinaryOperator (ScalarExprBase n) QualifiedName (ScalarExprBase n)
-                | PrefixOperator QualifiedName (ScalarExprBase n)
-                | PostfixOperator (ScalarExprBase n) QualifiedName
-                | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
-                | FunctionApplication QualifiedName (ScalarExprBase n)
-                | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
-                             caseElse :: Maybe (ScalarExprBase n) }
-                | QuantifiedComparison { qcExpr :: (ScalarExprBase n),
-                                         qcOperator :: ComparisonOperator,
-                                         qcPredicate :: QuantifiedComparisonPredicate,
-                                         qcQuery :: Select }
-                    
-                | InExpr InFlag (ScalarExprBase n) InPredicateValue
-                -- | ExistsSubQuery Select
-                -- | UniqueSubQuery Select
-                -- | ScalarSubQuery Select
-                deriving (Show, Eq)
+data ScalarExprBase n =
+  IntegerLiteral Integer
+  | DoubleLiteral Double
+  | StringLiteral Text
+    -- | Interval
+  | Identifier n
+  | BinaryOperator (ScalarExprBase n) QualifiedName (ScalarExprBase n)
+  | PrefixOperator QualifiedName (ScalarExprBase n)
+  | PostfixOperator (ScalarExprBase n) QualifiedName
+  | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
+  | FunctionApplication QualifiedName (ScalarExprBase n)
+  | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
+               caseElse :: Maybe (ScalarExprBase n) }
+  | QuantifiedComparison { qcExpr :: (ScalarExprBase n),
+                           qcOperator :: ComparisonOperator,
+                           qcPredicate :: QuantifiedComparisonPredicate,
+                           qcQuery :: Select }
+    
+  | InExpr InFlag (ScalarExprBase n) InPredicateValue
+    -- | ExistsSubQuery Select
+    -- | UniqueSubQuery Select
+    -- | ScalarSubQuery Select
+  deriving (Show, Eq)
 
 data InPredicateValue = InList [ScalarExpr] | InQueryExpr Select | InScalarExpr ScalarExpr
   deriving (Eq, Show)
@@ -82,7 +85,7 @@ data NullsOrder = NullsFirst | NullsLast
 data JoinType = InnerJoin | RightOuterJoin | LeftOuterJoin | FullOuterJoin | CrossJoin | NaturalJoin
   deriving (Show, Eq)
 
-data JoinCondition = JoinOn ScalarExpr | JoinUsing [QualifiedName]
+data JoinCondition = JoinOn ScalarExpr | JoinUsing [UnqualifiedName]
   deriving (Show, Eq)
 
 data Alias = Alias QualifiedName (Maybe AliasName)
@@ -95,6 +98,9 @@ data ProjectionName = ProjectionName Text | Asterisk
   deriving (Show, Eq, Ord)
 
 data QualifiedName = QualifiedName [Text]
+  deriving (Show, Eq)
+
+data UnqualifiedName = UnqualifiedName Text
   deriving (Show, Eq)
 
 newtype AliasName = AliasName Text
@@ -160,7 +166,7 @@ fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
 joinConditionP :: Parser JoinCondition
 joinConditionP = do
   (JoinOn <$> (reserved "on" *> scalarExprP)) <|>
-   JoinUsing <$> (reserved "using" *> parens (sepBy1 qualifiedNameP comma))
+   JoinUsing <$> (reserved "using" *> parens (sepBy1 unqualifiedNameP comma))
 
 joinTypeP :: Parser JoinType
 joinTypeP = choice [reserveds "cross join" $> CrossJoin,
@@ -199,9 +205,6 @@ nameP = quotedIdentifier <|> identifier
 
 aliasNameP :: Parser AliasName
 aliasNameP = AliasName <$> (quotedIdentifier <|> identifier)
-
---qualifiedNameP :: Parser QualifiedName
---qualifiedNameP = 
 
 scalarExprP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarExprP = E.makeExprParser scalarTermP scalarExprOp
@@ -242,7 +245,7 @@ scalarExprOp =
 
 qualifiedOperatorP :: Text -> Parser QualifiedName
 qualifiedOperatorP sym =
-  QualifiedName <$> segmentsP (splitOn "." sym)
+  QualifiedName <$> segmentsP (splitOn "." sym) <* spaceConsumer
   where
     segmentsP :: [Text] -> Parser [Text]
     segmentsP segments = case segments of
@@ -350,9 +353,15 @@ instance QualifiedNameP QualifiedProjectionName where
 instance QualifiedNameP QualifiedName where
   qualifiedNameP = QualifiedName <$> sepBy1 nameP (char '.')
 
+-- | For use where qualified names need not apply (such as in USING (...) clause)
+unqualifiedNameP :: Parser UnqualifiedName
+unqualifiedNameP = UnqualifiedName <$> nameP
+
 limitP :: Parser (Maybe Integer)
 limitP = optional (reserved "limit" *> integer)
 
 offsetP :: Parser (Maybe Integer)
 offsetP = optional (reserved "offset" *> integer)
       
+makeBaseFunctor ''ScalarExprBase
+

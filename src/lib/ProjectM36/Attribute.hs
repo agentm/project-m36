@@ -172,6 +172,9 @@ attributeNameSet attrs = S.fromList $ V.toList $ V.map (\(Attribute name _) -> n
 attributeNames :: Attributes -> V.Vector AttributeName
 attributeNames attrs = V.map attributeName (attributesVec attrs)
 
+attributeNamesList :: Attributes -> [AttributeName]
+attributeNamesList = V.toList . attributeNames
+
 --checks if set s1 is wholly contained in the set s2
 attributesContained :: Attributes -> Attributes -> Bool
 attributesContained attrs1 attrs2 = attributeNamesContained (attributeNameSet attrs1) (attributeNameSet attrs2)

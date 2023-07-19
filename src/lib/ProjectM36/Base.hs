@@ -253,10 +253,14 @@ data RelationalExprBase a =
 
 instance Hashable RelationalExpr
 
-type WithNamesBlock = [(WithNameExpr, RelationalExpr)]
+type WithNamesAssocs = WithNamesAssocsBase ()
+
+type WithNamesAssocsBase a = [(WithNameExprBase a, RelationalExprBase a)]
+
+type GraphRefWithNameAssocs = [(GraphRefWithNameExpr, GraphRefRelationalExpr)]
 
 data WithNameExprBase a = WithNameExpr RelVarName a
-  deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
+                        deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
 
 type WithNameExpr = WithNameExprBase ()
 

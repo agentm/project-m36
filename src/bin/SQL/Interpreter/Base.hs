@@ -85,7 +85,7 @@ quotedIdentifier =
   T.pack <$> (doubleQuote *> many (escapedDoubleQuote <|> notDoubleQuote) <* doubleQuote)
   where
     doubleQuote = char '"'
-    escapedDoubleQuote = char '"' >> char '"'
+    escapedDoubleQuote = chunk "\"\"" *> pure '"'
     notDoubleQuote = satisfy ('"' /=)
 
     
