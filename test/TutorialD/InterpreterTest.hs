@@ -92,7 +92,8 @@ main = do
       testExtendProcessorTuplePushdown,
       testDDLHash,
       testShowDDL,
-      testRegisteredQueries
+      testRegisteredQueries,
+      testCrossJoin
       ]
 
 simpleRelTests :: Test
@@ -846,4 +847,20 @@ testRegisteredQueries = TestCase $ do
   Right () <- executeDatabaseContextExpr sessionId dbconn (RemoveRegisteredQuery "protect_x")
   Right () <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")  
   pure ()
+  
+testCrossJoin :: Test
+testCrossJoin = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  -- Athens, London, Paris cross joined with 17, 12, 14, 19
+  executeTutorialD session dbconn "x:=(s{city}) join (s{status})"
+  eActual <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  let eExpected = mkRelationFromList (attributesFromList [Attribute "city" TextAtomType, Attribute "status" IntegerAtomType]) [[city,status] | city <- map TextAtom ["Athens", "London", "Paris"], status <- map IntegerAtom [30,20,10]]
+  assertBool "cross join error" (isRight eActual)
+  assertEqual "cross join" eExpected eActual
+
+  executeTutorialD session dbconn "y:=relation{tuple{a 1},tuple{a 2},tuple{a 3}} join relation{tuple{b 4}, tuple{b 5}, tuple{b 6}}"
+  let eExpected' = mkRelationFromList (attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" IntegerAtomType]) [[a,b] | a <- map IntegerAtom [1,2,3], b <- map IntegerAtom [4,5,6]]
+  eActual' <- executeRelationalExpr session dbconn (RelationVariable "y" ())
+  assertBool "cross join 2 error" (isRight eActual')  
+  assertEqual "cross join 2" eExpected' eActual'
   

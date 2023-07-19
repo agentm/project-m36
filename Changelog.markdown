@@ -1,3 +1,7 @@
+# 2023-07-18 (v0.9.7)
+
+* fix critical bug resulting in empty results from cross joins
+	
 # 2022-11-05 (v0.9.6)
 
 * fix tuple context passed down to extended expressions
