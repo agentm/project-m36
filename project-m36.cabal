@@ -213,7 +213,6 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.SchemaOperator,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
-                   TutorialD.Interpreter.SchemaOperator,
                    TutorialD.Printer
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
