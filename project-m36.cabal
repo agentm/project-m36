@@ -214,7 +214,6 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
                    TutorialD.Interpreter.SchemaOperator,
-                   TutorialD.Printer,
                    SQL.Interpreter.Base,
                    SQL.Interpreter.Select,
                    SQL.Interpreter.Convert

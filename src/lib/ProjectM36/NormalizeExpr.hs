@@ -29,8 +29,8 @@ processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askMark
 processRelationalExpr (Project attrNames expr) = Project <$> processAttributeNames attrNames <*> processRelationalExpr expr
 processRelationalExpr (Union exprA exprB) = Union <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Join exprA exprB) = Join <$> processRelationalExpr exprA <*> processRelationalExpr exprB
-processRelationalExpr (Rename attrA attrB expr) =
-  Rename attrA attrB <$> processRelationalExpr expr
+processRelationalExpr (Rename attrs expr) =
+  Rename attrs <$> processRelationalExpr expr
 processRelationalExpr (Difference exprA exprB) = Difference <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Group attrNames attrName expr) = Group <$> processAttributeNames attrNames <*> pure attrName <*> processRelationalExpr expr
 processRelationalExpr (Ungroup attrName expr) = Ungroup attrName <$> processRelationalExpr expr

@@ -118,8 +118,7 @@ tuple as' = TupleExpr (M.fromList as')
 rename :: RelationalExpr -> [(AttributeName,AttributeName)] -> RelationalExpr 
 rename relExpr renameList = case renameList of 
   [] -> Restrict TruePredicate relExpr
-  renames -> 
-    foldl (\acc (old,new) -> Rename old new  acc) relExpr renames 
+  renames -> Rename (S.fromList renames) relExpr
 
 --project !!
 -- #a !! [#b,#c]

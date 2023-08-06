@@ -85,7 +85,10 @@ data NullsOrder = NullsFirst | NullsLast
 data JoinType = InnerJoin | RightOuterJoin | LeftOuterJoin | FullOuterJoin | CrossJoin | NaturalJoin
   deriving (Show, Eq)
 
-data JoinCondition = JoinOn ScalarExpr | JoinUsing [UnqualifiedName]
+data JoinCondition = JoinOn JoinOnCondition | JoinUsing [UnqualifiedName]
+  deriving (Show, Eq)
+
+newtype JoinOnCondition = JoinOnCondition ScalarExpr
   deriving (Show, Eq)
 
 data Alias = Alias QualifiedName (Maybe AliasName)
@@ -98,7 +101,7 @@ data ProjectionName = ProjectionName Text | Asterisk
   deriving (Show, Eq, Ord)
 
 data QualifiedName = QualifiedName [Text]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data UnqualifiedName = UnqualifiedName Text
   deriving (Show, Eq)
@@ -165,7 +168,7 @@ fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
       
 joinConditionP :: Parser JoinCondition
 joinConditionP = do
-  (JoinOn <$> (reserved "on" *> scalarExprP)) <|>
+  (JoinOn <$> (reserved "on" *> (JoinOnCondition <$> scalarExprP))) <|>
    JoinUsing <$> (reserved "using" *> parens (sepBy1 unqualifiedNameP comma))
 
 joinTypeP :: Parser JoinType

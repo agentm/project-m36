@@ -163,7 +163,7 @@ relExprMogrify func (Join exprA exprB) = do
   exA <- func exprA
   exB <- func exprB
   func (Join exA exB)
-relExprMogrify func (Rename n1 n2 expr) = func expr >>= \ex -> func (Rename n1 n2 ex)
+relExprMogrify func (Rename attrs expr) = func expr >>= \ex -> func (Rename attrs ex)
 relExprMogrify func (Difference exprA exprB) = do
   exA <- func exprA
   exB <- func exprB

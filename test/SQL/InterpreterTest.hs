@@ -24,7 +24,7 @@ testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
   (tgraph,transId) <- freshTransactionGraph dateExamples  
   let p tin = parse selectP "test" tin
-      readTests = [{-("SELECT * FROM test", "test"),
+      readTests = [("SELECT * FROM test", "test"),
                   ("SELECT a FROM test", "test{a}"),
                   ("SELECT a FROM test where b=3","(test where b=3){a}"),
                   ("SELECT a,b FROM test where b>3","(test where gt(@b,3)){a,b}"),
@@ -35,10 +35,11 @@ testSelect = TestCase $ do
                   ("SELECT sup.city,sup.sname FROM s AS sup","with (sup as s) ((sup rename {city as `sup.city`,sname as `sup.sname`}){`sup.city`,`sup.sname`})"),
                   ("SELECT sup.* FROM s as sup","with (sup as s) (sup{all from sup})"),
                   ("SELECT * FROM s NATURAL JOIN sp","s join sp"),
-                  ("SELECT * FROM s CROSS JOIN sp", "(s rename {s# as s#_a1}) join sp"),
+                  ("SELECT * FROM s CROSS JOIN sp", "(s rename {s# as `s.s#`}) join sp"),
                   ("SELECT * FROM sp INNER JOIN sp USING (\"s#\")",
-                   "(sp rename {p# as p#_a1, qty as qty_a1}) join sp"),-}
-                    ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","sp join s")
+                   "(sp rename {p# as `sp.p#`, qty as `sp.qty`}) join sp"),
+        
+                    ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=eq(@`s.s#`,@`sp.s#`)}) where join_1=True) {all but join_1}")
                   ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just dateExamples,

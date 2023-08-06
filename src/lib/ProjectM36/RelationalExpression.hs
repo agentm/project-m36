@@ -335,7 +335,7 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
           else 
             tmpAttrName
       updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
-      projectAndRename attr expr = Rename (tmpAttr attr) attr (Project (InvertedAttributeNames (S.singleton attr)) expr)
+      projectAndRename attr expr = Rename (S.singleton ((tmpAttr attr), attr)) (Project (InvertedAttributeNames (S.singleton attr)) expr)
       restrictedPortion = Restrict pred' rvExpr
       updated = foldr (\(oldname, atomExpr) accum ->
                                  let procAtomExpr = runProcessExprM UncommittedContextMarker (processAtomExpr atomExpr) in
@@ -1111,9 +1111,9 @@ evalGraphRefRelationalExpr (Join exprA exprB) = do
   relA <- evalGraphRefRelationalExpr exprA
   relB <- evalGraphRefRelationalExpr exprB
   lift $ except $ join relA relB
-evalGraphRefRelationalExpr (Rename oldName newName expr) = do
+evalGraphRefRelationalExpr (Rename attrsSet expr) = do
   rel <- evalGraphRefRelationalExpr expr
-  lift $ except $ rename oldName newName rel
+  lift $ except $ renameMany attrsSet rel
 evalGraphRefRelationalExpr (Difference exprA exprB) = do
   relA <- evalGraphRefRelationalExpr exprA
   relB <- evalGraphRefRelationalExpr exprB
@@ -1196,9 +1196,9 @@ typeForGraphRefRelationalExpr (Join exprA exprB) = do
   exprA' <- typeForGraphRefRelationalExpr exprA
   exprB' <- typeForGraphRefRelationalExpr exprB
   lift $ except $ join exprA' exprB'
-typeForGraphRefRelationalExpr (Rename oldAttr newAttr expr) = do
+typeForGraphRefRelationalExpr (Rename attrs expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
-  lift $ except $ rename oldAttr newAttr expr'
+  lift $ except $ renameMany attrs expr'
 typeForGraphRefRelationalExpr (Difference exprA exprB) = do  
   exprA' <- typeForGraphRefRelationalExpr exprA
   exprB' <- typeForGraphRefRelationalExpr exprB
@@ -1283,7 +1283,7 @@ mkEmptyRelVars = M.map mkEmptyRelVar
     mkEmptyRelVar (Project attrNames expr) = Project attrNames (mkEmptyRelVar expr)
     mkEmptyRelVar (Union exprA exprB) = Union (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
     mkEmptyRelVar (Join exprA exprB) = Join (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
-    mkEmptyRelVar (Rename nameA nameB expr) = Rename nameA nameB (mkEmptyRelVar expr)
+    mkEmptyRelVar (Rename attrs expr) = Rename attrs (mkEmptyRelVar expr)
     mkEmptyRelVar (Difference exprA exprB) = Difference (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
     mkEmptyRelVar (Group attrNames attrName expr) = Group attrNames attrName (mkEmptyRelVar expr)
     mkEmptyRelVar (Ungroup attrName expr) = Ungroup attrName (mkEmptyRelVar expr)
@@ -1363,7 +1363,7 @@ instance ResolveGraphRefTransactionMarker GraphRefRelationalExpr where
   resolve (Project attrNames relExpr) = Project <$> resolve attrNames <*> resolve relExpr
   resolve (Union exprA exprB) = Union <$> resolve exprA <*> resolve exprB
   resolve (Join exprA exprB) = Join <$> resolve exprA <*> resolve exprB
-  resolve (Rename attrA attrB expr) = Rename attrA attrB <$> resolve expr
+  resolve (Rename attrs expr) = Rename attrs <$> resolve expr
   resolve (Difference exprA exprB) = Difference <$> resolve exprA <*> resolve exprB
   resolve (Group namesA nameB expr) = Group <$> resolve namesA <*> pure nameB <*> resolve expr
   resolve (Ungroup nameA expr) = Ungroup nameA <$> resolve expr

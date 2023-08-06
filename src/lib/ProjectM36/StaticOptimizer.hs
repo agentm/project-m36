@@ -506,8 +506,8 @@ applyStaticRestrictionCollapse expr =
       Union (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)    
     Join sub1 sub2 ->
       Join (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
-    Rename n1 n2 sub -> 
-      Rename n1 n2 (applyStaticRestrictionCollapse sub)
+    Rename attrs sub -> 
+      Rename attrs (applyStaticRestrictionCollapse sub)
     Difference sub1 sub2 -> 
       Difference (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
     Group n1 n2 sub ->
@@ -561,8 +561,8 @@ applyStaticRestrictionPushdown expr = case expr of
     Union (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Join sub1 sub2 ->
     Join (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
-  Rename n1 n2 sub ->
-    Rename n1 n2 (applyStaticRestrictionPushdown sub)
+  Rename attrs sub ->
+    Rename attrs (applyStaticRestrictionPushdown sub)
   Difference sub1 sub2 -> 
     Difference (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Group n1 n2 sub ->

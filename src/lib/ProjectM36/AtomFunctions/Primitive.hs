@@ -43,7 +43,7 @@ primitiveAtomFunctions = HS.fromList [
                funcBody = body $ relationAtomFunc relationMin
              },
     Function { funcName = "eq",
-               funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
+               funcType = [TypeVariableType "a", TypeVariableType "a", BoolAtomType],
                funcBody = body $ \case
                                          [i1,i2] -> pure (BoolAtom (i1 == i2))
                                          _ -> Left AtomFunctionTypeMismatchError

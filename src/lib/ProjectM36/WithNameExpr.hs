@@ -31,8 +31,8 @@ substituteWithNameMacros macros (Union exprA exprB) =
   Union (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Join exprA exprB) =
   Join (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
-substituteWithNameMacros macros (Rename attrA attrB expr) =
-  Rename attrA attrB (substituteWithNameMacros macros expr)
+substituteWithNameMacros macros (Rename attrs expr) =
+  Rename attrs (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Difference exprA exprB) =
   Difference (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Group attrs attr expr) =

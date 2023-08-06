@@ -72,8 +72,8 @@ processTransGraphRelationalExpr (Union exprA exprB) =
   Union <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Join exprA exprB) =
   Join <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
-processTransGraphRelationalExpr (Rename attrName1 attrName2 expr) =
-  Rename attrName1 attrName2 <$> processTransGraphRelationalExpr expr
+processTransGraphRelationalExpr (Rename attrs expr) =
+  Rename attrs <$> processTransGraphRelationalExpr expr
 processTransGraphRelationalExpr (Difference exprA exprB) =
   Difference <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Group transAttrNames attrName expr) = 

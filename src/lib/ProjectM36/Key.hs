@@ -56,7 +56,7 @@ inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) =
     folder (attrExpected, attrExisting) expr = if attrExpected == attrExisting then
                                                    expr
                                                  else
-                                                   Rename attrExisting attrExpected expr
+                                                   Rename (S.singleton (attrExisting, attrExpected)) expr
 
 -- if the constraint is a foreign key constraint, then return the relations and attributes involved - this only detects foreign keys created with `databaseContextExprForForeignKey`
 isForeignKeyFor :: InclusionDependency -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> Bool

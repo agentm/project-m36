@@ -85,7 +85,7 @@ instance Pretty RelationalExpr where
   pretty (MakeStaticRelation attrs tupSet) = "relation" <> prettyBracesList (A.toList attrs) <> prettyBracesList (asList tupSet)
   pretty (Union a b) = parens $ pretty' a <+> "union" <+> pretty' b
   pretty (Join a b) = parens $ pretty' a <+> "join" <+> pretty' b
-  pretty (Rename n1 n2 relExpr) = parens $ pretty relExpr <+> "rename" <+> braces (pretty n1 <+> "as" <+> pretty n2)
+  pretty (Rename attrs relExpr) = parens $ pretty relExpr <+> "rename" <+> prettyBracesList (map RenameTuple (S.toList attrs))
   pretty (Difference a b) = parens $ pretty' a <+> "minus" <+> pretty' b
   pretty (Group attrNames attrName relExpr) = parens $ pretty relExpr <+> "group" <+> parens (pretty attrNames <+> "as" <+> pretty attrName)
   pretty (Ungroup attrName relExpr) = parens $ pretty' relExpr <+> "ungroup" <+> pretty attrName
@@ -146,6 +146,11 @@ instance Pretty AtomType where
 instance Pretty ExtendTupleExpr where
   pretty (AttributeExtendTupleExpr attrName atomExpr) = pretty attrName <> ":=" <> pretty atomExpr
 
+newtype RenameTuple = RenameTuple { _unRenameTuple :: (AttributeName, AttributeName) }
+  
+instance Pretty RenameTuple where
+  pretty (RenameTuple (n1, n2)) = pretty n1 <+> "as" <+> pretty n2
+  
 
 instance Pretty RestrictionPredicateExpr where
   pretty TruePredicate = "true"

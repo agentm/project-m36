@@ -94,6 +94,11 @@ project attrNames rel@(Relation _ tupSet) = do
   newTupleList <- mapM (tupleProject newAttrs) (asList tupSet)
   pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
+renameMany :: S.Set (AttributeName, AttributeName) -> Relation -> Either RelationalError Relation
+renameMany renames rel = foldM folder rel (S.toList renames)
+  where
+    folder r (oldName, newName) = rename oldName newName r
+  
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) 
   | not attributeValid = Left $ AttributeNamesMismatchError (S.singleton oldAttrName)

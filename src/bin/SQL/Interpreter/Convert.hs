@@ -12,14 +12,16 @@ import Data.Text as T (pack,intercalate,Text,concat)
 import ProjectM36.Relation
 import Control.Monad (foldM)
 import qualified Data.Set as S
+import qualified Data.Map as M
 import Data.List (foldl')
 import qualified Data.Functor.Foldable as Fold
 
 import Debug.Trace
 
 data SQLError = NotSupportedError T.Text |
-                TypeMismatch AtomType AtomType |
-                NoSuchFunction QualifiedName |
+                TypeMismatchError AtomType AtomType |
+                NoSuchSQLFunctionError QualifiedName |
+                DuplicateTableReferenceError QualifiedName |
                 SQLRelationalError RelationalError
   deriving (Show, Eq)
 
@@ -99,16 +101,24 @@ instance SQLConvert [SelectItem] where
     -- apply extensions
     let fExtended = foldl' (\acc ext -> (Extend ext) . acc) id (taskExtenders task)
     -- apply rename
-    fRenames <- foldM (\acc (qProjName, (AliasName newName)) -> do
+    renamesSet <- foldM (\acc (qProjName, (AliasName newName)) -> do
                           oldName <- convert typeF qProjName
-                          pure $ Rename oldName newName . acc) id (taskRenames task)
+                          pure $ S.insert (oldName, newName) acc) S.empty (taskRenames task)
+    let fRenames = if S.null renamesSet then id else Rename renamesSet
     pure (fExtended . fProjection . fRenames)
 
 instance SQLConvert TableExpr where
   type ConverterF TableExpr = (RelationalExpr, WithNamesAssocs)
   --does not handle non-relational aspects such as offset, order by, or limit
   convert typeF tExpr = do
-    (fromExpr, withExprs) <- convert typeF (fromClause tExpr)
+    (fromExpr, tableAliasMap) <- convert typeF (fromClause tExpr)
+    let tableAliasMap' = M.filterWithKey filterRedundantAlias tableAliasMap
+        filterRedundantAlias (QualifiedName [nam]) (RelationVariable nam' ())
+          | nam == nam' = False
+        filterRedundantAlias _ _ = True
+    withExprs <- mapM (\(qnam, expr) -> do
+                          nam <- convert typeF qnam
+                          pure (WithNameExpr nam (), expr)) (M.toList tableAliasMap')
     expr' <- case whereClause tExpr of
       Just whereExpr -> do
         restrictPredExpr <- convert typeF whereExpr
@@ -121,29 +131,35 @@ instance SQLConvert TableExpr where
 
 instance SQLConvert [TableRef] where
   -- returns base relation expressions plus top-level renames required
-  type ConverterF [TableRef] = (RelationalExpr, WithNamesAssocs)
-  convert _ [] = pure (ExistingRelation relationFalse, [])
+  type ConverterF [TableRef] = (RelationalExpr, TableAliasMap)
+  convert _ [] = pure (ExistingRelation relationFalse, M.empty)
   convert typeF (firstRef:trefs) = do
     --the first table ref must be a straight RelationVariable
-    (firstRel, withRenames) <- convert typeF firstRef
-    (expr', withRenames') <- foldM joinTRef (firstRel, withRenames) (zip [1..] trefs)
-    pure (expr', withRenames')
+    (firstRel, tableAliases) <- convert typeF firstRef
+    (expr', tableAliases') <- foldM joinTRef (firstRel, tableAliases) (zip [1..] trefs)
+    pure (expr', tableAliases')
     where
     --TODO: if any of the previous relations have overlap in their attribute names, we must change it to prevent a natural join!
-      joinTRef (rvA,withRenames) (c,tref) = do
-        let renamerFolder x expr old_name =
-              let new_name = T.concat [old_name, "_", x, T.pack (show c)]
-              in
-                pure $ Rename old_name new_name expr
+      joinTRef (rvA,tAliases) (c,tref) = do
+        let attrRenamer x expr attrs = do
+              renamed <- mapM (renameOneAttr x expr) attrs
+              pure (Rename (S.fromList renamed) expr)
+            renameOneAttr x expr old_name = pure (old_name, new_name)
+              where
+                  new_name = T.concat [prefix, ".", old_name]
+                  prefix = case expr of
+                             RelationVariable rvName () -> rvName
+                             _ -> x -- probably need to return errors for some expressions
+                
         case tref of
           NaturalJoinTableRef jtref -> do
             -- then natural join is the only type of join which the relational algebra supports natively
-            (rvB, withRenames') <- convert typeF jtref
-            pure $ (Join rvA rvB, withRenames <> withRenames')
+            (rvB, tAliases') <- convert typeF jtref
+            pure $ (Join rvA rvB, M.union tAliases tAliases)
           CrossJoinTableRef jtref -> do
             --rename all columns to prefix them with a generated alias to prevent any natural join occurring, then perform normal join
             -- we need the type to get all the attribute names for both relexprs
-            (rvB, withRenames') <- convert typeF jtref
+            (rvB, tAliases) <- convert typeF jtref
             case typeF rvA of
               Left err -> Left (SQLRelationalError err)
               Right typeA ->
@@ -154,36 +170,51 @@ instance SQLConvert [TableRef] where
                         attrsB = A.attributeNameSet (attributes typeB)
                         attrsIntersection = S.intersection attrsA attrsB
                         --find intersection of attributes and rename all of them with prefix 'expr'+c+'.'
-                    traceShowM ("cross gonk", attrsIntersection)
-                    exprA <- foldM (renamerFolder "a") rvA (S.toList attrsIntersection)
-                    pure (Join exprA rvB, withRenames')
+                    exprA <- attrRenamer "a" rvA (S.toList attrsIntersection)
+                    pure (Join exprA rvB, tAliases)
           InnerJoinTableRef jtref (JoinUsing qnames) -> do
-            (rvB, withRenames') <- convert typeF jtref
+            (rvB, tAliases) <- convert typeF jtref
             jCondAttrs <- S.fromList <$> mapM (convert typeF) qnames
             (attrsIntersection, attrsA, attrsB) <- commonAttributeNames typeF rvA rvB
-            --rename attributes which are not part of the join condition
+            --rename attributes used in the join condition
             let attrsToRename = S.difference  attrsIntersection jCondAttrs
-            traceShowM ("inner", attrsToRename, attrsIntersection, jCondAttrs)
-            exprA <- foldM (renamerFolder "a") rvA (S.toList attrsToRename)
-            pure (Join exprA rvB, withRenames')
-          InnerJoinTableRef jtref (JoinOn sexpr) -> do
+--            traceShowM ("inner", attrsToRename, attrsIntersection, jCondAttrs)
+            exprA <- attrRenamer "a" rvA (S.toList attrsToRename)
+            pure (Join exprA rvB, tAliases)
+            
+          InnerJoinTableRef jtref (JoinOn (JoinOnCondition joinExpr)) -> do
             --create a cross join but extend with the boolean sexpr
             --extend the table with the join conditions, then join on those
             --exception: for simple attribute equality, use regular join renames using JoinOn logic
-            (rvB, withRenames') <- convert typeF jtref
+            (rvB, tAliases) <- convert typeF jtref
+
+            --rvA and rvB now reference potentially aliased relation variables (needs with clause to execute), but this is useful for making attributes rv-prefixed
+--            traceShowM ("converted", rvA, rvB, tAliases)
             --extract all table aliases to create a remapping for SQL names discovered in the sexpr
-            (commonAttrs, attrsA, attrsB) <- commonAttributeNames typeF rvA rvB            
-            let sexpr' = renameIdentifier renamer sexpr
+            (commonAttrs, attrsA, attrsB) <- commonAttributeNames typeF rvA rvB
+            -- first, execute the rename, renaming all attributes according to their table aliases
+            let rvPrefix rvExpr =
+                  case rvExpr of
+                    RelationVariable nam () -> pure nam
+                    x -> Left $ NotSupportedError ("cannot derived name for relational expression " <> T.pack (show x))
+            rvPrefixA <- rvPrefix rvA
+            rvPrefixB <- rvPrefix rvB
+            exprA <- attrRenamer rvPrefixA rvA (S.toList attrsA)
+            exprB <- attrRenamer rvPrefixB rvB (S.toList attrsB)            
+            -- for the join condition, we can potentially extend to include all the join criteria columns, then project them away after constructing the join condition
+            let joinExpr' = renameIdentifier renamer joinExpr
                 renamer n@(QualifiedName [tableAlias,attr]) = --lookup prefixed with table alias
-                  case W.lookup tableAlias withRenames' of
-                    Nothing -> QualifiedName [attr]-- the table was not renamed, but the attribute may have been renamed- how do we know at this point when the sexpr' converter hasn't run yet?!
+                  case M.lookup n tAliases of
+                    -- the table was not renamed, but the attribute may have been renamed
+                    -- find the source of the attribute
+                    Nothing -> n
                     Just found -> error (show (tableAlias, found))
                 renamer n@(QualifiedName [attr]) = error (show n)
-            joinRe <- convert typeF sexpr'
+--            traceShowM ("joinExpr'", joinExpr')
+            joinRe <- convert typeF joinExpr'
 
+            --let joinCommonAttrRenamer (RelationVariable rvName ()) old_name =
             --rename all common attrs and use the new names in the join condition
-            exprA <- foldM (renamerFolder "a") rvA (S.toList commonAttrs)
-            exprB <- foldM (renamerFolder "b") rvB (S.toList commonAttrs)
             let allAttrs = S.union attrsA attrsB
                 firstAvailableName c allAttrs' =
                   let new_name = T.pack ("join_" <> show c) in
@@ -191,9 +222,14 @@ instance SQLConvert [TableRef] where
                     firstAvailableName (c + 1) allAttrs'
                     else
                     new_name
-                extender = AttributeExtendTupleExpr (firstAvailableName 1 allAttrs) joinRe
-            pure (Join (Extend extender exprA) exprB, withRenames')
+                joinName = firstAvailableName 1 allAttrs
+                extender = AttributeExtendTupleExpr joinName joinRe
+                joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
+                projectAwayJoinMatch = Project (InvertedAttributeNames (S.fromList [joinName]))
+            pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))), tAliases)
 
+
+--type AttributeNameRemap = M.Map RelVarName AttributeName
 
 -- | Used in join condition detection necessary for renames to enable natural joins.
 commonAttributeNames :: TypeForRelExprF -> RelationalExpr -> RelationalExpr -> Either SQLError (S.Set AttributeName, S.Set AttributeName, S.Set AttributeName)
@@ -208,25 +244,34 @@ commonAttributeNames typeF rvA rvB =
               attrsB = A.attributeNameSet (attributes typeB)
           pure $ (S.intersection attrsA attrsB, attrsA, attrsB)
 
-                        
 
+--over the course of conversion, we collect all the table aliases we encounter, including non-aliased table references            
+type TableAliasMap = M.Map QualifiedName RelationalExpr
+
+insertTableAlias :: QualifiedName -> RelationalExpr -> TableAliasMap -> Either SQLError TableAliasMap
+insertTableAlias qn expr map' =
+  case M.lookup qn map' of
+    Nothing -> pure $ M.insert qn expr map'
+    Just _ -> Left (DuplicateTableReferenceError qn)
+  
 -- convert a TableRef in isolation- to be used with the first TableRef only
 instance SQLConvert TableRef where
   -- return base relation variable expression plus a function to apply top-level rv renames using WithNameExpr
-  type ConverterF TableRef = (RelationalExpr, WithNamesAssocs)
+  type ConverterF TableRef = (RelationalExpr, TableAliasMap)
   --SELECT x FROM a,_b_ creates a cross join
-  convert _ (SimpleTableRef (QualifiedName [nam])) =
-    pure (RelationVariable nam (), [])
+  convert _ (SimpleTableRef qn@(QualifiedName [nam])) = do
+    let rv = RelationVariable nam ()
+    pure (rv, M.singleton qn rv) -- include with clause even for simple cases because we use this mapping to 
   convert typeF (AliasedTableRef tnam (AliasName newName)) = do
-    (rv, withNames) <- convert typeF tnam
-    pure $ (RelationVariable newName (), (WithNameExpr newName (), rv):withNames) 
+    (rv, _) <- convert typeF tnam
+    pure $ (RelationVariable newName (), M.singleton (QualifiedName [newName]) rv)
   convert _ x = Left $ NotSupportedError (T.pack (show x))
 
 
 instance SQLConvert RestrictionExpr where
   type ConverterF RestrictionExpr = RestrictionPredicateExpr
   convert typeF (RestrictionExpr rexpr) = do
-    let wrongType t = Left $ TypeMismatch t BoolAtomType --must be boolean expression
+    let wrongType t = Left $ TypeMismatchError t BoolAtomType --must be boolean expression
         attrName' (QualifiedName ts) = T.intercalate "." ts
     case rexpr of
       IntegerLiteral{} -> wrongType IntegerAtomType
@@ -247,7 +292,7 @@ lookupFunc qname =
   case qname of
     QualifiedName [nam] ->
       case lookup nam sqlFuncs of
-        Nothing -> Left $ NoSuchFunction qname
+        Nothing -> Left $ NoSuchSQLFunctionError qname
         Just match -> pure match
   where
     f n args = FunctionAtomExpr n args ()
@@ -275,6 +320,12 @@ instance SQLConvert ScalarExpr where
         b <- convert typeF exprB
         f <- lookupFunc qn 
         pure $ f [a,b]
+
+instance SQLConvert JoinOnCondition where
+  type ConverterF JoinOnCondition = (RelationalExpr -> RelationalExpr)
+  convert typeF (JoinOnCondition expr) = do
+    case expr of
+      Identifier (QualifiedName [tAlias, colName]) -> undefined
 
 instance SQLConvert ProjectionScalarExpr where
   type ConverterF ProjectionScalarExpr = AtomExpr
