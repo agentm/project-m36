@@ -93,7 +93,12 @@ instance SQLConvert [SelectItem] where
          
         selItemFolder acc (c, (scalarExpr, mAlias)) = do
           atomExpr <- convert typeF scalarExpr
-          pure $ acc { taskExtenders = AttributeExtendTupleExpr (attrName' mAlias c) atomExpr : taskExtenders acc }
+          let newAttrName = attrName' mAlias c
+          -- we need to apply the projections after the extension!
+          pure $ acc { taskExtenders = AttributeExtendTupleExpr newAttrName atomExpr : taskExtenders acc,
+                       taskProjections = S.insert (QualifiedProjectionName [ProjectionName newAttrName]) (taskProjections acc)
+                     }
+    traceShowM ("selItems", selItems)
     task <- foldM selItemFolder emptyTask (zip [1::Int ..] selItems)
     --apply projections
     fProjection <- if S.null (taskProjections task) then
@@ -115,7 +120,7 @@ instance SQLConvert [SelectItem] where
                           oldName <- convert typeF qProjName
                           pure $ S.insert (oldName, newName) acc) S.empty (taskRenames task)
     let fRenames = if S.null renamesSet then id else Rename renamesSet
-    pure (fExtended . fProjection . fRenames)
+    pure (fProjection . fExtended . fRenames)
 
 instance SQLConvert TableExpr where
   type ConverterF TableExpr = (RelationalExpr, WithNamesAssocs)
@@ -314,7 +319,8 @@ lookupFunc qname =
                  ("<=",f "lte"),
                  ("=",f "eq"),
                  ("!=",f "not_eq"), -- function missing
-                 ("<>",f "not_eq") -- function missing
+                 ("<>",f "not_eq"), -- function missing
+                 ("+", f "add")
                ]
       
 instance SQLConvert ScalarExpr where
