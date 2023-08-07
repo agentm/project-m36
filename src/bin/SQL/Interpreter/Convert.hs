@@ -44,6 +44,16 @@ instance SQLConvert Select where
                       _ -> With withNames
         pure (withF (projF rvExpr))
 
+tableAliasesAsWithNameAssocs :: TableAliasMap -> Either SQLError WithNamesAssocs
+tableAliasesAsWithNameAssocs tmap =
+  filter notSelfRef <$> mapM mapper (M.toList tmap)
+  where
+    notSelfRef (WithNameExpr nam (), RelationVariable nam' ()) | nam == nam' = False
+                                                            | otherwise = True
+    notSelfRef _ = True
+    mapper (QualifiedName [nam], rvExpr) = pure (WithNameExpr nam (), rvExpr)
+    mapper (qn, _) = Left (NotSupportedError ("schema qualified table names: " <> T.pack (show qn)))
+
 data SelectItemsConvertTask = SelectItemsConvertTask { taskProjections :: S.Set QualifiedProjectionName,
                                                        taskRenames :: [(QualifiedProjectionName, AliasName)],
                                                        taskExtenders :: [ExtendTupleExpr]
@@ -140,7 +150,7 @@ instance SQLConvert [TableRef] where
     pure (expr', tableAliases')
     where
     --TODO: if any of the previous relations have overlap in their attribute names, we must change it to prevent a natural join!
-      joinTRef (rvA,tAliases) (c,tref) = do
+      joinTRef (rvA,tAliasesA) (c,tref) = do
         let attrRenamer x expr attrs = do
               renamed <- mapM (renameOneAttr x expr) attrs
               pure (Rename (S.fromList renamed) expr)
@@ -154,12 +164,12 @@ instance SQLConvert [TableRef] where
         case tref of
           NaturalJoinTableRef jtref -> do
             -- then natural join is the only type of join which the relational algebra supports natively
-            (rvB, tAliases') <- convert typeF jtref
-            pure $ (Join rvA rvB, M.union tAliases tAliases)
+            (rvB, tAliasesB) <- convert typeF jtref
+            pure $ (Join rvA rvB, M.union tAliasesA tAliasesB)
           CrossJoinTableRef jtref -> do
             --rename all columns to prefix them with a generated alias to prevent any natural join occurring, then perform normal join
             -- we need the type to get all the attribute names for both relexprs
-            (rvB, tAliases) <- convert typeF jtref
+            (rvB, tAliasesB) <- convert typeF jtref
             case typeF rvA of
               Left err -> Left (SQLRelationalError err)
               Right typeA ->
@@ -171,27 +181,29 @@ instance SQLConvert [TableRef] where
                         attrsIntersection = S.intersection attrsA attrsB
                         --find intersection of attributes and rename all of them with prefix 'expr'+c+'.'
                     exprA <- attrRenamer "a" rvA (S.toList attrsIntersection)
-                    pure (Join exprA rvB, tAliases)
+                    pure (Join exprA rvB, M.union tAliasesA tAliasesB)
           InnerJoinTableRef jtref (JoinUsing qnames) -> do
-            (rvB, tAliases) <- convert typeF jtref
+            (rvB, tAliasesB) <- convert typeF jtref
             jCondAttrs <- S.fromList <$> mapM (convert typeF) qnames
             (attrsIntersection, attrsA, attrsB) <- commonAttributeNames typeF rvA rvB
             --rename attributes used in the join condition
             let attrsToRename = S.difference  attrsIntersection jCondAttrs
 --            traceShowM ("inner", attrsToRename, attrsIntersection, jCondAttrs)
             exprA <- attrRenamer "a" rvA (S.toList attrsToRename)
-            pure (Join exprA rvB, tAliases)
+            pure (Join exprA rvB, M.union tAliasesA tAliasesB)
             
           InnerJoinTableRef jtref (JoinOn (JoinOnCondition joinExpr)) -> do
             --create a cross join but extend with the boolean sexpr
             --extend the table with the join conditions, then join on those
             --exception: for simple attribute equality, use regular join renames using JoinOn logic
-            (rvB, tAliases) <- convert typeF jtref
-
+            
+            (rvB, tAliasesB) <- convert typeF jtref
             --rvA and rvB now reference potentially aliased relation variables (needs with clause to execute), but this is useful for making attributes rv-prefixed
 --            traceShowM ("converted", rvA, rvB, tAliases)
             --extract all table aliases to create a remapping for SQL names discovered in the sexpr
-            (commonAttrs, attrsA, attrsB) <- commonAttributeNames typeF rvA rvB
+            let allAliases = M.union tAliasesA tAliasesB
+            withExpr <- With <$> tableAliasesAsWithNameAssocs allAliases
+            (commonAttrs, attrsA, attrsB) <- commonAttributeNames typeF (withExpr rvA) (withExpr rvB)
             -- first, execute the rename, renaming all attributes according to their table aliases
             let rvPrefix rvExpr =
                   case rvExpr of
@@ -204,15 +216,15 @@ instance SQLConvert [TableRef] where
             -- for the join condition, we can potentially extend to include all the join criteria columns, then project them away after constructing the join condition
             let joinExpr' = renameIdentifier renamer joinExpr
                 renamer n@(QualifiedName [tableAlias,attr]) = --lookup prefixed with table alias
-                  case M.lookup n tAliases of
+                  case M.lookup n allAliases of
                     -- the table was not renamed, but the attribute may have been renamed
                     -- find the source of the attribute
                     Nothing -> n
                     Just found -> error (show (tableAlias, found))
                 renamer n@(QualifiedName [attr]) = error (show n)
---            traceShowM ("joinExpr'", joinExpr')
+            traceShowM ("joinExpr'", joinExpr')
             joinRe <- convert typeF joinExpr'
-
+            traceShowM ("joinRe", joinRe)
             --let joinCommonAttrRenamer (RelationVariable rvName ()) old_name =
             --rename all common attrs and use the new names in the join condition
             let allAttrs = S.union attrsA attrsB
@@ -226,7 +238,7 @@ instance SQLConvert [TableRef] where
                 extender = AttributeExtendTupleExpr joinName joinRe
                 joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
                 projectAwayJoinMatch = Project (InvertedAttributeNames (S.fromList [joinName]))
-            pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))), tAliases)
+            pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))), allAliases)
 
 
 --type AttributeNameRemap = M.Map RelVarName AttributeName

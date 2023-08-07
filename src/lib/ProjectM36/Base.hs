@@ -248,7 +248,7 @@ data RelationalExprBase a =
   Extend (ExtendTupleExprBase a) (RelationalExprBase a) |
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
-  With [(WithNameExprBase a, RelationalExprBase a)] (RelationalExprBase a)
+  With (WithNamesAssocsBase a) (RelationalExprBase a)
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 instance Hashable RelationalExpr
