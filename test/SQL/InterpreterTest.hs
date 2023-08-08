@@ -57,8 +57,23 @@ testSelect = TestCase $ do
         ("SELECT * FROM sp AS sp2 JOIN s AS s2 ON s2.s# = sp2.s#",
          "with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1}"),
         -- formula extension
-          ("SELECT status+10 FROM s", "(s : {attr_1:=add(@status,10)}) { attr_1 }")
-                  ]
+        ("SELECT status+10 FROM s", "(s : {attr_1:=add(@status,10)}) { attr_1 }"),
+        -- extension and formula
+        ("SELECT status+10,city FROM s", "(s : {attr_1:=add(@status,10)}) {city,attr_1}"),
+        -- complex join condition
+        ("SELECT * FROM sp JOIN s ON s.s# = sp.s# AND s.s# = sp.s#","((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=and(eq(@`s.s#`,@`sp.s#`),eq(@`s.s#`,@`sp.s#`))}) where join_1=True) {all but join_1}"),
+        -- TABLE <tablename>
+        ("TABLE s", "s")
+        -- any, all, some
+        -- IN()
+        -- where exists
+        --("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE s.s#=sp.s#)","s"),
+        -- where not exists
+        -- group by
+        -- group by having
+        -- limit
+        -- limit offset
+        ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just dateExamples,
         gre_graph = tgraph,
@@ -69,7 +84,7 @@ testSelect = TestCase $ do
       check (sql, tutd) = do
         print sql
         --parse SQL
-        select <- case parse (selectP <* eof) "test" sql of
+        select <- case parse (queryExprP <* eof) "test" sql of
           Left err -> error (errorBundlePretty err)
           Right x -> do
             --print x

@@ -16,6 +16,11 @@ data Select = Select { distinctness :: Maybe Distinctness,
                      }
               deriving (Show, Eq)
 
+emptySelect :: Select
+emptySelect = Select { distinctness = Nothing,
+                       projectionClause = [],
+                       tableExpr = Nothing }
+
 data InFlag = In | NotIn
   deriving (Show, Eq)
 
@@ -62,7 +67,11 @@ data ScalarExprBase n =
     -- | ExistsSubQuery Select
     -- | UniqueSubQuery Select
     -- | ScalarSubQuery Select
+  | BooleanOperatorExpr (ScalarExprBase n) BoolOp (ScalarExprBase n)
   deriving (Show, Eq)
+
+data BoolOp = AndOp | OrOp
+  deriving (Eq, Show)
 
 data InPredicateValue = InList [ScalarExpr] | InQueryExpr Select | InScalarExpr ScalarExpr
   deriving (Eq, Show)
@@ -110,7 +119,16 @@ newtype AliasName = AliasName Text
   deriving (Show, Eq)
                        
 data Distinctness = Distinct | All deriving (Show, Eq)
-                         
+
+queryExprP :: Parser Select
+queryExprP = tableP <|> selectP
+
+tableP :: Parser Select
+tableP = do
+  reserved "table"
+  tname <- qualifiedNameP
+  pure $ emptySelect { tableExpr = Just $ emptyTableExpr { fromClause = [SimpleTableRef tname] } }
+  
 selectP :: Parser Select
 selectP = do
   reserved "select"
@@ -143,6 +161,15 @@ data TableExpr =
               offsetClause :: Maybe Integer
                            }
   deriving (Show, Eq)
+
+emptyTableExpr :: TableExpr
+emptyTableExpr = TableExpr { fromClause = [],
+                             whereClause = Nothing,
+                             groupByClause = [],
+                             havingClause = Nothing,
+                             orderByClause = [],
+                             limitClause = Nothing,
+                             offsetClause = Nothing }
 
 tableExprP :: Parser TableExpr
 tableExprP =
@@ -232,6 +259,7 @@ scalarExprOp =
     map binarySymbolN ["<",">",">=","<=","!=","<>","="],
 {-    [binarySymbolsN ["is", "distinct", "from"],
      binarySymbolsN ["is", "not", "distinct", "from"]],-}
+    [binarySymbolL "and"],
     [prefixSymbol "not"],
     [binarySymbolL "or"]
     -- AT TIME ZONE

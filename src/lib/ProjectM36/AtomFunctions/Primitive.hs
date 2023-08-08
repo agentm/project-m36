@@ -92,7 +92,20 @@ primitiveAtomFunctions = HS.fromList [
                        Just u -> pure $ UUIDAtom u
                        Nothing -> Left $ InvalidUUIDString v
                  _ -> Left AtomFunctionTypeMismatchError
+             },
+    Function { funcName = "and",
+               funcType = [BoolAtomType, BoolAtomType, BoolAtomType],
+               funcBody = body $ \case
+                 [BoolAtom b1, BoolAtom b2] ->
+                   Right $ BoolAtom (b1 && b2)
+             },
+    Function { funcName = "or",
+               funcType = [BoolAtomType, BoolAtomType, BoolAtomType],
+               funcBody = body $ \case
+                 [BoolAtom b1, BoolAtom b2] ->
+                   Right $ BoolAtom (b1 || b2)
              }
+    
   ] <> scientificAtomFunctions
   where
     body = FunctionBuiltInBody

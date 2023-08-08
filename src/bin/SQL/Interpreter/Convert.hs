@@ -320,7 +320,9 @@ lookupFunc qname =
                  ("=",f "eq"),
                  ("!=",f "not_eq"), -- function missing
                  ("<>",f "not_eq"), -- function missing
-                 ("+", f "add")
+                 ("+", f "add"),
+                 ("and", f "and"),
+                 ("or", f "or")
                ]
       
 instance SQLConvert ScalarExpr where
