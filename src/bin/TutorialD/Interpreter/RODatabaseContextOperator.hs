@@ -202,13 +202,16 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
 showDataFrameP :: Parser RODatabaseContextOperator
 showDataFrameP = do
   colonOp ":showdataframe"
-  relExpr <- relExprP
-  reservedOp "orderby"
-  attrOrdersExpr <- attrOrdersExprP
-  mbOffset <- optional offsetP
-  mbLimit <- optional limitP
-  pure $ ShowDataFrame (DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit)
+  dfExpr <- dataFrameP
+  pure (ShowDataFrame dfExpr)
 
+dataFrameP :: Parser DF.DataFrameExpr
+dataFrameP = do
+  relExpr <- parens relExprP
+  attrOrdersExpr <- try attrOrdersExprP <|> pure []
+  mbLimit <- optional limitP
+  mbOffset <- optional offsetP
+  pure $ DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit
 
 offsetP :: Parser Integer
 offsetP = do
@@ -221,7 +224,7 @@ limitP = do
   natural
 
 attrOrdersExprP :: Parser [DF.AttributeOrderExpr]
-attrOrdersExprP = braces (sepBy attrOrderExprP comma)
+attrOrdersExprP = reserved "orderby" *> braces (sepBy attrOrderExprP comma)
 
 attrOrderExprP :: Parser DF.AttributeOrderExpr
 attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP

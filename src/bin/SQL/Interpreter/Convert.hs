@@ -3,6 +3,7 @@
 module SQL.Interpreter.Convert where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), AttributeOrder(..),Order(..))
 import ProjectM36.AttributeNames as A
 import ProjectM36.Attribute as A
 import qualified ProjectM36.WithNameExpr as W
@@ -32,17 +33,22 @@ class SQLConvert sqlexpr where
   convert :: TypeForRelExprF -> sqlexpr -> Either SQLError (ConverterF sqlexpr)
 
 instance SQLConvert Select where
-  type ConverterF Select = RelationalExpr
+  type ConverterF Select = DataFrameExpr
   convert typeF sel = do
     projF <- convert typeF (projectionClause sel)
+    let baseDFExpr = DataFrameExpr { convertExpr = ExistingRelation relationTrue,
+                                     orderExprs = [],
+                                     offset = Nothing,
+                                     limit = Nothing }
     case tableExpr sel of
-      Nothing -> pure $ ExistingRelation relationTrue
+      Nothing -> pure baseDFExpr
       Just tExpr -> do
-        (rvExpr, withNames) <- convert typeF tExpr
+        (dfExpr, withNames) <- convert typeF tExpr
         let withF = case withNames of
                       [] -> id
                       _ -> With withNames
-        pure (withF (projF rvExpr))
+        pure (dfExpr { convertExpr = withF (projF (convertExpr dfExpr)) })
+                       
 
 tableAliasesAsWithNameAssocs :: TableAliasMap -> Either SQLError WithNamesAssocs
 tableAliasesAsWithNameAssocs tmap =
@@ -98,7 +104,6 @@ instance SQLConvert [SelectItem] where
           pure $ acc { taskExtenders = AttributeExtendTupleExpr newAttrName atomExpr : taskExtenders acc,
                        taskProjections = S.insert (QualifiedProjectionName [ProjectionName newAttrName]) (taskProjections acc)
                      }
-    traceShowM ("selItems", selItems)
     task <- foldM selItemFolder emptyTask (zip [1::Int ..] selItems)
     --apply projections
     fProjection <- if S.null (taskProjections task) then
@@ -123,8 +128,8 @@ instance SQLConvert [SelectItem] where
     pure (fProjection . fExtended . fRenames)
 
 instance SQLConvert TableExpr where
-  type ConverterF TableExpr = (RelationalExpr, WithNamesAssocs)
-  --does not handle non-relational aspects such as offset, order by, or limit
+  --pass with exprs up because they must be applied after applying projections
+  type ConverterF TableExpr = (DataFrameExpr, WithNamesAssocs)
   convert typeF tExpr = do
     (fromExpr, tableAliasMap) <- convert typeF (fromClause tExpr)
     let tableAliasMap' = M.filterWithKey filterRedundantAlias tableAliasMap
@@ -139,11 +144,33 @@ instance SQLConvert TableExpr where
         restrictPredExpr <- convert typeF whereExpr
         pure $ Restrict restrictPredExpr fromExpr        
       Nothing -> pure fromExpr
-    pure (expr', withExprs)
+    orderExprs <- convert typeF (orderByClause tExpr)
+    let dfExpr = DataFrameExpr { convertExpr = expr',
+                                 orderExprs = orderExprs,
+                                 offset = offsetClause tExpr,
+                                 limit = limitClause tExpr }
+    pure (dfExpr, withExprs)
     --group by
     --having
 
-
+instance SQLConvert [SortExpr] where
+  type ConverterF [SortExpr] = [AttributeOrderExpr]
+  convert typeF exprs = mapM converter exprs
+    where
+      converter (SortExpr sexpr mDirection mNullsOrder) = do
+        atomExpr <- convert typeF sexpr
+        attrn <- case atomExpr of
+                   AttributeAtomExpr aname -> pure aname
+                   x -> Left (NotSupportedError (T.pack (show x)))
+        let ordering = case mDirection of
+                         Nothing -> AscendingOrder
+                         Just Ascending -> AscendingOrder
+                         Just Descending -> DescendingOrder
+        case mNullsOrder of
+          Nothing -> pure ()
+          Just x -> Left (NotSupportedError (T.pack (show x)))
+        pure (AttributeOrderExpr attrn ordering)
+    
 instance SQLConvert [TableRef] where
   -- returns base relation expressions plus top-level renames required
   type ConverterF [TableRef] = (RelationalExpr, TableAliasMap)
@@ -302,6 +329,20 @@ instance SQLConvert RestrictionExpr where
         b <- convert typeF exprB
         f <- lookupFunc qn
         pure (AtomExprPredicate (f [a,b]))
+      InExpr inOrNotIn sexpr (InList matches') -> do
+        eqExpr <- convert typeF sexpr
+        let (match:matches) = reverse matches'
+        firstItem <- convert typeF match
+        let inFunc a b = AtomExprPredicate (FunctionAtomExpr "eq" [a,b] ())
+            predExpr' = inFunc eqExpr firstItem
+            folder predExpr'' sexprItem = do
+              item <- convert typeF sexprItem
+              pure $ OrPredicate (inFunc eqExpr item) predExpr''
+        res <- foldM folder predExpr' matches --be careful here once we introduce NULLs              
+        case inOrNotIn of
+          In -> pure res
+          NotIn -> pure (NotPredicate res)
+        
 
 -- this could be amended to support more complex expressions such as coalesce by returning an [AtomExpr] -> AtomExpr function
 lookupFunc :: QualifiedName -> Either SQLError ([AtomExpr] -> AtomExpr)
@@ -340,6 +381,8 @@ instance SQLConvert ScalarExpr where
         b <- convert typeF exprB
         f <- lookupFunc qn 
         pure $ f [a,b]
+--      PrefixOperator qn expr -> do
+
 
 instance SQLConvert JoinOnCondition where
   type ConverterF JoinOnCondition = (RelationalExpr -> RelationalExpr)

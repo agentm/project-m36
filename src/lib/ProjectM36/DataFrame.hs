@@ -23,10 +23,10 @@ import Data.Monoid
 #endif
 
 data AttributeOrderExpr = AttributeOrderExpr AttributeName Order
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
 
 data AttributeOrder = AttributeOrder AttributeName Order
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
 
 data Order = AscendingOrder | DescendingOrder
   deriving (Eq, Show, Generic)
@@ -127,7 +127,14 @@ data DataFrameExpr = DataFrameExpr {
   offset :: Maybe Integer,
   limit :: Maybe Integer
   }
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
+
+-- | Returns a data frame expression without any sorting or limits.
+nakedDataFrameExpr :: RelationalExpr -> DataFrameExpr
+nakedDataFrameExpr rexpr = DataFrameExpr { convertExpr = rexpr,
+                                           orderExprs = [],
+                                           offset = Nothing,
+                                           limit = Nothing }
 
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
