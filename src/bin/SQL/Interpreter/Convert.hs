@@ -3,7 +3,7 @@
 module SQL.Interpreter.Convert where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), AttributeOrder(..),Order(..))
+import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), AttributeOrder(..),Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
 import ProjectM36.Attribute as A
 import qualified ProjectM36.WithNameExpr as W
@@ -16,6 +16,8 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (foldl')
 import qualified Data.Functor.Foldable as Fold
+import qualified Data.List.NonEmpty as NE
+import Control.Monad (when)
 
 import Debug.Trace
 
@@ -36,6 +38,13 @@ instance SQLConvert Select where
   type ConverterF Select = DataFrameExpr
   convert typeF sel = do
     projF <- convert typeF (projectionClause sel)
+    -- we have explicit with clauses written by the user, but also our own implementation-specific with expressions
+    explicitWithF <- case withClause sel of
+                       Nothing -> pure id
+                       Just wClause -> do
+                         wExprs <- convert typeF wClause
+                         pure (With wExprs)
+      
     let baseDFExpr = DataFrameExpr { convertExpr = ExistingRelation relationTrue,
                                      orderExprs = [],
                                      offset = Nothing,
@@ -46,8 +55,8 @@ instance SQLConvert Select where
         (dfExpr, withNames) <- convert typeF tExpr
         let withF = case withNames of
                       [] -> id
-                      _ -> With withNames
-        pure (dfExpr { convertExpr = withF (projF (convertExpr dfExpr)) })
+                      _ -> With withNames                      
+        pure (dfExpr { convertExpr = explicitWithF (withF (projF (convertExpr dfExpr))) })
                        
 
 tableAliasesAsWithNameAssocs :: TableAliasMap -> Either SQLError WithNamesAssocs
@@ -421,6 +430,19 @@ instance SQLConvert QualifiedProjectionName where
         namer Asterisk = error "wrong asterisk"
     names' <- mapM namer names
     pure (T.concat names')
+
+instance SQLConvert WithClause where
+  type ConverterF WithClause = WithNamesAssocs
+  convert typeF (WithClause True _) = Left (NotSupportedError "recursive CTEs")
+  convert typeF (WithClause False ctes) = do
+    let mapper (WithExpr (UnqualifiedName nam) subquery) = do
+          dfExpr <- convert typeF subquery
+          -- we don't support dataframe features in the cte query
+          when (usesDataFrameFeatures dfExpr) $ Left (NotSupportedError "ORDER BY/LIMIT/OFFSET in CTE subexpression")
+          pure (WithNameExpr nam (), (convertExpr dfExpr))
+    -- if the subquery is a Select, how do I get a rvexpr out of it rather than a data frame- perhaps a different conversion function?
+    mapM mapper (NE.toList ctes)
+    
 
 -- | Used to remap SQL qualified names to new names to prevent conflicts in join conditions.
 renameIdentifier :: (QualifiedName -> QualifiedName) -> ScalarExpr -> ScalarExpr

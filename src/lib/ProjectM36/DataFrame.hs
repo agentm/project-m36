@@ -2,7 +2,7 @@
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
-import ProjectM36.Attribute as A hiding (drop)
+import qualified ProjectM36.Attribute as A hiding (drop)
 import ProjectM36.Error
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
@@ -53,7 +53,7 @@ data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
   attrs <- mapM (\(AttributeOrder nam _) -> A.attributeForName nam (attributes frame)) attrOrders 
-  mapM_ (\attr -> unless (isSortableAtomType (atomType attr)) $ Left (AttributeNotSortableError attr)) attrs
+  mapM_ (\attr -> unless (isSortableAtomType (A.atomType attr)) $ Left (AttributeNotSortableError attr)) attrs
   pure $ DataFrame attrOrders (attributes frame) (sortTuplesBy (compareTupleByAttributeOrders attrOrders) (tuples frame))
 
 sortTuplesBy :: (DataFrameTuple -> DataFrameTuple -> Ordering) -> [DataFrameTuple] -> [DataFrameTuple]
@@ -79,7 +79,7 @@ compareTupleByOneAttributeName attr tuple1 tuple2 =
         Right atom2 -> compareAtoms atom1 atom2
 
 atomForAttributeName :: AttributeName -> DataFrameTuple -> Either RelationalError Atom
-atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) (attributesVec tupAttrs) of
+atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> A.attributeName attr == attrName) (attributesVec tupAttrs) of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just index -> case tupVec V.!? index of
     Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
@@ -106,10 +106,10 @@ showDataFrame = renderTable . dataFrameAsTable
 dataFrameAsTable :: DataFrame -> Table
 dataFrameAsTable df = (header, body)
   where
-    oAttrNames = orderedAttributeNames (attributes df)
-    oAttrs = orderedAttributes (attributes df)
+    oAttrNames = A.orderedAttributeNames (attributes df)
+    oAttrs = A.orderedAttributes (attributes df)
     header = "DF" : map dfPrettyAttribute oAttrs
-    dfPrettyAttribute attr = prettyAttribute attr <> case L.find (\(AttributeOrder nam _) -> nam == attributeName attr) (orders df) of
+    dfPrettyAttribute attr = prettyAttribute attr <> case L.find (\(AttributeOrder nam _) -> nam == A.attributeName attr) (orders df) of
       Nothing -> arbitrary
       Just (AttributeOrder _ AscendingOrder) -> ascending
       Just (AttributeOrder _ DescendingOrder) -> descending
@@ -128,6 +128,10 @@ data DataFrameExpr = DataFrameExpr {
   limit :: Maybe Integer
   }
   deriving (Show, Generic, Eq)
+
+-- | True iff dataframe features are required to execute this expression, False if this expression could be evaluated as a relational expression (no sorting, limit, or offset).
+usesDataFrameFeatures :: DataFrameExpr -> Bool
+usesDataFrameFeatures df = not (null (orderExprs df)) || isJust (offset df) || isJust (limit df)
 
 -- | Returns a data frame expression without any sorting or limits.
 nakedDataFrameExpr :: RelationalExpr -> DataFrameExpr
@@ -167,7 +171,7 @@ tuplesAsHTML = foldr folder ""
     folder tuple acc = acc <> tupleAsHTML tuple
 
 tupleAssocs :: DataFrameTuple -> [(AttributeName, Atom)]
-tupleAssocs (DataFrameTuple attrs tupVec) = V.toList $ V.map (first attributeName) (V.zip (attributesVec attrs) tupVec)
+tupleAssocs (DataFrameTuple attrs tupVec) = V.toList $ V.map (first A.attributeName) (V.zip (attributesVec attrs) tupVec)
     
 
 tupleAsHTML :: DataFrameTuple -> T.Text
@@ -181,7 +185,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
 attributesAsHTML :: Attributes -> [AttributeOrder] -> T.Text
 attributesAsHTML attrs orders' = "<tr>" <> T.concat (map oneAttrHTML (A.toList attrs)) <> "</tr>"
   where
-    oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (attributeName attr) <> "</th>"
+    oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (A.attributeName attr) <> "</th>"
     ordering attrName = " " <> case L.find (\(AttributeOrder nam _) -> nam == attrName) orders' of
       Nothing -> "(arb)"
       Just (AttributeOrder _ AscendingOrder) -> "(asc)"

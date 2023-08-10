@@ -8,18 +8,29 @@ import Data.Text (Text, splitOn)
 import qualified Data.Text as T
 import Data.Functor
 import Data.Functor.Foldable.TH
+import qualified Data.List.NonEmpty as NE
 
 -- we use an intermediate data structure because it may need to be probed into order to create a proper relational expression
 data Select = Select { distinctness :: Maybe Distinctness,
                        projectionClause :: [SelectItem],
-                       tableExpr :: Maybe TableExpr
+                       tableExpr :: Maybe TableExpr,
+                       withClause :: Maybe WithClause
                      }
               deriving (Show, Eq)
 
 emptySelect :: Select
 emptySelect = Select { distinctness = Nothing,
                        projectionClause = [],
-                       tableExpr = Nothing }
+                       tableExpr = Nothing,
+                       withClause = Nothing
+                     }
+
+data WithClause = WithClause { isRecursive :: Bool,
+                               withExprs :: NE.NonEmpty WithExpr }
+                  deriving (Show, Eq)
+
+data WithExpr = WithExpr UnqualifiedName Select
+  deriving (Show, Eq)
 
 data InFlag = In | NotIn
   deriving (Show, Eq)
@@ -131,13 +142,15 @@ tableP = do
   
 selectP :: Parser Select
 selectP = do
+  withClause' <- optional withP
   reserved "select"
 --  distinctOptions
   projection <- selectItemListP
   tExpr <- optional tableExprP
   pure (Select { distinctness = Nothing,
                  projectionClause = projection,
-                 tableExpr = tExpr
+                 tableExpr = tExpr,
+                 withClause = withClause'
                })
   
 type SelectItem = (ProjectionScalarExpr, Maybe AliasName)
@@ -393,6 +406,17 @@ limitP = optional (reserved "limit" *> integer)
 
 offsetP :: Parser (Maybe Integer)
 offsetP = optional (reserved "offset" *> integer)
+
+withP :: Parser WithClause
+withP = do
+  reserved "with"
+  recursive <- try (reserved "recursive" *> pure True) <|> pure False  
+  wExprs <- sepByComma1 $ do
+    wName <- unqualifiedNameP
+    reserved "as"
+    wSelect <- parens selectP
+    pure (WithExpr wName wSelect)
+  pure (WithClause recursive (NE.fromList wExprs))
       
 makeBaseFunctor ''ScalarExprBase
 

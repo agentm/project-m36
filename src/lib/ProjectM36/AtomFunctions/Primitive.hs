@@ -98,12 +98,14 @@ primitiveAtomFunctions = HS.fromList [
                funcBody = body $ \case
                  [BoolAtom b1, BoolAtom b2] ->
                    Right $ BoolAtom (b1 && b2)
+                 _ -> Left AtomFunctionTypeMismatchError
              },
     Function { funcName = "or",
                funcType = [BoolAtomType, BoolAtomType, BoolAtomType],
                funcBody = body $ \case
                  [BoolAtom b1, BoolAtom b2] ->
                    Right $ BoolAtom (b1 || b2)
+                 _ -> Left AtomFunctionTypeMismatchError                   
              }
     
   ] <> scientificAtomFunctions
