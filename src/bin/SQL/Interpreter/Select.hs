@@ -60,6 +60,7 @@ data ScalarExprBase n =
   IntegerLiteral Integer
   | DoubleLiteral Double
   | StringLiteral Text
+  | NullLiteral
     -- | Interval
   | Identifier n
   | BinaryOperator (ScalarExprBase n) QualifiedName (ScalarExprBase n)
@@ -69,7 +70,7 @@ data ScalarExprBase n =
   | FunctionApplication QualifiedName (ScalarExprBase n)
   | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
                caseElse :: Maybe (ScalarExprBase n) }
-  | QuantifiedComparison { qcExpr :: (ScalarExprBase n),
+  | QuantifiedComparison { qcExpr :: ScalarExprBase n,
                            qcOperator :: ComparisonOperator,
                            qcPredicate :: QuantifiedComparisonPredicate,
                            qcQuery :: Select }
@@ -79,6 +80,7 @@ data ScalarExprBase n =
     -- | UniqueSubQuery Select
     -- | ScalarSubQuery Select
   | BooleanOperatorExpr (ScalarExprBase n) BoolOp (ScalarExprBase n)
+  | ExistsExpr Select
   deriving (Show, Eq)
 
 data BoolOp = AndOp | OrOp
@@ -352,7 +354,7 @@ comparisonOperatorP = choice (map (\(match', op) -> reserved match' $> op) ops)
                  ("!=", OpNE)]
 
 simpleLiteralP :: Parser (ScalarExprBase a)
-simpleLiteralP = try doubleLiteralP <|> integerLiteralP <|> stringLiteralP
+simpleLiteralP = try doubleLiteralP <|> integerLiteralP <|> stringLiteralP <|> nullLiteralP
 
 doubleLiteralP :: Parser (ScalarExprBase a)
 doubleLiteralP = DoubleLiteral <$> double
@@ -373,17 +375,29 @@ stringLiteralP = StringLiteral <$> stringP
                                pure $ T.concat [capture, "'",rest]), --quoted quote
               pure capture
              ]
+
+nullLiteralP :: Parser (ScalarExprBase a)
+nullLiteralP = 
+  reserved "NULL" *> pure NullLiteral
   
 scalarTermP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarTermP = choice [
+  existsP,  
   simpleLiteralP,
     --,subQueryExpr
 --    caseExpr,
     --,cast
 --    subquery,
 --    pseudoArgFunc, -- includes NOW, NOW(), CURRENT_USER, TRIM(...), etc.
-    Identifier <$> qualifiedNameP]
+    Identifier <$> qualifiedNameP
+    ]
   <?> "scalar expression"
+
+
+existsP :: Parser (ScalarExprBase a)
+existsP = do
+  reserved "exists"
+  ExistsExpr <$> parens selectP
 
 -- used to distinguish between sections which may include an asterisk and those which cannot
 class QualifiedNameP a where
