@@ -27,6 +27,7 @@ data SQLError = NotSupportedError T.Text |
                 NoSuchSQLFunctionError QualifiedName |
                 DuplicateTableReferenceError QualifiedName |
                 MissingTableReferenceError QualifiedName |
+                UnexpectedQualifiedNameError QualifiedName |
                 ColumnResolutionError QualifiedName |
                 UnexpectedRelationalExprError RelationalExpr |
                 AmbiguousColumnResolutionError QualifiedName |
@@ -145,7 +146,6 @@ convertSelect typeF sel = do
   -- convert projection using table alias map to resolve column names
   projF <- convertProjection typeF tAliasMap (projectionClause sel)
   -- add with clauses
-
   withAssocs <- tableAliasesAsWithNameAssocs tAliasMap
   let withF = case withAssocs of
                 [] -> id
@@ -383,7 +383,7 @@ convertFromClause typeF (firstRef:trefs) = do
   (expr', tContext'') <- foldM (joinTableRef typeF) (firstRel, tableAliases) (zip [1..] trefs)
   pure (expr', tContext'', mempty {- FIXME add column remapping-})
 
--- | Convert TableRefs after the first one (assumes all additional TableRefs are for joins).
+-- | Convert TableRefs after the first one (assumes all additional TableRefs are for joins). Returns the qualified name key that was added to the map, the underlying relexpr (not aliased so that it can used for extracting type information), and the new table context map
 convertTableRef :: TypeForRelExprF -> TableContext -> TableRef -> Either SQLError (QualifiedName, RelationalExpr, TableContext)
 convertTableRef typeF tableContext tref =
   case tref of
@@ -393,9 +393,8 @@ convertTableRef typeF tableContext tref =
       tContext' <- insertTable qn rv (attributes typeRel) tableContext
       pure (qn, rv, tContext') -- include with clause even for simple cases because we use this mapping to 
     AliasedTableRef (SimpleTableRef qn@(QualifiedName [nam])) (AliasName newName) -> do
-      traceShowM ("aliased", nam, newName)
       typeRel <- wrapTypeF typeF (RelationVariable nam ())
-      let rv = RelationVariable newName ()
+      let rv = RelationVariable nam ()
           newKey = QualifiedName [newName]
       tContext' <- insertTable newKey rv (attributes typeRel) tableContext
       pure $ (newKey, RelationVariable nam (), tContext')
@@ -404,9 +403,18 @@ convertTableRef typeF tableContext tref =
   
 joinTableRef :: TypeForRelExprF -> (RelationalExpr, TableContext) -> (Int, TableRef) -> Either SQLError (RelationalExpr, TableContext)
 joinTableRef typeF (rvA, tcontext) (c,tref) = do
+      -- optionally prefix attributes unelss the expr is a RelationVariable
   let attrRenamer x expr attrs = do
         renamed <- mapM (renameOneAttr x expr) attrs
+        traceShowM ("attrRenamer", renamed)
         pure (Rename (S.fromList renamed) expr)
+      -- prefix all attributes
+      prefixRenamer prefix expr attrs = do
+        renamed <- mapM (prefixOneAttr prefix) attrs
+        pure (Rename (S.fromList renamed) expr)
+      prefixOneAttr prefix old_name = pure (old_name, new_name)
+        where
+          new_name = T.concat [prefix, ".", old_name]
       renameOneAttr x expr old_name = pure (old_name, new_name)
         where
           new_name = T.concat [prefix, ".", old_name]
@@ -422,7 +430,6 @@ joinTableRef typeF (rvA, tcontext) (c,tref) = do
             --rename all columns to prefix them with a generated alias to prevent any natural join occurring, then perform normal join
             -- we need the type to get all the attribute names for both relexprs
             (tKey, rvB, tcontext'@(TableContext tmap')) <- convertTableRef typeF tcontext jtref
-            traceShowM ("jointref", rvB, tmap')
             case typeF rvA of
               Left err -> Left (SQLRelationalError err)
               Right typeA ->
@@ -454,6 +461,7 @@ joinTableRef typeF (rvA, tcontext) (c,tref) = do
             --rvA and rvB now reference potentially aliased relation variables (needs with clause to execute), but this is useful for making attributes rv-prefixed
 --            traceShowM ("converted", rvA, rvB, tAliases)
             --extract all table aliases to create a remapping for SQL names discovered in the sexpr
+            
             withExpr <- With <$> tableAliasesAsWithNameAssocs tContext'
             (commonAttrs, attrsA, attrsB) <- commonAttributeNames typeF (withExpr rvA) (withExpr rvB)
             -- first, execute the rename, renaming all attributes according to their table aliases
@@ -461,14 +469,17 @@ joinTableRef typeF (rvA, tcontext) (c,tref) = do
                   case rvExpr of
                     RelationVariable nam () -> pure nam
                     x -> Left $ NotSupportedError ("cannot derived name for relational expression " <> T.pack (show x))
-            rvPrefixA <- rvPrefix rvA
-            rvPrefixB <- rvPrefix rvB
-            exprA <- attrRenamer rvPrefixA rvA (S.toList attrsA)
-            exprB <- attrRenamer rvPrefixB rvB (S.toList attrsB)            
+            rvNameB <- case tKey of -- could be original relvar name or an alias whereas rvB is the unaliased name
+                         QualifiedName [nam] -> pure nam
+                         other -> Left (UnexpectedQualifiedNameError other)
+            rvNameA <- rvPrefix rvA
+--            rvPrefixB <- rvPrefix rvB
+            exprA <- prefixRenamer rvNameA rvA (S.toList attrsA)
+            exprB <- prefixRenamer rvNameB (RelationVariable rvNameB ()) (S.toList attrsB)            
             -- for the join condition, we can potentially extend to include all the join criteria columns, then project them away after constructing the join condition
             let joinExpr' = renameIdentifier renamer joinExpr
                 renamer n@(QualifiedName [tableAlias,attr]) = --lookup prefixed with table alias
-                  case M.lookup n allAliases of
+                  case traceShow ("renamer", n) $ M.lookup n allAliases of
                     -- the table was not renamed, but the attribute may have been renamed
                     -- find the source of the attribute
                     Nothing -> n

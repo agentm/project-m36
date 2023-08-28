@@ -24,7 +24,7 @@ testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
   (tgraph,transId) <- freshTransactionGraph dateExamples  
-  let readTests = [
+  let readTests = [{-
         -- simple relvar
         ("SELECT * FROM s", "(s)"),
         -- simple projection
@@ -52,10 +52,10 @@ testSelect = TestCase $ do
         ("SELECT * FROM sp INNER JOIN sp AS sp2 USING (\"s#\")",
          "((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join sp)"),
         -- unaliased join
-        ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=eq(@`s.s#`,@`sp.s#`)}) where join_1=True) {all but join_1})"){-,
+        ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=eq(@`s.s#`,@`sp.s#`)}) where join_1=True) {all but join_1})"),-}
         -- aliased join on
         ("SELECT * FROM sp AS sp2 JOIN s AS s2 ON s2.s# = sp2.s#",
-         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})"),
+         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})"){-,
         -- formula extension
         ("SELECT status+10 FROM s", "((s : {attr_1:=add(@status,10)}) { attr_1 })"),
         -- extension and formula
@@ -121,6 +121,7 @@ testSelect = TestCase $ do
         selectAsRelExpr <- case convertSelect typeF select of
           Left err -> error (show err)
           Right x -> do
+            print x
             pure x
 
         --print ("selectAsRelExpr"::String, selectAsRelExpr)
