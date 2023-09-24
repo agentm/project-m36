@@ -6,31 +6,50 @@ import TutorialD.Interpreter.RODatabaseContextOperator
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
+import ProjectM36.DatabaseContext
 import ProjectM36.NormalizeExpr
+import ProjectM36.Client
 import ProjectM36.Base
 import System.Exit
 import Test.HUnit
 import Text.Megaparsec
 import qualified Data.Text as T
+import qualified Data.Map as M
 
 main :: IO ()
 main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = [testSelect]
+    tests = [testFindColumn, testSelect]
+
+
+testFindColumn :: Test
+testFindColumn = TestCase $ do
+  let tctx = TableContext $ M.fromList [(TableAlias "s",
+                                         (RelationVariable "s" (),
+                                          attributesFromList [Attribute "city" TextAtomType, Attribute "status" IntegerAtomType],
+                                          mempty
+                                          )
+                                        )]
+  assertEqual "findColumn city" [TableAlias "s"] (findColumn (ColumnName ["city"]) tctx)
+  assertEqual "findColumn s.city" [TableAlias "s"] (findColumn (ColumnName ["s", "city"]) tctx)
 
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  (tgraph,transId) <- freshTransactionGraph dateExamples  
-  let readTests = [{-
+  (tgraph,transId) <- freshTransactionGraph dateExamples
+  (sess, conn) <- dateExamplesConnection emptyNotificationCallback
+  
+  let readTests = [
         -- simple relvar
         ("SELECT * FROM s", "(s)"),
         -- simple projection
         ("SELECT city FROM s", "(s{city})"),
         -- restriction
         ("SELECT city FROM s where status=20","((s where status=20){city})"),
+        -- restriction with asterisk and qualified name
+        ("SELECT * FROM s WHERE \"s\".\"status\"=20","(s where status=20)"),
         -- restriction
         ("SELECT status,city FROM s where status>20","((s where gt(@status,20)){status,city})"),
         -- extension mixed with projection
@@ -50,12 +69,12 @@ testSelect = TestCase $ do
         ("SELECT * FROM s CROSS JOIN sp", "((s rename {s# as `s.s#`}) join sp)"),
         -- unaliased join using
         ("SELECT * FROM sp INNER JOIN sp AS sp2 USING (\"s#\")",
-         "((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join sp)"),
+         "(with (sp2 as sp) ((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join (sp2 rename {p# as `sp2.p#`, qty as `sp2.qty`})))"),
         -- unaliased join
-        ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=eq(@`s.s#`,@`sp.s#`)}) where join_1=True) {all but join_1})"),-}
+        ("SELECT * FROM sp JOIN s ON s.s# = sp.s#","(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=eq(@`s.s#`,@`sp.s#`)}) where join_1=True) {all but join_1})"),
         -- aliased join on
         ("SELECT * FROM sp AS sp2 JOIN s AS s2 ON s2.s# = sp2.s#",
-         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})"){-,
+         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})"),
         -- formula extension
         ("SELECT status+10 FROM s", "((s : {attr_1:=add(@status,10)}) { attr_1 })"),
         -- extension and formula
@@ -95,7 +114,7 @@ testSelect = TestCase $ do
         -- SELECT with no table expression
         ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),
         -- basic NULL
-        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})")-}
+        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})")
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just dateExamples,
@@ -113,20 +132,43 @@ testSelect = TestCase $ do
             --print x
             pure x
         --parse tutd
-        relExpr <- case parse (dataFrameP <* eof) "test" tutd of
+        tutdAsDFExpr <- case parse (dataFrameP <* eof) "test" tutd of
           Left err -> error (errorBundlePretty err)
           Right x -> do
             --print x
             pure x
-        selectAsRelExpr <- case convertSelect typeF select of
+        selectAsDFExpr <- case convertSelect typeF select of
           Left err -> error (show err)
           Right x -> do
             print x
             pure x
 
         --print ("selectAsRelExpr"::String, selectAsRelExpr)
-        assertEqual (T.unpack sql) relExpr selectAsRelExpr 
+        assertEqual (T.unpack sql) tutdAsDFExpr selectAsDFExpr
+        --check that the expression can actually be executed
+        eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr
+        case eEvald of
+          Left err -> assertFailure (show err <> ": " <> show tutdAsDFExpr)
+          Right _ -> pure ()
   mapM_ check readTests
   
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
 
+dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
+dateExamplesConnection callback = do
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [])
+  case dbconn of 
+    Left err -> error (show err)
+    Right conn -> do
+      eSessionId <- createSessionAtHead conn "master"
+      case eSessionId of
+        Left err -> error (show err)
+        Right sessionId -> do
+          executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples) >>= eitherFail
+      --skipping atom functions for now- there are no atom function manipulation operators yet
+          commit sessionId conn >>= eitherFail
+          pure (sessionId, conn)
+
+eitherFail :: Either RelationalError a -> IO ()
+eitherFail (Left err) = assertFailure (show err)
+eitherFail (Right _) = pure ()

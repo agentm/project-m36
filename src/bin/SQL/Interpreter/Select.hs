@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable #-}
+{-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving #-}
 module SQL.Interpreter.Select where
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -29,7 +29,10 @@ data WithClause = WithClause { isRecursive :: Bool,
                                withExprs :: NE.NonEmpty WithExpr }
                   deriving (Show, Eq)
 
-data WithExpr = WithExpr UnqualifiedName Select
+data WithExpr = WithExpr WithExprAlias Select
+  deriving (Show, Eq)
+
+newtype WithExprAlias = WithExprAlias Text
   deriving (Show, Eq)
 
 data InFlag = In | NotIn
@@ -41,20 +44,20 @@ data ComparisonOperator = OpLT | OpGT | OpGTE | OpEQ | OpNE | OpLTE
 data QuantifiedComparisonPredicate = QCAny | QCSome | QCAll
   deriving (Show,Eq)
 
-data TableRef = SimpleTableRef QualifiedName
+data TableRef = SimpleTableRef TableName
               | InnerJoinTableRef TableRef JoinCondition
               | RightOuterJoinTableRef TableRef JoinCondition
               | LeftOuterJoinTableRef TableRef JoinCondition
               | FullOuterJoinTableRef TableRef JoinCondition
               | CrossJoinTableRef TableRef
               | NaturalJoinTableRef TableRef
-              | AliasedTableRef TableRef AliasName
+              | AliasedTableRef TableRef TableAlias
               | QueryTableRef Select
               deriving (Show, Eq)
 
 -- distinguish between projection attributes which may include an asterisk and scalar expressions (such as in a where clause) where an asterisk is invalid
-type ProjectionScalarExpr = ScalarExprBase QualifiedProjectionName
-type ScalarExpr = ScalarExprBase QualifiedName
+type ProjectionScalarExpr = ScalarExprBase ColumnProjectionName
+type ScalarExpr = ScalarExprBase ColumnName
 
 data ScalarExprBase n =
   IntegerLiteral Integer
@@ -63,11 +66,11 @@ data ScalarExprBase n =
   | NullLiteral
     -- | Interval
   | Identifier n
-  | BinaryOperator (ScalarExprBase n) QualifiedName (ScalarExprBase n)
-  | PrefixOperator QualifiedName (ScalarExprBase n)
-  | PostfixOperator (ScalarExprBase n) QualifiedName
+  | BinaryOperator (ScalarExprBase n) OperatorName (ScalarExprBase n)
+  | PrefixOperator OperatorName (ScalarExprBase n)
+  | PostfixOperator (ScalarExprBase n) ColumnName
   | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
-  | FunctionApplication QualifiedName (ScalarExprBase n)
+  | FunctionApplication FuncName (ScalarExprBase n)
   | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
                caseElse :: Maybe (ScalarExprBase n) }
   | QuantifiedComparison { qcExpr :: ScalarExprBase n,
@@ -107,30 +110,39 @@ data NullsOrder = NullsFirst | NullsLast
 data JoinType = InnerJoin | RightOuterJoin | LeftOuterJoin | FullOuterJoin | CrossJoin | NaturalJoin
   deriving (Show, Eq)
 
-data JoinCondition = JoinOn JoinOnCondition | JoinUsing [UnqualifiedName]
+data JoinCondition = JoinOn JoinOnCondition | JoinUsing [UnqualifiedColumnName]
   deriving (Show, Eq)
 
 newtype JoinOnCondition = JoinOnCondition ScalarExpr
   deriving (Show, Eq)
 
-data Alias = Alias QualifiedName (Maybe AliasName)
-  deriving (Show, Eq)
-
-data QualifiedProjectionName = QualifiedProjectionName [ProjectionName] --dot-delimited reference
+data ColumnProjectionName = ColumnProjectionName [ProjectionName] --dot-delimited reference
   deriving (Show, Eq, Ord)
 
 data ProjectionName = ProjectionName Text | Asterisk
   deriving (Show, Eq, Ord)
 
-data QualifiedName = QualifiedName [Text]
+data ColumnName = ColumnName [Text]
   deriving (Show, Eq, Ord)
 
-data UnqualifiedName = UnqualifiedName Text
+data UnqualifiedColumnName = UnqualifiedColumnName Text
+  deriving (Show, Eq, Ord)
+
+data TableName = TableName [Text]
+  deriving (Show, Eq, Ord)
+
+data OperatorName = OperatorName [Text]
+  deriving (Show, Eq, Ord)
+
+newtype ColumnAlias = ColumnAlias { unColumnAlias :: Text }
+  deriving (Show, Eq, Ord)
+
+newtype TableAlias = TableAlias Text
+  deriving (Show, Eq, Ord, Monoid, Semigroup)
+
+newtype FuncName = FuncName [Text]
   deriving (Show, Eq)
 
-newtype AliasName = AliasName Text
-  deriving (Show, Eq)
-                       
 data Distinctness = Distinct | All deriving (Show, Eq)
 
 queryExprP :: Parser Select
@@ -139,8 +151,11 @@ queryExprP = tableP <|> selectP
 tableP :: Parser Select
 tableP = do
   reserved "table"
-  tname <- qualifiedNameP
+  tname <- tableNameP
   pure $ emptySelect { tableExpr = Just $ emptyTableExpr { fromClause = [SimpleTableRef tname] } }
+
+tableNameP :: Parser TableName
+tableNameP = TableName <$> qualifiedNameP'
   
 selectP :: Parser Select
 selectP = do
@@ -155,13 +170,13 @@ selectP = do
                  withClause = withClause'
                })
   
-type SelectItem = (ProjectionScalarExpr, Maybe AliasName)
+type SelectItem = (ProjectionScalarExpr, Maybe ColumnAlias)
   
 selectItemListP :: Parser [SelectItem]
 selectItemListP = sepBy1 selectItemP comma
 
 selectItemP :: Parser SelectItem
-selectItemP = (,) <$> scalarExprP <*> optional (reserved "as" *> aliasNameP)
+selectItemP = (,) <$> scalarExprP <*> optional (reserved "as" *> columnAliasP)
 
 newtype RestrictionExpr = RestrictionExpr ScalarExpr
   deriving (Show, Eq)
@@ -194,9 +209,9 @@ fromP :: Parser [TableRef]
 fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
   where
     nonJoinTref = choice [parens $ QueryTableRef <$> selectP,
-                          try (AliasedTableRef <$> simpleRef <*> (reserved "as" *> aliasNameP)),
+                          try (AliasedTableRef <$> simpleRef <*> (reserved "as" *> tableAliasP)),
                           simpleRef]
-    simpleRef = SimpleTableRef <$> qualifiedNameP              
+    simpleRef = SimpleTableRef <$> tableNameP
     joinP = do
       joinType <- joinTypeP
       tref <- nonJoinTref
@@ -211,7 +226,7 @@ fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
 joinConditionP :: Parser JoinCondition
 joinConditionP = do
   (JoinOn <$> (reserved "on" *> (JoinOnCondition <$> scalarExprP))) <|>
-   JoinUsing <$> (reserved "using" *> parens (sepBy1 unqualifiedNameP comma))
+   JoinUsing <$> (reserved "using" *> parens (sepBy1 unqualifiedColumnNameP comma))
 
 joinTypeP :: Parser JoinType
 joinTypeP = choice [reserveds "cross join" $> CrossJoin,
@@ -248,8 +263,17 @@ orderByP =
 nameP :: Parser Text
 nameP = quotedIdentifier <|> identifier
 
-aliasNameP :: Parser AliasName
-aliasNameP = AliasName <$> (quotedIdentifier <|> identifier)
+qualifiedNameP' :: Parser [Text]
+qualifiedNameP' = sepBy1 nameP (symbol ".")
+
+columnAliasP :: Parser ColumnAlias
+columnAliasP = ColumnAlias <$> (quotedIdentifier <|> identifier)
+
+tableAliasP :: Parser TableAlias
+tableAliasP = TableAlias <$> (quotedIdentifier <|> identifier)
+
+unqualifiedColumnNameP :: Parser UnqualifiedColumnName
+unqualifiedColumnNameP = UnqualifiedColumnName <$> nameP
 
 scalarExprP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarExprP = E.makeExprParser scalarTermP scalarExprOp
@@ -289,9 +313,9 @@ scalarExprOp =
    binarySymbolN s = E.InfixN $ binary s
    qComparisonOp = E.Postfix $ try quantifiedComparisonSuffixP
 
-qualifiedOperatorP :: Text -> Parser QualifiedName
+qualifiedOperatorP :: Text -> Parser OperatorName
 qualifiedOperatorP sym =
-  QualifiedName <$> segmentsP (splitOn "." sym) <* spaceConsumer
+  OperatorName <$> segmentsP (splitOn "." sym) <* spaceConsumer
   where
     segmentsP :: [Text] -> Parser [Text]
     segmentsP segments = case segments of
@@ -404,16 +428,15 @@ class QualifiedNameP a where
   qualifiedNameP :: Parser a
 
 -- | col, table.col, table.*, *
-instance QualifiedNameP QualifiedProjectionName where
+instance QualifiedNameP ColumnProjectionName where
   qualifiedNameP =
-    QualifiedProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
+    ColumnProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
 
-instance QualifiedNameP QualifiedName where
-  qualifiedNameP = QualifiedName <$> sepBy1 nameP (char '.')
+instance QualifiedNameP ColumnName where
+  qualifiedNameP = ColumnName <$> sepBy1 nameP (char '.')
 
--- | For use where qualified names need not apply (such as in USING (...) clause)
-unqualifiedNameP :: Parser UnqualifiedName
-unqualifiedNameP = UnqualifiedName <$> nameP
+withExprAliasP :: Parser WithExprAlias
+withExprAliasP = WithExprAlias <$> nameP
 
 limitP :: Parser (Maybe Integer)
 limitP = optional (reserved "limit" *> integer)
@@ -426,7 +449,7 @@ withP = do
   reserved "with"
   recursive <- try (reserved "recursive" *> pure True) <|> pure False  
   wExprs <- sepByComma1 $ do
-    wName <- unqualifiedNameP
+    wName <- withExprAliasP
     reserved "as"
     wSelect <- parens selectP
     pure (WithExpr wName wSelect)

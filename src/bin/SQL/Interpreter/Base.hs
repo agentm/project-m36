@@ -27,7 +27,7 @@ reserveds words' = do
 
 -- does not consume trailing spaces
 qualifiedNameSegment :: Text -> Parser Text
-qualifiedNameSegment sym = T.toLower <$> string' sym 
+qualifiedNameSegment sym = T.toLower <$> string' sym
 
 reservedOp :: Text -> Parser ()
 reservedOp op = try (spaceConsumer *> string op *> notFollowedBy opChar *> spaceConsumer)
