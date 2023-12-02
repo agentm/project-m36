@@ -206,8 +206,9 @@ tableExprP =
   TableExpr <$> fromP <*> optional whereP <*> option [] groupByP <*> optional havingP <*> option [] orderByP <*> limitP <*> offsetP
 
 fromP :: Parser [TableRef]
-fromP = reserved "from" *> ((:) <$> nonJoinTref <*> sepByComma joinP)
+fromP = reserved "from" *> (concat <$> sepByComma trefs)
   where
+    trefs = ((:) <$> nonJoinTref <*> many joinP)
     nonJoinTref = choice [parens $ QueryTableRef <$> selectP,
                           try (AliasedTableRef <$> simpleRef <*> (reserved "as" *> tableAliasP)),
                           simpleRef]
@@ -433,7 +434,7 @@ instance QualifiedNameP ColumnProjectionName where
     ColumnProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
 
 instance QualifiedNameP ColumnName where
-  qualifiedNameP = ColumnName <$> sepBy1 nameP (char '.')
+  qualifiedNameP = ColumnName <$> sepBy1 nameP (char '.') <* spaceConsumer
 
 withExprAliasP :: Parser WithExprAlias
 withExprAliasP = WithExprAlias <$> nameP

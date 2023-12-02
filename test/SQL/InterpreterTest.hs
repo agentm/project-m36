@@ -32,8 +32,12 @@ testFindColumn = TestCase $ do
                                           mempty
                                           )
                                         )]
-  assertEqual "findColumn city" [TableAlias "s"] (findColumn (ColumnName ["city"]) tctx)
-  assertEqual "findColumn s.city" [TableAlias "s"] (findColumn (ColumnName ["s", "city"]) tctx)
+  let findCol colName =
+        case runConvertM tctx (findColumn colName) of
+          Left err -> error (show err)
+          Right val -> fst val
+  assertEqual "findColumn city" [TableAlias "s"] (findCol (ColumnName ["city"]))
+  assertEqual "findColumn s.city" [TableAlias "s"] (findCol (ColumnName ["s", "city"]))
 
 testSelect :: Test
 testSelect = TestCase $ do
@@ -50,6 +54,10 @@ testSelect = TestCase $ do
         ("SELECT city FROM s where status=20","((s where status=20){city})"),
         -- restriction with asterisk and qualified name
         ("SELECT * FROM s WHERE \"s\".\"status\"=20","(s where status=20)"),
+        -- join via where clause
+        ("SELECT city FROM s, sp where \"s\".\"s#\" = \"sp\".\"s#\"",
+         "((((s rename {s# as `s.s#`}) join sp) where `s.s#` = @s#){city})"
+         ),
         -- restriction
         ("SELECT status,city FROM s where status>20","((s where gt(@status,20)){status,city})"),
         -- extension mixed with projection
@@ -91,7 +99,9 @@ testSelect = TestCase $ do
         ("SELECT * FROM s WHERE s# NOT IN ('S1','S2')",
          "(s where not (eq(@s#,\"S1\") or eq(@s#,\"S2\")))"),
         -- where exists
-        ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s.s#\"=\"sp.s#\")","((s rename {s# as `s.s#`}) where ((sp rename {s# as `sp.s#`}) where s#))"),
+        -- complication: we need to add attribute renamers due to the subselect
+        ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
+         "((s rename {s# as `s.s#`}) where (((sp rename {s# as `sp.s#`}) where `s.s#`= @`sp.s#`){}))"),
         -- where not exists
         -- group by
         -- group by having
@@ -137,7 +147,7 @@ testSelect = TestCase $ do
           Right x -> do
             --print x
             pure x
-        selectAsDFExpr <- case convertSelect typeF select of
+        selectAsDFExpr <- case evalConvertM mempty (convertSelect typeF select) of
           Left err -> error (show err)
           Right x -> do
             print x
