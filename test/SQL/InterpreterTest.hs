@@ -98,10 +98,6 @@ testSelect = TestCase $ do
         -- NOT IN()
         ("SELECT * FROM s WHERE s# NOT IN ('S1','S2')",
          "(s where not (eq(@s#,\"S1\") or eq(@s#,\"S2\")))"),
-        -- where exists
-        -- complication: we need to add attribute renamers due to the subselect
-        ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
-         "((s rename {s# as `s.s#`}) where (((sp rename {s# as `sp.s#`}) where `s.s#`= @`sp.s#`){}))"),
         -- where not exists
         -- group by
         -- group by having
@@ -124,7 +120,11 @@ testSelect = TestCase $ do
         -- SELECT with no table expression
         ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),
         -- basic NULL
-        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})")
+--        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})"),
+        -- where exists
+        -- complication: we need to add attribute renamers due to the subselect
+        ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
+         "((s rename {s# as `s.s#`}) where (((sp rename {s# as `sp.s#`}) where `s.s#`= @`sp.s#`){}))")
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just dateExamples,

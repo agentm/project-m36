@@ -5,11 +5,12 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), AttributeOrder(..),Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
-import ProjectM36.Attribute as A
+import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.WithNameExpr as W
 import SQL.Interpreter.Select
 import Data.Kind (Type)
 import qualified Data.Text as T
+import qualified ProjectM36.WithNameExpr as With
 import ProjectM36.Relation
 import Control.Monad (foldM)
 import qualified Data.Set as S
@@ -218,12 +219,12 @@ findColumn' targetCol (TableContext tMap) = do
     folder tAlias@(TableAlias tat) (rvExpr, rtype, _) acc =
       case targetCol of
         ColumnName [colName'] ->
-          if S.member colName' (attributeNameSet rtype) then
+          if S.member colName' (A.attributeNameSet rtype) then
             tAlias : acc
             else
             acc
         ColumnName [tPrefix, colName'] ->
-          if tat == tPrefix && S.member colName' (attributeNameSet rtype) then
+          if tat == tPrefix && S.member colName' (A.attributeNameSet rtype) then
             tAlias : acc
             else
             acc
@@ -323,19 +324,20 @@ baseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (Tupl
              
 convertSelect :: TypeForRelExprF -> Select -> ConvertM DataFrameExpr
 convertSelect typeF sel = do
-  -- extract all mentioned tables into the table alias map for 
+  wExprs <- case withClause sel of
+              Nothing -> pure mempty
+              Just wClause -> do
+                convertWithClause typeF wClause
+  -- extract all mentioned tables into the table alias map for
+  let typeF' = appendWithsToTypeF typeF wExprs
   (dfExpr, colRemap) <- case tableExpr sel of
               Nothing -> pure (baseDFExpr, mempty)
-              Just tExpr -> convertTableExpr typeF tExpr
+              Just tExpr -> convertTableExpr typeF' tExpr
 --  traceShowM ("table aliases", tAliasMap)              
-  explicitWithF <- case withClause sel of
-                     Nothing -> pure id
-                     Just wClause -> do
-                       wExprs <- convertWithClause typeF wClause
-                       pure (With wExprs)
+  let explicitWithF = if null wExprs then id else With wExprs
               
   -- convert projection using table alias map to resolve column names
-  projF <- convertProjection typeF (projectionClause sel)
+  projF <- convertProjection typeF' (projectionClause sel)
   -- add with clauses
   withAssocs <- tableAliasesAsWithNameAssocs
   let withF = case withAssocs of
@@ -344,24 +346,35 @@ convertSelect typeF sel = do
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
   s <- get
   traceStateM
-  pure (dfExpr { convertExpr = explicitWithF (withF (projF (convertExpr dfExpr))) })            
+  pure (dfExpr { convertExpr = explicitWithF (withF (projF (convertExpr dfExpr))) })
+
+-- returns a new typeF function which adds type checking for "with" clause expressions
+appendWithsToTypeF :: TypeForRelExprF -> WithNamesAssocs -> TypeForRelExprF
+appendWithsToTypeF typeF withAssocs relExpr =
+  case relExpr of
+    expr@(RelationVariable x ()) -> case With.lookup x withAssocs of
+                               Nothing -> typeF expr
+                               Just matchExpr -> typeF matchExpr
+    other -> typeF other
+      
 
 -- | Slightly different processing for subselects.
 convertSubSelect :: TypeForRelExprF -> Select -> ConvertM RelationalExpr
 convertSubSelect typeF sel = do
   (ret, TableContext aliasDiff) <- withSubSelect $ do
+    wExprs <- case withClause sel of
+                Nothing -> pure mempty
+                Just wClause -> do
+                  convertWithClause typeF wClause
+    let typeF' = appendWithsToTypeF typeF wExprs    
     (dfExpr, colRemap) <- case tableExpr sel of
                             Nothing -> pure (baseDFExpr, mempty)
-                            Just tExpr -> convertTableExpr typeF tExpr  
+                            Just tExpr -> convertTableExpr typeF' tExpr  
     when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
     traceShowM ("convertSubSelect", colRemap)
-    explicitWithF <- case withClause sel of
-                       Nothing -> pure id
-                       Just wClause -> do
-                         wExprs <- convertWithClause typeF wClause
-                         pure (With wExprs)
+    let explicitWithF = if null wExprs then id else With wExprs    
     -- convert projection using table alias map to resolve column names
-    projF <- convertProjection typeF (projectionClause sel) -- the projection can only project on attributes from the subselect table expression
+    projF <- convertProjection typeF' (projectionClause sel) -- the projection can only project on attributes from the subselect table expression
     -- add with clauses
     withAssocs <- tableAliasesAsWithNameAssocs
     let withF = case withAssocs of
@@ -471,15 +484,6 @@ convertColumnProjectionName qpn@(ColumnProjectionName names) = do
 convertTableExpr :: TypeForRelExprF -> TableExpr -> ConvertM (DataFrameExpr, ColumnRemap)
 convertTableExpr typeF tExpr = do
     (fromExpr, columnRemap) <- convertFromClause typeF (fromClause tExpr)
-{-    let tableAliasMap' = M.filterWithKey filterRedundantAlias tableAliasMap
-        filterRedundantAlias (QualifiedName [nam]) (RelationVariable nam' ())
-          | nam == nam' = False
-        filterRedundantAlias _ _ = True-}
-{-    withExprs <- mapM (\(qnam, expr) -> do
-                          nam <- convertQualifiedName qnam
-                          pure (WithNameExpr nam (), expr)) (M.toList tableAliasMap')-}
-
-      
     expr' <- case whereClause tExpr of
       Just whereExpr -> do
         restrictPredExpr <- convertWhereClause typeF whereExpr
@@ -584,7 +588,12 @@ convertOrderByClause typeF exprs =
   
 
 convertWithClause :: TypeForRelExprF -> WithClause -> ConvertM WithNamesAssocs
-convertWithClause = undefined
+convertWithClause typeF wClause =
+  mapM convertOneWith (NE.toList (withExprs wClause))
+  where
+    convertOneWith (WithExpr (WithExprAlias alias) sel) = do
+      relExpr <- convertSubSelect typeF sel
+      pure (WithNameExpr alias (), relExpr)
 
 type ColumnRemap = M.Map ColumnName ColumnName
 
