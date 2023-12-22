@@ -12,18 +12,19 @@ import Data.Kind (Type)
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
 import ProjectM36.Relation
-import Control.Monad (foldM)
+import Control.Monad (foldM, liftM)
 import qualified Data.Set as S
 import qualified Data.Map as M
-import Data.List (foldl', intercalate)
+import Data.List (foldl', intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Control.Monad (when)
 import ProjectM36.DataTypes.Maybe
+import ProjectM36.StaticOptimizer
 import Control.Monad (void)
 import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
-import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
+import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT, catchE)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Trans.Class (lift)
 
@@ -60,20 +61,29 @@ data SelectItemsConvertTask = SelectItemsConvertTask { taskProjections :: S.Set 
                                                        taskExtenders :: [ExtendTupleExpr]
                                                      } deriving (Show, Eq)
                                           
---over the course of conversion, we collect all the table aliases we encounter, including non-aliased table references, including the type of the table
-newtype TableContext = TableContext (M.Map TableAlias (RelationalExpr, Attributes, ColumnAliasMap))
+--over the course of conversion of a table expression, we collect all the table aliases we encounter, including non-aliased table references, including the type of the table, projections have their own name resolution system
+newtype TableContext = TableContext (M.Map TableAlias (RelationalExpr, Attributes, ColumnAliasRemapper))
   deriving (Semigroup, Monoid, Show, Eq)
+
+-- (real attribute name in table- immutable, (renamed "preferred" attribute name needed to disambiguate names on conflict, set of names which are used to reference the "preferred" name)
+type AttributeAlias = AttributeName
+-- the AttributeAlias is necessary when then is otherwise a naming conflict such as with join conditions which would otherwise cause duplicate column names which SQL supports but the relational algebra does not
+type ColumnAliasRemapper = M.Map AttributeName (AttributeAlias, S.Set ColumnName)
+
+insertIntoColumnAliasRemap' :: AttributeName -> AttributeAlias -> ColumnName -> ColumnAliasRemapper
 
 -- debugging utility function
 prettyTableContext :: TableContext -> String
 prettyTableContext (TableContext tMap) = "TableContext {\n" <> concatMap prettyKV (M.toList tMap) <> "}"
   where
-    prettyKV (TableAlias k,(rvexpr, attrs, colAliasMap)) =
+    prettyKV (TableAlias k,(rvexpr, attrs, aliasMap)) =
       T.unpack k <> "::\n" <>
-      --prettyRv <>
-      --prettyAttrs <>
-      prettyColAliasMap colAliasMap <> "\n"
-    prettyColAliasMap cAMap = intercalate ", " $ map (\(ColumnAlias al, attrName') -> T.unpack al <> ":" <> T.unpack attrName') (M.toList cAMap)
+      prettyColumnAliasRemapper aliasMap
+
+prettyColumnAliasRemapper :: ColumnAliasRemapper -> String
+prettyColumnAliasRemapper cAMap = intercalate ", " $ map (\(realAttr, (attrAlias, colNameSet)) -> T.unpack realAttr <> ":" <> T.unpack attrAlias <> ":{" <> show colNameSet <> "}") (M.toList cAMap)
+
+
   
 traceStateM :: ConvertM ()
 traceStateM = do
@@ -91,7 +101,7 @@ tableAliasesAsWithNameAssocs = do
     notSelfRef (WithNameExpr nam (), RelationVariable nam' ()) | nam == nam' = False
                                                             | otherwise = True
     notSelfRef _ = True
-    mapper :: (TableAlias, (RelationalExpr, Attributes, ColumnAliasMap)) -> ConvertM (WithNameExpr, RelationalExpr)
+--    mapper :: (TableAlias, (RelationalExpr, Attributes)) -> ConvertM (WithNameExpr, RelationalExpr)
     mapper (TableAlias nam, (rvExpr, _, _)) = pure (WithNameExpr nam (), rvExpr)
     mapper (qn, _) = throwSQLE (NotSupportedError ("schema qualified table names: " <> T.pack (show qn)))
 
@@ -112,22 +122,46 @@ withSubSelect m = do
   let diff = M.differenceWith tctxDiff postSub orig
       tctxDiff (rexprA, attrsA, colAliasMapA) (_, _, colAliasMapB) =
         Just (rexprA, attrsA, M.difference colAliasMapB colAliasMapA)
+      tctxDiff (rexprA, attrsA, alMap) (_, _,_) =
+        Just (rexprA, attrsA, alMap)
   pure (ret, TableContext diff)
 
--- | Insert another table into the TableContext.
-insertTable :: TableAlias -> RelationalExpr -> Attributes -> ConvertM ()
-insertTable tAlias expr rtype = do
+-- if we find a column naming conflict, generate a non-conflicting name for insertion into the column alias map
+generateColumnAlias :: TableAlias -> AttributeName -> ConvertM ColumnAlias
+generateColumnAlias (TableAlias tAlias) attrName = do
+  tctx <- get
+  let potentialNames = map ColumnName ([[attrName],
+                                        [tAlias <> "." <> attrName]] <>
+                                        map (\x -> [tAlias <> "." <> attrName <> T.pack (show x)]) [1..])
+      nameIsAvailable nam = 
+        case findOneColumn' nam tctx of
+          Left ColumnResolutionError{} -> --no match, so we can use this name
+            True
+          _ -> False --some conflict, so loop
+      firstAvailableName = find nameIsAvailable potentialNames
+  traceShowM ("generateColumnAlias scan", tAlias, attrName, firstAvailableName)     
+  case firstAvailableName of
+    Just (ColumnName [nam]) -> pure (ColumnAlias nam)
+    _ -> throwSQLE (ColumnResolutionError (ColumnName [attrName]))
+
+-- | Insert another table into the TableContext. Returns an alias map of any columns which could conflict with column names already present in the TableContext so that they can be optionally renamed.
+insertTable :: TableAlias -> RelationalExpr -> Attributes -> ConvertM ColumnAliasMap
+insertTable tAlias@(TableAlias tAlias') expr rtype = do
   (TableContext map') <- get
   case M.lookup tAlias map' of
-    Nothing -> put $ TableContext $ M.insert tAlias (expr, rtype, mempty) map'
+    Nothing -> do
+      put $ TableContext $ M.insert tAlias (expr, rtype, mempty) map'
+      traceShowM ("insertTable", tAlias)
+      traceStateM
+      pure mempty
     Just _ -> throwSQLE (DuplicateTableReferenceError tAlias)
 
--- | When a column is mentioned, it may need to be aliased. The table name must already be in the table context so that we can identify that the attribute exists. Without a table name, we must look for a uniquely named column amongst all tables.
-insertColumn :: Maybe TableAlias -> ColumnName -> Maybe ColumnAlias -> ConvertM ColumnAlias
-insertColumn mTblAlias colName mColAlias = do
+-- | When a column is mentioned, it may need to be aliased. The table name must already be in the table context so that we can identify that the attribute exists. Without a table name, we must look for a uniquely named column amongst all tables. Thus, we pre-emptively eliminate duplicate column names.
+noteColumnMention :: Maybe TableAlias -> ColumnName -> Maybe ColumnAlias -> ConvertM ColumnAlias
+noteColumnMention mTblAlias colName mColAlias = do
   tcontext@(TableContext tmap) <- get
   -- find the relevant table for the key to the right table
-  traceShowM ("insertColumn", colName)
+  traceShowM ("noteColumnMention", colName)
   tblAlias' <- case mTblAlias of
                         Just tblAlias -> do
                           void $ lookupTable tblAlias
@@ -144,21 +178,21 @@ insertColumn mTblAlias colName mColAlias = do
                                 ColumnName [c] -> ColumnAlias c
                                 ColumnName [t,c] -> ColumnAlias (t <> "." <> c)
                    Just al -> al
-      origColName = case colName of
-                      ColumnName [c] -> c
-                      ColumnName [_,c] -> c
+      origAttrName = case colName of
+                       [c] -> c
+                       [_,c] -> c
                     
 {-  when (newAlias `elem` allColumnAliases tcontext) $ do
     traceShowM ("gonk error",
                 "colName", colName,
                 "mTblAlias", mTblAlias,
                 "mColAlias", mColAlias,
-                tmap)
+p                tmap)
     throwSQLE (DuplicateColumnAliasError newAlias)-} --duplicate column aliases are OK
   --verify that the alias is not duplicated                  
   let tmap' = M.adjust insertCol tblAlias' tmap
       insertCol (rvexpr, attrs, colMap) =
-        (rvexpr, attrs, M.insert newAlias origColName colMap)
+        (rvexpr, attrs, M.insert origAttrName (newAlias origColName colMap)
   put (TableContext tmap')
   pure newAlias
 
@@ -196,14 +230,17 @@ lookupTable ta = do
     Nothing -> throwSQLE (MissingTableReferenceError ta)
     Just res -> pure res
 
+{-
 -- | Merge table contexts (used in subselects)
-mergeContext :: TableContext -> ConvertM ()
+mergeContext :: TableContext -> ConvertM ColumnAliasMap
 mergeContext (TableContext ctxB) = do
   (TableContext tMapA) <- get
-  foldM folder () (M.toList tMapA)
+  foldM folder mempty (M.toList tMapA)
    where
-    folder acc (tAlias, (re,attrs, _)) = insertTable tAlias re attrs
-
+    folder acc (tAlias, (re,attrs, _)) = do
+      colMap <- insertTable tAlias re attrs
+      pure (M.union acc colMap)
+-}
 -- | Find a column name or column alias in the underlying table context. Returns key into table context.
 findColumn :: ColumnName -> ConvertM [TableAlias]
 findColumn targetCol = do
@@ -213,7 +250,7 @@ findColumn targetCol = do
 -- | non ConvertM version of findColumn
 findColumn' :: ColumnName -> TableContext -> [TableAlias]
 findColumn' targetCol (TableContext tMap) = do
-  traceShowM ("findColumn'", targetCol, tMap)
+--  traceShowM ("findColumn'", targetCol, tMap)
   M.foldrWithKey folder [] tMap
    where
     folder tAlias@(TableAlias tat) (rvExpr, rtype, _) acc =
@@ -251,17 +288,16 @@ findOneColumn' targetCol tcontext = do
 -- | Search the TableContext for a column alias remapping for the given column name.
 attributeNameForColumnName' :: ColumnName -> TableContext -> Either SQLError AttributeName
 attributeNameForColumnName' colName tcontext@(TableContext tmap) = do
-  traceShowM ("attributeNameForColumnName'", colName)
---  traceShowM ("attribtueNameForColumnName tmap", tmap)  
   tKey@(TableAlias tAlias) <- findOneColumn' colName tcontext
   let (_, rvattrs, colAliases) = tmap M.! tKey
   --strip table prefix, if necessary
   colAlias@(ColumnAlias colAttr) <- case colName of
                 ColumnName [attr] -> pure $ ColumnAlias attr
                 ColumnName [tname,attr] -> pure $ ColumnAlias (tname <> "." <> attr)
-                ColumnName{} -> traceShow ("attrname", colName) $ Left $ ColumnResolutionError colName
+                ColumnName{} -> Left $ ColumnResolutionError colName
+  traceShowM ("attributeNameForColumnName' colAlias", colAliases, colAlias)
   case M.lookup colAlias colAliases of
-    Just _ -> pure (unColumnAlias colAlias) -- we found it, so it's valid
+    Just res -> pure res -- we found it, so it's valid
     Nothing ->
       -- look in rvattrs, so we don't need the table alias prefix. The lack of an entry in the column alias map indicates that the column was not renamed in the join condition.
       if colAttr `A.isAttributeNameContained` rvattrs then
@@ -277,11 +313,12 @@ attributeNameForColumnName' colName tcontext@(TableContext tmap) = do
 attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
 attributeNameForColumnName colName = do
   s <- get
-  traceShowM ("attributeNameForColumnName", colName)
-  traceStateM
   case attributeNameForColumnName' colName s of
     Left err -> throwSQLE err
-    Right al -> pure al
+    Right al -> do
+      traceStateM
+      traceShowM ("attributeNameForColumnName", colName, "->", al)
+      pure al
   
 
 wrapTypeF :: TypeForRelExprF -> RelationalExpr -> ConvertM Relation
@@ -343,10 +380,13 @@ convertSelect typeF sel = do
   let withF = case withAssocs of
                 [] -> id
                 _ -> With withAssocs
+      finalRelExpr = explicitWithF (withF (projF (convertExpr dfExpr)))
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
   s <- get
   traceStateM
-  pure (dfExpr { convertExpr = explicitWithF (withF (projF (convertExpr dfExpr))) })
+  -- apply rename reduction- this could be applied by the static query optimizer, but we do it here to simplify the tests so that they aren't polluted with redundant renames
+  pure (dfExpr { convertExpr = finalRelExpr })
+
 
 -- returns a new typeF function which adds type checking for "with" clause expressions
 appendWithsToTypeF :: TypeForRelExprF -> WithNamesAssocs -> TypeForRelExprF
@@ -367,11 +407,11 @@ convertSubSelect typeF sel = do
                 Just wClause -> do
                   convertWithClause typeF wClause
     let typeF' = appendWithsToTypeF typeF wExprs    
-    (dfExpr, colRemap) <- case tableExpr sel of
+    (dfExpr, colMap) <- case tableExpr sel of
                             Nothing -> pure (baseDFExpr, mempty)
                             Just tExpr -> convertTableExpr typeF' tExpr  
     when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
-    traceShowM ("convertSubSelect", colRemap)
+    traceShowM ("convertSubSelect", colMap)
     let explicitWithF = if null wExprs then id else With wExprs    
     -- convert projection using table alias map to resolve column names
     projF <- convertProjection typeF' (projectionClause sel) -- the projection can only project on attributes from the subselect table expression
@@ -381,8 +421,6 @@ convertSubSelect typeF sel = do
                   [] -> id
                   _ -> With withAssocs
     -- add disambiguation renaming
---       tableColumns = foldr ((\(tname,(_,_,colAliases)) acc -> acc <> map () (M.) [] (M.toList aliasDiff)
---       renamesSet <- foldM (\acc 
     pure (explicitWithF (withF (projF (convertExpr dfExpr))))
   traceShowM ("diff", aliasDiff) -- alias is not correct- the col alias map is empty for subquery
   pure ret
@@ -423,7 +461,7 @@ convertSelectItem typeF acc (c,selItem) =
                      }
   where
    colinfo (ColumnProjectionName [ProjectionName name]) = do
-     findOneColumn (traceShow ("colinfo", name) (ColumnName [name]))
+     findOneColumn (ColumnName [name])
 
 convertProjection :: TypeForRelExprF -> [SelectItem] -> ConvertM (RelationalExpr -> RelationalExpr)
 convertProjection typeF selItems = do
@@ -456,21 +494,11 @@ convertProjection typeF selItems = do
     let fRenames = if S.null renamesSet then id else Rename renamesSet
     pure (fProjection . fExtended . fRenames)
 
-{-
-convertColumnProjectionName :: ColumnProjectionName -> Either SQLError AttributeName
-convertColumnProjectionName (ColumnProjectionName names) = do
-    let namer (ProjectionName t) = pure t
-        namer Asterisk = Left (NotSupportedError "asterisk in projection conversion")
-    names' <- mapM namer names
-    pure (T.concat names')
--}
-
 convertUnqualifiedColumnName :: UnqualifiedColumnName -> AttributeName
 convertUnqualifiedColumnName (UnqualifiedColumnName nam) = nam
 
 convertColumnName :: ColumnName -> ConvertM AttributeName
 convertColumnName colName = do
-  traceShowM ("convertColumnName", colName)
   attributeNameForColumnName colName
 
 convertColumnProjectionName :: ColumnProjectionName -> ConvertM AttributeName
@@ -481,20 +509,31 @@ convertColumnProjectionName qpn@(ColumnProjectionName names) = do
   convertColumnName (ColumnName names')
                       
         
-convertTableExpr :: TypeForRelExprF -> TableExpr -> ConvertM (DataFrameExpr, ColumnRemap)
+convertTableExpr :: TypeForRelExprF -> TableExpr -> ConvertM (DataFrameExpr, ColumnAliasMap)
 convertTableExpr typeF tExpr = do
-    (fromExpr, columnRemap) <- convertFromClause typeF (fromClause tExpr)
-    expr' <- case whereClause tExpr of
+    (fromExpr, columnMap) <- convertFromClause typeF (fromClause tExpr)
+    whereF <- case whereClause tExpr of
       Just whereExpr -> do
         restrictPredExpr <- convertWhereClause typeF whereExpr
-        pure $ Restrict restrictPredExpr fromExpr        
-      Nothing -> pure fromExpr
+        pure $ Restrict restrictPredExpr
+      Nothing -> pure id
     orderExprs <- convertOrderByClause typeF (orderByClause tExpr)
-    let dfExpr = DataFrameExpr { convertExpr = expr',
+    -- add disambiguation renaming
+    let disambiguationRenamerF = if S.null renames then id else Rename renames
+        renames = S.fromList $ foldr folder mempty (M.toList columnMap)
+        whereAttrNames = S.map (\(ColumnName cs) -> T.intercalate "." cs) whereColNames
+        whereColNames = maybe mempty columnNamesInRestrictionExpr (whereClause tExpr)
+        folder (ColumnAlias alias, attrName) acc = -- include renamer only if the column is referenced and the renaming is not redundant
+          if alias /= attrName && S.member alias whereAttrNames then
+             (attrName, alias):acc
+             else
+            acc
+    
+    let dfExpr = DataFrameExpr { convertExpr = whereF (disambiguationRenamerF fromExpr),
                                  orderExprs = orderExprs,
                                  offset = offsetClause tExpr,
                                  limit = limitClause tExpr }
-    pure (dfExpr, columnRemap)
+    pure (dfExpr, columnMap)
 
 convertWhereClause :: TypeForRelExprF -> RestrictionExpr -> ConvertM RestrictionPredicateExpr
 convertWhereClause typeF (RestrictionExpr rexpr) = do
@@ -506,7 +545,6 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
       StringLiteral{} -> wrongType TextAtomType
       Identifier i -> wrongType TextAtomType -- could be a better error here
       BinaryOperator i@(Identifier colName) (OperatorName ["="]) exprMatch -> do --we don't know here if this results in a boolean expression, so we pass it down
-        traceShowM ("= bin", colName)        
         attrName <- attributeNameForColumnName colName
         AttributeEqualityPredicate attrName <$> convertScalarExpr typeF exprMatch
       BinaryOperator exprA op exprB -> do
@@ -529,7 +567,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
           NotIn -> pure (NotPredicate res)
       ExistsExpr subQ -> do
         relExpr  <- convertSubSelect typeF subQ
-        --pretty sure I have to rename attributes in both the top-level query and in this one to prevent attribute conflicts- we can't rename all the attributes in the subquery, because the renamer won't know which attributes actually refer to the top-level attributes- should we just prefix all attributes unconditionally or send a signal upstream to rename attributes?
+        --pretty sure I have to rename attributes in both the top-level query and in this one to prevent attribute conflicts- we can't rename all the attributes in the subquery, because the renamer won't know which attributes actually refer to the top-level attributes- should we just prefix all attributes unconditionally or send a signal upstream to rename attributes? FIXME
         let rexpr = Project A.empty relExpr
         pure (RelationalExprPredicate rexpr)
 
@@ -544,7 +582,6 @@ convertScalarExpr typeF expr = do
       -- we don't have enough type context with a cast, so we default to text
       NullLiteral -> naked (ConstructedAtom "Nothing" (maybeAtomType TextAtomType) [])
       Identifier i -> do
-        traceShowM ("convertScalarExpr", i)
         AttributeAtomExpr <$> convertColumnName i
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
@@ -597,22 +634,22 @@ convertWithClause typeF wClause =
 
 type ColumnRemap = M.Map ColumnName ColumnName
 
-convertFromClause :: TypeForRelExprF -> [TableRef] -> ConvertM (RelationalExpr, ColumnRemap)
+convertFromClause :: TypeForRelExprF -> [TableRef] -> ConvertM (RelationalExpr, ColumnAliasMap)
 convertFromClause typeF (firstRef:trefs) = do
     --the first table ref must be a straight RelationVariable
   let convertFirstTableRef (SimpleTableRef (TableName [nam])) = do
         let rv = RelationVariable nam ()
         typeR <- wrapTypeF typeF rv
-        insertTable (TableAlias nam) rv (attributes typeR)
-        pure rv
+        colMap <- insertTable (TableAlias nam) rv (attributes typeR)
+        pure (rv, colMap)
       convertFirstTableRef (AliasedTableRef (SimpleTableRef (TableName [nam])) al@(TableAlias alias)) = do
         let rv = RelationVariable nam ()
         typeR <- wrapTypeF typeF rv
-        insertTable al rv (attributes typeR)
-        pure (RelationVariable alias ())
-  firstRel <- convertFirstTableRef firstRef
+        colMap <- insertTable al rv (attributes typeR)
+        pure (RelationVariable alias (), colMap)
+  (firstRel, colMap) <- convertFirstTableRef firstRef
   expr' <- foldM (joinTableRef typeF) firstRel (zip [1..] trefs)
-  pure (expr', mempty {- FIXME add column remapping-})
+  pure (expr', colMap)
 
 -- | Convert TableRefs after the first one (assumes all additional TableRefs are for joins). Returns the qualified name key that was added to the map, the underlying relexpr (not aliased so that it can used for extracting type information), and the new table context map
 convertTableRef :: TypeForRelExprF -> TableRef -> ConvertM (TableAlias, RelationalExpr)
@@ -645,11 +682,11 @@ joinTableRef typeF rvA (c,tref) = do
       prefixOneAttr tAlias@(TableAlias prefix) old_name = do
         -- insert into columnAliasMap
         let new_name = T.concat [prefix, ".", old_name]
-        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
+--        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
         addColumnAlias tAlias (ColumnAlias new_name) old_name
         pure (old_name, new_name)
       renameOneAttr x expr old_name = do
-        traceShowM ("renameOneAttr", old_name, new_name)
+--        traceShowM ("renameOneAttr", old_name, new_name)
         addColumnAlias (TableAlias prefix) (ColumnAlias new_name) old_name
         pure (old_name, new_name)
         where
@@ -718,16 +755,10 @@ joinTableRef typeF rvA (c,tref) = do
 --            rvPrefixB <- rvPrefix rvB
             exprA <- prefixRenamer (TableAlias rvNameA) rvA (S.toList attrsA)
             exprB <- prefixRenamer tKey (RelationVariable rvNameB ()) (S.toList attrsB)
-            traceShowM ("exprA", exprA)
-            traceShowM ("exprB", exprB)
+--            traceShowM ("exprA", exprA)
+--            traceShowM ("exprB", exprB)
             -- for the join condition, we can potentially extend to include all the join criteria columns, then project them away after constructing the join condition
             tcontext <- get
-{-            let joinExpr' = renameIdentifier renamer joinExpr
-                renamer colName =
-                  case attributeNameForColumnName' (traceShow ("inner join", colName) colName) tcontext of
-                    Left err -> error (show err)
-                    Right attrName -> (ColumnName [attrName])
-            traceShowM ("joinExpr'", joinExpr')-}
             joinRe <- convertScalarExpr typeF joinExpr --' why are we renaming here- can't we call attributenameforcolumnname in the scalarexpr conversion???
             --let joinCommonAttrRenamer (RelationVariable rvName ()) old_name =
             --rename all common attrs and use the new names in the join condition
@@ -790,6 +821,17 @@ renameIdentifier renamer sexpr = Fold.cata renamer' sexpr
     renamer' (IdentifierF n) = Identifier (renamer n)
     renamer' x = Fold.embed x
 
+-- find all column aliases in a scalar expression- useful for determining if a renamer needs to be applied
+columnNamesInScalarExpr :: ScalarExpr -> S.Set ColumnName
+columnNamesInScalarExpr expr = Fold.cata finder expr
+  where
+    finder :: ScalarExprBaseF ColumnName (S.Set ColumnName) -> S.Set ColumnName
+    finder (IdentifierF n) = S.singleton n
+    finder exprs = foldr S.union mempty exprs
+
+columnNamesInRestrictionExpr :: RestrictionExpr -> S.Set ColumnName
+columnNamesInRestrictionExpr (RestrictionExpr sexpr) = columnNamesInScalarExpr sexpr
+
 -- | If the restriction includes a EXISTS expression, we must rename all attributes at the top-level to prevent conflicts.
 needsToRenameAllAttributes :: RestrictionExpr -> Bool
 needsToRenameAllAttributes (RestrictionExpr sexpr) =
@@ -812,4 +854,9 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       InExpr _ sexpr _ -> rec' sexpr
       BooleanOperatorExpr e1 _ e2 -> rec' e1 || rec' e2
       ExistsExpr{} -> True
-  
+
+{-
+:showexpr relation{tuple{val 4, children relation{tuple{val 6,children relation{tuple{}}}}},
+                   tuple{val 10, children relation{tuple{val 1, children relation{tuple{}}},
+                                                   tuple{val 2, children relation{tuple{}}}}}}
+-}
