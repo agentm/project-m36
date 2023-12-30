@@ -1,4 +1,4 @@
-{ compiler ? "ghc8104"
+{ compiler ? "ghc928"
 , sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 }:
@@ -28,6 +28,12 @@ let
 		    ver = "0.1.0";
   		    sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};
 
+      lockfree-queue = self.callHackageDirect {
+      		     pkg = "lockfree-queue";
+		     ver = "0.2.4";
+                     sha256 = "sha256-h1s/tiBq5Gzl8FtenQacmxJp7zPJPnmZXtKDPvxTSa4="; } {};
+      
+
       unicode-data = self.callHackageDirect {
                       pkg = "unicode-data";
 		      ver = "0.2.0";
@@ -46,11 +52,11 @@ let
                      sha256 = "sha256-2pXGgM5n2hKh2gvKhGJMKzAwWMEn6KUUz8i5n3pHakY=";
 		     } {};
 
-      hashable = self.callHackageDirect {
-                    pkg = "hashable";
-		    ver = "1.3.2.0";
-		    sha256 = "sha256-aMtNQNykvenduMW99h0ZDuU4kI1fFbIY4m4rRRNAU9o=";
-		    } {};
+      barbies-th = self.callHackageDirect {
+      	      pkg = "barbies-th";
+	      ver = "0.1.10";
+  	      sha256 = "sha256-cnTevB2qoEBMmGbqypQwJzPVF6z3cOXADbWF8OKQGAo=";	      
+      } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };
