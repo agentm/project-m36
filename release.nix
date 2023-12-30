@@ -15,8 +15,8 @@ let
     overrides = self: super: {
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.2.2";
-		      sha256 = "sha256-c4DgpJV3GZl2oW55RR56xps4lGuwTFQzYrJP8VeLLds="; } {};
+		      ver = "0.3.1";
+		      sha256 = "sha256-MJlj69pO6S3CkpTmm8UuNDwQ4tdoJHF0wl8QYXB/Vlw="; } {};
 
       streamly = self.callHackageDirect {
                    pkg = "streamly";
@@ -45,12 +45,6 @@ let
 		 ver = "1.4";
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
-      #newer time-compat include hashable instances
-      time-compat = self.callHackageDirect {
-                     pkg = "time-compat";
-		     ver = "1.9.6.1";
-                     sha256 = "sha256-2pXGgM5n2hKh2gvKhGJMKzAwWMEn6KUUz8i5n3pHakY=";
-		     } {};
 
       barbies-th = self.callHackageDirect {
       	      pkg = "barbies-th";

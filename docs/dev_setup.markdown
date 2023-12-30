@@ -1,6 +1,6 @@
 # Developer Setup
 
-Project:M36 is developed in Haskell with GHC 8.8+ and stack or cabal. Project:M36 includes server and client executables, a test suite, and example programs. See [project-m36.cabal](https://github.com/agentm/project-m36/blob/master/project-m36.cabal) for the available options.
+Project:M36 is developed in Haskell with GHC 9.2+ and stack or cabal. Project:M36 includes server and client executables, a test suite, and example programs. See [project-m36.cabal](https://github.com/agentm/project-m36/blob/master/project-m36.cabal) for the available options.
 
 
 ## cabal
@@ -17,7 +17,7 @@ cabal new-run tutd
 Use [`stack`](https://docs.haskellstack.org/en/stable/README/) to build and run `tutd`.
 
 ```
-stack --stack-yaml=stack.ghc.8.10.yaml run tutd
+stack --stack-yaml=stack.ghc.9.2.yaml run tutd
 ```
 
 ## VSCode
