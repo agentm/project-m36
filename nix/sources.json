@@ -34,17 +34,5 @@
         "type": "tarball",
         "url": "https://github.com/NixOS/nixpkgs/archive/429c23aad0fce9ef38b0e60d55d7459c19d53ddc.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
-    "streamly": {
-        "branch": "ac3af8749194f1788704dda8667d0b3807075cc2",
-        "description": "Beautiful Streaming, Concurrent and Reactive Composition (Haskell)",
-        "homepage": "https://hackage.haskell.org/package/streamly",
-        "owner": "composewell",
-        "repo": "streamly",
-        "rev": "ac3af8749194f1788704dda8667d0b3807075cc2",
-        "sha256": "04d8fk654vawdfs0dfidmq2awwgwi8x44iv8r7vqz70zkcsd5fij",
-        "type": "tarball",
-        "url": "https://github.com/composewell/streamly/archive/ac3af8749194f1788704dda8667d0b3807075cc2.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
