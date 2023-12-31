@@ -15,7 +15,7 @@ let
     overrides = self: super: {
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.3.1";
+		      ver = "0.3.2";
 		      sha256 = "sha256-QiKsaFcIzOrtCpgVrgArnj7Hd09JVjF67huam+0aZSc="; } {};
 
       streamly = self.callHackageDirect {
