@@ -16,7 +16,7 @@ let
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
 		      ver = "0.3.1";
-		      sha256 = "sha256-MJlj69pO6S3CkpTmm8UuNDwQ4tdoJHF0wl8QYXB/Vlw="; } {};
+		      sha256 = "sha256-QiKsaFcIzOrtCpgVrgArnj7Hd09JVjF67huam+0aZSc="; } {};
 
       streamly = self.callHackageDirect {
                    pkg = "streamly";
