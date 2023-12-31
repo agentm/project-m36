@@ -36,6 +36,7 @@ jobs:
         os: [ubuntu-latest]
         ghc:
           - ghc9.2
+	  - ghc9.4
         include:
           - os: macos-latest
             ghc: ghc9.2
