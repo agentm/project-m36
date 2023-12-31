@@ -23,7 +23,18 @@ import System.Environment
 import Unsafe.Coerce
 import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,ImplicitPrelude,ScopedTypeVariables))
 
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,4,0)
+import GHC.Utils.Panic (handleGhcException)
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Types.SourceText (SourceText(NoSourceText))
+import GHC.Unit.Types (IsBootInterface(NotBoot))
+import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Core.Type (eqType)
+import GHC.Core.TyCo.Ppr (pprType)
+import GHC.Utils.Encoding (zEncodeString)
+import GHC.Unit.State (emptyUnitState)
+import GHC.Types.PkgQual (RawPkgQual(NoRawPkgQual))
+#elif MIN_VERSION_ghc(9,2,0)
 -- GHC 9.2.2
 import GHC.Utils.Panic (handleGhcException)
 import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
@@ -168,7 +179,11 @@ initScriptSession ghcPkgPaths = do
 #else
           ideclName      = noLoc (mkModuleName fullModuleName),
 #endif
+#if MIN_VERSION_ghc(9,4,0)
+          ideclPkgQual   = NoRawPkgQual,
+#else
           ideclPkgQual   = Nothing,
+#endif
 #if MIN_VERSION_ghc(9,0,0)
           ideclSource    = NotBoot,
 #else
@@ -212,7 +227,9 @@ addImport moduleNam = do
   setContext (IIDecl (simpleImportDecl (mkModuleName moduleNam)) : ctx)
 
 showType :: DynFlags -> Type -> String
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,4,0)
+showType dflags ty = showSDocForUser dflags emptyUnitState alwaysQualify (pprType ty)  
+#elif MIN_VERSION_ghc(9,2,0)
 showType dflags ty = showSDocForUser dflags emptyUnitState alwaysQualify (pprTypeForUser ty)
 #else
 showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)
