@@ -21,6 +21,7 @@ import Data.Proxy
 import qualified Data.List.NonEmpty as NE
 import Codec.Winery
 import Data.UUID
+import Debug.Trace
 
 -- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
 class (Eq a, NFData a, Serialise a, Show a) => Atomable a where
@@ -159,7 +160,9 @@ instance Atomable a => Atomable [a] where
 instance Atomable a => Atomable (NE.NonEmpty a) where
   toAtom (x NE.:| []) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x]
   toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) (map toAtom (x:xs))
-  fromAtom _ = error "improper fromAtom (NonEmptyList a)"
+  fromAtom (ConstructedAtom "NECons" _ [x]) = fromAtom x NE.:| []
+  fromAtom (ConstructedAtom "NECons" t (x:y) ) = fromAtom x NE.:| fromAtom (ConstructedAtom "NECons" t y)
+  fromAtom x = trace (show x) $ error "improper fromAtom (NonEmptyList a)"
 
   toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
