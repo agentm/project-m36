@@ -70,7 +70,27 @@ type AttributeAlias = AttributeName
 -- the AttributeAlias is necessary when then is otherwise a naming conflict such as with join conditions which would otherwise cause duplicate column names which SQL supports but the relational algebra does not
 type ColumnAliasRemapper = M.Map AttributeName (AttributeAlias, S.Set ColumnName)
 
-insertIntoColumnAliasRemap' :: AttributeName -> AttributeAlias -> ColumnName -> ColumnAliasRemapper
+insertIntoColumnAliasRemap' :: AttributeName -> AttributeAlias -> ColumnName -> ColumnAliasRemapper -> Either SQLError ColumnAliasRemapper
+insertIntoColumnAliasRemap' attrName attrAlias colName remap =
+  case attrName `M.lookup` remap of
+    Nothing -> pure $ M.insert attrName (attrAlias, S.singleton colName) remap
+    Just (attrAlias', colNames) | attrAlias' == attrAlias ->
+                                  pure $ M.insert attrName (attrAlias, S.insert colName colNames) remap
+                                  | otherwise ->
+                                    Left (ColumnAliasResolutionError (ColumnAlias attrName))
+
+-- | Used to note if columns are remapped to different attributes in order to mitigate attribute naming conflicts.
+insertColumnAlias :: TableAlias -> AttributeName -> AttributeAlias -> ColumnName -> ConvertM ()
+insertColumnAlias tAlias attrName attrAlias colName = do
+  TableContext tmap <- get
+  case tAlias `M.lookup` tmap of
+    Nothing -> throwSQLE (MissingTableReferenceError tAlias)
+    Just (rve,attrs,remap) ->
+      case insertIntoColumnAliasRemap' attrName attrAlias colName remap of
+        Left err -> throwSQLE err
+        Right remap' -> do
+          let tmap' = M.insert tAlias (rve, attrs, remap') tmap
+          put (TableContext tmap')
 
 -- debugging utility function
 prettyTableContext :: TableContext -> String
@@ -189,11 +209,8 @@ noteColumnMention mTblAlias colName mColAlias = do
                 "mColAlias", mColAlias,
 p                tmap)
     throwSQLE (DuplicateColumnAliasError newAlias)-} --duplicate column aliases are OK
-  --verify that the alias is not duplicated                  
-  let tmap' = M.adjust insertCol tblAlias' tmap
-      insertCol (rvexpr, attrs, colMap) =
-        (rvexpr, attrs, M.insert origAttrName (newAlias origColName colMap)
-  put (TableContext tmap')
+  --verify that the alias is not duplicated
+  insertColumnAlias tblAlias' origAttrName newAlias colName
   pure newAlias
 
 -- | Add a column alias for a column which has already been inserted into the TableContext.
