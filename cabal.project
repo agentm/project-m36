@@ -1,6 +1,5 @@
 packages:
   project-m36.cabal
-  ../curryer
 
 package *
   split-sections: True
