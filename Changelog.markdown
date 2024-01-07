@@ -1,3 +1,7 @@
+# Future
+
+* fixed toAtom/fromAtom for NonEmpty lists (#363)
+	
 # 2023-12-30 (v0.9.8)
 
 * fix notification serialization in transaction (#362)
