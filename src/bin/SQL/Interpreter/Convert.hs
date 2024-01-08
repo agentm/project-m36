@@ -195,12 +195,12 @@ noteColumnMention mTblAlias colName mColAlias = do
   -- insert into the column alias map
   let newAlias = case mColAlias of
                    Nothing -> case colName of
-                                ColumnName [c] -> ColumnAlias c
-                                ColumnName [t,c] -> ColumnAlias (t <> "." <> c)
-                   Just al -> al
+                                ColumnName [c] -> c
+                                ColumnName [t,c] -> t <> "." <> c
+                   Just (ColumnAlias al) -> al
       origAttrName = case colName of
-                       [c] -> c
-                       [_,c] -> c
+                       ColumnName [c] -> c
+                       ColumnName [_,c] -> c
                     
 {-  when (newAlias `elem` allColumnAliases tcontext) $ do
     traceShowM ("gonk error",
@@ -211,8 +211,9 @@ p                tmap)
     throwSQLE (DuplicateColumnAliasError newAlias)-} --duplicate column aliases are OK
   --verify that the alias is not duplicated
   insertColumnAlias tblAlias' origAttrName newAlias colName
-  pure newAlias
+  pure (ColumnAlias newAlias)
 
+{-
 -- | Add a column alias for a column which has already been inserted into the TableContext.
 addColumnAlias' :: TableContext -> TableAlias -> ColumnAlias -> AttributeName -> Either SQLError TableContext
 addColumnAlias' (TableContext tctx) tAlias colAlias@(ColumnAlias colText) attr = do
@@ -221,6 +222,7 @@ addColumnAlias' (TableContext tctx) tAlias colAlias@(ColumnAlias colText) attr =
     Just (rvexpr, attrs, colMap) ->
       --check that the attribute is present in attributes, then plop it into the colMap and return the updated TableContext
       if attr `A.isAttributeNameContained` attrs then do
+        insertColumnAlias 
         let newColMap = M.insert colAlias attr colMap
             newTContext = M.insert tAlias (rvexpr, attrs, newColMap) tctx
         pure (TableContext newTContext)
@@ -239,8 +241,8 @@ allColumnAliases (TableContext tmap) =
   foldl' folder [] tmap
   where
     folder acc (_,_,colmap) = M.keys colmap <> acc
-  
-lookupTable :: TableAlias -> ConvertM (RelationalExpr, Attributes, ColumnAliasMap)
+-}  
+lookupTable :: TableAlias -> ConvertM (RelationalExpr, Attributes, ColumnAliasRemapper)
 lookupTable ta = do
   (TableContext map') <- get
   case M.lookup ta map' of
@@ -313,8 +315,8 @@ attributeNameForColumnName' colName tcontext@(TableContext tmap) = do
                 ColumnName [tname,attr] -> pure $ ColumnAlias (tname <> "." <> attr)
                 ColumnName{} -> Left $ ColumnResolutionError colName
   traceShowM ("attributeNameForColumnName' colAlias", colAliases, colAlias)
-  case M.lookup colAlias colAliases of
-    Just res -> pure res -- we found it, so it's valid
+  case M.lookup colAttr colAliases of
+    Just (res,_) -> pure res -- we found it, so it's valid
     Nothing ->
       -- look in rvattrs, so we don't need the table alias prefix. The lack of an entry in the column alias map indicates that the column was not renamed in the join condition.
       if colAttr `A.isAttributeNameContained` rvattrs then
@@ -700,11 +702,13 @@ joinTableRef typeF rvA (c,tref) = do
         -- insert into columnAliasMap
         let new_name = T.concat [prefix, ".", old_name]
 --        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
-        addColumnAlias tAlias (ColumnAlias new_name) old_name
+        insertColumnAlias tAlias old_name new_name (ColumnName [new_name])
+--        addColumnAlias tAlias (ColumnAlias new_name) old_name
         pure (old_name, new_name)
       renameOneAttr x expr old_name = do
 --        traceShowM ("renameOneAttr", old_name, new_name)
-        addColumnAlias (TableAlias prefix) (ColumnAlias new_name) old_name
+        insertColumnAlias (TableAlias prefix) old_name new_name (ColumnName [new_name])
+--        addColumnAlias (TableAlias prefix) (ColumnAlias new_name) old_name
         pure (old_name, new_name)
         where
           new_name = T.concat [prefix, ".", old_name]
