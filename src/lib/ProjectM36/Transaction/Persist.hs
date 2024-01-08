@@ -45,6 +45,9 @@ transactionDir dbdir transId = dbdir </> show transId
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
 
+notificationsPath :: FilePath -> FilePath
+notificationsPath transdir = transdir </> "notifs"
+
 relvarsPath :: FilePath -> FilePath        
 relvarsPath transdir = transdir </> "relvars"
 
@@ -82,13 +85,14 @@ readTransaction dbdir transId mScriptSession = do
     incDeps <- readIncDeps transDir
     typeCons <- readTypeConstructorMapping transDir
     sschemas <- readSubschemas transDir
+    notifs <- readNotifications transDir
     dbcFuncs <- readFuncs transDir (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession
     atomFuncs <- readFuncs transDir (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession
     registeredQs <- readRegisteredQueries transDir
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
-                                       notifications = M.empty,
+                                       notifications = notifs,
                                        atomFunctions = atomFuncs, 
                                        dbcFunctions = dbcFuncs,
                                        registeredQueries = registeredQs }
@@ -108,6 +112,7 @@ writeTransaction sync dbdir trans = do
     writeIncDeps sync tempTransDir (inclusionDependencies context)
     writeFuncs sync (atomFuncsPath tempTransDir) (HS.toList (atomFunctions context))
     writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (dbcFunctions context))
+    writeNotifications sync tempTransDir (notifications context)
     writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
     writeSubschemas sync tempTransDir (subschemas trans)
     writeRegisteredQueries sync tempTransDir (registeredQueries context)
@@ -280,3 +285,16 @@ writeRegisteredQueries :: DiskSync -> FilePath -> RegisteredQueries -> IO ()
 writeRegisteredQueries sync transDir regQs = do
   let regQsPath = registeredQueriesPath transDir
   traceBlock "write registered queries" $ writeSerialiseSync sync regQsPath regQs
+
+readNotifications :: FilePath -> IO Notifications
+readNotifications transDir = do
+  let notifsPath = notificationsPath transDir
+  readFileDeserialise notifsPath
+
+writeNotifications :: DiskSync -> FilePath -> Notifications -> IO ()
+writeNotifications sync transDir notifs = do
+  let notifsPath = notificationsPath transDir
+  traceBlock "write notifications" $ writeSerialiseSync sync notifsPath notifs
+
+
+

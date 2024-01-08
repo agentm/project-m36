@@ -1,4 +1,4 @@
-{ compiler ? "ghc8104"
+{ compiler ? "ghc928"
 , sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 }:
@@ -15,13 +15,24 @@ let
     overrides = self: super: {
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.2.2";
-		      sha256 = "sha256-c4DgpJV3GZl2oW55RR56xps4lGuwTFQzYrJP8VeLLds="; } {};
+		      ver = "0.3.2";
+		      sha256 = "sha256-QiKsaFcIzOrtCpgVrgArnj7Hd09JVjF67huam+0aZSc="; } {};
 
       streamly = self.callHackageDirect {
                    pkg = "streamly";
-		   ver = "0.8.1";
-		   sha256 = "0ywyy7gxjnp32hx8kki0lfn94bnc9mzjh8g6mg65ff3vv28k2vdr"; } {};
+		   ver = "0.9.0";
+		   sha256 = "sha256-eOxVb8qQjZDo1+S7CStqYSExOg2QHWkMY+zlOYqwZak="; } {};
+
+      streamly-core = self.callHackageDirect {
+      		    pkg = "streamly-core";
+		    ver = "0.1.0";
+  		    sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};
+
+      lockfree-queue = self.callHackageDirect {
+      		     pkg = "lockfree-queue";
+		     ver = "0.2.4";
+                     sha256 = "sha256-h1s/tiBq5Gzl8FtenQacmxJp7zPJPnmZXtKDPvxTSa4="; } {};
+      
 
       unicode-data = self.callHackageDirect {
                       pkg = "unicode-data";
@@ -34,18 +45,12 @@ let
 		 ver = "1.4";
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
-      #newer time-compat include hashable instances
-      time-compat = self.callHackageDirect {
-                     pkg = "time-compat";
-		     ver = "1.9.6.1";
-                     sha256 = "sha256-2pXGgM5n2hKh2gvKhGJMKzAwWMEn6KUUz8i5n3pHakY=";
-		     } {};
 
-      hashable = self.callHackageDirect {
-                    pkg = "hashable";
-		    ver = "1.3.2.0";
-		    sha256 = "sha256-aMtNQNykvenduMW99h0ZDuU4kI1fFbIY4m4rRRNAU9o=";
-		    } {};
+      barbies-th = self.callHackageDirect {
+      	      pkg = "barbies-th";
+	      ver = "0.1.10";
+  	      sha256 = "sha256-cnTevB2qoEBMmGbqypQwJzPVF6z3cOXADbWF8OKQGAo=";	      
+      } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };

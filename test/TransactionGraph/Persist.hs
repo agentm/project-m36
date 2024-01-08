@@ -31,7 +31,6 @@ testList = TestList [testBootstrapDB,
                      testDBSimplePersistence,
                      testFunctionPersistence,
                      testMerkleHashValidation]
-                    
 
 stamp' :: UTCTime
 stamp' = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
@@ -85,6 +84,9 @@ testMerkleHashValidation = TestCase $
   conn <- assertIOEither $ connectProjectM36 connInfo
   sess <- assertIOEither $ createSessionAtHead conn "master"
   Right _ <- executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
+  -- add a notification because we forgot to read/write it as part of the transaction before
+  let relX = RelationVariable "x" ()
+  Right _ <- executeDatabaseContextExpr sess conn (AddNotification "testnotif" relX relX relX)
   Right _ <- commit sess conn
   val <- C.validateMerkleHashes sess conn
   assertEqual "merkle success" (Right ()) val
@@ -130,8 +132,6 @@ testMerkleHashValidation = TestCase $
           assertEqual "open connection merkle validation" (DatabaseValidationError [MerkleValidationError (transactionId trans) regMerkleHash malMerkleHash]) err
         Right _ -> assertFailure "open connection validation" 
 
-
-
 --only Haskell-scripted dbc and atom functions can be serialized                   
 testFunctionPersistence :: Test
 #if !defined(PM36_HASKELL_SCRIPTING)
@@ -159,7 +159,7 @@ testFunctionPersistence = TestCase $
   let expectedRel = mkRelationFromList (attributesFromList [Attribute "a" IntAtomType]) [[IntAtom 3]]
   assertEqual "testdisk dbc function run" expectedRel res
 
-#endif  
+#endif
 
 assertIOEither :: (Show a) => IO (Either a b) -> IO b
 assertIOEither x = do

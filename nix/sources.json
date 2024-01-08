@@ -29,22 +29,10 @@
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "429c23aad0fce9ef38b0e60d55d7459c19d53ddc",
-        "sha256": "1nj8sh1fnxp07jdlvjkijwfd1pnsi2zj0ivy7a0dhx02g63byhg3",
+        "rev": "9fafaa30660e204bb27a35b3c608f03609705a5d",
+        "sha256": "sha256:0ijw5yvglmh1kicxdailn0hvv2lbwbwgs9p9dshnxv0pvgvqi433",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/429c23aad0fce9ef38b0e60d55d7459c19d53ddc.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
-    "streamly": {
-        "branch": "ac3af8749194f1788704dda8667d0b3807075cc2",
-        "description": "Beautiful Streaming, Concurrent and Reactive Composition (Haskell)",
-        "homepage": "https://hackage.haskell.org/package/streamly",
-        "owner": "composewell",
-        "repo": "streamly",
-        "rev": "ac3af8749194f1788704dda8667d0b3807075cc2",
-        "sha256": "04d8fk654vawdfs0dfidmq2awwgwi8x44iv8r7vqz70zkcsd5fij",
-        "type": "tarball",
-        "url": "https://github.com/composewell/streamly/archive/ac3af8749194f1788704dda8667d0b3807075cc2.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/9fafaa30660e204bb27a35b3c608f03609705a5d.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

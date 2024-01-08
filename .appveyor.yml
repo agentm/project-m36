@@ -19,7 +19,7 @@ environment:
     STACK_ROOT: "c:\\sr"
   matrix:
 # don't forget to also change the cache directory below  
-    - YAML: "stack.ghc9.0.yaml" 
+    - YAML: "stack.ghc9.2.yaml" 
 
 platform:
  - x64

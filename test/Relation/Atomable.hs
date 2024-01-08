@@ -13,6 +13,7 @@ import Data.Text
 import qualified Data.Map as M
 import Data.Proxy
 import Codec.Winery
+import Data.List.NonEmpty
 
 {-# ANN module ("Hlint: ignore Use newtype instead of data" :: String) #-}
 data Test1T = Test1C Integer
@@ -36,7 +37,7 @@ data TestListT = TestListC [Integer]
               deriving (Show, Generic, Eq, NFData, Atomable)
               deriving Serialise via WineryVariant TestListT
                        
-data TestNonEmptyT = TestNonEmptyC [Integer]
+data TestNonEmptyT = TestNonEmptyC (NonEmpty Integer)
               deriving (Show, Generic, Eq, NFData, Atomable)
               deriving Serialise via WineryVariant TestNonEmptyT
 
@@ -181,7 +182,7 @@ testSimpleList = TestCase $ do
 
 testNonEmptyInstance :: Test
 testNonEmptyInstance = TestCase $ do
-  let example = TestNonEmptyC [3,4,5]
+  let example = TestNonEmptyC (3 :| [4,5])
   assertEqual "NonEmpty instance" example (fromAtom (toAtom example))
 
 testNonPrimitiveValues :: Test

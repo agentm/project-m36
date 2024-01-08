@@ -1,3 +1,13 @@
+# Future
+
+* fixed toAtom/fromAtom for NonEmpty lists (#363)
+	
+# 2023-12-30 (v0.9.8)
+
+* fix notification serialization in transaction (#362)
+* require minimum GHC 9.2 (dropping GHC 8.10 and GHC 9.0)
+* add support for GHC 9.4
+	
 # 2023-07-18 (v0.9.7)
 
 * fix critical bug resulting in empty results from cross joins
