@@ -27,6 +27,10 @@ let
       		    pkg = "streamly-core";
 		    ver = "0.2.0";
   		    sha256 = "sha256-fMo5dz/AY0CUZaP1lhXqjfsuGVO4GtAW3/q9W9N6D3Q="; } {};
+      streamly-bytestring = self.callHackageDirect {
+                    pkg = "streamly-bytestring";
+		    ver = "0.2.1";
+  		    sha256 = "sha256-EcH6qq4nRjea3xQ66Zlqgjjg7lF/grkKJI0+tTO4B84="; } {};		    
 
       lockfree-queue = self.callHackageDirect {
       		     pkg = "lockfree-queue";
