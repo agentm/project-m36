@@ -20,7 +20,7 @@ import Data.Functor.Identity
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
-import Debug.Trace
+--import Debug.Trace
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -589,15 +589,17 @@ applyRedundantRenameCleanup expr = Fold.cata folder expr
       else
         Rename (S.filter (\(a,b) -> a /= b) renameSet) e
     folder e = Fold.embed e
+
 -- if the destination name in the rename is unused, we can remove it- does not detect errors if an a Rename is missing
 -- Project ["x"] (Rename [("y","z"),("w","x")] (RelationVariable "rv" ())) == Project ["x"] (Rename [("w","x")] (RelationVariable "rv" ()))
+{-
 applyUnusedRenameCleanup :: Show a => RelationalExprBase a -> RelationalExprBase a
 applyUnusedRenameCleanup expr = Fold.para folder expr
   where
     folder :: Show a => RelationalExprBaseF a (RelationalExprBase a, RelationalExprBase a) -> RelationalExprBase a
     folder (RenameF renameSet (expr', acc)) = traceShow ("para", expr', acc) (Rename renameSet expr')
     folder e = traceShow ("para2", Fold.embed $ fst <$> e) $ Fold.embed $ fst <$> e
-    
+-}    
 -- no optimizations available  
 optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextIOExpr
 optimizeDatabaseContextIOExpr = pure

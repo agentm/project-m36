@@ -3,28 +3,24 @@
 module SQL.Interpreter.Convert where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), AttributeOrder(..),Order(..), usesDataFrameFeatures)
+import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
 import qualified ProjectM36.Attribute as A
-import qualified ProjectM36.WithNameExpr as W
 import SQL.Interpreter.Select
-import Data.Kind (Type)
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
 import ProjectM36.Relation
-import Control.Monad (foldM, liftM)
+import Control.Monad (foldM)
 import qualified Data.Set as S
 import qualified Data.Map as M
-import Data.List (foldl', intercalate, find)
+import Data.List (intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Control.Monad (when)
 import ProjectM36.DataTypes.Maybe
-import ProjectM36.StaticOptimizer
 import Control.Monad (void)
-import Data.Maybe (fromMaybe)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
-import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT, catchE)
+import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Trans.Class (lift)
 
@@ -96,7 +92,7 @@ insertColumnAlias tAlias attrName attrAlias colName = do
 prettyTableContext :: TableContext -> String
 prettyTableContext (TableContext tMap) = "TableContext {\n" <> concatMap prettyKV (M.toList tMap) <> "}"
   where
-    prettyKV (TableAlias k,(rvexpr, attrs, aliasMap)) =
+    prettyKV (TableAlias k, (_rvexpr, _attrs, aliasMap)) =
       T.unpack k <> "::\n" <>
       prettyColumnAliasRemapper aliasMap
 
@@ -123,7 +119,6 @@ tableAliasesAsWithNameAssocs = do
     notSelfRef _ = True
 --    mapper :: (TableAlias, (RelationalExpr, Attributes)) -> ConvertM (WithNameExpr, RelationalExpr)
     mapper (TableAlias nam, (rvExpr, _, _)) = pure (WithNameExpr nam (), rvExpr)
-    mapper (qn, _) = throwSQLE (NotSupportedError ("schema qualified table names: " <> T.pack (show qn)))
 
 throwSQLE :: SQLError -> ConvertM a
 throwSQLE = lift . throwE
