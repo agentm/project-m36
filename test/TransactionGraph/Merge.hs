@@ -247,7 +247,10 @@ testUnionMergeStrategy = TestCase $ do
           gfEnv' = freshGraphRefRelationalExprEnv Nothing graph'''
       case failingMerge of
         Right _ -> assertFailure "expected merge failure"
-        Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError)
+        Left err ->
+          let expectedErr = MergeTransactionError (StrategyViolatesRelationVariableMergeError (Just EmptyAttributesError))
+          in
+          assertEqual "merge failure" err expectedErr
 
 -- test that a merge will fail if a constraint is violated
 testUnionMergeIncDepViolation :: Test

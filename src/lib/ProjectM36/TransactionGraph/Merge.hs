@@ -12,6 +12,7 @@ import qualified Data.Text as T
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
+
 -- Check for overlapping keys. If the values differ, try a preference resolution
 unionMergeMaps :: (Ord k, Eq a) => MergePreference -> M.Map k a -> M.Map k a -> Either MergeError (M.Map k a)
 unionMergeMaps prefer mapA mapB = case prefer of
@@ -26,14 +27,14 @@ unionMergeMaps prefer mapA mapB = case prefer of
 unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr
 unionMergeRelation prefer relA relB = do
   let unioned = Union relA relB
-      mergeErr = MergeTransactionError StrategyViolatesRelationVariableMergeError
+      mergeErr = MergeTransactionError . StrategyViolatesRelationVariableMergeError
       preferredRelVar =
         case prefer of
           PreferFirst -> pure relA
           PreferSecond -> pure relB
-          PreferNeither -> throwError mergeErr
+          PreferNeither -> throwError (mergeErr Nothing)
       handler AttributeNamesMismatchError{} = preferredRelVar
-      handler _err' = throwError mergeErr
+      handler err = throwError (mergeErr (Just err))
   --typecheck first?
   (evalGraphRefRelationalExpr unioned >> pure (Union relA relB)) `catchError` handler
 
