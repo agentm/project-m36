@@ -9,6 +9,7 @@ import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Debug.Trace
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
@@ -27,7 +28,7 @@ unionMergeMaps prefer mapA mapB = case prefer of
 unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr
 unionMergeRelation prefer relA relB = do
   let unioned = Union relA relB
-      mergeErr = MergeTransactionError . StrategyViolatesRelationVariableMergeError
+      mergeErr = traceShow (relA,relB) $ MergeTransactionError . StrategyViolatesRelationVariableMergeError
       preferredRelVar =
         case prefer of
           PreferFirst -> pure relA
