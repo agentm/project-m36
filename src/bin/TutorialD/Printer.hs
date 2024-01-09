@@ -6,6 +6,7 @@
 module TutorialD.Printer where
 import ProjectM36.Base
 import ProjectM36.Attribute as A hiding (null)
+import ProjectM36.DataFrame
 import Prettyprinter
 import qualified Data.Set as S hiding (fromList)
 import qualified Data.Vector as V
@@ -163,6 +164,31 @@ instance Pretty RestrictionPredicateExpr where
 
 instance Pretty WithNameExpr where
   pretty (WithNameExpr name _) = pretty name
+
+instance Pretty DataFrameExpr where
+  pretty df =
+    ":showdataframe" <+>
+    pretty (convertExpr df) <+>
+    if null (orderExprs df) then
+      mempty
+      else
+      "orderby" <+>
+      prettyBracesList (orderExprs df)
+    <+> prettyOffset (offset df)
+    <+> prettyLimit (limit df)
+    where
+      prettyOffset Nothing = mempty
+      prettyOffset (Just offset') = "offset" <+> pretty (show offset')
+      prettyLimit Nothing = mempty
+      prettyLimit (Just limit') = "limit" <+> pretty (show limit')
+
+instance Pretty AttributeOrderExpr where
+  pretty (AttributeOrderExpr attrName order) =
+    pretty attrName <+> pretty order
+
+instance Pretty Order where
+  pretty AscendingOrder = "ascending"
+  pretty DescendingOrder = "descending"
 
 bracesList :: [Doc ann] -> Doc ann
 bracesList = group . encloseSep (flatAlt "{ " "{") (flatAlt " }" "}") ", "

@@ -3,6 +3,8 @@ import SQL.Interpreter.Select
 import SQL.Interpreter.Convert
 --import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.RODatabaseContextOperator
+import TutorialD.Printer
+import Prettyprinter
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
@@ -154,6 +156,8 @@ testSelect = TestCase $ do
             pure x
 
         --print ("selectAsRelExpr"::String, selectAsRelExpr)
+        print ("expected: ", pretty tutdAsDFExpr)
+        print ("actual: ", pretty selectAsDFExpr)
         assertEqual (T.unpack sql) tutdAsDFExpr selectAsDFExpr
         --check that the expression can actually be executed
         eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr
