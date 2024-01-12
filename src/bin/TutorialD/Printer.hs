@@ -35,7 +35,7 @@ instance Pretty Atom where
   pretty (ConstructedAtom n _ as) = pretty n <+> prettyList as
 
 instance Pretty AtomExpr where
-  pretty (AttributeAtomExpr attrName) = pretty attrName
+  pretty (AttributeAtomExpr attrName) = pretty ("@" <> attrName)
   pretty (NakedAtomExpr atom)         = pretty atom
   pretty (FunctionAtomExpr atomFuncName' atomExprs _) = pretty atomFuncName' <> prettyAtomExprsAsArguments atomExprs
   pretty (RelationAtomExpr relExpr) = pretty relExpr
@@ -160,7 +160,10 @@ instance Pretty RestrictionPredicateExpr where
   pretty (NotPredicate a) = "not" <+> pretty a 
   pretty (RelationalExprPredicate relExpr) = pretty relExpr
   pretty (AtomExprPredicate atomExpr) = pretty atomExpr
-  pretty (AttributeEqualityPredicate attrName atomExpr) = pretty attrName <> "=" <> pretty atomExpr
+  pretty (AttributeEqualityPredicate attrName atomExpr) = prettyAttributeName attrName <> "=" <> pretty atomExpr
+
+prettyAttributeName :: AttributeName -> Doc a
+prettyAttributeName attrName = pretty $ "`" <> attrName <> "`"
 
 instance Pretty WithNameExpr where
   pretty (WithNameExpr name _) = pretty name
