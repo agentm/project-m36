@@ -1,5 +1,6 @@
-# Future
+# 2024-01-12 (v0.9.9)
 
+* revert to using streamly 0.9.0 due to over-the-wire corruption bug in 0.10.0
 * fixed toAtom/fromAtom for NonEmpty lists (#363)
 	
 # 2023-12-30 (v0.9.8)
