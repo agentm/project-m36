@@ -161,7 +161,7 @@ instance Atomable a => Atomable (NE.NonEmpty a) where
   toAtom (x NE.:| xs) = ConstructedAtom "NECons" (nonEmptyListAtomType (toAtomType (Proxy :: Proxy a))) [toAtom x, toAtom xs]
   fromAtom (ConstructedAtom "NECons" _ [x]) = fromAtom x NE.:| []
   fromAtom (ConstructedAtom "NECons" _ [x,y] ) = fromAtom x NE.:| fromAtom y
-  fromAtom x = error "improper fromAtom (NonEmptyList a)"
+  fromAtom _x = error "improper fromAtom (NonEmptyList a)"
 
   toAtomType _ = ConstructedAtomType "NonEmptyList" (M.singleton "a" (toAtomType (Proxy :: Proxy a)))
   toAddTypeExpr _ = NoOperation
