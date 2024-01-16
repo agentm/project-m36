@@ -26,14 +26,14 @@ unionMergeMaps prefer mapA mapB = case prefer of
 unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr
 unionMergeRelation prefer relA relB = do
   let unioned = Union relA relB
-      mergeErr = MergeTransactionError StrategyViolatesRelationVariableMergeError
+      mergeErr e = MergeTransactionError (StrategyViolatesRelationVariableMergeError e)
       preferredRelVar =
         case prefer of
           PreferFirst -> pure relA
           PreferSecond -> pure relB
-          PreferNeither -> throwError mergeErr
+          PreferNeither -> throwError (MergeTransactionError StrategyWithoutPreferredBranchResolutionMergeError)
       handler AttributeNamesMismatchError{} = preferredRelVar
-      handler _err' = throwError mergeErr
+      handler err' = throwError (mergeErr err')
   --typecheck first?
   (evalGraphRefRelationalExpr unioned >> pure (Union relA relB)) `catchError` handler
 
@@ -47,7 +47,7 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> 
+                (Just relA, Just relB) -> do
                   unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 

@@ -13,6 +13,7 @@ import ProjectM36.MerkleHash
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
 import ProjectM36.HashSecurely
+import ProjectM36.ReferencedTransactionIds
 
 import Codec.Winery
 import Control.Monad.Except hiding (join)
@@ -373,7 +374,7 @@ validateHeadName headName graph (t1, t2) =
                   else
                     pure trans
   
--- Algorithm: start at one transaction and work backwards up the parents. If there is a node we have not yet visited as a child, then walk that up to its head. If that branch contains the goal transaction, then we have completed a valid subgraph traversal.
+-- Algorithm: start at one transaction and work backwards up the parents. If there is a node we have not yet visited as a child, then walk that up to its head. If that branch contains the goal transaction, then we have completed a valid subgraph traversal. The subgraph must also include any transactions which are referenced by other transactions.
 subGraphOfFirstCommonAncestor :: TransactionGraph -> TransactionHeads -> Transaction -> Transaction -> S.Set Transaction -> Either RelationalError TransactionGraph
 subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans' goalTrans traverseSet = do
   let currentid = transactionId currentTrans'
@@ -398,8 +399,15 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans' goalTrans trav
         Left err -> Left err
         Right currentTransParent ->
           subGraphOfFirstCommonAncestor origGraph resultHeads currentTransParent goalTrans (S.insert currentTrans' traverseSet)
-      else -- we found a path
-      Right (TransactionGraph resultHeads (S.unions (traverseSet : pathsFound)))
+      else do -- we found a path
+        -- we union all the relevant path transactions together, but we are missing any transactions which these transaction may reference. To make a valid transaction graph, we must include these referenced transactions.
+        let openSet = S.unions (traverseSet : pathsFound)
+            transactionIncluder acc trans = do
+              let allTids = referencedTransactionIds (concreteDatabaseContext trans)
+              allTrans <- mapM (`transactionForId` origGraph) (S.toList allTids)
+              pure $ S.unions (S.singleton trans : S.fromList allTrans : [acc])
+        closedTransactionSet <- foldM transactionIncluder mempty (S.toList openSet)
+        Right (TransactionGraph resultHeads closedTransactionSet)
   where
     oneParent (Transaction _ tinfo _) = transactionForId (NE.head (parents tinfo)) origGraph
     
@@ -437,9 +445,12 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
   transB <- transactionForHeadErr headNameB
   disconParent <- gfTransForId parentId
   let subHeads = M.filterWithKey (\k _ -> k `elem` [headNameA, headNameB]) (transactionHeadsForGraph graph)
+  -- is this an optimization???
   subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
   subGraph' <- runE $ filterSubGraph subGraph subHeads
-  mergedTrans <- local (const (freshGraphRefRelationalExprEnv Nothing subGraph')) $ createMergeTransaction stamp' newId mergeStrategy (transA, transB)
+  -- we cannot cut the transaction graph away only to "relevant" transactions because transactions can reference other transactions via relvar expressions
+  mergedTrans <- local (const (freshGraphRefRelationalExprEnv Nothing subGraph')) $
+                 createMergeTransaction stamp' newId mergeStrategy (transA, transB)
   case headNameForTransaction disconParent graph of
         Nothing -> throwError (TransactionIsNotAHeadError parentId)
         Just headName -> do
@@ -625,3 +636,5 @@ validateMerkleHashes graph =
       case validateMerkleHash trans graph of
         Left err -> err : acc
         _ -> acc
+
+
