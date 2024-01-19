@@ -1,8 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.ReferencedTransactionIds where
 import ProjectM36.Base
+import ProjectM36.Error
+import qualified ProjectM36.Transaction as T
+import ProjectM36.RelationalExpression
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Control.Monad (foldM)
 
 type TransactionIds = S.Set TransactionId
 
@@ -112,6 +116,24 @@ instance ReferencedTransactionIds DatabaseContext where
     ]
 
 instance ReferencedTransactionIds RelationVariables where
-  referencedTransactionIds relVars = 
-    S.unions (referencedTransactionIds <$> M.elems relVars)   
+  referencedTransactionIds relVars =
+    S.unions (referencedTransactionIds <$> M.elems relVars)
+
+-- | Recurse relvars references and transaction parents to extract a subset of relevant transactions.
+-- probably could do some trimming of transactions that are not referenced by relvars, but that is rare, so probably of not much benefit
+-- should be trim merge parents that don't contribute to the relvars? maybe
+referencedTransactionIdsForTransaction :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
+referencedTransactionIdsForTransaction trans graph
+  | parentIds == T.rootParent = pure (S.singleton trans)
+  | otherwise = 
+    foldM folder (S.singleton trans) parentIds
+  where
+    parentIds = parents (transactionInfo trans)
+    folder acc transId' = do
+      trans' <- transactionForId transId' graph
+      transSet <- referencedTransactionIdsForTransaction trans' graph
+      pure (S.union acc transSet)
+
+
+
 
