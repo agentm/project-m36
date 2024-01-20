@@ -403,9 +403,8 @@ subGraphOfFirstCommonAncestor origGraph resultHeads currentTrans' goalTrans trav
         -- we union all the relevant path transactions together, but we are missing any transactions which these transaction may reference. To make a valid transaction graph, we must include these referenced transactions.
         let openSet = S.unions (traverseSet : pathsFound)
             transactionIncluder acc trans = do
-              let allTids = referencedTransactionIds (concreteDatabaseContext trans)
-              allTrans <- mapM (`transactionForId` origGraph) (S.toList allTids)
-              pure $ S.unions (S.singleton trans : S.fromList allTrans : [acc])
+              allTrans <- referencedTransactionIdsForTransaction trans origGraph
+              pure $ S.union allTrans acc
         closedTransactionSet <- foldM transactionIncluder mempty (S.toList openSet)
         Right (TransactionGraph resultHeads closedTransactionSet)
   where
@@ -447,6 +446,8 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
   let subHeads = M.filterWithKey (\k _ -> k `elem` [headNameA, headNameB]) (transactionHeadsForGraph graph)
   -- is this an optimization???
   subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
+  _ <- runE $ validateConnectivity subGraph
+
   subGraph' <- runE $ filterSubGraph subGraph subHeads
   -- we cannot cut the transaction graph away only to "relevant" transactions because transactions can reference other transactions via relvar expressions
   mergedTrans <- local (const (freshGraphRefRelationalExprEnv Nothing subGraph')) $
@@ -463,18 +464,20 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
               pure (newDiscon, newGraph')
   
 --TEMPORARY COPY/PASTE  
-showTransactionStructureX :: Transaction -> TransactionGraph -> String
-showTransactionStructureX trans graph = headInfo ++ " " ++ show (transactionId trans) ++ " " ++ parentTransactionsInfo
+showTransactionStructureX :: Bool -> Transaction -> TransactionGraph -> String
+showTransactionStructureX showRelVars trans graph = headInfo ++ " " ++ show (transactionId trans) ++ " " ++ parentTransactionsInfo ++ relVarsInfo
   where
+    relVarsInfo | showRelVars == False = ""
+                | otherwise = "\n" <> concatMap show (M.toList (relationVariables (concreteDatabaseContext trans)))
     headInfo = maybe "" show (headNameForTransaction trans graph)
     parentTransactionsInfo = if isRootTransaction trans then "root" else case parentTransactions trans graph of
       Left err -> show err
       Right parentTransSet -> concat $ S.toList $ S.map (show . transactionId) parentTransSet
   
-showGraphStructureX :: TransactionGraph -> String
-showGraphStructureX graph@(TransactionGraph heads transSet) = headsInfo ++ S.foldr folder "" transSet
+showGraphStructureX :: Bool -> TransactionGraph -> String
+showGraphStructureX showRelVars graph@(TransactionGraph heads transSet) = headsInfo ++ S.foldr folder "" transSet
   where
-    folder trans acc = acc ++ showTransactionStructureX trans graph ++ "\n"
+    folder trans acc = acc ++ showTransactionStructureX showRelVars trans graph ++ "\n"
     headsInfo = show $ M.map transactionId heads
     
 -- | After splicing out a subgraph, run it through this function to remove references to transactions which are not in the subgraph.
@@ -637,4 +640,10 @@ validateMerkleHashes graph =
         Left err -> err : acc
         _ -> acc
 
-
+-- | Ensure that referenced transactions remain in the graph.
+validateConnectivity :: TransactionGraph -> Either RelationalError TransactionGraph
+validateConnectivity graph = do
+  let validateTrans trans =
+        mapM_ (`transactionForId` graph) (referencedTransactionIds (concreteDatabaseContext trans))
+  mapM_ validateTrans (transactionsForGraph graph)
+  pure graph
