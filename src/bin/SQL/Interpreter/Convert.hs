@@ -100,11 +100,11 @@ prettyTableContext :: TableContext -> String
 prettyTableContext (TableContext tMap) = "TableContext {\n" <> concatMap prettyKV (M.toList tMap) <> "}"
   where
     prettyKV (TableAlias k, (_rvexpr, _attrs, aliasMap)) =
-      T.unpack k <> "::\n" <>
+      " " <> T.unpack k <> "::\n  " <> 
       prettyColumnAliasRemapper aliasMap
 
 prettyColumnAliasRemapper :: ColumnAliasRemapper -> String
-prettyColumnAliasRemapper cAMap = intercalate ", " $ map (\(realAttr, (attrAlias, colNameSet)) -> T.unpack realAttr <> ":" <> T.unpack attrAlias <> ":{" <> show colNameSet <> "}") (M.toList cAMap)
+prettyColumnAliasRemapper cAMap = intercalate ", " $ map (\(realAttr, (attrAlias, colNameSet)) -> "real->" <> T.unpack realAttr <> ":alias->" <> T.unpack attrAlias <> ":alts->{" <> show colNameSet <> "}") (M.toList cAMap)
 
 
   
@@ -130,21 +130,41 @@ tableAliasesAsWithNameAssocs = do
 throwSQLE :: SQLError -> ConvertM a
 throwSQLE = lift . throwE
 
+type ColumnAliasRenameMap = M.Map (TableAlias, AttributeName) ColumnAlias
+
 -- | Pass state down to subselect, but discard any state changes from the subselect processing.
-withSubSelect :: ConvertM a -> ConvertM (a, TableContext)
+withSubSelect :: ConvertM a -> ConvertM (a, ColumnAliasRenameMap)
 withSubSelect m = do
   state@(TableContext orig) <- get
   ret <- m
   (TableContext postSub) <- get
   put state
   -- diff the state to get just the items that were added
-  traceShowM ("diff orig"::String, M.keys orig)
-  traceShowM ("diff postSub"::String, M.keys postSub)
-  traceShowM ("diff1"::String, M.difference postSub orig)
-  let diff = M.differenceWith tctxDiff postSub orig
+  traceShowM ("keys orig"::String, M.keys orig)
+  traceShowM ("keys postSub"::String, M.keys postSub)
+  let tableDiffFolder acc (tAlias, (RelationVariable rv (), _ , colAliasRemapper)) = do
+        let convertColAliases :: ColumnAliasRemapper -> (AttributeName, (AttributeName, S.Set ColumnName)) -> ColumnAliasRenameMap -> ColumnAliasRenameMap
+            convertColAliases origColAlRemapper (attrName, (attrAlias,_)) acc' =
+              if M.member attrName origColAlRemapper then
+                acc'
+                else
+                M.insert (tAlias, attrName) (ColumnAlias attrAlias) acc'
+        case M.lookup tAlias orig of
+          -- new table has been added to column alias map, add all columns aliased
+          Nothing -> do
+            pure (acc <> foldr (convertColAliases mempty) mempty (M.toList colAliasRemapper))
+          -- we are aware of the table, but there may have been some new columns added
+          Just (_,_,colAliasRemapper) ->
+            pure (acc <> foldr (convertColAliases colAliasRemapper) mempty (M.toList colAliasRemapper))
+          x -> throwSQLE (NotSupportedError $ "unhandled withSubSelect diff: " <> T.pack (show x))
+            
+  diff <- foldM tableDiffFolder mempty (M.toList postSub)
+
+{-  let diff = M.differenceWith tctxDiff postSub orig
       tctxDiff (rexprA, attrsA, colAliasMapA) (_, _, colAliasMapB) =
-        Just (rexprA, attrsA, M.difference colAliasMapB colAliasMapA)
-  pure (ret, TableContext diff)
+        Just (rexprA, attrsA, M.difference colAliasMapB colAliasMapA)-}
+  traceShowM ("subselect diff"::String, diff)
+  pure (ret, diff)
 
 -- if we find a column naming conflict, generate a non-conflicting name for insertion into the column alias map
 generateColumnAlias :: TableAlias -> AttributeName -> ConvertM ColumnAlias
@@ -300,31 +320,41 @@ findOneColumn' targetCol tcontext = do
     [match] -> pure match
     _matches -> Left (AmbiguousColumnResolutionError targetCol)
 
--- | Search the TableContext for a column alias remapping for the given column name.
-attributeNameForColumnName' :: ColumnName -> TableContext -> Either SQLError AttributeName
-attributeNameForColumnName' colName tcontext@(TableContext tmap) = do
-  tKey <- findOneColumn' colName tcontext
+-- | Search the TableContext for a column alias remapping for the given column name. This function can change the state context if column names conflict.
+attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
+attributeNameForColumnName colName = do
+  tKey <- findOneColumn colName
+  tcontext@(TableContext tmap) <- get
   let (_, rvattrs, colAliases) = tmap M.! tKey
   --strip table prefix, if necessary
   colAlias@(ColumnAlias colAttr) <- case colName of
                 ColumnName [attr] -> pure $ ColumnAlias attr
-                ColumnName [tname,attr] -> pure $ ColumnAlias (tname <> "." <> attr)
-                ColumnName{} -> Left $ ColumnResolutionError colName
-  traceShowM ("attributeNameForColumnName' colAlias"::String, colAliases, colAlias)
+                ColumnName [tname,attr] -> pure $ ColumnAlias attr
+                ColumnName{} -> throwSQLE $ ColumnResolutionError colName
+  traceShowM ("attributeNameForColumnName' colAlias"::String, colAttr, colAliases, colAlias)
   case M.lookup colAttr colAliases of
-    Just (res,_) -> pure res -- we found it, so it's valid
+    Just (alias,_) -> pure alias -- we found it, so it's valid
     Nothing ->
       -- look in rvattrs, so we don't need the table alias prefix. The lack of an entry in the column alias map indicates that the column was not renamed in the join condition.
       if colAttr `A.isAttributeNameContained` rvattrs then
-        pure colAttr
+        -- we have a matching attribute, but it could conflict with another attribute, so check for that
+        case findOneColumn' (ColumnName [colAttr]) tcontext of
+          Right _ -> pure colAttr
+          Left (AmbiguousColumnResolutionError{}) -> do
+            --we have a conflict, so insert a new column alias and return it
+            let tAlias = case tKey of
+                           TableAlias tAlias -> tAlias
+            (ColumnAlias al) <- noteColumnMention (Just tKey) (ColumnName [tAlias,colAttr]) Nothing
+            traceShowM ("attributeNameForColumnName' noteColumnMention"::String, colAttr, al)
+            pure al
         --pure (T.concat [tAlias, ".", colAttr])
       else
         case colName of
           ColumnName [_, col] | col `A.isAttributeNameContained` rvattrs ->
                                 -- the column has not been aliased, so we presume it can be use the column name directly
                                 pure col
-          _ -> traceShow ("attrNameForColName"::String) $ Left $ ColumnResolutionError colName
-
+          _ -> traceShow ("attrNameForColName"::String) $ throwSQLE $ ColumnResolutionError colName
+{-
 attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
 attributeNameForColumnName colName = do
   s <- get
@@ -334,7 +364,7 @@ attributeNameForColumnName colName = do
       traceStateM
       traceShowM ("attributeNameForColumnName"::String, colName, "->"::String, al)
       pure al
-  
+  -}
 
 wrapTypeF :: TypeForRelExprF -> RelationalExpr -> ConvertM Relation
 wrapTypeF typeF relExpr =
@@ -415,7 +445,7 @@ appendWithsToTypeF typeF withAssocs relExpr =
 -- | Slightly different processing for subselects.
 convertSubSelect :: TypeForRelExprF -> Select -> ConvertM RelationalExpr
 convertSubSelect typeF sel = do
-  (ret, TableContext aliasDiff) <- withSubSelect $ do
+  ((applyF, tExpr), colRenames) <- withSubSelect $ do
     wExprs <- case withClause sel of
                 Nothing -> pure mempty
                 Just wClause -> do
@@ -435,9 +465,11 @@ convertSubSelect typeF sel = do
                   [] -> id
                   _ -> With withAssocs
     -- add disambiguation renaming
-    pure (explicitWithF (withF (projF (convertExpr dfExpr))))
-  traceShowM ("diff"::String, aliasDiff) -- alias is not correct- the col alias map is empty for subquery
-  pure ret
+    pure (explicitWithF . withF . projF, convertExpr dfExpr)
+  let renamesF = Rename (S.fromList (map renamer (M.toList colRenames)))
+      renamer ((TableAlias tAlias, realAttr), ColumnAlias newAttr) =
+        (realAttr, newAttr)
+  pure (applyF (renamesF tExpr))
 
 convertSelectItem :: TypeForRelExprF -> SelectItemsConvertTask -> (Int,SelectItem) -> ConvertM SelectItemsConvertTask
 convertSelectItem typeF acc (c,selItem) =

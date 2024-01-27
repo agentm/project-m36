@@ -56,10 +56,10 @@ testSelect = TestCase $ do
         ("SELECT city FROM s where status=20","((s where status=20){city})"),
         -- restriction with asterisk and qualified name
         ("SELECT * FROM s WHERE \"s\".\"status\"=20","(s where status=20)"),
-        -- join via where clause-}
+        -- join via where clause
         ("SELECT city FROM s, sp where \"s\".\"s#\" = \"sp\".\"s#\"",
          "((((s rename {s# as `s.s#`}) join sp) where `s.s#` = @s#){city})"
-         ){-,
+         ),
         -- restriction
         ("SELECT status,city FROM s where status>20","((s where gt(@status,20)){status,city})"),
         -- extension mixed with projection
@@ -120,13 +120,13 @@ testSelect = TestCase $ do
         -- CTEs
         ("WITH x AS (SELECT * FROM s) SELECT * FROM x", "(with (x as s) x)"),
         -- SELECT with no table expression
-        ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),
+        ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),-}
         -- basic NULL
 --        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})"),
         -- where exists
         -- complication: we need to add attribute renamers due to the subselect
         ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
-         "(s where (((sp rename {s# as `sp.s#`}) where `s#`= @`sp.s#`){}))")-}
+         "(s where (((sp rename {s# as `sp.s#`}) where `s#`= @`sp.s#`){}))")
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just dateExamples,
