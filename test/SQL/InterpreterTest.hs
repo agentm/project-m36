@@ -47,7 +47,7 @@ testSelect = TestCase $ do
   (tgraph,transId) <- freshTransactionGraph dateExamples
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [{-
+  let readTests = [
         -- simple relvar
         ("SELECT * FROM s", "(s)"),
         -- simple projection
@@ -120,7 +120,7 @@ testSelect = TestCase $ do
         -- CTEs
         ("WITH x AS (SELECT * FROM s) SELECT * FROM x", "(with (x as s) x)"),
         -- SELECT with no table expression
-        ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),-}
+        ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),
         -- basic NULL
 --        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})"),
         -- where exists
@@ -157,7 +157,7 @@ testSelect = TestCase $ do
 
         --print ("selectAsRelExpr"::String, selectAsRelExpr)
         print ("expected: ", pretty tutdAsDFExpr)
-        print ("actual: ", pretty selectAsDFExpr)
+        print ("actual  : ", pretty selectAsDFExpr)
         assertEqual (T.unpack sql) tutdAsDFExpr selectAsDFExpr
         --check that the expression can actually be executed
         eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr

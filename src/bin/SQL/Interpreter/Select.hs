@@ -137,7 +137,7 @@ data OperatorName = OperatorName [Text]
 newtype ColumnAlias = ColumnAlias { unColumnAlias :: Text }
   deriving (Show, Eq, Ord)
 
-newtype TableAlias = TableAlias Text
+newtype TableAlias = TableAlias { unTableAlias :: Text }
   deriving (Show, Eq, Ord, Monoid, Semigroup)
 
 newtype FuncName = FuncName [Text]

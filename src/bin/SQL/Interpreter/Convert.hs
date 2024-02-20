@@ -1,7 +1,7 @@
 --convert SQL into relational or database context expressions
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, TypeApplications, GeneralizedNewtypeDeriving #-}
 module SQL.Interpreter.Convert where
-import ProjectM36.Base
+import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
@@ -18,7 +18,8 @@ import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Control.Monad (when)
 import ProjectM36.DataTypes.Maybe
-import Control.Monad (void)
+import Data.Maybe (isJust, fromMaybe)
+--import Control.Monad (void)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
@@ -38,6 +39,7 @@ data SQLError = NotSupportedError T.Text |
                 NoSuchSQLFunctionError FuncName |
                 DuplicateTableReferenceError TableAlias |
                 MissingTableReferenceError TableAlias |
+                TableAliasMismatchError TableAlias |
                 UnexpectedTableNameError TableName |
                 UnexpectedColumnNameError ColumnName |
                 ColumnResolutionError ColumnName |
@@ -83,13 +85,18 @@ insertIntoColumnAliasRemap' attrName attrAlias colName remap =
                                     Left (ColumnAliasResolutionError (ColumnAlias attrName))
 
 -- | Used to note if columns are remapped to different attributes in order to mitigate attribute naming conflicts.
-insertColumnAlias :: TableAlias -> AttributeName -> AttributeAlias -> ColumnName -> ConvertM ()
-insertColumnAlias tAlias attrName attrAlias colName = do
+insertColumnAlias ::
+  TableAlias -> -- table reference
+  AttributeName -> -- real attribute name
+  ColumnAlias -> -- column alias
+  ColumnName -> -- original reference name
+  ConvertM ()
+insertColumnAlias tAlias attrName (ColumnAlias colAlias) colName = do
   TableContext tmap <- get
   case tAlias `M.lookup` tmap of
     Nothing -> throwSQLE (MissingTableReferenceError tAlias)
-    Just (rve,attrs,remap) ->
-      case insertIntoColumnAliasRemap' attrName attrAlias colName remap of
+    Just (rve,attrs,remap) -> do
+      case insertIntoColumnAliasRemap' attrName colAlias colName remap of
         Left err -> throwSQLE err
         Right remap' -> do
           let tmap' = M.insert tAlias (rve, attrs, remap') tmap
@@ -100,8 +107,8 @@ prettyTableContext :: TableContext -> String
 prettyTableContext (TableContext tMap) = "TableContext {\n" <> concatMap prettyKV (M.toList tMap) <> "}"
   where
     prettyKV (TableAlias k, (_rvexpr, _attrs, aliasMap)) =
-      " " <> T.unpack k <> "::\n  " <> 
-      prettyColumnAliasRemapper aliasMap
+      " " <> T.unpack k <> "::  " <> 
+      prettyColumnAliasRemapper aliasMap <> "\n"
 
 prettyColumnAliasRemapper :: ColumnAliasRemapper -> String
 prettyColumnAliasRemapper cAMap = intercalate ", " $ map (\(realAttr, (attrAlias, colNameSet)) -> "real->" <> T.unpack realAttr <> ":alias->" <> T.unpack attrAlias <> ":alts->{" <> show colNameSet <> "}") (M.toList cAMap)
@@ -191,8 +198,7 @@ insertTable tAlias expr rtype = do
   case M.lookup tAlias map' of
     Nothing -> do
       put $ TableContext $ M.insert tAlias (expr, rtype, mempty) map'
-      traceShowM ("insertTable"::String, tAlias)
-      traceStateM
+--      traceShowM ("insertTable"::String, tAlias)
       pure mempty
     Just _ -> throwSQLE (DuplicateTableReferenceError tAlias)
 
@@ -200,27 +206,115 @@ insertTable tAlias expr rtype = do
 noteColumnMention :: Maybe TableAlias -> ColumnName -> Maybe ColumnAlias -> ConvertM ColumnAlias
 noteColumnMention mTblAlias colName mColAlias = do
   -- find the relevant table for the key to the right table
-  traceShowM ("noteColumnMention"::String, colName)
-  tblAlias' <- case mTblAlias of
+  traceShowM ("noteColumnMention"::String, mTblAlias, colName)
+--  traceStateM
+  tc@(TableContext tcontext) <- get
+{-  tblAlias' <- case mTblAlias of
                         Just tblAlias -> do
                           void $ lookupTable tblAlias
                           pure tblAlias
                         Nothing ->do
                           -- scan column names for match- if there are multiple matches, return a column ambiguity error
-                          traceShowM ("insertColumn"::String, colName)
                           ret <- findOneColumn colName
 --                          traceShowM ("insertColumn2", colName)
-                          pure ret
+                          pure ret-}
   -- insert into the column alias map
-  let newAlias = case mColAlias of
-                   Nothing -> case colName of
-                                ColumnName [c] -> c
-                                ColumnName [t,c] -> t <> "." <> c
-                   Just (ColumnAlias al) -> al
+{-  let colAttr = case colName of
+                  ColumnName [c] -> c
+                  ColumnName [t,c] -> 
       origAttrName = case colName of
                        ColumnName [c] -> c
-                       ColumnName [_,c] -> c
-                    
+                       ColumnName [_,c] -> c-}
+  -- check if we already have a mention mapping
+  let lookupWithTableAlias (TableAlias tAlias) colAttr = do
+        when (isJust mTblAlias && Just (TableAlias tAlias) /= mTblAlias) (throwSQLE (TableAliasMismatchError (TableAlias tAlias)))
+      -- we have a specific table alias, so ensure it's valid
+        let tPrefixColAttr = tAlias <> "." <> colAttr
+            insertColAlias newAlias = do
+              insertColumnAlias (TableAlias tAlias) colAttr (ColumnAlias newAlias) colName
+              pure (ColumnAlias newAlias)
+        case M.lookup (TableAlias tAlias) tcontext of
+          Nothing -> do -- add a new colaliasremapper
+            insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
+          Just (_, _, colAlRemapper) -> do
+            -- table alias already known, check for column alias
+            traceShowM ("noteColumnMention before attr"::String, colAlRemapper)
+            case attributeNameForAttributeAlias colAttr colAlRemapper of
+              Left _ -> do
+                -- col alias missing, so add it- figure out if it needs a table prefix
+                --traceShowM ("findNotedColumn' in noteColumnMention"::String, colAlias)
+                --traceStateM
+                let sqlColAlias = fromMaybe colAttr (unColumnAlias <$> mColAlias)
+                colAlias' <- case findNotedColumn' (ColumnName [colAttr]) tc of
+                               Left err -> -- no match, so table prefix not required
+                                 insertColAlias sqlColAlias
+                               Right [] -> -- no match, so table prefix not required
+                                 insertColAlias sqlColAlias
+                               Right [match] -> -- we have a match, so we need the table prefix
+                                 insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
+                               Right (_:_) -> throwSQLE (AmbiguousColumnResolutionError colName)
+                --traceShowM ("findNotedColumn' in noteColumnMentionB"::String, colAlias')
+                pure colAlias'
+              Right attrName ->
+                -- we know the alias already, so return it
+                pure (ColumnAlias attrName)
+
+  case colName of
+    ColumnName [tAlias,colAlias] -> lookupWithTableAlias (TableAlias tAlias) colAlias
+    ColumnName [colAlias] ->
+      case mTblAlias of
+        Just tAlias -> lookupWithTableAlias tAlias colAlias
+        Nothing -> do
+          -- lookup without table alias
+          -- unqualified column alias- search for unambiguous table reference
+          let folder (ta@(TableAlias tAlias), (_, _, colAliasRemapper)) acc =
+                case attributeNameForAttributeAlias colAlias colAliasRemapper of
+                  Left _ -> acc
+                  Right attrName -> (ta,attrName) : acc
+              sqlColAlias = fromMaybe colAlias (unColumnAlias <$> mColAlias)                
+      
+          case foldr folder mempty (M.toList tcontext) of
+            [] -> do -- no matches, search raw attributes
+              case findColumn' colName tc of
+                [] -> -- no match in attributes, either, error
+                  throwSQLE (UnexpectedColumnNameError colName)
+                [tAlias] -> do -- one match, insert it
+                  insertColumnAlias tAlias sqlColAlias (ColumnAlias colAlias) colName
+                  pure (ColumnAlias colAlias)
+                (_:_) -> -- too many matches, error
+                  throwSQLE (AmbiguousColumnResolutionError colName)
+            [(tAlias, attrName)] -> do -- valid attribute match, so add colaliasremapper
+              insertColumnAlias tAlias attrName (ColumnAlias colAlias) colName
+              pure (ColumnAlias colAlias)
+            (_:_) -> -- two many matches, error
+              throwSQLE (AmbiguousColumnResolutionError colName)
+          
+
+
+------      
+{-  case findNotedColumn' colName tc of
+    Right [] -> do
+      -- no match found, so we can insert this as a new column alias
+      let colAlias = case mColAlias of
+                       Just al -> al
+                       Nothing -> --ColumnAlias (unTableAlias tblAlias' <> "." <> origAttrName)
+                         ColumnAlias origAttrName 
+      insertColumnAlias tblAlias' origAttrName colAlias colName
+      pure colAlias
+    Right [match] ->
+      -- one match found- error
+      throwSQLE (AmbiguousColumnResolutionError colName)
+    Right (match:_) ->
+      -- multiple matches found- error
+      throwSQLE (AmbiguousColumnResolutionError colName)
+    Left (ColumnResolutionError{}) ->
+      throwSQLE err-}
+{-  case M.lookup tblAlias' tcontext of
+    Nothing -> throwSQLE (MissingTableReferenceError tblAlias')
+    Just (_,_,colAliasRemapper) -> do
+      case attributeNameForAttributeAlias colAttr colAliasRemapper of
+        Right _ -> pure (ColumnAlias colAttr)
+        Left _ -> do -- no match previously recorded, so add it-}
 {-  when (newAlias `elem` allColumnAliases tcontext) $ do
     traceShowM ("gonk error",
                 "colName", colName,
@@ -229,9 +323,13 @@ noteColumnMention mTblAlias colName mColAlias = do
 p                tmap)
     throwSQLE (DuplicateColumnAliasError newAlias)-} --duplicate column aliases are OK
   --verify that the alias is not duplicated
-  insertColumnAlias tblAlias' origAttrName newAlias colName
-  pure (ColumnAlias newAlias)
-
+{-          let colAlias = case mColAlias of
+                           Just al -> al
+                           Nothing -> --ColumnAlias (unTableAlias tblAlias' <> "." <> origAttrName)
+                             ColumnAlias origAttrName 
+          insertColumnAlias tblAlias' origAttrName colAlias colName
+          pure colAlias
+-}
 {-
 -- | Add a column alias for a column which has already been inserted into the TableContext.
 addColumnAlias' :: TableContext -> TableAlias -> ColumnAlias -> AttributeName -> Either SQLError TableContext
@@ -305,6 +403,39 @@ findColumn' targetCol (TableContext tMap) = do
             acc
         _ -> acc
 
+-- search ColumnAliasRemapper for columns which have already been noted- can be used for probing for new aliases
+findNotedColumn' :: ColumnName -> TableContext -> Either SQLError [(TableAlias, AttributeName)]
+findNotedColumn' cn@(ColumnName [attr]) (TableContext tcontext) =
+  -- search all column alias remappers for attribute- if there is a conflict because the alias is ambiguous, error out
+  pure $ foldr folder mempty (M.toList tcontext)
+  where
+    folder (ta@(TableAlias tAlias), (_, _, colAliasRemapper)) acc =
+      case attributeNameForAttributeAlias attr colAliasRemapper of
+        Left _ -> acc
+        Right attrName -> (ta,attrName) : acc
+
+findNotedColumn' (ColumnName [tPrefix, attr]) (TableContext tcontext) =
+  --find referenced table alias
+  --search for noted column in column alias remapper
+  case M.lookup (TableAlias tPrefix) tcontext of
+    Nothing -> Left (MissingTableReferenceError (TableAlias tPrefix))
+    Just (_, _, colAlRemapper) -> do
+      attrName <- attributeNameForAttributeAlias attr colAlRemapper
+      pure [(TableAlias tPrefix, attrName)]
+
+
+attributeNameForAttributeAlias :: AttributeAlias -> ColumnAliasRemapper -> Either SQLError AttributeName
+attributeNameForAttributeAlias al remapper = do
+--  traceShowM ("attributeNameForAttributeAlias"::String, al, remapper)
+  foldr folder (Left (ColumnAliasResolutionError (ColumnAlias "GONKTASTIC"))) (M.toList remapper)
+  where
+    folder (attrName, (attrAlias, _)) acc =
+               if attrAlias == al then
+                 pure attrAlias
+               else
+                 acc
+  
+
 findOneColumn :: ColumnName -> ConvertM TableAlias
 findOneColumn targetCol = do
   tcontext <- get
@@ -316,7 +447,7 @@ findOneColumn' :: ColumnName -> TableContext -> Either SQLError TableAlias
 findOneColumn' targetCol tcontext = do
   case findColumn' targetCol tcontext of
     [] -> do
-      traceShow ("findOneColumn'"::String, targetCol) $ Left (ColumnResolutionError targetCol)
+      Left (ColumnResolutionError targetCol)
     [match] -> pure match
     _matches -> Left (AmbiguousColumnResolutionError targetCol)
 
@@ -331,7 +462,7 @@ attributeNameForColumnName colName = do
                 ColumnName [attr] -> pure $ ColumnAlias attr
                 ColumnName [tname,attr] -> pure $ ColumnAlias attr
                 ColumnName{} -> throwSQLE $ ColumnResolutionError colName
-  traceShowM ("attributeNameForColumnName' colAlias"::String, colAttr, colAliases, colAlias)
+--  traceShowM ("attributeNameForColumnName' colAlias"::String, colAttr, colAliases, colAlias)
   case M.lookup colAttr colAliases of
     Just (alias,_) -> pure alias -- we found it, so it's valid
     Nothing ->
@@ -344,8 +475,9 @@ attributeNameForColumnName colName = do
             --we have a conflict, so insert a new column alias and return it
             let tAlias = case tKey of
                            TableAlias tAlias -> tAlias
+            traceShowM ("attributeNameForColumnName"::String, colName)
             (ColumnAlias al) <- noteColumnMention (Just tKey) (ColumnName [tAlias,colAttr]) Nothing
-            traceShowM ("attributeNameForColumnName' noteColumnMention"::String, colAttr, al)
+            --traceShowM ("attributeNameForColumnName' noteColumnMention"::String, colAttr, al)
             pure al
         --pure (T.concat [tAlias, ".", colAttr])
       else
@@ -353,7 +485,7 @@ attributeNameForColumnName colName = do
           ColumnName [_, col] | col `A.isAttributeNameContained` rvattrs ->
                                 -- the column has not been aliased, so we presume it can be use the column name directly
                                 pure col
-          _ -> traceShow ("attrNameForColName"::String) $ throwSQLE $ ColumnResolutionError colName
+          _ -> throwSQLE $ ColumnResolutionError colName
 {-
 attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
 attributeNameForColumnName colName = do
@@ -427,7 +559,6 @@ convertSelect typeF sel = do
                 _ -> With withAssocs
       finalRelExpr = explicitWithF (withF (projF (convertExpr dfExpr)))
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
-  traceStateM
   -- apply rename reduction- this could be applied by the static query optimizer, but we do it here to simplify the tests so that they aren't polluted with redundant renames
   pure (dfExpr { convertExpr = finalRelExpr })
 
@@ -455,7 +586,7 @@ convertSubSelect typeF sel = do
                             Nothing -> pure (baseDFExpr, mempty)
                             Just tExpr -> convertTableExpr typeF' tExpr  
     when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
-    traceShowM ("convertSubSelect"::String, colMap)
+--    traceShowM ("convertSubSelect"::String, colMap)
     let explicitWithF = if null wExprs then id else With wExprs    
     -- convert projection using table alias map to resolve column names
     projF <- convertProjection typeF' (projectionClause sel) -- the projection can only project on attributes from the subselect table expression
@@ -465,11 +596,17 @@ convertSubSelect typeF sel = do
                   [] -> id
                   _ -> With withAssocs
     -- add disambiguation renaming
+--    traceShowM ("subselect tExpr"::String, convertExpr dfExpr)
     pure (explicitWithF . withF . projF, convertExpr dfExpr)
-  let renamesF = Rename (S.fromList (map renamer (M.toList colRenames)))
+    
+{-  let renamesF = Rename (S.fromList (map renamer (M.toList colRenames)))
       renamer ((TableAlias tAlias, realAttr), ColumnAlias newAttr) =
-        (realAttr, newAttr)
-  pure (applyF (renamesF tExpr))
+        (realAttr, newAttr)-}
+  let renamedExpr = foldr renamerFolder tExpr (M.toList colRenames)
+      renamerFolder ((TableAlias tAlias, oldAttrName), ColumnAlias newAttrName) acc =
+        pushDownAttributeRename (S.singleton (oldAttrName, newAttrName)) (RelationVariable tAlias ()) acc
+        
+  pure (applyF renamedExpr)
 
 convertSelectItem :: TypeForRelExprF -> SelectItemsConvertTask -> (Int,SelectItem) -> ConvertM SelectItemsConvertTask
 convertSelectItem typeF acc (c,selItem) =
@@ -592,6 +729,8 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
       Identifier i -> wrongType TextAtomType -- could be a better error here
       BinaryOperator i@(Identifier colName) (OperatorName ["="]) exprMatch -> do --we don't know here if this results in a boolean expression, so we pass it down
         attrName <- attributeNameForColumnName colName
+--        traceShowM ("convertWhereClause eq"::String, colName, attrName)
+--        traceStateM
         AttributeEqualityPredicate attrName <$> convertScalarExpr typeF exprMatch
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
@@ -725,17 +864,19 @@ joinTableRef typeF rvA (c,tref) = do
       prefixRenamer tAlias@(TableAlias prefix) expr attrs = do
         renamed <- mapM (prefixOneAttr tAlias) attrs
         pure (Rename (S.fromList renamed) expr)
-      prefixOneAttr tAlias@(TableAlias prefix) old_name = do
+      prefixOneAttr tAlias@(TableAlias tPrefix) old_name = do
         -- insert into columnAliasMap
-        let new_name = T.concat [prefix, ".", old_name]
---        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
+        let new_name = T.concat [tPrefix, ".", old_name]
+        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
         (ColumnAlias alias) <- noteColumnMention (Just tAlias) (ColumnName [old_name]) (Just (ColumnAlias new_name))
-        insertColumnAlias tAlias old_name new_name (ColumnName [new_name])
+        traceShowM ("joinTableRef prefixOneAttr", alias)
+        traceStateM
+--        insertColumnAlias tAlias old_name (ColumnAlias new_name) (ColumnName [new_name])
 --        addColumnAlias tAlias (ColumnAlias new_name) old_name
         pure (old_name, alias)
       renameOneAttr x expr old_name = do
 --        traceShowM ("renameOneAttr", old_name, new_name)
-        insertColumnAlias (TableAlias prefix) old_name new_name (ColumnName [new_name])
+        insertColumnAlias (TableAlias prefix) old_name (ColumnAlias new_name) (ColumnName [new_name])
 --        addColumnAlias (TableAlias prefix) (ColumnAlias new_name) old_name
         pure (old_name, new_name)
         where
@@ -906,7 +1047,53 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       ExistsExpr{} -> True
 
 {-
-:showexpr relation{tuple{val 4, children relation{tuple{val 6,children relation{tuple{}}}}},
+":showexpr relation{tuple{val 4, children relation{tuple{val 6,children relation{tuple{}}}}},
                    tuple{val 10, children relation{tuple{val 1, children relation{tuple{}}},
                                                    tuple{val 2, children relation{tuple{}}}}}}
 -}
+
+-- rename an attribute within a relational expression
+-- this really should be generalized to a standard fold or via recursion schemes
+pushDownAttributeRename :: S.Set (AttributeName, AttributeName) -> RelationalExpr -> RelationalExpr -> RelationalExpr
+pushDownAttributeRename renameSet matchExpr targetExpr =
+  case targetExpr of
+    _ | targetExpr == matchExpr ->
+        Rename renameSet targetExpr
+    x@MakeRelationFromExprs{} -> x
+    x@MakeStaticRelation{} -> x
+    x@ExistingRelation{} -> x
+    x@RelationVariable{} -> x
+    Project attrs expr -> Project attrs (push expr)
+    Union exprA exprB -> Union (push exprA) (push exprB)
+    Join exprA exprB -> Join (push exprA) (push exprB)
+    Rename rset expr -> Rename (S.union rset renameSet) (push expr)
+    Difference exprA exprB -> Difference (push exprA) (push exprB)
+    B.Group gAttrs newAttr expr -> B.Group gAttrs newAttr (push expr)
+    Ungroup attrName expr -> Ungroup attrName (push expr)
+    Restrict rExpr expr -> Restrict (pushRestrict rExpr) (push expr)
+    Equals exprA exprB -> Equals (push exprA) (push exprB)
+    NotEquals exprA exprB -> NotEquals (push exprA) (push exprB)
+    Extend eExpr expr -> Extend (pushExtend eExpr) (push expr)
+    With wAssocs expr -> With wAssocs (push expr)
+  where
+    push expr = pushDownAttributeRename renameSet matchExpr expr
+    pushRestrict expr =
+      case expr of
+        x@TruePredicate -> x
+        AndPredicate eA eB -> AndPredicate (pushRestrict eA) (pushRestrict eB)
+        OrPredicate eA eB -> OrPredicate (pushRestrict eA) (pushRestrict eB)
+        NotPredicate e -> NotPredicate (pushRestrict e)
+        RelationalExprPredicate rexpr -> RelationalExprPredicate (push rexpr)
+        AtomExprPredicate aexpr -> AtomExprPredicate (pushAtom aexpr)
+        AttributeEqualityPredicate attr aexpr -> AttributeEqualityPredicate attr (pushAtom aexpr)
+    pushExtend (AttributeExtendTupleExpr attrName aexpr) =
+      --should this rename the attrName, too?
+      AttributeExtendTupleExpr attrName (pushAtom aexpr)
+    pushAtom expr =
+      case expr of
+        x@AttributeAtomExpr{} -> x --potential rename
+        x@NakedAtomExpr{} -> x
+        FunctionAtomExpr fname args () -> FunctionAtomExpr fname (pushAtom <$> args) ()
+        RelationAtomExpr e -> RelationAtomExpr (push e)
+        ConstructedAtomExpr dConsName args () -> ConstructedAtomExpr dConsName (pushAtom <$> args) ()
+        
