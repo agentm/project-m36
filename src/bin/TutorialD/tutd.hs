@@ -4,6 +4,8 @@ import ProjectM36.Base
 import ProjectM36.Client
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server
+import ProjectM36.DatabaseContext
+import ProjectM36.SQLDatabaseContext
 import System.IO
 import GHC.IO.Encoding
 import Options.Applicative
@@ -44,6 +46,8 @@ opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) = InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths
+  --basicDatabaseContext
+  sqlDatabaseContext -- for testing sql functions ONLY! DO NOT COMMIT
 connectionInfoForConfig (RemoteInterpreterConfig remoteHost remotePort remoteDBName _ _ _) = RemoteConnectionInfo remoteDBName remoteHost (show remotePort) outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName

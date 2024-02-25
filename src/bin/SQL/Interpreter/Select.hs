@@ -63,12 +63,13 @@ data ScalarExprBase n =
   IntegerLiteral Integer
   | DoubleLiteral Double
   | StringLiteral Text
+  | BooleanLiteral Bool
   | NullLiteral
     -- | Interval
   | Identifier n
   | BinaryOperator (ScalarExprBase n) OperatorName (ScalarExprBase n)
   | PrefixOperator OperatorName (ScalarExprBase n)
-  | PostfixOperator (ScalarExprBase n) ColumnName
+  | PostfixOperator (ScalarExprBase n) OperatorName
   | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
   | FunctionApplication FuncName (ScalarExprBase n)
   | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
@@ -297,6 +298,7 @@ scalarExprOp =
      --binarySymbolsN ["not", "like"]
      ],
     map binarySymbolN ["<",">",">=","<=","!=","<>","="],
+    [postfixKeywords ["is","null"]],
 {-    [binarySymbolsN ["is", "distinct", "from"],
      binarySymbolsN ["is", "not", "distinct", "from"]],-}
     [binarySymbolL "and"],
@@ -313,6 +315,10 @@ scalarExprOp =
    binarySymbolR s = E.InfixR $ binary s
    binarySymbolN s = E.InfixN $ binary s
    qComparisonOp = E.Postfix $ try quantifiedComparisonSuffixP
+   postfixKeywords kws = E.Postfix $ do
+     try $ reserveds' kws
+     pure (\a -> PostfixOperator a (OperatorName kws))
+                     
 
 qualifiedOperatorP :: Text -> Parser OperatorName
 qualifiedOperatorP sym =
@@ -379,10 +385,13 @@ comparisonOperatorP = choice (map (\(match', op) -> reserved match' $> op) ops)
                  ("!=", OpNE)]
 
 simpleLiteralP :: Parser (ScalarExprBase a)
-simpleLiteralP = try doubleLiteralP <|> integerLiteralP <|> stringLiteralP <|> nullLiteralP
+simpleLiteralP = try doubleLiteralP <|> integerLiteralP <|> booleanLiteralP <|> stringLiteralP <|> nullLiteralP
 
 doubleLiteralP :: Parser (ScalarExprBase a)
 doubleLiteralP = DoubleLiteral <$> double
+
+booleanLiteralP :: Parser (ScalarExprBase a)
+booleanLiteralP = BooleanLiteral <$> ((reserved "true" $> True) <|> (reserved "false" $> False))
 
 integerLiteralP :: Parser (ScalarExprBase a)
 integerLiteralP = IntegerLiteral <$> integer

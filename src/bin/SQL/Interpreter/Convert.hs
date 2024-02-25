@@ -17,7 +17,6 @@ import Data.List (intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Control.Monad (when)
-import ProjectM36.DataTypes.Maybe
 import Data.Maybe (isJust, fromMaybe)
 --import Control.Monad (void)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
@@ -737,6 +736,12 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         b <- convertScalarExpr typeF exprB
         f <- lookupOperator op
         pure (AtomExprPredicate (f [a,b]))
+      PostfixOperator expr (OperatorName ops) -> do
+        expr' <- convertScalarExpr typeF expr
+--        traceShowM ("convertWhereClause"::String, expr')
+        case ops of
+          ["is", "null"] -> do
+            pure $ AtomExprPredicate (FunctionAtomExpr "sql_isnull" [expr'] ())
       InExpr inOrNotIn sexpr (InList matches') -> do
         eqExpr <- convertScalarExpr typeF sexpr
         let (match:matches) = reverse matches'
@@ -764,8 +769,10 @@ convertScalarExpr typeF expr = do
       IntegerLiteral i -> naked (IntegerAtom i)
       DoubleLiteral d -> naked (DoubleAtom d)
       StringLiteral s -> naked (TextAtom s)
+      BooleanLiteral True -> pure $ ConstructedAtomExpr "True" [] ()
+      BooleanLiteral False -> pure $ ConstructedAtomExpr "False" [] ()
       -- we don't have enough type context with a cast, so we default to text
-      NullLiteral -> naked (ConstructedAtom "Nothing" (maybeAtomType TextAtomType) [])
+      NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
       Identifier i -> do
         AttributeAtomExpr <$> convertColumnName i
       BinaryOperator exprA op exprB -> do
@@ -781,7 +788,9 @@ convertProjectionScalarExpr typeF expr = do
       IntegerLiteral i -> naked (IntegerAtom i)
       DoubleLiteral d -> naked (DoubleAtom d)
       StringLiteral s -> naked (TextAtom s)
-      NullLiteral -> naked (ConstructedAtom "Nothing" (maybeAtomType TextAtomType) [])      
+      BooleanLiteral True -> pure $ ConstructedAtomExpr "True" [] ()
+      BooleanLiteral False -> pure $ ConstructedAtomExpr "False" [] ()
+      NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
       Identifier i ->
         AttributeAtomExpr <$> convertColumnProjectionName i
       BinaryOperator exprA op exprB -> do
@@ -982,11 +991,11 @@ lookupFunc qname =
                  ("<",f "lt"),
                  (">=",f "gte"),
                  ("<=",f "lte"),
-                 ("=",f "eq"),
+                 ("=",f "sql_eq"),
                  ("!=",f "not_eq"), -- function missing
                  ("<>",f "not_eq"), -- function missing
                  ("+", f "add"),
-                 ("and", f "and"),
+                 ("and", f "sql_and"),
                  ("or", f "or")
                ]
 

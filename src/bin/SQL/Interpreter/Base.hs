@@ -23,8 +23,12 @@ reserved word = do
 reserveds :: Text -> Parser ()
 reserveds words' = do
   let words'' = T.splitOn " " words'
-  sequence_ (map reserved words'')
+  reserveds' words''
 
+reserveds' :: [Text] -> Parser ()
+reserveds' words' =
+  sequence_ (map reserved words')
+  
 -- does not consume trailing spaces
 qualifiedNameSegment :: Text -> Parser Text
 qualifiedNameSegment sym = T.toLower <$> string' sym

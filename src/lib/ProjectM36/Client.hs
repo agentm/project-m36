@@ -120,7 +120,6 @@ import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
-import ProjectM36.DatabaseContext (basicDatabaseContext)
 import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph as TG
 import qualified ProjectM36.Transaction as Trans
@@ -193,7 +192,7 @@ data RequestTimeoutException = RequestTimeoutException
 instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] |
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DatabaseContext |
                       RemoteConnectionInfo DatabaseName Hostname ServiceName NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
@@ -260,11 +259,10 @@ createScriptSession ghcPkgPaths = do
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext) = do
   freshId <- nextRandom
   tstamp <- getCurrentTime
-  let bootstrapContext = basicDatabaseContext 
-      freshGraph = bootstrapTransactionGraph tstamp freshId bootstrapContext
+  let freshGraph = bootstrapTransactionGraph tstamp freshId bootstrapDatabaseContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do

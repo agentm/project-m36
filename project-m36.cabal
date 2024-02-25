@@ -107,6 +107,8 @@ Library
                      ProjectM36.DataTypes.Primitive,
                      ProjectM36.DataTypes.Interval,
                      ProjectM36.DataTypes.ByteString,
+                     ProjectM36.DataTypes.SQL.Null,
+                     ProjectM36.SQLDatabaseContext,
                      ProjectM36.MiscUtils,
                      ProjectM36.Notifications,
                      ProjectM36.Relation,

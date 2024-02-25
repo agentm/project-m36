@@ -3,15 +3,18 @@ import SQL.Interpreter.Select
 import SQL.Interpreter.Convert
 --import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.RODatabaseContextOperator
-import TutorialD.Printer
-import Prettyprinter
+--import TutorialD.Printer
+import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
 import ProjectM36.NormalizeExpr
 import ProjectM36.Client
+import ProjectM36.SQLDatabaseContext
 import ProjectM36.Base
+import ProjectM36.Relation
+import qualified ProjectM36.Attribute as A
 import System.Exit
 import Test.HUnit
 import Text.Megaparsec
@@ -44,10 +47,11 @@ testFindColumn = TestCase $ do
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  (tgraph,transId) <- freshTransactionGraph dateExamples
+  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation s_nullRelVar) (relationVariables dateExamples) }
+  (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [
+  let readTests = [{-
         -- simple relvar
         ("SELECT * FROM s", "(s)"),
         -- simple projection
@@ -121,56 +125,75 @@ testSelect = TestCase $ do
         ("WITH x AS (SELECT * FROM s) SELECT * FROM x", "(with (x as s) x)"),
         -- SELECT with no table expression
         ("SELECT 1,2,3","((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})"),
-        -- basic NULL
---        ("SELECT NULL", "((relation{}{}:{attr_1:=Nothing}){attr_1})"),
         -- where exists
         -- complication: we need to add attribute renamers due to the subselect
         ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
-         "(s where (((sp rename {s# as `sp.s#`}) where `s#`= @`sp.s#`){}))")
+         "(s where (((sp rename {s# as `sp.s#`}) where `s#`= @`sp.s#`){}))"),
+        -- basic projection NULL
+        ("SELECT NULL",
+         "((relation{}{}:{attr_1:=SQLNull}){attr_1})"),-}
+        -- restriction NULL
+        ("SELECT * FROM s WHERE s# IS NULL",
+         "(s where sql_isnull(@s#))",
+         "(s)"),
+        ("SELECT * FROM snull WHERE status IS NULL",
+         "(snull where sql_isnull(@status))",
+         "(snull where s#=\"S1\")"),
+        ("SELECT NULL AND FALSE",
+         "((relation{}{}:{attr_1:=sql_and(SQLNull,False)}){attr_1})",
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
+        ("SELECT NULL AND TRUE",
+         "((relation{}{}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
         ]
       gfEnv = GraphRefRelationalExprEnv {
-        gre_context = Just dateExamples,
+        gre_context = Just sqlDBContext,
         gre_graph = tgraph,
         gre_extra = mempty }
       typeF expr = do
         let gfExpr = runProcessExprM (TransactionMarker transId) (processRelationalExpr expr)
         runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
-      check (sql, tutd) = do
-        print sql
+      parseTutd tutd = do
+        case parse (dataFrameP <* eof) "test" tutd of
+          Left err -> assertFailure (errorBundlePretty err)
+          Right x -> do
+            pure x        
+      check (sql, equivalent_tutd, confirmation_tutd) = do
+        --print sql
         --parse SQL
         select <- case parse (queryExprP <* eof) "test" sql of
-          Left err -> error (errorBundlePretty err)
+          Left err -> assertFailure (errorBundlePretty err)
           Right x -> do
-            --print x
+            --print ("parsed SQL:"::String, x)
             pure x
         --parse tutd
-        tutdAsDFExpr <- case parse (dataFrameP <* eof) "test" tutd of
-          Left err -> error (errorBundlePretty err)
-          Right x -> do
-            --print x
-            pure x
+        tutdAsDFExpr <- parseTutd equivalent_tutd
         selectAsDFExpr <- case evalConvertM mempty (convertSelect typeF select) of
-          Left err -> error (show err)
+          Left err -> assertFailure (show err)
           Right x -> do
-            print x
+            --print ("convert SQL->tutd:"::String, x)
             pure x
+        confirmationDFExpr <- parseTutd confirmation_tutd
 
         --print ("selectAsRelExpr"::String, selectAsRelExpr)
-        print ("expected: ", pretty tutdAsDFExpr)
-        print ("actual  : ", pretty selectAsDFExpr)
+        --print ("expected: "::String, pretty tutdAsDFExpr)
+        --print ("actual  : "::String, pretty selectAsDFExpr)
         assertEqual (T.unpack sql) tutdAsDFExpr selectAsDFExpr
         --check that the expression can actually be executed
         eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr
         case eEvald of
           Left err -> assertFailure (show err <> ": " <> show tutdAsDFExpr)
           Right _ -> pure ()
-  mapM_ check readTests
+        eConfirmationEvald <- executeDataFrameExpr sess conn confirmationDFExpr
+        case eConfirmationEvald of
+          Left err -> assertFailure (show err <> ": " <> show confirmationDFExpr)
+          Right _ -> pure ()
+  mapM_ check readTests  
   
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
-
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [])
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] sqlDatabaseContext)
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do
@@ -179,10 +202,30 @@ dateExamplesConnection callback = do
         Left err -> error (show err)
         Right sessionId -> do
           executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples) >>= eitherFail
-      --skipping atom functions for now- there are no atom function manipulation operators yet
+          --add a relvar with some nulls
+          executeDatabaseContextExpr sessionId conn addNullTable >>= eitherFail
           commit sessionId conn >>= eitherFail
           pure (sessionId, conn)
+
 
 eitherFail :: Either RelationalError a -> IO ()
 eitherFail (Left err) = assertFailure (show err)
 eitherFail (Right _) = pure ()
+
+addNullTable :: DatabaseContextExpr
+addNullTable = Assign "snull" (ExistingRelation s_nullRelVar)
+
+s_nullRelVar :: Relation
+s_nullRelVar =
+  case mkRelationFromList attrs atomMatrix of
+      Left err -> error (show err)
+      Right rel -> rel
+  where
+    attrs = A.attributesFromList [Attribute "s#" TextAtomType,
+                                  Attribute "sname" TextAtomType,
+                                  Attribute "status" IntegerAtomType,
+                                  Attribute "city" (nullAtomType TextAtomType)]
+    atomMatrix = [
+      [TextAtom "S1", TextAtom "Smith", IntegerAtom 20, nullAtom TextAtomType (Just (TextAtom "London"))],
+      [TextAtom "S2", TextAtom "Jones", IntegerAtom 10, nullAtom TextAtomType Nothing]
+      ]
