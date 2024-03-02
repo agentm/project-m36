@@ -3,6 +3,7 @@ import ProjectM36.Base
 import ProjectM36.AtomFunctionError
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import ProjectM36.DataTypes.Primitive
 
 -- analogous but not equivalent to a Maybe type due to how NULLs interact with every other value
 
@@ -27,8 +28,8 @@ nullAtomFunctions = HS.fromList [
       },
     Function {
       funcName = "sql_equals",
-      funcType = [nullAtomType (TypeVariableType "a"),
-                  nullAtomType (TypeVariableType "a"),
+      funcType = [TypeVariableType "a",
+                  TypeVariableType "a",
                   nullAtomType BoolAtomType],
       funcBody = FunctionBuiltInBody nullEq
       },
@@ -36,18 +37,31 @@ nullAtomFunctions = HS.fromList [
       funcName = "sql_and",
       funcType = [TypeVariableType "a", TypeVariableType "b", BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
       funcBody = FunctionBuiltInBody nullAnd
+      },
+    Function {
+      funcName = "sql_coalesce_bool", -- used in where clause so that NULLs are filtered out
+      funcType = [TypeVariableType "a",
+                  BoolAtomType],
+      funcBody = FunctionBuiltInBody coalesceBool
       }
     ]
   where
     sqlNull typ = ConstructedAtom "SQLNull" typ []
-    sqlNullable val typ = ConstructedAtom "SQLJust" typ [val]
+    sqlNullable val typ = ConstructedAtom "SQLJust" (nullAtomType typ) [val]
     isNull (ConstructedAtom dConsName _ _) | dConsName == "SQLNull" = True
     isNull _ = False
     nullEq :: AtomFunctionBodyType
     nullEq (a@(ConstructedAtom _ typA argsA) : b@(ConstructedAtom _ _ argsB) : [])
       | isNull a || isNull b = pure $ sqlNull typA
       | otherwise = pure $ sqlNullable (BoolAtom $ argsA == argsB) BoolAtomType
+    nullEq (a:b:[]) | atomTypeForAtom a == atomTypeForAtom b = pure (sqlNullable (BoolAtom (a == b)) BoolAtomType)
     nullEq _ = Left AtomFunctionTypeMismatchError
+
+coalesceBool :: [Atom] -> Either AtomFunctionError Atom
+coalesceBool [arg] = case sqlBool arg of
+                       Nothing -> pure (BoolAtom False)
+                       Just tf -> pure (BoolAtom tf)
+coalesceBool _ = Left AtomFunctionTypeMismatchError                       
 
 isSQLBool :: Atom -> Bool
 isSQLBool (ConstructedAtom dConsName BoolAtomType [_]) | dConsName == "SQLNullable" = True
@@ -55,12 +69,17 @@ isSQLBool (BoolAtom _) = True
 isSQLBool _ = False
 
 sqlBool :: Atom -> Maybe Bool
-sqlBool (ConstructedAtom dConsName BoolAtomType [BoolAtom tf]) | dConsName == "SQLJust" = Just tf
-sqlBool (ConstructedAtom dConsName BoolAtomType []) | dConsName == "SQLNull" = Nothing
+sqlBool (ConstructedAtom dConsName aType [BoolAtom tf]) |
+  dConsName == "SQLJust" &&
+  (aType == nullAtomType BoolAtomType ||
+   aType == nullAtomType (TypeVariableType "a")) = Just tf
+sqlBool (ConstructedAtom dConsName aType []) |
+  dConsName == "SQLNull" &&
+  (aType == nullAtomType BoolAtomType ||
+   aType == nullAtomType (TypeVariableType "a")) = Nothing
 sqlBool (BoolAtom tf) = Just tf
 sqlBool x | isSQLBool x = error "internal sqlBool type error" -- should be caught above
-sqlBool _ = error "sqlBool type mismatch"
-
+sqlBool other = error ("sqlBool type mismatch: " <> show other)
 
 nullAnd :: [Atom] -> Either AtomFunctionError Atom
 nullAnd [a,b] | isSQLBool a && isSQLBool b = do

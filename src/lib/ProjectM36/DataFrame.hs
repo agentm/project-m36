@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DerivingVia #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, DeriveAnyClass #-}
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
@@ -14,6 +14,8 @@ import qualified Data.Vector as V
 import GHC.Generics
 import qualified Data.List as L
 import qualified Data.Set as S
+import qualified Data.HashSet as HS
+import Data.Hashable (Hashable)
 import Data.Maybe
 import qualified Data.Text as T
 import Control.Arrow
@@ -47,8 +49,18 @@ data DataFrame = DataFrame {
   }
   deriving (Show, Generic)
 
+-- if there is no ordering, then compare sets of tuples
+instance Eq DataFrame where
+  dfA == dfB =
+    attributes dfA == attributes dfB &&
+    orders dfA == orders dfB &&
+    if null (orders dfA) && null (orders dfB) then
+      HS.fromList (tuples dfA) == HS.fromList (tuples dfB)
+      else
+      tuples dfA == tuples dfB
+
 data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hashable)
 
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do

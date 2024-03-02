@@ -205,7 +205,7 @@ insertTable tAlias expr rtype = do
 noteColumnMention :: Maybe TableAlias -> ColumnName -> Maybe ColumnAlias -> ConvertM ColumnAlias
 noteColumnMention mTblAlias colName mColAlias = do
   -- find the relevant table for the key to the right table
-  traceShowM ("noteColumnMention"::String, mTblAlias, colName)
+--  traceShowM ("noteColumnMention"::String, mTblAlias, colName)
 --  traceStateM
   tc@(TableContext tcontext) <- get
 {-  tblAlias' <- case mTblAlias of
@@ -237,7 +237,7 @@ noteColumnMention mTblAlias colName mColAlias = do
             insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
           Just (_, _, colAlRemapper) -> do
             -- table alias already known, check for column alias
-            traceShowM ("noteColumnMention before attr"::String, colAlRemapper)
+--            traceShowM ("noteColumnMention before attr"::String, colAlRemapper)
             case attributeNameForAttributeAlias colAttr colAlRemapper of
               Left _ -> do
                 -- col alias missing, so add it- figure out if it needs a table prefix
@@ -453,7 +453,7 @@ findOneColumn' targetCol tcontext = do
 -- | Search the TableContext for a column alias remapping for the given column name. This function can change the state context if column names conflict.
 attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
 attributeNameForColumnName colName = do
-  tKey <- findOneColumn colName
+  tKey@(TableAlias tAlias) <- findOneColumn colName
   tcontext@(TableContext tmap) <- get
   let (_, rvattrs, colAliases) = tmap M.! tKey
   --strip table prefix, if necessary
@@ -472,9 +472,7 @@ attributeNameForColumnName colName = do
           Right _ -> pure colAttr
           Left (AmbiguousColumnResolutionError{}) -> do
             --we have a conflict, so insert a new column alias and return it
-            let tAlias = case tKey of
-                           TableAlias tAlias -> tAlias
-            traceShowM ("attributeNameForColumnName"::String, colName)
+--            traceShowM ("attributeNameForColumnName"::String, colName)
             (ColumnAlias al) <- noteColumnMention (Just tKey) (ColumnName [tAlias,colAttr]) Nothing
             --traceShowM ("attributeNameForColumnName' noteColumnMention"::String, colAttr, al)
             pure al
@@ -721,6 +719,7 @@ convertWhereClause :: TypeForRelExprF -> RestrictionExpr -> ConvertM Restriction
 convertWhereClause typeF (RestrictionExpr rexpr) = do
     let wrongType t = throwSQLE $ TypeMismatchError t BoolAtomType --must be boolean expression
         attrName' (ColumnName ts) = T.intercalate "." ts
+        coalesceBool expr = FunctionAtomExpr "sql_coalesce_bool" [expr] ()
     case rexpr of
       IntegerLiteral{} -> wrongType IntegerAtomType
       DoubleLiteral{} -> wrongType DoubleAtomType
@@ -730,18 +729,19 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         attrName <- attributeNameForColumnName colName
 --        traceShowM ("convertWhereClause eq"::String, colName, attrName)
 --        traceStateM
-        AttributeEqualityPredicate attrName <$> convertScalarExpr typeF exprMatch
+        expr' <- convertScalarExpr typeF exprMatch
+        pure (AttributeEqualityPredicate attrName (coalesceBool expr'))
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
         b <- convertScalarExpr typeF exprB
         f <- lookupOperator op
-        pure (AtomExprPredicate (f [a,b]))
+        pure (AtomExprPredicate (coalesceBool (f [a,b])))
       PostfixOperator expr (OperatorName ops) -> do
         expr' <- convertScalarExpr typeF expr
 --        traceShowM ("convertWhereClause"::String, expr')
         case ops of
           ["is", "null"] -> do
-            pure $ AtomExprPredicate (FunctionAtomExpr "sql_isnull" [expr'] ())
+            pure $ AtomExprPredicate (coalesceBool (FunctionAtomExpr "sql_isnull" [expr'] ()))
       InExpr inOrNotIn sexpr (InList matches') -> do
         eqExpr <- convertScalarExpr typeF sexpr
         let (match:matches) = reverse matches'
@@ -876,10 +876,10 @@ joinTableRef typeF rvA (c,tref) = do
       prefixOneAttr tAlias@(TableAlias tPrefix) old_name = do
         -- insert into columnAliasMap
         let new_name = T.concat [tPrefix, ".", old_name]
-        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
+--        traceShowM ("prefixOneAttr", tAlias, old_name, new_name)
         (ColumnAlias alias) <- noteColumnMention (Just tAlias) (ColumnName [old_name]) (Just (ColumnAlias new_name))
-        traceShowM ("joinTableRef prefixOneAttr", alias)
-        traceStateM
+--        traceShowM ("joinTableRef prefixOneAttr", alias)
+--        traceStateM
 --        insertColumnAlias tAlias old_name (ColumnAlias new_name) (ColumnName [new_name])
 --        addColumnAlias tAlias (ColumnAlias new_name) old_name
         pure (old_name, alias)
@@ -969,7 +969,7 @@ joinTableRef typeF rvA (c,tref) = do
                     else
                     new_name
                 joinName = firstAvailableName (1::Int) allAttrs
-                extender = AttributeExtendTupleExpr joinName joinRe
+                extender = AttributeExtendTupleExpr joinName (FunctionAtomExpr "sql_coalesce_bool" [joinRe] ())
                 joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
                 projectAwayJoinMatch = Project (InvertedAttributeNames (S.fromList [joinName]))
             pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))))
@@ -991,12 +991,12 @@ lookupFunc qname =
                  ("<",f "lt"),
                  (">=",f "gte"),
                  ("<=",f "lte"),
-                 ("=",f "sql_eq"),
-                 ("!=",f "not_eq"), -- function missing
-                 ("<>",f "not_eq"), -- function missing
-                 ("+", f "add"),
+                 ("=",f "sql_equals"),
+                 ("!=",f "sql_not_equals"), -- function missing
+                 ("<>",f "sql_not_equals"), -- function missing
+                 ("+", f "sql_add"),
                  ("and", f "sql_and"),
-                 ("or", f "or")
+                 ("or", f "sql_or")
                ]
 
 -- | Used in join condition detection necessary for renames to enable natural joins.
