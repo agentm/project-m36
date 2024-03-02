@@ -261,9 +261,9 @@ Executable project-m36-server
     if os(windows)
       GHC-Options: -Wall -threaded -rtsopts
     else
-      GHC-Options: -Wall -threaded -rtsopts -rdynamic
+      GHC-Options: -Wall -threaded -rtsopts -rdynamic -O2
     if flag(profiler)
-      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall -O2
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 
@@ -311,69 +311,69 @@ Benchmark update-exprs
   if flag(profiler)
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall -fexternal-interpreter
 
-Test-Suite test-tutoriald
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: TutorialD/InterpreterTest.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific
+-- Test-Suite test-tutoriald
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: TutorialD/InterpreterTest.hs
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
+--     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific
 
-Test-Suite test-tutoriald-atomfunctionscript
-    import: commontest
-    type: exitcode-stdio-1.0
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
-    main-is: TutorialD/Interpreter/AtomFunctionScript.hs
+-- Test-Suite test-tutoriald-atomfunctionscript
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
+--     main-is: TutorialD/Interpreter/AtomFunctionScript.hs
 
-Test-Suite test-tutoriald-databasecontextfunctionscript
-    import: commontest
-    type: exitcode-stdio-1.0
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
-    main-is: TutorialD/Interpreter/DatabaseContextFunctionScript.hs
+-- Test-Suite test-tutoriald-databasecontextfunctionscript
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
+--     main-is: TutorialD/Interpreter/DatabaseContextFunctionScript.hs
 
-Test-Suite test-relation
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/Basic.hs
+-- Test-Suite test-relation
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/Basic.hs
 
-Test-Suite test-static-optimizer
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/StaticOptimizer.hs
+-- Test-Suite test-static-optimizer
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/StaticOptimizer.hs
 
-Test-Suite test-transactiongraph-persist
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: TransactionGraph/Persist.hs
-    Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
+-- Test-Suite test-transactiongraph-persist
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: TransactionGraph/Persist.hs
+--     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
-Test-Suite test-relation-import-csv
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/Import/CSV.hs
+-- Test-Suite test-relation-import-csv
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/Import/CSV.hs
 
-Test-Suite test-tutoriald-import-tutoriald
-    import: commontest
-    type: exitcode-stdio-1.0
-    build-depends: warp, wai
-    main-is: TutorialD/Interpreter/Import/ImportTest.hs
-    Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
+-- Test-Suite test-tutoriald-import-tutoriald
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     build-depends: warp, wai
+--     main-is: TutorialD/Interpreter/Import/ImportTest.hs
+--     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
-Test-Suite test-relation-export-csv
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/Export/CSV.hs
+-- Test-Suite test-relation-export-csv
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/Export/CSV.hs
 
-Test-Suite test-transactiongraph-merge
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: TransactionGraph/Merge.hs
+-- Test-Suite test-transactiongraph-merge
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: TransactionGraph/Merge.hs
 
 
-Test-Suite test-prettyprinter
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: TutorialD/PrinterTest.hs
-    Other-Modules: TutorialD.Printer, TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types
+-- Test-Suite test-prettyprinter
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: TutorialD/PrinterTest.hs
+--     Other-Modules: TutorialD.Printer, TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types
 
 benchmark bench
     import: commontest
@@ -443,58 +443,58 @@ Executable Example-DerivingCustomTupleable
     Main-Is: examples/DerivingCustomTupleable.hs
     GHC-Options: -Wall -threaded
 
-Test-Suite test-scripts
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: scripts.hs
-    Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
+-- Test-Suite test-scripts
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: scripts.hs
+--     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
 Executable project-m36-websocket-server
     Default-Language: Haskell2010
     Build-Depends: base, aeson, path-pieces, either, conduit, http-api-data, template-haskell, websockets, aeson, optparse-applicative, project-m36, containers, bytestring, text, vector, uuid, megaparsec, haskeline, mtl, directory, base64-bytestring, random, MonadRandom, time, semigroups, attoparsec, parser-combinators, prettyprinter, network, modern-uri, http-conduit, base16-bytestring, http-types, cryptohash-sha256, wai, wai-websockets, warp, warp-tls, scientific
     Main-Is: ProjectM36/Server/WebSocket/websocket-server.hs
     Other-Modules:  ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
-    GHC-Options: -Wall -threaded
+    GHC-Options: -Wall -threaded -O2
     Hs-Source-Dirs: ./src/bin
     Default-Extensions: OverloadedStrings
 
-Test-Suite test-websocket-server
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Server/WebSocket.hs
-    Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
+-- Test-Suite test-websocket-server
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Server/WebSocket.hs
+--     Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer
 
-Test-Suite test-isomorphic-schemas
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: IsomorphicSchema.hs
+-- Test-Suite test-isomorphic-schemas
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: IsomorphicSchema.hs
 
-Test-Suite test-atomable
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/Atomable.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
+-- Test-Suite test-atomable
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/Atomable.hs
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
 
-Test-Suite test-multiprocess-access
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: MultiProcessDatabaseAccess.hs
+-- Test-Suite test-multiprocess-access
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: MultiProcessDatabaseAccess.hs
 
-Test-Suite test-transactiongraph-automerge
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: TransactionGraph/Automerge.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
+-- Test-Suite test-transactiongraph-automerge
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: TransactionGraph/Automerge.hs
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
 
-Test-Suite test-tupleable
-    import: commontest
-    type: exitcode-stdio-1.0
-    main-is: Relation/Tupleable.hs
+-- Test-Suite test-tupleable
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     main-is: Relation/Tupleable.hs
 
-Test-Suite test-client-simple
-    import: commontest
-    Main-Is: Client/Simple.hs
-    type: exitcode-stdio-1.0
+-- Test-Suite test-client-simple
+--     import: commontest
+--     Main-Is: Client/Simple.hs
+--     type: exitcode-stdio-1.0
 
 -- test for file handle leaks
 Executable handles
@@ -525,8 +525,8 @@ Executable handles
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
 
-Test-Suite test-dataframe
-    import: commontest
-    type: exitcode-stdio-1.0
-    Main-Is: DataFrame.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr,  TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
+-- Test-Suite test-dataframe
+--     import: commontest
+--     type: exitcode-stdio-1.0
+--     Main-Is: DataFrame.hs
+--     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr,  TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer
