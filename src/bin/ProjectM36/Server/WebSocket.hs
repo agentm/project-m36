@@ -52,14 +52,14 @@ websocketProxyServer port host pending = do
                     _ <- forever $ do
                       pInfo <- promptInfo sessionId dbconn
                       --figure out why sending three times during startup is necessary
-                      sendPromptInfo pInfo conn
-                      sendPromptInfo pInfo conn
+                      --sendPromptInfo pInfo (T.pack "NONE") conn
+                      --sendPromptInfo pInfo (T.pack "NONE") conn
                       msg <- WS.receiveData conn :: IO T.Text
                       case parseOnly parseExecuteMessage msg of
                         Left _ -> unexpectedMsg
-                        Right (presentation, tutdString) ->
+                        Right (requestId, presentation, tutdString) ->
                           case parseTutorialD tutdString of
-                            Left err -> handleOpResult conn dbconn presentation
+                            Left err -> handleOpResult requestId conn dbconn presentation
 #if MIN_VERSION_megaparsec(7,0,0)
                               (DisplayErrorResult
                                 ("parse error: " `T.append` T.pack
@@ -74,9 +74,9 @@ websocketProxyServer port host pending = do
                                   responseHandler = do
                                     result <- evalTutorialD sessionId dbconn SafeEvaluation parsed
                                     pInfo' <- promptInfo sessionId dbconn
-                                    sendPromptInfo pInfo' conn
-                                    handleOpResult conn dbconn presentation result
-                              catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn presentation (DisplayErrorResult "Request Timed Out."))
+                                    sendPromptInfo pInfo' requestId conn
+                                    handleOpResult requestId conn dbconn presentation result
+                              catchJust timeoutFilter responseHandler (\_ -> handleOpResult requestId conn dbconn presentation (DisplayErrorResult "Request Timed Out."))
                     pure ()
 
 notificationCallback :: WS.Connection -> NotificationCallback
@@ -91,27 +91,27 @@ createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionIn
 sendError :: (ToJSON a) => WS.Connection -> a -> IO ()
 sendError conn err = WS.sendTextData conn (encode (object ["displayerror" .= err]))
 
-handleOpResult :: WS.Connection -> Connection -> Presentation -> TutorialDOperatorResult -> IO ()
-handleOpResult conn db _ QuitResult = WS.sendClose conn ("close" :: T.Text) >> close db
-handleOpResult conn  _ _ (DisplayResult out) = WS.sendTextData conn (encode (object ["display" .= out]))
-handleOpResult _ _ _ (DisplayIOResult ioout) = ioout
-handleOpResult conn _ presentation (DisplayErrorResult err) = do
+handleOpResult :: T.Text -> WS.Connection -> Connection -> Presentation -> TutorialDOperatorResult -> IO ()
+handleOpResult _ conn db _ QuitResult = WS.sendClose conn ("close" :: T.Text) >> close db
+handleOpResult requestId conn  _ _ (DisplayResult out) = WS.sendTextData conn (encode (object ["requestId" .= requestId, "display" .= out]))
+handleOpResult _ _ _ _ (DisplayIOResult ioout) = ioout
+handleOpResult requestId conn _ presentation (DisplayErrorResult err) = do
   let jsono = ["json" .= err | jsonPresentation presentation]
       texto = ["text" .= err | textPresentation presentation]
       htmlo = ["html" .= err | htmlPresentation presentation]
-  WS.sendTextData conn (encode (object ["displayerror" .= object (jsono ++ texto ++ htmlo)]))
-handleOpResult conn _ _ (DisplayParseErrorResult _ err) = WS.sendTextData conn (encode (object ["displayparseerrorresult" .= show err]))
-handleOpResult conn _ _ QuietSuccessResult = WS.sendTextData conn (encode (object ["acknowledged" .= True]))
-handleOpResult conn _ presentation (DisplayRelationResult rel) = do
+  WS.sendTextData conn (encode (object ["requestId" .= requestId, "displayerror" .= object (jsono ++ texto ++ htmlo)]))
+handleOpResult requestId conn _ _ (DisplayParseErrorResult _ err) = WS.sendTextData conn (encode (object ["requestId" .= requestId, "displayparseerrorresult" .= show err]))
+handleOpResult requestId conn _ _ QuietSuccessResult = WS.sendTextData conn (encode (object ["requestId" .= requestId, "acknowledged" .= True]))
+handleOpResult requestId conn _ presentation (DisplayRelationResult rel) = do
   let jsono = ["json" .= rel | jsonPresentation presentation]
       texto = ["text" .= showRelation rel | textPresentation presentation]
       htmlo = ["html" .= relationAsHTML rel | htmlPresentation presentation]
-  WS.sendTextData conn (encode (object ["displayrelation" .= object (jsono ++ texto ++ htmlo)]))
-handleOpResult conn _ presentation (DisplayDataFrameResult df) = do
+  WS.sendTextData conn (encode (object ["requestId" .= requestId, "displayrelation" .= object (jsono ++ texto ++ htmlo)]))
+handleOpResult requestId conn _ presentation (DisplayDataFrameResult df) = do
   let jsono = ["json" .= df | jsonPresentation presentation]
       texto = ["text" .= showDataFrame df | textPresentation presentation]
       htmlo = ["html" .= dataFrameAsHTML df | htmlPresentation presentation]
-  WS.sendTextData conn (encode (object ["displaydataframe" .= object (jsono ++ texto ++ htmlo)]))
+  WS.sendTextData conn (encode (object ["requestId" .= requestId, "displaydataframe" .= object (jsono ++ texto ++ htmlo)]))
 
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
@@ -120,8 +120,8 @@ promptInfo sessionId conn = do
   eSchemaName <- currentSchemaName sessionId conn
   pure (fromRight "<unknown>" eHeadName, fromRight "<no schema>" eSchemaName)
 
-sendPromptInfo :: (HeadName, SchemaName) -> WS.Connection -> IO ()
-sendPromptInfo (hName, sName) conn = WS.sendTextData conn (encode (object ["promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))
+sendPromptInfo :: (HeadName, SchemaName) -> T.Text -> WS.Connection -> IO ()
+sendPromptInfo (hName, sName) requestId conn = WS.sendTextData conn (encode (object ["requestId" .= requestId, "promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))
 
 --a returning relation can be returned as JSON, Text (for consoles), or HTML
 data Presentation = Presentation {
@@ -131,8 +131,10 @@ data Presentation = Presentation {
 
 data PresentationFlag = JSONFlag | TextFlag | HTMLFlag
 
-parseExecuteMessage :: Parser (Presentation, T.Text)
+parseExecuteMessage :: Parser (T.Text, Presentation, T.Text)
 parseExecuteMessage = do
+  _ <- string "{"
+  requestId <- T.pack <$> manyTill anyChar (string "}/")
   _ <- string "executetutd/"
   flags <- sepBy ((string "json" $> JSONFlag) <|>
                   (string "text" $> TextFlag) <|>
@@ -143,4 +145,4 @@ parseExecuteMessage = do
                                HTMLFlag -> acc {htmlPresentation = True}) (Presentation False False False) flags
   _ <- char ':'
   tutd <- T.pack <$> manyTill anyChar endOfInput
-  pure (presentation, tutd)
+  pure (requestId, presentation, tutd)
