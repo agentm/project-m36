@@ -51,28 +51,28 @@ testSelect = TestCase $ do
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [{-
+  let readTests = [
         -- simple relvar
         ("SELECT * FROM s", "(s)", "(s)"),
         -- simple projection
         ("SELECT city FROM s", "(s{city})", "(s{city})"),
         -- restriction
         ("SELECT city FROM s where status=20",
-         "((s where status=20){city})",
+         "((s where sql_coalesce_bool(sql_equals(@status,20))){city})",
          "((s where status=20){city})"         
         ),
         -- restriction with asterisk and qualified name
         ("SELECT * FROM s WHERE \"s\".\"status\"=20",
-         "(s where status=20)",
+         "(s where sql_coalesce_bool(sql_equals(@status,20)))",
          "(s where status=20)"),          
         -- join via where clause
         ("SELECT city FROM s, sp where \"s\".\"s#\" = \"sp\".\"s#\"",
-         "((((s rename {s# as `s.s#`}) join sp) where `s.s#` = @s#){city})",
+         "((((s rename {s# as `s.s#`}) join sp) where sql_coalesce_bool(sql_equals(@`s.s#`, @s#))){city})",
          "(s{city} where city=\"London\" or city=\"Paris\")"
          ),
         -- restriction
         ("SELECT status,city FROM s where status>20",
-         "((s where gt(@status,20)){status,city})",
+         "((s where sql_coalesce_bool(sql_gt(@status,20))){status,city})",
          "((s where s#=\"S3\" or s#=\"S5\"){status,city})"),
         -- extension mixed with projection
         ("SELECT city,status,10 FROM s",
@@ -113,7 +113,7 @@ testSelect = TestCase $ do
         -- unaliased join using
         ("SELECT * FROM sp INNER JOIN sp AS sp2 USING (\"s#\")",
          "(with (sp2 as sp) ((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join (sp2 rename {p# as `sp2.p#`, qty as `sp2.qty`})))",
-         "(with (sp2 as sp) ((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join (sp2 rename {p# as `sp2.p#`, qty as `sp2.qty`})))"),-}
+         "(with (sp2 as sp) ((sp rename {p# as `sp.p#`, qty as `sp.qty`}) join (sp2 rename {p# as `sp2.p#`, qty as `sp2.qty`})))"),
         -- unaliased join
         ("SELECT * FROM sp JOIN s ON s.s# = sp.s#",
          "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_coalesce_bool(sql_equals(@`s.s#`,@`sp.s#`))}) where join_1=True) {all but join_1})",
@@ -121,20 +121,20 @@ testSelect = TestCase $ do
          ),
         -- aliased join on
         ("SELECT * FROM sp AS sp2 JOIN s AS s2 ON s2.s# = sp2.s#",
-         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})",
-         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=eq(@`s2.s#`,@`sp2.s#`)}) where join_1=True) {all but join_1})"),         
+         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=sql_coalesce_bool(sql_equals(@`s2.s#`,@`sp2.s#`))}) where join_1=True) {all but join_1})",
+         "(with (s2 as s, sp2 as sp) ((((s2 rename {s# as `s2.s#`,sname as `s2.sname`,city as `s2.city`,status as `s2.status`}) join (sp2 rename {s# as `sp2.s#`,p# as `sp2.p#`,qty as `sp2.qty`})):{join_1:=sql_coalesce_bool(sql_equals(@`s2.s#`,@`sp2.s#`))}) where join_1=True) {all but join_1})"),         
         -- formula extension
         ("SELECT status+10 FROM s",
-         "((s : {attr_1:=add(@status,10)}) { attr_1 })",
-         "((s : {attr_1:=add(@status,10)}) { attr_1 })"),
+         "((s : {attr_1:=sql_add(@status,10)}) { attr_1 })",
+         "((s : {attr_1:=sql_add(@status,10)}) { attr_1 })"),
         -- extension and formula
         ("SELECT status+10,city FROM s",
-         "((s : {attr_1:=add(@status,10)}) {city,attr_1})",
-         "((s : {attr_1:=add(@status,10)}) {city,attr_1})"),
+         "((s : {attr_1:=sql_add(@status,10)}) {city,attr_1})",
+         "((s : {attr_1:=sql_add(@status,10)}) {city,attr_1})"),
         -- complex join condition
         ("SELECT * FROM sp JOIN s ON s.s# = sp.s# AND s.s# = sp.s#",
-         "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_and(sql_equals(@`s.s#`,@`sp.s#`),eq(@`s.s#`,@`sp.s#`))}) where join_1=True) {all but join_1})",
-          "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=and(eq(@`s.s#`,@`sp.s#`),eq(@`s.s#`,@`sp.s#`))}) where join_1=True) {all but join_1})"),
+         "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_coalesce_bool(sql_and(sql_equals(@`s.s#`,@`sp.s#`),sql_equals(@`s.s#`,@`sp.s#`)))}) where join_1=True) {all but join_1})",
+          "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_coalesce_bool(sql_and(sql_equals(@`s.s#`,@`sp.s#`),sql_equals(@`s.s#`,@`sp.s#`)))}) where join_1=True) {all but join_1})"),
         -- TABLE <tablename>
         ("TABLE s",
          "(s)",
@@ -189,32 +189,32 @@ testSelect = TestCase $ do
          ),
         -- SELECT with no table expression
         ("SELECT 1,2,3",
-         "((relation{}{}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})",
-         "relation{tuple{attr_1 1, attr_2 2, attr_3 3}}"
+         "((relation{}{tuple{}}:{attr_1:=1,attr_2:=2,attr_3:=3}){attr_1,attr_2,attr_3})",
+         "(relation{tuple{attr_1 1, attr_2 2, attr_3 3}})"
          ),
         -- where exists
         -- complication: we need to add attribute renamers due to the subselect
         ("SELECT * FROM s WHERE EXISTS (SELECT * FROM sp WHERE \"s\".\"s#\"=\"sp\".\"s#\")",
-         "(s where (((sp rename {s# as `sp.s#`}) where `s#`= @`sp.s#`){}))",
-         "s where not (s#=\"S5\")"
+         "(s where (((sp rename {s# as `sp.s#`}) where sql_coalesce_bool(sql_equals(@`s#`, @`sp.s#`))){}))",
+         "(s where not (s#=\"S5\"))"
          ),
         -- basic projection NULL
         ("SELECT NULL",
-         "((relation{}{}:{attr_1:=SQLNull}){attr_1})",
+         "((relation{}{tuple{}}:{attr_1:=SQLNull}){attr_1})",
          "((true:{attr_1:=SQLNull}){attr_1})"
          ),
         -- restriction NULL
         ("SELECT * FROM s WHERE s# IS NULL",
-         "(s where sql_isnull(@s#))",
-         "(s)"),
-        ("SELECT * FROM snull WHERE status IS NULL",
-         "(snull where sql_isnull(@status))",
-         "(snull where s#=\"S1\")"),
+         "(s where sql_coalesce_bool(sql_isnull(@s#)))",
+         "(s where false)"),
+        ("SELECT * FROM snull WHERE city IS NULL",
+         "(snull where sql_coalesce_bool(sql_isnull(@city)))",
+         "(snull where s#=\"S2\")"),
         ("SELECT NULL AND FALSE",
-         "((relation{}{}:{attr_1:=sql_and(SQLNull,False)}){attr_1})",
+         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,False)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
         ("SELECT NULL AND TRUE",
-         "((relation{}{}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
+         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
         ]
       gfEnv = GraphRefRelationalExprEnv {
@@ -288,6 +288,7 @@ eitherFail (Right _) = pure ()
 addNullTable :: DatabaseContextExpr
 addNullTable = Assign "snull" (ExistingRelation s_nullRelVar)
 
+-- snull := relation{s# Text, sname Text, status Integer, city SQLNullable Text}{tuple{s# "S1", sname "Smith", status 20, city SQLNull}}
 s_nullRelVar :: Relation
 s_nullRelVar =
   case mkRelationFromList attrs atomMatrix of

@@ -24,7 +24,7 @@ nullAtomFunctions = HS.fromList [
       funcBody = FunctionBuiltInBody $
         \case
            a:[] -> pure $ BoolAtom (isNull a)
-           _ -> Left AtomFunctionTypeMismatchError
+           _ -> error "isnull" -- $ Left AtomFunctionTypeMismatchError
       },
     Function {
       funcName = "sql_equals",
@@ -35,7 +35,7 @@ nullAtomFunctions = HS.fromList [
       },
     Function {
       funcName = "sql_and",
-      funcType = [TypeVariableType "a", TypeVariableType "b", BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
+      funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
       funcBody = FunctionBuiltInBody nullAnd
       },
     Function {
@@ -43,30 +43,51 @@ nullAtomFunctions = HS.fromList [
       funcType = [TypeVariableType "a",
                   BoolAtomType],
       funcBody = FunctionBuiltInBody coalesceBool
+      },
+    Function {
+      funcName = "sql_add",
+      funcType = [TypeVariableType "a", 
+                  TypeVariableType "b",
+                  nullAtomType IntegerAtomType],
+      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction IntegerAtomType (\a b -> IntegerAtom (a + b)))
+      },
+    Function {
+      funcName = "sql_gt",
+      funcType = [TypeVariableType "a",
+                  TypeVariableType "b",
+                  nullAtomType BoolAtomType],
+      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a > b)))
+      },
+    Function {
+      funcName = "sql_gte",
+      funcType = [TypeVariableType "a",
+                  TypeVariableType "b",
+                  nullAtomType IntegerAtomType],
+      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a >= b)))
       }
+    
     ]
   where
     sqlNull typ = ConstructedAtom "SQLNull" typ []
     sqlNullable val typ = ConstructedAtom "SQLJust" (nullAtomType typ) [val]
-    isNull (ConstructedAtom dConsName _ _) | dConsName == "SQLNull" = True
-    isNull _ = False
     nullEq :: AtomFunctionBodyType
     nullEq (a@(ConstructedAtom _ typA argsA) : b@(ConstructedAtom _ _ argsB) : [])
       | isNull a || isNull b = pure $ sqlNull typA
       | otherwise = pure $ sqlNullable (BoolAtom $ argsA == argsB) BoolAtomType
-    nullEq (a:b:[]) | atomTypeForAtom a == atomTypeForAtom b = pure (sqlNullable (BoolAtom (a == b)) BoolAtomType)
-    nullEq _ = Left AtomFunctionTypeMismatchError
+    nullEq [a,b] | atomTypeForAtom a == atomTypeForAtom b = pure (sqlNullable (BoolAtom (a == b)) BoolAtomType)
+    nullEq _other = Left AtomFunctionTypeMismatchError
 
 coalesceBool :: [Atom] -> Either AtomFunctionError Atom
 coalesceBool [arg] = case sqlBool arg of
                        Nothing -> pure (BoolAtom False)
                        Just tf -> pure (BoolAtom tf)
-coalesceBool _ = Left AtomFunctionTypeMismatchError                       
+coalesceBool _other = Left AtomFunctionTypeMismatchError                       
 
 isSQLBool :: Atom -> Bool
-isSQLBool (ConstructedAtom dConsName BoolAtomType [_]) | dConsName == "SQLNullable" = True
-isSQLBool (BoolAtom _) = True
-isSQLBool _ = False
+isSQLBool atom = case atomTypeForAtom atom of
+                   ConstructedAtomType "SQLNullable" _ -> True
+                   BoolAtomType -> True
+                   _ -> False
 
 sqlBool :: Atom -> Maybe Bool
 sqlBool (ConstructedAtom dConsName aType [BoolAtom tf]) |
@@ -93,10 +114,29 @@ nullAnd [a,b] | isSQLBool a && isSQLBool b = do
                              (Just False, Nothing) -> boolF
                              (Just a', Just b') ->
                                nullAtom BoolAtomType (Just (BoolAtom (a' && b')))
-nullAnd _ = Left AtomFunctionTypeMismatchError
+nullAnd _other = Left AtomFunctionTypeMismatchError
                 
 nullAtom :: AtomType -> Maybe Atom -> Atom
 nullAtom aType mAtom =
   case mAtom of
     Nothing -> ConstructedAtom "SQLNull" (nullAtomType aType) []
     Just atom -> ConstructedAtom "SQLJust" (nullAtomType aType) [atom]
+
+isNullOrType :: AtomType -> Atom -> Bool
+isNullOrType aType atom = atomTypeForAtom atom == nullAtomType aType || atomTypeForAtom atom == aType
+
+isNull :: Atom -> Bool
+isNull (ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" _) []) = True
+isNull _ = False
+
+sqlIntegerBinaryFunction :: AtomType -> (Integer -> Integer -> Atom) -> [Atom] -> Either AtomFunctionError Atom
+sqlIntegerBinaryFunction expectedAtomType op [a,b] 
+  | isNullOrType IntegerAtomType a && isNullOrType IntegerAtomType b =
+    case (a,b) of
+      (IntegerAtom valA, IntegerAtom valB) -> do
+        let res = op valA valB
+        pure (nullAtom expectedAtomType (Just res))
+      (a',b') | isNull a' || isNull b' -> pure (nullAtom expectedAtomType Nothing)
+      _other -> Left AtomFunctionTypeMismatchError
+sqlIntegerBinaryFunction _ _ _ = Left AtomFunctionTypeMismatchError 
+      

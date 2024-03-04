@@ -5,11 +5,11 @@ import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
+import ProjectM36.Relation (attributes)
 import qualified ProjectM36.Attribute as A
 import SQL.Interpreter.Select
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
-import ProjectM36.Relation
 import Control.Monad (foldM)
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -146,8 +146,8 @@ withSubSelect m = do
   (TableContext postSub) <- get
   put state
   -- diff the state to get just the items that were added
-  traceShowM ("keys orig"::String, M.keys orig)
-  traceShowM ("keys postSub"::String, M.keys postSub)
+--  traceShowM ("keys orig"::String, M.keys orig)
+--  traceShowM ("keys postSub"::String, M.keys postSub)
   let tableDiffFolder acc (tAlias, (RelationVariable rv (), _ , colAliasRemapper)) = do
         let convertColAliases :: ColumnAliasRemapper -> (AttributeName, (AttributeName, S.Set ColumnName)) -> ColumnAliasRenameMap -> ColumnAliasRenameMap
             convertColAliases origColAlRemapper (attrName, (attrAlias,_)) acc' =
@@ -169,7 +169,7 @@ withSubSelect m = do
 {-  let diff = M.differenceWith tctxDiff postSub orig
       tctxDiff (rexprA, attrsA, colAliasMapA) (_, _, colAliasMapB) =
         Just (rexprA, attrsA, M.difference colAliasMapB colAliasMapA)-}
-  traceShowM ("subselect diff"::String, diff)
+--  traceShowM ("subselect diff"::String, diff)
   pure (ret, diff)
 
 -- if we find a column naming conflict, generate a non-conflicting name for insertion into the column alias map
@@ -528,7 +528,7 @@ tableAliasForColumnName typeF qn@(ColumnName [colName]) (TableContext tMap) = do
         else pure Nothing
 -}
 baseDFExpr :: DataFrameExpr
-baseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (TupleExprs () []),
+baseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (TupleExprs () [TupleExpr mempty]), --relationTrue if the table expression is empty "SELECT 1"
                              orderExprs = [],
                              offset = Nothing,
                              limit = Nothing }
@@ -730,7 +730,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
 --        traceShowM ("convertWhereClause eq"::String, colName, attrName)
 --        traceStateM
         expr' <- convertScalarExpr typeF exprMatch
-        pure (AttributeEqualityPredicate attrName (coalesceBool expr'))
+        pure (AtomExprPredicate (coalesceBool (FunctionAtomExpr "sql_equals" [AttributeAtomExpr attrName, expr'] ())))
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
         b <- convertScalarExpr typeF exprB
@@ -987,10 +987,10 @@ lookupFunc qname =
         Just match -> pure match
   where
     f n args = FunctionAtomExpr n args ()
-    sqlFuncs = [(">",f "gt"),
-                 ("<",f "lt"),
-                 (">=",f "gte"),
-                 ("<=",f "lte"),
+    sqlFuncs = [(">",f "sql_gt"),
+                 ("<",f "sql_lt"),
+                 (">=",f "sql_gte"),
+                 ("<=",f "sql_lte"),
                  ("=",f "sql_equals"),
                  ("!=",f "sql_not_equals"), -- function missing
                  ("<>",f "sql_not_equals"), -- function missing

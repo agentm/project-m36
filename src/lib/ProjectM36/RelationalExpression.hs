@@ -50,6 +50,8 @@ import Control.Exception
 import GHC.Paths
 #endif
 
+import Debug.Trace
+
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -878,7 +880,7 @@ evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
                 lift $ except (atomTypeVerify expType actType)) zippedArgs
       evaldArgs <- mapM (evalGraphRefAtomExpr tupIn) arguments
       case evalAtomFunction func evaldArgs of
-        Left err -> throwError (AtomFunctionUserError err)
+        Left err -> traceShow ("evalGraphrefAtomExpr"::String, funcName', arguments) $ throwError (AtomFunctionUserError err)
         Right result -> do
           --validate that the result matches the expected type
           _ <- lift $ except (atomTypeVerify (last (funcType func)) (atomTypeForAtom result))
