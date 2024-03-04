@@ -50,24 +50,10 @@ nullAtomFunctions = HS.fromList [
                   TypeVariableType "b",
                   nullAtomType IntegerAtomType],
       funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction IntegerAtomType (\a b -> IntegerAtom (a + b)))
-      },
-    Function {
-      funcName = "sql_gt",
-      funcType = [TypeVariableType "a",
-                  TypeVariableType "b",
-                  nullAtomType BoolAtomType],
-      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a > b)))
-      },
-    Function {
-      funcName = "sql_gte",
-      funcType = [TypeVariableType "a",
-                  TypeVariableType "b",
-                  nullAtomType IntegerAtomType],
-      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a >= b)))
       }
-    
-    ]
+    ] <> sqlBooleanIntegerFunctions
   where
+
     sqlNull typ = ConstructedAtom "SQLNull" typ []
     sqlNullable val typ = ConstructedAtom "SQLJust" (nullAtomType typ) [val]
     nullEq :: AtomFunctionBodyType
@@ -76,6 +62,24 @@ nullAtomFunctions = HS.fromList [
       | otherwise = pure $ sqlNullable (BoolAtom $ argsA == argsB) BoolAtomType
     nullEq [a,b] | atomTypeForAtom a == atomTypeForAtom b = pure (sqlNullable (BoolAtom (a == b)) BoolAtomType)
     nullEq _other = Left AtomFunctionTypeMismatchError
+
+sqlBooleanIntegerFunctions :: HS.HashSet AtomFunction
+sqlBooleanIntegerFunctions = HS.fromList $ 
+  map (\(sql_func, op) ->
+          Function {
+          funcName = sql_func,
+          funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType],
+          funcBody = FunctionBuiltInBody (sqlIntegerBinaryBoolean op)
+          }) ops
+  where
+    sqlIntegerBinaryBoolean op =
+      sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a `op` b))
+    ops = [("sql_gt", (>)),
+            ("sql_lt", (<)),
+            ("sql_gte", (>=)),
+            ("sql_lte", (<=))
+           ]
+    
 
 coalesceBool :: [Atom] -> Either AtomFunctionError Atom
 coalesceBool [arg] = case sqlBool arg of
