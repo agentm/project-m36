@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
 import ProjectM36.Relation
+import ProjectM36.Interpreter
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.Error
 import ProjectM36.Tuple
@@ -96,7 +97,7 @@ roDatabaseContextOperatorP = typeP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
-evalRODatabaseContextOp :: C.SessionId -> C.Connection -> RODatabaseContextOperator -> IO TutorialDOperatorResult
+evalRODatabaseContextOp :: C.SessionId -> C.Connection -> RODatabaseContextOperator -> IO ConsoleResult
 evalRODatabaseContextOp sessionId conn (ShowRelationType expr) = do
   res <- C.typeForRelationalExpr sessionId conn expr
   case res of
@@ -194,7 +195,7 @@ evalRODatabaseContextOp sessionId conn ShowRegisteredQueries = do
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
-interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
+interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO ConsoleResult
 interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed

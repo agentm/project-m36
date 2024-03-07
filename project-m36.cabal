@@ -216,10 +216,9 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
                    TutorialD.Interpreter.SchemaOperator,
-                   SQL.Interpreter.Base,
-                   SQL.Interpreter.Select,
-                   SQL.Interpreter.Convert
-                   TutorialD.Printer
+                   TutorialD.Printer,
+                   ProjectM36.Cli,
+                   ProjectM36.Interpreter
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
     if os(windows)
@@ -229,6 +228,66 @@ Executable tutd
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded
     Hs-Source-Dirs: ./src/bin
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+
+Executable sqlegacy
+    if flag(haskell-scripting)
+        Build-Depends: ghc >= 9.0 && < 9.5
+    Build-Depends: base,
+                   ghc-paths,
+                   project-m36,
+                   containers,
+                   unordered-containers,
+                   hashable,
+                   transformers,
+                   semigroups,
+                   mtl,
+                   uuid,
+                   deepseq-generics,
+                   MonadRandom, MonadRandom,
+                   vector,
+                   text,
+                   time,
+                   bytestring,
+                   stm,
+                   deepseq,
+                   data-interval,
+                   parallel,
+                   cassava,
+                   gnuplot,
+                   directory,
+                   filepath,
+                   temporary,
+                   megaparsec >= 5.2.0 && < 10,
+                   haskeline,
+                   random, MonadRandom,
+                   base64-bytestring,
+                   optparse-applicative,
+                   attoparsec,
+                   stm-containers >= 1.0.0,
+                   list-t,
+                   parser-combinators,
+                   curryer-rpc,
+                   prettyprinter,
+                   cryptohash-sha256,
+                   --due to decode signature change
+                   base16-bytestring >= 1.0.0.0,
+                   http-conduit,
+                   modern-uri,
+                   http-types,
+                   recursion-schemes,
+    Other-Modules: SQL.Interpreter.Base,
+                   SQL.Interpreter.Convert,
+                   SQL.Interpreter.Select
+    Main-Is: ./SQL/Interpreter/sqlegacy.hs
+    if os(windows)
+      GHC-Options: -Wall -threaded -rtsopts
+    else
+      GHC-Options: -Wall -threaded -rtsopts -rdynamic
+    if flag(profiler)
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    Hs-Source-Dirs: ./src/bin      
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 

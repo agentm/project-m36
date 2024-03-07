@@ -15,12 +15,12 @@ import ProjectM36.AtomType
 import ProjectM36.Attribute as A
 import ProjectM36.Relation
 import ProjectM36.DataFrame
+import ProjectM36.Interpreter
 
 #if MIN_VERSION_megaparsec(6,0,0)
 import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
-import Data.Void
 import Control.Applicative hiding (many, some)
 #else
 import Text.Megaparsec.Text
@@ -34,7 +34,6 @@ import qualified Data.List as L
 import qualified Data.Text.IO as TIO
 import System.IO
 import ProjectM36.Relation.Show.Term
-import GHC.Generics
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -50,7 +49,7 @@ anySingle :: Parsec Void Text (Token Text)
 anySingle = anyChar
 #endif
 
-displayOpResult :: TutorialDOperatorResult -> IO ()
+displayOpResult :: ConsoleResult -> IO ()
 displayOpResult QuitResult = return ()
 displayOpResult (DisplayResult out) = TIO.putStrLn out
 displayOpResult (DisplayIOResult ioout) = ioout
@@ -74,12 +73,7 @@ displayOpResult (DisplayParseErrorResult mPromptLength err) = do
   TIO.putStr ("ERR:" <> errString)
 displayOpResult (DisplayDataFrameResult dFrame) = TIO.putStrLn (showDataFrame dFrame)
 
-#if MIN_VERSION_megaparsec(6,0,0)
-type Parser = Parsec Void Text
 type ParseStr = Text
-#else
-type ParseStr = String
-#endif
 
 -- consumes only horizontal spaces
 spaceConsumer :: Parser ()
@@ -184,25 +178,6 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
     showAttribute (Attribute name atomType') = name <> " " <> prettyAtomType atomType'
     attrsL = A.toList attrs
 
-type PromptLength = Int
-
-#if MIN_VERSION_megaparsec(7,0,0)
-type ParserError = ParseErrorBundle T.Text Void
-#elif MIN_VERSION_megaparsec(6,0,0)
-type ParserError = ParseError Char Void
-#else
-type ParserError = ParseError Char Dec
-#endif
-
-data TutorialDOperatorResult = QuitResult |
-                               DisplayResult StringType |
-                               DisplayIOResult (IO ()) |
-                               DisplayRelationResult Relation |
-                               DisplayDataFrameResult DataFrame |
-                               DisplayErrorResult StringType |
-                               DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text
-                               QuietSuccessResult
-                               deriving (Generic)
 
 type TransactionGraphWasUpdated = Bool
 

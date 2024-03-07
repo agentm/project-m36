@@ -1,6 +1,7 @@
 --compiling the script requires the IO monad because it must load modules from the filesystem, so we create the function and generate the requisite DatabaseExpr here.
 module TutorialD.Interpreter.DatabaseContextIOOperator where
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import Data.Text

@@ -7,6 +7,7 @@ import Control.Monad.Combinators.Expr
 import Text.Megaparsec.Expr
 #endif
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import qualified Data.Text as T

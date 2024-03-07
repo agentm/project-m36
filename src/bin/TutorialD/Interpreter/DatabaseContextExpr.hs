@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr

@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.InformationOperator where
 import Data.Text
+import ProjectM36.Interpreter
 import Text.Megaparsec
 import TutorialD.Interpreter.Base
 -- older versions of stack fail to

@@ -1,6 +1,7 @@
 --parse type and data constructors
 module TutorialD.Interpreter.Types where
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import Text.Megaparsec
 import TutorialD.Interpreter.Base
 

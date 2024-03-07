@@ -1,12 +1,9 @@
 module SQL.Interpreter.Base where
+import ProjectM36.Interpreter
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lex
-import Data.Void (Void)
 import Data.Text as T (Text, singleton, pack, splitOn, toLower)
-
-
-type Parser = Parsec Void Text
 
 -- consumes only horizontal spaces
 spaceConsumer :: Parser ()

@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving #-}
 module SQL.Interpreter.Select where
+import ProjectM36.Interpreter
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Control.Monad.Combinators.Expr as E
