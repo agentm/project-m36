@@ -24,7 +24,7 @@ if __name__ == "__main__":
             vals = slidedata.split('\n\n')
             slidenum = Path(slidefile).stem
             next_slidenum = int(slidenum) + 1
-            if next_slidenum > len(slidedatafiles):
+            if next_slidenum > len(slidedatafiles) +1:
                 next_slidenum = None
             prev_slidenum = int(slidenum) - 1
             if prev_slidenum < 1:
@@ -44,7 +44,7 @@ if __name__ == "__main__":
                     sql = ''
                     template = template_tutd
         except ValueError as err:
-            print(f'Error in {slidefile}')
+            print(f'genslides Error in {slidefile}')
             raise err
         template_data = {'title':title,
                          'tutd':tutd,
@@ -65,4 +65,4 @@ if __name__ == "__main__":
         #img = Html2Image(size=(1092,1080))
         #img.screenshot(html_file=htmldest,save_as=imgout)
         #imgkit.from_file(htmldest, imgout)
-        print('Finished {0}'.format(imgout))
+        print('Finished {0}'.format(htmldest))

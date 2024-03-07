@@ -1,0 +1,20 @@
+Dealing with Missing Data
+
+TutorialD (master/main): :showexpr relation{tuple{name "Steve", age Just 25},tuple{name "Bob", age Nothing}}
+
+┌───────────────────────┬──────────┐
+│age::Maybe (a::Integer)│name::Text│
+├───────────────────────┼──────────┤
+│Nothing                │"Bob"     │
+│Just 25                │"Steve"   │
+└───────────────────────┴──────────┘
+
+# SELECT name, age FROM (VALUES ('Steve',25),('Bob',NULL)) as t(name,age);
+
+ name  | age 
+-------+-----
+ Steve |  25
+ Bob   |    
+(2 rows)
+
+Map names to ages where the age may be "missing", whatever that means. NULLs do not make it clear why data is missing.
