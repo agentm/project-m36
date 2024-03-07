@@ -3,6 +3,7 @@
 module SQL.Interpreter.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
+import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
 import ProjectM36.Relation (attributes)
@@ -1106,3 +1107,12 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
         RelationAtomExpr e -> RelationAtomExpr (push e)
         ConstructedAtomExpr dConsName args () -> ConstructedAtomExpr dConsName (pushAtom <$> args) ()
         
+mkTableContextFromDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError TableContext
+mkTableContextFromDatabaseContext dbc tgraph = do
+  TableContext . M.fromList <$> mapM rvMapper (M.toList (relationVariables dbc))
+  where
+    rvMapper (nam, rvexpr) = do
+      let gfEnv = freshGraphRefRelationalExprEnv (Just dbc) tgraph
+      typeRel <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr rvexpr)
+      pure (TableAlias nam,
+            (RelationVariable nam (), attributes typeRel, mempty))

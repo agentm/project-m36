@@ -279,7 +279,10 @@ Executable sqlegacy
                    recursion-schemes,
     Other-Modules: SQL.Interpreter.Base,
                    SQL.Interpreter.Convert,
-                   SQL.Interpreter.Select
+                   SQL.Interpreter.Select,
+                   ProjectM36.Cli,
+                   ProjectM36.Interpreter,
+                   SQL.Interpreter
     Main-Is: ./SQL/Interpreter/sqlegacy.hs
     if os(windows)
       GHC-Options: -Wall -threaded -rtsopts

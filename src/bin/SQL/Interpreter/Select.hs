@@ -147,6 +147,9 @@ newtype FuncName = FuncName [Text]
 
 data Distinctness = Distinct | All deriving (Show, Eq)
 
+parseSelect :: Text -> Either ParserError Select
+parseSelect = parse (queryExprP <* semi <* eof) "<interactive>"
+  
 queryExprP :: Parser Select
 queryExprP = tableP <|> selectP
 

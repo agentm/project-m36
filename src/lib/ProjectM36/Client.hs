@@ -48,6 +48,7 @@ module ProjectM36.Client
        defaultHeadName,
        addClientNode,
        getDDLHash,
+       convertSQL,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -167,6 +168,8 @@ import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
+import qualified Data.Text as T
+import SQL.Interpreter.Convert
 
 type Hostname = String
 
@@ -1095,6 +1098,33 @@ getDDLHash sessionId (InProcessConnection conf) = do
         pure (ddlHash ctx graph)
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
 
+-- | Convert an SQL expression into a RelationalExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant RelationalExpr has come from SQL.
+convertSQL :: SessionId -> Connection -> T.Text -> IO (Either RelationalError DF.DataFrameExpr)
+convertSQL sessionId (InProcessConnection conf) sqlText = do
+  let sessions = ipSessions conf
+      graphTvar = ipTransactionGraph conf  
+  atomically $ do
+    transGraph <- readTVar graphTvar    
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) -> do
+        let ctx = Sess.concreteDatabaseContext session
+            reEnv = RE.mkRelationalExprEnv ctx transGraph
+            typeF = optimizeAndEvalRelationalExpr reEnv
+            tblcontext = mkTableContextFromDatabaseContext
+        -- parse SQL
+        case parseSelect sqlText of
+          Left err -> pure (Left (ParseError (T.pack (errorBundlePretty err))))
+          Right selectExpr -> do
+        -- convert SQL data into DataFrameExpr
+            case evalConvertM tblcontext (convertSelect typeF selectExpr) of
+              Left err -> pure (Left (ParseError (T.pack (show err))))
+              Right dfExpr -> pure (Right dfExpr)
+
+
+
+  
 registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf

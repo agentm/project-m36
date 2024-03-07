@@ -34,12 +34,19 @@ evalSQLInteractive sesssionId conn safeFlag interactiveConsole command =
   case command of
     RODatabaseContextOp sel -> do
       --get relvars to build conversion context
-      eAllRelVars <- C.relationVariablesAsRelation sessionId conn
-      case eAllRelVars of
-        Left err -> pure (DisplayRelationalErrorResult err)
-        Right allRelVars ->
+      eRelExpr <- C.convertSQL sessionId conn sel
+      case eRelExpr of
+        Left err -> pure $ DisplayRelationalErrorResult err
+        Right relExpr -> do
+          eRel <- C.executeRelationalExpr sessionId conn relExpr
+          case eRel of
+            Left err -> pure $ DisplayRelationalErrorResult err
+            Right rel -> pure $ DisplayRelationResult rel
+          
 
--- relIn has attributes "attributes"::relation {attribute::Text,type::Text} and "name"::Text   
+
+-- relIn has attributes "attributes"::relation {attribute::Text,type::Text} and "name"::Text
+{-
 mkConversionTableContextFromRelation :: Relation -> TableContext
 mkConversionTableContextFromRelation relIn =
   TableContext $ relFold folder mempty relIn
@@ -56,5 +63,13 @@ mkConversionTableContextFromRelation relIn =
     attrsFolder tup acc =
       case atomForAttributeName "attribute" tup of
         Left err -> pure acc
-        Right (Re
+        Right (TextAtom attrName) ->
+          case atomForAttributeName "type" tup of
+            Left err -> pure acc
+            Right (TextAtom typeName) ->
+              --convert typeName into AtomType
+              case readMaybe typeName of
+                Nothing -> pure acc
+                Just atomType -> Attribute attrName atomType : acc
 
+-}
