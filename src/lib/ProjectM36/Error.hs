@@ -11,6 +11,7 @@ import GHC.Generics (Generic)
 import qualified Data.Text as T
 import Data.Typeable
 import Control.Exception
+import ProjectM36.SQL.Select
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -109,6 +110,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RegisteredQueryNameInUseError RegisteredQueryName
                      | RegisteredQueryNameNotInUseError RegisteredQueryName
 
+                     | SQLConversionError SQLError
+
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Typeable, NFData) 
 
@@ -159,3 +162,20 @@ data ImportError' = InvalidSHA256Error T.Text
                   | ImportFileError T.Text
                   | ImportDownloadError T.Text
                   deriving (Show, Eq, Generic, Typeable, NFData)
+
+data SQLError = NotSupportedError T.Text |
+                TypeMismatchError AtomType AtomType |
+                NoSuchSQLFunctionError FuncName |
+                DuplicateTableReferenceError TableAlias |
+                MissingTableReferenceError TableAlias |
+                TableAliasMismatchError TableAlias |
+                UnexpectedTableNameError TableName |
+                UnexpectedColumnNameError ColumnName |
+                ColumnResolutionError ColumnName |
+                ColumnAliasResolutionError ColumnAlias |
+                UnexpectedRelationalExprError RelationalExpr |
+                UnexpectedAsteriskError ColumnProjectionName |
+                AmbiguousColumnResolutionError ColumnName |
+                DuplicateColumnAliasError ColumnAlias |
+                SQLRelationalError RelationalError
+  deriving (Show, Eq, Generic, Typeable, NFData)

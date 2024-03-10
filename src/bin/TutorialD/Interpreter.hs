@@ -226,10 +226,10 @@ runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> I
 runTutorialD sessionId conn mPromptLength tutd =
   case parseTutorialD tutd of
     Left err ->
-      displayOpResult $ DisplayParseErrorResult mPromptLength err
+      displayResult $ DisplayParseErrorResult mPromptLength err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
         evald <- evalTutorialDInteractive sessionId conn UnsafeEvaluation True parsed
-        displayOpResult evald)
-        (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))
+        displayResult evald)
+        (\_ -> displayResult (DisplayErrorResult "Request timed out."))
 

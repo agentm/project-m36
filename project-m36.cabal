@@ -136,7 +136,10 @@ Library
                      ProjectM36.Trace,
                      ProjectM36.HashSecurely,
                      ProjectM36.DDLType,
-                     ProjectM36.RegisteredQuery
+                     ProjectM36.RegisteredQuery,
+                     ProjectM36.SQL.Convert,
+                     ProjectM36.SQL.Select,
+                     ProjectM36.SQL.Update
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -278,11 +281,14 @@ Executable sqlegacy
                    http-types,
                    recursion-schemes,
     Other-Modules: SQL.Interpreter.Base,
-                   SQL.Interpreter.Convert,
                    SQL.Interpreter.Select,
                    ProjectM36.Cli,
                    ProjectM36.Interpreter,
-                   SQL.Interpreter
+                   SQL.Interpreter,
+                   SQL.Interpreter.TransactionGraphOperator,
+                   SQL.Interpreter.ImportBasicExample,
+                   SQL.Interpreter.Update
+                   
     Main-Is: ./SQL/Interpreter/sqlegacy.hs
     if os(windows)
       GHC-Options: -Wall -threaded -rtsopts

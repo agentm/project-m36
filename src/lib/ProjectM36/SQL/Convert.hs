@@ -1,14 +1,15 @@
 --convert SQL into relational or database context expressions
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, TypeApplications, GeneralizedNewtypeDeriving #-}
-module SQL.Interpreter.Convert where
+module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
+import ProjectM36.SQL.Select
+import ProjectM36.SQL.Update as SQL
 import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
 import ProjectM36.Relation (attributes)
 import qualified ProjectM36.Attribute as A
-import SQL.Interpreter.Select
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
 import Control.Monad (foldM)
@@ -34,22 +35,9 @@ TODO
 * remove traceShow*
 -}
 
-data SQLError = NotSupportedError T.Text |
-                TypeMismatchError AtomType AtomType |
-                NoSuchSQLFunctionError FuncName |
-                DuplicateTableReferenceError TableAlias |
-                MissingTableReferenceError TableAlias |
-                TableAliasMismatchError TableAlias |
-                UnexpectedTableNameError TableName |
-                UnexpectedColumnNameError ColumnName |
-                ColumnResolutionError ColumnName |
-                ColumnAliasResolutionError ColumnAlias |
-                UnexpectedRelationalExprError RelationalExpr |
-                UnexpectedAsteriskError ColumnProjectionName |
-                AmbiguousColumnResolutionError ColumnName |
-                DuplicateColumnAliasError ColumnAlias |
-                SQLRelationalError RelationalError
-  deriving (Show, Eq)
+--over the course of conversion of a table expression, we collect all the table aliases we encounter, including non-aliased table references, including the type of the table, projections have their own name resolution system
+newtype TableContext = TableContext (M.Map TableAlias (RelationalExpr, Attributes, ColumnAliasRemapper))
+  deriving (Semigroup, Monoid, Show, Eq)
 
 type TypeForRelExprF = RelationalExpr -> Either RelationalError Relation
 
@@ -66,10 +54,6 @@ data SelectItemsConvertTask = SelectItemsConvertTask { taskProjections :: S.Set 
                                                        taskExtenders :: [ExtendTupleExpr]
                                                      } deriving (Show, Eq)
                                           
---over the course of conversion of a table expression, we collect all the table aliases we encounter, including non-aliased table references, including the type of the table, projections have their own name resolution system
-newtype TableContext = TableContext (M.Map TableAlias (RelationalExpr, Attributes, ColumnAliasRemapper))
-  deriving (Semigroup, Monoid, Show, Eq)
-
 -- (real attribute name in table- immutable, (renamed "preferred" attribute name needed to disambiguate names on conflict, set of names which are used to reference the "preferred" name)
 type AttributeAlias = AttributeName
 -- the AttributeAlias is necessary when then is otherwise a naming conflict such as with join conditions which would otherwise cause duplicate column names which SQL supports but the relational algebra does not
@@ -149,7 +133,7 @@ withSubSelect m = do
   -- diff the state to get just the items that were added
 --  traceShowM ("keys orig"::String, M.keys orig)
 --  traceShowM ("keys postSub"::String, M.keys postSub)
-  let tableDiffFolder acc (tAlias, (RelationVariable rv (), _ , colAliasRemapper)) = do
+  let tableDiffFolder acc (tAlias, (RelationVariable _rv (), _ , colAliasRemapper)) = do
         let convertColAliases :: ColumnAliasRemapper -> (AttributeName, (AttributeName, S.Set ColumnName)) -> ColumnAliasRenameMap -> ColumnAliasRenameMap
             convertColAliases origColAlRemapper (attrName, (attrAlias,_)) acc' =
               if M.member attrName origColAlRemapper then
@@ -161,9 +145,8 @@ withSubSelect m = do
           Nothing -> do
             pure (acc <> foldr (convertColAliases mempty) mempty (M.toList colAliasRemapper))
           -- we are aware of the table, but there may have been some new columns added
-          Just (_,_,colAliasRemapper) ->
-            pure (acc <> foldr (convertColAliases colAliasRemapper) mempty (M.toList colAliasRemapper))
-          x -> throwSQLE (NotSupportedError $ "unhandled withSubSelect diff: " <> T.pack (show x))
+          Just (_,_,colAliasRemapper') ->
+            pure (acc <> foldr (convertColAliases colAliasRemapper') mempty (M.toList colAliasRemapper'))
             
   diff <- foldM tableDiffFolder mempty (M.toList postSub)
 
@@ -246,11 +229,11 @@ noteColumnMention mTblAlias colName mColAlias = do
                 --traceStateM
                 let sqlColAlias = fromMaybe colAttr (unColumnAlias <$> mColAlias)
                 colAlias' <- case findNotedColumn' (ColumnName [colAttr]) tc of
-                               Left err -> -- no match, so table prefix not required
+                               Left _ -> -- no match, so table prefix not required
                                  insertColAlias sqlColAlias
                                Right [] -> -- no match, so table prefix not required
                                  insertColAlias sqlColAlias
-                               Right [match] -> -- we have a match, so we need the table prefix
+                               Right [_] -> -- we have a match, so we need the table prefix
                                  insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
                                Right (_:_) -> throwSQLE (AmbiguousColumnResolutionError colName)
                 --traceShowM ("findNotedColumn' in noteColumnMentionB"::String, colAlias')
@@ -1043,6 +1026,7 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       StringLiteral{} -> False
       IntegerLiteral{} -> False
       NullLiteral{} -> False
+      BooleanLiteral{} -> False
       Identifier{} -> False
       BinaryOperator e1 _ e2 -> rec' e1 || rec' e2
       PrefixOperator _ e1 -> rec' e1
@@ -1052,7 +1036,7 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       CaseExpr cases else' -> or (map (\(whens, then') ->
                                           or (map rec' whens) || rec' then') cases)
       QuantifiedComparison{} -> True
-      InExpr _ sexpr' _ -> rec' sexpr'
+      InExpr _ sexpr'' _ -> rec' sexpr''
       BooleanOperatorExpr e1 _ e2 -> rec' e1 || rec' e2
       ExistsExpr{} -> True
 
@@ -1116,3 +1100,18 @@ mkTableContextFromDatabaseContext dbc tgraph = do
       typeRel <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr rvexpr)
       pure (TableAlias nam,
             (RelationVariable nam (), attributes typeRel, mempty))
+
+convertUpdate :: TypeForRelExprF -> Update -> ConvertM DatabaseContextExpr
+convertUpdate typeF up = do
+  let convertSetColumns (UnqualifiedColumnName colName, sexpr) = do
+        (,) <$> pure colName <*> convertScalarExpr typeF sexpr
+  atomMap <- M.fromList <$> mapM convertSetColumns (setColumns up)
+  restrictionExpr <- case mRestriction up of
+                       Nothing -> pure TruePredicate
+                       Just restriction -> convertWhereClause typeF restriction
+  rvname <- convertTableName (target up)
+  pure (B.Update rvname atomMap restrictionExpr)
+
+convertTableName :: TableName -> ConvertM RelVarName
+convertTableName (TableName [tname]) = pure tname
+convertTableName t@TableName{} = throwSQLE (UnexpectedTableNameError t)

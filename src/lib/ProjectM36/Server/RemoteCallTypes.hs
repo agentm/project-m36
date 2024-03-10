@@ -8,6 +8,8 @@ import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
 import ProjectM36.Serialise.DataFrame ()
 import ProjectM36.Serialise.IsomorphicSchema ()
+import ProjectM36.SQL.Select
+import ProjectM36.SQL.Update
 import GHC.Generics
 import Codec.Winery
 
@@ -110,3 +112,9 @@ data RetrieveDDLAsRelation = RetrieveDDLAsRelation SessionId
 
 data RetrieveRegisteredQueries = RetrieveRegisteredQueries SessionId
   RPCData(RetrieveRegisteredQueries)
+
+data ConvertSQLSelect = ConvertSQLSelect SessionId Select
+  RPCData(ConvertSQLSelect)
+
+data ConvertSQLUpdate = ConvertSQLUpdate SessionId Update
+  RPCData(ConvertSQLUpdate)

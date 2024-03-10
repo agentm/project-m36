@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving #-}
 module SQL.Interpreter.Select where
 import ProjectM36.Interpreter
+import ProjectM36.SQL.Select
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Control.Monad.Combinators.Expr as E
@@ -8,144 +9,8 @@ import SQL.Interpreter.Base
 import Data.Text (Text, splitOn)
 import qualified Data.Text as T
 import Data.Functor
-import Data.Functor.Foldable.TH
 import qualified Data.List.NonEmpty as NE
 
--- we use an intermediate data structure because it may need to be probed into order to create a proper relational expression
-data Select = Select { distinctness :: Maybe Distinctness,
-                       projectionClause :: [SelectItem],
-                       tableExpr :: Maybe TableExpr,
-                       withClause :: Maybe WithClause
-                     }
-              deriving (Show, Eq)
-
-emptySelect :: Select
-emptySelect = Select { distinctness = Nothing,
-                       projectionClause = [],
-                       tableExpr = Nothing,
-                       withClause = Nothing
-                     }
-
-data WithClause = WithClause { isRecursive :: Bool,
-                               withExprs :: NE.NonEmpty WithExpr }
-                  deriving (Show, Eq)
-
-data WithExpr = WithExpr WithExprAlias Select
-  deriving (Show, Eq)
-
-newtype WithExprAlias = WithExprAlias Text
-  deriving (Show, Eq)
-
-data InFlag = In | NotIn
-  deriving (Show, Eq)
-
-data ComparisonOperator = OpLT | OpGT | OpGTE | OpEQ | OpNE | OpLTE
-  deriving (Show, Eq)
-
-data QuantifiedComparisonPredicate = QCAny | QCSome | QCAll
-  deriving (Show,Eq)
-
-data TableRef = SimpleTableRef TableName
-              | InnerJoinTableRef TableRef JoinCondition
-              | RightOuterJoinTableRef TableRef JoinCondition
-              | LeftOuterJoinTableRef TableRef JoinCondition
-              | FullOuterJoinTableRef TableRef JoinCondition
-              | CrossJoinTableRef TableRef
-              | NaturalJoinTableRef TableRef
-              | AliasedTableRef TableRef TableAlias
-              | QueryTableRef Select
-              deriving (Show, Eq)
-
--- distinguish between projection attributes which may include an asterisk and scalar expressions (such as in a where clause) where an asterisk is invalid
-type ProjectionScalarExpr = ScalarExprBase ColumnProjectionName
-type ScalarExpr = ScalarExprBase ColumnName
-
-data ScalarExprBase n =
-  IntegerLiteral Integer
-  | DoubleLiteral Double
-  | StringLiteral Text
-  | BooleanLiteral Bool
-  | NullLiteral
-    -- | Interval
-  | Identifier n
-  | BinaryOperator (ScalarExprBase n) OperatorName (ScalarExprBase n)
-  | PrefixOperator OperatorName (ScalarExprBase n)
-  | PostfixOperator (ScalarExprBase n) OperatorName
-  | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
-  | FunctionApplication FuncName (ScalarExprBase n)
-  | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
-               caseElse :: Maybe (ScalarExprBase n) }
-  | QuantifiedComparison { qcExpr :: ScalarExprBase n,
-                           qcOperator :: ComparisonOperator,
-                           qcPredicate :: QuantifiedComparisonPredicate,
-                           qcQuery :: Select }
-    
-  | InExpr InFlag (ScalarExprBase n) InPredicateValue
-    -- | ExistsSubQuery Select
-    -- | UniqueSubQuery Select
-    -- | ScalarSubQuery Select
-  | BooleanOperatorExpr (ScalarExprBase n) BoolOp (ScalarExprBase n)
-  | ExistsExpr Select
-  deriving (Show, Eq)
-
-data BoolOp = AndOp | OrOp
-  deriving (Eq, Show)
-
-data InPredicateValue = InList [ScalarExpr] | InQueryExpr Select | InScalarExpr ScalarExpr
-  deriving (Eq, Show)
-
-data GroupByExpr = Group ScalarExpr
-  deriving (Show, Eq)
-
-data HavingExpr = Having ScalarExpr
-  deriving (Show, Eq)
-
-data SortExpr = SortExpr ScalarExpr (Maybe Direction) (Maybe NullsOrder)
-  deriving (Show, Eq)
-
-data Direction = Ascending | Descending
-  deriving (Show, Eq)
-
-data NullsOrder = NullsFirst | NullsLast
-  deriving (Show, Eq)
-
-data JoinType = InnerJoin | RightOuterJoin | LeftOuterJoin | FullOuterJoin | CrossJoin | NaturalJoin
-  deriving (Show, Eq)
-
-data JoinCondition = JoinOn JoinOnCondition | JoinUsing [UnqualifiedColumnName]
-  deriving (Show, Eq)
-
-newtype JoinOnCondition = JoinOnCondition ScalarExpr
-  deriving (Show, Eq)
-
-data ColumnProjectionName = ColumnProjectionName [ProjectionName] --dot-delimited reference
-  deriving (Show, Eq, Ord)
-
-data ProjectionName = ProjectionName Text | Asterisk
-  deriving (Show, Eq, Ord)
-
-data ColumnName = ColumnName [Text]
-  deriving (Show, Eq, Ord)
-
-data UnqualifiedColumnName = UnqualifiedColumnName Text
-  deriving (Show, Eq, Ord)
-
-data TableName = TableName [Text]
-  deriving (Show, Eq, Ord)
-
-data OperatorName = OperatorName [Text]
-  deriving (Show, Eq, Ord)
-
-newtype ColumnAlias = ColumnAlias { unColumnAlias :: Text }
-  deriving (Show, Eq, Ord)
-
-newtype TableAlias = TableAlias { unTableAlias :: Text }
-  deriving (Show, Eq, Ord, Monoid, Semigroup)
-
-newtype FuncName = FuncName [Text]
-  deriving (Show, Eq)
-
-data Distinctness = Distinct | All deriving (Show, Eq)
 
 parseSelect :: Text -> Either ParserError Select
 parseSelect = parse (queryExprP <* semi <* eof) "<interactive>"
@@ -175,7 +40,6 @@ selectP = do
                  withClause = withClause'
                })
   
-type SelectItem = (ProjectionScalarExpr, Maybe ColumnAlias)
   
 selectItemListP :: Parser [SelectItem]
 selectItemListP = sepBy1 selectItemP comma
@@ -183,28 +47,6 @@ selectItemListP = sepBy1 selectItemP comma
 selectItemP :: Parser SelectItem
 selectItemP = (,) <$> scalarExprP <*> optional (reserved "as" *> columnAliasP)
 
-newtype RestrictionExpr = RestrictionExpr ScalarExpr
-  deriving (Show, Eq)
-
-data TableExpr =
-  TableExpr { fromClause :: [TableRef],
-              whereClause :: Maybe RestrictionExpr,
-              groupByClause :: [GroupByExpr],
-              havingClause :: Maybe HavingExpr,
-              orderByClause :: [SortExpr],
-              limitClause :: Maybe Integer,
-              offsetClause :: Maybe Integer
-                           }
-  deriving (Show, Eq)
-
-emptyTableExpr :: TableExpr
-emptyTableExpr = TableExpr { fromClause = [],
-                             whereClause = Nothing,
-                             groupByClause = [],
-                             havingClause = Nothing,
-                             orderByClause = [],
-                             limitClause = Nothing,
-                             offsetClause = Nothing }
 
 tableExprP :: Parser TableExpr
 tableExprP =
@@ -469,5 +311,5 @@ withP = do
     pure (WithExpr wName wSelect)
   pure (WithClause recursive (NE.fromList wExprs))
       
-makeBaseFunctor ''ScalarExprBase
+
 

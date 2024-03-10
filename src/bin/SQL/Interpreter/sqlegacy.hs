@@ -1,6 +1,5 @@
 -- the sqlegacy SQL interpreter wrap
 {-# LANGUAGE CPP #-}
-import SQL.Interpreter.Convert
 import ProjectM36.Base
 import ProjectM36.Cli
 import SQL.Interpreter
@@ -13,7 +12,6 @@ import qualified Data.Text as T
 import Data.Either (fromRight)
 import Control.Exception (catchJust)
 import ProjectM36.Interpreter
-
 
 #if !defined(VERSION_project_m36) 
 # warning Failed to discover proper version from cabal_macros.h
@@ -49,7 +47,3 @@ promptText eHeadName eSchemaName = "SQLegacy (" <> transInfo <> "): "
   where
     transInfo = fromRight "<unknown>" eHeadName <> "/" <> fromRight "<no schema>" eSchemaName
   
-
-displayResult :: ConsoleResult -> IO ()
-displayResult = undefined
-

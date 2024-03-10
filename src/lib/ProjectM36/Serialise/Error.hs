@@ -13,3 +13,4 @@ deriving via WineryVariant ScriptCompilationError instance Serialise ScriptCompi
 deriving via WineryVariant PersistenceError instance Serialise PersistenceError
 deriving via WineryVariant SchemaError instance Serialise SchemaError
 deriving via WineryVariant ImportError' instance Serialise ImportError'
+deriving via WineryVariant SQLError instance Serialise SQLError

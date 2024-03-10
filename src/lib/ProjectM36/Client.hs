@@ -48,7 +48,8 @@ module ProjectM36.Client
        defaultHeadName,
        addClientNode,
        getDDLHash,
-       convertSQL,
+       convertSQLSelect,
+       convertSQLUpdate,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -168,8 +169,9 @@ import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
-import qualified Data.Text as T
-import SQL.Interpreter.Convert
+import ProjectM36.SQL.Select as SQL
+import ProjectM36.SQL.Update as SQL
+import ProjectM36.SQL.Convert
 
 type Hostname = String
 
@@ -1098,9 +1100,9 @@ getDDLHash sessionId (InProcessConnection conf) = do
         pure (ddlHash ctx graph)
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
 
--- | Convert an SQL expression into a RelationalExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant RelationalExpr has come from SQL.
-convertSQL :: SessionId -> Connection -> T.Text -> IO (Either RelationalError DF.DataFrameExpr)
-convertSQL sessionId (InProcessConnection conf) sqlText = do
+-- | Convert a SQL Select expression into a DataFrameExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant DataFrameExpr has come from SQL.
+convertSQLSelect :: SessionId -> Connection -> Select -> IO (Either RelationalError DF.DataFrameExpr)
+convertSQLSelect sessionId (InProcessConnection conf) sel = do
   let sessions = ipSessions conf
       graphTvar = ipTransactionGraph conf  
   atomically $ do
@@ -1108,23 +1110,36 @@ convertSQL sessionId (InProcessConnection conf) sqlText = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, schema) -> do
+      Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
         let ctx = Sess.concreteDatabaseContext session
             reEnv = RE.mkRelationalExprEnv ctx transGraph
             typeF = optimizeAndEvalRelationalExpr reEnv
-            tblcontext = mkTableContextFromDatabaseContext
-        -- parse SQL
-        case parseSelect sqlText of
-          Left err -> pure (Left (ParseError (T.pack (errorBundlePretty err))))
-          Right selectExpr -> do
         -- convert SQL data into DataFrameExpr
-            case evalConvertM tblcontext (convertSelect typeF selectExpr) of
-              Left err -> pure (Left (ParseError (T.pack (show err))))
-              Right dfExpr -> pure (Right dfExpr)
+        case evalConvertM mempty (convertSelect typeF sel) of
+          Left err -> pure (Left (SQLConversionError err))
+          Right dfExpr -> pure (Right dfExpr)
+convertSQLSelect sessionId conn@RemoteConnection{} sel = remoteCall conn (ConvertSQLSelect sessionId sel)
+
+convertSQLUpdate :: SessionId -> Connection -> SQL.Update -> IO (Either RelationalError DatabaseContextExpr)
+convertSQLUpdate sessionId (InProcessConnection conf) update = do
+  let sessions = ipSessions conf
+      graphTvar = ipTransactionGraph conf  
+  atomically $ do
+    transGraph <- readTVar graphTvar    
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
+        let ctx = Sess.concreteDatabaseContext session
+            reEnv = RE.mkRelationalExprEnv ctx transGraph
+            typeF = optimizeAndEvalRelationalExpr reEnv
+        -- convert SQL data into DataFrameExpr
+        case evalConvertM mempty (convertUpdate typeF update) of
+          Left err -> pure (Left (SQLConversionError err))
+          Right updateExpr -> pure (Right updateExpr)
+convertSQLUpdate sessionId conn@RemoteConnection{} up = remoteCall conn (ConvertSQLUpdate sessionId up)          
 
 
-
-  
 registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
