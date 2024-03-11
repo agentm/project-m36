@@ -13,16 +13,28 @@ import qualified Data.List.NonEmpty as NE
 
 
 parseSelect :: Text -> Either ParserError Select
-parseSelect = parse (queryExprP <* semi <* eof) "<interactive>"
-  
-queryExprP :: Parser Select
-queryExprP = tableP <|> selectP
+parseSelect = parse (selectP <* semi <* eof) "<interactive>"
 
-tableP :: Parser Select
+parseQuery :: Text -> Either ParserError Query
+parseQuery = parse (queryP <* semi <* eof) "<interactive>"
+  
+queryP :: Parser Query
+queryP = (QuerySelect <$> selectP) <|>
+         (QueryValues <$> valuesP) <|>
+         (QueryTable <$> tableP)
+
+valuesP :: Parser [[ScalarExpr]]
+valuesP = do
+  reserved "values"
+  sepByComma1 tupleP
+
+tupleP :: Parser [ScalarExpr]
+tupleP = parens (sepByComma1 scalarExprP)
+
+tableP :: Parser TableName
 tableP = do
   reserved "table"
-  tname <- tableNameP
-  pure $ emptySelect { tableExpr = Just $ emptyTableExpr { fromClause = [SimpleTableRef tname] } }
+  tableNameP
 
 tableNameP :: Parser TableName
 tableNameP = TableName <$> qualifiedNameP'

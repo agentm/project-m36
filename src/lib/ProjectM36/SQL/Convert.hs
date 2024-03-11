@@ -4,7 +4,10 @@ module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.SQL.Select
-import ProjectM36.SQL.Update as SQL
+import ProjectM36.SQL.Insert as Insert
+import ProjectM36.SQL.DBUpdate
+import ProjectM36.SQL.Update as Update
+import ProjectM36.SQL.Delete as Delete
 import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
@@ -169,10 +172,10 @@ generateColumnAlias (TableAlias tAlias) attrName = do
             True
           _ -> False --some conflict, so loop
       firstAvailableName = find nameIsAvailable potentialNames
-  traceShowM ("generateColumnAlias scan"::String, tAlias, attrName, firstAvailableName)     
+--  traceShowM ("generateColumnAlias scan"::String, tAlias, attrName, firstAvailableName)     
   case firstAvailableName of
     Just (ColumnName [nam]) -> pure (ColumnAlias nam)
-    _ -> throwSQLE (ColumnResolutionError (ColumnName [attrName]))
+    _ -> throwSQLE $ ColumnResolutionError (ColumnName [attrName])
 
 -- | Insert another table into the TableContext. Returns an alias map of any columns which could conflict with column names already present in the TableContext so that they can be optionally renamed.
 insertTable :: TableAlias -> RelationalExpr -> Attributes -> ConvertM ColumnAliasMap
@@ -466,7 +469,7 @@ attributeNameForColumnName colName = do
           ColumnName [_, col] | col `A.isAttributeNameContained` rvattrs ->
                                 -- the column has not been aliased, so we presume it can be use the column name directly
                                 pure col
-          _ -> throwSQLE $ ColumnResolutionError colName
+          _ -> throwSQLE $ traceShow ("attrnameforcolname"::String, rvattrs, colName) $ ColumnResolutionError colName
 {-
 attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
 attributeNameForColumnName colName = do
@@ -516,6 +519,27 @@ baseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (Tupl
                              orderExprs = [],
                              offset = Nothing,
                              limit = Nothing }
+
+falseDFExpr :: DataFrameExpr
+falseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (TupleExprs () []), --relationFalse 
+                             orderExprs = [],
+                             offset = Nothing,
+                             limit = Nothing }
+
+
+convertQuery :: TypeForRelExprF -> Query -> ConvertM DataFrameExpr
+convertQuery typeF (QuerySelect sel) = convertSelect typeF sel
+convertQuery typeF (QueryValues vals) = do
+  let convertTupleExprs tupVals = do
+        TupleExpr . M.fromList <$> mapM (\(c, sexpr) -> do
+                                            atomExpr <- convertScalarExpr typeF sexpr
+                                            pure ("attr_" <> T.pack (show c), atomExpr)
+                                        ) (zip [1::Int ..] tupVals)
+  tupleExprs <- mapM convertTupleExprs vals
+  pure (baseDFExpr { convertExpr = MakeRelationFromExprs Nothing (TupleExprs () tupleExprs) })
+convertQuery typeF (QueryTable tname) = do
+  rvName <- convertTableName tname
+  pure $ baseDFExpr { convertExpr = RelationVariable rvName () }
              
 convertSelect :: TypeForRelExprF -> Select -> ConvertM DataFrameExpr
 convertSelect typeF sel = do
@@ -1109,9 +1133,46 @@ convertUpdate typeF up = do
   restrictionExpr <- case mRestriction up of
                        Nothing -> pure TruePredicate
                        Just restriction -> convertWhereClause typeF restriction
-  rvname <- convertTableName (target up)
+  rvname <- convertTableName (Update.target up)
   pure (B.Update rvname atomMap restrictionExpr)
 
 convertTableName :: TableName -> ConvertM RelVarName
 convertTableName (TableName [tname]) = pure tname
 convertTableName t@TableName{} = throwSQLE (UnexpectedTableNameError t)
+
+convertDBUpdates :: TypeForRelExprF -> [DBUpdate] -> ConvertM DatabaseContextExpr
+convertDBUpdates typeF dbUpdates = MultipleExpr <$> mapM (convertDBUpdate typeF) dbUpdates
+
+convertDBUpdate :: TypeForRelExprF -> DBUpdate -> ConvertM DatabaseContextExpr
+convertDBUpdate typeF (UpdateUpdate up) = convertUpdate typeF up
+convertDBUpdate typeF (UpdateInsert ins) = convertInsert typeF ins
+convertDBUpdate typeF (UpdateDelete del) = convertDelete typeF del
+
+convertInsert :: TypeForRelExprF -> Insert -> ConvertM DatabaseContextExpr
+convertInsert typeF ins = do
+  dfExpr <- convertQuery typeF (source ins)
+  when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
+  -- check that all columns are mentioned because Project:M36 does not support default columns
+  case typeF (convertExpr dfExpr) of
+    Left err -> throwSQLE (SQLRelationalError err)
+    Right rvExprType -> do
+      let rvExprAttrNames = A.attributeNamesList (attributes rvExprType)
+          insAttrNames = map convertUnqualifiedColumnName (targetColumns ins)
+          rvExprColNameSet = S.map UnqualifiedColumnName (S.fromList rvExprAttrNames)
+          insAttrColSet = S.fromList (targetColumns ins)
+      when (length rvExprAttrNames /= length insAttrNames) $ throwSQLE (ColumnNamesMismatch rvExprColNameSet insAttrColSet)
+      rvTarget <- convertTableName (Insert.target ins)
+      -- rename attributes rexpr via query/values to map to targetCol attrs
+      let insExpr = Rename (S.fromList (zip rvExprAttrNames insAttrNames)) (convertExpr dfExpr)
+      pure $ B.Insert rvTarget insExpr
+
+convertDelete :: TypeForRelExprF -> Delete.Delete -> ConvertM DatabaseContextExpr
+convertDelete typeF del = do
+  rvname <- convertTableName (Delete.target del)
+  let rv = RelationVariable rvname ()
+  case typeF rv of
+    Left err -> throwSQLE (SQLRelationalError err)
+    Right typeRel -> do
+      insertTable (TableAlias rvname) rv (attributes typeRel)
+      res <- convertWhereClause typeF (restriction del)
+      pure (B.Delete rvname res)

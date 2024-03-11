@@ -48,8 +48,8 @@ module ProjectM36.Client
        defaultHeadName,
        addClientNode,
        getDDLHash,
-       convertSQLSelect,
-       convertSQLUpdate,
+       convertSQLQuery,
+       convertSQLDBUpdates,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -170,8 +170,8 @@ import qualified Network.RPC.Curryer.Server as RPC
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 import ProjectM36.SQL.Select as SQL
-import ProjectM36.SQL.Update as SQL
-import ProjectM36.SQL.Convert
+import ProjectM36.SQL.DBUpdate as SQL
+import ProjectM36.SQL.Convert 
 
 type Hostname = String
 
@@ -1100,9 +1100,9 @@ getDDLHash sessionId (InProcessConnection conf) = do
         pure (ddlHash ctx graph)
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
 
--- | Convert a SQL Select expression into a DataFrameExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant DataFrameExpr has come from SQL.
-convertSQLSelect :: SessionId -> Connection -> Select -> IO (Either RelationalError DF.DataFrameExpr)
-convertSQLSelect sessionId (InProcessConnection conf) sel = do
+-- | Convert a SQL Query expression into a DataFrameExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant DataFrameExpr has come from SQL.
+convertSQLQuery :: SessionId -> Connection -> Query -> IO (Either RelationalError DF.DataFrameExpr)
+convertSQLQuery sessionId (InProcessConnection conf) query = do
   let sessions = ipSessions conf
       graphTvar = ipTransactionGraph conf  
   atomically $ do
@@ -1115,13 +1115,13 @@ convertSQLSelect sessionId (InProcessConnection conf) sel = do
             reEnv = RE.mkRelationalExprEnv ctx transGraph
             typeF = optimizeAndEvalRelationalExpr reEnv
         -- convert SQL data into DataFrameExpr
-        case evalConvertM mempty (convertSelect typeF sel) of
+        case evalConvertM mempty (convertQuery typeF query) of
           Left err -> pure (Left (SQLConversionError err))
           Right dfExpr -> pure (Right dfExpr)
-convertSQLSelect sessionId conn@RemoteConnection{} sel = remoteCall conn (ConvertSQLSelect sessionId sel)
+convertSQLQuery sessionId conn@RemoteConnection{} q = remoteCall conn (ConvertSQLQuery sessionId q)
 
-convertSQLUpdate :: SessionId -> Connection -> SQL.Update -> IO (Either RelationalError DatabaseContextExpr)
-convertSQLUpdate sessionId (InProcessConnection conf) update = do
+convertSQLDBUpdates :: SessionId -> Connection -> [SQL.DBUpdate] -> IO (Either RelationalError DatabaseContextExpr)
+convertSQLDBUpdates sessionId (InProcessConnection conf) updates = do
   let sessions = ipSessions conf
       graphTvar = ipTransactionGraph conf  
   atomically $ do
@@ -1134,11 +1134,10 @@ convertSQLUpdate sessionId (InProcessConnection conf) update = do
             reEnv = RE.mkRelationalExprEnv ctx transGraph
             typeF = optimizeAndEvalRelationalExpr reEnv
         -- convert SQL data into DataFrameExpr
-        case evalConvertM mempty (convertUpdate typeF update) of
+        case evalConvertM mempty (convertDBUpdates typeF updates) of
           Left err -> pure (Left (SQLConversionError err))
           Right updateExpr -> pure (Right updateExpr)
-convertSQLUpdate sessionId conn@RemoteConnection{} up = remoteCall conn (ConvertSQLUpdate sessionId up)          
-
+convertSQLDBUpdates sessionId conn@RemoteConnection{} ups = remoteCall conn (ConvertSQLUpdates sessionId ups)   
 
 registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 registeredQueriesAsRelation sessionId (InProcessConnection conf) = do

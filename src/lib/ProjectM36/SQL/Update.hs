@@ -13,7 +13,7 @@ data Update = Update
     setColumns :: [(UnqualifiedColumnName, ScalarExpr)], --we don't support multi-column SET yet
     mRestriction :: Maybe RestrictionExpr
   }
-            --RETURNING not yet supported
+            --RETURNING not yet supported- how would we support this anyway- we must force the update to be materialized
   deriving (Show, Eq, Generic, NFData)
   deriving Serialise via WineryRecord Update
 

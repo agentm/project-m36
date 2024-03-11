@@ -139,7 +139,10 @@ Library
                      ProjectM36.RegisteredQuery,
                      ProjectM36.SQL.Convert,
                      ProjectM36.SQL.Select,
-                     ProjectM36.SQL.Update
+                     ProjectM36.SQL.Update,
+                     ProjectM36.SQL.Insert,
+                     ProjectM36.SQL.Delete,
+                     ProjectM36.SQL.DBUpdate
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -287,7 +290,10 @@ Executable sqlegacy
                    SQL.Interpreter,
                    SQL.Interpreter.TransactionGraphOperator,
                    SQL.Interpreter.ImportBasicExample,
-                   SQL.Interpreter.Update
+                   SQL.Interpreter.Update,
+                   SQL.Interpreter.Insert,
+                   SQL.Interpreter.Delete,                   
+                   SQL.Interpreter.DBUpdate
                    
     Main-Is: ./SQL/Interpreter/sqlegacy.hs
     if os(windows)

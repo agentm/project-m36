@@ -9,7 +9,7 @@ import ProjectM36.Session
 import ProjectM36.Serialise.DataFrame ()
 import ProjectM36.Serialise.IsomorphicSchema ()
 import ProjectM36.SQL.Select
-import ProjectM36.SQL.Update
+import ProjectM36.SQL.DBUpdate
 import GHC.Generics
 import Codec.Winery
 
@@ -113,8 +113,8 @@ data RetrieveDDLAsRelation = RetrieveDDLAsRelation SessionId
 data RetrieveRegisteredQueries = RetrieveRegisteredQueries SessionId
   RPCData(RetrieveRegisteredQueries)
 
-data ConvertSQLSelect = ConvertSQLSelect SessionId Select
-  RPCData(ConvertSQLSelect)
+data ConvertSQLQuery = ConvertSQLQuery SessionId Query
+  RPCData(ConvertSQLQuery)
 
-data ConvertSQLUpdate = ConvertSQLUpdate SessionId Update
-  RPCData(ConvertSQLUpdate)
+data ConvertSQLUpdates = ConvertSQLUpdates SessionId [DBUpdate]
+  RPCData(ConvertSQLUpdates)

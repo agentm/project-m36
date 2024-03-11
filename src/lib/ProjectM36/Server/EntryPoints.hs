@@ -4,7 +4,7 @@ import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.HashSecurely
 import ProjectM36.SQL.Select
-import ProjectM36.SQL.Update
+import ProjectM36.SQL.DBUpdate
 import ProjectM36.Client as C
 import Data.Map
 import Control.Concurrent (threadDelay)
@@ -160,8 +160,8 @@ handleRetrieveRegisteredQueries :: Maybe Timeout -> SessionId -> Connection -> I
 handleRetrieveRegisteredQueries ti sessionId conn =
   timeoutRelErr ti (C.registeredQueriesAsRelation sessionId conn)
 
-handleConvertSQLSelect :: Maybe Timeout -> SessionId -> Connection -> Select -> IO (Either RelationalError DataFrameExpr)
-handleConvertSQLSelect ti sessionId conn sel = timeoutRelErr ti (C.convertSQLSelect sessionId conn sel)
+handleConvertSQLQuery :: Maybe Timeout -> SessionId -> Connection -> Query -> IO (Either RelationalError DataFrameExpr)
+handleConvertSQLQuery ti sessionId conn sel = timeoutRelErr ti (C.convertSQLQuery sessionId conn sel)
 
-handleConvertSQLUpdate :: Maybe Timeout -> SessionId -> Connection -> Update -> IO (Either RelationalError DatabaseContextExpr)
-handleConvertSQLUpdate ti sessionId conn up = timeoutRelErr ti (C.convertSQLUpdate sessionId conn up)
+handleConvertSQLUpdates :: Maybe Timeout -> SessionId -> Connection -> [DBUpdate] -> IO (Either RelationalError DatabaseContextExpr)
+handleConvertSQLUpdates ti sessionId conn ups = timeoutRelErr ti (C.convertSQLDBUpdates sessionId conn ups)

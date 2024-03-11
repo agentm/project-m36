@@ -171,6 +171,7 @@ data SQLError = NotSupportedError T.Text |
                 TableAliasMismatchError TableAlias |
                 UnexpectedTableNameError TableName |
                 UnexpectedColumnNameError ColumnName |
+                ColumnNamesMismatch (S.Set UnqualifiedColumnName) (S.Set UnqualifiedColumnName) | -- used for INSERT expressions
                 ColumnResolutionError ColumnName |
                 ColumnAliasResolutionError ColumnAlias |
                 UnexpectedRelationalExprError RelationalExpr |

@@ -7,7 +7,12 @@ import Codec.Winery
 import GHC.Generics
 import Control.DeepSeq
 
--- we use an intermediate data structure because it may need to be probed into order to create a proper relational expression
+data Query = QuerySelect Select |
+             QueryValues [[ScalarExpr]] |
+             QueryTable TableName
+             deriving (Show, Eq, Generic, NFData)
+             deriving Serialise via WineryVariant Query
+
 data Select = Select { distinctness :: Maybe Distinctness,
                        projectionClause :: [SelectItem],
                        tableExpr :: Maybe TableExpr,

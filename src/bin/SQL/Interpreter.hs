@@ -2,36 +2,34 @@ module SQL.Interpreter where
 import ProjectM36.Base
 import ProjectM36.Interpreter
 import ProjectM36.SQL.Select
-import ProjectM36.SQL.Update
 import ProjectM36.DatabaseContext
 import ProjectM36.DateExamples
 import ProjectM36.Error
 import SQL.Interpreter.ImportBasicExample
 import SQL.Interpreter.TransactionGraphOperator
 import SQL.Interpreter.Select
-import SQL.Interpreter.Update
+import SQL.Interpreter.DBUpdate
+import ProjectM36.SQL.DBUpdate
 import qualified Data.Text as T
 import qualified ProjectM36.Client as C
 import Text.Megaparsec
 import SQL.Interpreter.Base
 
-data SQLCommand = RODatabaseContextOp Select | -- SELECT
+data SQLCommand = RODatabaseContextOp Query | -- SELECT
                   DatabaseContextExprOp DatabaseContextExpr |
-                  UpdateOp Update | -- UPDATE, DELETE, INSERT
---                  InsertOp Insert |
---                  DeleteOp Delete |
+                  DBUpdateOp [DBUpdate] | -- INSERT, UPDATE, DELETE
                   ImportBasicExampleOp ImportBasicExampleOperator |  -- IMPORT EXAMPLE cjdate
                   TransactionGraphOp TransactionGraphOperator -- COMMIT, ROLLBACK
                 deriving (Show)
   
 parseSQLUserInput :: T.Text -> Either ParserError SQLCommand
-parseSQLUserInput = parse ((parseRODatabaseContextOp <|>
+parseSQLUserInput = parse ((parseRODatabaseContextOp <* semi) <|>
                            parseDatabaseContextExprOp <|>
-                           parseTransactionGraphOp <|>
-                           parseImportBasicExampleOp) <* semi) ""
+                           (parseTransactionGraphOp <* semi) <|>
+                           (parseImportBasicExampleOp <* semi)) ""
 
 parseRODatabaseContextOp :: Parser SQLCommand
-parseRODatabaseContextOp = RODatabaseContextOp <$> queryExprP
+parseRODatabaseContextOp = RODatabaseContextOp <$> queryP
 
 parseImportBasicExampleOp :: Parser SQLCommand
 parseImportBasicExampleOp = ImportBasicExampleOp <$> importBasicExampleP
@@ -40,14 +38,14 @@ parseTransactionGraphOp :: Parser SQLCommand
 parseTransactionGraphOp = TransactionGraphOp <$> transactionGraphOperatorP
 
 parseDatabaseContextExprOp :: Parser SQLCommand
-parseDatabaseContextExprOp = UpdateOp <$> updateP  -- <|> insertP)
+parseDatabaseContextExprOp = DBUpdateOp <$> dbUpdatesP
 
 evalSQLInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> SQLCommand -> IO ConsoleResult
 evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
   case command of
-    RODatabaseContextOp sel -> do
+    RODatabaseContextOp query -> do
       --get relvars to build conversion context
-      eDFExpr <- C.convertSQLSelect sessionId conn sel
+      eDFExpr <- C.convertSQLQuery sessionId conn query
       case eDFExpr of
         Left err -> pure $ DisplayRelationalErrorResult err
         Right dfExpr -> do
@@ -62,8 +60,8 @@ evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
           pure (DisplayErrorResult ("No such example: " <> exampleName))
     DatabaseContextExprOp dbcExpr -> do
         eHandler $ C.executeDatabaseContextExpr sessionId conn dbcExpr
-    UpdateOp up -> do
-      eDBCExpr <- C.convertSQLUpdate sessionId conn up
+    DBUpdateOp updates -> do
+      eDBCExpr <- C.convertSQLDBUpdates sessionId conn updates
       case eDBCExpr of
         Left err -> pure $ DisplayRelationalErrorResult err
         Right dbcExpr -> 
