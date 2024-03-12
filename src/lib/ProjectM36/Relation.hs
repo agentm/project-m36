@@ -81,8 +81,10 @@ singletonTuple rel@(Relation _ tupleSet) = if cardinality rel == Finite 1 then
 -- this is still unncessarily expensive for (bigx union bigx) because each tuple is hashed and compared for equality (when the hashes match), but the major expense is attributesEqual, but we already know that all tuple attributes are equal (it's a precondition)
 union :: Relation -> Relation -> Either RelationalError Relation
 union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
-  if not (A.attributesEqual attrs1 attrs2)
-     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
+  if not (A.attributeNameSet attrs1 == A.attributeNameSet attrs2) then
+    Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
+  else if not (A.attributesEqual attrs1 attrs2) then
+    Left $ AttributeTypesMismatchError $ A.attributesDifference attrs1 attrs2
   else
     Right $ Relation attrs1 newtuples
   where
