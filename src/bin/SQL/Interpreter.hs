@@ -17,7 +17,7 @@ import SQL.Interpreter.Base
 
 data SQLCommand = RODatabaseContextOp Query | -- SELECT
                   DatabaseContextExprOp DatabaseContextExpr |
-                  DBUpdateOp [DBUpdate] | -- INSERT, UPDATE, DELETE
+                  DBUpdateOp [DBUpdate] | -- INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE
                   ImportBasicExampleOp ImportBasicExampleOperator |  -- IMPORT EXAMPLE cjdate
                   TransactionGraphOp TransactionGraphOperator -- COMMIT, ROLLBACK
                 deriving (Show)

@@ -20,6 +20,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNamesMismatchError (S.Set AttributeName)
+                     | AttributeTypesMismatchError Attributes
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
                      | CouldNotInferAttributes
@@ -176,7 +177,8 @@ data SQLError = NotSupportedError T.Text |
                 ColumnAliasResolutionError ColumnAlias |
                 UnexpectedRelationalExprError RelationalExpr |
                 UnexpectedAsteriskError ColumnProjectionName |
+                UnexpectedColumnProjectionName ColumnProjectionName |
                 AmbiguousColumnResolutionError ColumnName |
                 DuplicateColumnAliasError ColumnAlias |
-                SQLRelationalError RelationalError
+                SQLRelationalError RelationalError 
   deriving (Show, Eq, Generic, Typeable, NFData)

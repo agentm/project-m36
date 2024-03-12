@@ -105,9 +105,6 @@ data AtomType = IntAtomType |
                 --wildcard used in Atom Functions and tuples for data constructors which don't provide all arguments to the type constructor
               deriving (Eq, NFData, Generic, Show, Read, Hashable)
 
-instance Ord AtomType where
-  compare = undefined
-
 -- this should probably be an ordered dictionary in order to be able to round-trip these arguments  
 type TypeVarMap = M.Map TypeVarName AtomType
 

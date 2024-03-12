@@ -4,6 +4,7 @@ import ProjectM36.SQL.DBUpdate
 import SQL.Interpreter.Update
 import SQL.Interpreter.Insert
 import SQL.Interpreter.Delete
+import SQL.Interpreter.CreateTable
 import SQL.Interpreter.Base
 import Text.Megaparsec
 
@@ -13,5 +14,6 @@ dbUpdatesP = some dbUpdateP
 dbUpdateP :: Parser DBUpdate
 dbUpdateP = (UpdateUpdate <$> updateP <* semi) <|>
             (UpdateInsert <$> insertP <* semi) <|>
-            (UpdateDelete <$> deleteP <* semi)
+            (UpdateDelete <$> deleteP <* semi) <|>
+            (UpdateCreateTable <$> createTableP <* semi)
   

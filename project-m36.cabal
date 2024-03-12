@@ -142,7 +142,8 @@ Library
                      ProjectM36.SQL.Update,
                      ProjectM36.SQL.Insert,
                      ProjectM36.SQL.Delete,
-                     ProjectM36.SQL.DBUpdate
+                     ProjectM36.SQL.DBUpdate,
+                     ProjectM36.SQL.CreateTable
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -293,7 +294,8 @@ Executable sqlegacy
                    SQL.Interpreter.Update,
                    SQL.Interpreter.Insert,
                    SQL.Interpreter.Delete,                   
-                   SQL.Interpreter.DBUpdate
+                   SQL.Interpreter.DBUpdate,
+                   SQL.Interpreter.CreateTable
                    
     Main-Is: ./SQL/Interpreter/sqlegacy.hs
     if os(windows)
