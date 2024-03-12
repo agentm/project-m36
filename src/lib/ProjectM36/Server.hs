@@ -112,7 +112,13 @@ requestHandlers testFlag ti =
                         handleRetrieveDDLAsRelation ti sessionId conn),
      RequestHandler (\sState (RetrieveRegisteredQueries sessionId) -> do
                         conn <- getConn sState
-                        handleRetrieveRegisteredQueries ti sessionId conn)
+                        handleRetrieveRegisteredQueries ti sessionId conn),
+     RequestHandler (\sState (ConvertSQLQuery sessionId q) -> do
+                        conn <- getConn sState
+                        handleConvertSQLQuery ti sessionId conn q),
+     RequestHandler (\sState (ConvertSQLUpdates sessionId updates) -> do
+                        conn <- getConn sState
+                        handleConvertSQLUpdates ti sessionId conn updates)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection
