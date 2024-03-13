@@ -10,6 +10,7 @@ import ProjectM36.SQL.DBUpdate
 import ProjectM36.SQL.Update as Update
 import ProjectM36.SQL.Delete as Delete
 import ProjectM36.SQL.CreateTable as CreateTable
+import ProjectM36.SQL.DropTable as DropTable
 import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
@@ -1170,6 +1171,7 @@ convertDBUpdate typeF (UpdateUpdate up) = convertUpdate typeF up
 convertDBUpdate typeF (UpdateInsert ins) = convertInsert typeF ins
 convertDBUpdate typeF (UpdateDelete del) = convertDelete typeF del
 convertDBUpdate typeF (UpdateCreateTable ct) = convertCreateTable typeF ct
+convertDBUpdate typeF (UpdateDropTable dt) = convertDropTable typeF dt
 
 convertInsert :: TypeForRelExprF -> Insert -> ConvertM DatabaseContextExpr
 convertInsert typeF ins = do
@@ -1211,6 +1213,11 @@ convertCreateTable _typeF ct = do
   rvTarget <- convertTableName (CreateTable.target ct)
   attrs <- convertColumnNamesAndTypes (CreateTable.targetColumns ct)
   pure (Define rvTarget attrs)
+
+convertDropTable :: TypeForRelExprF -> DropTable -> ConvertM DatabaseContextExpr
+convertDropTable _typeF dt = do
+  rvTarget <- convertTableName (DropTable.target dt)
+  pure (Undefine rvTarget)
 
 convertColumnNamesAndTypes :: [(UnqualifiedColumnName, ColumnType, PerColumnConstraints)] -> ConvertM [AttributeExpr]
 convertColumnNamesAndTypes colAssocs =

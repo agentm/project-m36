@@ -27,6 +27,7 @@ data ConsoleResult = QuitResult |
                      DisplayIOResult (IO ()) |
                      DisplayRelationResult Relation |
                      DisplayDataFrameResult DataFrame |
+                     DisplayHintWith Text ConsoleResult |
                      DisplayErrorResult StringType |
                      DisplayRelationalErrorResult RelationalError |
                      DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text
@@ -55,3 +56,6 @@ displayResult (DisplayParseErrorResult mPromptLength err) = do
 displayResult (DisplayDataFrameResult dFrame) = TIO.putStrLn (showDataFrame dFrame)
 displayResult (DisplayRelationalErrorResult err) =
   TIO.putStrLn ("ERR:" <> T.pack (show err))
+displayResult (DisplayHintWith hint result) = do
+  displayResult (DisplayResult hint)
+  displayResult result

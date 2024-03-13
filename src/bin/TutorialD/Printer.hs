@@ -8,6 +8,7 @@ import ProjectM36.Base
 import ProjectM36.Attribute as A hiding (null)
 import ProjectM36.DataFrame
 import Prettyprinter
+import Prettyprinter.Render.Text
 import qualified Data.Set as S hiding (fromList)
 import qualified Data.Vector as V
 import qualified Data.Map.Strict as M
@@ -16,6 +17,10 @@ import Data.Time.Clock.POSIX
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text.Encoding as TE
 import Data.UUID hiding (null)
+import Data.Text (Text)
+
+renderPretty :: Pretty a => a -> Text
+renderPretty = renderStrict . layoutPretty defaultLayoutOptions . pretty
 
 instance Pretty Atom where
   pretty (IntegerAtom x) = pretty x
@@ -193,6 +198,56 @@ instance Pretty Order where
   pretty AscendingOrder = "ascending"
   pretty DescendingOrder = "descending"
 
+instance Pretty DatabaseContextExpr where
+  pretty expr =
+    case expr of
+      NoOperation -> mempty
+      Define rvname attrExprs -> pretty rvname <+> "::" <+> bracesList (map pretty attrExprs)
+      Undefine rvname -> "undefine" <+> pretty rvname
+      Assign rvname relExpr -> pretty rvname <+> ":=" <+> pretty relExpr
+      Insert rvname relExpr -> "insert" <+> pretty rvname <+> pretty relExpr
+      Delete rvname restExpr -> "delete" <+> pretty rvname <+> "where" <+> pretty restExpr
+      Update rvname attrAtomMap restExpr -> "update" <+> pretty rvname <+> "where" <+> pretty restExpr <+> pretty attrAtomMap
+      AddInclusionDependency idName (InclusionDependency idA idB) ->
+        "constraint" <+> pretty idName <+> pretty idA <+> "in" <+> pretty idB
+      RemoveInclusionDependency idName -> "deleteconstraint" <+> pretty idName
+      AddNotification notName trigger old new ->
+        "notify" <+> pretty notName <+> pretty trigger <+> pretty old <+> pretty new
+      RemoveNotification notName ->
+        "unnotify" <+> pretty notName
+      AddTypeConstructor tConsDef dConss ->
+        "data" <+> pretty tConsDef <+> "=" <+> group (encloseSep "" "" "| " (pretty <$> dConss))
+      RemoveTypeConstructor tConsName ->
+        "undata" <+> pretty tConsName
+      RemoveAtomFunction fname ->
+        "removeatomfunction" <+> pretty fname
+      RemoveDatabaseContextFunction fname ->
+        "removedatabasecontextfunction" <+> pretty fname
+      ExecuteDatabaseContextFunction fname atomExprs ->
+        "execute" <+> pretty fname <> prettyParensList atomExprs
+      AddRegisteredQuery rQName relExpr ->
+        "registerquery" <+> pretty rQName <+> pretty relExpr
+      RemoveRegisteredQuery rQName ->
+        "unregisterquery" <+> pretty rQName
+      MultipleExpr dbcExprs ->
+        group (encloseSep "" "" "; " (pretty <$> dbcExprs))
+
+instance Pretty AttributeNameAtomExprMap where
+  pretty m =
+    group (encloseSep "(" ")" "," (map (\(attrName, atomExpr) -> pretty attrName <+> ":=" <+> pretty atomExpr) (M.toList m)))
+  
+instance Pretty TypeConstructorDef where
+  pretty (ADTypeConstructorDef tConsName tVarNames) = pretty tConsName <+> hsep (pretty <$> tVarNames)
+  pretty (PrimitiveTypeConstructorDef tConsName _atomType') = pretty tConsName
+
+instance Pretty DataConstructorDef where
+  pretty (DataConstructorDef dConsName []) = pretty dConsName
+  pretty (DataConstructorDef dConsName args) = "(" <+> pretty dConsName <+> hsep (pretty <$> args) <+> ")"
+
+instance Pretty DataConstructorDefArg where
+  pretty (DataConstructorDefTypeConstructorArg tCons) = pretty tCons
+  pretty (DataConstructorDefTypeVarNameArg tVar) = pretty tVar
+    
 bracesList :: [Doc ann] -> Doc ann
 bracesList = group . encloseSep (flatAlt "{ " "{") (flatAlt " }" "}") ", "
 

@@ -5,6 +5,7 @@ import ProjectM36.SQL.Select
 import ProjectM36.DatabaseContext
 import ProjectM36.DateExamples
 import ProjectM36.Error
+import TutorialD.Printer
 import SQL.Interpreter.ImportBasicExample
 import SQL.Interpreter.TransactionGraphOperator
 import SQL.Interpreter.Select
@@ -49,23 +50,26 @@ evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
       case eDFExpr of
         Left err -> pure $ DisplayRelationalErrorResult err
         Right dfExpr -> do
+          let hint = renderPretty dfExpr
           eDF <- C.executeDataFrameExpr sessionId conn dfExpr
           case eDF of
             Left err -> pure $ DisplayRelationalErrorResult err
-            Right df -> pure $ DisplayDataFrameResult df
+            Right df -> pure $ DisplayHintWith ("[Equivalent TutorialD] " <> hint) (DisplayDataFrameResult df)
     ImportBasicExampleOp (ImportBasicExampleOperator exampleName) -> do
       if exampleName == "cjdate" then
         evalSQLInteractive sessionId conn safeFlag interactiveConsole (DatabaseContextExprOp (databaseContextAsDatabaseContextExpr dateExamples))
         else
           pure (DisplayErrorResult ("No such example: " <> exampleName))
     DatabaseContextExprOp dbcExpr -> do
-        eHandler $ C.executeDatabaseContextExpr sessionId conn dbcExpr
+      eHandler $ C.executeDatabaseContextExpr sessionId conn dbcExpr
     DBUpdateOp updates -> do
       eDBCExpr <- C.convertSQLDBUpdates sessionId conn updates
       case eDBCExpr of
         Left err -> pure $ DisplayRelationalErrorResult err
-        Right dbcExpr -> 
-          evalSQLInteractive sessionId conn safeFlag interactiveConsole (DatabaseContextExprOp dbcExpr)
+        Right dbcExpr -> do
+          let hint = renderPretty dbcExpr
+          _ <- eHandler $ C.executeDatabaseContextExpr sessionId conn dbcExpr
+          pure $ DisplayHintWith ("Equivalent TutorialD: " <> hint) QuietSuccessResult
     TransactionGraphOp Commit -> do
       eHandler $ C.commit sessionId conn
     TransactionGraphOp Rollback -> do
