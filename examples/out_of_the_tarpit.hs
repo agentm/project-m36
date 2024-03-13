@@ -3,6 +3,7 @@
 import ProjectM36.Client
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Tupleable
+import ProjectM36.DatabaseContext
 import ProjectM36.Relation
 import ProjectM36.Error
 import Data.Either
@@ -39,7 +40,7 @@ data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand
 main :: IO ()
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
       check x = case x of 
         Left err -> error (show err)
         Right x' -> x'

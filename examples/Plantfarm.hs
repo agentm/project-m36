@@ -17,6 +17,7 @@ import Data.Text as T (Text)
 import qualified Data.Text.Lazy as TL (pack)
 import GHC.Generics (Generic)
 import qualified ProjectM36.Base as Base
+import ProjectM36.DatabaseContext
 import ProjectM36.Client
        ( AtomExprBase(NakedAtomExpr)
        , Atomable(toAddTypeExpr, toAtom)
@@ -354,7 +355,7 @@ insertSampleData (DB sid conn) = do
 dbConnection :: IO DBConnection
 dbConnection = do
   --  connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
   --  The code below persists the data in a DB with the name "base". \\
 --  let connInfo = InProcessConnectionInfo (CrashSafePersistence "base") emptyNotificationCallback [] \\
   --  In addition minimal persistance is available. \\

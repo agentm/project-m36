@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, DerivingVia #-}
 import ProjectM36.Client
 import ProjectM36.Relation.Show.Term
+import ProjectM36.DatabaseContext
 import GHC.Generics
 import Data.Text
 import Control.DeepSeq
@@ -16,7 +17,7 @@ data Hair = Bald | Brown | Blond | OtherColor Text
 main :: IO ()
 main = do
  --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
       eCheck v = do
         x <- v
         case x of 

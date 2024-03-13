@@ -4,7 +4,9 @@ import ProjectM36.Client
 import ProjectM36.Persist
 import Options.Applicative
 import TutorialD.Interpreter
-import TutorialD.Interpreter.Base hiding (Parser, option)
+import ProjectM36.Interpreter hiding (Parser)
+import ProjectM36.DatabaseContext
+import TutorialD.Interpreter.Base hiding (option)
 import qualified Data.Text as T
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
@@ -48,8 +50,8 @@ main = do
 
 runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()
 runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
-  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback []
-  eConn <- connectProjectM36 connInfo
+  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback [] basicDatabaseContext
+  eConn <- connectProjectM36 connInfo 
   case eConn of
     Left err -> error (show err)
     Right conn -> do

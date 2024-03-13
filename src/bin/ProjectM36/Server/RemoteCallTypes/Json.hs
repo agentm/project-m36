@@ -12,6 +12,7 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.MerkleHash
 import ProjectM36.Attribute as A
+import ProjectM36.SQL.Select
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
@@ -171,6 +172,33 @@ instance FromJSON Attributes where
 
 instance ToJSON RelationalError
 instance FromJSON RelationalError
+
+instance ToJSON SQLError
+instance FromJSON SQLError
+
+instance ToJSON ColumnProjectionName
+instance FromJSON ColumnProjectionName
+
+instance ToJSON UnqualifiedColumnName
+instance FromJSON UnqualifiedColumnName
+
+instance ToJSON ProjectionName
+instance FromJSON ProjectionName
+
+instance ToJSON ColumnAlias
+instance FromJSON ColumnAlias
+
+instance ToJSON ColumnName
+instance FromJSON ColumnName
+
+instance ToJSON TableName
+instance FromJSON TableName
+
+instance ToJSON TableAlias
+instance FromJSON TableAlias
+
+instance ToJSON FuncName
+instance FromJSON FuncName
 
 instance ToJSON SchemaError
 instance FromJSON SchemaError

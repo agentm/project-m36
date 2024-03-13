@@ -7,6 +7,7 @@ import ProjectM36.Relation
 import ProjectM36.Tupleable
 import ProjectM36.Atom (relationForAtom)
 import ProjectM36.Tuple (atomForAttributeName)
+import ProjectM36.DatabaseContext
 
 import Data.Either
 import GHC.Generics
@@ -76,7 +77,7 @@ handleIOErrors m = do
 main :: IO ()                       
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
   conn <- handleIOError $ connectProjectM36 connInfo
   
   sessionId <- handleIOError $ createSessionAtHead conn "master"
@@ -154,7 +155,7 @@ render500 msg = do
 --display one blog post along with its comments
 showBlogEntry :: SessionId -> Connection -> ActionM ()
 showBlogEntry sessionId conn = do
-  blogid <- param "blogid"
+  blogid <- pathParam "blogid"
   --query the database to return the blog entry with a relation-valued attribute of the associated comments
   let blogRestrictionExpr = AttributeEqualityPredicate "title" (NakedAtomExpr (TextAtom blogid))
       extendExpr = AttributeExtendTupleExpr "comments" (RelationAtomExpr commentsRestriction)
@@ -204,8 +205,8 @@ showBlogEntry sessionId conn = do
 --add a comment to a blog post
 addComment :: SessionId -> Connection -> ActionM ()            
 addComment sessionId conn = do
-  blogid <- param "blogid"
-  commentText <- param "contents"
+  blogid <- pathParam "blogid"
+  commentText <- formParam "contents"
   now <- liftIO getCurrentTime
   
   case toInsertExpr [Comment {blogTitle = blogid,

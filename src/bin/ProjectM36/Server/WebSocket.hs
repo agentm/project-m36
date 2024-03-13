@@ -15,7 +15,7 @@ import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation.Show.HTML
 import Data.Aeson
 import TutorialD.Interpreter
-import TutorialD.Interpreter.Base (TutorialDOperatorResult(..))
+import ProjectM36.Interpreter (ConsoleResult(..), SafeEvaluationFlag(..))
 import ProjectM36.Client
 import Control.Exception
 import Data.Attoparsec.Text
@@ -91,7 +91,7 @@ createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionIn
 sendError :: (ToJSON a) => WS.Connection -> a -> IO ()
 sendError conn err = WS.sendTextData conn (encode (object ["displayerror" .= err]))
 
-handleOpResult :: WS.Connection -> Connection -> Presentation -> TutorialDOperatorResult -> IO ()
+handleOpResult :: WS.Connection -> Connection -> Presentation -> ConsoleResult -> IO ()
 handleOpResult conn db _ QuitResult = WS.sendClose conn ("close" :: T.Text) >> close db
 handleOpResult conn  _ _ (DisplayResult out) = WS.sendTextData conn (encode (object ["display" .= out]))
 handleOpResult _ _ _ (DisplayIOResult ioout) = ioout
@@ -112,6 +112,13 @@ handleOpResult conn _ presentation (DisplayDataFrameResult df) = do
       texto = ["text" .= showDataFrame df | textPresentation presentation]
       htmlo = ["html" .= dataFrameAsHTML df | htmlPresentation presentation]
   WS.sendTextData conn (encode (object ["displaydataframe" .= object (jsono ++ texto ++ htmlo)]))
+handleOpResult conn _ _ (DisplayRelationalErrorResult relErr) =
+  WS.sendTextData conn (encode (object ["displayrelationalerrorresult" .= relErr]))
+handleOpResult conn dbconn presentation (DisplayHintWith txt conResult) = do
+  -- we should wrap this up into one response instead of two responses for clarity
+  WS.sendTextData conn (encode (object ["hint" .= txt]))
+  handleOpResult conn dbconn presentation conResult
+
 
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
