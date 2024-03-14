@@ -51,6 +51,24 @@ let
 	      ver = "0.1.10";
   	      sha256 = "sha256-cnTevB2qoEBMmGbqypQwJzPVF6z3cOXADbWF8OKQGAo=";	      
       } {};
+
+      scotty = self.callHackageDirect {
+      	     pkg = "scotty";
+	     ver = "0.22";
+             sha256 = "sha256-DY4lKmAmqGTrzKq93Mft9bu9Qc0QcsEVpKzgoWcBL2I=";
+	     } {};
+
+      wai = self.callHackageDirect {
+            pkg = "wai";
+	    ver = "3.2.4";
+            sha256 = "sha256-NARmVhT5G1eMdtMM1xp7RFpevunThAB4tltCMih+qu8=";
+	    } {};
+
+      wai-extra = self.callHackageDirect {
+           pkg = "wai-extra";
+	   ver = "3.1.14";
+           sha256 = "sha256-wMI9eTituRbMvYvbcA9pgIwFxkbdL1+2Xw78lghfWaU=";
+	   } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };
