@@ -137,12 +137,12 @@ testSelect = TestCase $ do
         -- any, all, some
         -- IN()
         ("SELECT * FROM s WHERE s# IN ('S1','S2')",
-         "(s where eq(@s#,\"S1\") or eq(@s#,\"S2\"))",
-         "(s where eq(@s#,\"S1\") or eq(@s#,\"S2\"))"    
+         "(s where sql_coalesce_bool(sql_or(sql_equals(@s#,\"S1\"),sql_equals(@s#,\"S2\"))))",
+         "(s where s#=\"S1\" or s#=\"S2\")"    
          ),
         -- NOT IN()
         ("SELECT * FROM s WHERE s# NOT IN ('S1','S2')",
-         "(s where not (eq(@s#,\"S1\") or eq(@s#,\"S2\")))",
+         "(s where not sql_coalesce_bool(sql_or(sql_equals(@s#,\"S1\"),sql_equals(@s#,\"S2\"))))",
          "(s where not (eq(@s#,\"S1\") or eq(@s#,\"S2\")))"
          ),
         -- where not exists

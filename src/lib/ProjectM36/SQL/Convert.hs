@@ -736,6 +736,7 @@ convertWhereClause :: TypeForRelExprF -> RestrictionExpr -> ConvertM Restriction
 convertWhereClause typeF (RestrictionExpr rexpr) = do
     let wrongType t = throwSQLE $ TypeMismatchError t BoolAtomType --must be boolean expression
         coalesceBoolF expr = FunctionAtomExpr "sql_coalesce_bool" [expr] ()
+        sqlEq l = FunctionAtomExpr "sql_equals" l ()
     case rexpr of
       IntegerLiteral{} -> wrongType IntegerAtomType
       DoubleLiteral{} -> wrongType DoubleAtomType
@@ -769,12 +770,11 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         case reverse matches' of
          (match:matches) -> do
            firstItem <- convertScalarExpr typeF match
-           let inFunc a b = AtomExprPredicate (FunctionAtomExpr "sql_equals" [a,b] ())
-               predExpr' = inFunc eqExpr firstItem
+           let predExpr' = sqlEq [eqExpr, firstItem]
                folder predExpr'' sexprItem = do
                  item <- convertScalarExpr typeF sexprItem
-                 pure $ OrPredicate (inFunc eqExpr item) predExpr''
-           res <- foldM folder predExpr' matches --be careful here once we introduce NULLs
+                 pure $ FunctionAtomExpr "sql_or" [sqlEq [eqExpr,item], predExpr''] ()
+           res <- AtomExprPredicate . coalesceBoolF <$> foldM folder predExpr' matches 
            case inOrNotIn of
              In -> pure res
              NotIn -> pure (NotPredicate res)

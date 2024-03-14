@@ -39,6 +39,11 @@ nullAtomFunctions = HS.fromList [
       funcBody = FunctionBuiltInBody nullAnd
       },
     Function {
+      funcName = "sql_or",
+      funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
+      funcBody = FunctionBuiltInBody nullOr
+             },
+    Function {
       funcName = "sql_coalesce_bool", -- used in where clause so that NULLs are filtered out
       funcType = [TypeVariableType "a",
                   BoolAtomType],
@@ -119,6 +124,19 @@ nullAnd [a,b] | isSQLBool a && isSQLBool b = do
                              (Just a', Just b') ->
                                nullAtom BoolAtomType (Just (BoolAtom (a' && b')))
 nullAnd _other = Left AtomFunctionTypeMismatchError
+
+nullOr :: [Atom] -> Either AtomFunctionError Atom
+nullOr [a,b] | isSQLBool a && isSQLBool b = do
+                let bNull = nullAtom BoolAtomType Nothing
+                    boolTF tf = nullAtom BoolAtomType (Just (BoolAtom tf))
+                pure $ case (sqlBool a, sqlBool b) of
+                  (Nothing, Nothing) -> bNull
+                  (Nothing, Just True) -> boolTF True
+                  (Nothing, Just False) -> bNull
+                  (Just True, Nothing) -> boolTF True
+                  (Just False, Nothing) -> bNull
+                  (Just a', Just b') -> boolTF (a' || b')
+nullOr _other = Left AtomFunctionTypeMismatchError                  
                 
 nullAtom :: AtomType -> Maybe Atom -> Atom
 nullAtom aType mAtom =

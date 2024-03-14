@@ -6,7 +6,6 @@ import ProjectM36.Server.EntryPoints
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
-import ProjectM36.DatabaseContext
 
 import Control.Concurrent.MVar (MVar)
 import System.IO (stderr, hPutStrLn)
