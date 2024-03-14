@@ -19,6 +19,7 @@ import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.HashSecurely
+import ProjectM36.Interpreter
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.AttributeNames as AN
 import qualified ProjectM36.Session as Sess
@@ -250,6 +251,8 @@ transactionGraphAddCommitTest = TestCase $ do
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
+        DisplayRelationalErrorResult err -> assertFailure (show err)
+        DisplayHintWith{} -> assertFailure "displayhintwith?"
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
@@ -615,7 +618,9 @@ testRelationAttributeDefinition = TestCase $ do
     let expected = mkRelationFromList attrs [[RelationAtom subRel]]
         attrs = attributesFromList [Attribute "a" (RelationAtomType subRelAttrs)]
         subRelAttrs = attributesFromList [Attribute "b" IntegerAtomType]
-        Right subRel = mkRelationFromList subRelAttrs [[IntegerAtom 4]]
+        subRel = case mkRelationFromList subRelAttrs [[IntegerAtom 4]] of
+                   Left err -> error (show err)
+                   Right rel -> rel
     assertEqual "relation attribute construction" expected eX
     -- test rejected subrelation construction due to floating type variables
     expectTutorialDErr sessionId dbconn (T.isPrefixOf "TypeConstructorTypeVarMissing") "y:=relation{a relation{b x}}"

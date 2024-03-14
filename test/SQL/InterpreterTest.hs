@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 import SQL.Interpreter.Select
-import SQL.Interpreter.Convert
---import TutorialD.Interpreter.RelationalExpr
+import ProjectM36.SQL.Convert
+import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
---import TutorialD.Printer
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
@@ -135,10 +134,6 @@ testSelect = TestCase $ do
         ("SELECT * FROM sp JOIN s ON s.s# = sp.s# AND s.s# = sp.s#",
          "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_coalesce_bool(sql_and(sql_equals(@`s.s#`,@`sp.s#`),sql_equals(@`s.s#`,@`sp.s#`)))}) where join_1=True) {all but join_1})",
           "(((((s rename {s# as `s.s#`,sname as `s.sname`,city as `s.city`,status as `s.status`}) join (sp rename {s# as `sp.s#`,p# as `sp.p#`,qty as `sp.qty`})):{join_1:=sql_coalesce_bool(sql_and(sql_equals(@`s.s#`,@`sp.s#`),sql_equals(@`s.s#`,@`sp.s#`)))}) where join_1=True) {all but join_1})"),
-        -- TABLE <tablename>
-        ("TABLE s",
-         "(s)",
-         "(s)"),
         -- any, all, some
         -- IN()
         ("SELECT * FROM s WHERE s# IN ('S1','S2')",
@@ -232,7 +227,7 @@ testSelect = TestCase $ do
       check (sql, equivalent_tutd, confirmation_tutd) = do
         print sql
         --parse SQL
-        select <- case parse (queryExprP <* eof) "test" sql of
+        select <- case parse (selectP <* eof) "test" sql of
           Left err -> assertFailure (errorBundlePretty err)
           Right x -> do
             --print ("parsed SQL:"::String, x)

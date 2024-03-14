@@ -107,12 +107,14 @@ module ProjectM36.Client
        TupleExprsBase(..),
        AtomExprBase(..),
        RestrictionPredicateExprBase(..),
-       withTransaction
+       withTransaction,
+       basicDatabaseContext
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
 import ProjectM36.Serialise.Error ()
 import ProjectM36.Error
+import ProjectM36.DatabaseContext
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer

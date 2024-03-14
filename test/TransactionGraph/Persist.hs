@@ -80,7 +80,7 @@ testMerkleHashValidation = TestCase $
   -- add a commit and validate the hashes successfully
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
-      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback []
+      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext
   conn <- assertIOEither $ connectProjectM36 connInfo
   sess <- assertIOEither $ createSessionAtHead conn "master"
   Right _ <- executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))

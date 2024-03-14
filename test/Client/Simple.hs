@@ -29,7 +29,7 @@ assertEither x = do
 testSimpleCommitSuccess :: Test
 testSimpleCommitSuccess = TestCase $
   withSystemTempDirectory "m36tempdb" $ \tempdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback []
+    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext
         relExpr = Union (RelationVariable "x" ()) (RelationVariable "y" ())
     
     dbconn <- assertEither (simpleConnectProjectM36 connInfo)
@@ -52,7 +52,7 @@ testSimpleCommitFailure :: Test
 testSimpleCommitFailure = TestCase $ do
   let failAttrs = attributesFromList [Attribute "fail" IntAtomType]
   err <- withSystemTempDirectory "m36tempdb" $ \tempdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback []
+    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext
     dbconn <- assertEither (simpleConnectProjectM36 connInfo)
     withTransaction dbconn $ do
       execute $ Assign "x" (ExistingRelation relationTrue)
@@ -64,7 +64,7 @@ testSimpleCommitFailure = TestCase $ do
 -- #176 default merge couldn't handle Update  
 testSimpleUpdate :: Test
 testSimpleUpdate = TestCase $ do
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
   dbconn <- assertEither (simpleConnectProjectM36 connInfo)
   assertEither $ withTransaction dbconn $ 
     execute $ databaseContextAsDatabaseContextExpr dateExamples

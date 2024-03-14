@@ -1,5 +1,7 @@
 import Test.HUnit
 import ProjectM36.Client
+import ProjectM36.Interpreter
+import ProjectM36.DatabaseContext
 import ProjectM36.Relation
 import qualified Data.Set as S
 import TutorialD.Interpreter.TestBase
@@ -78,7 +80,7 @@ testAutomergeFailure = TestCase $ do
 testAutomergeReconnect :: Test
 testAutomergeReconnect = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let repro = do
-          conn <- unsafeLeftCrash =<< connectProjectM36 (InProcessConnectionInfo (CrashSafePersistence (tempdir </> "test.db")) emptyNotificationCallback [])
+          conn <- unsafeLeftCrash =<< connectProjectM36 (InProcessConnectionInfo (CrashSafePersistence (tempdir </> "test.db")) emptyNotificationCallback [] basicDatabaseContext)
           sess <- unsafeLeftCrash =<< createSessionAtHead conn "master"
           autoMergeToHead sess conn UnionMergeStrategy "master"
         -- commit sess conn
