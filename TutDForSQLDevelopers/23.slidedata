@@ -46,8 +46,16 @@ TutorialD (master/main): :showexpr (p : {suppliers := (sp rename {p# as pid} whe
 │        │└────────┘                    │
 └────────┴──────────────────────────────┘
 
-Not supported.
+SELECT p."p#", ARRAY(SELECT sp."s#" FROM sp WHERE sp."p#" = p."p#") FROM p;
 
-
+ p# |     array     
+----+---------------
+ P6 | {S1}
+ P3 | {S1}
+ P4 | {S1,S4}
+ P1 | {S2,S1}
+ P2 | {S2,S4,S3,S1}
+ P5 | {S4,S1}
+ P7 | {}
 
 Show each product mapped to its suppliers. Note that "P7" does not have any suppliers; this is represented by an empty relation in the "suppliers" column.

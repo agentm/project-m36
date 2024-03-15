@@ -19,8 +19,21 @@ TutorialD (master/main): :showexpr ((p : {suppliers := (sp rename {p# as pid} wh
 │"P5"    │"S1"    │
 └────────┴────────┘
 
-Not supported.
+WITH p_grouped AS (SELECT p."p#", ARRAY(SELECT sp."s#" FROM sp WHERE sp."p#" = p."p#") AS ss FROM p) SELECT "p#",UNNEST(ss) AS "s#" FROM p_grouped;
 
-
+ p# | s# 
+----+----
+ P6 | S1
+ P3 | S1
+ P4 | S1
+ P4 | S4
+ P1 | S2
+ P1 | S1
+ P2 | S2
+ P2 | S4
+ P2 | S3
+ P2 | S1
+ P5 | S4
+ P5 | S1
 
 Map all products to their constituent suppliers (group), then flatten (ungroup) the mapping. Note that product "P7" is missing.
