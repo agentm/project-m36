@@ -89,7 +89,7 @@ data ScalarExprBase n =
   | PrefixOperator OperatorName (ScalarExprBase n)
   | PostfixOperator (ScalarExprBase n) OperatorName
   | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
-  | FunctionApplication FuncName (ScalarExprBase n)
+  | FunctionApplication FuncName [ScalarExprBase n]
   | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
                caseElse :: Maybe (ScalarExprBase n) }
   | QuantifiedComparison { qcExpr :: ScalarExprBase n,
@@ -181,7 +181,7 @@ newtype TableAlias = TableAlias { unTableAlias :: Text }
   deriving newtype (Monoid, Semigroup, NFData)
 
 newtype FuncName = FuncName [Text]
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Ord)
   deriving Serialise via WineryVariant FuncName
   deriving newtype NFData
 

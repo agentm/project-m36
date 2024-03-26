@@ -1101,6 +1101,16 @@ evalGraphRefRelationalExpr (RelationVariable name tid) = do
   case M.lookup name (relationVariables ctx) of
     Nothing -> throwError (RelVarNotDefinedError name)
     Just rv -> evalGraphRefRelationalExpr rv
+evalGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
+  env <- askEnv
+  case gre_extra env of
+    Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
+    Just (Left ctxtup) -> do
+      atom <- lift $ except $ atomForAttributeName attrName ctxtup
+      case atom of
+        RelationAtom rel -> pure rel
+        other -> throwError (AtomTypeMismatchError (RelationAtomType mempty) (atomTypeForAtom other))
+    Just (Right _) -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
 evalGraphRefRelationalExpr (Project attrNames expr) = do
   attrNameSet <- evalGraphRefAttributeNames attrNames expr
   rel <- evalGraphRefRelationalExpr expr
@@ -1186,6 +1196,10 @@ typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
     Nothing -> throwError (RelVarNotDefinedError rvName)
     Just rvExpr -> 
       typeForGraphRefRelationalExpr rvExpr
+typeForGraphRefRelationalExrp (RelationValuedAttribute attrName) = do
+  env <- askEnv
+  case gre_extra env of
+    
 typeForGraphRefRelationalExpr (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr

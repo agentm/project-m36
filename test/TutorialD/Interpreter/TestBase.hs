@@ -4,6 +4,7 @@ import ProjectM36.Interpreter
 import TutorialD.Interpreter
 import TutorialD.Interpreter.Base
 import ProjectM36.DateExamples
+import ProjectM36.DatabaseContext
 import Test.HUnit
 import Data.Text
 

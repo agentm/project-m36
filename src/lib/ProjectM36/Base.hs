@@ -234,6 +234,8 @@ data RelationalExprBase a =
   --- | Reference a relation variable by its name.
   RelationVariable RelVarName a |   
   --- | Create a projection over attribute names. (Note that the 'AttributeNames' structure allows for the names to be inverted.)
+  RelationValuedAttribute AttributeName |
+  -- | Extract a relation from an `Atom` that is a nested relation (a relation within a relation).
   Project (AttributeNamesBase a) (RelationalExprBase a) |
   --- | Create a union of two relational expressions. The expressions should have identical attributes.
   Union (RelationalExprBase a) (RelationalExprBase a) |
@@ -505,7 +507,7 @@ instance Hashable AtomExpr
 type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
-data AtomExprBase a = AttributeAtomExpr AttributeName |
+data AtomExprBase a = AttributeAtomExpr !AttributeName |
                       NakedAtomExpr !Atom |
                       FunctionAtomExpr FunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |

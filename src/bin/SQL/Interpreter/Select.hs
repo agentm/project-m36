@@ -281,10 +281,15 @@ scalarTermP = choice [
     --,cast
 --    subquery,
 --    pseudoArgFunc, -- includes NOW, NOW(), CURRENT_USER, TRIM(...), etc.
+    scalarFunctionP,
     Identifier <$> qualifiedNameP
     ]
   <?> "scalar expression"
 
+scalarFunctionP :: QualifiedNameP a => Parser (ScalarExprBase a)
+scalarFunctionP =
+  try $
+  FunctionApplication <$> functionNameP <*> parens (sepByComma scalarExprP)
 
 existsP :: Parser (ScalarExprBase a)
 existsP = do
@@ -297,11 +302,22 @@ class QualifiedNameP a where
 
 -- | col, table.col, table.*, *
 instance QualifiedNameP ColumnProjectionName where
-  qualifiedNameP =
-    ColumnProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
+  qualifiedNameP = columnProjectionNameP
 
 instance QualifiedNameP ColumnName where
-  qualifiedNameP = ColumnName <$> sepBy1 nameP (char '.') <* spaceConsumer
+  qualifiedNameP = columnNameP
+
+columnNameP :: Parser ColumnName
+columnNameP = 
+  ColumnName <$> sepBy1 nameP (char '.') <* spaceConsumer    
+
+columnProjectionNameP :: Parser ColumnProjectionName
+columnProjectionNameP =
+  ColumnProjectionName <$> sepBy1 ((ProjectionName <$> nameP) <|> (char '*' $> Asterisk)) (char '.') <* spaceConsumer
+  
+functionNameP :: Parser FuncName
+functionNameP = do
+  FuncName <$> sepBy1 nameP (char '.') <* spaceConsumer
 
 withExprAliasP :: Parser WithExprAlias
 withExprAliasP = WithExprAlias <$> nameP

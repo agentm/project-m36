@@ -756,7 +756,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
         b <- convertScalarExpr typeF exprB
-        f <- lookupOperator op
+        f <- lookupOperator False op
         pure (AtomExprPredicate (coalesceBoolF (f [a,b])))
       PostfixOperator expr (OperatorName ops) -> do
         expr' <- convertScalarExpr typeF expr
@@ -803,8 +803,12 @@ convertScalarExpr typeF expr = do
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
         b <- convertScalarExpr typeF exprB
-        f <- lookupOperator op
+        f <- lookupOperator False op
         pure $ f [a,b]
+      FunctionApplication funcName' fargs -> do
+        func <- lookupFunc funcName'
+        fargs' <- mapM (convertScalarExpr typeF) fargs
+        pure (func fargs')
       other -> throwSQLE $ NotSupportedError ("scalar expr: " <> T.pack (show other))
 
 convertProjectionScalarExpr :: TypeForRelExprF -> ProjectionScalarExpr -> ConvertM AtomExpr
@@ -822,8 +826,16 @@ convertProjectionScalarExpr typeF expr = do
       BinaryOperator exprA op exprB -> do
         a <- convertProjectionScalarExpr typeF exprA
         b <- convertProjectionScalarExpr typeF exprB
-        f <- lookupOperator op
+        f <- lookupOperator False op
         pure $ f [a,b]
+      FunctionApplication fname fargs -> do
+        func <- lookupFunc fname
+        fargs' <- mapM (convertProjectionScalarExpr typeF) fargs
+        pure (func fargs')
+      PrefixOperator op sexpr -> do
+        func <- lookupOperator True op
+        arg <- convertProjectionScalarExpr typeF sexpr
+        pure (func [arg])
       other -> throwSQLE $ NotSupportedError ("projection scalar expr: " <> T.pack (show other))
 
 convertOrderByClause :: TypeForRelExprF -> [SortExpr] -> ConvertM [AttributeOrderExpr]
@@ -1004,8 +1016,16 @@ joinTableRef typeF rvA (_c,tref) = do
             pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))))
           other -> throwSQLE $ NotSupportedError ("join: " <> T.pack (show other))
 
-lookupOperator :: OperatorName -> ConvertM ([AtomExpr] -> AtomExpr)
-lookupOperator (OperatorName nam) = lookupFunc (FuncName nam)
+lookupOperator :: Bool -> OperatorName -> ConvertM ([AtomExpr] -> AtomExpr)
+lookupOperator isPrefix op@(OperatorName nam)
+  | isPrefix = do
+      let f n args = FunctionAtomExpr n args ()
+      case nam of
+        ["-"] -> pure $ f "sql_negate"
+        _ -> throwSQLE $ NoSuchSQLOperatorError op
+  | otherwise =
+      lookupFunc (FuncName nam)
+
 
 -- this could be amended to support more complex expressions such as coalesce by returning an [AtomExpr] -> AtomExpr function
 lookupFunc :: FuncName -> ConvertM ([AtomExpr] -> AtomExpr)
@@ -1027,7 +1047,9 @@ lookupFunc qname =
                  ("<>",f "sql_not_equals"), -- function missing
                  ("+", f "sql_add"),
                  ("and", f "sql_and"),
-                 ("or", f "sql_or")
+                 ("or", f "sql_or"),
+                 ("abs", f "sql_abs"),
+                 ("max", f "sql_max")
                ]
 
 -- | Used in join condition detection necessary for renames to enable natural joins.
@@ -1079,7 +1101,7 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       PrefixOperator _ e1 -> rec' e1
       PostfixOperator e1 _ -> rec' e1
       BetweenOperator e1 _ e2 -> rec' e1 || rec' e2
-      FunctionApplication _ e1 -> rec' e1
+      FunctionApplication _ e1 -> or (rec' <$> e1)
       CaseExpr cases else' -> or (map (\(whens, then') ->
                                           or (map rec' whens) || rec' then' || maybe False rec' else') cases)
       QuantifiedComparison{} -> True
@@ -1242,3 +1264,22 @@ convertColumnType colType constraints =
                aType
              else
                nullAtomType aType
+
+{-
+select city,max(status) from s group by city;
+(((s{city,status}) group ({status} as sub)) : {status2:=max(@sub)}){city,status2} rename {status2 as status}
+
+before: Project (AttributeNames (fromList ["attr_2","city"])) (Extend (AttributeExtendTupleExpr "attr_2" (FunctionAtomExpr "sql_max" [AttributeAtomExpr "status"] ())) (RelationVariable "s" ()))
+
+after: Rename (fromList [("status2","status")]) (Project (AttributeNames (fromList ["city","status2"])) (Extend (AttributeExtendTupleExpr "status2" (FunctionAtomExpr "max" [AttributeAtomExpr "sub"] ())) (Group (AttributeNames (fromList ["status"])) "sub" (Project (AttributeNames (fromList ["city","status"])) (RelationVariable "s" ())))))
+-}
+{-
+convertGroupBy :: TypeForRelExprF -> [GroupByExpr] -> [SelectItem] -> RelationalExpr -> ConvertM RelationalExpr
+convertGroupBy typeF groupBys sqlProjection (Project renames extending) = do
+  --first, check that projection includes an aggregate, otherwise, there's no point
+  --find aggregate functions at the top-level (including within other functions such as 1+max(x)), and refocus them on the group attribute projected on the aggregate target
+  -- do we need an operator to apply a relexpr to a subrelation? For example, it would be useful to apply a projection across all the subrelations, and types are maintained
+  let modAggregate
+-}
+aggregateFunctions :: S.Set FuncName
+aggregateFunctions = S.fromList $ map (FuncName . (:[])) ["max", "min", "sum"]

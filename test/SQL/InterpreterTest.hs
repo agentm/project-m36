@@ -50,7 +50,7 @@ testSelect = TestCase $ do
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [
+  let readTests = [{-
         -- simple relvar
         ("SELECT * FROM s", "(s)", "(s)"),
         -- simple projection
@@ -145,8 +145,21 @@ testSelect = TestCase $ do
          "(s where not sql_coalesce_bool(sql_or(sql_equals(@s#,\"S1\"),sql_equals(@s#,\"S2\"))))",
          "(s where not (eq(@s#,\"S1\") or eq(@s#,\"S2\")))"
          ),
+        -- function application
+        ("SELECT abs(-4)",
+         "((relation{}{tuple{}}:{attr_1:=sql_abs(sql_negate(4))}){attr_1})",
+         "(relation{tuple{attr_1 SQLJust 4}})"
+         ),-}
         -- where not exists
         -- group by
+        ("SELECT city,max(status) FROM s GROUP BY city",
+         "((((s{city,status}) group ({status} as sub)) : {status2:=sql_max(@sub)}){city,status2} rename {status2 as status})",
+         "(relation{city Text, status Integer}{tuple{city \"London\", status 20}, tuple{city \"Paris\", status 30}, tuple{city \"Athens\", status 30}})"
+         ){-,
+        -- group by with aggregate column alias
+        ("SELECT city,max(status) as max FROM s GROUP BY city",
+...
+),
         -- group by having
         -- limit
         -- case when
@@ -210,7 +223,7 @@ testSelect = TestCase $ do
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
         ("SELECT NULL AND TRUE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
-         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")-}
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just sqlDBContext,

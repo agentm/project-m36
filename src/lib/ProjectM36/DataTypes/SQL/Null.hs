@@ -4,6 +4,10 @@ import ProjectM36.AtomFunctionError
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Primitive
+import qualified Data.Vector as V
+import ProjectM36.AtomFunction
+import ProjectM36.Tuple
+import ProjectM36.Relation
 
 -- analogous but not equivalent to a Maybe type due to how NULLs interact with every other value
 
@@ -55,10 +59,26 @@ nullAtomFunctions = HS.fromList [
                   TypeVariableType "b",
                   nullAtomType IntegerAtomType],
       funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction IntegerAtomType (\a b -> IntegerAtom (a + b)))
+      },
+    Function {
+      funcName = "sql_abs",
+      funcType = [TypeVariableType "a",
+                  nullAtomType IntegerAtomType],
+      funcBody = FunctionBuiltInBody sqlAbs
+      },
+    Function {
+      funcName = "sql_negate",
+      funcType = [TypeVariableType "a",
+                  nullAtomType IntegerAtomType],
+      funcBody = FunctionBuiltInBody (sqlIntegerUnaryFunction IntegerAtomType (\a -> IntegerAtom (- a)))
+      },
+    Function {
+      funcName = "sql_max",
+      funcType = foldAtomFuncType (nullAtomType IntegerAtomType) (nullAtomType IntegerAtomType),
+      funcBody = FunctionBuiltInBody sqlMax
       }
     ] <> sqlBooleanIntegerFunctions
   where
-
     sqlNull typ = ConstructedAtom "SQLNull" typ []
     sqlNullable val typ = ConstructedAtom "SQLJust" (nullAtomType typ) [val]
     nullEq :: AtomFunctionBodyType
@@ -153,12 +173,64 @@ isNull _ = False
 
 sqlIntegerBinaryFunction :: AtomType -> (Integer -> Integer -> Atom) -> [Atom] -> Either AtomFunctionError Atom
 sqlIntegerBinaryFunction expectedAtomType op [a,b] 
-  | isNullOrType IntegerAtomType a && isNullOrType IntegerAtomType b =
-    case (a,b) of
-      (IntegerAtom valA, IntegerAtom valB) -> do
-        let res = op valA valB
-        pure (nullAtom expectedAtomType (Just res))
-      (a',b') | isNull a' || isNull b' -> pure (nullAtom expectedAtomType Nothing)
-      _other -> Left AtomFunctionTypeMismatchError
+  | isNullOrType IntegerAtomType a && isNullOrType IntegerAtomType b = do
+    let extractVal (ConstructedAtom "SQLJust" _ [IntegerAtom val]) = pure val
+        extractVal (IntegerAtom val) = pure val
+        extractVal (ConstructedAtom "SQLNull" _ []) = Nothing
+        extractVal _ = Nothing
+        mValA = extractVal a
+        mValB = extractVal b
+        inull = nullAtom expectedAtomType Nothing
+    case (mValA, mValB) of
+      (Nothing, Nothing) -> pure inull
+      (Nothing, _) -> pure inull
+      (_, Nothing) -> pure inull
+      (Just valA, Just valB) -> pure (nullAtom expectedAtomType (Just (op valA valB)))
 sqlIntegerBinaryFunction _ _ _ = Left AtomFunctionTypeMismatchError 
-      
+
+sqlIntegerUnaryFunction :: AtomType -> (Integer -> Atom) -> [Atom] -> Either AtomFunctionError Atom
+sqlIntegerUnaryFunction expectedAtomType op [x]
+  | isNullOrType IntegerAtomType x =
+    case x of
+      n@(ConstructedAtom "SQLNull" _ []) -> pure n
+      ConstructedAtom "SQLJust" _ [IntegerAtom val] -> pure (nullAtom expectedAtomType (Just (op val)))
+      IntegerAtom val -> pure (nullAtom expectedAtomType (Just (op val)))
+      _other -> Left AtomFunctionTypeMismatchError
+sqlIntegerUnaryFunction _ _ _ = Left AtomFunctionTypeMismatchError       
+
+
+sqlAbs :: [Atom] -> Either AtomFunctionError Atom
+sqlAbs [IntegerAtom val] = pure $ IntegerAtom (abs val)
+sqlAbs [arg] | arg == nullAtom IntegerAtomType Nothing =
+               pure $ nullAtom IntegerAtomType Nothing
+sqlAbs [ConstructedAtom "SQLJust" aType [IntegerAtom val]]
+  | aType == nullAtomType IntegerAtomType =
+            pure $ nullAtom IntegerAtomType (Just (IntegerAtom (abs val)))
+sqlAbs _other = Left AtomFunctionTypeMismatchError         
+
+sqlMax :: [Atom] -> Either AtomFunctionError Atom
+sqlMax [RelationAtom relIn] =
+  case oneTuple relIn of
+    Nothing -> pure $ nullAtom IntegerAtomType Nothing -- SQL max of empty table is NULL
+    Just oneTup ->
+      pure $ relFold (\tupIn acc -> nullMax acc (newVal tupIn)) (newVal oneTup) relIn
+ where
+   newVal tupIn = tupleAtoms tupIn V.! 0
+   nullMax acc nextVal =
+     let mNextVal = sqlNullableIntegerToMaybe nextVal
+         mOldVal = sqlNullableIntegerToMaybe acc
+         mResult = max <$> mNextVal <*> mOldVal
+         in
+       nullAtom IntegerAtomType (case mResult of
+                                    Nothing -> Nothing
+                                    Just v -> Just (IntegerAtom v))
+sqlMax _ = Left AtomFunctionTypeMismatchError       
+       
+
+sqlNullableIntegerToMaybe :: Atom -> Maybe Integer
+sqlNullableIntegerToMaybe (IntegerAtom i) = Just i
+sqlNullableIntegerToMaybe (ConstructedAtom "SQLJust" aType [IntegerAtom i]) | aType == nullAtomType IntegerAtomType = Just i
+sqlNullableIntegerToMaybe (ConstructedAtom "SQLNull" aType []) | aType == nullAtomType IntegerAtomType = Nothing
+sqlNullableIntegerToMaybe _ = Nothing
+           
+           

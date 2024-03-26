@@ -167,6 +167,7 @@ data ImportError' = InvalidSHA256Error T.Text
 data SQLError = NotSupportedError T.Text |
                 TypeMismatchError AtomType AtomType |
                 NoSuchSQLFunctionError FuncName |
+                NoSuchSQLOperatorError OperatorName |
                 DuplicateTableReferenceError TableAlias |
                 MissingTableReferenceError TableAlias |
                 TableAliasMismatchError TableAlias |
