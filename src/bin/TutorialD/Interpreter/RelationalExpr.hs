@@ -158,6 +158,11 @@ relTerm :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relTerm = parens relExprP
           <|> makeRelationP
           <|> (relVarP <* notFollowedBy "(")
+          <|> relationValuedAttributeP
+
+relationValuedAttributeP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
+relationValuedAttributeP = do
+  RelationValuedAttribute <$> (single '@' *> attributeNameP)
 
 restrictionPredicateP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionPredicateP = makeExprParser predicateTerm predicateOperators
@@ -205,10 +210,9 @@ consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
+            relationalAtomExprP <|>            
             attributeAtomExprP <|>
-            try nakedAtomExprP <|>
-            relationalAtomExprP
-            
+            try nakedAtomExprP
 
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
@@ -236,7 +240,11 @@ functionAtomExprP =
   FunctionAtomExpr <$> functionNameP <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
-relationalAtomExprP = RelationAtomExpr <$> relExprP
+relationalAtomExprP = do
+  expr <- relExprP
+  case expr of
+    RelationValuedAttribute attrName -> pure $ AttributeAtomExpr attrName
+    other -> pure $ RelationAtomExpr other
 
 stringAtomP :: Parser Atom
 stringAtomP = TextAtom <$> quotedString

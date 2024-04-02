@@ -1125,6 +1125,7 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
     x@MakeRelationFromExprs{} -> x
     x@MakeStaticRelation{} -> x
     x@ExistingRelation{} -> x
+    x@RelationValuedAttribute{} -> x
     x@RelationVariable{} -> x
     Project attrs expr -> Project attrs (push expr)
     Union exprA exprB -> Union (push exprA) (push exprB)

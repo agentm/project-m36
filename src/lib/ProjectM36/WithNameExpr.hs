@@ -18,6 +18,7 @@ substituteWithNameMacros ::
 substituteWithNameMacros _ e@MakeRelationFromExprs{} = e
 substituteWithNameMacros _ e@MakeStaticRelation{} = e
 substituteWithNameMacros _ e@ExistingRelation{} = e
+substituteWithNameMacros _ e@RelationValuedAttribute{} = e
 substituteWithNameMacros macros e@(RelationVariable rvname tid) =
   let
     macroFilt (WithNameExpr macroName macroTid, _) = rvname == macroName && tid== macroTid in

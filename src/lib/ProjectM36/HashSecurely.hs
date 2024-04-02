@@ -72,9 +72,10 @@ hashBytesL ctx name = foldr (\(SHash i) ctx'@(SHA256.Ctx !bs) -> bs `seq` hashBy
 instance HashBytes a => HashBytes (RelationalExprBase a) where
   hashBytes (MakeRelationFromExprs mAttrs tupleExprs) ctx =
     hashBytesL ctx "MakeRelationFromExprs" [SHash mAttrs, SHash tupleExprs]
-  hashBytes (MakeStaticRelation attrs tupSet) ctx = -- blowing up here!
+  hashBytes (MakeStaticRelation attrs tupSet) ctx = 
     hashBytesL ctx "MakeStaticRelation" [SHash attrs, SHash tupSet]
---  hashBytes _ ctx = ctx
+  hashBytes (RelationValuedAttribute attrName) ctx =
+    hashBytesL ctx "RelationValuedAttribute" [SHash attrName]
   hashBytes (ExistingRelation (Relation attrs tupSet)) ctx =
     hashBytesL ctx "ExistingRelation" [SHash tupSet, SHash attrs]
   hashBytes (RelationVariable rvName marker) ctx =

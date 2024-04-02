@@ -25,6 +25,7 @@ processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
 processRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
 --requires current trans id and graph
+processRelationalExpr (RelationValuedAttribute attrName) = pure (RelationValuedAttribute attrName)
 processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askMarker
 processRelationalExpr (Project attrNames expr) = Project <$> processAttributeNames attrNames <*> processRelationalExpr expr
 processRelationalExpr (Union exprA exprB) = Union <$> processRelationalExpr exprA <*> processRelationalExpr exprB

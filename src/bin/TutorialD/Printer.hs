@@ -82,6 +82,7 @@ instance Pretty Attribute where
 instance Pretty RelationalExpr where
   pretty (RelationVariable n _) = pretty n
   pretty (ExistingRelation r) = pretty r
+  pretty (RelationValuedAttribute attrName) = "@" <> pretty attrName
   pretty (NotEquals a b) = pretty' a <+> "!=" <+> pretty' b
   pretty (Equals a b) = pretty' a <+> "==" <+> pretty' b
   pretty (Project ns r) = pretty' (ignoreProjects r) <> pretty ns

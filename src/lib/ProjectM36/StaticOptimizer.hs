@@ -183,6 +183,8 @@ optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
 
 optimizeGraphRefRelationalExpr e@(ExistingRelation _) = pure e
 
+optimizeGraphRefRelationalExpr e@(RelationValuedAttribute{}) = pure e
+
 optimizeGraphRefRelationalExpr e@(RelationVariable _ _) = pure e
   
 --remove project of attributes which removes no attributes
@@ -500,6 +502,7 @@ applyStaticRestrictionCollapse expr =
     MakeRelationFromExprs _ _ -> expr
     MakeStaticRelation _ _ -> expr
     ExistingRelation _ -> expr
+    RelationValuedAttribute{} -> expr
     RelationVariable _ _ -> expr
     With _ _ -> expr
     Project attrs subexpr -> 
@@ -546,6 +549,7 @@ applyStaticRestrictionPushdown expr = case expr of
   MakeRelationFromExprs _ _ -> expr
   MakeStaticRelation _ _ -> expr
   ExistingRelation _ -> expr
+  RelationValuedAttribute{} -> expr
   RelationVariable _ _ -> expr
   With _ _ -> expr
   Project _ _ -> expr

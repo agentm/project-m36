@@ -64,6 +64,7 @@ processTransGraphRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = 
       pure (MakeRelationFromExprs (Just attrExprs') tupleExprs')
 processTransGraphRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processTransGraphRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
+processTransGraphRelationalExpr (RelationValuedAttribute attrName) = pure (RelationValuedAttribute attrName)
 processTransGraphRelationalExpr (RelationVariable rvname transLookup) = 
   RelationVariable rvname <$> findTransId transLookup
 processTransGraphRelationalExpr (Project transAttrNames expr) = 

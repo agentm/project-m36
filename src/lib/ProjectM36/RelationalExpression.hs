@@ -1196,10 +1196,23 @@ typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
     Nothing -> throwError (RelVarNotDefinedError rvName)
     Just rvExpr -> 
       typeForGraphRefRelationalExpr rvExpr
-typeForGraphRefRelationalExrp (RelationValuedAttribute attrName) = do
+typeForGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
   env <- askEnv
   case gre_extra env of
-    
+    Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName)) -- or can this be an attribute at the top-level?
+    Just (Left ctxtup) -> do
+      atom <- lift $ except $ atomForAttributeName attrName ctxtup
+      case atom of
+        RelationAtom rel -> pure (emptyRelationWithAttrs (attributes rel))
+        other -> throwError (AtomTypeMismatchError (RelationAtomType mempty) (atomTypeForAtom other))
+    Just (Right attrs) -> do
+      case A.atomTypeForAttributeName attrName attrs of
+        Left{} -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
+        Right typ -> do
+          case typ of
+            RelationAtomType relAttrs -> pure $ emptyRelationWithAttrs relAttrs
+            other -> throwError (AtomTypeMismatchError (RelationAtomType A.emptyAttributes) other)
+        
 typeForGraphRefRelationalExpr (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr
@@ -1295,6 +1308,7 @@ mkEmptyRelVars = M.map mkEmptyRelVar
     mkEmptyRelVar expr@MakeRelationFromExprs{} = expr --do not truncate here because we might lose essential type information in emptying the tuples
     mkEmptyRelVar (MakeStaticRelation attrs _) = MakeStaticRelation attrs emptyTupleSet
     mkEmptyRelVar (ExistingRelation rel) = ExistingRelation (emptyRelationWithAttrs (attributes rel))
+    mkEmptyRelVar x@RelationValuedAttribute{} = x
     mkEmptyRelVar rv@RelationVariable{} = Restrict (NotPredicate TruePredicate) rv
     mkEmptyRelVar (Project attrNames expr) = Project attrNames (mkEmptyRelVar expr)
     mkEmptyRelVar (Union exprA exprB) = Union (mkEmptyRelVar exprA) (mkEmptyRelVar exprB)
@@ -1370,6 +1384,7 @@ instance ResolveGraphRefTransactionMarker GraphRefRelationalExpr where
     MakeRelationFromExprs mAttrs <$> resolve tupleExprs
   resolve orig@MakeStaticRelation{} = pure orig
   resolve orig@ExistingRelation{} = pure orig
+  resolve orig@RelationValuedAttribute{} = pure orig
   resolve orig@(RelationVariable rvName UncommittedContextMarker) = do
     rvMap <- relationVariables <$> getStateContext
     case M.lookup rvName rvMap of
@@ -1468,4 +1483,13 @@ applyRestrictionCollapse orig@(Restrict npred@(NotPredicate _) expr) =
     _ -> orig
 applyRestrictionCollapse expr = expr
 
-
+firstAtomForAttributeName :: AttributeName -> [RelationTuple] -> GraphRefRelationalExprM Atom
+firstAtomForAttributeName attrName tuples = do
+  let folder tup acc =
+        case atomForAttributeName attrName tup of
+          Left{} -> acc
+          Right atom -> Just atom
+  case foldr folder Nothing tuples of
+    Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
+    Just match -> pure match
+    
