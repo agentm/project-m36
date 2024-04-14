@@ -113,7 +113,7 @@ data InPredicateValue = InList [ScalarExpr] | InQueryExpr Select | InScalarExpr 
   deriving (Eq, Show, Generic, NFData)
   deriving Serialise via WineryVariant InPredicateValue
 
-data GroupByExpr = Group ScalarExpr
+data GroupByExpr = Group ProjectionScalarExpr
   deriving (Show, Eq, Generic, NFData)
   deriving Serialise via WineryVariant GroupByExpr
 

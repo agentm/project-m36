@@ -561,9 +561,11 @@ convertSelect typeF sel = do
               Just tExpr -> convertTableExpr typeF' tExpr
 --  traceShowM ("table aliases", tAliasMap)              
   let explicitWithF = if null wExprs then id else With wExprs
-              
+      groupByExprs = case tableExpr sel of
+                       Nothing -> []
+                       Just texpr -> groupByClause texpr
   -- convert projection using table alias map to resolve column names
-  projF <- convertProjection typeF' (projectionClause sel)
+  projF <- convertProjection typeF' (projectionClause sel) groupByExprs
   -- add with clauses
   withAssocs <- tableAliasesAsWithNameAssocs
   let withF = case withAssocs of
@@ -601,7 +603,7 @@ convertSubSelect typeF sel = do
 --    traceShowM ("convertSubSelect"::String, colMap)
     let explicitWithF = if null wExprs then id else With wExprs    
     -- convert projection using table alias map to resolve column names
-    projF <- convertProjection typeF' (projectionClause sel) -- the projection can only project on attributes from the subselect table expression
+    projF <- convertProjection typeF' (projectionClause sel) [] -- the projection can only project on attributes from the subselect table expression
     -- add with clauses
     withAssocs <- tableAliasesAsWithNameAssocs
     let withF = case withAssocs of
@@ -659,9 +661,9 @@ convertSelectItem typeF acc (c,selItem) =
      findOneColumn (ColumnName [name])
    colinfo colProjName = throwSQLE $ UnexpectedColumnProjectionName colProjName
 
-convertProjection :: TypeForRelExprF -> [SelectItem] -> ConvertM (RelationalExpr -> RelationalExpr)
-convertProjection typeF selItems = do
---    traceShowM ("convertProjection", selItems)
+convertProjection :: TypeForRelExprF -> [SelectItem] -> [GroupByExpr] -> ConvertM (RelationalExpr -> RelationalExpr)
+convertProjection typeF selItems groupBys = do
+--    traceShowM ("convertProjection", selItems, groupBys)
     let emptyTask = SelectItemsConvertTask { taskProjections = S.empty,
                                              taskRenames = mempty,
                                              taskExtenders = mempty }
@@ -1274,13 +1276,64 @@ before: Project (AttributeNames (fromList ["attr_2","city"])) (Extend (Attribute
 
 after: Rename (fromList [("status2","status")]) (Project (AttributeNames (fromList ["city","status2"])) (Extend (AttributeExtendTupleExpr "status2" (FunctionAtomExpr "max" [AttributeAtomExpr "sub"] ())) (Group (AttributeNames (fromList ["status"])) "sub" (Project (AttributeNames (fromList ["city","status"])) (RelationVariable "s" ())))))
 -}
-{-
-convertGroupBy :: TypeForRelExprF -> [GroupByExpr] -> [SelectItem] -> RelationalExpr -> ConvertM RelationalExpr
-convertGroupBy typeF groupBys sqlProjection (Project renames extending) = do
+
+-- (s group ({all but city} as sub): {maxstatus:=max(@sub{status})}){city,maxstatus}
+-- select city,max(status) from s group by city;
+
+convertGroupBy :: TypeForRelExprF -> [GroupByExpr] -> [SelectItem] -> ConvertM GroupByInfo
+convertGroupBy typeF groupBys sqlProjection = do
   --first, check that projection includes an aggregate, otherwise, there's no point
   --find aggregate functions at the top-level (including within other functions such as 1+max(x)), and refocus them on the group attribute projected on the aggregate target
   -- do we need an operator to apply a relexpr to a subrelation? For example, it would be useful to apply a projection across all the subrelations, and types are maintained
-  let modAggregate
--}
+--  foldM convertGroupByExpr emptyGroupByInfo sqlProjection
+  -- each scalar expr must appear at the top-level SelectItem list
+--    convertGroupByExpr acc
+  foldM collectGroupByInfo emptyGroupByInfo sqlProjection
+  where
+    collectGroupByInfo info (sexpr, _mAlias) = do
+      if containsAggregate sexpr then do
+        -- validate that there is a corresponding group by
+        
+        pure $ info { aggregates = sexpr : aggregates info }
+        else
+        pure $ info
+
+data GroupByInfo =
+  GroupByInfo { aggregates :: [ProjectionScalarExpr]
+              
+              }
+  deriving (Show, Eq)
+
+emptyGroupByInfo :: GroupByInfo
+emptyGroupByInfo = GroupByInfo { aggregates = []}
+
 aggregateFunctions :: S.Set FuncName
 aggregateFunctions = S.fromList $ map (FuncName . (:[])) ["max", "min", "sum"]
+
+
+containsAggregate :: ProjectionScalarExpr -> Bool
+containsAggregate expr =
+  case expr of
+    IntegerLiteral{} -> False
+    DoubleLiteral{} -> False
+    StringLiteral{} -> False
+    BooleanLiteral{} -> False
+    NullLiteral -> False
+    Identifier{} -> False
+    BinaryOperator e1 op e2 -> containsAggregate e1 || containsAggregate e2 || opAgg op
+    PrefixOperator op e1 -> containsAggregate e1 || opAgg op
+    PostfixOperator e1 op -> containsAggregate e1 || opAgg op
+    BetweenOperator e1 e2 e3 -> containsAggregate e1 || containsAggregate e2 || containsAggregate e3
+    FunctionApplication fname args -> funcAgg fname || or (map containsAggregate args)
+    c@CaseExpr{} -> or (cElse : concatMap (\(whens, res) -> containsAggregate res : map containsAggregate whens) (caseWhens c))
+      where
+        cElse = case caseElse c of
+          Just e -> containsAggregate e
+          Nothing -> False
+    q@QuantifiedComparison{} -> containsAggregate (qcExpr q)
+    InExpr _ e1 _ -> containsAggregate e1
+    BooleanOperatorExpr e1 opName e2 -> opAgg opName || containsAggregate e1 || containsAggregate e2
+    ExistsExpr{} -> False
+  where
+    opAgg _opName = False
+    funcAgg fname = fname `S.member` aggregateFunctions
