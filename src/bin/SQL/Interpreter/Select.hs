@@ -106,10 +106,10 @@ whereP = reserved "where" *> (RestrictionExpr <$> scalarExprP)
 
 groupByP :: Parser [GroupByExpr]
 groupByP =
-  reserveds "group by" *> sepBy1 (Group <$> scalarExprP) comma
+  reserveds "group by" *> sepBy1 (GroupByExpr <$> scalarExprP) comma
 
 havingP :: Parser HavingExpr
-havingP = reserved "having" *> (Having <$> scalarExprP)
+havingP = reserved "having" *> (HavingExpr <$> scalarExprP)
 
 orderByP :: Parser [SortExpr]
 orderByP =

@@ -50,7 +50,7 @@ testSelect = TestCase $ do
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [{-
+  let readTests = [
         -- simple relvar
         ("SELECT * FROM s", "(s)", "(s)"),
         -- simple projection
@@ -149,17 +149,17 @@ testSelect = TestCase $ do
         ("SELECT abs(-4)",
          "((relation{}{tuple{}}:{attr_1:=sql_abs(sql_negate(4))}){attr_1})",
          "(relation{tuple{attr_1 SQLJust 4}})"
-         ),-}
+         ),
         -- where not exists
         -- group by
         ("SELECT city,max(status) FROM s GROUP BY city",
-         "((((s{city,status}) group ({status} as sub)) : {status2:=sql_max(@sub)}){city,status2} rename {status2 as status})",
-         "(relation{city Text, status Integer}{tuple{city \"London\", status 20}, tuple{city \"Paris\", status 30}, tuple{city \"Athens\", status 30}})"
-         ){-,
+         "((s group ({all but city} as `_sql_aggregate`) : {attr_2:=sql_max(@`_sql_aggregate`{status})}){city,attr_2})",
+         "(relation{city Text, attr_2 SQLNullable Integer}{tuple{city \"London\", attr_2 SQLJust 20}, tuple{city \"Paris\", attr_2 SQLJust 30}, tuple{city \"Athens\", attr_2 SQLJust 30}})"
+         ),
         -- group by with aggregate column alias
-        ("SELECT city,max(status) as max FROM s GROUP BY city",
-...
-),
+        ("SELECT city,max(status) as status FROM s GROUP BY city",
+         "((s group ({all but city} as `_sql_aggregate`) : {status:=sql_max(@`_sql_aggregate`{status})}){city,status})",
+         "(relation{city Text, status SQLNullable Integer}{tuple{city \"London\", status SQLJust 20}, tuple{city \"Paris\", status SQLJust 30}, tuple{city \"Athens\", status SQLJust 30}})"),
         -- group by having
         -- limit
         -- case when
@@ -223,7 +223,10 @@ testSelect = TestCase $ do
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
         ("SELECT NULL AND TRUE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
-         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")-}
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
+          -- CASE WHEN
+--        ("SELECT CASE WHEN true THEN 'test' ELSE 'fail'",
+         
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just sqlDBContext,

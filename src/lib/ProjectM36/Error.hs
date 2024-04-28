@@ -181,5 +181,8 @@ data SQLError = NotSupportedError T.Text |
                 UnexpectedColumnProjectionName ColumnProjectionName |
                 AmbiguousColumnResolutionError ColumnName |
                 DuplicateColumnAliasError ColumnAlias |
+                AggregateGroupByMismatchError ProjectionScalarExpr |
+                GroupByColumnNotReferencedInGroupByError [ProjectionScalarExpr] |
+                UnsupportedGroupByProjectionError ProjectionScalarExpr |
                 SQLRelationalError RelationalError 
   deriving (Show, Eq, Generic, Typeable, NFData)

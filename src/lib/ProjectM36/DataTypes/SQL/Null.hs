@@ -74,7 +74,7 @@ nullAtomFunctions = HS.fromList [
       },
     Function {
       funcName = "sql_max",
-      funcType = foldAtomFuncType (nullAtomType IntegerAtomType) (nullAtomType IntegerAtomType),
+      funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
       funcBody = FunctionBuiltInBody sqlMax
       }
     ] <> sqlBooleanIntegerFunctions
