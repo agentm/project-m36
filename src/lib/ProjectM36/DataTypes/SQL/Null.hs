@@ -33,9 +33,9 @@ nullAtomFunctions = HS.fromList [
     Function {
       funcName = "sql_equals",
       funcType = [TypeVariableType "a",
-                  TypeVariableType "a",
+                  TypeVariableType "b", -- either type could be SQLNullable or a NakedAtom
                   nullAtomType BoolAtomType],
-      funcBody = FunctionBuiltInBody nullEq
+      funcBody = FunctionBuiltInBody sqlEquals
       },
     Function {
       funcName = "sql_and",
@@ -78,15 +78,7 @@ nullAtomFunctions = HS.fromList [
       funcBody = FunctionBuiltInBody sqlMax
       }
     ] <> sqlBooleanIntegerFunctions
-  where
-    sqlNull typ = ConstructedAtom "SQLNull" typ []
-    sqlNullable val typ = ConstructedAtom "SQLJust" (nullAtomType typ) [val]
-    nullEq :: AtomFunctionBodyType
-    nullEq (a@(ConstructedAtom _ typA argsA) : b@(ConstructedAtom _ _ argsB) : [])
-      | isNull a || isNull b = pure $ sqlNull typA
-      | otherwise = pure $ sqlNullable (BoolAtom $ argsA == argsB) BoolAtomType
-    nullEq [a,b] | atomTypeForAtom a == atomTypeForAtom b = pure (sqlNullable (BoolAtom (a == b)) BoolAtomType)
-    nullEq _other = Left AtomFunctionTypeMismatchError
+
 
 sqlBooleanIntegerFunctions :: HS.HashSet AtomFunction
 sqlBooleanIntegerFunctions = HS.fromList $ 
@@ -233,4 +225,23 @@ sqlNullableIntegerToMaybe (ConstructedAtom "SQLJust" aType [IntegerAtom i]) | aT
 sqlNullableIntegerToMaybe (ConstructedAtom "SQLNull" aType []) | aType == nullAtomType IntegerAtomType = Nothing
 sqlNullableIntegerToMaybe _ = Nothing
            
-           
+-- check that types check out- Int and SQLNullable Int are OK, Int and SQLNullable Text are not OK
+sqlEqualsTypes :: Atom -> Atom -> Bool
+sqlEqualsTypes a b = underlyingType a == underlyingType b
+  where
+    underlyingType (ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" typmap) []) | M.size typmap == 1 = snd (head (M.assocs typmap))
+    underlyingType (ConstructedAtom "SQLJust" (ConstructedAtomType "SQLNullable" typmap) _args) | M.size typmap == 1 = snd (head (M.assocs typmap))
+    underlyingType atom = atomTypeForAtom atom
+
+sqlEquals :: AtomFunctionBodyType
+sqlEquals [a,b] | sqlEqualsTypes a b =
+  case (maybeNullAtom a, maybeNullAtom b) of
+    (Nothing, _) -> pure $ nullAtom BoolAtomType Nothing
+    (_, Nothing) -> pure $ nullAtom BoolAtomType Nothing
+    (Just a', Just b') -> pure $ nullAtom BoolAtomType (Just (BoolAtom $ a' == b'))
+  where
+      maybeNullAtom (ConstructedAtom "SQLJust" (ConstructedAtomType "SQLNullable" _) [atom]) = Just atom
+      maybeNullAtom (ConstructedAtom "SQLNull" _ []) = Nothing
+      maybeNullAtom other = Just other
+sqlEquals _other = Left AtomFunctionTypeMismatchError      
+

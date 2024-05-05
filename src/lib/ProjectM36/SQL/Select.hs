@@ -134,7 +134,7 @@ data GroupByExpr = GroupByExpr ProjectionScalarExpr
   deriving Serialise via WineryVariant GroupByExpr
   deriving Hashable
 
-data HavingExpr = HavingExpr ScalarExpr
+data HavingExpr = HavingExpr ProjectionScalarExpr
   deriving (Show, Eq, Generic, NFData)
   deriving Serialise via WineryVariant HavingExpr
   deriving Hashable
