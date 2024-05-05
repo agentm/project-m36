@@ -687,7 +687,10 @@ convertProjection typeF selItems groupBys havingExpr = do
     task <- foldM (convertSelectItem typeF) emptyTask (zip [1::Int ..] selItems)
 --    traceShowM ("convertProjection task"::String, task)
     -- SQL supports only one grouping at a time, but multiple aggregations, so we create the group as attribute "_sql_aggregate" and the aggregations as fold projections on it
-    fGroup <- if not (null (nonAggregates groupInfo)) then
+    fGroup <- if not (null (nonAggregates groupInfo)) ||
+                 (null (nonAggregates groupInfo) && not (null (aggregates groupInfo)))
+                 -- special case: SELECT max(status) FROM city- handle aggregations without GROUP BY                 
+              then
                 pure $ Group (InvertedAttributeNames
                               (S.fromList (map fst (nonAggregates groupInfo)))) "_sql_aggregate"
               else
@@ -1384,7 +1387,7 @@ data GroupByItem = AggGroupByItem ProjectionScalarExpr GroupByExpr |
 data GroupByInfo =
   GroupByInfo { aggregates :: [ProjectionScalarExpr], -- ^ mentioned in group by clause and uses aggregation
                 nonAggregates :: [(AttributeName, GroupByExpr)], -- ^ mentioned in group by clause by not aggregations
-                havingRestriction :: Maybe ProjectionScalarExpr
+                havingRestriction :: Maybe ProjectionScalarExpr                
               }
   deriving (Show, Eq)
 

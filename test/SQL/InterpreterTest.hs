@@ -162,8 +162,8 @@ testSelect = TestCase $ do
          "(relation{city Text, status SQLNullable Integer}{tuple{city \"London\", status SQLJust 20}, tuple{city \"Paris\", status SQLJust 30}, tuple{city \"Athens\", status SQLJust 30}})"),
         -- aggregate without grouping
         ("SELECT max(status) as status FROM s",
-         "(((true:{status:=s{status}}):{max:=max(@status)}){max})",
-         "(relation{status SQLNullable Integer}{tuple{status SQLJust 30}})")
+         "(((s group ({all but } as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } )}){ status })",
+         "(relation{status SQLNullable Integer}{tuple{status SQLJust 30}})"),
         -- group by having
         -- limit
         -- case when

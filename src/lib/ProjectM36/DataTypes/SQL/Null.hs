@@ -205,7 +205,10 @@ sqlMax [RelationAtom relIn] =
   case oneTuple relIn of
     Nothing -> pure $ nullAtom IntegerAtomType Nothing -- SQL max of empty table is NULL
     Just oneTup ->
-      pure $ relFold (\tupIn acc -> nullMax acc (newVal tupIn)) (newVal oneTup) relIn
+      if atomTypeForAtom (newVal oneTup) /= IntegerAtomType then
+        Left AtomFunctionTypeMismatchError
+        else
+        pure $ relFold (\tupIn acc -> nullMax acc (newVal tupIn)) (newVal oneTup) relIn
  where
    newVal tupIn = tupleAtoms tupIn V.! 0
    nullMax acc nextVal =
