@@ -208,10 +208,11 @@ atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
+            ifThenAtomExprP <|>  
             boolAtomExprP <|> -- we do this before the constructed atom parser to consume True and False 
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
-            relationalAtomExprP <|>            
+            relationalAtomExprP <|>
             attributeAtomExprP <|>
             try nakedAtomExprP
 
@@ -235,6 +236,17 @@ atomP = stringAtomP <|>
         try doubleAtomP <|>
         integerAtomP <|>
         boolAtomP
+
+-- Haskell-like if-then-else expression for TutorialD
+ifThenAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+ifThenAtomExprP = do
+  reserved "if"
+  ifE <- atomExprP
+  reserved "then"
+  thenE <- atomExprP
+  reserved "else"
+  elseE <- atomExprP
+  pure (IfThenAtomExpr ifE thenE elseE)
 
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =

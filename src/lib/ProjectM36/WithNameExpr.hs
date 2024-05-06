@@ -89,6 +89,8 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
       FunctionAtomExpr fname (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
     RelationAtomExpr reExpr ->
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
+    IfThenAtomExpr ifE thenE elseE ->
+      IfThenAtomExpr (substituteWithNameMacrosAtomExpr macros ifE) (substituteWithNameMacrosAtomExpr macros thenE) (substituteWithNameMacrosAtomExpr macros elseE)
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
 

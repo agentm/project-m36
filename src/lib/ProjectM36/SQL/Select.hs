@@ -102,7 +102,7 @@ data ScalarExprBase n =
   | PostfixOperator (ScalarExprBase n) OperatorName
   | BetweenOperator (ScalarExprBase n) (ScalarExprBase n) (ScalarExprBase n)
   | FunctionApplication FuncName [ScalarExprBase n]
-  | CaseExpr { caseWhens :: [([ScalarExprBase n],ScalarExprBase n)],
+  | CaseExpr { caseWhens :: [(ScalarExprBase n,ScalarExprBase n)],
                caseElse :: Maybe (ScalarExprBase n) }
   | QuantifiedComparison { qcExpr :: ScalarExprBase n,
                            qcOperator :: ComparisonOperator,

@@ -44,6 +44,7 @@ instance Pretty AtomExpr where
   pretty (NakedAtomExpr atom)         = pretty atom
   pretty (FunctionAtomExpr atomFuncName' atomExprs _) = pretty atomFuncName' <> prettyAtomExprsAsArguments atomExprs
   pretty (RelationAtomExpr relExpr) = pretty relExpr
+  pretty (IfThenAtomExpr ifE thenE elseE) = "if" <+> pretty ifE <+> "then" <+> pretty thenE <+> "else" <+> pretty elseE
   pretty (ConstructedAtomExpr dName [] _) = pretty dName
   pretty (ConstructedAtomExpr dName atomExprs _) = pretty dName <+> hsep (map prettyAtomExpr atomExprs)
                                            

@@ -168,11 +168,15 @@ testSelect = TestCase $ do
         ("select city,max(status) as status from s group by city having max(status)=30",
          "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } ), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`){ status } ), 30 ) )}){ city, status }) where `_sql_having`=True)",
          "(relation{city Text,status SQLNullable Integer}{tuple{city \"Athens\",status SQLJust 30},tuple{city \"Paris\",status SQLJust 30}})"),
-        -- limit
         -- case when
+        ("SELECT city,case when city='London' then true else false end as islondon from s",
+         "((s:{islondon:=if sql_coalesce_bool( sql_equals( @city, \"London\" ) ) then True else False}){ city, islondon })",
+         "(relation{tuple{city \"London\", islondon True},tuple{city \"Paris\", islondon False},tuple{city \"Athens\", islondon False}})"
+         ),
         -- union
         -- intersect
         -- except
+        -- limit        
         ("SELECT * FROM s LIMIT 10",
          "(s) limit 10",
          "(s) limit 10"         
@@ -231,9 +235,6 @@ testSelect = TestCase $ do
         ("SELECT NULL AND TRUE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
-          -- CASE WHEN
---        ("SELECT CASE WHEN true THEN 'test' ELSE 'fail'",
-         
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just sqlDBContext,

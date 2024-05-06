@@ -31,6 +31,7 @@ import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Trans.Class (lift)
+import Data.Foldable (foldl')
 --import qualified Data.HashSet as HS
 
 import Debug.Trace
@@ -854,6 +855,7 @@ convertScalarExpr typeF expr = do
         pure (func fargs')
       other -> throwSQLE $ NotSupportedError ("scalar expr: " <> T.pack (show other))
 
+-- SQL conflates projection and extension so we use the SQL context name here
 convertProjectionScalarExpr :: TypeForRelExprF -> ProjectionScalarExpr -> ConvertM AtomExpr
 convertProjectionScalarExpr typeF expr = do
     let naked = pure . NakedAtomExpr
@@ -883,6 +885,20 @@ convertProjectionScalarExpr typeF expr = do
         func <- lookupOperator True op
         arg <- convertProjectionScalarExpr typeF sexpr
         pure (func [arg])
+      CaseExpr conditionals mElse -> do
+        let coalesceBoolF expr' = FunctionAtomExpr "sql_coalesce_bool" [expr'] ()
+        conditionals' <- mapM (\(ifExpr, thenExpr) -> do
+                                  ifE <- coalesceBoolF <$> convertProjectionScalarExpr typeF ifExpr
+                                  thenE <- convertProjectionScalarExpr typeF thenExpr
+                                  
+                                  pure (ifE, thenE)
+                              ) conditionals
+
+        elseExpr <- case mElse of
+                      Nothing -> pure $ NakedAtomExpr $ nullAtom (TypeVariableType "a") Nothing --will the engine resolve this type variable?
+                      Just expr' -> convertProjectionScalarExpr typeF expr'
+        let ifThenFolder acc (ifE, thenE) = IfThenAtomExpr ifE thenE acc
+        pure $ foldl' ifThenFolder elseExpr conditionals'
       other -> throwSQLE $ NotSupportedError ("projection scalar expr: " <> T.pack (show other))
 
 convertOrderByClause :: TypeForRelExprF -> [SortExpr] -> ConvertM [AttributeOrderExpr]
@@ -1151,8 +1167,8 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       PostfixOperator e1 _ -> rec' e1
       BetweenOperator e1 _ e2 -> rec' e1 || rec' e2
       FunctionApplication _ e1 -> or (rec' <$> e1)
-      CaseExpr cases else' -> or (map (\(whens, then') ->
-                                          or (map rec' whens) || rec' then' || maybe False rec' else') cases)
+      CaseExpr cases else' -> or (map (\(when', then') ->
+                                          rec' when' || rec' then' || maybe False rec' else') cases)
       QuantifiedComparison{} -> True
       InExpr _ sexpr'' _ -> rec' sexpr''
       BooleanOperatorExpr e1 _ e2 -> rec' e1 || rec' e2
@@ -1208,6 +1224,7 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
         x@NakedAtomExpr{} -> x
         FunctionAtomExpr fname args () -> FunctionAtomExpr fname (pushAtom <$> args) ()
         RelationAtomExpr e -> RelationAtomExpr (push e)
+        IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (pushAtom ifE) (pushAtom thenE) (pushAtom elseE)
         ConstructedAtomExpr dConsName args () -> ConstructedAtomExpr dConsName (pushAtom <$> args) ()
         
 mkTableContextFromDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError TableContext
@@ -1423,7 +1440,7 @@ containsAggregate expr =
     PostfixOperator e1 op -> containsAggregate e1 || opAgg op
     BetweenOperator e1 e2 e3 -> containsAggregate e1 || containsAggregate e2 || containsAggregate e3
     FunctionApplication fname args -> isAggregateFunction fname || or (map containsAggregate args)
-    c@CaseExpr{} -> or (cElse : concatMap (\(whens, res) -> containsAggregate res : map containsAggregate whens) (caseWhens c))
+    c@CaseExpr{} -> or (cElse : concatMap (\(when', res) -> [containsAggregate res, containsAggregate when']) (caseWhens c))
       where
         cElse = case caseElse c of
           Just e -> containsAggregate e
@@ -1453,7 +1470,7 @@ containsProjScalarExpr needle haystack =
       PostfixOperator e1 _op -> con e1
       BetweenOperator e1 e2 e3 -> con e1 || con e2 || con e3
       FunctionApplication _fname args -> or (map con args)
-      c@CaseExpr{} -> or (cElse : concatMap (\(whens, res) -> con res : map con whens) (caseWhens c))
+      c@CaseExpr{} -> or (cElse : concatMap (\(when', res) -> [con res, con when']) (caseWhens c))
         where
           cElse = case caseElse c of
             Just e -> con e
@@ -1480,7 +1497,7 @@ replaceProjScalarExpr r orig =
     PostfixOperator e1 op -> r (PostfixOperator (recr e1) op)
     BetweenOperator e1 e2 e3 -> r (BetweenOperator (recr e1) (recr e2) (recr e3))
     FunctionApplication fname args -> r (FunctionApplication fname (map recr args))
-    c@CaseExpr{} -> r (CaseExpr { caseWhens = map (\(conds, res) -> (map recr conds, recr res)) (caseWhens c),
+    c@CaseExpr{} -> r (CaseExpr { caseWhens = map (\(cond, res) -> (recr cond, recr res)) (caseWhens c),
                                   caseElse = recr <$> caseElse c
                                 })
     c@QuantifiedComparison{} -> r (c{ qcExpr = recr (qcExpr c) })
@@ -1523,4 +1540,5 @@ processSQLAggregateFunctions expr =
             [RelationAtomExpr (Project (AttributeNames (S.singleton attrName)) (RelationValuedAttribute "_sql_aggregate"))] ()
     FunctionAtomExpr fname args () -> FunctionAtomExpr fname (map processSQLAggregateFunctions args) ()
     RelationAtomExpr{} -> expr --not supported in SQL
+    IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (processSQLAggregateFunctions ifE) (processSQLAggregateFunctions thenE) (processSQLAggregateFunctions elseE)
     ConstructedAtomExpr{} -> expr --not supported in SQL

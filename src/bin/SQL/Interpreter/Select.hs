@@ -266,7 +266,7 @@ stringLiteralP = StringLiteral <$> stringP
                                rest <- stringEndP
                                pure $ T.concat [capture, "'",rest]), --quoted quote
               pure capture
-             ]
+             ] <* spaceConsumer
 
 nullLiteralP :: Parser (ScalarExprBase a)
 nullLiteralP = 
@@ -277,7 +277,7 @@ scalarTermP = choice [
   existsP,  
   simpleLiteralP,
     --,subQueryExpr
---    caseExpr,
+    caseExprP,
     --,cast
 --    subquery,
 --    pseudoArgFunc, -- includes NOW, NOW(), CURRENT_USER, TRIM(...), etc.
@@ -286,6 +286,24 @@ scalarTermP = choice [
     ]
   <?> "scalar expression"
 
+caseExprP :: QualifiedNameP a => Parser (ScalarExprBase a)
+caseExprP = do
+  let whenThenClause = do
+        reserved "when"
+        cond <- scalarExprP
+        reserved "then"
+        result <- scalarExprP
+        pure (cond, result)
+      elseClause = do
+        reserved "else"
+        scalarExprP
+  reserved "case"
+  conditionals <- some whenThenClause
+  mElse <- optional elseClause
+  reserved "end"
+  pure (CaseExpr { caseWhens = conditionals,
+                   caseElse = mElse })
+       
 scalarFunctionP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarFunctionP =
   try $

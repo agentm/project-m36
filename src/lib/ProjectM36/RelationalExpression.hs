@@ -891,6 +891,12 @@ evalGraphRefAtomExpr tupIn (RelationAtomExpr relExpr) = do
   let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn env
   relAtom <- lift $ except $ runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr relExpr)
   pure (RelationAtom relAtom)
+evalGraphRefAtomExpr tupIn (IfThenAtomExpr ifExpr thenExpr elseExpr) = do
+  conditional <- evalGraphRefAtomExpr tupIn ifExpr
+  case conditional of
+    BoolAtom True -> evalGraphRefAtomExpr tupIn thenExpr
+    BoolAtom False -> evalGraphRefAtomExpr tupIn elseExpr
+    otherAtom -> traceShow ("evalAtom"::String, otherAtom) $ throwError (IfThenExprExpectedBooleanError (atomTypeForAtom otherAtom))
 evalGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _)
   | tOrF == "True" = pure (BoolAtom True)
   | tOrF == "False" = pure (BoolAtom False)
@@ -943,6 +949,15 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
 typeForGraphRefAtomExpr attrs (RelationAtomExpr relExpr) = do
   relType <- R.local (mergeAttributesIntoGraphRefRelationalExprEnv attrs) (typeForGraphRefRelationalExpr relExpr)  
   pure (RelationAtomType (attributes relType))
+typeForGraphRefAtomExpr attrs (IfThenAtomExpr ifExpr thenExpr elseExpr) = do
+  -- ifExpr must be BoolAtomType
+  ifType <- typeForGraphRefAtomExpr attrs ifExpr
+  when (ifType /= BoolAtomType) $ throwError (IfThenExprExpectedBooleanError ifType)
+  -- thenExpr and elseExpr must return the same type
+  thenType <- typeForGraphRefAtomExpr attrs thenExpr
+  elseType <- typeForGraphRefAtomExpr attrs elseExpr
+  when (thenType /= elseType) $ throwError (AtomTypeMismatchError thenType elseType)
+  pure thenType
 -- grab the type of the data constructor, then validate that the args match the expected types
 typeForGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _) | tOrF `elem` ["True", "False"] =
                                                             pure BoolAtomType
@@ -990,6 +1005,11 @@ verifyGraphRefAtomExprTypes relIn (RelationAtomExpr relationExpr) expectedType =
     let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn)
     relType <- R.local mergedAttrsEnv (typeForGraphRefRelationalExpr relationExpr)
     lift $ except $ atomTypeVerify expectedType (RelationAtomType (attributes relType))
+verifyGraphRefAtomExprTypes relIn (IfThenAtomExpr _ifExpr thenExpr elseExpr) expectedType = do
+  thenType <- typeForGraphRefAtomExpr (attributes relIn) thenExpr
+  elseType <- typeForGraphRefAtomExpr (attributes relIn) elseExpr
+  when (thenType /= elseType) $ throwError (AtomTypeMismatchError thenType elseType)  
+  lift $ except $ atomTypeVerify expectedType thenType
 verifyGraphRefAtomExprTypes rel cons@ConstructedAtomExpr{} expectedType = do
   cType <- typeForGraphRefAtomExpr (attributes rel) cons
   lift $ except $ atomTypeVerify expectedType cType
@@ -1441,6 +1461,7 @@ instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
   resolve (FunctionAtomExpr nam atomExprs marker) =
     FunctionAtomExpr nam <$> mapM resolve atomExprs <*> pure marker
   resolve (RelationAtomExpr expr) = RelationAtomExpr <$> resolve expr
+  resolve (IfThenAtomExpr ifExpr thenExpr elseExpr) = IfThenAtomExpr <$> resolve ifExpr <*> resolve thenExpr <*> resolve elseExpr
   resolve (ConstructedAtomExpr dConsName atomExprs marker) =
     ConstructedAtomExpr dConsName <$> mapM resolve atomExprs <*> pure marker
 

@@ -94,7 +94,8 @@ main = do
       testDDLHash,
       testShowDDL,
       testRegisteredQueries,
-      testCrossJoin
+      testCrossJoin,
+      testIfThenExpr
       ]
 
 simpleRelTests :: Test
@@ -869,3 +870,9 @@ testCrossJoin = TestCase $ do
   assertBool "cross join 2 error" (isRight eActual')  
   assertEqual "cross join 2" eExpected' eActual'
   
+testIfThenExpr :: Test
+testIfThenExpr = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "x:=(s:{islondon:=if eq(@city,\"London\") then True else False}){city,islondon} = relation{tuple{city \"London\", islondon True},tuple{city \"Paris\",islondon False},tuple{city \"Athens\", islondon False}}"
+  eEqRel <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  assertEqual "if-then" (Right relationTrue) eEqRel

@@ -116,6 +116,8 @@ processAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
   FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askMarker
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
+processAtomExpr (IfThenAtomExpr ifE thenE elseE) =
+  IfThenAtomExpr <$> processAtomExpr ifE <*> processAtomExpr thenE <*> processAtomExpr elseE
 processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askMarker
 
 processTupleExprs :: TupleExprs -> ProcessExprM GraphRefTupleExprs

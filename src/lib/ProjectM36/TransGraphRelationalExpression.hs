@@ -127,6 +127,8 @@ processTransGraphAtomExpr (FunctionAtomExpr funcName' args tLookup) =
   FunctionAtomExpr funcName' <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
 processTransGraphAtomExpr (RelationAtomExpr expr) =
   RelationAtomExpr <$> processTransGraphRelationalExpr expr
+processTransGraphAtomExpr (IfThenAtomExpr ifE thenE elseE) =
+  IfThenAtomExpr <$> processTransGraphAtomExpr ifE <*> processTransGraphAtomExpr thenE <*> processTransGraphAtomExpr elseE
 processTransGraphAtomExpr (ConstructedAtomExpr dConsName args tLookup) =
   ConstructedAtomExpr dConsName <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
 evalTransGraphRestrictionPredicateExpr :: TransGraphRestrictionPredicateExpr -> TransGraphEvalMonad GraphRefRestrictionPredicateExpr

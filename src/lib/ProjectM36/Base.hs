@@ -511,6 +511,7 @@ data AtomExprBase a = AttributeAtomExpr !AttributeName |
                       NakedAtomExpr !Atom |
                       FunctionAtomExpr FunctionName [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
+                      IfThenAtomExpr (AtomExprBase a) (AtomExprBase a) (AtomExprBase a) | -- if, then, else
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
                     deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
                        
