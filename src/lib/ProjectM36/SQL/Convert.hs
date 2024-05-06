@@ -835,8 +835,10 @@ convertScalarExpr typeF expr = do
       IntegerLiteral i -> naked (IntegerAtom i)
       DoubleLiteral d -> naked (DoubleAtom d)
       StringLiteral s -> naked (TextAtom s)
-      BooleanLiteral True -> pure $ ConstructedAtomExpr "True" [] ()
-      BooleanLiteral False -> pure $ ConstructedAtomExpr "False" [] ()
+      BooleanLiteral True -> naked (BoolAtom True)
+      -- pure $ ConstructedAtomExpr "True" [] ()
+      BooleanLiteral False -> naked (BoolAtom False)
+      --pure $ ConstructedAtomExpr "False" [] ()
       -- we don't have enough type context with a cast, so we default to text
       NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
       Identifier i -> do
@@ -859,8 +861,12 @@ convertProjectionScalarExpr typeF expr = do
       IntegerLiteral i -> naked (IntegerAtom i)
       DoubleLiteral d -> naked (DoubleAtom d)
       StringLiteral s -> naked (TextAtom s)
-      BooleanLiteral True -> pure $ ConstructedAtomExpr "True" [] ()
-      BooleanLiteral False -> pure $ ConstructedAtomExpr "False" [] ()
+      BooleanLiteral True ->
+        naked (BoolAtom True)
+        --pure $ ConstructedAtomExpr "True" [] ()
+      BooleanLiteral False ->
+        naked (BoolAtom False)
+        --pure $ ConstructedAtomExpr "False" [] ()
       NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
       Identifier i ->
         AttributeAtomExpr <$> convertColumnProjectionName i
@@ -1052,7 +1058,8 @@ joinTableRef typeF rvA (_c,tref) = do
                     new_name
                 joinName = firstAvailableName (1::Int) allAttrs
                 extender = AttributeExtendTupleExpr joinName (FunctionAtomExpr "sql_coalesce_bool" [joinRe] ())
-                joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
+                --joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
+                joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (NakedAtomExpr (BoolAtom True)))
                 projectAwayJoinMatch = Project (InvertedAttributeNames (S.fromList [joinName]))
             pure (projectAwayJoinMatch (joinMatchRestriction (Extend extender (Join exprB exprA))))
           other -> throwSQLE $ NotSupportedError ("join: " <> T.pack (show other))

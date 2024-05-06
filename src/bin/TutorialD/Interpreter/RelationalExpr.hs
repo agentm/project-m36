@@ -208,6 +208,7 @@ atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
 consumeAtomExprP consume = try functionAtomExprP <|>
+            boolAtomExprP <|> -- we do this before the constructed atom parser to consume True and False 
             try (parens (constructedAtomExprP True)) <|>
             constructedAtomExprP consume <|>
             relationalAtomExprP <|>            
@@ -255,14 +256,18 @@ doubleAtomP = DoubleAtom <$> float
 integerAtomP :: Parser Atom
 integerAtomP = IntegerAtom <$> integer
 
+boolP :: Parser Bool
+boolP =
+  (chunk "True" >> spaceConsumer >> pure True) <|>
+  (chunk "False" >> spaceConsumer >> pure False)
+  
 boolAtomP :: Parser Atom
-boolAtomP = do
-  v <- identifier
-  if v == "True" || v == "False" then
-    pure $ BoolAtom (v == "t")    
-    else
-    fail "invalid boolAtom"
-    
+boolAtomP = 
+  BoolAtom <$> boolP
+
+boolAtomExprP :: Parser (AtomExprBase a)
+boolAtomExprP =
+  NakedAtomExpr <$> boolAtomP
 
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP

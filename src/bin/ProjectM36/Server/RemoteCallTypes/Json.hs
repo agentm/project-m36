@@ -224,4 +224,71 @@ instance FromJSON AtomFunctionError
 instance ToJSON WithNameExpr
 instance FromJSON WithNameExpr
 
+instance ToJSON (ScalarExprBase ColumnProjectionName)
+instance FromJSON (ScalarExprBase ColumnProjectionName)
 
+instance ToJSON OperatorName
+instance FromJSON OperatorName
+
+instance ToJSON BoolOp
+instance FromJSON BoolOp
+
+instance ToJSON InPredicateValue
+instance FromJSON InPredicateValue
+
+instance ToJSON Select
+instance FromJSON Select
+
+instance ToJSON InFlag
+instance FromJSON InFlag
+
+instance ToJSON QuantifiedComparisonPredicate
+instance FromJSON QuantifiedComparisonPredicate
+
+instance ToJSON ComparisonOperator
+instance FromJSON ComparisonOperator
+
+instance ToJSON (ScalarExprBase ColumnName)
+instance FromJSON (ScalarExprBase ColumnName)
+
+instance ToJSON WithClause
+instance FromJSON WithClause
+
+instance ToJSON Distinctness
+instance FromJSON Distinctness
+
+instance ToJSON TableExpr
+instance FromJSON TableExpr
+
+instance ToJSON WithExpr
+instance FromJSON WithExpr
+
+instance ToJSON SortExpr
+instance FromJSON SortExpr
+
+instance ToJSON HavingExpr
+instance FromJSON HavingExpr
+
+instance ToJSON GroupByExpr
+instance FromJSON GroupByExpr
+
+instance ToJSON RestrictionExpr
+instance FromJSON RestrictionExpr
+
+instance ToJSON TableRef
+instance FromJSON TableRef
+
+instance ToJSON WithExprAlias
+instance FromJSON WithExprAlias
+
+instance ToJSON Direction
+instance FromJSON Direction
+
+instance ToJSON JoinCondition
+instance FromJSON JoinCondition
+
+instance ToJSON NullsOrder
+instance FromJSON NullsOrder
+
+instance ToJSON JoinOnCondition
+instance FromJSON JoinOnCondition

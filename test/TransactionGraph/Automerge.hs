@@ -1,7 +1,5 @@
 import Test.HUnit
 import ProjectM36.Client
-import ProjectM36.Interpreter
-import ProjectM36.DatabaseContext
 import ProjectM36.Relation
 import qualified Data.Set as S
 import TutorialD.Interpreter.TestBase

@@ -2,7 +2,6 @@ module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
 import ProjectM36.Interpreter
 import TutorialD.Interpreter
-import TutorialD.Interpreter.Base
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
 import Test.HUnit

@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.Interpreter
 import Text.Megaparsec
 import TutorialD.Interpreter.Base
+import Control.Monad
 
 class RelationalMarkerExpr a where
   parseMarkerP :: Parser a
@@ -15,7 +16,10 @@ typeConstructorNameP :: Parser TypeConstructorName
 typeConstructorNameP = capitalizedIdentifier
 
 dataConstructorNameP :: Parser DataConstructorName
-dataConstructorNameP = capitalizedIdentifier
+dataConstructorNameP = try $ do
+  ident <- capitalizedIdentifier
+  when (ident `elem` ["True", "False"]) $ failure Nothing mempty --don't parse True or False as ConstructedAtoms (use NakedAtoms instead)
+  pure ident
 
 attributeNameP :: Parser AttributeName
 attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier

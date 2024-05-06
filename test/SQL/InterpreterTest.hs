@@ -165,6 +165,9 @@ testSelect = TestCase $ do
          "(((s group ({all but } as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } )}){ status })",
          "(relation{status SQLNullable Integer}{tuple{status SQLJust 30}})"),
         -- group by having
+        ("select city,max(status) as status from s group by city having max(status)=30",
+         "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } ), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`){ status } ), 30 ) )}){ city, status }) where `_sql_having`=True)",
+         "(relation{city Text,status SQLNullable Integer}{tuple{city \"Athens\",status SQLJust 30},tuple{city \"Paris\",status SQLJust 30}})"),
         -- limit
         -- case when
         -- union
