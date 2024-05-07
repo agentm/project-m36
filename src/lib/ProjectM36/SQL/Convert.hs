@@ -122,12 +122,13 @@ prettyColumnAliasRemapper :: ColumnAliasRemapper -> String
 prettyColumnAliasRemapper cAMap = intercalate ", " $ map (\(realAttr, (attrAlias, colNameSet)) -> "real->" <> T.unpack realAttr <> ":alias->" <> T.unpack attrAlias <> ":alts->{" <> show colNameSet <> "}") (M.toList cAMap)
 
 
-  
+{-  
 traceStateM :: ConvertM ()
 traceStateM = do
   s <- get
   traceM (prettyTableContext s)
-  
+-}
+
 -- key: alias value: real column attribute name
 type ColumnAliasMap = M.Map ColumnAlias AttributeName
 
@@ -175,10 +176,6 @@ withSubSelect m = do
             
   diff <- foldM tableDiffFolder mempty (M.toList postSub)
 
-{-  let diff = M.differenceWith tctxDiff postSub orig
-      tctxDiff (rexprA, attrsA, colAliasMapA) (_, _, colAliasMapB) =
-        Just (rexprA, attrsA, M.difference colAliasMapB colAliasMapA)-}
---  traceShowM ("subselect diff"::String, diff)
   pure (ret, diff)
 
 -- if we find a column naming conflict, generate a non-conflicting name for insertion into the column alias map
@@ -217,22 +214,6 @@ noteColumnMention mTblAlias colName mColAlias = do
 --  traceShowM ("noteColumnMention"::String, mTblAlias, colName)
 --  traceStateM
   tc@(TableContext tcontext) <- get
-{-  tblAlias' <- case mTblAlias of
-                        Just tblAlias -> do
-                          void $ lookupTable tblAlias
-                          pure tblAlias
-                        Nothing ->do
-                          -- scan column names for match- if there are multiple matches, return a column ambiguity error
-                          ret <- findOneColumn colName
---                          traceShowM ("insertColumn2", colName)
-                          pure ret-}
-  -- insert into the column alias map
-{-  let colAttr = case colName of
-                  ColumnName [c] -> c
-                  ColumnName [t,c] -> 
-      origAttrName = case colName of
-                       ColumnName [c] -> c
-                       ColumnName [_,c] -> c-}
   -- check if we already have a mention mapping
   let lookupWithTableAlias (TableAlias tAlias) colAttr = do
         when (isJust mTblAlias && Just (TableAlias tAlias) /= mTblAlias) (throwSQLE (TableAliasMismatchError (TableAlias tAlias)))
@@ -298,75 +279,6 @@ noteColumnMention mTblAlias colName mColAlias = do
               throwSQLE (AmbiguousColumnResolutionError colName)
     other@ColumnName{} -> throwSQLE (UnexpectedColumnNameError other)   
 
-
-------      
-{-  case findNotedColumn' colName tc of
-    Right [] -> do
-      -- no match found, so we can insert this as a new column alias
-      let colAlias = case mColAlias of
-                       Just al -> al
-                       Nothing -> --ColumnAlias (unTableAlias tblAlias' <> "." <> origAttrName)
-                         ColumnAlias origAttrName 
-      insertColumnAlias tblAlias' origAttrName colAlias colName
-      pure colAlias
-    Right [match] ->
-      -- one match found- error
-      throwSQLE (AmbiguousColumnResolutionError colName)
-    Right (match:_) ->
-      -- multiple matches found- error
-      throwSQLE (AmbiguousColumnResolutionError colName)
-    Left (ColumnResolutionError{}) ->
-      throwSQLE err-}
-{-  case M.lookup tblAlias' tcontext of
-    Nothing -> throwSQLE (MissingTableReferenceError tblAlias')
-    Just (_,_,colAliasRemapper) -> do
-      case attributeNameForAttributeAlias colAttr colAliasRemapper of
-        Right _ -> pure (ColumnAlias colAttr)
-        Left _ -> do -- no match previously recorded, so add it-}
-{-  when (newAlias `elem` allColumnAliases tcontext) $ do
-    traceShowM ("gonk error",
-                "colName", colName,
-                "mTblAlias", mTblAlias,
-                "mColAlias", mColAlias,
-p                tmap)
-    throwSQLE (DuplicateColumnAliasError newAlias)-} --duplicate column aliases are OK
-  --verify that the alias is not duplicated
-{-          let colAlias = case mColAlias of
-                           Just al -> al
-                           Nothing -> --ColumnAlias (unTableAlias tblAlias' <> "." <> origAttrName)
-                             ColumnAlias origAttrName 
-          insertColumnAlias tblAlias' origAttrName colAlias colName
-          pure colAlias
--}
-{-
--- | Add a column alias for a column which has already been inserted into the TableContext.
-addColumnAlias' :: TableContext -> TableAlias -> ColumnAlias -> AttributeName -> Either SQLError TableContext
-addColumnAlias' (TableContext tctx) tAlias colAlias@(ColumnAlias colText) attr = do
-  case M.lookup tAlias tctx of
-    Nothing -> Left (ColumnAliasResolutionError colAlias)
-    Just (rvexpr, attrs, colMap) ->
-      --check that the attribute is present in attributes, then plop it into the colMap and return the updated TableContext
-      if attr `A.isAttributeNameContained` attrs then do
-        insertColumnAlias 
-        let newColMap = M.insert colAlias attr colMap
-            newTContext = M.insert tAlias (rvexpr, attrs, newColMap) tctx
-        pure (TableContext newTContext)
-      else do
-        traceShow "addColAlias'" $ Left (ColumnResolutionError (ColumnName [attr]))
-
-addColumnAlias :: TableAlias -> ColumnAlias -> AttributeName -> ConvertM ()
-addColumnAlias tAlias colAlias attrName = do
-  tctx <- get
-  case addColumnAlias' tctx tAlias colAlias attrName of
-    Left err -> throwSQLE err
-    Right tctx' -> put tctx'
-
-allColumnAliases :: TableContext -> [ColumnAlias]
-allColumnAliases (TableContext tmap) =
-  foldl' folder [] tmap
-  where
-    folder acc (_,_,colmap) = M.keys colmap <> acc
--}  
 lookupTable :: TableAlias -> ConvertM (RelationalExpr, Attributes, ColumnAliasRemapper)
 lookupTable ta = do
   (TableContext map') <- get
@@ -374,17 +286,6 @@ lookupTable ta = do
     Nothing -> throwSQLE (MissingTableReferenceError ta)
     Just res -> pure res
 
-{-
--- | Merge table contexts (used in subselects)
-mergeContext :: TableContext -> ConvertM ColumnAliasMap
-mergeContext (TableContext ctxB) = do
-  (TableContext tMapA) <- get
-  foldM folder mempty (M.toList tMapA)
-   where
-    folder acc (tAlias, (re,attrs, _)) = do
-      colMap <- insertTable tAlias re attrs
-      pure (M.union acc colMap)
--}
 -- | Find a column name or column alias in the underlying table context. Returns key into table context.
 findColumn :: ColumnName -> ConvertM [TableAlias]
 findColumn targetCol = do
@@ -493,18 +394,7 @@ attributeNameForColumnName colName = do
           ColumnName [_, col] | col `A.isAttributeNameContained` rvattrs ->
                                 -- the column has not been aliased, so we presume it can be use the column name directly
                                 pure col
-          _ -> throwSQLE $ traceShow ("attrnameforcolname"::String, rvattrs, colName) $ ColumnResolutionError colName
-{-
-attributeNameForColumnName :: ColumnName -> ConvertM AttributeName
-attributeNameForColumnName colName = do
-  s <- get
-  case attributeNameForColumnName' colName s of
-    Left err -> throwSQLE err
-    Right al -> do
-      traceStateM
-      traceShowM ("attributeNameForColumnName"::String, colName, "->"::String, al)
-      pure al
-  -}
+          _ -> throwSQLE $ ColumnResolutionError colName
 
 wrapTypeF :: TypeForRelExprF -> RelationalExpr -> ConvertM Relation
 wrapTypeF typeF relExpr =
@@ -512,32 +402,6 @@ wrapTypeF typeF relExpr =
     Left relError -> throwSQLE (SQLRelationalError relError)
     Right v -> pure v    
 
-
--- | Return the table alias for the column name iff the attribute is unique. Used for attribute resolution.
-{-
-tableAliasForColumnName :: TypeForRelExprF -> ColumnName -> TableContext -> Either SQLError TableAlias
--- the table alias is included
-tableAliasForColumnName typeF cn@(ColumnName [tAlias, _]) (TableContext tMap) = do
-  if M.member (TableAlias tAlias) tMap then
-    pure (TableAlias tAlias)
-    else
-    Left (ColumnResolutionError cn)
-tableAliasForColumnName typeF qn@(ColumnName [colName]) (TableContext tMap) = do
-  --look up the column name in all possible tables
-  res <- foldM folder Nothing (M.toList tMap)
-  case res of
-    Just res -> pure res
-    Nothing -> Left (ColumnResolutionError qn)
-  where
-    folder :: Maybe ColumnName -> (TableAlias, RelationalExpr) -> _
-    folder Just{} _ = Left (AmbiguousColumnResolutionError qn)
-    folder Nothing (TableAlias tableAlias, (rvExpr,_)) = do
-      tRel <- wrapTypeF typeF rvExpr -- we could cache this in the table alias map ADT
-      --traceShowM ("findColName", rvExpr, tRel)
-      if colName `S.member` attributeNameSet (attributes tRel) then
-        pure (Just (ColumnName [tableAlias, colName]))
-        else pure Nothing
--}
 baseDFExpr :: DataFrameExpr
 baseDFExpr = DataFrameExpr { convertExpr = MakeRelationFromExprs (Just []) (TupleExprs () [TupleExpr mempty]), --relationTrue if the table expression is empty "SELECT 1"
                              orderExprs = [],
@@ -695,12 +559,6 @@ convertSelectItem typeF acc (c,selItem) =
    colinfo (ColumnProjectionName [ProjectionName name]) = do
      findOneColumn (ColumnName [name])
    colinfo colProjName = throwSQLE $ UnexpectedColumnProjectionName colProjName
-{-   processGroupBy e@(sexpr, alias) = (replaceProjScalarExpr groupByReplacer sexpr, alias)
-   groupByReplacer expr =
-     case expr of
-       FunctionApplication "sql_max" [targetColumn] -> FunctionApplication "sql_max" [
-       _ -> expr-}
-
 
 convertProjection :: TypeForRelExprF -> [SelectItem] -> [GroupByExpr] -> Maybe HavingExpr -> ConvertM (RelationalExpr -> RelationalExpr)
 convertProjection typeF selItems groupBys havingExpr = do
@@ -752,6 +610,7 @@ convertProjection typeF selItems groupBys havingExpr = do
 --    let fAggregates 
     -- apply rename
     renamesSet <- foldM (\acc (qProjName, (ColumnAlias newName)) -> do
+                          traceShowM ("renamesSet"::String, qProjName, newName)
                           oldName <- convertColumnProjectionName qProjName
                           pure $ S.insert (oldName, newName) acc) S.empty (taskRenames task)
     let fRenames = if S.null renamesSet then id else Rename renamesSet
@@ -1126,6 +985,8 @@ lookupFunc qname =
     other -> throwSQLE $ NotSupportedError ("function name: " <> T.pack (show other))
   where
     f n args = FunctionAtomExpr n args ()
+    aggMapper (FuncName [nam], nam') = (nam, f nam')
+    aggMapper (FuncName other,_) = error ("unexpected multi-component SQL aggregate function: " <> show other)
     sqlFuncs = [(">",f "sql_gt"),
                  ("<",f "sql_lt"),
                  (">=",f "sql_gte"),
@@ -1136,9 +997,8 @@ lookupFunc qname =
                  ("+", f "sql_add"),
                  ("and", f "sql_and"),
                  ("or", f "sql_or"),
-                 ("abs", f "sql_abs"),
-                 ("max", f "sql_max")
-               ]
+                 ("abs", f "sql_abs")
+               ] <> map aggMapper aggregateFunctions
 
 
 -- | Used in join condition detection necessary for renames to enable natural joins.
@@ -1307,7 +1167,7 @@ convertInsert typeF ins = do
                     else
                       Rename (S.fromList (filter rendundantRename (zip rvExprAttrNames insAttrNames))) (convertExpr dfExpr)
           rendundantRename (a,b) = a /= b
-      traceShowM ("ins"::String, insExpr)
+      --traceShowM ("ins"::String, insExpr)
       pure $ B.Insert rvTarget insExpr
 
 convertDelete :: TypeForRelExprF -> Delete.Delete -> ConvertM DatabaseContextExpr
@@ -1399,7 +1259,9 @@ convertGroupBy _typeF groupBys mHavingExpr sqlProjection = do
           AggGroupByItem pe _gb -> 
             pure $ info { aggregates = pe : aggregates info }
           NonAggGroupByItem (Identifier colName) gb -> do
+            traceShowM ("convertGroupBy"::String, colName)
             aname <- convertColumnProjectionName colName
+            traceShowM ("convertGroupBy2"::String, "done")
             pure $ info { nonAggregates = (aname, gb) : nonAggregates info }
           NonAggGroupByItem pe _ -> do
             throwSQLE (UnsupportedGroupByProjectionError pe)
@@ -1445,7 +1307,8 @@ emptyGroupByInfo = GroupByInfo { aggregates = [], nonAggregates = [], havingRest
 aggregateFunctions :: [(FuncName, FunctionName)]
 aggregateFunctions = [(FuncName ["max"], "sql_max"),
                        (FuncName ["min"], "sql_min"),
-                       (FuncName ["sum"], "sql_sum")]
+                       (FuncName ["sum"], "sql_sum"),
+                       (FuncName ["count"], "sql_count")]
 
 isAggregateFunction :: FuncName -> Bool
 isAggregateFunction fname = fname `elem` map fst aggregateFunctions

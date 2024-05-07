@@ -5,7 +5,6 @@ import ProjectM36.Persist
 import Options.Applicative
 import TutorialD.Interpreter
 import ProjectM36.Interpreter hiding (Parser)
-import ProjectM36.DatabaseContext
 import TutorialD.Interpreter.Base hiding (option)
 import qualified Data.Text as T
 #if __GLASGOW_HASKELL__ < 804

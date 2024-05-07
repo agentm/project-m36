@@ -76,6 +76,21 @@ nullAtomFunctions = HS.fromList [
       funcName = "sql_max",
       funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
       funcBody = FunctionBuiltInBody sqlMax
+      },
+    Function {
+      funcName = "sql_min",
+      funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
+      funcBody = FunctionBuiltInBody sqlMin
+      },
+    Function {
+      funcName = "sql_count",
+      funcType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
+      funcBody = FunctionBuiltInBody sqlCount
+      },
+    Function {
+      funcName = "sql_sum",
+      funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
+      funcBody = FunctionBuiltInBody sqlSum
       }
     ] <> sqlBooleanIntegerFunctions
 
@@ -190,6 +205,12 @@ sqlIntegerUnaryFunction expectedAtomType op [x]
       _other -> Left AtomFunctionTypeMismatchError
 sqlIntegerUnaryFunction _ _ _ = Left AtomFunctionTypeMismatchError       
 
+sqlCount :: [Atom] -> Either AtomFunctionError Atom
+sqlCount [RelationAtom relIn] =
+  case cardinality relIn of
+    Finite c -> pure $ IntegerAtom (toInteger c)
+    Countable -> Left AtomFunctionTypeMismatchError
+sqlCount _ = Left AtomFunctionTypeMismatchError
 
 sqlAbs :: [Atom] -> Either AtomFunctionError Atom
 sqlAbs [IntegerAtom val] = pure $ IntegerAtom (abs val)
@@ -201,9 +222,18 @@ sqlAbs [ConstructedAtom "SQLJust" aType [IntegerAtom val]]
 sqlAbs _other = Left AtomFunctionTypeMismatchError         
 
 sqlMax :: [Atom] -> Either AtomFunctionError Atom
-sqlMax [RelationAtom relIn] =
+sqlMax = sqlIntegerAgg max
+
+sqlMin :: [Atom] -> Either AtomFunctionError Atom
+sqlMin = sqlIntegerAgg min
+
+sqlSum :: [Atom] -> Either AtomFunctionError Atom
+sqlSum = sqlIntegerAgg (+)
+
+sqlIntegerAgg :: (Integer -> Integer -> Integer) -> [Atom] -> Either AtomFunctionError Atom
+sqlIntegerAgg op [RelationAtom relIn] =
   case oneTuple relIn of
-    Nothing -> pure $ nullAtom IntegerAtomType Nothing -- SQL max of empty table is NULL
+    Nothing -> pure $ nullAtom IntegerAtomType Nothing -- SQL max/min of empty table is NULL
     Just oneTup ->
       if atomTypeForAtom (newVal oneTup) /= IntegerAtomType then
         Left AtomFunctionTypeMismatchError
@@ -214,12 +244,12 @@ sqlMax [RelationAtom relIn] =
    nullMax acc nextVal =
      let mNextVal = sqlNullableIntegerToMaybe nextVal
          mOldVal = sqlNullableIntegerToMaybe acc
-         mResult = max <$> mNextVal <*> mOldVal
+         mResult = op <$> mNextVal <*> mOldVal
          in
        nullAtom IntegerAtomType (case mResult of
                                     Nothing -> Nothing
                                     Just v -> Just (IntegerAtom v))
-sqlMax _ = Left AtomFunctionTypeMismatchError       
+sqlIntegerAgg _ _ = Left AtomFunctionTypeMismatchError       
        
 
 sqlNullableIntegerToMaybe :: Atom -> Maybe Integer

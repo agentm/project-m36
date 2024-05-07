@@ -151,20 +151,20 @@ testSelect = TestCase $ do
          "(relation{tuple{attr_1 SQLJust 4}})"
          ),
         -- where not exists
-        -- group by
+        -- group by with max aggregate
         ("SELECT city,max(status) FROM s GROUP BY city",
          "((s group ({all but city} as `_sql_aggregate`) : {attr_2:=sql_max(@`_sql_aggregate`{status})}){city,attr_2})",
          "(relation{city Text, attr_2 SQLNullable Integer}{tuple{city \"London\", attr_2 SQLJust 20}, tuple{city \"Paris\", attr_2 SQLJust 30}, tuple{city \"Athens\", attr_2 SQLJust 30}})"
          ),
-        -- group by with aggregate column alias
+        -- group by with aggregate max column alias
         ("SELECT city,max(status) as status FROM s GROUP BY city",
          "((s group ({all but city} as `_sql_aggregate`) : {status:=sql_max(@`_sql_aggregate`{status})}){city,status})",
          "(relation{city Text, status SQLNullable Integer}{tuple{city \"London\", status SQLJust 20}, tuple{city \"Paris\", status SQLJust 30}, tuple{city \"Athens\", status SQLJust 30}})"),
-        -- aggregate without grouping
+        -- aggregate max without grouping
         ("SELECT max(status) as status FROM s",
          "(((s group ({all but } as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } )}){ status })",
          "(relation{status SQLNullable Integer}{tuple{status SQLJust 30}})"),
-        -- group by having
+        -- group by having max
         ("select city,max(status) as status from s group by city having max(status)=30",
          "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } ), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`){ status } ), 30 ) )}){ city, status }) where `_sql_having`=True)",
          "(relation{city Text,status SQLNullable Integer}{tuple{city \"Athens\",status SQLJust 30},tuple{city \"Paris\",status SQLJust 30}})"),
@@ -184,6 +184,8 @@ testSelect = TestCase $ do
          "(relation{tuple{city \"London\"},tuple{city \"New York\"}, tuple{city \"Athens\"}, tuple{city \"Paris\"}})"
          ),
         -- except
+        ("select city from s except select 'London' as city",
+         ),
         -- limit        
         ("SELECT * FROM s LIMIT 10",
          "(s) limit 10",
