@@ -1115,7 +1115,8 @@ convertSQLQuery sessionId (InProcessConnection conf) query = do
       Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
         let ctx = Sess.concreteDatabaseContext session
             reEnv = RE.mkRelationalExprEnv ctx transGraph
-            typeF = optimizeAndEvalRelationalExpr reEnv
+            typeF expr =
+              RE.runRelationalExprM reEnv (RE.typeForRelationalExpr expr) 
         -- convert SQL data into DataFrameExpr
         case evalConvertM mempty (convertQuery typeF query) of
           Left err -> pure (Left (SQLConversionError err))

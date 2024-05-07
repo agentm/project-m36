@@ -19,9 +19,19 @@ parseQuery :: Text -> Either ParserError Query
 parseQuery = parse (queryP <* semi <* eof) "<interactive>"
   
 queryP :: Parser Query
-queryP = (QuerySelect <$> selectP) <|>
-         (QueryValues <$> valuesP) <|>
-         (QueryTable <$> tableP)
+queryP = E.makeExprParser queryTermP queryOpP
+  where
+    queryTermP = (QuerySelect <$> selectP) <|>
+                (QueryValues <$> valuesP) <|>
+                (QueryTable <$> tableP)
+    queryOpP = [[infixOpP "union" UnionQueryOperator,
+                 infixOpP "intersect" IntersectQueryOperator,
+                 infixOpP "except" ExceptQueryOperator
+                ]]
+    infixOpP nam op =
+      E.InfixL $ do
+        reserved nam
+        pure (\a b -> QueryOp op a b)
 
 valuesP :: Parser [[ScalarExpr]]
 valuesP = do

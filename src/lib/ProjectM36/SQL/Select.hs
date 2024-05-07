@@ -10,9 +10,14 @@ import Data.Hashable
 
 data Query = QuerySelect Select |
              QueryValues [[ScalarExpr]] |
-             QueryTable TableName
+             QueryTable TableName |
+             QueryOp QueryOperator Query Query
              deriving (Show, Eq, Generic, NFData)
              deriving Serialise via WineryVariant Query
+
+data QueryOperator = UnionQueryOperator | IntersectQueryOperator | ExceptQueryOperator
+  deriving (Show, Eq, Generic, NFData)
+  deriving Serialise via WineryVariant QueryOperator
 
 data Select = Select { distinctness :: Maybe Distinctness,
                        projectionClause :: [SelectItem],

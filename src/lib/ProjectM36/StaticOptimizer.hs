@@ -46,12 +46,17 @@ type GraphRefSOptDatabaseContextExprM a = ReaderT GraphRefSOptDatabaseContextExp
 -- | A temporary function to be replaced by IO-based implementation.
 optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
 optimizeAndEvalRelationalExpr env expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
-      graph = re_graph env
+  let graph = re_graph env
       ctx = re_context env
       gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-  optExpr <- runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
+  optExpr <- optimizeRelationalExpr env expr
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
+
+optimizeRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError GraphRefRelationalExpr
+optimizeRelationalExpr env expr = do
+  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+      ctx = re_context env
+  runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
 class Monad m => AskGraphContext m where
   askGraph :: m TransactionGraph

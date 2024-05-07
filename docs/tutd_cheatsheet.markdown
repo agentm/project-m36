@@ -18,6 +18,7 @@ Relational expressions query database state without being able to change it.
 |`:showexpr s antijoin sp`|Display the result of all tuples in `s` which do not match appear in the result of `s semijoin sp`|
 |`:showexpr s union s`| Display the result of `s` unioned with itself (which is equivalent to `s`)|
 |`:showexpr s:{status2:=add(10,@status)}`| Display the result of extending the `s` relation variable with a new attribute which adds 10 to each `status` attribute|
+|`:showexpr (s:{islondon:=if eq(@city,"London") then True else False}){city,islondon}`| Display the result of relation variable `s` extended with a new attribute `islondon` which is the result of a conditional. |
 |`:showexpr s where lt(@status, 30)`|Display the result of `s` where the `status` is less than 30.|
 |`:showexpr s relwhere (p{})`|Display the result of `s` if the `p` relation variable is non-empty.|
 |`:showexpr s group ({sname,status,s#} as subrel)`| Display the result of grouping the `sname`, `status`, and `s#` into a subrel for each tuple in the `s` relation where the `city` attribute (not mentioned) is the grouping criteria|

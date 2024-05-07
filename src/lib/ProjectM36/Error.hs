@@ -185,5 +185,6 @@ data SQLError = NotSupportedError T.Text |
                 AggregateGroupByMismatchError ProjectionScalarExpr |
                 GroupByColumnNotReferencedInGroupByError [ProjectionScalarExpr] |
                 UnsupportedGroupByProjectionError ProjectionScalarExpr |
+                QueryOperatorTypeMismatchError QueryOperator Attributes Attributes |
                 SQLRelationalError RelationalError 
   deriving (Show, Eq, Generic, Typeable, NFData)

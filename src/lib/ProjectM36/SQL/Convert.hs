@@ -55,6 +55,13 @@ type ConvertM = StateT TableContext (ExceptT SQLError Identity)
 runConvertM :: TableContext -> ConvertM a -> Either SQLError (a, TableContext)
 runConvertM tcontext m = runIdentity (runExceptT (runStateT m tcontext))
 
+runLocalConvertM :: ConvertM a -> ConvertM a
+runLocalConvertM m = do
+  saveState <- get
+  ret <- m
+  put saveState
+  pure ret
+
 evalConvertM :: TableContext -> ConvertM a -> Either SQLError a
 evalConvertM tcontext m = runIdentity (runExceptT (evalStateT m tcontext))
 
@@ -557,6 +564,23 @@ convertQuery typeF (QueryValues vals) = do
 convertQuery _typeF (QueryTable tname) = do
   rvName <- convertTableName tname
   pure $ baseDFExpr { convertExpr = RelationVariable rvName () }
+convertQuery typeF (QueryOp op q1 q2) = do
+  let dfErr = NotSupportedError ("ORDER BY/LIMIT/OFFSET in " <> T.pack (show op))
+  dfExpr1 <- runLocalConvertM (convertQuery typeF q1)
+  when (usesDataFrameFeatures dfExpr1) $ throwSQLE dfErr  
+  dfType1 <- case typeF (convertExpr dfExpr1) of
+              Left err -> throwSQLE (SQLRelationalError err)
+              Right t -> pure t
+
+  dfExpr2 <- runLocalConvertM (convertQuery typeF q2)
+  when (usesDataFrameFeatures dfExpr2) $ throwSQLE dfErr   
+  dfType2 <- case typeF (convertExpr dfExpr2) of
+               Left err -> throwSQLE (SQLRelationalError err)
+               Right t -> pure t
+
+  when (dfType1 /= dfType2) $ throwSQLE (QueryOperatorTypeMismatchError op (attributes dfType1) (attributes dfType2))
+
+  pure $ baseDFExpr { convertExpr = Union (convertExpr dfExpr1) (convertExpr dfExpr2) }
              
 convertSelect :: TypeForRelExprF -> Select -> ConvertM DataFrameExpr
 convertSelect typeF sel = do
