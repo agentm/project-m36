@@ -7,7 +7,6 @@ import ProjectM36.Relation
 import ProjectM36.Tupleable
 import ProjectM36.Atom (relationForAtom)
 import ProjectM36.Tuple (atomForAttributeName)
-import ProjectM36.DatabaseContext
 
 import Data.Either
 import GHC.Generics

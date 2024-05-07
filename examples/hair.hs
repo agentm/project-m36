@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, OverloadedStrings, DerivingVia #-}
 import ProjectM36.Client
 import ProjectM36.Relation.Show.Term
-import ProjectM36.DatabaseContext
 import GHC.Generics
 import Data.Text
 import Control.DeepSeq
