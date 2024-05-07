@@ -174,7 +174,15 @@ testSelect = TestCase $ do
          "(relation{tuple{city \"London\", islondon True},tuple{city \"Paris\", islondon False},tuple{city \"Athens\", islondon False}})"
          ),
         -- union
+        ("SELECT * FROM s union select * from s",
+         "(s union s)",
+         "(s)"
+         ),
         -- intersect
+        ("select city from s intersect select 'New York' as city",
+         "((s{ city }) union ((relation{  }{ tuple{  } }:{city:=\"New York\"}){ city }))",
+         "(relation{tuple{city \"London\"},tuple{city \"New York\"}, tuple{city \"Athens\"}, tuple{city \"Paris\"}})"
+         ),
         -- except
         -- limit        
         ("SELECT * FROM s LIMIT 10",
@@ -251,24 +259,24 @@ testSelect = TestCase $ do
       check (sql, equivalent_tutd, confirmation_tutd) = do
         print sql
         --parse SQL
-        select <- case parse (selectP <* eof) "test" sql of
+        query <- case parse (queryP <* eof) "test" sql of
           Left err -> assertFailure (errorBundlePretty err)
           Right x -> do
             --print ("parsed SQL:"::String, x)
             pure x
         --parse tutd
         tutdAsDFExpr <- parseTutd equivalent_tutd
-        selectAsDFExpr <- case evalConvertM mempty (convertSelect typeF select) of
+        queryAsDFExpr <- case evalConvertM mempty (convertQuery typeF query) of
           Left err -> assertFailure (show err)
           Right x -> do
             --print ("convert SQL->tutd:"::String, x)
             pure x
         confirmationDFExpr <- parseTutd confirmation_tutd
 
-        --print ("selectAsRelExpr"::String, selectAsRelExpr)
+        --print ("selectAsRelExpr"::String, queryAsRelExpr)
         --print ("expected: "::String, pretty tutdAsDFExpr)
-        --print ("actual  : "::String, pretty selectAsDFExpr)
-        assertEqual (T.unpack sql) tutdAsDFExpr selectAsDFExpr
+        --print ("actual  : "::String, pretty queryAsDFExpr)
+        assertEqual (T.unpack sql) tutdAsDFExpr queryAsDFExpr
         --check that the expression can actually be executed
         eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr
         sqlResult <- case eEvald of
