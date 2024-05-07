@@ -292,3 +292,6 @@ instance FromJSON NullsOrder
 
 instance ToJSON JoinOnCondition
 instance FromJSON JoinOnCondition
+
+instance ToJSON QueryOperator
+instance FromJSON QueryOperator
