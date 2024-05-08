@@ -179,12 +179,14 @@ testSelect = TestCase $ do
          "(s)"
          ),
         -- intersect
-        ("select city from s intersect select 'New York' as city",
-         "((s{ city }) union ((relation{  }{ tuple{  } }:{city:=\"New York\"}){ city }))",
-         "(relation{tuple{city \"London\"},tuple{city \"New York\"}, tuple{city \"Athens\"}, tuple{city \"Paris\"}})"
+        ("select city from s intersect select 'London' as city",
+         "((s{ city }) join ((relation{  }{ tuple{  } }:{city:=\"London\"}){ city }))",
+         "(relation{tuple{city \"London\"}})"
          ),
         -- except
         ("select city from s except select 'London' as city",
+         "((s{city}) minus ((relation{}{tuple{}}:{city:=\"London\"}){city}))",
+         "(relation{tuple{city \"Athens\"}, tuple{city \"Paris\"}})"
          ),
         -- limit        
         ("SELECT * FROM s LIMIT 10",

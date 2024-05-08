@@ -444,7 +444,12 @@ convertQuery typeF (QueryOp op q1 q2) = do
 
   when (dfType1 /= dfType2) $ throwSQLE (QueryOperatorTypeMismatchError op (attributes dfType1) (attributes dfType2))
 
-  pure $ baseDFExpr { convertExpr = Union (convertExpr dfExpr1) (convertExpr dfExpr2) }
+  let relOp = case op of
+        UnionQueryOperator -> Union
+        ExceptQueryOperator -> Difference
+        IntersectQueryOperator -> Join
+
+  pure $ baseDFExpr { convertExpr = relOp (convertExpr dfExpr1) (convertExpr dfExpr2) }
              
 convertSelect :: TypeForRelExprF -> Select -> ConvertM DataFrameExpr
 convertSelect typeF sel = do
@@ -610,7 +615,6 @@ convertProjection typeF selItems groupBys havingExpr = do
 --    let fAggregates 
     -- apply rename
     renamesSet <- foldM (\acc (qProjName, (ColumnAlias newName)) -> do
-                          traceShowM ("renamesSet"::String, qProjName, newName)
                           oldName <- convertColumnProjectionName qProjName
                           pure $ S.insert (oldName, newName) acc) S.empty (taskRenames task)
     let fRenames = if S.null renamesSet then id else Rename renamesSet
@@ -753,7 +757,7 @@ convertProjectionScalarExpr typeF expr = do
         naked (BoolAtom False)
         --pure $ ConstructedAtomExpr "False" [] ()
       NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
-      Identifier i ->
+      Identifier i -> do
         AttributeAtomExpr <$> convertColumnProjectionName i
       BinaryOperator exprA op exprB -> do
         a <- convertProjectionScalarExpr typeF exprA
@@ -762,7 +766,11 @@ convertProjectionScalarExpr typeF expr = do
         pure $ f [a,b]
       FunctionApplication fname fargs -> do
         func <- lookupFunc fname
-        fargs' <- mapM (convertProjectionScalarExpr typeF) fargs
+        -- as a special case, count(*) is valid, if non-sensical SQL, so handle it here
+        fargs' <- if fname == FuncName ["count"] && fargs == [Identifier (ColumnProjectionName [Asterisk])] then
+                   pure [AttributeAtomExpr "_sql_aggregate"]
+                 else 
+                   mapM (convertProjectionScalarExpr typeF) fargs
         pure (func fargs')
       PrefixOperator op sexpr -> do
         func <- lookupOperator True op
@@ -1259,9 +1267,7 @@ convertGroupBy _typeF groupBys mHavingExpr sqlProjection = do
           AggGroupByItem pe _gb -> 
             pure $ info { aggregates = pe : aggregates info }
           NonAggGroupByItem (Identifier colName) gb -> do
-            traceShowM ("convertGroupBy"::String, colName)
             aname <- convertColumnProjectionName colName
-            traceShowM ("convertGroupBy2"::String, "done")
             pure $ info { nonAggregates = (aname, gb) : nonAggregates info }
           NonAggGroupByItem pe _ -> do
             throwSQLE (UnsupportedGroupByProjectionError pe)
