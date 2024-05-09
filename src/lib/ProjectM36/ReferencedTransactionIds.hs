@@ -23,10 +23,11 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (RelationalExprB
     MakeStaticRelation{} -> S.empty
     ExistingRelation{} -> S.empty
     RelationVariable _ marker -> referencedTransactionIds marker
+    RelationValuedAttribute _ -> S.empty
     Project attrNames expr -> S.union (referencedTransactionIds attrNames) (referencedTransactionIds expr)
     Union exprA exprB -> S.union (referencedTransactionIds exprA) (referencedTransactionIds exprB)
     Join exprA exprB -> S.union (referencedTransactionIds exprA) (referencedTransactionIds exprB)
-    Rename _ _ expr -> referencedTransactionIds expr
+    Rename _ expr -> referencedTransactionIds expr
     Difference exprA exprB -> S.union (referencedTransactionIds exprA) (referencedTransactionIds exprB)
     Group attrNames _ expr -> S.union (referencedTransactionIds attrNames) (referencedTransactionIds expr)
     Ungroup _ expr -> referencedTransactionIds expr
@@ -101,6 +102,10 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (AtomExprBase a)
         referencedTransactionIds rExpr
       ConstructedAtomExpr _ args marker ->
         S.unions (referencedTransactionIds marker : (referencedTransactionIds <$> args))
+      IfThenAtomExpr ifE thenE elseE ->
+        S.unions [referencedTransactionIds ifE,
+                  referencedTransactionIds thenE,
+                  referencedTransactionIds elseE]
 
 -- only the relvars can reference other transactions
 instance ReferencedTransactionIds DatabaseContext where
