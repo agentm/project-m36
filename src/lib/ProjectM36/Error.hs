@@ -136,7 +136,8 @@ data MergeError = SelectedHeadMismatchMergeError |
                   InvalidMergeStrategyError MergeStrategy | -- this is an internal coding error
                   DisconnectedTransactionNotAMergeHeadError TransactionId |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
-                  StrategyViolatesRelationVariableMergeError |
+                  StrategyViolatesRelationVariableMergeError RelationalError |
+                  StrategyWithoutPreferredBranchResolutionMergeError |
                   StrategyViolatesTypeConstructorMergeError |
                   StrategyViolatesRegisteredQueryMergeError [RegisteredQueryName]
                   deriving (Show, Eq, Generic, Typeable)

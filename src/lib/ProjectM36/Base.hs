@@ -459,6 +459,9 @@ transactionHeadsForGraph (TransactionGraph hs _) = hs
 transactionsForGraph :: TransactionGraph -> S.Set Transaction
 transactionsForGraph (TransactionGraph _ ts) = ts
 
+transactionIdsForGraph :: TransactionGraph -> S.Set TransactionId
+transactionIdsForGraph = S.map transactionId . transactionsForGraph
+
 -- | Every transaction has context-specific information attached to it.
 -- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
 data TransactionInfo = TransactionInfo {
@@ -468,11 +471,6 @@ data TransactionInfo = TransactionInfo {
   } deriving (Show, Generic)
 
 type TransactionParents = NE.NonEmpty TransactionId
-{-
-data TransactionInfo = TransactionInfo TransactionId TransactionDiffs UTCTime | -- 1 parent + n children
-                       MergeTransactionInfo TransactionId TransactionId TransactionDiffs UTCTime -- 2 parents, n children
-                     deriving (Show, Generic)
--}
 
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 type TransactionId = UUID

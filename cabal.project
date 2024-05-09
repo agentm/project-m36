@@ -5,4 +5,4 @@ package *
   split-sections: True
 
 -- allow fast-builder to build with GHC 9.2.2 (currently pegged at 9.0.1)
-allow-newer: fast-builder:base, streamly-bytestring:bytestring
+allow-newer: fast-builder:base
