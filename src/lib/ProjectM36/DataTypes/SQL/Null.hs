@@ -22,14 +22,6 @@ nullTypeConstructorMapping = [(ADTypeConstructorDef "SQLNullable" ["a"],
 
 nullAtomFunctions :: AtomFunctions
 nullAtomFunctions = HS.fromList [
-  Function {
-      funcName = "sql_isnull", --this function works on any type variable, not just SQLNullable because removing the isnull function in cases where the type is clearly not SQLNullable is more difficult
-      funcType = [TypeVariableType "a", BoolAtomType],
-      funcBody = FunctionBuiltInBody $
-        \case
-           a:[] -> pure $ BoolAtom (isNull a)
-           _ -> error "isnull" -- $ Left AtomFunctionTypeMismatchError
-      },
     Function {
       funcName = "sql_equals",
       funcType = [TypeVariableType "a",
@@ -91,6 +83,11 @@ nullAtomFunctions = HS.fromList [
       funcName = "sql_sum",
       funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
       funcBody = FunctionBuiltInBody sqlSum
+      },
+    Function {
+      funcName = "sql_isnull",
+      funcType = [TypeVariableType "a", BoolAtomType],
+      funcBody = FunctionBuiltInBody sqlIsNull
       }
     ] <> sqlBooleanIntegerFunctions
 
@@ -278,3 +275,7 @@ sqlEquals [a,b] | sqlEqualsTypes a b =
       maybeNullAtom other = Just other
 sqlEquals _other = Left AtomFunctionTypeMismatchError      
 
+sqlIsNull :: AtomFunctionBodyType
+sqlIsNull [ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" _) []] = pure (BoolAtom True)
+sqlIsNull [_arg] = pure (BoolAtom False)
+sqlIsNull _other = Left AtomFunctionTypeMismatchError

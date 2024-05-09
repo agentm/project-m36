@@ -690,9 +690,12 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
       PostfixOperator expr (OperatorName ops) -> do
         expr' <- convertScalarExpr typeF expr
 --        traceShowM ("convertWhereClause"::String, expr')
+        let isnull = AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_isnull" [expr'] ()))
         case ops of
-          ["is", "null"] -> do
-            pure $ AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_isnull" [expr'] ()))
+          ["is", "null"] -> 
+            pure isnull
+          ["is", "not", "null"] -> 
+            pure (NotPredicate isnull)
           other -> throwSQLE $ NotSupportedError ("postfix operator: " <> T.pack (show other))
       InExpr inOrNotIn sexpr (InList matches') -> do
         eqExpr <- convertScalarExpr typeF sexpr
@@ -1423,11 +1426,19 @@ convertGroupByInfo ginfo task =
 
 -- find SQL aggregate functions and replace then with folds on attribute "_sql_aggregate"
 processSQLAggregateFunctions :: AtomExpr -> AtomExpr
-processSQLAggregateFunctions expr =
+processSQLAggregateFunctions expr = 
   case expr of
     AttributeAtomExpr{} -> expr
     NakedAtomExpr{} -> expr
     FunctionAtomExpr fname [AttributeAtomExpr attrName] ()
+      | fname == "sql_count" && -- count(*) counts the number of rows
+        attrName == "_sql_aggregate" -> expr
+      | fname == "sql_count" -> -- count(city) counts the number city elements that are not null
+        callF fname [RelationAtomExpr
+                     (Restrict
+                       (NotPredicate
+                        (AtomExprPredicate
+                         (callF "sql_isnull" [AttributeAtomExpr attrName]))) (RelationValuedAttribute "_sql_aggregate"))]
       | fname `elem` map snd aggregateFunctions ->
           FunctionAtomExpr fname
             [RelationAtomExpr (Project (AttributeNames (S.singleton attrName)) (RelationValuedAttribute "_sql_aggregate"))] ()
@@ -1435,3 +1446,5 @@ processSQLAggregateFunctions expr =
     RelationAtomExpr{} -> expr --not supported in SQL
     IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (processSQLAggregateFunctions ifE) (processSQLAggregateFunctions thenE) (processSQLAggregateFunctions elseE)
     ConstructedAtomExpr{} -> expr --not supported in SQL
+  where
+    callF fname args = FunctionAtomExpr fname args ()

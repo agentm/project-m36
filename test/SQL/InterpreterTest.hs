@@ -168,6 +168,16 @@ testSelect = TestCase $ do
         ("select city,max(status) as status from s group by city having max(status)=30",
          "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } ), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`){ status } ), 30 ) )}){ city, status }) where `_sql_having`=True)",
          "(relation{city Text,status SQLNullable Integer}{tuple{city \"Athens\",status SQLJust 30},tuple{city \"Paris\",status SQLJust 30}})"),
+        -- count(*) aggregate
+        ("select count(*) as c from s",
+         "(((s group ({all but } as `_sql_aggregate`)):{c:=sql_count( @`_sql_aggregate` )}){ c })",
+         "(relation{tuple{c 5}})"
+        ),
+        -- count(city) aggregate counts how many cities are not null
+        ("select count(city) as c from s",
+         "(((s group ({all but } as `_sql_aggregate`)):{c:=sql_count( ((@`_sql_aggregate`) where not( sql_isnull( @city ) )) )}){ c })",
+         "(relation{tuple{c 5}})"
+         ),
         -- case when
         ("SELECT city,case when city='London' then true else false end as islondon from s",
          "((s:{islondon:=if sql_coalesce_bool( sql_equals( @city, \"London\" ) ) then True else False}){ city, islondon })",
@@ -241,6 +251,11 @@ testSelect = TestCase $ do
         ("SELECT * FROM snull WHERE city IS NULL",
          "(snull where sql_coalesce_bool(sql_isnull(@city)))",
          "(snull where s#=\"S2\")"),
+        -- restriction IS NOT NULL
+        ("SELECT city FROM s WHERE city IS NOT NULL",
+         "(((s where not sql_coalesce_bool(sql_isnull(@city)))){city})",
+         "(s{city})"
+         ),
         ("SELECT NULL AND FALSE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,False)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
