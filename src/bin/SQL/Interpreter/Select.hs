@@ -166,7 +166,7 @@ scalarExprOp =
      --binarySymbolsN ["not", "like"]
      ],
     map binarySymbolN ["<",">",">=","<=","!=","<>","="],
-    [postfixKeywords ["is","null"]],
+    [postfixKeywords ["is","null"], postfixKeywords ["is","not","null"]],
 {-    [binarySymbolsN ["is", "distinct", "from"],
      binarySymbolsN ["is", "not", "distinct", "from"]],-}
     [binarySymbolL "and"],
