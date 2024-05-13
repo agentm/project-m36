@@ -68,8 +68,10 @@ evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
         Left err -> pure $ DisplayRelationalErrorResult err
         Right dbcExpr -> do
           let hint = renderPretty dbcExpr
-          _ <- eHandler $ C.executeDatabaseContextExpr sessionId conn dbcExpr
-          pure $ DisplayHintWith ("Equivalent TutorialD: " <> hint) QuietSuccessResult
+          ret <- C.executeDatabaseContextExpr sessionId conn dbcExpr
+          case ret of
+            Left err -> barf err
+            Right () -> pure $ DisplayHintWith ("Equivalent TutorialD: " <> hint) QuietSuccessResult
     TransactionGraphOp Commit -> do
       eHandler $ C.commit sessionId conn
     TransactionGraphOp Rollback -> do
