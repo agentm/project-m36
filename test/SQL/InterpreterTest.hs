@@ -48,7 +48,7 @@ testFindColumn = TestCase $ do
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation s_nullRelVar) (relationVariables dateExamples) }
+  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples) }
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
@@ -313,7 +313,7 @@ testSelect = TestCase $ do
 
 testCreateTable :: Test
 testCreateTable = TestCase $ do
-  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation s_nullRelVar) (relationVariables dateExamples) }
+  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples) }
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
 
   let createTableTests = [
@@ -397,11 +397,11 @@ eitherFail (Left err) = assertFailure (show err)
 eitherFail (Right _) = pure ()
 
 addNullTable :: DatabaseContextExpr
-addNullTable = Assign "snull" (ExistingRelation s_nullRelVar)
+addNullTable = Assign "snull" (ExistingRelation sNullRelVar)
 
 -- snull := relation{s# Text, sname Text, status Integer, city SQLNullable Text}{tuple{s# "S1", sname "Smith", status 20, city SQLNull}}
-s_nullRelVar :: Relation
-s_nullRelVar =
+sNullRelVar :: Relation
+sNullRelVar =
   case mkRelationFromList attrs atomMatrix of
       Left err -> error (show err)
       Right rel -> rel

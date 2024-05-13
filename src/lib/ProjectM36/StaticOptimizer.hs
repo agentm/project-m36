@@ -591,13 +591,13 @@ applyStaticRestrictionPushdown expr = case expr of
 -- if the rename is completely redundant because it renames an attribute name to the same attribute name, remove it
 -- Rename [(x,x)] == Rename []
 applyRedundantRenameCleanup :: GraphRefRelationalExpr -> GraphRefRelationalExpr
-applyRedundantRenameCleanup expr = Fold.cata folder expr
+applyRedundantRenameCleanup = Fold.cata folder
   where
     folder (RenameF renameSet e) =
       if S.null renameSet then
         e
       else
-        Rename (S.filter (\(a,b) -> a /= b) renameSet) e
+        Rename (S.filter (uncurry (/=)) renameSet) e
     folder e = Fold.embed e
 
 -- if the destination name in the rename is unused, we can remove it- does not detect errors if an a Rename is missing

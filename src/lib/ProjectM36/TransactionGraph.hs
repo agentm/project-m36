@@ -467,7 +467,7 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
 showTransactionStructureX :: Bool -> Transaction -> TransactionGraph -> String
 showTransactionStructureX showRelVars trans graph = headInfo ++ " " ++ show (transactionId trans) ++ " " ++ parentTransactionsInfo ++ relVarsInfo
   where
-    relVarsInfo | showRelVars == False = ""
+    relVarsInfo | not showRelVars = ""
                 | otherwise = "\n" <> concatMap show (M.toList (relationVariables (concreteDatabaseContext trans)))
     headInfo = maybe "" show (headNameForTransaction trans graph)
     parentTransactionsInfo = if isRootTransaction trans then "root" else case parentTransactions trans graph of

@@ -3,7 +3,7 @@ import qualified Data.Text as T
 import SQL.Interpreter.Base
 import ProjectM36.Interpreter
 
-data ImportBasicExampleOperator = ImportBasicExampleOperator T.Text
+newtype ImportBasicExampleOperator = ImportBasicExampleOperator T.Text
   deriving (Show)
 
 importBasicExampleP :: Parser ImportBasicExampleOperator

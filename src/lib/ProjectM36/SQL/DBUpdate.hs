@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DerivingStrategies, DerivingVia, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, DeriveAnyClass #-}
 module ProjectM36.SQL.DBUpdate where
 import ProjectM36.SQL.Update
 import ProjectM36.SQL.Insert

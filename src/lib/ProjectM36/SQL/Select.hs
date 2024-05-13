@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving, DerivingVia, DeriveAnyClass, DeriveGeneric, StandaloneDeriving, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving, DerivingVia, DeriveAnyClass, DeriveGeneric, StandaloneDeriving, FlexibleInstances #-}
 module ProjectM36.SQL.Select where
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -134,15 +134,17 @@ data InPredicateValue = InList [ScalarExpr] | InQueryExpr Select | InScalarExpr 
   deriving Serialise via WineryVariant InPredicateValue
   deriving Hashable
 
-data GroupByExpr = GroupByExpr ProjectionScalarExpr
-  deriving (Show, Eq, Generic, NFData)
+newtype GroupByExpr = GroupByExpr ProjectionScalarExpr
+  deriving (Show, Eq, Generic)
   deriving Serialise via WineryVariant GroupByExpr
-  deriving Hashable
+  deriving newtype Hashable
+  deriving newtype NFData
 
-data HavingExpr = HavingExpr ProjectionScalarExpr
-  deriving (Show, Eq, Generic, NFData)
+newtype HavingExpr = HavingExpr ProjectionScalarExpr
+  deriving (Show, Eq, Generic)
   deriving Serialise via WineryVariant HavingExpr
-  deriving Hashable
+  deriving newtype Hashable
+  deriving newtype NFData
 
 data SortExpr = SortExpr ScalarExpr (Maybe Direction) (Maybe NullsOrder)
   deriving (Show, Eq, Generic, NFData)
@@ -174,35 +176,37 @@ newtype JoinOnCondition = JoinOnCondition ScalarExpr
   deriving newtype NFData
   deriving newtype Hashable
 
-data ColumnProjectionName = ColumnProjectionName [ProjectionName] --dot-delimited reference
-  deriving (Show, Eq, Ord, Generic, NFData)
+newtype ColumnProjectionName = ColumnProjectionName [ProjectionName] --dot-delimited reference
+  deriving (Show, Eq, Ord, Generic)
   deriving Serialise via WineryVariant ColumnProjectionName
-
-instance Hashable ColumnProjectionName
+  deriving newtype NFData
+  deriving newtype Hashable
 
 data ProjectionName = ProjectionName Text | Asterisk
   deriving (Show, Eq, Ord, Generic, NFData)
   deriving Serialise via WineryVariant ProjectionName
   deriving Hashable
 
-data ColumnName = ColumnName [Text]
-  deriving (Show, Eq, Ord, Generic, NFData)
+newtype ColumnName = ColumnName [Text]
+  deriving (Show, Eq, Ord, Generic)
   deriving Serialise via WineryVariant ColumnName
-  deriving Hashable
+  deriving newtype Hashable
+  deriving newtype NFData
 
-data UnqualifiedColumnName = UnqualifiedColumnName Text
-  deriving (Show, Eq, Ord, Generic, NFData)
+newtype UnqualifiedColumnName = UnqualifiedColumnName Text
+  deriving (Show, Eq, Ord, Generic)
   deriving Serialise via WineryVariant UnqualifiedColumnName
-  deriving Hashable
+  deriving newtype (Hashable, NFData)
 
-data TableName = TableName [Text]
-  deriving (Show, Eq, Ord, Generic, NFData)
+newtype TableName = TableName [Text]
+  deriving (Show, Eq, Ord, Generic)
   deriving Serialise via WineryVariant TableName
-  deriving Hashable
+  deriving newtype (Hashable, NFData)
 
-data OperatorName = OperatorName [Text]
-  deriving (Show, Eq, Ord, Generic, NFData)
+newtype OperatorName = OperatorName [Text]
+  deriving (Show, Eq, Ord, Generic)
   deriving Serialise via WineryVariant OperatorName
+  deriving newtype NFData
 
 instance Hashable OperatorName
 

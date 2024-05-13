@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, CPP #-}
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Base (
   module TutorialD.Interpreter.Base,
   module Text.Megaparsec,

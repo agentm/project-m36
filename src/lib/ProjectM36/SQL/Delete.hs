@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DerivingStrategies, DerivingVia, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, DeriveAnyClass #-}
 module ProjectM36.SQL.Delete where
 import ProjectM36.SQL.Select
 import Control.DeepSeq

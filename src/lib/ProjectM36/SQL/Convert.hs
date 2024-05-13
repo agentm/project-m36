@@ -1,5 +1,5 @@
 --convert SQL into relational or database context expressions
-{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, TypeApplications, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
@@ -20,23 +20,23 @@ import ProjectM36.Relation (attributes)
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
-import Control.Monad (when)
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 --import Control.Monad (void)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Trans.Class (lift)
 import Data.Foldable (foldl')
+import Data.Bifunctor (bimap)
 --import qualified Data.HashSet as HS
 
-import Debug.Trace
+--import Debug.Trace
 
 {-
 TODO
@@ -226,7 +226,7 @@ noteColumnMention mTblAlias colName mColAlias = do
               pure (ColumnAlias newAlias)
         case M.lookup (TableAlias tAlias) tcontext of
           Nothing -> do -- add a new colaliasremapper
-            insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
+            insertColAlias (maybe tPrefixColAttr unColumnAlias mColAlias)
           Just (_, _, colAlRemapper) -> do
             -- table alias already known, check for column alias
 --            traceShowM ("noteColumnMention before attr"::String, colAlRemapper)
@@ -235,17 +235,17 @@ noteColumnMention mTblAlias colName mColAlias = do
                 -- col alias missing, so add it- figure out if it needs a table prefix
                 --traceShowM ("findNotedColumn' in noteColumnMention"::String, colAlias)
                 --traceStateM
-                let sqlColAlias = fromMaybe colAttr (unColumnAlias <$> mColAlias)
-                colAlias' <- case findNotedColumn' (ColumnName [colAttr]) tc of
+                let sqlColAlias = maybe colAttr unColumnAlias mColAlias
+                case findNotedColumn' (ColumnName [colAttr]) tc of
                                Left _ -> -- no match, so table prefix not required
                                  insertColAlias sqlColAlias
                                Right [] -> -- no match, so table prefix not required
                                  insertColAlias sqlColAlias
                                Right [_] -> -- we have a match, so we need the table prefix
-                                 insertColAlias (fromMaybe tPrefixColAttr (unColumnAlias <$> mColAlias))
+                                 insertColAlias (maybe tPrefixColAttr unColumnAlias mColAlias)
                                Right (_:_) -> throwSQLE (AmbiguousColumnResolutionError colName)
                 --traceShowM ("findNotedColumn' in noteColumnMentionB"::String, colAlias')
-                pure colAlias'
+                --pure colAlias'
               Right attrName ->
                 -- we know the alias already, so return it
                 pure (ColumnAlias attrName)
@@ -262,7 +262,7 @@ noteColumnMention mTblAlias colName mColAlias = do
                 case attributeNameForAttributeAlias colAlias colAliasRemapper of
                   Left _ -> acc
                   Right attrName -> (ta,attrName) : acc
-              sqlColAlias = fromMaybe colAlias (unColumnAlias <$> mColAlias)                
+              sqlColAlias = maybe colAlias unColumnAlias mColAlias
       
           case foldr folder mempty (M.toList tcontext) of
             [] -> do -- no matches, search raw attributes
@@ -290,9 +290,8 @@ lookupTable ta = do
 
 -- | Find a column name or column alias in the underlying table context. Returns key into table context.
 findColumn :: ColumnName -> ConvertM [TableAlias]
-findColumn targetCol = do
-  tcontext <- get
-  pure (findColumn' targetCol tcontext)
+findColumn targetCol = 
+  findColumn' targetCol <$> get
   
 -- | non ConvertM version of findColumn
 findColumn' :: ColumnName -> TableContext -> [TableAlias]
@@ -523,8 +522,8 @@ convertSubSelect typeF sel = do
       renamer ((TableAlias tAlias, realAttr), ColumnAlias newAttr) =
         (realAttr, newAttr)-}
   let renamedExpr = foldr renamerFolder tExpr (M.toList colRenames)
-      renamerFolder ((TableAlias tAlias, oldAttrName), ColumnAlias newAttrName) acc =
-        pushDownAttributeRename (S.singleton (oldAttrName, newAttrName)) (RelationVariable tAlias ()) acc
+      renamerFolder ((TableAlias tAlias, oldAttrName), ColumnAlias newAttrName)=
+        pushDownAttributeRename (S.singleton (oldAttrName, newAttrName)) (RelationVariable tAlias ())
         
   pure (applyF renamedExpr)
 
@@ -604,19 +603,19 @@ convertProjection typeF selItems groupBys havingExpr = do
                      let projFolder (attrNames, b) (ColumnProjectionName [ProjectionName nam]) =
                            pure (S.insert nam attrNames, b)
                          projFolder (attrNames, b) (ColumnProjectionName [ProjectionName nameA, ProjectionName nameB]) =
-                           pure $ (S.insert (T.concat [nameA, ".", nameB]) attrNames, b)
+                           pure (S.insert (T.concat [nameA, ".", nameB]) attrNames, b)
                          projFolder (attrNames, relExprAttributes) (ColumnProjectionName [ProjectionName tname, Asterisk]) =
-                           pure $ (attrNames, relExprAttributes <> [tname])
+                           pure (attrNames, relExprAttributes <> [tname])
                          projFolder _ colProjName = throwSQLE $ UnexpectedColumnProjectionName colProjName
                      (attrNames, relExprRvs) <- foldM projFolder mempty (S.toList (taskProjections task))
                      let attrsProj = A.some (map (\rv -> RelationalExprAttributeNames (RelationVariable rv ())) relExprRvs <> [AttributeNames attrNames])
                      pure $ Project attrsProj
     -- apply extensions
-    let fExtended = foldr (\ext acc -> (Extend ext) . acc) id (taskExtenders task)
+    let fExtended = foldr (\ext acc -> Extend ext . acc) id (taskExtenders task)
     -- process SQL aggregates by replacing projections
 --    let fAggregates 
     -- apply rename
-    renamesSet <- foldM (\acc (qProjName, (ColumnAlias newName)) -> do
+    renamesSet <- foldM (\acc (qProjName, ColumnAlias newName) -> do
                           oldName <- convertColumnProjectionName qProjName
                           pure $ S.insert (oldName, newName) acc) S.empty (taskRenames task)
     let fRenames = if S.null renamesSet then id else Rename renamesSet
@@ -798,8 +797,8 @@ convertProjectionScalarExpr typeF expr = do
       other -> throwSQLE $ NotSupportedError ("projection scalar expr: " <> T.pack (show other))
 
 convertOrderByClause :: TypeForRelExprF -> [SortExpr] -> ConvertM [AttributeOrderExpr]
-convertOrderByClause typeF exprs =
-  mapM converter exprs
+convertOrderByClause typeF =
+  mapM converter
     where
       converter (SortExpr sexpr mDirection mNullsOrder) = do
         atomExpr <- convertScalarExpr typeF sexpr
@@ -860,7 +859,7 @@ convertTableRef typeF tref =
       typeRel <- wrapTypeF typeF (RelationVariable nam ())
       let rv = RelationVariable nam ()
       _ <- insertTable tAlias rv (attributes typeRel)
-      pure $ (tAlias, RelationVariable nam ())
+      pure (tAlias, RelationVariable nam ())
     x -> throwSQLE $ NotSupportedError ("table ref: " <> T.pack (show x))
 
   
@@ -1025,11 +1024,11 @@ commonAttributeNames typeF rvA rvB =
         Right typeB -> do
           let attrsA = A.attributeNameSet (attributes typeA)
               attrsB = A.attributeNameSet (attributes typeB)
-          pure $ (S.intersection attrsA attrsB, attrsA, attrsB)
+          pure (S.intersection attrsA attrsB, attrsA, attrsB)
 
 -- | Used to remap SQL qualified names to new names to prevent conflicts in join conditions.
 renameIdentifier :: (ColumnName -> ColumnName) -> ScalarExpr -> ScalarExpr
-renameIdentifier renamer sexpr = Fold.cata renamer' sexpr
+renameIdentifier renamer = Fold.cata renamer'
   where
     renamer' :: ScalarExprBaseF ColumnName ScalarExpr -> ScalarExpr
     renamer' (IdentifierF n) = Identifier (renamer n)
@@ -1037,11 +1036,11 @@ renameIdentifier renamer sexpr = Fold.cata renamer' sexpr
 
 -- find all column aliases in a scalar expression- useful for determining if a renamer needs to be applied
 columnNamesInScalarExpr :: ScalarExpr -> S.Set ColumnName
-columnNamesInScalarExpr expr = Fold.cata finder expr
+columnNamesInScalarExpr = Fold.cata finder
   where
     finder :: ScalarExprBaseF ColumnName (S.Set ColumnName) -> S.Set ColumnName
     finder (IdentifierF n) = S.singleton n
-    finder exprs = foldr S.union mempty exprs
+    finder sexpr = foldr S.union mempty sexpr
 
 columnNamesInRestrictionExpr :: RestrictionExpr -> S.Set ColumnName
 columnNamesInRestrictionExpr (RestrictionExpr sexpr) = columnNamesInScalarExpr sexpr
@@ -1064,8 +1063,8 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       PostfixOperator e1 _ -> rec' e1
       BetweenOperator e1 _ e2 -> rec' e1 || rec' e2
       FunctionApplication _ e1 -> or (rec' <$> e1)
-      CaseExpr cases else' -> or (map (\(when', then') ->
-                                          rec' when' || rec' then' || maybe False rec' else') cases)
+      CaseExpr cases else' -> any (\(when', then') ->
+                                          rec' when' || rec' then' || maybe False rec' else') cases
       QuantifiedComparison{} -> True
       InExpr _ sexpr'' _ -> rec' sexpr''
       BooleanOperatorExpr e1 _ e2 -> rec' e1 || rec' e2
@@ -1102,7 +1101,7 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
     Extend eExpr expr -> Extend (pushExtend eExpr) (push expr)
     With wAssocs expr -> With wAssocs (push expr)
   where
-    push expr = pushDownAttributeRename renameSet matchExpr expr
+    push = pushDownAttributeRename renameSet matchExpr
     pushRestrict expr =
       case expr of
         x@TruePredicate -> x
@@ -1137,7 +1136,7 @@ mkTableContextFromDatabaseContext dbc tgraph = do
 convertUpdate :: TypeForRelExprF -> Update -> ConvertM DatabaseContextExpr
 convertUpdate typeF up = do
   let convertSetColumns (UnqualifiedColumnName colName, sexpr) = do
-        (,) <$> pure colName <*> convertScalarExpr typeF sexpr
+        (,) colName <$> convertScalarExpr typeF sexpr
   atomMap <- M.fromList <$> mapM convertSetColumns (setColumns up)
   rvname <- convertTableName (Update.target up)
   let rv = RelationVariable rvname ()  
@@ -1211,14 +1210,14 @@ convertDropTable _typeF dt = do
   pure (Undefine rvTarget)
 
 convertColumnNamesAndTypes :: RelVarName -> [(UnqualifiedColumnName, ColumnType, PerColumnConstraints)] -> ConvertM ([AttributeExpr], [DatabaseContextExpr])
-convertColumnNamesAndTypes rvName colAssocs =
-  foldM processColumn mempty colAssocs
+convertColumnNamesAndTypes rvName =
+  foldM processColumn mempty
   where
     processColumn acc (ucn@(UnqualifiedColumnName colName), colType, constraints) = do
       aTypeCons <- convertColumnType colType constraints
       constraintExprs <- convertPerColumnConstraints rvName ucn constraints
-      pure $ ( fst acc <> [AttributeAndTypeNameExpr colName aTypeCons ()],
-              constraintExprs <> snd acc)
+      pure ( fst acc <> [AttributeAndTypeNameExpr colName aTypeCons ()],
+             constraintExprs <> snd acc)
 
 convertColumnType :: ColumnType -> PerColumnConstraints -> ConvertM TypeConstructor
 convertColumnType colType constraints = do
@@ -1239,7 +1238,7 @@ convertColumnType colType constraints = do
                DateTimeColumnType -> DateTimeAtomType
                DateColumnType -> DayAtomType
                ByteaColumnType -> ByteStringAtomType
-  pure (colTCons)
+  pure colTCons
 
 convertPerColumnConstraints :: RelVarName -> UnqualifiedColumnName -> PerColumnConstraints -> ConvertM [DatabaseContextExpr]
 convertPerColumnConstraints rvname (UnqualifiedColumnName colName) constraints = do
@@ -1380,12 +1379,10 @@ containsAggregate expr =
     PrefixOperator op e1 -> containsAggregate e1 || opAgg op
     PostfixOperator e1 op -> containsAggregate e1 || opAgg op
     BetweenOperator e1 e2 e3 -> containsAggregate e1 || containsAggregate e2 || containsAggregate e3
-    FunctionApplication fname args -> isAggregateFunction fname || or (map containsAggregate args)
+    FunctionApplication fname args -> isAggregateFunction fname || any containsAggregate args
     c@CaseExpr{} -> or (cElse : concatMap (\(when', res) -> [containsAggregate res, containsAggregate when']) (caseWhens c))
       where
-        cElse = case caseElse c of
-          Just e -> containsAggregate e
-          Nothing -> False
+        cElse = maybe False containsAggregate (caseElse c)
     q@QuantifiedComparison{} -> containsAggregate (qcExpr q)
     InExpr _ e1 _ -> containsAggregate e1
     BooleanOperatorExpr e1 opName e2 -> opAgg opName || containsAggregate e1 || containsAggregate e2
@@ -1396,9 +1393,7 @@ containsAggregate expr =
 -- | Returns True iff a projection scalar expr within a larger expression. Used for group by aggregation validation.
 containsProjScalarExpr :: ProjectionScalarExpr -> ProjectionScalarExpr -> Bool
 containsProjScalarExpr needle haystack =
-  if needle == haystack then
-    True
-  else
+  (needle == haystack) ||
     case haystack of
       IntegerLiteral{} -> False
       DoubleLiteral{} -> False
@@ -1410,18 +1405,16 @@ containsProjScalarExpr needle haystack =
       PrefixOperator _op e1 -> con e1
       PostfixOperator e1 _op -> con e1
       BetweenOperator e1 e2 e3 -> con e1 || con e2 || con e3
-      FunctionApplication _fname args -> or (map con args)
+      FunctionApplication _fname args -> any con args
       c@CaseExpr{} -> or (cElse : concatMap (\(when', res) -> [con res, con when']) (caseWhens c))
         where
-          cElse = case caseElse c of
-            Just e -> con e
-            Nothing -> False
+          cElse = maybe False con (caseElse c)
       q@QuantifiedComparison{} -> con (qcExpr q)
       InExpr _ e1 _ -> containsAggregate e1
       BooleanOperatorExpr e1 _opName e2 -> con e1 || con e2
       ExistsExpr{} -> False
    where
-     con h = containsProjScalarExpr needle h
+     con = containsProjScalarExpr needle
 
 -- depth first replacement for scalar expr modification
 replaceProjScalarExpr :: (ProjectionScalarExpr -> ProjectionScalarExpr) -> ProjectionScalarExpr -> ProjectionScalarExpr
@@ -1438,7 +1431,7 @@ replaceProjScalarExpr r orig =
     PostfixOperator e1 op -> r (PostfixOperator (recr e1) op)
     BetweenOperator e1 e2 e3 -> r (BetweenOperator (recr e1) (recr e2) (recr e3))
     FunctionApplication fname args -> r (FunctionApplication fname (map recr args))
-    c@CaseExpr{} -> r (CaseExpr { caseWhens = map (\(cond, res) -> (recr cond, recr res)) (caseWhens c),
+    c@CaseExpr{} -> r (CaseExpr { caseWhens = map (bimap recr recr) (caseWhens c),
                                   caseElse = recr <$> caseElse c
                                 })
     c@QuantifiedComparison{} -> r (c{ qcExpr = recr (qcExpr c) })

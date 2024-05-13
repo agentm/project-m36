@@ -178,7 +178,7 @@ instance Pretty RestrictionPredicateExpr where
 
 prettyAttributeName :: AttributeName -> Doc a
 prettyAttributeName attrName | nameNeedsQuoting attrName = pretty $ "`" <> attrName <> "`"
-prettyAttributeName attrName = pretty $ attrName 
+prettyAttributeName attrName = pretty attrName 
 
 instance Pretty WithNameExpr where
   pretty (WithNameExpr name _) = pretty name

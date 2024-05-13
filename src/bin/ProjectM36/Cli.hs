@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 -- functions common to both tutd and sqlegacy command line interfaces
 module ProjectM36.Cli where
 import qualified ProjectM36.Client as C

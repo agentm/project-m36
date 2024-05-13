@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, LambdaCase, CPP #-}
+{-# LANGUAGE GADTs, CPP #-}
 module TutorialD.Interpreter where
 import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base

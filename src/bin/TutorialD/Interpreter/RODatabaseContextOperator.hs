@@ -203,8 +203,7 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
 showDataFrameP :: Parser RODatabaseContextOperator
 showDataFrameP = do
   colonOp ":showdataframe"
-  dfExpr <- dataFrameP
-  pure (ShowDataFrame dfExpr)
+  ShowDataFrame <$> dataFrameP
 
 dataFrameP :: Parser DF.DataFrameExpr
 dataFrameP = do

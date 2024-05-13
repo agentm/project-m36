@@ -245,8 +245,7 @@ ifThenAtomExprP = do
   reserved "then"
   thenE <- atomExprP
   reserved "else"
-  elseE <- atomExprP
-  pure (IfThenAtomExpr ifE thenE elseE)
+  IfThenAtomExpr ifE thenE <$> atomExprP
 
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =

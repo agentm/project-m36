@@ -4,6 +4,7 @@ import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Data.Text as T (Text, singleton, pack, splitOn, toLower)
+import Data.Functor (($>))
 
 -- consumes only horizontal spaces
 spaceConsumer :: Parser ()
@@ -23,8 +24,7 @@ reserveds words' = do
   reserveds' words''
 
 reserveds' :: [Text] -> Parser ()
-reserveds' words' =
-  sequence_ (map reserved words')
+reserveds' = mapM_ reserved 
   
 -- does not consume trailing spaces
 qualifiedNameSegment :: Text -> Parser Text
@@ -51,7 +51,7 @@ identifierRemainder c = do
   pure (pack (c:rest))
 
 symbol :: Text -> Parser Text
-symbol sym = Lex.symbol spaceConsumer sym
+symbol = Lex.symbol spaceConsumer
 
 comma :: Parser Text
 comma = symbol ","
@@ -86,7 +86,7 @@ quotedIdentifier =
   (T.pack <$> (doubleQuote *> many (escapedDoubleQuote <|> notDoubleQuote) <* doubleQuote)) <* spaceConsumer
   where
     doubleQuote = char '"'
-    escapedDoubleQuote = chunk "\"\"" *> pure '"'
+    escapedDoubleQuote = chunk "\"\"" $> '"'
     notDoubleQuote = satisfy ('"' /=)
 
     

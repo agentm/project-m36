@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, TypeFamilies, DeriveTraversable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
 module SQL.Interpreter.Select where
 import ProjectM36.Interpreter
 import ProjectM36.SQL.Select
@@ -31,7 +31,7 @@ queryP = E.makeExprParser queryTermP queryOpP
     infixOpP nam op =
       E.InfixL $ do
         reserved nam
-        pure (\a b -> QueryOp op a b)
+        pure (QueryOp op)
 
 valuesP :: Parser [[ScalarExpr]]
 valuesP = do
@@ -77,7 +77,7 @@ tableExprP =
 fromP :: Parser [TableRef]
 fromP = reserved "from" *> (concat <$> sepByComma trefs)
   where
-    trefs = ((:) <$> nonJoinTref <*> many joinP)
+    trefs = (:) <$> nonJoinTref <*> many joinP
     nonJoinTref = choice [parens $ QueryTableRef <$> selectP,
                           try (AliasedTableRef <$> simpleRef <*> (reserved "as" *> tableAliasP)),
                           simpleRef]
@@ -123,7 +123,7 @@ havingP = reserved "having" *> (HavingExpr <$> scalarExprP)
 
 orderByP :: Parser [SortExpr]
 orderByP =
-  reserveds "order by" *> (sepByComma1 (SortExpr <$> scalarExprP <*> optional directionP <*> optional nullsOrderP))
+  reserveds "order by" *> sepByComma1 (SortExpr <$> scalarExprP <*> optional directionP <*> optional nullsOrderP)
   where
     directionP = (reserved "asc" $> Ascending) <|>
                  (reserved "desc" $> Descending)
@@ -179,7 +179,7 @@ scalarExprOp =
    binarySymbolL s = E.InfixL $ binary s
    binary s = do
      op <- qualifiedOperatorP s
-     pure (\a b -> BinaryOperator a op b)
+     pure (`BinaryOperator` op)
    binarySymbolR s = E.InfixR $ binary s
    binarySymbolN s = E.InfixN $ binary s
    qComparisonOp = E.Postfix $ try quantifiedComparisonSuffixP
@@ -280,7 +280,7 @@ stringLiteralP = StringLiteral <$> stringP
 
 nullLiteralP :: Parser (ScalarExprBase a)
 nullLiteralP = 
-  reserved "NULL" *> pure NullLiteral
+  reserved "NULL" $> NullLiteral
   
 scalarTermP :: QualifiedNameP a => Parser (ScalarExprBase a)
 scalarTermP = choice [
@@ -359,7 +359,7 @@ offsetP = optional (reserved "offset" *> integer)
 withP :: Parser WithClause
 withP = do
   reserved "with"
-  recursive <- try (reserved "recursive" *> pure True) <|> pure False  
+  recursive <- try (reserved "recursive" $> True) <|> pure False  
   wExprs <- sepByComma1 $ do
     wName <- withExprAliasP
     reserved "as"

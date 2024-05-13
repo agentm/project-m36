@@ -337,7 +337,7 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
           else 
             tmpAttrName
       updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
-      projectAndRename attr expr = Rename (S.singleton ((tmpAttr attr), attr)) (Project (InvertedAttributeNames (S.singleton attr)) expr)
+      projectAndRename attr expr = Rename (S.singleton (tmpAttr attr, attr)) (Project (InvertedAttributeNames (S.singleton attr)) expr)
       restrictedPortion = Restrict pred' rvExpr
       updated = foldr (\(oldname, atomExpr) accum ->
                                  let procAtomExpr = runProcessExprM UncommittedContextMarker (processAtomExpr atomExpr) in
