@@ -16,4 +16,15 @@ inclusionDependenciesAsRelation incDeps =
     incDepAsAtoms (name, InclusionDependency exprA exprB) = [TextAtom name,
                                                              RelationalExprAtom exprA,
                                                              RelationalExprAtom exprB]
-  
+
+-- validate that the given AtomExpr is true for an relvar
+inclusionDependencyForAtomExpr :: RelVarName -> AtomExpr -> InclusionDependency
+inclusionDependencyForAtomExpr rvname atomExpr =
+  InclusionDependency
+  (NotEquals (ExistingRelation relationTrue)
+    (Project (AttributeNames mempty) (Restrict check (RelationVariable rvname ())))
+  )
+  (ExistingRelation relationFalse)
+  where
+    check = AtomExprPredicate atomExpr
+

@@ -2,6 +2,7 @@ module ProjectM36.Key where
 import ProjectM36.Base
 import ProjectM36.Relation
 import qualified Data.Set as S
+import qualified Data.Text as T
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -37,7 +38,9 @@ inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCo
 
 -- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.
 databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
-databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
+  where
+    cols = T.intercalate "_" attrNames
 
 -- | Create a foreign key constraint from the first relation variable and attributes to the second.
 databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr

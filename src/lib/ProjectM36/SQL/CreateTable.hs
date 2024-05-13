@@ -17,13 +17,17 @@ data ColumnType =
   TextColumnType |
   BoolColumnType |
   DoubleColumnType |
-  DateTimeColumnType
+  DateTimeColumnType | -- timestamp with timezone
+  DateColumnType |
+  ByteaColumnType
   deriving (Show, Eq, Generic, NFData)
   deriving Serialise via WineryVariant ColumnType
 
 -- | Used to represent constraints which are defined next to a column name and type.
 data PerColumnConstraints = PerColumnConstraints {
-  notNullConstraint :: Bool
+  notNullConstraint :: Bool,
+  uniquenessConstraint :: Bool,
+  references :: Maybe (TableName, UnqualifiedColumnName)
   }
   deriving (Show, Eq, Generic, NFData)
   deriving Serialise via WineryVariant PerColumnConstraints

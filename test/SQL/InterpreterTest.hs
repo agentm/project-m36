@@ -3,6 +3,8 @@ import SQL.Interpreter.Select
 import ProjectM36.SQL.Convert
 import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
+import TutorialD.Interpreter.DatabaseContextExpr
+import SQL.Interpreter.CreateTable
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
@@ -25,7 +27,7 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = [testFindColumn, testSelect]
+    tests = [testFindColumn, testSelect, testCreateTable]
 
 
 testFindColumn :: Test
@@ -302,12 +304,75 @@ testSelect = TestCase $ do
           Left err -> assertFailure (show err <> ": " <> show tutdAsDFExpr)
           Right rel -> pure rel
         eConfirmationEvald <- executeDataFrameExpr sess conn confirmationDFExpr
-        print ("confirmation"::String, confirmation_tutd)
+--        print ("confirmation"::String, confirmation_tutd)
         confirmationResult <- case eConfirmationEvald of
           Left err -> assertFailure (show err <> ": " <> show confirmationDFExpr)
           Right rel -> pure rel
         assertEqual "SQL result confirmation" confirmationResult sqlResult
-  mapM_ check readTests  
+  mapM_ check readTests
+
+testCreateTable :: Test
+testCreateTable = TestCase $ do
+  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation s_nullRelVar) (relationVariables dateExamples) }
+  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+
+  let createTableTests = [
+        --no columns
+        ("create table test()",
+          "test :: {}"
+        ),
+        --simple column
+        ("create table test(col1 integer)",
+         "test :: {col1 SQLNullable Integer}"
+         ),
+        --not null
+        ("create table test(col1 integer not null)",
+         "test :: {col1 Integer}"
+        ),
+        ("create table test(col1 integer, \"col2\" text not null)",
+         "test :: {col1 SQLNullable Integer, col2 Text}"
+        ),
+        -- foreign key "references"
+        ("create table test(col1 integer, col2 integer references test2(pk))",
+         "test :: {col1 SQLNullable Integer, col2 SQLNullable Integer}; foreign key test_col2__test2_pk_fk test{col2} in test2{pk}"),
+        -- uniqueness constraint
+        ("create table test(col1 integer unique)",
+         "test :: {col1 SQLNullable Integer};  key test_col1_unique {col1} test where not(sql_isnull(@col1))"),
+        -- primary key (equivalent to uniqueness constraint + not null)
+        ("create table test(col1 integer primary key)",
+         "test :: {col1 Integer}; key test_col1_key {col1} test")
+        ]
+      parseTutd tutd = do
+        case parse (multipleDatabaseContextExprP <* eof) "test" tutd of
+          Left err -> assertFailure (errorBundlePretty err)
+          Right x -> do
+            pure x
+      gfEnv = GraphRefRelationalExprEnv {
+        gre_context = Just sqlDBContext,
+        gre_graph = tgraph,
+        gre_extra = mempty }
+      typeF expr = do
+        let gfExpr = runProcessExprM (TransactionMarker transId) (processRelationalExpr expr)
+        runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+            
+      check (sql, equivalent_tutd) = do
+        --parse SQL
+        query <- case parse (createTableP <* eof) "test" sql of
+          Left err -> assertFailure (errorBundlePretty err)
+          Right x -> do
+            --print ("parsed SQL:"::String, x)
+            pure x
+        --parse tutd
+        tutdAsDFExpr <- parseTutd equivalent_tutd
+        queryAsDFExpr <- case evalConvertM mempty (convertCreateTable typeF query) of
+          Left err -> assertFailure (show err)
+          Right x -> do
+            --print ("convert SQL->tutd:"::String, x)
+            pure x
+        print sql
+        assertEqual "create table SQL" tutdAsDFExpr queryAsDFExpr
+
+  mapM_ check createTableTests                         
   
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)

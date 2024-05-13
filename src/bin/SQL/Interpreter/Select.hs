@@ -131,7 +131,7 @@ orderByP =
                   (reserveds "nulls last" $> NullsLast)
   
 nameP :: Parser Text
-nameP = quotedIdentifier <|> identifier
+nameP = (quotedIdentifier <|> identifier) <* spaceConsumer
 
 qualifiedNameP' :: Parser [Text]
 qualifiedNameP' = sepBy1 nameP (symbol ".")

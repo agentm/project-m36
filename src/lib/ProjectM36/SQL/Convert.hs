@@ -5,7 +5,9 @@ import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.SQL.Select
+import ProjectM36.DatabaseContext (someDatabaseContextExprs)
 import ProjectM36.SQL.Insert as Insert
+import ProjectM36.Key (databaseContextExprForUniqueKey, inclusionDependencyForKey)
 import ProjectM36.SQL.DBUpdate
 import ProjectM36.SQL.Update as Update
 import ProjectM36.SQL.Delete as Delete
@@ -1137,11 +1139,16 @@ convertUpdate typeF up = do
   let convertSetColumns (UnqualifiedColumnName colName, sexpr) = do
         (,) <$> pure colName <*> convertScalarExpr typeF sexpr
   atomMap <- M.fromList <$> mapM convertSetColumns (setColumns up)
-  restrictionExpr <- case mRestriction up of
-                       Nothing -> pure TruePredicate
-                       Just restriction' -> convertWhereClause typeF restriction'
   rvname <- convertTableName (Update.target up)
-  pure (B.Update rvname atomMap restrictionExpr)
+  let rv = RelationVariable rvname ()  
+  case typeF rv of
+    Left err -> throwSQLE (SQLRelationalError err)
+    Right typeRel -> do
+      _ <- insertTable (TableAlias rvname) rv (attributes typeRel)
+      restrictionExpr <- case mRestriction up of
+                           Nothing -> pure TruePredicate
+                           Just restriction' -> convertWhereClause typeF restriction'
+      pure (B.Update rvname atomMap restrictionExpr)
 
 convertTableName :: TableName -> ConvertM RelVarName
 convertTableName (TableName [tname]) = pure tname
@@ -1195,37 +1202,75 @@ convertDelete typeF del = do
 convertCreateTable :: TypeForRelExprF -> CreateTable -> ConvertM DatabaseContextExpr
 convertCreateTable _typeF ct = do
   rvTarget <- convertTableName (CreateTable.target ct)
-  attrs <- convertColumnNamesAndTypes (CreateTable.targetColumns ct)
-  pure (Define rvTarget attrs)
+  (attrs, constraintExprs) <- convertColumnNamesAndTypes rvTarget (CreateTable.targetColumns ct)
+  pure (someDatabaseContextExprs (Define rvTarget attrs : constraintExprs))
 
 convertDropTable :: TypeForRelExprF -> DropTable -> ConvertM DatabaseContextExpr
 convertDropTable _typeF dt = do
   rvTarget <- convertTableName (DropTable.target dt)
   pure (Undefine rvTarget)
 
-convertColumnNamesAndTypes :: [(UnqualifiedColumnName, ColumnType, PerColumnConstraints)] -> ConvertM [AttributeExpr]
-convertColumnNamesAndTypes colAssocs =
-  mapM mkAttributeExpr colAssocs
+convertColumnNamesAndTypes :: RelVarName -> [(UnqualifiedColumnName, ColumnType, PerColumnConstraints)] -> ConvertM ([AttributeExpr], [DatabaseContextExpr])
+convertColumnNamesAndTypes rvName colAssocs =
+  foldM processColumn mempty colAssocs
   where
-    mkAttributeExpr (UnqualifiedColumnName colName, colType, constraints) = do
-      aType <- convertColumnType colType constraints
-      pure $ NakedAttributeExpr (Attribute colName aType)
+    processColumn acc (ucn@(UnqualifiedColumnName colName), colType, constraints) = do
+      aTypeCons <- convertColumnType colType constraints
+      constraintExprs <- convertPerColumnConstraints rvName ucn constraints
+      pure $ ( fst acc <> [AttributeAndTypeNameExpr colName aTypeCons ()],
+              constraintExprs <> snd acc)
 
-convertColumnType :: ColumnType -> PerColumnConstraints -> ConvertM AtomType
-convertColumnType colType constraints =
-  mkAtomType $
-    case colType of
-      IntegerColumnType -> IntegerAtomType
-      TextColumnType -> TextAtomType
-      BoolColumnType -> BoolAtomType
-      DoubleColumnType -> DoubleAtomType
-      DateTimeColumnType -> DateTimeAtomType
+convertColumnType :: ColumnType -> PerColumnConstraints -> ConvertM TypeConstructor
+convertColumnType colType constraints = do
+  let mkTypeCons aType =
+        let typeName = T.dropEnd (length ("AtomType"::String)) (T.pack (show aType))
+            tCons = ADTypeConstructor typeName []
+        in
+          if notNullConstraint constraints then
+            tCons
+          else
+            ADTypeConstructor "SQLNullable" [tCons]
+      colTCons = mkTypeCons $
+             case colType of
+               IntegerColumnType -> IntegerAtomType
+               TextColumnType -> TextAtomType
+               BoolColumnType -> BoolAtomType
+               DoubleColumnType -> DoubleAtomType
+               DateTimeColumnType -> DateTimeAtomType
+               DateColumnType -> DayAtomType
+               ByteaColumnType -> ByteStringAtomType
+  pure (colTCons)
+
+convertPerColumnConstraints :: RelVarName -> UnqualifiedColumnName -> PerColumnConstraints -> ConvertM [DatabaseContextExpr]
+convertPerColumnConstraints rvname (UnqualifiedColumnName colName) constraints = do
+  -- NOT NULL constraints are already enforced by the column type
+  fkExprs <- case references constraints of
+               Nothing -> pure []        
+               Just (TableName [fkTableName], UnqualifiedColumnName fkColName) -> do
+                 let fkIncDepName = rvname <> "_" <> colName <> "__" <> fkTableName <> "_" <> fkColName <> "_fk"
+                     mkFK = InclusionDependency (Project (AttributeNames (S.singleton colName)) (RelationVariable rvname ())) (Project (AttributeNames (S.singleton fkColName)) (RelationVariable fkTableName ()))
+
+                 pure [AddInclusionDependency fkIncDepName mkFK]
+               Just (TableName fkTableNames, UnqualifiedColumnName fkColName) ->
+                 throwSQLE (NotSupportedError ("schema-qualified table name in fk constraint: " <> T.pack (show fkTableNames) <> " " <> fkColName))
+  -- the uniqueness constraint in SQL does not consider NULLs to be equal by default
+  let uniqueExprs = if uniquenessConstraint constraints then
+                      if notNullConstraint constraints then
+                        [databaseContextExprForUniqueKey rvname [colName]]
+                      else
+                        [databaseContextExprForUniqueKeyWithNull rvname colName]
+                    else
+                      []
+  pure $ uniqueExprs <> fkExprs
+
+databaseContextExprForUniqueKeyWithNull :: RelVarName -> AttributeName -> DatabaseContextExpr
+databaseContextExprForUniqueKeyWithNull rvname attrName =
+  AddInclusionDependency incDepName incDep
   where
-    mkAtomType aType =
-      pure $ if notNullConstraint constraints then
-               aType
-             else
-               nullAtomType aType
+    incDep = inclusionDependencyForKey (AttributeNames (S.singleton attrName)) (Restrict notNull (RelationVariable rvname ()))
+    incDepName = rvname <> "_" <> attrName <> "_unique"
+    notNull = NotPredicate (AtomExprPredicate (FunctionAtomExpr "sql_isnull" [AttributeAtomExpr attrName] ()))
+                                  
 
 {-
 select city,max(status) from s group by city;

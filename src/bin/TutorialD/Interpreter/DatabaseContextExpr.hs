@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
 import ProjectM36.Interpreter
+import ProjectM36.DatabaseContext
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
@@ -58,7 +59,7 @@ multilineSep = newline >> pure "\n"
 multipleDatabaseContextExprP :: Parser DatabaseContextExpr
 multipleDatabaseContextExprP = do
   exprs <- filter (/= NoOperation) <$> sepBy1 databaseContextExprP semi
-  pure (MultipleExpr exprs)
+  pure (someDatabaseContextExprs exprs)
 
 insertP :: Parser DatabaseContextExpr
 insertP = do

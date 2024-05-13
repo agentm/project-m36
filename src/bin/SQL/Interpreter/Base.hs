@@ -42,7 +42,7 @@ braces = between (symbol "{") (symbol "}")
 identifier :: Parser Text
 identifier = do
   istart <- letterChar <|> char '_'
-  toLower <$> identifierRemainder istart
+  (toLower <$> identifierRemainder istart) <* spaceConsumer
 
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do
@@ -83,7 +83,7 @@ double = Lex.float <* spaceConsumer
 -- | When an identifier is quoted, it can contain any string.
 quotedIdentifier :: Parser Text
 quotedIdentifier =
-  T.pack <$> (doubleQuote *> many (escapedDoubleQuote <|> notDoubleQuote) <* doubleQuote)
+  (T.pack <$> (doubleQuote *> many (escapedDoubleQuote <|> notDoubleQuote) <* doubleQuote)) <* spaceConsumer
   where
     doubleQuote = char '"'
     escapedDoubleQuote = chunk "\"\"" *> pure '"'

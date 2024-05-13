@@ -18,6 +18,9 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text.Encoding as TE
 import Data.UUID hiding (null)
 import Data.Text (Text)
+import TutorialD.Interpreter.Base (uncapitalizedIdentifier)
+import Text.Megaparsec
+import Data.Either (isLeft)
 
 renderPretty :: Pretty a => a -> Text
 renderPretty = renderStrict . layoutPretty defaultLayoutOptions . pretty
@@ -40,7 +43,7 @@ instance Pretty Atom where
   pretty (ConstructedAtom n _ as) = pretty n <+> prettyList as
 
 instance Pretty AtomExpr where
-  pretty (AttributeAtomExpr attrName) = pretty ("@" <> attrName)
+  pretty (AttributeAtomExpr attrName) = prettyAttributeName ("@" <> attrName)
   pretty (NakedAtomExpr atom)         = pretty atom
   pretty (FunctionAtomExpr atomFuncName' atomExprs _) = pretty atomFuncName' <> prettyAtomExprsAsArguments atomExprs
   pretty (RelationAtomExpr relExpr) = pretty relExpr
@@ -51,7 +54,7 @@ instance Pretty AtomExpr where
 prettyAtomExpr :: AtomExpr -> Doc ann
 prettyAtomExpr atomExpr =
   case atomExpr of
-    AttributeAtomExpr attrName -> "@" <> pretty attrName
+    AttributeAtomExpr attrName -> "@" <> prettyAttributeName attrName
     ConstructedAtomExpr dConsName [] () -> pretty dConsName
     ConstructedAtomExpr dConsName atomExprs () -> parens (pretty dConsName <+> hsep (map prettyAtomExpr atomExprs))
     _ -> pretty atomExpr
@@ -60,8 +63,12 @@ prettyAtomExprsAsArguments :: [AtomExpr] -> Doc ann
 prettyAtomExprsAsArguments = align . parensList . map addAt
   where addAt (atomExpr :: AtomExpr) =
           case atomExpr of
-            AttributeAtomExpr attrName -> "@" <> pretty attrName
+            AttributeAtomExpr attrName -> "@" <> prettyAttributeName attrName
             _ -> pretty atomExpr
+
+nameNeedsQuoting :: StringType -> Bool
+nameNeedsQuoting s =
+  isLeft (parse uncapitalizedIdentifier "" s)
 
 instance Pretty UUID where
   pretty = pretty . show
@@ -83,7 +90,7 @@ instance Pretty Attribute where
 instance Pretty RelationalExpr where
   pretty (RelationVariable n _) = pretty n
   pretty (ExistingRelation r) = pretty r
-  pretty (RelationValuedAttribute attrName) = "@" <> pretty attrName
+  pretty (RelationValuedAttribute attrName) = "@" <> prettyAttributeName attrName
   pretty (NotEquals a b) = pretty' a <+> "!=" <+> pretty' b
   pretty (Equals a b) = pretty' a <+> "==" <+> pretty' b
   pretty (Project ns r) = pretty' (ignoreProjects r) <> pretty ns
@@ -118,15 +125,15 @@ pretty' :: RelationalExpr -> Doc n
 pretty' = prettyRelationalExpr
 
 instance Pretty AttributeNames where
-  pretty (AttributeNames attrNames) = prettyBracesList (S.toList attrNames)
-  pretty (InvertedAttributeNames attrNames) = braces $ "all but" <+> concatWith (surround ", ") (map pretty (S.toList attrNames))
+  pretty (AttributeNames attrNames) = bracesList (map prettyAttributeName (S.toList attrNames))
+  pretty (InvertedAttributeNames attrNames) = braces $ "all but" <+> concatWith (surround ", ") (map prettyAttributeName (S.toList attrNames))
   pretty (RelationalExprAttributeNames relExpr) = braces $ "all from" <+> pretty relExpr
   pretty (UnionAttributeNames aAttrNames bAttrNames) = braces ("union of" <+> pretty aAttrNames <+> pretty bAttrNames)
   pretty (IntersectAttributeNames aAttrNames bAttrNames) = braces ("intersection of" <+> pretty aAttrNames <+> pretty bAttrNames)
 
 instance Pretty AttributeExpr where
   pretty (NakedAttributeExpr attr) = pretty attr
-  pretty (AttributeAndTypeNameExpr name typeCons _) = pretty name <+> pretty typeCons
+  pretty (AttributeAndTypeNameExpr name typeCons _) = prettyAttributeName name <+> pretty typeCons
 
 instance Pretty TypeConstructor where
   pretty (ADTypeConstructor tcName []) = pretty tcName
@@ -157,7 +164,7 @@ instance Pretty ExtendTupleExpr where
 newtype RenameTuple = RenameTuple { _unRenameTuple :: (AttributeName, AttributeName) }
   
 instance Pretty RenameTuple where
-  pretty (RenameTuple (n1, n2)) = pretty n1 <+> "as" <+> pretty n2
+  pretty (RenameTuple (n1, n2)) = pretty n1 <+> "as" <+> prettyAttributeName n2
   
 
 instance Pretty RestrictionPredicateExpr where
@@ -170,7 +177,8 @@ instance Pretty RestrictionPredicateExpr where
   pretty (AttributeEqualityPredicate attrName atomExpr) = prettyAttributeName attrName <> "=" <> pretty atomExpr
 
 prettyAttributeName :: AttributeName -> Doc a
-prettyAttributeName attrName = pretty $ "`" <> attrName <> "`"
+prettyAttributeName attrName | nameNeedsQuoting attrName = pretty $ "`" <> attrName <> "`"
+prettyAttributeName attrName = pretty $ attrName 
 
 instance Pretty WithNameExpr where
   pretty (WithNameExpr name _) = pretty name
@@ -236,7 +244,7 @@ instance Pretty DatabaseContextExpr where
 
 instance Pretty AttributeNameAtomExprMap where
   pretty m =
-    group (encloseSep "(" ")" "," (map (\(attrName, atomExpr) -> pretty attrName <+> ":=" <+> pretty atomExpr) (M.toList m)))
+    group (encloseSep "(" ")" "," (map (\(attrName, atomExpr) -> prettyAttributeName attrName <+> ":=" <+> pretty atomExpr) (M.toList m)))
   
 instance Pretty TypeConstructorDef where
   pretty (ADTypeConstructorDef tConsName tVarNames) = pretty tConsName <+> hsep (pretty <$> tVarNames)

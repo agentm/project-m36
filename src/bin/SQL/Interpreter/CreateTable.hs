@@ -5,6 +5,7 @@ import ProjectM36.SQL.CreateTable
 import SQL.Interpreter.Base
 import ProjectM36.Interpreter
 import Text.Megaparsec
+import Control.Monad.Permutations
 
 createTableP :: Parser CreateTable
 createTableP = do
@@ -33,7 +34,27 @@ columnTypeP = choice (map (\(nam, typ) -> reserved nam *> pure typ) types)
              ("double", DoubleColumnType),
              ("datetime", DateTimeColumnType)]
 
+data PerColumnConstraintsParse =
+  PerColumnConstraintsParse { parse_notNullConstraint :: Bool,
+                              parse_uniquenessConstraint :: Bool,
+                              parse_primaryKeyConstraint :: Bool,
+                              parse_references :: Maybe (TableName, UnqualifiedColumnName)
+                              }
+
+referencesP :: Parser (TableName, UnqualifiedColumnName)
+referencesP = do
+  reserved "references"
+  (,) <$> tableNameP <*> parens unqualifiedColumnNameP 
+  
 perColConstraintsP :: Parser PerColumnConstraints
 perColConstraintsP = do
-  let baseConstraints = PerColumnConstraints { notNullConstraint = False }
-  (try (reserveds "not null" *> pure (baseConstraints { notNullConstraint = True}))) <|> pure baseConstraints
+  parsed <- runPermutation $
+    PerColumnConstraintsParse <$>
+      toPermutationWithDefault False (try (reserveds "not null" *> pure True)) <*>
+      toPermutationWithDefault False (reserved "unique" *> pure True) <*>
+      toPermutationWithDefault False (reserved "primary key" *> pure True) <*>
+      toPermutationWithDefault Nothing (Just <$> referencesP)
+  pure (PerColumnConstraints { notNullConstraint = (parse_notNullConstraint parsed) || (parse_primaryKeyConstraint parsed),
+                               uniquenessConstraint = (parse_uniquenessConstraint parsed) || (parse_primaryKeyConstraint parsed),
+                               references = parse_references parsed })
+
