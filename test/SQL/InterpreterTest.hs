@@ -5,11 +5,10 @@ import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
 import ProjectM36.RelationalExpression
-import ProjectM36.StaticOptimizer
+--import ProjectM36.StaticOptimizer
 import SQL.Interpreter.DBUpdate
 import SQL.Interpreter.CreateTable
 import ProjectM36.DataTypes.SQL.Null
-import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
@@ -405,7 +404,11 @@ testDBUpdate = TestCase $ do
         -- simple update
         ("update s set city='New York' where status=20;",
          "update s where sql_coalesce_bool(sql_equals(@status,20)) (city:=\"New York\")"
-        )
+        ),
+        --simple delete
+        ("delete from s where city='New York';",
+         "delete s where sql_coalesce_bool(sql_equals(@city,\"New York\"))"
+         )
         ]
 
       parseTutd tutd = do
@@ -417,11 +420,12 @@ testDBUpdate = TestCase $ do
         gre_context = Just sqlDBContext,
         gre_graph = tgraph,
         gre_extra = mempty }
-      typeF = 
+{-      typeF = 
         let reEnv = mkRelationalExprEnv sqlDBContext tgraph in
-          optimizeAndEvalRelationalExpr reEnv 
-{-        let gfExpr = runProcessExprM (TransactionMarker transId) (processRelationalExpr expr)
-        runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)-}
+          optimizeAndEvalRelationalExpr reEnv-}
+      typeF expr = do
+        let gfExpr = runProcessExprM (TransactionMarker transId) (processRelationalExpr expr)
+        runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
             
       check (sql, equivalent_tutd) = do
         --parse SQL
