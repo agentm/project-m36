@@ -16,7 +16,7 @@ import ProjectM36.SQL.DropTable as DropTable
 import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNames as A
-import ProjectM36.Relation (attributes)
+import ProjectM36.Relation (attributes, atomTypeForName)
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T
 import qualified ProjectM36.WithNameExpr as With
@@ -36,7 +36,7 @@ import Data.Foldable (foldl')
 import Data.Bifunctor (bimap)
 --import qualified Data.HashSet as HS
 
---import Debug.Trace
+import Debug.Trace
 
 {-
 TODO
@@ -478,7 +478,7 @@ convertSelect typeF sel = do
       finalRelExpr = explicitWithF (withF (projF (convertExpr dfExpr)))
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
   -- apply rename reduction- this could be applied by the static query optimizer, but we do it here to simplify the tests so that they aren't polluted with redundant renames
---  traceShowM ("final expr"::String, finalRelExpr)
+  traceShowM ("final expr"::String, finalRelExpr)
   pure (dfExpr { convertExpr = finalRelExpr })
 
 
@@ -732,7 +732,7 @@ convertScalarExpr typeF expr = do
       BooleanLiteral False -> naked (BoolAtom False)
       --pure $ ConstructedAtomExpr "False" [] ()
       -- we don't have enough type context with a cast, so we default to text
-      NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
+      NullLiteral -> pure $ ConstructedAtomExpr "SQLNullOfUnknownType" [] ()
       Identifier i -> do
         AttributeAtomExpr <$> convertColumnName i
       BinaryOperator exprA op exprB -> do
@@ -760,7 +760,7 @@ convertProjectionScalarExpr typeF expr = do
       BooleanLiteral False ->
         naked (BoolAtom False)
         --pure $ ConstructedAtomExpr "False" [] ()
-      NullLiteral -> pure $ ConstructedAtomExpr "SQLNull" [] ()
+      NullLiteral -> pure $ ConstructedAtomExpr "SQLNullOfUnknownType" [] ()
       Identifier i -> do
         AttributeAtomExpr <$> convertColumnProjectionName i
       BinaryOperator exprA op exprB -> do
@@ -1165,27 +1165,102 @@ convertDBUpdate typeF (UpdateDropTable dt) = convertDropTable typeF dt
 
 convertInsert :: TypeForRelExprF -> Insert -> ConvertM DatabaseContextExpr
 convertInsert typeF ins = do
-  dfExpr <- convertQuery typeF (source ins)
-  when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
   -- check that all columns are mentioned because Project:M36 does not support default columns
-  case typeF (convertExpr dfExpr) of
+  rvTarget <- convertTableName (Insert.target ins)
+  let eRvTargetType = typeF (RelationVariable rvTarget ())
+  case eRvTargetType of
     Left err -> throwSQLE (SQLRelationalError err)
-    Right rvExprType -> do
-      let rvExprAttrNames = A.attributeNamesList (attributes rvExprType)
-          insAttrNames = map convertUnqualifiedColumnName (Insert.targetColumns ins)
-          rvExprColNameSet = S.map UnqualifiedColumnName (S.fromList rvExprAttrNames)
-          insAttrColSet = S.fromList (Insert.targetColumns ins)
-      when (length rvExprAttrNames /= length insAttrNames) $ throwSQLE (ColumnNamesMismatch rvExprColNameSet insAttrColSet)
-      rvTarget <- convertTableName (Insert.target ins)
-      -- insert into s(s#,sname,city,status) select * from s; -- we need to reorder attributes to align?
-      -- rename attributes rexpr via query/values to map to targetCol attrs
-      let insExpr = if rvExprColNameSet == insAttrColSet then -- if the attributes already align, don't perform any renaming
-                      convertExpr dfExpr
-                    else
-                      Rename (S.fromList (filter rendundantRename (zip rvExprAttrNames insAttrNames))) (convertExpr dfExpr)
-          rendundantRename (a,b) = a /= b
-      --traceShowM ("ins"::String, insExpr)
-      pure $ B.Insert rvTarget insExpr
+    Right rvTargetType -> do
+      -- if types do not align due to nullability, then add SQLJust
+      dfExpr <- convertQuery typeF (source ins)
+      when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
+--      traceShowM ("before dfExpr"::String, dfExpr)
+      case typeF (convertExpr dfExpr) of
+        Left err -> throwSQLE (SQLRelationalError err)
+        Right rvExprType -> do
+--          traceShowM ("after dfExpr"::String, rvExprType)          
+          let rvExprAttrNames = A.attributeNamesList (attributes rvExprType)
+              insAttrNames = map convertUnqualifiedColumnName (Insert.targetColumns ins)
+              rvExprColNameSet = S.map UnqualifiedColumnName (S.fromList rvExprAttrNames)
+              insAttrColSet = S.fromList (Insert.targetColumns ins)
+          when (length rvExprAttrNames /= length insAttrNames) $ throwSQLE (ColumnNamesMismatch rvExprColNameSet insAttrColSet)
+    
+
+          -- insert into s(s#,sname,city,status) select * from s; -- we need to reorder attributes to align?
+          -- rename attributes rexpr via query/values to map to targetCol attrs
+          let atomTypeForName' attrName type' =
+                case atomTypeForName attrName type' of
+                  Left err -> throwSQLE (SQLRelationalError err)
+                  Right targetType -> pure targetType
+              ren a b (Rename names expr) = Rename (S.insert (a,b) names) expr
+              ren a b e = Rename (S.singleton (a, b)) e
+              sqlPrefix s = "_sql_" <> s
+              projHide n = Project (InvertedAttributeNames (S.singleton n))
+              -- if one of the types is a nullable version of the other
+--              isSQLNullableCombo t1 t2 = isSQLNullableSpecificType t1 t2 || isSQLNullableSpecificType t2 t1
+              sqlNullMorpher interName targetName targetType t2 expr
+                | isSQLNullableSpecificType targetType t2 = -- targetType is nullable version of t2
+                  Extend (AttributeExtendTupleExpr targetName (ConstructedAtomExpr "SQLJust" [AttributeAtomExpr interName] ())) expr
+                | otherwise = expr
+               
+          let typeMatchRenamer acc (targetAttrName, sourceAttrName) = do
+                targetType <- atomTypeForName' targetAttrName rvTargetType
+                insType <- atomTypeForName' sourceAttrName rvExprType
+                if targetType == insType && targetAttrName == sourceAttrName then --nothing to do
+                  pure acc
+                  else if targetAttrName /= sourceAttrName &&
+                          targetType == insType then do
+                          --simple rename
+--                         traceShowM ("simple rename"::String)
+                         pure $ ren sourceAttrName targetAttrName acc
+                  else if targetAttrName == sourceAttrName &&
+                          targetType /= insType &&
+                          isSQLNullableSpecificType targetType insType
+                  then do -- we need to extend the expr, but we want to use the targetName, so we have to rename it twice
+--                         traceShowM ("same name, null conversion"::String)
+                         let intermediateName = sqlPrefix targetAttrName
+                         pure $ ren intermediateName targetAttrName (sqlNullMorpher intermediateName targetAttrName targetType insType (ren sourceAttrName intermediateName acc))
+                  else if targetAttrName /= sourceAttrName &&
+                          targetType /= insType &&
+                          isSQLNullableSpecificType targetType insType then do
+                         -- we extend the expr, but don't need an intermediate rename
+--                         traceShowM ("diff name, null conversion"::String)
+                         pure $ projHide sourceAttrName (Extend (AttributeExtendTupleExpr targetAttrName (ConstructedAtomExpr "SQLJust" [AttributeAtomExpr sourceAttrName] ())) acc)
+                  else if targetAttrName == sourceAttrName &&
+                          isSQLNullUnknownType insType &&
+                          isNullAtomType targetType then do
+--                         traceShowM ("same name, unknown null"::String)
+                         case atomTypeFromSQLNull targetType of
+                           Nothing -> do
+                             pure acc
+                           -- replace null of unknown type with typed null
+                           Just atype -> do
+                               pure $ Extend (AttributeExtendTupleExpr targetAttrName (NakedAtomExpr (nullAtom atype Nothing))) (projHide sourceAttrName acc)
+                  else if targetAttrName /= sourceAttrName &&
+                          isSQLNullUnknownType insType &&
+                          isNullAtomType targetType then do
+--                         traceShowM ("different name, unknown null"::String, targetAttrName, sourceAttrName, targetType)
+                         case atomTypeFromSQLNull targetType of
+                           Nothing -> do
+                             pure acc
+                           -- replace null of unknown type with typed null
+                           Just _atype -> do
+                               pure $ projHide sourceAttrName $ Extend (AttributeExtendTupleExpr targetAttrName (ConstructedAtomExpr "SQLNull" [] ())) acc
+                  else
+                         pure acc
+                         
+          insExpr <- foldM typeMatchRenamer (convertExpr dfExpr) (zip insAttrNames rvExprAttrNames)
+{-          let insExpr = if rvExprColNameSet == insAttrColSet then -- if the attributes already align, don't perform any renaming
+                          convertExpr dfExpr
+                        else
+                          Rename (S.fromList (filter rendundantRename (zip rvExprAttrNames insAttrNames))) (convertExpr dfExpr)
+              rendundantRename (a,b) = a /= b-}
+{-          traceShowM ("source ins"::String, source ins)
+          traceShowM ("source ins converted"::String, convertExpr dfExpr)
+          traceShowM ("ins converted"::String, insExpr)
+          traceShowM ("rvTargetType"::String, rvTargetType)-}
+
+          pure $ B.Insert rvTarget insExpr
 
 convertDelete :: TypeForRelExprF -> Delete.Delete -> ConvertM DatabaseContextExpr
 convertDelete typeF del = do

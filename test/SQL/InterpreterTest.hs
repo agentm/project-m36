@@ -4,6 +4,9 @@ import ProjectM36.SQL.Convert
 import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
+import ProjectM36.RelationalExpression
+import ProjectM36.StaticOptimizer
+import SQL.Interpreter.DBUpdate
 import SQL.Interpreter.CreateTable
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.RelationalExpression
@@ -11,7 +14,7 @@ import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
 import ProjectM36.NormalizeExpr
-import ProjectM36.Client
+import ProjectM36.Client hiding (typeConstructorMapping)
 import ProjectM36.SQLDatabaseContext
 import ProjectM36.Base
 import ProjectM36.Relation
@@ -27,7 +30,11 @@ main = do
   tcounts <- runTestTT (TestList tests)
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
-    tests = [testFindColumn, testSelect, testCreateTable]
+    tests = [testFindColumn,
+             testSelect,
+             testCreateTable,
+             testDBUpdate
+            ]
 
 
 testFindColumn :: Test
@@ -242,9 +249,9 @@ testSelect = TestCase $ do
          "(s where not (s#=\"S5\"))"
          ),
         -- basic projection NULL
-        ("SELECT NULL",
-         "((relation{}{tuple{}}:{attr_1:=SQLNull}){attr_1})",
-         "((true:{attr_1:=SQLNull}){attr_1})"
+        ("SELECT NULL", -- convert to null of text type by default
+         "((relation{}{tuple{}}:{attr_1:=SQLNullOfUnknownType}){attr_1})",
+         "((true:{attr_1:=SQLNullOfUnknownType}){attr_1})"
          ),
         -- restriction NULL
         ("SELECT * FROM s WHERE s# IS NULL",
@@ -259,10 +266,10 @@ testSelect = TestCase $ do
          "(s{city})"
          ),
         ("SELECT NULL AND FALSE",
-         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,False)}){attr_1})",
+         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNullOfUnknownType,False)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
         ("SELECT NULL AND TRUE",
-         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNull,True)}){attr_1})",
+         "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNullOfUnknownType,True)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
         ]
       gfEnv = GraphRefRelationalExprEnv {
@@ -372,7 +379,68 @@ testCreateTable = TestCase $ do
         print sql
         assertEqual "create table SQL" tutdAsDFExpr queryAsDFExpr
 
-  mapM_ check createTableTests                         
+  mapM_ check createTableTests
+
+testDBUpdate :: Test
+testDBUpdate = TestCase $ do
+  let sqlDBContext = dateExamples { relationVariables =
+                                      M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples),
+                                    typeConstructorMapping = typeConstructorMapping dateExamples <> nullTypeConstructorMapping
+                                  }
+  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+
+  let updateTests = [
+        -- simple insert with no nulls
+        ("insert into s(city,status) values(\'New York\',15);",
+         "insert s relation{tuple{attr_1 \"New York\", attr_2 15}} rename {attr_1 as city, attr_2 as status}"
+        ),
+        -- simple insert into nullable column with value
+        ("insert into snull(\"s#\",sname,status,city) values ('S6','Smith',20,'New York');",
+         "insert snull ((relation{tuple{attr_1 \"S6\", attr_2 \"Smith\", attr_3 20, attr_4 \"New York\"}} rename {attr_1 as s#, attr_2 as sname, attr_3 as status}) : {city:=SQLJust @attr_4}){all but attr_4}" 
+         ),
+        -- simple insert into nullable column with NULL
+        ("insert into snull(\"s#\",sname,status,city) values ('S6','Smith',20,NULL);",
+         "insert snull ((relation{tuple{attr_1 \"S6\", attr_2 \"Smith\", attr_3 20, attr_4 SQLNullOfUnknownType}} rename {attr_1 as s#, attr_2 as sname, attr_3 as status}):{city:=SQLNull}){all but attr_4}" 
+         ),
+        -- simple update
+        ("update s set city='New York' where status=20;",
+         "update s where sql_coalesce_bool(sql_equals(@status,20)) (city:=\"New York\")"
+        )
+        ]
+
+      parseTutd tutd = do
+        case parse (multipleDatabaseContextExprP <* eof) "test" tutd of
+          Left err -> assertFailure (errorBundlePretty err)
+          Right x -> do
+            pure x
+      gfEnv = GraphRefRelationalExprEnv {
+        gre_context = Just sqlDBContext,
+        gre_graph = tgraph,
+        gre_extra = mempty }
+      typeF = 
+        let reEnv = mkRelationalExprEnv sqlDBContext tgraph in
+          optimizeAndEvalRelationalExpr reEnv 
+{-        let gfExpr = runProcessExprM (TransactionMarker transId) (processRelationalExpr expr)
+        runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)-}
+            
+      check (sql, equivalent_tutd) = do
+        --parse SQL
+        query <- case parse (dbUpdateP <* eof) "test" sql of
+          Left err -> assertFailure (errorBundlePretty err)
+          Right x -> do
+            --print ("parsed SQL:"::String, x)
+            pure x
+        --parse tutd
+        tutdAsDFExpr <- parseTutd equivalent_tutd
+        queryAsDFExpr <- case evalConvertM mempty (convertDBUpdate typeF query) of
+          Left err -> assertFailure (show err)
+          Right x -> do
+            --print ("convert SQL->tutd:"::String, x)
+            pure x
+        print sql
+        assertEqual "db update SQL" tutdAsDFExpr queryAsDFExpr
+
+  mapM_ check updateTests
   
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
@@ -390,7 +458,6 @@ dateExamplesConnection callback = do
           executeDatabaseContextExpr sessionId conn addNullTable >>= eitherFail
           commit sessionId conn >>= eitherFail
           pure (sessionId, conn)
-
 
 eitherFail :: Either RelationalError a -> IO ()
 eitherFail (Left err) = assertFailure (show err)

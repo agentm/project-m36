@@ -50,7 +50,7 @@ import Control.Exception
 import GHC.Paths
 #endif
 
-import Debug.Trace
+--import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -282,7 +282,7 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
   context <- getStateContext
   let existingRelVar = M.lookup relVarName (relationVariables context)
       reEnv = freshGraphRefRelationalExprEnv (Just context) graph
-      eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr)      
+
   case existingRelVar of
     Nothing -> do
       case runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr expr) of
@@ -294,13 +294,16 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
       let eExpectedType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr existingRel)
       case eExpectedType of
         Left err -> dbErr err
-        Right expectedType ->
+        Right expectedType -> do
+      -- if we are targeting an existing rv, we can morph a MakeRelationFromExprs datum to fill in missing type variables'
+          let hintedExpr = addTargetTypeHints (attributes expectedType) expr
+              eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr hintedExpr)
           case eNewExprType of
             Left err -> dbErr err
             Right newExprType -> do
               if newExprType == expectedType then do
                 lift $ except $ validateAttributes (typeConstructorMapping context) (attributes newExprType)
-                setRelVar relVarName expr 
+                setRelVar relVarName hintedExpr 
               else
                 dbErr (RelationTypeMismatchError (attributes expectedType) (attributes newExprType))
 
@@ -896,7 +899,7 @@ evalGraphRefAtomExpr tupIn (IfThenAtomExpr ifExpr thenExpr elseExpr) = do
   case conditional of
     BoolAtom True -> evalGraphRefAtomExpr tupIn thenExpr
     BoolAtom False -> evalGraphRefAtomExpr tupIn elseExpr
-    otherAtom -> traceShow ("evalAtom"::String, otherAtom) $ throwError (IfThenExprExpectedBooleanError (atomTypeForAtom otherAtom))
+    otherAtom -> throwError (IfThenExprExpectedBooleanError (atomTypeForAtom otherAtom))
 evalGraphRefAtomExpr _ (ConstructedAtomExpr tOrF [] _)
   | tOrF == "True" = pure (BoolAtom True)
   | tOrF == "False" = pure (BoolAtom False)
@@ -1513,4 +1516,38 @@ firstAtomForAttributeName attrName tuples = do
   case foldr folder Nothing tuples of
     Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
     Just match -> pure match
-    
+
+-- | Optionally add type hints to resolve type variables. For example, if we are inserting into a known relvar, then we have its concrete type.    
+addTargetTypeHints :: Attributes -> GraphRefRelationalExpr -> GraphRefRelationalExpr
+addTargetTypeHints targetAttrs expr =
+  case expr of
+    MakeRelationFromExprs Nothing tupExprs ->
+      MakeRelationFromExprs (Just targetAttrExprs) tupExprs
+    Project attrs e ->
+      Project attrs (hint e)
+    Union a b ->
+      Union (hint a) (hint b)
+    Join a b ->
+      Join (hint a) (hint b)
+    Rename rens e ->
+      Rename rens (hint e)
+    Difference a b ->
+      Difference (hint a) (hint b)
+    Group attrs gname e ->
+      Group attrs gname (hint e)
+    Ungroup gname e ->
+      Ungroup gname (hint e)
+    Restrict restriction e ->
+      Restrict restriction (hint e)
+    Equals a b ->
+      Equals (hint a) (hint b)
+    NotEquals a b ->
+      NotEquals (hint a) (hint b)
+    Extend tupExprs e ->
+      Extend tupExprs (hint e)
+    With withs e ->
+      With withs (hint e)
+    _ -> expr
+  where
+    targetAttrExprs = map NakedAttributeExpr (A.toList targetAttrs)
+    hint = addTargetTypeHints targetAttrs

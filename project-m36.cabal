@@ -403,7 +403,12 @@ Test-Suite test-sql
     type: exitcode-stdio-1.0
     main-is: SQL/InterpreterTest.hs
     Other-Modules: SQL.Interpreter.Select, SQL.Interpreter.Base, TutorialD.Interpreter.Base, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.RODatabaseContextOperator, ProjectM36.Interpreter, SQL.Interpreter.CreateTable
-        TutorialD.Printer
+                   TutorialD.Printer,
+                   SQL.Interpreter.DBUpdate,
+                   SQL.Interpreter.Delete,
+                   SQL.Interpreter.DropTable,
+                   SQL.Interpreter.Insert,
+                   SQL.Interpreter.Update
 
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific, recursion-schemes
     

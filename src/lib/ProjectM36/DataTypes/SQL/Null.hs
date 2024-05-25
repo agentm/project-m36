@@ -8,6 +8,7 @@ import qualified Data.Vector as V
 import ProjectM36.AtomFunction
 import ProjectM36.Tuple
 import ProjectM36.Relation
+import Data.Maybe (isJust)
 
 -- analogous but not equivalent to a Maybe type due to how NULLs interact with every other value
 
@@ -17,7 +18,10 @@ nullAtomType arg = ConstructedAtomType "SQLNullable" (M.singleton "a" arg)
 nullTypeConstructorMapping :: TypeConstructorMapping
 nullTypeConstructorMapping = [(ADTypeConstructorDef "SQLNullable" ["a"],
                                 [DataConstructorDef "SQLNull" [],
-                                 DataConstructorDef "SQLJust" [DataConstructorDefTypeVarNameArg "a"]])
+                                 DataConstructorDef "SQLJust" [DataConstructorDefTypeVarNameArg "a"]]),
+                               -- used in SQL conversion from in expressions such as INSERT INTO s(city) VALUES (NULL) where the query expression must defer type resolution to SQLNull.
+                               (ADTypeConstructorDef "SQLNullOfUnknownType" [],
+                                [DataConstructorDef "SQLNullOfUnknownType" []])
                               ]
 
 nullAtomFunctions :: AtomFunctions
@@ -119,6 +123,7 @@ coalesceBool _other = Left AtomFunctionTypeMismatchError
 isSQLBool :: Atom -> Bool
 isSQLBool atom = case atomTypeForAtom atom of
                    ConstructedAtomType "SQLNullable" _ -> True
+                   ConstructedAtomType "SQLNullOfUnknownType" _ -> True
                    BoolAtomType -> True
                    _ -> False
 
@@ -131,6 +136,7 @@ sqlBool (ConstructedAtom dConsName aType []) |
   dConsName == "SQLNull" &&
   (aType == nullAtomType BoolAtomType ||
    aType == nullAtomType (TypeVariableType "a")) = Nothing
+sqlBool (ConstructedAtom "SQLNullOfUnknownType" _ []) = Nothing
 sqlBool (BoolAtom tf) = Just tf
 sqlBool x | isSQLBool x = error "internal sqlBool type error" -- should be caught above
 sqlBool other = error ("sqlBool type mismatch: " <> show other)
@@ -173,7 +179,21 @@ isNullOrType aType atom = atomTypeForAtom atom == nullAtomType aType || atomType
 
 isNull :: Atom -> Bool
 isNull (ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" _) []) = True
+isNull (ConstructedAtom "SQLNullOfUnknownType" (ConstructedAtomType "SQLNullOfUnknownType" _) []) = True
 isNull _ = False
+
+isNullAtomType :: AtomType -> Bool
+isNullAtomType = isJust . atomTypeFromSQLNull
+
+atomTypeFromSQLNull :: AtomType -> Maybe AtomType
+atomTypeFromSQLNull (ConstructedAtomType "SQLNullOfUnknownType" _) = Nothing
+atomTypeFromSQLNull (ConstructedAtomType "SQLNullable" vars)
+  | M.size vars == 1 =
+    case M.elems vars of
+      [] -> Nothing
+      [t] -> Just t
+      _ts -> Nothing
+atomTypeFromSQLNull _ = Nothing
 
 sqlIntegerBinaryFunction :: AtomType -> (Integer -> Integer -> Atom) -> [Atom] -> Either AtomFunctionError Atom
 sqlIntegerBinaryFunction expectedAtomType op [a,b] 
@@ -279,3 +299,14 @@ sqlIsNull :: AtomFunctionBodyType
 sqlIsNull [ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" _) []] = pure (BoolAtom True)
 sqlIsNull [_arg] = pure (BoolAtom False)
 sqlIsNull _other = Left AtomFunctionTypeMismatchError
+
+isSQLNullableType :: AtomType -> Bool
+isSQLNullableType (ConstructedAtomType "SQLNullable" _) = True
+isSQLNullableType _ = False
+
+isSQLNullableSpecificType :: AtomType -> AtomType -> Bool
+isSQLNullableSpecificType (ConstructedAtomType "SQLNullable" vars) expectedType | M.elems vars == [expectedType] = True
+isSQLNullableSpecificType _ _ = False
+
+isSQLNullUnknownType :: AtomType -> Bool
+isSQLNullUnknownType t = t == ConstructedAtomType "SQLNullOfUnknownType" mempty
