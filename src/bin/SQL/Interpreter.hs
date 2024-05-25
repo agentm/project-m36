@@ -76,6 +76,8 @@ evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
       eHandler $ C.commit sessionId conn
     TransactionGraphOp Rollback -> do
       eHandler $ C.rollback sessionId conn
+    TransactionGraphOp Begin ->
+      pure $ DisplayHintWith ("Advisory Warning: BEGIN is redundant as transaction is started automatically.") QuietSuccessResult
   where
     eHandler io = do
       eErr <- io

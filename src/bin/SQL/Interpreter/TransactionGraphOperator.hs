@@ -4,11 +4,14 @@ import SQL.Interpreter.Base
 import Control.Applicative
 import Data.Functor (($>))
 
-data TransactionGraphOperator = Commit | Rollback
+data TransactionGraphOperator = Begin | Commit | Rollback
   deriving (Show, Eq)
 
 transactionGraphOperatorP :: Parser TransactionGraphOperator
-transactionGraphOperatorP = commitP <|> rollbackP
+transactionGraphOperatorP = beginP <|> commitP <|> rollbackP
+
+beginP :: Parser TransactionGraphOperator
+beginP = reserved "begin" $> Begin
   
 commitP :: Parser TransactionGraphOperator
 commitP = reserved "commit" $> Commit
