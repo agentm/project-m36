@@ -8,6 +8,7 @@ import ProjectM36.RelationalExpression
 --import ProjectM36.StaticOptimizer
 import SQL.Interpreter.DBUpdate
 import SQL.Interpreter.CreateTable
+import SQL.Interpreter.Base (semi)
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
@@ -264,12 +265,19 @@ testSelect = TestCase $ do
          "(((s where not sql_coalesce_bool(sql_isnull(@city)))){city})",
          "(s{city})"
          ),
+        -- some basic NULL logic
         ("SELECT NULL AND FALSE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNullOfUnknownType,False)}){attr_1})",
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust False}})"),
         ("SELECT NULL AND TRUE",
          "((relation{}{tuple{}}:{attr_1:=sql_and(SQLNullOfUnknownType,True)}){attr_1})",
-         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})")
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})"),
+        ("SELECT NULL OR FALSE",
+         "((relation{}{tuple{}}:{attr_1:=sql_or(SQLNullOfUnknownType,False)}){attr_1})",
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})"),
+        ("SELECT NULL OR TRUE",
+         "((relation{}{tuple{}}:{attr_1:=sql_or(SQLNullOfUnknownType,True)}){attr_1})",
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust True}})")
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just sqlDBContext,
@@ -429,7 +437,7 @@ testDBUpdate = TestCase $ do
             
       check (sql, equivalent_tutd) = do
         --parse SQL
-        query <- case parse (dbUpdateP <* eof) "test" sql of
+        query <- case parse (dbUpdateP <* semi <* eof) "test" sql of
           Left err -> assertFailure (errorBundlePretty err)
           Right x -> do
             --print ("parsed SQL:"::String, x)
@@ -445,6 +453,20 @@ testDBUpdate = TestCase $ do
         assertEqual "db update SQL" tutdAsDFExpr queryAsDFExpr
 
   mapM_ check updateTests
+
+{-
+testTransactionGraphOps :: Test
+testTransactionGraphOps = TestCase $ do
+  let sqlDBContext = dateExamples { relationVariables =
+                                      M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples),
+                                    typeConstructorMapping = typeConstructorMapping dateExamples <> nullTypeConstructorMapping
+                                  }
+  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+
+  let graphTests = [("begin;create table x(a integer not null);commit;",
+                     "(x==relation{a integer})")
+                   ]
+-}
   
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)

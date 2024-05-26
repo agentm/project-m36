@@ -36,13 +36,10 @@ import Data.Foldable (foldl')
 import Data.Bifunctor (bimap)
 --import qualified Data.HashSet as HS
 
-import Debug.Trace
+--import Debug.Trace
 
 {-
 TODO
-* remove commented out code
-* remove unused functions from failed experiments
-* remove traceShow*
 * enable duplicate rows by adding uuid column
 -}
 
@@ -158,8 +155,6 @@ withSubSelect m = do
   (TableContext postSub) <- get
   put state
   -- diff the state to get just the items that were added
---  traceShowM ("keys orig"::String, M.keys orig)
---  traceShowM ("keys postSub"::String, M.keys postSub)
   let tableDiffFolder acc (tAlias, (RelationVariable _rv (), _ , colAliasRemapper)) = do
         let convertColAliases :: ColumnAliasRemapper -> (AttributeName, (AttributeName, S.Set ColumnName)) -> ColumnAliasRenameMap -> ColumnAliasRenameMap
             convertColAliases origColAlRemapper (attrName, (attrAlias,_)) acc' =
@@ -213,8 +208,6 @@ insertTable tAlias expr rtype = do
 noteColumnMention :: Maybe TableAlias -> ColumnName -> Maybe ColumnAlias -> ConvertM ColumnAlias
 noteColumnMention mTblAlias colName mColAlias = do
   -- find the relevant table for the key to the right table
---  traceShowM ("noteColumnMention"::String, mTblAlias, colName)
---  traceStateM
   tc@(TableContext tcontext) <- get
   -- check if we already have a mention mapping
   let lookupWithTableAlias (TableAlias tAlias) colAttr = do
@@ -229,12 +222,9 @@ noteColumnMention mTblAlias colName mColAlias = do
             insertColAlias (maybe tPrefixColAttr unColumnAlias mColAlias)
           Just (_, _, colAlRemapper) -> do
             -- table alias already known, check for column alias
---            traceShowM ("noteColumnMention before attr"::String, colAlRemapper)
             case attributeNameForAttributeAlias colAttr colAlRemapper of
               Left _ -> do
                 -- col alias missing, so add it- figure out if it needs a table prefix
-                --traceShowM ("findNotedColumn' in noteColumnMention"::String, colAlias)
-                --traceStateM
                 let sqlColAlias = maybe colAttr unColumnAlias mColAlias
                 case findNotedColumn' (ColumnName [colAttr]) tc of
                                Left _ -> -- no match, so table prefix not required
@@ -244,8 +234,6 @@ noteColumnMention mTblAlias colName mColAlias = do
                                Right [_] -> -- we have a match, so we need the table prefix
                                  insertColAlias (maybe tPrefixColAttr unColumnAlias mColAlias)
                                Right (_:_) -> throwSQLE (AmbiguousColumnResolutionError colName)
-                --traceShowM ("findNotedColumn' in noteColumnMentionB"::String, colAlias')
-                --pure colAlias'
               Right attrName ->
                 -- we know the alias already, so return it
                 pure (ColumnAlias attrName)
@@ -296,7 +284,6 @@ findColumn targetCol =
 -- | non ConvertM version of findColumn
 findColumn' :: ColumnName -> TableContext -> [TableAlias]
 findColumn' targetCol (TableContext tMap) = do
---  traceShowM ("findColumn'", targetCol, tMap)
   M.foldrWithKey folder [] tMap
    where
     folder tAlias@(TableAlias tat) (_rvExpr, rtype, _) acc =
@@ -337,7 +324,6 @@ findNotedColumn' colName _ = Left $ UnexpectedColumnNameError colName
 
 attributeNameForAttributeAlias :: AttributeAlias -> ColumnAliasRemapper -> Either SQLError AttributeName
 attributeNameForAttributeAlias al remapper = do
---  traceShowM ("attributeNameForAttributeAlias"::String, al, remapper)
   foldr folder (Left (ColumnAliasResolutionError (ColumnAlias al))) (M.toList remapper)
   where
     folder (_attrName, (attrAlias, _)) acc =
@@ -373,7 +359,6 @@ attributeNameForColumnName colName = do
                 ColumnName [attr] -> pure $ ColumnAlias attr
                 ColumnName [_tname,attr] -> pure $ ColumnAlias attr
                 ColumnName{} -> throwSQLE $ ColumnResolutionError colName
---  traceShowM ("attributeNameForColumnName' colAlias"::String, colAttr, colAliases, colAlias)
   case M.lookup colAttr colAliases of
     Just (alias,_) -> pure alias -- we found it, so it's valid
     Nothing ->
@@ -384,12 +369,9 @@ attributeNameForColumnName colName = do
           Right _ -> pure colAttr
           Left (AmbiguousColumnResolutionError{}) -> do
             --we have a conflict, so insert a new column alias and return it
---            traceShowM ("attributeNameForColumnName"::String, colName)
             (ColumnAlias al) <- noteColumnMention (Just tKey) (ColumnName [tAlias,colAttr]) Nothing
-            --traceShowM ("attributeNameForColumnName' noteColumnMention"::String, colAttr, al)
             pure al
           Left err -> throwSQLE err
-        --pure (T.concat [tAlias, ".", colAttr])
       else
         case colName of
           ColumnName [_, col] | col `A.isAttributeNameContained` rvattrs ->
@@ -463,7 +445,6 @@ convertSelect typeF sel = do
   (dfExpr, _colRemap) <- case tableExpr sel of
               Nothing -> pure (baseDFExpr, mempty)
               Just tExpr -> convertTableExpr typeF' tExpr
---  traceShowM ("table aliases", tAliasMap)              
   let explicitWithF = if null wExprs then id else With wExprs
       (groupByExprs, havingExpr) = case tableExpr sel of
                                      Nothing -> ([],Nothing)
@@ -478,7 +459,6 @@ convertSelect typeF sel = do
       finalRelExpr = explicitWithF (withF (projF (convertExpr dfExpr)))
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
   -- apply rename reduction- this could be applied by the static query optimizer, but we do it here to simplify the tests so that they aren't polluted with redundant renames
-  traceShowM ("final expr"::String, finalRelExpr)
   pure (dfExpr { convertExpr = finalRelExpr })
 
 
@@ -505,7 +485,6 @@ convertSubSelect typeF sel = do
                             Nothing -> pure (baseDFExpr, mempty)
                             Just tExpr -> convertTableExpr typeF' tExpr  
     when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
---    traceShowM ("convertSubSelect"::String, colMap)
     let explicitWithF = if null wExprs then id else With wExprs    
     -- convert projection using table alias map to resolve column names
     projF <- convertProjection typeF' (projectionClause sel) [] Nothing -- the projection can only project on attributes from the subselect table expression
@@ -515,12 +494,8 @@ convertSubSelect typeF sel = do
                   [] -> id
                   _ -> With withAssocs
     -- add disambiguation renaming
---    traceShowM ("subselect tExpr"::String, convertExpr dfExpr)
     pure (explicitWithF . withF . projF, convertExpr dfExpr)
     
-{-  let renamesF = Rename (S.fromList (map renamer (M.toList colRenames)))
-      renamer ((TableAlias tAlias, realAttr), ColumnAlias newAttr) =
-        (realAttr, newAttr)-}
   let renamedExpr = foldr renamerFolder tExpr (M.toList colRenames)
       renamerFolder ((TableAlias tAlias, oldAttrName), ColumnAlias newAttrName)=
         pushDownAttributeRename (S.singleton (oldAttrName, newAttrName)) (RelationVariable tAlias ())
@@ -568,13 +543,8 @@ convertSelectItem typeF acc (c,selItem) =
 
 convertProjection :: TypeForRelExprF -> [SelectItem] -> [GroupByExpr] -> Maybe HavingExpr -> ConvertM (RelationalExpr -> RelationalExpr)
 convertProjection typeF selItems groupBys havingExpr = do
---    traceShowM ("convertProjection", selItems, groupBys)
     groupInfo <- convertGroupBy typeF groupBys havingExpr selItems
---    traceShowM ("convertProjection grouping"::String, groupInfo)
---        attrName' (Just (ColumnAlias nam)) _ = nam
---        attrName' Nothing c = "attr_" <> T.pack (show c)
     task <- foldM (convertSelectItem typeF) emptyTask (zip [1::Int ..] selItems)
---    traceShowM ("convertProjection task"::String, task)
     -- SQL supports only one grouping at a time, but multiple aggregations, so we create the group as attribute "_sql_aggregate" and the aggregations as fold projections on it
     fGroup <- if not (null (nonAggregates groupInfo)) ||
                  (null (nonAggregates groupInfo) && not (null (aggregates groupInfo)))
@@ -613,7 +583,6 @@ convertProjection typeF selItems groupBys havingExpr = do
     -- apply extensions
     let fExtended = foldr (\ext acc -> Extend ext . acc) id (taskExtenders task)
     -- process SQL aggregates by replacing projections
---    let fAggregates 
     -- apply rename
     renamesSet <- foldM (\acc (qProjName, ColumnAlias newName) -> do
                           oldName <- convertColumnProjectionName qProjName
@@ -679,8 +648,6 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         pure (NotPredicate TruePredicate)
       BinaryOperator (Identifier colName) (OperatorName ["="]) exprMatch -> do --we don't know here if this results in a boolean expression, so we pass it down
         attrName <- attributeNameForColumnName colName
---        traceShowM ("convertWhereClause eq"::String, colName, attrName)
---        traceStateM
         expr' <- convertScalarExpr typeF exprMatch
         pure (AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_equals" [AttributeAtomExpr attrName, expr'] ())))
       BinaryOperator exprA op exprB -> do
@@ -690,7 +657,6 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         pure (AtomExprPredicate (coalesceBoolF (f [a,b])))
       PostfixOperator expr (OperatorName ops) -> do
         expr' <- convertScalarExpr typeF expr
---        traceShowM ("convertWhereClause"::String, expr')
         let isnull = AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_isnull" [expr'] ()))
         case ops of
           ["is", "null"] -> 
@@ -937,7 +903,6 @@ joinTableRef typeF rvA (_c,tref) = do
             
             (tKey, rvB) <- convertTableRef typeF jtref
             --rvA and rvB now reference potentially aliased relation variables (needs with clause to execute), but this is useful for making attributes rv-prefixed
---            traceShowM ("converted", rvA, rvB, tAliases)
             --extract all table aliases to create a remapping for SQL names discovered in the sexpr
             
             withExpr <- With <$> tableAliasesAsWithNameAssocs
@@ -954,8 +919,6 @@ joinTableRef typeF rvA (_c,tref) = do
 --            rvPrefixB <- rvPrefix rvB
             exprA <- prefixRenamer (TableAlias rvNameA) rvA (S.toList attrsA)
             exprB <- prefixRenamer tKey (RelationVariable rvNameB ()) (S.toList attrsB)
---            traceShowM ("exprA", exprA)
---            traceShowM ("exprB", exprB)
             -- for the join condition, we can potentially extend to include all the join criteria columns, then project them away after constructing the join condition
             joinRe <- convertScalarExpr typeF joinExpr --' why are we renaming here- can't we call attributenameforcolumnname in the scalarexpr conversion???
             --let joinCommonAttrRenamer (RelationVariable rvName ()) old_name =
@@ -1174,11 +1137,9 @@ convertInsert typeF ins = do
       -- if types do not align due to nullability, then add SQLJust
       dfExpr <- convertQuery typeF (source ins)
       when (usesDataFrameFeatures dfExpr) $ throwSQLE (NotSupportedError "ORDER BY/LIMIT/OFFSET in subquery")
---      traceShowM ("before dfExpr"::String, dfExpr)
       case typeF (convertExpr dfExpr) of
         Left err -> throwSQLE (SQLRelationalError err)
         Right rvExprType -> do
---          traceShowM ("after dfExpr"::String, rvExprType)          
           let rvExprAttrNames = A.attributeNamesList (attributes rvExprType)
               insAttrNames = map convertUnqualifiedColumnName (Insert.targetColumns ins)
               rvExprColNameSet = S.map UnqualifiedColumnName (S.fromList rvExprAttrNames)
@@ -1211,25 +1172,21 @@ convertInsert typeF ins = do
                   else if targetAttrName /= sourceAttrName &&
                           targetType == insType then do
                           --simple rename
---                         traceShowM ("simple rename"::String)
                          pure $ ren sourceAttrName targetAttrName acc
                   else if targetAttrName == sourceAttrName &&
                           targetType /= insType &&
                           isSQLNullableSpecificType targetType insType
                   then do -- we need to extend the expr, but we want to use the targetName, so we have to rename it twice
---                         traceShowM ("same name, null conversion"::String)
                          let intermediateName = sqlPrefix targetAttrName
                          pure $ ren intermediateName targetAttrName (sqlNullMorpher intermediateName targetAttrName targetType insType (ren sourceAttrName intermediateName acc))
                   else if targetAttrName /= sourceAttrName &&
                           targetType /= insType &&
                           isSQLNullableSpecificType targetType insType then do
                          -- we extend the expr, but don't need an intermediate rename
---                         traceShowM ("diff name, null conversion"::String)
                          pure $ projHide sourceAttrName (Extend (AttributeExtendTupleExpr targetAttrName (ConstructedAtomExpr "SQLJust" [AttributeAtomExpr sourceAttrName] ())) acc)
                   else if targetAttrName == sourceAttrName &&
                           isSQLNullUnknownType insType &&
                           isNullAtomType targetType then do
---                         traceShowM ("same name, unknown null"::String)
                          case atomTypeFromSQLNull targetType of
                            Nothing -> do
                              pure acc
@@ -1239,7 +1196,6 @@ convertInsert typeF ins = do
                   else if targetAttrName /= sourceAttrName &&
                           isSQLNullUnknownType insType &&
                           isNullAtomType targetType then do
---                         traceShowM ("different name, unknown null"::String, targetAttrName, sourceAttrName, targetType)
                          case atomTypeFromSQLNull targetType of
                            Nothing -> do
                              pure acc
@@ -1515,27 +1471,6 @@ replaceProjScalarExpr r orig =
     e@ExistsExpr{} -> e
   where
     recr = replaceProjScalarExpr r
-
--- convert group by info into extend tasks
-{-
-convertGroupByInfo :: GroupByInfo -> SelectItemsConvertTask -> SelectItemsConvertTask
-convertGroupByInfo ginfo task =
-  task { taskExtenders = taskExtenders task <> gbyExtenders,
-         taskProjections = taskProjections tasks <> gbyProjections }
-  where
-    grouper = AttributeExtendTupleExpr "_sql_aggregate"
-              (RelationAtomExpr 
-                (
-    gbyExtenders = grouper : map mkAggregateExtender (aggregates groupInfo)
-    mkAggregateExtender sexpr =
-      replaceProjScalarExpr (\expr ->
-                                case expr of
-                                  FunctionApplication fname [Identifier colName]
-                                    | fname == "sql_max" ->
-                                      FunctionApplication fname [ -- cannot make RelationalExpr here and we want to make a RelationValuedAttribute-based expression
-    gbyProjections = -- map mkAggregateProjection (aggregates groupInfo)
---    mkAggregateProjection expr = 
-  -}                                                            
 
 -- find SQL aggregate functions and replace then with folds on attribute "_sql_aggregate"
 processSQLAggregateFunctions :: AtomExpr -> AtomExpr
