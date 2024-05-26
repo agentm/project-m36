@@ -22,12 +22,18 @@ data SQLCommand = RODatabaseContextOp Query | -- SELECT
                   ImportBasicExampleOp ImportBasicExampleOperator |  -- IMPORT EXAMPLE cjdate
                   TransactionGraphOp TransactionGraphOperator -- COMMIT, ROLLBACK
                 deriving (Show)
+
+type SQLCommands = [SQLCommand]
   
-parseSQLUserInput :: T.Text -> Either ParserError SQLCommand
-parseSQLUserInput = parse ((parseRODatabaseContextOp <* semi) <|>
-                           parseDatabaseContextExprOp <|>
-                           (parseTransactionGraphOp <* semi) <|>
-                           (parseImportBasicExampleOp <* semi)) ""
+parseSQLUserInput :: T.Text -> Either ParserError SQLCommands
+parseSQLUserInput = parse (some semiCommand <* eof) ""
+
+semiCommand :: Parser SQLCommand
+semiCommand =  (parseRODatabaseContextOp <|>
+                parseDatabaseContextExprOp <|>
+                parseTransactionGraphOp <|>
+                parseImportBasicExampleOp) <* semi
+
 
 parseRODatabaseContextOp :: Parser SQLCommand
 parseRODatabaseContextOp = RODatabaseContextOp <$> queryP
@@ -41,8 +47,11 @@ parseTransactionGraphOp = TransactionGraphOp <$> transactionGraphOperatorP
 parseDatabaseContextExprOp :: Parser SQLCommand
 parseDatabaseContextExprOp = DBUpdateOp <$> dbUpdatesP
 
-evalSQLInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> SQLCommand -> IO ConsoleResult
-evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
+evalSQLInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> [SQLCommand] -> IO [ConsoleResult]
+evalSQLInteractive sessionId conn _safeFlag _interactiveConsole commands =
+  mapM evalOneCommand commands
+ where
+ evalOneCommand command =  
   case command of
     RODatabaseContextOp query -> do
       --get relvars to build conversion context
@@ -57,7 +66,7 @@ evalSQLInteractive sessionId conn safeFlag interactiveConsole command =
             Right df -> pure $ DisplayHintWith ("[Equivalent TutorialD] " <> hint) (DisplayDataFrameResult df)
     ImportBasicExampleOp (ImportBasicExampleOperator exampleName) -> do
       if exampleName == "cjdate" then
-        evalSQLInteractive sessionId conn safeFlag interactiveConsole (DatabaseContextExprOp (databaseContextAsDatabaseContextExpr dateExamples))
+        evalOneCommand (DatabaseContextExprOp (databaseContextAsDatabaseContextExpr dateExamples))
         else
           pure (DisplayErrorResult ("No such example: " <> exampleName))
     DatabaseContextExprOp dbcExpr -> do

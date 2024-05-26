@@ -38,7 +38,7 @@ sqlReprLoop sessionId conn mPromptLength userInput = do
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
         evald <- evalSQLInteractive sessionId conn UnsafeEvaluation True parsed
-        displayResult evald)
+        mapM_ displayResult evald)
         (\_ -> displayResult (DisplayErrorResult "Request timed out."))
       
 

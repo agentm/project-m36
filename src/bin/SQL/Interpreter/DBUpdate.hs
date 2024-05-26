@@ -6,16 +6,15 @@ import SQL.Interpreter.Insert
 import SQL.Interpreter.Delete
 import SQL.Interpreter.CreateTable
 import SQL.Interpreter.DropTable
-import SQL.Interpreter.Base
 import Text.Megaparsec
 
 dbUpdatesP :: Parser [DBUpdate]
 dbUpdatesP = some dbUpdateP
 
 dbUpdateP :: Parser DBUpdate
-dbUpdateP = (UpdateUpdate <$> updateP <* semi) <|>
-            (UpdateInsert <$> insertP <* semi) <|>
-            (UpdateDelete <$> deleteP <* semi) <|>
-            (UpdateCreateTable <$> createTableP <* semi) <|>
-            (UpdateDropTable <$> dropTableP <* semi)
+dbUpdateP = (UpdateUpdate <$> updateP) <|>
+            (UpdateInsert <$> insertP) <|>
+            (UpdateDelete <$> deleteP) <|>
+            (UpdateCreateTable <$> createTableP) <|>
+            (UpdateDropTable <$> dropTableP)
   
