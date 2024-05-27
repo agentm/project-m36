@@ -42,7 +42,6 @@ jobs:
             ghc_version: 9.2
     env:
       STACK_YAML: stack.ghc${{ matrix.ghc_version }}.yaml
-      PATH: $PATH:~/.ghcup/bin
     steps:
       - uses: actions/checkout@v4
       - name: Cache
@@ -64,6 +63,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc ${{ matrix.ghc_version }}
           ghcup install stack
+          echo "~/.ghcup/bin" >> ${GITHUB_PATH}
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
