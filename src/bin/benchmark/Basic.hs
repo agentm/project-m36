@@ -5,13 +5,11 @@ import ProjectM36.Relation
 import ProjectM36.Persist
 import ProjectM36.RelationalExpression
 import ProjectM36.Error
-import ProjectM36.Transaction.Persist
+import ProjectM36.TransactionGraph
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Control.Monad.Trans.Reader
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified Data.Set as S
-import Data.Monoid
 import System.IO.Temp
 import System.FilePath
 import System.Directory
@@ -38,23 +36,23 @@ createRelation' :: Int -> Int -> Relation
 createRelation' x y = validate (createRelation x y)
 
 restrictRelationToOneTuple :: Int -> Relation ->  Relation
-restrictRelationToOneTuple match rel = validate (runReader (evalRelationalExpr restriction) exprState)
+restrictRelationToOneTuple match rel = validate (runRelationalExprM basicREEnv (evalRelationalExpr restriction))
  where
-  exprState = mkRelationalExprState DBC.empty
   restriction = Restrict predicateMatch (ExistingRelation rel)
   predicateMatch = AttributeEqualityPredicate "a0" (NakedAtomExpr (IntAtom match))
 
 restrictRelationToHalfRelation :: Int -> Relation -> Relation
-restrictRelationToHalfRelation cutoff rel = validate (runReader (evalRelationalExpr restriction) exprState)
+restrictRelationToHalfRelation cutoff rel = validate (runRelationalExprM basicREEnv (evalRelationalExpr restriction))
  where
-  exprState = mkRelationalExprState DBC.basicDatabaseContext
   restriction = Restrict predicateMatch (ExistingRelation rel)
   predicateMatch = AtomExprPredicate (FunctionAtomExpr "lte" [AttributeAtomExpr "a0", NakedAtomExpr (IntAtom cutoff)] ())
 
+basicREEnv :: RelationalExprEnv
+basicREEnv = mkRelationalExprEnv DBC.basicDatabaseContext emptyTransactionGraph
+
 projectRelationToAttributes :: AttributeNames -> Relation -> Relation
-projectRelationToAttributes attrNames rel = validate (runReader (evalRelationalExpr projection) exprState)
+projectRelationToAttributes attrNames rel = validate (runRelationalExprM basicREEnv (evalRelationalExpr projection))
  where
-  exprState = mkRelationalExprState DBC.empty
   projection = Project attrNames (ExistingRelation rel)
 
 unionRelations :: Relation -> Relation -> Relation
@@ -64,9 +62,7 @@ joinRelations :: Relation -> Relation -> Relation
 joinRelations relA relB = validate (join relA relB)
 
 groupRelation :: AttributeNames -> Relation -> Relation
-groupRelation attrNames rel = validate (runReader (evalRelationalExpr (Group attrNames "x" (ExistingRelation rel))) exprState)
- where
-  exprState = mkRelationalExprState DBC.empty
+groupRelation attrNames rel = validate (runRelationalExprM basicREEnv (evalRelationalExpr (Group attrNames "x" (ExistingRelation rel))))
 
 bigRelAttrNames :: Int -> Int -> AttributeNames
 bigRelAttrNames start end = AttributeNames (S.fromList (map (\i -> "a" <> T.pack (show i)) [start .. end]))
@@ -101,6 +97,6 @@ main = do
   group100 = bench "group 10x100" (nf (groupRelation (bigRelAttrNames 1 9)) bigrel100)
 
   writeRel tmpDir = bgroup "write" [writeRel10000 tmpDir]
-  writeRel10000 tmpDir = bench "write 10x1000" $ nfIO (writeRelVar FsyncDiskSync tmpDir ("x", bigrel10000))
+  writeRel10000 tmpDir = bench "write 10x1000" $ nfIO (writeSerialiseSync FsyncDiskSync tmpDir ("x"::String, bigrel10000))
 
   

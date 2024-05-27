@@ -38,7 +38,7 @@ main :: IO ()
 main = do
   let parser = info (parseOptions <**> helper) (fullDesc <> progDesc "Read or write data for heap profiling.")
   opts <- execParser parser
-  let connInfo = InProcessConnectionInfo (MinimalPersistence (datadir opts)) emptyNotificationCallback []
+  let connInfo = InProcessConnectionInfo (MinimalPersistence (datadir opts)) emptyNotificationCallback [] basicDatabaseContext
       eCheck v = do
         x <- v
         case x of 
