@@ -63,7 +63,7 @@ jobs:
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc ${{ ghc_version }}
-       	  ghcup install stack
+          ghcup install stack
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
