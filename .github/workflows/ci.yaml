@@ -56,14 +56,14 @@ jobs:
         run: rm -rf ~/.stack/setup-exe-cache
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
-      - name: Setup Stack
-        run: curl -sSL https://get.haskellstack.org/ | sh	
+#      - name: Setup Stack
+#        run: curl -sSL https://get.haskellstack.org/ | sh	
       - name: Build
-        run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
+        run: /usr/local/bin/stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
-        run: stack test --stack-yaml=${{ env.STACK_YAML }}
+        run: /usr/local/bin/stack test --stack-yaml=${{ env.STACK_YAML }}
       - name: Haddock
-        run: stack --no-install-ghc --system-ghc --no-haddock-deps haddock
+        run: /usr/local/bin/stack --no-install-ghc --system-ghc --no-haddock-deps haddock
       - uses: actions/upload-artifact@v3
         with:
           name: project-m36-${{ matrix.os }}-${{ matrix.ghc }}
