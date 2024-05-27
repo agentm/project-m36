@@ -57,11 +57,7 @@ jobs:
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
       - name: Setup Stack
-        uses: haskell-actions/setup@v2
-        with:
-          enable-stack: true
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: 3.10.2.1
+        run: curl -sSL https://get.haskellstack.org/ | sh	
       - name: Build
         run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
