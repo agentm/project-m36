@@ -34,37 +34,43 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        ghc:
-          - ghc9.2
-          - ghc9.4
+        ghc_version:
+          - 9.2
+          - 9.4
         include:
           - os: macos-latest
-            ghc: ghc9.2
+            ghc_version: 9.2
     env:
-      STACK_YAML: stack.${{ matrix.ghc }}.yaml
+      STACK_YAML: stack.ghc${{ matrix.ghc_version }}.yaml
+      PATH: $PATH:~/.ghcup/bin
     steps:
       - uses: actions/checkout@v4
       - name: Cache
         uses: actions/cache@v3
         with:
           path: ~/.stack
-          key: ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
+          key: ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}
-            ${{ runner.os }}-build-stack-${{ matrix.ghc }}
+            ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}-${{ hashFiles(env.STACK_YAML) }}
+            ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}
       - name: Fix macOS cache bug
         run: rm -rf ~/.stack/setup-exe-cache
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
-#      - name: Setup Stack
-#        run: curl -sSL https://get.haskellstack.org/ | sh	
+      - name: Install ghcup dependencies
+      - run: apt-get install build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
+      - name: Setup GHCUp
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          ghcup install ghc ${{ ghc_version }}
+       	  ghcup install stack
       - name: Build
-        run: /usr/local/bin/stack build --ghc-options -O2 --local-bin-path out --copy-bins
+        run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
       - name: Test
-        run: /usr/local/bin/stack test --stack-yaml=${{ env.STACK_YAML }}
+        run: stack test --stack-yaml=${{ env.STACK_YAML }}
       - name: Haddock
-        run: /usr/local/bin/stack --no-install-ghc --system-ghc --no-haddock-deps haddock
+        run: stack --no-install-ghc --system-ghc --no-haddock-deps haddock
       - uses: actions/upload-artifact@v3
         with:
-          name: project-m36-${{ matrix.os }}-${{ matrix.ghc }}
+          name: project-m36-${{ matrix.os }}-ghc${{ matrix.ghc_version }}
           path: out/
