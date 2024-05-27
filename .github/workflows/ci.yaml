@@ -62,7 +62,8 @@ jobs:
       - name: Setup GHCUp
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-          echo "~/.ghcup/bin" >> $GITHUB_PATH	  
+          echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
+	  ls -al $HOME/.ghcup/bin
           ghcup install ghc ${{ matrix.ghc_version }}
           ghcup install stack
 
