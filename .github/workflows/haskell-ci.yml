@@ -12,7 +12,7 @@
 #
 # REGENDATA ("0.19.20240514",["github","project-m36.cabal"])
 #
-name: Haskell-CI
+name: "Cabal"
 on:
   - push
   - pull_request
@@ -149,7 +149,7 @@ jobs:
           echo "packages: ${PKGDIR_project_m36}" >> cabal.project
           echo "package project-m36" >> cabal.project
           echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-	  echo "allow-newer: fast-builder:base" >> cabal.project
+          echo "allow-newer: fast-builder:base" >> cabal.project
           cat >> cabal.project <<EOF
           EOF
           $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(project-m36)$/; }' >> cabal.project.local

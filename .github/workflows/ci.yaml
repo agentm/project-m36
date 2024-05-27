@@ -1,4 +1,4 @@
-name: "CI"
+name: "Stack"
 on:
   pull_request:
   push:
