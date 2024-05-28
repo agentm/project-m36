@@ -10,7 +10,7 @@ jobs:
       - uses: cachix/install-nix-action@v20
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - uses: cachix/cachix-action@v12
+      - uses: cachix/cachix-action@v15
         with:
           name: project-m36
           signingKey: "${{ secrets.CACHIX_SIGNING_KEY }}"
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.stack
           key: ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
@@ -75,7 +75,7 @@ jobs:
         run: stack test --stack-yaml=${{ env.STACK_YAML }}
       - name: Haddock
         run: stack --no-install-ghc --system-ghc --no-haddock-deps haddock
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: project-m36-${{ matrix.os }}-ghc${{ matrix.ghc_version }}
           path: out/
