@@ -61,7 +61,7 @@ jobs:
         if: runner.os == 'Linux'
       - name: Setup GHCUp
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
           echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
           ls -al $HOME/.ghcup/bin
           echo $GITHUB_PATH
