@@ -20,6 +20,13 @@ primitiveAtomFunctions = HS.fromList [
              funcBody = body (\case
                                  IntegerAtom i1:IntegerAtom i2:_ -> pure (IntegerAtom (i1 + i2))
                                  _ -> Left AtomFunctionTypeMismatchError)},
+    Function { funcName = "abs",
+               funcType = [IntegerAtomType, IntegerAtomType],
+               funcBody = body (\case
+                                   IntegerAtom i:_ -> pure $ IntegerAtom (abs i)
+                                   _ -> Left AtomFunctionTypeMismatchError
+                               )
+             },
     Function { funcName = "id",
                funcType = [TypeVariableType "a", TypeVariableType "a"],
                funcBody = body (\case
@@ -41,6 +48,10 @@ primitiveAtomFunctions = HS.fromList [
     Function { funcName = "min",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
                funcBody = body $ relationAtomFunc relationMin
+             },
+    Function { funcName = "mean",
+               funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
+               funcBody = body $ relationAtomFunc relationMean
              },
     Function { funcName = "eq",
                funcType = [TypeVariableType "a", TypeVariableType "a", BoolAtomType],
@@ -147,6 +158,15 @@ relationMin relIn = case oneTuple relIn of
   Just oneTup -> pure (IntegerAtom (relFold (\tupIn acc -> min acc (newVal tupIn)) (newVal oneTup) relIn))
   where
     newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+
+relationMean :: Relation -> Either AtomFunctionError Atom
+relationMean relIn = case oneTuple relIn of
+  Nothing -> Left AtomFunctionEmptyRelationError
+  Just _oneTup -> do
+    let (sum'', count') = relFold (\tupIn (sum', count) -> (sum' + newVal tupIn, count + 1)) (0, 0) relIn
+        newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+    pure (IntegerAtom (sum'' `div` count'))
+    
 
 castInt :: Atom -> Int
 castInt (IntAtom i) = i
