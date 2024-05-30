@@ -48,8 +48,8 @@ parseDatabaseContextExprOp :: Parser SQLCommand
 parseDatabaseContextExprOp = DBUpdateOp <$> dbUpdatesP
 
 evalSQLInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> [SQLCommand] -> IO [ConsoleResult]
-evalSQLInteractive sessionId conn _safeFlag _interactiveConsole commands =
-  mapM evalOneCommand commands
+evalSQLInteractive sessionId conn _safeFlag _interactiveConsole =
+  mapM evalOneCommand
  where
  evalOneCommand command =  
   case command of
@@ -86,7 +86,7 @@ evalSQLInteractive sessionId conn _safeFlag _interactiveConsole commands =
     TransactionGraphOp Rollback -> do
       eHandler $ C.rollback sessionId conn
     TransactionGraphOp Begin ->
-      pure $ DisplayHintWith ("Advisory Warning: BEGIN is redundant as transaction is started automatically.") QuietSuccessResult
+      pure $ DisplayHintWith "Advisory Warning: BEGIN is redundant as transaction is started automatically." QuietSuccessResult
   where
     eHandler io = do
       eErr <- io
