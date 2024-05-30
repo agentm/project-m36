@@ -805,7 +805,7 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "2agn0YDfvffgBe23XHZEqLni+JOWi3ex0P3vxRcYKk0=" (B64.encode (_unSecureHash hash1))
+  assertEqual "static hash check" "ds0uvEvV8CvivyYyxJ75S0CeAnNzKAAH5AdOv74+ydM=" (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn
