@@ -9,6 +9,7 @@ import ProjectM36.AtomFunction
 import ProjectM36.Tuple
 import ProjectM36.Relation
 import Data.Maybe (isJust)
+import Data.Text (Text)
 
 -- analogous but not equivalent to a Maybe type due to how NULLs interact with every other value
 
@@ -93,26 +94,41 @@ nullAtomFunctions = HS.fromList [
       funcType = [TypeVariableType "a", BoolAtomType],
       funcBody = FunctionBuiltInBody sqlIsNull
       }
-    ] <> sqlBooleanIntegerFunctions
+    ] <> sqlCompareFunctions
 
 
-sqlBooleanIntegerFunctions :: HS.HashSet AtomFunction
-sqlBooleanIntegerFunctions = HS.fromList $ 
-  map (\(sql_func, op) ->
-          Function {
-          funcName = sql_func,
-          funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType],
-          funcBody = FunctionBuiltInBody (sqlIntegerBinaryBoolean op)
-          }) ops
+sqlCompareFunctions :: HS.HashSet AtomFunction
+sqlCompareFunctions = HS.fromList $
+  map mkFunc ops
   where
-    sqlIntegerBinaryBoolean op =
-      sqlIntegerBinaryFunction BoolAtomType (\a b -> BoolAtom (a `op` b))
-    ops = [("sql_gt", (>)),
-            ("sql_lt", (<)),
-            ("sql_gte", (>=)),
-            ("sql_lte", (<=))
+    mkFunc (sql_func, opi, opt) =
+      Function {
+      funcName = sql_func,
+        funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType],
+        funcBody = FunctionBuiltInBody (sqlCompareFunc (opi, opt))
+      }
+    boolNull = nullAtom BoolAtomType Nothing
+    sqlCompareFunc :: (Integer -> Integer -> Bool, Text -> Text -> Bool) -> [Atom] -> Either AtomFunctionError Atom
+    sqlCompareFunc (opi, opt) [atomA, atomB] = 
+      case (maybeFromAtom atomA, maybeFromAtom atomB) of
+        (Nothing, _) -> pure boolNull
+        (_, Nothing) -> pure boolNull
+        (Just (IntegerAtom a), Just (IntegerAtom b)) -> pure $ nullAtom BoolAtomType (Just (BoolAtom (opi a b)))
+        (Just (TextAtom a), Just (TextAtom b)) -> pure (nullAtom BoolAtomType (Just (BoolAtom (opt a b))))
+        _ -> Left AtomFunctionTypeMismatchError
+    sqlCompareFunc _ _ = Left AtomFunctionTypeMismatchError
+    ops :: [(FunctionName,
+              Integer -> Integer -> Bool,
+              Text -> Text -> Bool)]
+    ops = [("sql_gt", (>), (>)),
+            ("sql_lt", (<), (<)),
+            ("sql_gte", (>=), (>=)),
+            ("sql_lte", (<=), (<=))
            ]
-    
+
+maybeFromAtom :: Atom -> Maybe Atom
+maybeFromAtom atom | isNull atom = Nothing
+maybeFromAtom atom = Just atom           
 
 coalesceBool :: [Atom] -> Either AtomFunctionError Atom
 coalesceBool [arg] = case sqlBool arg of
@@ -273,6 +289,7 @@ sqlNullableIntegerToMaybe :: Atom -> Maybe Integer
 sqlNullableIntegerToMaybe (IntegerAtom i) = Just i
 sqlNullableIntegerToMaybe (ConstructedAtom "SQLJust" aType [IntegerAtom i]) | aType == nullAtomType IntegerAtomType = Just i
 sqlNullableIntegerToMaybe (ConstructedAtom "SQLNull" aType []) | aType == nullAtomType IntegerAtomType = Nothing
+sqlNullableIntegerToMaybe (ConstructedAtom "SQLNullOfUnknownType" aType []) | aType == nullAtomType IntegerAtomType = Nothing
 sqlNullableIntegerToMaybe _ = Nothing
            
 -- check that types check out- Int and SQLNullable Int are OK, Int and SQLNullable Text are not OK
