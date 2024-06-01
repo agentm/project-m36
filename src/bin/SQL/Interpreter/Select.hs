@@ -165,7 +165,7 @@ scalarExprOp =
      E.Postfix betweenSuffixP
      --binarySymbolsN ["not", "like"]
      ],
-    map binarySymbolN ["<",">",">=","<=","!=","<>","="],
+    map binarySymbolN [">=","<=","!=","<>","=", "<",">"],
     [postfixKeywords ["is","null"], postfixKeywords ["is","not","null"]],
 {-    [binarySymbolsN ["is", "distinct", "from"],
      binarySymbolsN ["is", "not", "distinct", "from"]],-}
