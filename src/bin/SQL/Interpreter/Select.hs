@@ -64,7 +64,7 @@ selectP = do
   
   
 selectItemListP :: Parser [SelectItem]
-selectItemListP = sepBy1 selectItemP comma
+selectItemListP = sepBy selectItemP comma
 
 selectItemP :: Parser SelectItem
 selectItemP = (,) <$> scalarExprP <*> optional (reserved "as" *> columnAliasP)
@@ -194,9 +194,9 @@ qualifiedOperatorP sym =
   where
     segmentsP :: [Text] -> Parser [Text]
     segmentsP segments = case segments of
-      [] -> error "empty operator"
+      [] -> fail "empty operator"
       [seg] -> do
-        final <- qualifiedNameSegment seg
+        final <- try (qualifiedNameSegment seg <* notFollowedBy alphaNumChar)
         pure [final]
       (seg:remainder) -> do
         first <- qualifiedNameSegment seg
