@@ -60,7 +60,7 @@ prettyAtomExpr atomExpr =
     _ -> pretty atomExpr
     
 prettyAtomExprsAsArguments :: [AtomExpr] -> Doc ann
-prettyAtomExprsAsArguments = align . parensList . map addAt
+prettyAtomExprsAsArguments = {-align .-} parensList . map addAt
   where addAt (atomExpr :: AtomExpr) =
           case atomExpr of
             AttributeAtomExpr attrName -> "@" <> prettyAttributeName attrName
