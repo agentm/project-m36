@@ -459,6 +459,7 @@ convertSelect typeF sel = do
       finalRelExpr = explicitWithF (withF (projF (convertExpr dfExpr)))
   -- if we have only one table alias or the columns are all unambiguous, remove table aliasing of attributes
   -- apply rename reduction- this could be applied by the static query optimizer, but we do it here to simplify the tests so that they aren't polluted with redundant renames
+--  traceShowM ("finalExpr"::String, finalRelExpr)
   pure (dfExpr { convertExpr = finalRelExpr })
 
 
