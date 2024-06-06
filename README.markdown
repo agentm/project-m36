@@ -12,13 +12,15 @@
 
 ## Introduction
 
-Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date.
+Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date. Project:M36 supports both SQL and TutorialD interactive access.
 
 ## Quick Install
 
-Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
+Project:M36 can be downloaded and run via docker, which supports Windows 10+, macOS, and Linux.
 
-Run `docker run -it projectm36/project-m36 tutd` to start the TutorialD command line interface.
+Run `docker run -it projectm36/project-m36 tutd` to start the [TutorialD](docs/tutd_tutorial.markdown) command line interface.
+
+Run `docker run -it projectm36/project-m36 sqlegacy` to start the [SQLegacy](docs/sqlegacy.markdown) (SQL dialect) command line interface.
 
 ## Description
 
