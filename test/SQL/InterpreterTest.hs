@@ -69,6 +69,11 @@ testSelect = TestCase $ do
          "((s where sql_coalesce_bool(sql_equals(@status,20))){city})",
          "((s where status=20){city})"         
         ),
+        -- restriction + order by
+        ("SELECT status FROM s where status=20 order by status",
+         "((s where sql_coalesce_bool(sql_equals(@status,20))){status}) orderby {status}",
+         "((s where status=20){status}) orderby {status}"
+         ),
         -- restriction with asterisk and qualified name
         ("SELECT * FROM s WHERE \"s\".\"status\"=20",
          "(s where sql_coalesce_bool(sql_equals(@status,20)))",

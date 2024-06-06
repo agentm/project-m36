@@ -9,6 +9,7 @@ import SQL.Interpreter.Base
 import Data.Text (Text, splitOn)
 import qualified Data.Text as T
 import Data.Functor
+import Data.Char (isLetter)
 import qualified Data.List.NonEmpty as NE
 
 
@@ -192,7 +193,11 @@ qualifiedOperatorP :: Text -> Parser OperatorName
 qualifiedOperatorP sym =
   OperatorName <$> segmentsP (splitOn "." sym) <* spaceConsumer
   where
+    isLetters :: Text -> Bool
+    isLetters t = T.all isLetter t
     segmentsP :: [Text] -> Parser [Text]
+    -- simple case for non-string-based operators
+    segmentsP [op] | not (isLetters op) = qualifiedNameSegment op *> pure [op]
     segmentsP segments = case segments of
       [] -> fail "empty operator"
       [seg] -> do

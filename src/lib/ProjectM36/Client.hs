@@ -1135,7 +1135,7 @@ convertSQLDBUpdates sessionId (InProcessConnection conf) updates = do
       Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
         let ctx = Sess.concreteDatabaseContext session
             reEnv = RE.mkRelationalExprEnv ctx transGraph
-            typeF = optimizeAndEvalRelationalExpr reEnv
+            typeF = optimizeAndEvalRelationalExpr reEnv -- TODO: replace with typeForRelationalExpr
         -- convert SQL data into DataFrameExpr
         case evalConvertM mempty (convertDBUpdates typeF updates) of
           Left err -> pure (Left (SQLConversionError err))

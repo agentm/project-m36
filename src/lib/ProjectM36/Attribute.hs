@@ -135,6 +135,11 @@ renameAttributes oldAttrName newAttrName attrs = Attributes {
                    else
                      attr
 
+renameAttributes' :: S.Set (AttributeName, AttributeName) -> Attributes -> Attributes
+renameAttributes' renameSet attrs = 
+  foldr (\(old, new) acc -> renameAttributes old new acc) attrs renameSet
+    
+
 atomTypeForAttributeName :: AttributeName -> Attributes -> Either RelationalError AtomType
 atomTypeForAttributeName attrName attrs = do
   (Attribute _ atype) <- attributeForName attrName attrs
@@ -228,7 +233,8 @@ verifyAttributes :: Attributes -> Either RelationalError Attributes
 verifyAttributes attrs =
   if vecSet == attributesSet attrs then
     pure attrs
-  else
+  else do
+    traceShowM ("verify"::String, vecSet, attributesSet attrs)
     Left (TupleAttributeTypeMismatchError diffAttrs)
   where
     vecSet = V.foldr' HS.insert HS.empty (attributesVec attrs)

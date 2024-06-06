@@ -25,6 +25,7 @@ import qualified Data.Set as S
 import Control.Monad.State hiding (join)
 import Data.Bifunctor (second)
 import Data.Maybe
+import Data.Tuple (swap)
 import Data.Either
 import Data.Char (isUpper)
 import Data.Time
@@ -803,7 +804,7 @@ predicateRestrictionFilter attrs (AttributeEqualityPredicate attrName atomExpr) 
                                               Left err2@(NoSuchAttributeNamesError _) -> Left err2
                                               Left err -> Left err
       Left err -> Left err
-  if atomExprType /= A.atomType attr then
+  if atomExprType /= A.atomType attr then do
       throwError (TupleAttributeTypeMismatchError (A.attributesFromList [attr]))
     else
       pure $ \tupleIn -> let evalAndCmp atomIn = case atomEvald of
@@ -1097,7 +1098,8 @@ evalGraphRefTupleExpr mAttrs (TupleExpr tupMap) = do
       tup = mkRelationTuple tupAttrs atoms
       finalAttrs = fromMaybe tupAttrs mAttrs
     --verify that the attributes match
-  when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) $ throwError (TupleAttributeTypeMismatchError tupAttrs)
+  when (A.attributeNameSet finalAttrs /= A.attributeNameSet tupAttrs) $ do
+    throwError (TupleAttributeTypeMismatchError tupAttrs)
   --we can't resolve types here- they have to be resolved at the atom level where the graph ref is held
   --tup' <- lift $ except (resolveTypesInTuple finalAttrs tConss (reorderTuple finalAttrs tup))
   let tup' = reorderTuple finalAttrs tup
@@ -1530,7 +1532,8 @@ addTargetTypeHints targetAttrs expr =
     Join a b ->
       Join (hint a) (hint b)
     Rename rens e ->
-      Rename rens (hint e)
+      let renamedAttrs = A.renameAttributes' (S.map swap rens) targetAttrs in
+      Rename rens (addTargetTypeHints renamedAttrs e)
     Difference a b ->
       Difference (hint a) (hint b)
     Group attrs gname e ->
