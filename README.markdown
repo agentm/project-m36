@@ -37,6 +37,7 @@ Project:M36 is written entirely in the [Haskell programming language](https://ww
 Project:M36 supports multiple frontends which target different audiences.
 
 * learn about the relational algebra via TutorialD
+* use SQLegacy to learn how SQL differs from the relational algebra
 * store and manipulate databases
 * use Project:M36 as a native Haskell database backend
 
@@ -68,7 +69,13 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [On NULL (in SQL)](docs/on_null.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
-1. [An Architecture for Data Independence](docs/data_independence.markdown)
+1. [An Architecture for Data Independence](docs/data_independence.markdown)'
+
+
+### SQL Support
+
+1. [Why SQLegacy?](docs/why_sqlegacy.markdown)
+1. [SQLegacy Documentation](docs/sqlegacy.markdown)
 
 ### Advanced Features
 
