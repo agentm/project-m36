@@ -234,7 +234,6 @@ verifyAttributes attrs =
   if vecSet == attributesSet attrs then
     pure attrs
   else do
-    traceShowM ("verify"::String, vecSet, attributesSet attrs)
     Left (TupleAttributeTypeMismatchError diffAttrs)
   where
     vecSet = V.foldr' HS.insert HS.empty (attributesVec attrs)

@@ -194,10 +194,10 @@ qualifiedOperatorP sym =
   OperatorName <$> segmentsP (splitOn "." sym) <* spaceConsumer
   where
     isLetters :: Text -> Bool
-    isLetters t = T.all isLetter t
+    isLetters = T.all isLetter
     segmentsP :: [Text] -> Parser [Text]
     -- simple case for non-string-based operators
-    segmentsP [op] | not (isLetters op) = qualifiedNameSegment op *> pure [op]
+    segmentsP [op] | not (isLetters op) = qualifiedNameSegment op $> [op]
     segmentsP segments = case segments of
       [] -> fail "empty operator"
       [seg] -> do
