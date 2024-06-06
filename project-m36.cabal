@@ -300,6 +300,7 @@ Executable sqlegacy
                    SQL.Interpreter.DBUpdate,
                    SQL.Interpreter.CreateTable,
                    SQL.Interpreter.DropTable,
+                   SQL.Interpreter.Info,
                    TutorialD.Printer,
                    TutorialD.Interpreter.Base
                    

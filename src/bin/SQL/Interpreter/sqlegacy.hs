@@ -28,7 +28,7 @@ printWelcome :: IO ()
 printWelcome = do
   putStrLn ("Project:M36 SQLegacy Interpreter " ++ VERSION_project_m36)
   putStrLn "SQL does not support the complete relational algebra. To access the complete relational algebra, use the bundled \"tutd\" interpreter."
-  putStrLn "Type \"help\" for more information."
+  putStrLn "Type \"help;\" for more information."
 
 sqlReprLoop :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
 sqlReprLoop sessionId conn mPromptLength userInput = do

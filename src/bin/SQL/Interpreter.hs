@@ -10,6 +10,7 @@ import SQL.Interpreter.ImportBasicExample
 import SQL.Interpreter.TransactionGraphOperator
 import SQL.Interpreter.Select
 import SQL.Interpreter.DBUpdate
+import SQL.Interpreter.Info
 import ProjectM36.SQL.DBUpdate
 import qualified Data.Text as T
 import qualified ProjectM36.Client as C
@@ -20,7 +21,8 @@ data SQLCommand = RODatabaseContextOp Query | -- SELECT
                   DatabaseContextExprOp DatabaseContextExpr |
                   DBUpdateOp [DBUpdate] | -- INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE
                   ImportBasicExampleOp ImportBasicExampleOperator |  -- IMPORT EXAMPLE cjdate
-                  TransactionGraphOp TransactionGraphOperator -- COMMIT, ROLLBACK
+                  TransactionGraphOp TransactionGraphOperator | -- COMMIT, ROLLBACK
+                  InfoOp InfoOperator -- help
                 deriving (Show)
 
 type SQLCommands = [SQLCommand]
@@ -32,7 +34,9 @@ semiCommand :: Parser SQLCommand
 semiCommand =  (parseRODatabaseContextOp <|>
                 parseDatabaseContextExprOp <|>
                 parseTransactionGraphOp <|>
-                parseImportBasicExampleOp) <* semi
+                parseImportBasicExampleOp <|>
+                parseInfoOperator
+               ) <* semi
 
 
 parseRODatabaseContextOp :: Parser SQLCommand
@@ -46,6 +50,9 @@ parseTransactionGraphOp = TransactionGraphOp <$> transactionGraphOperatorP
 
 parseDatabaseContextExprOp :: Parser SQLCommand
 parseDatabaseContextExprOp = DBUpdateOp <$> dbUpdatesP
+
+parseInfoOperator :: Parser SQLCommand
+parseInfoOperator = InfoOp <$> infoP
 
 evalSQLInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> [SQLCommand] -> IO [ConsoleResult]
 evalSQLInteractive sessionId conn _safeFlag _interactiveConsole =
@@ -87,6 +94,8 @@ evalSQLInteractive sessionId conn _safeFlag _interactiveConsole =
       eHandler $ C.rollback sessionId conn
     TransactionGraphOp Begin ->
       pure $ DisplayHintWith "Advisory Warning: BEGIN is redundant as transaction is started automatically." QuietSuccessResult
+    InfoOp HelpOperator -> 
+      pure $ DisplayResult "The SQLegacy Console supports common SQL expressions. To import the C.J.Date examples:\n IMPORT EXAMPLE CJDATE;\nExample queries:\n SELECT status FROM s WHERE city='London';\nSELECT * FROM s NATURAL JOIN sp;\nExample statements:\n INSERT INTO s(city,s#,sname,status) VALUES ('Frankfurt', 'S6', 'Brians', 40);\n DELETE FROM s WHERE city='London';\n UPDATE s SET status=20 WHERE city='Paris';"
   where
     eHandler io = do
       eErr <- io
