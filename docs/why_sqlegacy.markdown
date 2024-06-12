@@ -25,7 +25,7 @@ While SQL, as a declarative language, does better on the "options" axis than key
 
 ### Project:M36+TutorialD vs. SQL
 
-Project:M36 is a ground-up reimaginging of what a relational algebra engine could be. It was born out of the frustrations of dealing with SQL so it aims to avoid the pitfalls of SQL. However, any serious, production DBMS nowadays supports SQL out of necessity- Project:M36 is no exception. Deliberate care was taken to ensure that SQL is bolted on top of a relational algebra core. To achieve this, a database interaction language apart from SQL was required: TutorialD. TutorialD has been developed over decades by database expert C.J. Date, an author who also recognized the irreconciable flaws of SQL.
+Project:M36 is a ground-up reimagining of what a relational algebra engine could be. It was born out of the frustrations of dealing with SQL so it aims to avoid the pitfalls of SQL. However, any serious, production DBMS nowadays supports SQL out of necessity- Project:M36 is no exception. Deliberate care was taken to ensure that SQL is bolted on top of a relational algebra core. To achieve this, a database interaction language apart from SQL was required: TutorialD. TutorialD has been developed over decades by database expert C.J. Date, an author who also recognized the irreconciable flaws of SQL.
 
 Project:M36's SQL shim over a relational algebra core makes SQL flaws more obvious through comparative implementation. Unfortunately, it is not even true that SQL supports a strict subset of the relational algebra.
 
@@ -259,7 +259,7 @@ In this case, SQL forces us to name the columns to be able to use them. Why shou
 SQL allows column names to be repeated:
 
 ```
-SELECY 1 AS a, 2 AS a;
+SELECT 1 AS a, 2 AS a;
  a | a 
 ---+---
  1 | 2
@@ -321,7 +321,6 @@ TutorialD (master/main): :showexpr (relation{tuple{a 1,b 2},tuple{a -1,b 3}}:{a2
 │1          │
 └───────────┘
 ```
-
 First, the extension with `abs()` occurs, then we project on the new attribute's name. Done.
 
 ### NULL: A Billion Dollar Boondoggle
@@ -334,7 +333,7 @@ First and foremost, the presence of NULLs make it difficult for an SQL developer
 SELECT AVG(age) FROM citizen;
 ```
 
-If there is a NULL age, that does not affect the average. (AVG() ignores NULLs.) However, this "rule" only applies to aggregate functions. but aggregate functions are indistinguishable from standard, value-altering functions:
+If there is a NULL age, that does not affect the average. (AVG() ignores NULLs.) However, this "rule" only applies to aggregate functions. But aggregate functions are indistinguishable from standard, value-altering functions:
 
 ```
 SELECT ABS(age) FROM citizen;
@@ -486,7 +485,7 @@ The relational algebra neither requires nor recommends SQL ternary logic with NU
 
 ### Sets Can Be Empty
 
-A relation as defined by the relational algebra is set of attributes (called the "header") and a set of tuples (the "body") with data and matching attributes. Therefore, empty sets for both attributes and/or the tuple set are valid and meaningful. Empty tuple sets are obviously useful for representing a starting state (we don't know anything yet), but is there a value to supporting an empty attribute set such as with a table with zero columns?
+A relation as defined by the relational algebra is a set of attributes (called the "header") and a set of tuples (the "body") with data and matching attributes. Therefore, empty sets for both attributes and/or the tuple set are valid and meaningful. Empty tuple sets are obviously useful for representing a starting state (we don't know anything yet), but is there a value to supporting an empty attribute set such as with a table with zero columns?
 
 It's rare to see an empty attribute (column set) in SQL, but it is possible.
 
@@ -764,7 +763,7 @@ SQLegacy (master/main): select status from s where city='London' order by status
 
 Note that SQLegacy always returns dataframes as indicated by "DF" in the top right of the diagram. That's because SQLegacy supports post-processing relational expressions into dataframes which do support ordering. SQL results are always ordered, even when arbitrarily.
 
-The SQLegacy dialect and TutorialD implementations can co-exist and execute queries on the same databases. Since the Project:M36 software is built on the relational algebra on not SQL, other DBMS languages could be added, too.
+The SQLegacy dialect and TutorialD implementations can co-exist and execute queries on the same databases. Since the Project:M36 software is built on the relational algebra and not on SQL, other DBMS languages could be added, too.
 
 Relying on the relational algebra simply opens more doors for correctness, cohesiveness, productivity, optimizations, and more.
 
