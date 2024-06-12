@@ -855,17 +855,20 @@ extendGraphRefTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrNa
                Right (tupleAtomExtend newAttrName atom tup)
                )
 
+  
+
 evalGraphRefAtomExpr :: RelationTuple -> GraphRefAtomExpr -> GraphRefRelationalExprM Atom
 evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
   case atomForAttributeName attrName tupIn of
-    Right atom -> pure atom
-    Left err@(NoSuchAttributeNamesError _) -> do
-      env <- askEnv
-      case gre_extra env of
-        Nothing -> throwError err
-        Just (Left ctxtup) -> lift $ except $ atomForAttributeName attrName ctxtup
-        Just (Right _) -> throwError err
-    Left err -> throwError err
+      Right atom -> pure atom
+      Left err@(NoSuchAttributeNamesError _) -> do
+        env <- askEnv
+        case gre_extra env of
+          Nothing -> throwError err
+          Just (Left ctxtup) -> lift $ except $ atomForAttributeName attrName ctxtup
+          Just (Right _) -> throwError err
+      Left err -> throwError err
+  
 evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
 evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
@@ -1237,7 +1240,6 @@ typeForGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
           case typ of
             RelationAtomType relAttrs -> pure $ emptyRelationWithAttrs relAttrs
             other -> throwError (AtomTypeMismatchError (RelationAtomType A.emptyAttributes) other)
-        
 typeForGraphRefRelationalExpr (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr

@@ -81,7 +81,7 @@ instance (Convertible a AtomExpr, KnownSymbol x) => IsLabel x (a -> (AttributeNa
 --
 -- This usage is not working in RestrictionPredicateExpr and AttributeExtendTupleExpr. Use f "a" [1] instead.
 instance (KnownSymbol x, Convertible a AtomExpr) => IsLabel x ([a] -> AtomExpr) where
-  fromLabel = \as' -> FunctionAtomExpr name (map convert as') ()
+  fromLabel = \as' -> FunctionAtomExpr name (map convert as') Nothing ()
     where name = T.pack $ symbolVal @x Proxy
 
 instance (KnownSymbol x) => IsLabel x AtomExpr where
@@ -175,7 +175,7 @@ instance Convertible RelVarName RelationalExpr where
 -- works in RestrictedPredicateExpr and AttributeExtendTupleExpr 
 -- usage: f "gte" [1]
 f :: Convertible a AtomExpr => FunctionName -> [a] -> AtomExpr
-f n as' = FunctionAtomExpr n (map convert as') ()
+f n as' = FunctionAtomExpr n (map convert as') Nothing ()
 
 -- DatabaseContextExpr
 -- define

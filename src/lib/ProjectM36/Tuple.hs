@@ -222,3 +222,6 @@ trimTuple index (RelationTuple attrs vals) =
   RelationTuple newAttrs (V.drop index vals)
   where
     newAttrs = A.drop index attrs
+  
+  
+  
