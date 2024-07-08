@@ -1,0 +1,48 @@
+<html>
+  <head>
+    <style>
+      th,td, table {
+      border: 1px solid;
+      border-collapse: collapse;
+      }
+      td,th {
+      padding: 10px;
+      }
+      table {
+      margin-left: auto;
+      margin-right: auto;
+      }
+    </style>
+  <head>
+  <body>
+    <table>
+      <tr>
+	<th>SQL</th><th>Python</th>
+      </tr>
+      <tr>
+	<td>INTEGER</td><td>int | None</td>
+      </tr>
+      <tr>
+	<td>VARCHAR(n)</td><td>str | None if using UTF-8 encoding</td>
+      </tr>
+      <tr>
+	<td>CHAR(n)</td><td>str | None but not fixed-width</td>
+      </tr>
+      <tr>
+	<td>NUMERIC</td><td>Decimal | None with limitations</td>
+      </tr>
+      <tr>
+	<td>TIMESTAMP WITH TIME ZONE</td><td>datetime.datetime | None with different min/maxrange</td>
+      </tr>
+      <tr>
+	<td>JSON</td><td>str | None</td>
+      </tr>
+      <tr>
+	<td>BOOL</td><td>bool | None but no ternary logic</td>
+      </tr>
+      <tr>
+	<td>ENUM</td><td>str | None</td>
+      </tr>
+    </table>
+  </body>
+</html>
