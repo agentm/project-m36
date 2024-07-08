@@ -15,6 +15,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
+import Control.Monad (void)
 
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
@@ -207,14 +208,16 @@ atomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
-consumeAtomExprP consume = try functionAtomExprP <|>
-            ifThenAtomExprP <|>  
-            boolAtomExprP <|> -- we do this before the constructed atom parser to consume True and False 
-            try (parens (constructedAtomExprP True)) <|>
-            constructedAtomExprP consume <|>
-            relationalAtomExprP <|>
-            attributeAtomExprP <|>
-            try nakedAtomExprP
+consumeAtomExprP consume =
+  try aggregateFunctionAtomExprP <|>
+  try functionAtomExprP <|>
+  ifThenAtomExprP <|>  
+  boolAtomExprP <|> -- we do this before the constructed atom parser to consume True and False 
+  try (parens (constructedAtomExprP True)) <|>
+  constructedAtomExprP consume <|>
+  relationalAtomExprP <|>
+  attributeAtomExprP <|>
+  try nakedAtomExprP
 
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
@@ -246,6 +249,29 @@ ifThenAtomExprP = do
   thenE <- atomExprP
   reserved "else"
   IfThenAtomExpr ifE thenE <$> atomExprP
+
+
+-- "@relattr.subrelattr"
+subrelationAttributeNameP :: Parser (AttributeName, AttributeName)
+subrelationAttributeNameP = do
+  void $ single '@'
+  relAttr <- uncapitalizedOrQuotedIdentifier
+  void $ single '.'
+  subrelAttr <- uncapitalizedOrQuotedIdentifier
+  spaceConsumer
+  pure (relAttr, subrelAttr)
+
+aggregateFunctionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+aggregateFunctionAtomExprP = do
+  fname <- functionNameP
+  parens $ do
+    aggInfo <- subrelationAttributeNameP
+    args <- try (do
+      void comma
+      sepBy atomExprP comma)
+      <|> pure []
+    AggregateFunctionAtomExpr fname aggInfo args <$> parseMarkerP
+
 
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =
@@ -291,7 +317,7 @@ withMacroExprP = do
 
 createMacroP :: RelationalMarkerExpr a => Parser (WithNameExprBase a, RelationalExprBase a)
 createMacroP = do 
-  name <- identifier
+  name <- identifier <* spaceConsumer
   reservedOp "as"
   expr <- relExprP
   marker <- parseMarkerP

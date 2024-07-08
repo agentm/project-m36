@@ -22,10 +22,15 @@ dataConstructorNameP = try $ do
   pure ident
 
 attributeNameP :: Parser AttributeName
-attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+attributeNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer
 
 functionNameP :: Parser FunctionName
-functionNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+functionNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer
+
+-- does not consumer following spaces
+uncapitalizedOrQuotedIdentifier :: Parser StringType
+uncapitalizedOrQuotedIdentifier =
+  try uncapitalizedIdentifier <|> quotedIdentifier
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
@@ -75,4 +80,4 @@ monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|
                    
 
 relVarNameP :: Parser RelVarName
-relVarNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+relVarNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer

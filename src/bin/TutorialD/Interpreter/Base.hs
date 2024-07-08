@@ -72,7 +72,6 @@ identifier = do
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do
   rest <- many (alphaNumChar <|> char '_' <|> char '#')
-  spaceConsumer
   pure (pack (c:rest))
 
 symbol :: ParseStr -> Parser Text

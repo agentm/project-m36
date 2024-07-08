@@ -357,6 +357,7 @@ data DatabaseContext = DatabaseContext {
   relationVariables :: RelationVariables,
   atomFunctions :: AtomFunctions,
   dbcFunctions :: DatabaseContextFunctions,
+  aggregateFunctions :: AggregateFunctions,
   notifications :: Notifications,
   typeConstructorMapping :: TypeConstructorMapping,
   registeredQueries :: RegisteredQueries
@@ -504,13 +505,15 @@ instance Hashable AtomExpr
 
 type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
-type AggAtomFuncExprInfo = Maybe AttributeName
+type AggAtomFuncExprInfo = (AttributeName, AttributeName) -- (relvar attribute name, subrel attribute name)
 
 -- | An atom expression represents an action to take when extending a relation or when statically defining a relation or a new tuple.
 data AtomExprBase a = AttributeAtomExpr AttributeName |
+                      SubRelationTupleProjectionAtomExpr AttributeName AttributeName | --used by aggregate/fold functions such as "sum"
                       NakedAtomExpr !Atom |
-                      FunctionAtomExpr !FunctionName [AtomExprBase a] AggAtomFuncExprInfo a |
+                      FunctionAtomExpr !FunctionName [AtomExprBase a] a |
                       -- as a simple, first aggregation case, we can only apply an aggregation to a RelationAtom while "selecting" one attribute
+                      AggregateFunctionAtomExpr !FunctionName AggAtomFuncExprInfo [AtomExprBase a] a |
                       RelationAtomExpr (RelationalExprBase a) |
                       IfThenAtomExpr (AtomExprBase a) (AtomExprBase a) (AtomExprBase a) | -- if, then, else
                       ConstructedAtomExpr DataConstructorName [AtomExprBase a] a
@@ -642,6 +645,30 @@ type AtomFunctionBody = FunctionBody AtomFunctionBodyType
 
 type DatabaseContextFunction = Function DatabaseContextFunctionBodyType
 type DatabaseContextFunctionBody = FunctionBody DatabaseContextFunctionBodyType
+
+type AggregateFunctions = HS.HashSet AggregateFunction
+type AggregateFunctionBodyType =
+  RelationTuple -> -- ^ tuple inside the relation-valued attribute
+  AttributeName -> -- ^ the attribute of the RVA- in the future, this could be other projections on the tuple or perhaps a scalar expression
+  Atom -> -- ^ fold accumulator
+  [Atom] -> -- ^ other, static arguments
+  Either AtomFunctionError Atom
+
+-- functions to be run on sub-relations- they can be built up from AtomFunctions
+data AggregateFunction =
+  AggregateFunction {
+  aggFuncName :: FunctionName,
+  aggFuncFoldFunc :: AggregateFunctionBodyType,
+  aggFuncFoldType :: [AtomType],
+  aggFuncAccumType :: AtomType
+  }  
+  deriving (Generic, NFData)
+
+instance Hashable AggregateFunction where
+  hashWithSalt salt func = salt `hashWithSalt` aggFuncName func `hashWithSalt` aggFuncAccumType func
+
+instance Eq AggregateFunction where
+  a == b = aggFuncName a == aggFuncName b
 
 attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of

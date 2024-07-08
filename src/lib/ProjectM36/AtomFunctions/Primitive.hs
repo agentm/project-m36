@@ -33,7 +33,7 @@ primitiveAtomFunctions = HS.fromList [
                                    x:_ -> pure x
                                    _ -> Left AtomFunctionTypeMismatchError
                                )},
-    Function { funcName = "sum",
+    Function { funcName = "sum_agg",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
                funcBody = body $ relationAtomFunc relationSum
              },
@@ -117,6 +117,12 @@ primitiveAtomFunctions = HS.fromList [
                  [BoolAtom b1, BoolAtom b2] ->
                    Right $ BoolAtom (b1 || b2)
                  _ -> Left AtomFunctionTypeMismatchError                   
+             },
+    Function { funcName = "increment",
+               funcType = [IntegerAtomType, IntegerAtomType],
+               funcBody = body $ \case
+                 [IntegerAtom i] -> pure (IntegerAtom (i+1))
+                 _ -> Left AtomFunctionTypeMismatchError
              }
     
   ] <> scientificAtomFunctions

@@ -12,6 +12,7 @@ import ProjectM36.Error
 import ProjectM36.Transaction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.AtomFunction
+import ProjectM36.AggregateFunctions.Basic
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
 import ProjectM36.Function
 import qualified Data.Map as M
@@ -69,6 +70,9 @@ subschemasPath transdir = transdir </> "schemas"
 registeredQueriesPath :: FilePath -> FilePath
 registeredQueriesPath transdir = transdir </> "registered_queries"
 
+aggregateFunctionsPath :: FilePath -> FilePath
+aggregateFunctionsPath transdir = transdir </> "aggregateFunctions"
+
 -- | where compiled modules are stored within the database directory
 objectFilesPath :: FilePath -> FilePath
 objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
@@ -88,12 +92,15 @@ readTransaction dbdir transId mScriptSession = do
     notifs <- readNotifications transDir
     dbcFuncs <- readFuncs transDir (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession
     atomFuncs <- readFuncs transDir (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession
+--    aggFuncs <- readAggFuncs transDir
+    let aggFuncs = basicAggregateFunctions
     registeredQs <- readRegisteredQueries transDir
     let newContext = DatabaseContext { inclusionDependencies = incDeps,
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
                                        notifications = notifs,
-                                       atomFunctions = atomFuncs, 
+                                       atomFunctions = atomFuncs,
+                                       aggregateFunctions = aggFuncs,
                                        dbcFunctions = dbcFuncs,
                                        registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas
@@ -281,6 +288,12 @@ readRegisteredQueries transDir = do
   let regQsPath = registeredQueriesPath transDir
   readFileDeserialise regQsPath
 
+{-
+readAggFuncs :: FilePath -> IO AggregateFunctions
+readAggFuncs transDir = do
+  let aggFuncsPath = aggregateFunctionsPath transDir
+  HS.fromList <$> readFileDeserialise aggFuncsPath
+-}
 writeRegisteredQueries :: DiskSync -> FilePath -> RegisteredQueries -> IO ()
 writeRegisteredQueries sync transDir regQs = do
   let regQsPath = registeredQueriesPath transDir

@@ -440,6 +440,7 @@ isStaticAtomExpr NakedAtomExpr{} = True
 isStaticAtomExpr ConstructedAtomExpr{} = True
 isStaticAtomExpr AttributeAtomExpr{} = False
 isStaticAtomExpr FunctionAtomExpr{} = False
+isStaticAtomExpr AggregateFunctionAtomExpr{} = False
 isStaticAtomExpr IfThenAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
 

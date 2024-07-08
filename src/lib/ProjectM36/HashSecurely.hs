@@ -141,6 +141,8 @@ instance HashBytes a => HashBytes (AtomExprBase a) where
       (NakedAtomExpr a) -> hashBytesL ctx "NakedAtomExpr" [SHash a]
       (FunctionAtomExpr fname args marker) ->
         hashBytesL ctx "FunctionAtomExpr" $ [SHash fname, SHash marker] <> map SHash args
+      (AggregateFunctionAtomExpr fname aggInfo args marker) ->
+        hashBytesL ctx "AggregateFunctionAtomExpr" $ [SHash fname, SHash aggInfo, SHash marker] <> map SHash args
       (RelationAtomExpr r) -> hashBytesL ctx "RelationAtomExpr" [SHash r]
       (IfThenAtomExpr i t e) -> hashBytesL ctx "IfThenAtomExpr" [SHash i, SHash t, SHash e]
       (ConstructedAtomExpr dConsName args marker) ->

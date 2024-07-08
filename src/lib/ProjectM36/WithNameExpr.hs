@@ -85,8 +85,10 @@ substituteWithNameMacrosAtomExpr macros atomExpr =
   case atomExpr of
     e@AttributeAtomExpr{} -> e
     e@NakedAtomExpr{} -> e
-    FunctionAtomExpr fname atomExprs aggInfo tid ->
-      FunctionAtomExpr fname (map (substituteWithNameMacrosAtomExpr macros) atomExprs) aggInfo tid
+    FunctionAtomExpr fname atomExprs tid ->
+      FunctionAtomExpr fname (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
+    AggregateFunctionAtomExpr fname aggInfo atomExprs tid ->
+      AggregateFunctionAtomExpr fname aggInfo (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
     RelationAtomExpr reExpr ->
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
     IfThenAtomExpr ifE thenE elseE ->
