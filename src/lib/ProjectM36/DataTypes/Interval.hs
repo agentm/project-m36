@@ -40,6 +40,7 @@ supportsInterval typ = case typ of
   RelationAtomType _ -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
   RelationalExprAtomType -> False
+  SubrelationFoldAtomType{} -> False
   TypeVariableType _ -> False
   
 supportsOrdering :: AtomType -> Bool  
@@ -56,6 +57,7 @@ supportsOrdering typ = case typ of
   UUIDAtomType -> False
   RelationAtomType _ -> False
   RelationalExprAtomType -> False
+  SubrelationFoldAtomType{} -> False
   ConstructedAtomType _ _ -> False --once we support an interval-style typeclass, we might enable this
   TypeVariableType _ -> False
   

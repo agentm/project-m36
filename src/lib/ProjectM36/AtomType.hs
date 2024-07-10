@@ -448,6 +448,7 @@ isResolvedType typ =
     RelationalExprAtomType -> True
     RelationAtomType attrs -> isResolvedAttributes attrs
     ConstructedAtomType _ tvMap -> all isResolvedType (M.elems tvMap)
+    SubrelationFoldAtomType typ' -> isResolvedType typ'
     TypeVariableType _ -> False
 
 isResolvedAttributes :: Attributes -> Bool

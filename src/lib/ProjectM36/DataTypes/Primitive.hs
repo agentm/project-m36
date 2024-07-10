@@ -51,3 +51,4 @@ atomTypeForAtom (UUIDAtom _) = UUIDAtomType
 atomTypeForAtom (RelationAtom (Relation attrs _)) = RelationAtomType attrs
 atomTypeForAtom (ConstructedAtom _ aType _) = aType
 atomTypeForAtom (RelationalExprAtom _) = RelationalExprAtomType
+atomTypeForAtom (SubrelationFoldAtom _ _) = SubrelationFoldAtomType (TypeVariableType "a")

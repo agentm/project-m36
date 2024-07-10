@@ -256,6 +256,8 @@ typeToTypeConstructor (RelationAtomType attrs)
   = RelationAtomTypeConstructor $ map attrToAttrExpr $ V.toList (attributesVec attrs)
   where
     attrToAttrExpr (Attribute n t) = AttributeAndTypeNameExpr n (typeToTypeConstructor t) ()
+typeToTypeConstructor (SubrelationFoldAtomType _typ) =
+  error "typeToTypeConstructor for SubrelationFoldAtomType is nonsense"
 typeToTypeConstructor (ConstructedAtomType tcName tvMap)
   = ADTypeConstructor tcName $ map typeToTypeConstructor (M.elems tvMap)
 typeToTypeConstructor (TypeVariableType tvName) = TypeVariable tvName
