@@ -25,6 +25,6 @@ importCSVP = do
   reserved ":importcsv"
   path <- quotedString
   spaceConsumer
-  relVarName <- identifier
+  relVarName <- identifierP
   return $ RelVarDataImportOperator relVarName (T.unpack path) importCSVRelation
   

@@ -3,6 +3,7 @@
 
 module ProjectM36.Arbitrary where
 import ProjectM36.Base
+import qualified ProjectM36.Attribute as A
 import ProjectM36.Error
 import ProjectM36.AtomFunctionError
 import ProjectM36.AtomType
@@ -28,11 +29,20 @@ arbitrary' ScientificAtomType =
   Right . ScientificAtom <$> lift (arbitrary :: Gen Scientific)
 
 arbitrary' (RelationAtomType attrs)  = do
-  tcMap <-ask
+  tcMap <- ask
   maybeRel <- lift $ runReaderT (arbitraryRelation attrs (0,5)) tcMap
   case maybeRel of
     Left err -> pure $ Left err
     Right rel -> pure $ Right $ RelationAtom rel
+
+arbitrary' (SubrelationFoldAtomType typ) = do
+  tcMap <- ask
+  maybeRel <- lift $ runReaderT (arbitraryRelation (A.attributesFromList [Attribute "a" typ]) (0,5)) tcMap
+  case maybeRel of
+    Left err -> pure $ Left err
+    Right rel -> do
+      anAttr <- lift $ elements (A.attributeNamesList (attributes rel))
+      pure (Right (SubrelationFoldAtom rel anAttr))
 
 arbitrary' IntAtomType = 
   Right . IntAtom <$> lift (arbitrary :: Gen Int)

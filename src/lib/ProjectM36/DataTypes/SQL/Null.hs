@@ -4,7 +4,6 @@ import ProjectM36.AtomFunctionError
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import ProjectM36.DataTypes.Primitive
-import qualified Data.Vector as V
 import ProjectM36.AtomFunction
 import ProjectM36.Tuple
 import ProjectM36.Relation
@@ -264,7 +263,7 @@ sqlSum :: [Atom] -> Either AtomFunctionError Atom
 sqlSum = sqlIntegerAgg (+)
 
 sqlIntegerAgg :: (Integer -> Integer -> Integer) -> [Atom] -> Either AtomFunctionError Atom
-sqlIntegerAgg op [RelationAtom relIn] =
+sqlIntegerAgg op [SubrelationFoldAtom relIn subAttr] =
   case oneTuple relIn of
     Nothing -> pure $ nullAtom IntegerAtomType Nothing -- SQL max/min of empty table is NULL
     Just oneTup ->
@@ -273,7 +272,10 @@ sqlIntegerAgg op [RelationAtom relIn] =
         else
         pure $ relFold (\tupIn acc -> nullMax acc (newVal tupIn)) (newVal oneTup) relIn
  where
-   newVal tupIn = tupleAtoms tupIn V.! 0
+   newVal tupIn =
+      case atomForAttributeName subAttr tupIn of
+        Left err -> error (show err)
+        Right atom -> atom
    nullMax acc nextVal =
      let mNextVal = sqlNullableIntegerToMaybe nextVal
          mOldVal = sqlNullableIntegerToMaybe acc

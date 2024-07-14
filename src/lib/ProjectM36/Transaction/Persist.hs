@@ -69,6 +69,9 @@ subschemasPath transdir = transdir </> "schemas"
 registeredQueriesPath :: FilePath -> FilePath
 registeredQueriesPath transdir = transdir </> "registered_queries"
 
+aggregateFunctionsPath :: FilePath -> FilePath
+aggregateFunctionsPath transdir = transdir </> "aggregateFunctions"
+
 -- | where compiled modules are stored within the database directory
 objectFilesPath :: FilePath -> FilePath
 objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
@@ -93,7 +96,7 @@ readTransaction dbdir transId mScriptSession = do
                                        relationVariables = relvars,
                                        typeConstructorMapping = typeCons,
                                        notifications = notifs,
-                                       atomFunctions = atomFuncs, 
+                                       atomFunctions = atomFuncs,
                                        dbcFunctions = dbcFuncs,
                                        registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas

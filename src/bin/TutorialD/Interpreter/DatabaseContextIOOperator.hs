@@ -15,7 +15,7 @@ addDatabaseContextFunctionExprP = dbioexprP "adddatabasecontextfunction" AddData
 createArbitraryRelationP :: Parser DatabaseContextIOExpr
 createArbitraryRelationP = do
   reserved "createarbitraryrelation"
-  relVarName <- identifier
+  relVarName <- identifierP
   attrExprs <- makeAttributeExprsP :: Parser [AttributeExpr]
   min' <- fromInteger <$> integer
   _ <- symbol "-"

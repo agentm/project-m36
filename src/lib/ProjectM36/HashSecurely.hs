@@ -50,6 +50,7 @@ instance HashBytes Atom where
       UUIDAtom u -> up ("UUIDAtom" <> BL.toStrict (UUID.toByteString u))
       RelationAtom r -> hashBytesL ctx "RelationAtom" [SHash r]
       RelationalExprAtom e -> hashBytesL ctx "RelationalExprAtom" [SHash e]
+      SubrelationFoldAtom rel subAttr -> hashBytesL ctx "SubrelationFoldAtom" [SHash rel, SHash subAttr]
       ConstructedAtom d typ args ->
           hashBytesL ctx "ConstructedAtom" ([SHash d, SHash typ] <> map SHash args)
       where
@@ -138,6 +139,7 @@ instance HashBytes a => HashBytes (AtomExprBase a) where
   hashBytes atomExpr ctx =
     case atomExpr of
       (AttributeAtomExpr a) -> hashBytesL ctx "AttributeAtomExpr" [SHash a]
+      (SubrelationAttributeAtomExpr relAttr subAttr) -> hashBytesL ctx "SubrelationAttributeAtomExpr" [SHash relAttr, SHash subAttr]
       (NakedAtomExpr a) -> hashBytesL ctx "NakedAtomExpr" [SHash a]
       (FunctionAtomExpr fname args marker) ->
         hashBytesL ctx "FunctionAtomExpr" $ [SHash fname, SHash marker] <> map SHash args
@@ -165,6 +167,7 @@ instance HashBytes AtomType where
       RelationAtomType attrs -> hashBytesL ctx "RelationAtomType" (V.map SHash (attributesVec attrs))
       ConstructedAtomType tConsName tvarMap -> hashBytesL ctx "ConstructedAtomType" (SHash tConsName : map SHash (M.toAscList tvarMap))
       RelationalExprAtomType -> hashb "RelationalExprAtomType"
+      SubrelationFoldAtomType typ' -> hashBytesL ctx "SubrelationFoldAtomType" [SHash typ']
       TypeVariableType tvn -> hashBytesL ctx "TypeVariableType" [SHash tvn]
     where
       hashb = SHA256.update ctx

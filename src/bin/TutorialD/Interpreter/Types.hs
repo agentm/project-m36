@@ -13,19 +13,24 @@ instance RelationalMarkerExpr () where
   parseMarkerP = pure ()
 
 typeConstructorNameP :: Parser TypeConstructorName
-typeConstructorNameP = capitalizedIdentifier
+typeConstructorNameP = capitalizedIdentifier <* spaceConsumer
 
 dataConstructorNameP :: Parser DataConstructorName
 dataConstructorNameP = try $ do
-  ident <- capitalizedIdentifier
+  ident <- capitalizedIdentifier <* spaceConsumer
   when (ident `elem` ["True", "False"]) $ failure Nothing mempty --don't parse True or False as ConstructedAtoms (use NakedAtoms instead)
   pure ident
 
 attributeNameP :: Parser AttributeName
-attributeNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+attributeNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer
 
 functionNameP :: Parser FunctionName
-functionNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+functionNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer
+
+-- does not consumer following spaces
+uncapitalizedOrQuotedIdentifier :: Parser StringType
+uncapitalizedOrQuotedIdentifier =
+  try uncapitalizedIdentifier <|> quotedIdentifier
 
 -- | Upper case names are type names while lower case names are polymorphic typeconstructor arguments.
 -- data *Either a b* = Left a | Right b
@@ -58,10 +63,10 @@ attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
 attributeAndTypeNameP = AttributeAndTypeNameExpr <$> attributeNameP <*> typeConstructorP <*> parseMarkerP
 
 typeIdentifierP :: Parser TypeConstructorName
-typeIdentifierP = capitalizedIdentifier
+typeIdentifierP = capitalizedIdentifier <* spaceConsumer
 
 typeVariableIdentifierP :: Parser TypeVarName
-typeVariableIdentifierP = uncapitalizedIdentifier
+typeVariableIdentifierP = uncapitalizedIdentifier <* spaceConsumer
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  
@@ -75,4 +80,4 @@ monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|
                    
 
 relVarNameP :: Parser RelVarName
-relVarNameP = try uncapitalizedIdentifier <|> quotedIdentifier
+relVarNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer

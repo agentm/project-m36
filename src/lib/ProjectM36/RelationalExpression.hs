@@ -51,8 +51,6 @@ import Control.Exception
 import GHC.Paths
 #endif
 
---import Debug.Trace
-
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -855,18 +853,22 @@ extendGraphRefTupleExpressionProcessor relIn (AttributeExtendTupleExpr newAttrNa
                Right (tupleAtomExtend newAttrName atom tup)
                )
 
+  
+
 evalGraphRefAtomExpr :: RelationTuple -> GraphRefAtomExpr -> GraphRefRelationalExprM Atom
 evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
   case atomForAttributeName attrName tupIn of
-    Right atom -> pure atom
-    Left err@(NoSuchAttributeNamesError _) -> do
-      env <- askEnv
-      case gre_extra env of
-        Nothing -> throwError err
-        Just (Left ctxtup) -> lift $ except $ atomForAttributeName attrName ctxtup
-        Just (Right _) -> throwError err
-    Left err -> throwError err
+      Right atom -> pure atom
+      Left err@(NoSuchAttributeNamesError _) -> do
+        env <- askEnv
+        case gre_extra env of
+          Nothing -> throwError err
+          Just (Left ctxtup) -> lift $ except $ atomForAttributeName attrName ctxtup
+          Just (Right _) -> throwError err
+      Left err -> throwError err
+  
 evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
+-- first argumentr is starting value, second argument is relationatom
 evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
   context <- gfDatabaseContextForMarker tid
@@ -895,6 +897,12 @@ evalGraphRefAtomExpr tupIn (RelationAtomExpr relExpr) = do
   let gfEnv = mergeTuplesIntoGraphRefRelationalExprEnv tupIn env
   relAtom <- lift $ except $ runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr relExpr)
   pure (RelationAtom relAtom)
+evalGraphRefAtomExpr tupIn (SubrelationAttributeAtomExpr relAttr subAttr) = do
+  atom <- evalGraphRefAtomExpr tupIn (AttributeAtomExpr relAttr)
+  case atom of
+    RelationAtom rel ->
+      pure (SubrelationFoldAtom rel subAttr)
+    _ -> throwError (AttributeIsNotRelationValuedError relAttr)
 evalGraphRefAtomExpr tupIn (IfThenAtomExpr ifExpr thenExpr elseExpr) = do
   conditional <- evalGraphRefAtomExpr tupIn ifExpr
   case conditional of
@@ -909,7 +917,7 @@ evalGraphRefAtomExpr tupIn cons@(ConstructedAtomExpr dConsName dConsArgs _) = do
   aType <- local mergeEnv (typeForGraphRefAtomExpr (tupleAttributes tupIn) cons)
   argAtoms <- local mergeEnv $
     mapM (evalGraphRefAtomExpr tupIn) dConsArgs
-  pure (ConstructedAtom dConsName aType argAtoms)
+  pure (ConstructedAtom dConsName aType argAtoms) 
 
 typeForGraphRefAtomExpr :: Attributes -> GraphRefAtomExpr -> GraphRefRelationalExprM AtomType
 typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
@@ -923,10 +931,17 @@ typeForGraphRefAtomExpr attrs (AttributeAtomExpr attrName) = do
         Right attr -> pure (A.atomType attr)
         Left _ -> case atomForAttributeName attrName envTup of
           Right atom -> pure (atomTypeForAtom atom)
-          Left _ -> --throwError (traceStack (show ("typeForGRAtomExpr", attrs, envTup)) err)
+          Left _ -> 
             throwError err
     Left err -> throwError err
-
+typeForGraphRefAtomExpr attrs (SubrelationAttributeAtomExpr relAttr subAttr) = do
+  relType <- typeForGraphRefAtomExpr attrs (AttributeAtomExpr relAttr)
+  case relType of
+    RelationAtomType relAttrs -> 
+      case A.atomTypeForAttributeName subAttr relAttrs of
+        Left err -> throwError err
+        Right attrType -> pure (SubrelationFoldAtomType attrType)
+    _ -> throwError (AttributeIsNotRelationValuedError relAttr)
 typeForGraphRefAtomExpr _ (NakedAtomExpr atom) = pure (atomTypeForAtom atom)
 typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
   funcs <- atomFunctions <$> gfDatabaseContextForMarker transId
@@ -941,7 +956,8 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
       argTypes <- mapM (typeForGraphRefAtomExpr attrs) atomArgs
       mapM_ (\(fArg,arg,argCount) -> do
                 let handler :: RelationalError -> GraphRefRelationalExprM AtomType
-                    handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
+                    handler (AtomTypeMismatchError expSubType actSubType) = do
+                      throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
                     handler err = throwError err
                 lift (except $ atomTypeVerify fArg arg) `catchError` handler
             ) (zip3 funcArgTypes argTypes [1..])
@@ -989,6 +1005,11 @@ verifyGraphRefAtomExprTypes relIn (AttributeAtomExpr attrName) expectedType = do
 
 verifyGraphRefAtomExprTypes _ (NakedAtomExpr atom) expectedType =
   lift $ except $ atomTypeVerify expectedType (atomTypeForAtom atom)
+verifyGraphRefAtomExprTypes relIn (SubrelationAttributeAtomExpr relAttr subAttr) expectedType = do
+    let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes relIn)
+    (Relation relAttrs _) <- R.local mergedAttrsEnv (typeForGraphRefRelationalExpr (RelationValuedAttribute relAttr))
+    subAttrType <- lift $ except $ A.atomTypeForAttributeName subAttr relAttrs
+    lift $ except $ atomTypeVerify expectedType (SubrelationFoldAtomType subAttrType)
 verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) expectedType = do
   context <- gfDatabaseContextForMarker tid
   let functions = atomFunctions context
@@ -996,7 +1017,8 @@ verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) 
   let expectedArgTypes = funcType func
       funcArgVerifier (atomExpr, expectedType2, argCount) = do
         let handler :: RelationalError -> GraphRefRelationalExprM AtomType
-            handler (AtomTypeMismatchError expSubType actSubType) = throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
+            handler (AtomTypeMismatchError expSubType actSubType) = do
+              throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
             handler err = throwError err
         verifyGraphRefAtomExprTypes relIn atomExpr expectedType2 `catchError` handler   
   funcArgTypes <- mapM funcArgVerifier $ zip3 funcArgExprs expectedArgTypes [1..]
@@ -1237,7 +1259,6 @@ typeForGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
           case typ of
             RelationAtomType relAttrs -> pure $ emptyRelationWithAttrs relAttrs
             other -> throwError (AtomTypeMismatchError (RelationAtomType A.emptyAttributes) other)
-        
 typeForGraphRefRelationalExpr (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr
@@ -1462,6 +1483,7 @@ instance ResolveGraphRefTransactionMarker GraphRefWithNameExpr where
 
 instance ResolveGraphRefTransactionMarker GraphRefAtomExpr where
   resolve orig@AttributeAtomExpr{} = pure orig
+  resolve orig@SubrelationAttributeAtomExpr{} = pure orig
   resolve orig@NakedAtomExpr{} = pure orig
   resolve (FunctionAtomExpr nam atomExprs marker) =
     FunctionAtomExpr nam <$> mapM resolve atomExprs <*> pure marker

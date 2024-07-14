@@ -98,7 +98,7 @@ data IncDepOp = SubsetOp | EqualityOp
 addConstraintP :: Parser DatabaseContextExpr
 addConstraintP = do
   reservedOp "constraint" <|> reservedOp "foreign key"
-  constraintName <- identifier
+  constraintName <- identifierP
   subset <- relExprP
   op <- (reservedOp "in" $> SubsetOp) <|> (reservedOp "equals" $> EqualityOp)
   superset <- relExprP
@@ -112,13 +112,13 @@ addConstraintP = do
 deleteConstraintP :: Parser DatabaseContextExpr  
 deleteConstraintP = do
   reserved "deleteconstraint"
-  RemoveInclusionDependency <$> identifier
+  RemoveInclusionDependency <$> identifierP
   
 -- key <constraint name> {<uniqueness attributes>} <uniqueness relexpr>
 keyP :: Parser DatabaseContextExpr  
 keyP = do
   reserved "key"
-  keyName <- identifier
+  keyName <- identifierP
   uniquenessAttrNames <- braces attributeListP
   uniquenessExpr <- relExprP
   let newIncDep = inclusionDependencyForKey uniquenessAttrNames uniquenessExpr
@@ -127,7 +127,7 @@ keyP = do
 funcDepP :: Parser DatabaseContextExpr  
 funcDepP = do
   reserved "funcdep"
-  keyName <- identifier
+  keyName <- identifierP
   source <- parens attributeListP
   reserved "->"
   dependents <- parens attributeListP
@@ -141,7 +141,7 @@ funcDepP = do
   
 attributeAssignmentP :: Parser (AttributeName, AtomExpr)
 attributeAssignmentP = do
-  attrName <- identifier
+  attrName <- identifierP
   reservedOp ":="
   atomExpr <- atomExprP
   pure (attrName, atomExpr)
@@ -149,7 +149,7 @@ attributeAssignmentP = do
 addNotificationP :: Parser DatabaseContextExpr
 addNotificationP = do
   reserved "notify"
-  notName <- identifier
+  notName <- identifierP
   triggerExpr <- relExprP 
   resultOldExpr <- relExprP
   AddNotification notName triggerExpr resultOldExpr <$> relExprP
@@ -157,7 +157,7 @@ addNotificationP = do
 removeNotificationP :: Parser DatabaseContextExpr  
 removeNotificationP = do
   reserved "unnotify"
-  RemoveNotification <$> identifier
+  RemoveNotification <$> identifierP
 
 -- | data Hair = Bald | Color Text
 addTypeConstructorP :: Parser DatabaseContextExpr

@@ -555,7 +555,7 @@ convertProjection typeF selItems groupBys havingExpr = do
                               (S.fromList (map fst (nonAggregates groupInfo)))) "_sql_aggregate"
               else
                 pure id
-    let coalesceBoolF expr = FunctionAtomExpr "sql_coalesce_bool" [expr] ()                
+    let coalesceBoolF expr = func "sql_coalesce_bool" [expr]
     fGroupHavingExtend <- 
       case havingRestriction groupInfo of
         Nothing -> pure id
@@ -632,11 +632,14 @@ convertTableExpr typeF tExpr = do
                                  limit = limitClause tExpr }
     pure (dfExpr, columnMap)
 
+func :: FunctionName -> [AtomExpr] -> AtomExpr
+func fname args = FunctionAtomExpr fname args ()
+
 convertWhereClause :: TypeForRelExprF -> RestrictionExpr -> ConvertM RestrictionPredicateExpr
 convertWhereClause typeF (RestrictionExpr rexpr) = do
     let wrongType t = throwSQLE $ TypeMismatchError t BoolAtomType --must be boolean expression
-        coalesceBoolF expr = FunctionAtomExpr "sql_coalesce_bool" [expr] ()
-        sqlEq l = FunctionAtomExpr "sql_equals" l ()
+        coalesceBoolF expr = func "sql_coalesce_bool" [expr]
+        sqlEq = func "sql_equals"
     case rexpr of
       IntegerLiteral{} -> wrongType IntegerAtomType
       DoubleLiteral{} -> wrongType DoubleAtomType
@@ -650,7 +653,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
       BinaryOperator (Identifier colName) (OperatorName ["="]) exprMatch -> do --we don't know here if this results in a boolean expression, so we pass it down
         attrName <- attributeNameForColumnName colName
         expr' <- convertScalarExpr typeF exprMatch
-        pure (AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_equals" [AttributeAtomExpr attrName, expr'] ())))
+        pure (AtomExprPredicate (coalesceBoolF (func "sql_equals" [AttributeAtomExpr attrName, expr'])))
       BinaryOperator exprA op exprB -> do
         a <- convertScalarExpr typeF exprA
         b <- convertScalarExpr typeF exprB
@@ -658,7 +661,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
         pure (AtomExprPredicate (coalesceBoolF (f [a,b])))
       PostfixOperator expr (OperatorName ops) -> do
         expr' <- convertScalarExpr typeF expr
-        let isnull = AtomExprPredicate (coalesceBoolF (FunctionAtomExpr "sql_isnull" [expr'] ()))
+        let isnull = AtomExprPredicate (coalesceBoolF (func "sql_isnull" [expr']))
         case ops of
           ["is", "null"] -> 
             pure isnull
@@ -673,7 +676,7 @@ convertWhereClause typeF (RestrictionExpr rexpr) = do
            let predExpr' = sqlEq [eqExpr, firstItem]
                folder predExpr'' sexprItem = do
                  item <- convertScalarExpr typeF sexprItem
-                 pure $ FunctionAtomExpr "sql_or" [sqlEq [eqExpr,item], predExpr''] ()
+                 pure $ func "sql_or" [sqlEq [eqExpr,item], predExpr'']
            res <- AtomExprPredicate . coalesceBoolF <$> foldM folder predExpr' matches 
            case inOrNotIn of
              In -> pure res
@@ -708,9 +711,9 @@ convertScalarExpr typeF expr = do
         f <- lookupOperator False op
         pure $ f [a,b]
       FunctionApplication funcName' fargs -> do
-        func <- lookupFunc funcName'
+        func' <- lookupFunc funcName'
         fargs' <- mapM (convertScalarExpr typeF) fargs
-        pure (func fargs')
+        pure (func' fargs')
       other -> throwSQLE $ NotSupportedError ("scalar expr: " <> T.pack (show other))
 
 -- SQL conflates projection and extension so we use the SQL context name here
@@ -736,19 +739,19 @@ convertProjectionScalarExpr typeF expr = do
         f <- lookupOperator False op
         pure $ f [a,b]
       FunctionApplication fname fargs -> do
-        func <- lookupFunc fname
+        func' <- lookupFunc fname
         -- as a special case, count(*) is valid, if non-sensical SQL, so handle it here
         fargs' <- if fname == FuncName ["count"] && fargs == [Identifier (ColumnProjectionName [Asterisk])] then
                    pure [AttributeAtomExpr "_sql_aggregate"]
                  else 
                    mapM (convertProjectionScalarExpr typeF) fargs
-        pure (func fargs')
+        pure (func' fargs')
       PrefixOperator op sexpr -> do
-        func <- lookupOperator True op
+        func' <- lookupOperator True op
         arg <- convertProjectionScalarExpr typeF sexpr
-        pure (func [arg])
+        pure (func' [arg])
       CaseExpr conditionals mElse -> do
-        let coalesceBoolF expr' = FunctionAtomExpr "sql_coalesce_bool" [expr'] ()
+        let coalesceBoolF expr' = func "sql_coalesce_bool" [expr']
         conditionals' <- mapM (\(ifExpr, thenExpr) -> do
                                   ifE <- coalesceBoolF <$> convertProjectionScalarExpr typeF ifExpr
                                   thenE <- convertProjectionScalarExpr typeF thenExpr
@@ -932,7 +935,7 @@ joinTableRef typeF rvA (_c,tref) = do
                     else
                     new_name
                 joinName = firstAvailableName (1::Int) allAttrs
-                extender = AttributeExtendTupleExpr joinName (FunctionAtomExpr "sql_coalesce_bool" [joinRe] ())
+                extender = AttributeExtendTupleExpr joinName (func "sql_coalesce_bool" [joinRe])
                 --joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (ConstructedAtomExpr "True" [] ()))
                 joinMatchRestriction = Restrict (AttributeEqualityPredicate joinName (NakedAtomExpr (BoolAtom True)))
                 projectAwayJoinMatch = Project (InvertedAttributeNames (S.fromList [joinName]))
@@ -942,7 +945,7 @@ joinTableRef typeF rvA (_c,tref) = do
 lookupOperator :: Bool -> OperatorName -> ConvertM ([AtomExpr] -> AtomExpr)
 lookupOperator isPrefix op@(OperatorName nam)
   | isPrefix = do
-      let f n args = FunctionAtomExpr n args ()
+      let f = func
       case nam of
         ["-"] -> pure $ f "sql_negate"
         _ -> throwSQLE $ NoSuchSQLOperatorError op
@@ -960,7 +963,7 @@ lookupFunc qname =
         Just match -> pure match
     other -> throwSQLE $ NotSupportedError ("function name: " <> T.pack (show other))
   where
-    f n args = FunctionAtomExpr n args ()
+    f = func
     aggMapper (FuncName [nam], nam') = (nam, f nam')
     aggMapper (FuncName other,_) = error ("unexpected multi-component SQL aggregate function: " <> show other)
     sqlFuncs = [(">",f "sql_gt"),
@@ -974,7 +977,7 @@ lookupFunc qname =
                  ("and", f "sql_and"),
                  ("or", f "sql_or"),
                  ("abs", f "sql_abs")
-               ] <> map aggMapper aggregateFunctions
+               ] <> map aggMapper aggregateFunctionsMap
 
 
 -- | Used in join condition detection necessary for renames to enable natural joins.
@@ -1082,6 +1085,7 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
       case expr of
         x@AttributeAtomExpr{} -> x --potential rename
         x@NakedAtomExpr{} -> x
+        x@SubrelationAttributeAtomExpr{} -> x 
         FunctionAtomExpr fname args () -> FunctionAtomExpr fname (pushAtom <$> args) ()
         RelationAtomExpr e -> RelationAtomExpr (push e)
         IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (pushAtom ifE) (pushAtom thenE) (pushAtom elseE)
@@ -1300,7 +1304,7 @@ databaseContextExprForUniqueKeyWithNull rvname attrName =
   where
     incDep = inclusionDependencyForKey (AttributeNames (S.singleton attrName)) (Restrict notNull (RelationVariable rvname ()))
     incDepName = rvname <> "_" <> attrName <> "_unique"
-    notNull = NotPredicate (AtomExprPredicate (FunctionAtomExpr "sql_isnull" [AttributeAtomExpr attrName] ()))
+    notNull = NotPredicate (AtomExprPredicate (func "sql_isnull" [AttributeAtomExpr attrName] ))
                                   
 
 {-
@@ -1389,14 +1393,14 @@ data GroupByInfo =
 emptyGroupByInfo :: GroupByInfo
 emptyGroupByInfo = GroupByInfo { aggregates = [], nonAggregates = [], havingRestriction = Nothing }
 
-aggregateFunctions :: [(FuncName, FunctionName)]
-aggregateFunctions = [(FuncName ["max"], "sql_max"),
+aggregateFunctionsMap :: [(FuncName, FunctionName)]
+aggregateFunctionsMap = [(FuncName ["max"], "sql_max"),
                        (FuncName ["min"], "sql_min"),
                        (FuncName ["sum"], "sql_sum"),
                        (FuncName ["count"], "sql_count")]
 
 isAggregateFunction :: FuncName -> Bool
-isAggregateFunction fname = fname `elem` map fst aggregateFunctions
+isAggregateFunction fname = fname `elem` map fst aggregateFunctionsMap
 
 containsAggregate :: ProjectionScalarExpr -> Bool
 containsAggregate expr =
@@ -1479,21 +1483,20 @@ processSQLAggregateFunctions expr =
   case expr of
     AttributeAtomExpr{} -> expr
     NakedAtomExpr{} -> expr
+    SubrelationAttributeAtomExpr{} -> expr
     FunctionAtomExpr fname [AttributeAtomExpr attrName] ()
       | fname == "sql_count" && -- count(*) counts the number of rows
         attrName == "_sql_aggregate" -> expr
       | fname == "sql_count" -> -- count(city) counts the number city elements that are not null
-        callF fname [RelationAtomExpr
+        func fname [RelationAtomExpr
                      (Restrict
                        (NotPredicate
                         (AtomExprPredicate
-                         (callF "sql_isnull" [AttributeAtomExpr attrName]))) (RelationValuedAttribute "_sql_aggregate"))]
-      | fname `elem` map snd aggregateFunctions ->
-          FunctionAtomExpr fname
-            [RelationAtomExpr (Project (AttributeNames (S.singleton attrName)) (RelationValuedAttribute "_sql_aggregate"))] ()
+                         (func "sql_isnull" [AttributeAtomExpr attrName]))) (RelationValuedAttribute "_sql_aggregate"))]
+      | fname `elem` map snd aggregateFunctionsMap ->
+          func fname
+            [SubrelationAttributeAtomExpr "_sql_aggregate" attrName]
     FunctionAtomExpr fname args () -> FunctionAtomExpr fname (map processSQLAggregateFunctions args) ()
     RelationAtomExpr{} -> expr --not supported in SQL
     IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (processSQLAggregateFunctions ifE) (processSQLAggregateFunctions thenE) (processSQLAggregateFunctions elseE)
     ConstructedAtomExpr{} -> expr --not supported in SQL
-  where
-    callF fname args = FunctionAtomExpr fname args ()

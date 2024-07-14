@@ -73,7 +73,7 @@ quitP = do
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
   colonOp ":constraints"
-  ShowConstraints <$> option "" identifier
+  ShowConstraints <$> option "" identifierP
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
@@ -227,7 +227,7 @@ attrOrdersExprP :: Parser [DF.AttributeOrderExpr]
 attrOrdersExprP = reserved "orderby" *> braces (sepBy attrOrderExprP comma)
 
 attrOrderExprP :: Parser DF.AttributeOrderExpr
-attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP
+attrOrderExprP = DF.AttributeOrderExpr <$> identifierP <*> orderP
 
 orderP :: Parser DF.Order
 orderP = try (reservedOp "ascending" >> pure DF.AscendingOrder) <|> try (reservedOp "descending" >> pure DF.DescendingOrder) <|> pure DF.AscendingOrder

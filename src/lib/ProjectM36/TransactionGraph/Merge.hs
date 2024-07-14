@@ -62,7 +62,7 @@ unionMergeAtomFunctions prefer funcsA funcsB = case prefer of
   PreferFirst -> pure $ HS.union funcsA funcsB
   PreferSecond -> pure $ HS.union funcsB funcsA
   PreferNeither -> pure $ HS.union funcsA funcsB
-  
+
 unionMergeTypeConstructorMapping :: MergePreference -> TypeConstructorMapping -> TypeConstructorMapping -> Either MergeError TypeConstructorMapping  
 unionMergeTypeConstructorMapping prefer typesA typesB = do
   let allFuncNames = S.fromList $ map (\(tc,_) -> TCD.name tc) (typesA ++ typesB)

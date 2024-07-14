@@ -30,6 +30,8 @@ isSortableAtomType typ = case typ of
   UUIDAtomType -> False
   RelationalExprAtomType -> False
   RelationAtomType _ -> False
+  SubrelationFoldAtomType{} -> False
   ConstructedAtomType _ _ -> False
   TypeVariableType _ -> False
+  
   

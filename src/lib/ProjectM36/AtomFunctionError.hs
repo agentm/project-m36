@@ -9,11 +9,13 @@ data AtomFunctionError = AtomFunctionUserError String |
                          AtomFunctionParseError String |
                          InvalidIntervalOrderingError |
                          InvalidIntervalBoundariesError |
+                         AtomFunctionAttributeNameNotFoundError Text |
                          InvalidIntBoundError |
                          InvalidUUIDString Text |
+                         RelationAtomExpectedError Text |
                          AtomFunctionEmptyRelationError |
                          AtomTypeDoesNotSupportOrderingError Text |
                          AtomTypeDoesNotSupportIntervalError Text |
                          AtomFunctionBytesDecodingError String
-                       deriving(Generic, Eq, Show, NFData)
+                       deriving (Generic, Eq, Show, NFData)
 

@@ -40,10 +40,12 @@ instance Pretty Atom where
   pretty (UUIDAtom u) = pretty u
   pretty (RelationAtom x) = pretty x
   pretty (RelationalExprAtom re) = pretty re
+  pretty (SubrelationFoldAtom _rel _subAttr) = "SubrelationFoldAtom" -- this is only used as an argument to aggregate functions, so users should never be able to construct it directly
   pretty (ConstructedAtom n _ as) = pretty n <+> prettyList as
 
 instance Pretty AtomExpr where
-  pretty (AttributeAtomExpr attrName) = prettyAttributeName ("@" <> attrName)
+  pretty (AttributeAtomExpr attrName) = "@" <> prettyAttributeName attrName
+  pretty (SubrelationAttributeAtomExpr relAttr subAttr) = "@" <> prettyAttributeName relAttr <> "." <> prettyAttributeName subAttr
   pretty (NakedAtomExpr atom)         = pretty atom
   pretty (FunctionAtomExpr atomFuncName' atomExprs _) = pretty atomFuncName' <> prettyAtomExprsAsArguments atomExprs
   pretty (RelationAtomExpr relExpr) = pretty relExpr
@@ -154,6 +156,7 @@ instance Pretty AtomType where
   pretty BoolAtomType = "Bool"
   pretty UUIDAtomType = "UUID"
   pretty (RelationAtomType attrs) = "relation " <+> prettyBracesList (A.toList attrs)
+  pretty (SubrelationFoldAtomType typ) = "SubRelationFoldAtomType" <+> pretty typ
   pretty (ConstructedAtomType tcName tvMap) = pretty tcName <+> hsep (map pretty (M.toList tvMap)) --order matters
   pretty RelationalExprAtomType = "RelationalExpr"
   pretty (TypeVariableType x) = pretty x

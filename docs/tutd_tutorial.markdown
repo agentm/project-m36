@@ -658,12 +658,41 @@ TutorialD (master/main): :showexpr s group ({s#,sname,status} as subrel):{cityco
 
 In this query result, we can simultaneously answer how many suppliers are located in each city and which suppliers they are. The expression is constructed by first grouping to isolate the city, then extending the query to add a attribute containing the tuple count for each subrelation.
 
+For aggregations that reference a specific attribute ("count" does rely on any attribute), use the subrelation attribute syntax `@subrel.subrelattr`:
+
+```
+TutorialD (master/main): :showexpr s group ({all but city} as g):{city_total:=sum(@g.status)}
+┌──────────┬───────────────────┬──────────────────────────────────────────────────┐
+│city::Text│city_total::Integer│g::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼───────────────────┼──────────────────────────────────────────────────┤
+│"Paris"   │40                 │┌────────┬───────────┬───────────────┐            │
+│          │                   ││s#::Text│sname::Text│status::Integer│            │
+│          │                   │├────────┼───────────┼───────────────┤            │
+│          │                   ││"S2"    │"Jones"    │10             │            │
+│          │                   ││"S3"    │"Blake"    │30             │            │
+│          │                   │└────────┴───────────┴───────────────┘            │
+│"London"  │40                 │┌────────┬───────────┬───────────────┐            │
+│          │                   ││s#::Text│sname::Text│status::Integer│            │
+│          │                   │├────────┼───────────┼───────────────┤            │
+│          │                   ││"S4"    │"Clark"    │20             │            │
+│          │                   ││"S1"    │"Smith"    │20             │            │
+│          │                   │└────────┴───────────┴───────────────┘            │
+│"Athens"  │30                 │┌────────┬───────────┬───────────────┐            │
+│          │                   ││s#::Text│sname::Text│status::Integer│            │
+│          │                   │├────────┼───────────┼───────────────┤            │
+│          │                   ││"S5"    │"Adams"    │30             │            │
+│          │                   │└────────┴───────────┴───────────────┘            │
+└──────────┴───────────────────┴──────────────────────────────────────────────────┘
+
+```
+
 |Function Name|Description|
 |-------------|-----------|
 |count(relation{any tuple types})|return the number of tuples in each relation value|
-|sum(relation{int})|return the int sum of the relation's values|
-|max(relation{int})|return the maximum int from all the relation's values|
-|min(relation{int})|return the minimum int from all the relation's values|
+|sum(subrelation attribute{Integer})|return the int sum from all the subrelation's values for the attribute|
+|max(subrelation attribute{Integer})|return the maximum int from all the subrelation's values for the attribute|
+|min(subrelation attribute{Integer})|return the minimum int from all the subrelation's values for the attribute|
+|mean(subrelation attribute{Integer})|return the mean from all the subrelation's values for the attribute|
 
 #### Arbitrary Relation Variables
 

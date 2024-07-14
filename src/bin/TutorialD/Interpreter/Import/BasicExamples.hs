@@ -20,7 +20,7 @@ evalImportBasicExampleOperator ImportBasicDateExampleOperator = databaseContextA
 importBasicExampleOperatorP :: Parser ImportBasicExampleOperator
 importBasicExampleOperatorP = do 
   reservedOp ":importexample"
-  example <- identifier
+  example <- identifierP
   if example == "cjdate" then
     pure ImportBasicDateExampleOperator
     else

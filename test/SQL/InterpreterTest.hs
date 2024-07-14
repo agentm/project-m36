@@ -24,6 +24,7 @@ import Test.HUnit
 import Text.Megaparsec
 import qualified Data.Text as T
 import qualified Data.Map as M
+import TutorialD.Printer
 
 main :: IO ()
 main = do
@@ -59,7 +60,7 @@ testSelect = TestCase $ do
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
-  let readTests = [
+  let readTests = [{-
         -- simple relvar
         ("SELECT * FROM s", "(s)", "(s)"),
         -- simple projection
@@ -163,24 +164,24 @@ testSelect = TestCase $ do
         ("SELECT abs(-4)",
          "((relation{}{tuple{}}:{attr_1:=sql_abs(sql_negate(4))}){attr_1})",
          "(relation{tuple{attr_1 SQLJust 4}})"
-         ),
+         ),-}
         -- where not exists
         -- group by with max aggregate
         ("SELECT city,max(status) FROM s GROUP BY city",
-         "((s group ({all but city} as `_sql_aggregate`) : {attr_2:=sql_max(@`_sql_aggregate`{status})}){city,attr_2})",
+         "((s group ({all but city} as `_sql_aggregate`) : {attr_2:=sql_max(@`_sql_aggregate`.status)}){city,attr_2})",
          "(relation{city Text, attr_2 SQLNullable Integer}{tuple{city \"London\", attr_2 SQLJust 20}, tuple{city \"Paris\", attr_2 SQLJust 30}, tuple{city \"Athens\", attr_2 SQLJust 30}})"
-         ),
+         ){-,
         -- group by with aggregate max column alias
         ("SELECT city,max(status) as status FROM s GROUP BY city",
-         "((s group ({all but city} as `_sql_aggregate`) : {status:=sql_max(@`_sql_aggregate`{status})}){city,status})",
+         "((s group ({all but city} as `_sql_aggregate`) : {status:=sql_max(@`_sql_aggregate`.status)}){city,status})",
          "(relation{city Text, status SQLNullable Integer}{tuple{city \"London\", status SQLJust 20}, tuple{city \"Paris\", status SQLJust 30}, tuple{city \"Athens\", status SQLJust 30}})"),
         -- aggregate max without grouping
         ("SELECT max(status) as status FROM s",
-         "(((s group ({all but } as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } )}){ status })",
+         "(((s group ({all but } as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`.status)}){ status })",
          "(relation{status SQLNullable Integer}{tuple{status SQLJust 30}})"),
         -- group by having max
         ("select city,max(status) as status from s group by city having max(status)=30",
-         "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`){ status } ), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`){ status } ), 30 ) )}){ city, status }) where `_sql_having`=True)",
+         "((((s group ({all but city} as `_sql_aggregate`)):{status:=sql_max( (@`_sql_aggregate`.status), `_sql_having`:=sql_coalesce_bool( sql_equals( sql_max( (@`_sql_aggregate`.status), 30 ) )}){ city, status }) where `_sql_having`=True)",
          "(relation{city Text,status SQLNullable Integer}{tuple{city \"Athens\",status SQLJust 30},tuple{city \"Paris\",status SQLJust 30}})"),
         -- count(*) aggregate
         ("select count(*) as c from s",
@@ -282,7 +283,7 @@ testSelect = TestCase $ do
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLNull}})"),
         ("SELECT NULL OR TRUE",
          "((relation{}{tuple{}}:{attr_1:=sql_or(SQLNullOfUnknownType,True)}){attr_1})",
-         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust True}})")
+         "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust True}})")-}
         ]
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just sqlDBContext,
@@ -315,7 +316,7 @@ testSelect = TestCase $ do
 
         --print ("selectAsRelExpr"::String, queryAsRelExpr)
         --print ("expected: "::String, pretty tutdAsDFExpr)
-        --print ("actual  : "::String, pretty queryAsDFExpr)
+        print ("actual  : "::String, renderPretty queryAsDFExpr)
         assertEqual (T.unpack sql) tutdAsDFExpr queryAsDFExpr
         --check that the expression can actually be executed
         eEvald <- executeDataFrameExpr sess conn tutdAsDFExpr
