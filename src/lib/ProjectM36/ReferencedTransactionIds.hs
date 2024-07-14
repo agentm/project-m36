@@ -96,9 +96,8 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (AtomExprBase a)
     case expr of
       AttributeAtomExpr{} -> mempty
       NakedAtomExpr{} -> mempty
+      SubrelationAttributeAtomExpr{} -> mempty
       FunctionAtomExpr _ args marker ->
-        S.unions (referencedTransactionIds marker : (referencedTransactionIds <$> args))
-      AggregateFunctionAtomExpr _fname _aggInfo args marker ->
         S.unions (referencedTransactionIds marker : (referencedTransactionIds <$> args))
       RelationAtomExpr rExpr ->
         referencedTransactionIds rExpr

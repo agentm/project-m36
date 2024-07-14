@@ -509,7 +509,6 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
   incDeps <- liftMergeE $ unionMergeMaps preference (inclusionDependencies contextA) (inclusionDependencies contextB)
   relVars <- unionMergeRelVars preference (relationVariables contextA) (relationVariables contextB)
   atomFuncs <- liftMergeE $ unionMergeAtomFunctions preference (atomFunctions contextA) (atomFunctions contextB)
-  aggFuncs <- liftMergeE $ unionMergeAggregateFunctions preference (aggregateFunctions contextA) (aggregateFunctions contextB)
   notifs <- liftMergeE $ unionMergeMaps preference (notifications contextA) (notifications contextB)
   types <- liftMergeE $ unionMergeTypeConstructorMapping preference (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   dbcFuncs <- liftMergeE $ unionMergeDatabaseContextFunctions preference (dbcFunctions contextA) (dbcFunctions contextB)
@@ -519,7 +518,6 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
         inclusionDependencies = incDeps, 
         relationVariables = relVars, 
         atomFunctions = atomFuncs,
-        aggregateFunctions = aggFuncs,
         dbcFunctions = dbcFuncs,
         notifications = notifs,
         typeConstructorMapping = types,

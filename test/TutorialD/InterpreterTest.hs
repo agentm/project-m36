@@ -95,7 +95,8 @@ main = do
       testShowDDL,
       testRegisteredQueries,
       testCrossJoin,
-      testIfThenExpr
+      testIfThenExpr,
+      testSubrelationAttributeAtomExpr
       ]
 
 simpleRelTests :: Test
@@ -184,14 +185,14 @@ dateExampleRelTests = TestCase $ do
                            --relatom function tests
                            ("x:=((s group ({city} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ IntegerAtom 1)])),
                            ("x:=(sp group ({s#} as y)) ungroup y", Right supplierProductsRel),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=max(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=max(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
                            --boolean function restriction
                            ("x:=s where lt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            ("x:=s where gt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
                                                                                                        [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
-                           ("x:=s where sum(@status)", Left $ AtomFunctionTypeError "sum" 1 (RelationAtomType (attributesFromList [Attribute "_" IntegerAtomType])) IntegerAtomType),
+                           ("x:=s where sum(@status)", Left $ AtomFunctionTypeError "sum" 1 (SubrelationFoldAtomType IntegerAtomType) IntegerAtomType),
                            ("x:=s where not(gte(@status,20))", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
@@ -805,7 +806,7 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "ds0uvEvV8CvivyYyxJ75S0CeAnNzKAAH5AdOv74+ydM=" (B64.encode (_unSecureHash hash1))
+  assertEqual "static hash check" "3aNi/azK9QNSXQQQ0QOuGcqAPlRh0d7zX0bNwjowPDA=" (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn
@@ -876,3 +877,12 @@ testIfThenExpr = TestCase $ do
   executeTutorialD session dbconn "x:=(s:{islondon:=if eq(@city,\"London\") then True else False}){city,islondon} = relation{tuple{city \"London\", islondon True},tuple{city \"Paris\",islondon False},tuple{city \"Athens\", islondon False}}"
   eEqRel <- executeRelationalExpr session dbconn (RelationVariable "x" ())
   assertEqual "if-then" (Right relationTrue) eEqRel
+
+testSubrelationAttributeAtomExpr :: Test
+testSubrelationAttributeAtomExpr = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "x:=(s group ({all from s} as sub):{l:=sum(@sub.status)}){l}"
+  executeTutorialD session dbconn "y:=relation{tuple{l 110}}"
+  executeTutorialD session dbconn "z:= x = y"
+  res <- executeRelationalExpr session dbconn (RelationVariable "z" ())
+  assertEqual "sum" (Right relationTrue) res

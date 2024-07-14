@@ -19,7 +19,7 @@ schemaOperatorP = (ModifySchemaExpr <$> schemaExprP) <|>
 setCurrentSchemaP :: Parser SchemaOperator
 setCurrentSchemaP = do
   reserved ":setschema"
-  SetCurrentSchema <$> identifier
+  SetCurrentSchema <$> identifierP
   
 schemaExprP :: Parser SchemaExpr
 schemaExprP = addSubschemaP <|>
@@ -28,7 +28,7 @@ schemaExprP = addSubschemaP <|>
 addSubschemaP :: Parser SchemaExpr
 addSubschemaP = do
   reserved ":addschema"
-  AddSubschema <$> identifier <*> parens (sepBy schemaIsomorphP comma)
+  AddSubschema <$> identifierP <*> parens (sepBy schemaIsomorphP comma)
   
 schemaIsomorphP :: Parser SchemaIsomorph  
 schemaIsomorphP = isoRestrictP <|> isoUnionP <|> isoRenameP <|> isoPassthrough

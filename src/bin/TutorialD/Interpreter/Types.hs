@@ -13,11 +13,11 @@ instance RelationalMarkerExpr () where
   parseMarkerP = pure ()
 
 typeConstructorNameP :: Parser TypeConstructorName
-typeConstructorNameP = capitalizedIdentifier
+typeConstructorNameP = capitalizedIdentifier <* spaceConsumer
 
 dataConstructorNameP :: Parser DataConstructorName
 dataConstructorNameP = try $ do
-  ident <- capitalizedIdentifier
+  ident <- capitalizedIdentifier <* spaceConsumer
   when (ident `elem` ["True", "False"]) $ failure Nothing mempty --don't parse True or False as ConstructedAtoms (use NakedAtoms instead)
   pure ident
 
@@ -63,10 +63,10 @@ attributeAndTypeNameP :: RelationalMarkerExpr a => Parser (AttributeExprBase a)
 attributeAndTypeNameP = AttributeAndTypeNameExpr <$> attributeNameP <*> typeConstructorP <*> parseMarkerP
 
 typeIdentifierP :: Parser TypeConstructorName
-typeIdentifierP = capitalizedIdentifier
+typeIdentifierP = capitalizedIdentifier <* spaceConsumer
 
 typeVariableIdentifierP :: Parser TypeVarName
-typeVariableIdentifierP = uncapitalizedIdentifier
+typeVariableIdentifierP = uncapitalizedIdentifier <* spaceConsumer
                             
 -- *Either Int Text*, *Int*
 typeConstructorP :: Parser TypeConstructor                  

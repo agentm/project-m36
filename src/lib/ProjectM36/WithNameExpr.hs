@@ -84,11 +84,10 @@ substituteWithNameMacrosAtomExpr :: GraphRefWithNameAssocs -> GraphRefAtomExpr -
 substituteWithNameMacrosAtomExpr macros atomExpr =
   case atomExpr of
     e@AttributeAtomExpr{} -> e
+    e@SubrelationAttributeAtomExpr{} -> e
     e@NakedAtomExpr{} -> e
     FunctionAtomExpr fname atomExprs tid ->
       FunctionAtomExpr fname (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
-    AggregateFunctionAtomExpr fname aggInfo atomExprs tid ->
-      AggregateFunctionAtomExpr fname aggInfo (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
     RelationAtomExpr reExpr ->
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
     IfThenAtomExpr ifE thenE elseE ->

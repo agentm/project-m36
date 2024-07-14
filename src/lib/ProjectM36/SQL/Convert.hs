@@ -639,7 +639,7 @@ convertWhereClause :: TypeForRelExprF -> RestrictionExpr -> ConvertM Restriction
 convertWhereClause typeF (RestrictionExpr rexpr) = do
     let wrongType t = throwSQLE $ TypeMismatchError t BoolAtomType --must be boolean expression
         coalesceBoolF expr = func "sql_coalesce_bool" [expr]
-        sqlEq l = func "sql_equals" l
+        sqlEq = func "sql_equals"
     case rexpr of
       IntegerLiteral{} -> wrongType IntegerAtomType
       DoubleLiteral{} -> wrongType DoubleAtomType
@@ -945,7 +945,7 @@ joinTableRef typeF rvA (_c,tref) = do
 lookupOperator :: Bool -> OperatorName -> ConvertM ([AtomExpr] -> AtomExpr)
 lookupOperator isPrefix op@(OperatorName nam)
   | isPrefix = do
-      let f n args = func n args
+      let f = func
       case nam of
         ["-"] -> pure $ f "sql_negate"
         _ -> throwSQLE $ NoSuchSQLOperatorError op
@@ -963,7 +963,7 @@ lookupFunc qname =
         Just match -> pure match
     other -> throwSQLE $ NotSupportedError ("function name: " <> T.pack (show other))
   where
-    f n args = func n args
+    f = func
     aggMapper (FuncName [nam], nam') = (nam, f nam')
     aggMapper (FuncName other,_) = error ("unexpected multi-component SQL aggregate function: " <> show other)
     sqlFuncs = [(">",f "sql_gt"),
@@ -1085,9 +1085,8 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
       case expr of
         x@AttributeAtomExpr{} -> x --potential rename
         x@NakedAtomExpr{} -> x
+        x@SubrelationAttributeAtomExpr{} -> x 
         FunctionAtomExpr fname args () -> FunctionAtomExpr fname (pushAtom <$> args) ()
-        AggregateFunctionAtomExpr fname aggInfo args () ->
-          AggregateFunctionAtomExpr fname aggInfo (pushAtom <$> args) () --potential rename in aggInfo
         RelationAtomExpr e -> RelationAtomExpr (push e)
         IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (pushAtom ifE) (pushAtom thenE) (pushAtom elseE)
         ConstructedAtomExpr dConsName args () -> ConstructedAtomExpr dConsName (pushAtom <$> args) ()
@@ -1484,6 +1483,7 @@ processSQLAggregateFunctions expr =
   case expr of
     AttributeAtomExpr{} -> expr
     NakedAtomExpr{} -> expr
+    SubrelationAttributeAtomExpr{} -> expr
     FunctionAtomExpr fname [AttributeAtomExpr attrName] ()
       | fname == "sql_count" && -- count(*) counts the number of rows
         attrName == "_sql_aggregate" -> expr
@@ -1495,10 +1495,8 @@ processSQLAggregateFunctions expr =
                          (func "sql_isnull" [AttributeAtomExpr attrName]))) (RelationValuedAttribute "_sql_aggregate"))]
       | fname `elem` map snd aggregateFunctionsMap ->
           func fname
-            [RelationAtomExpr (Project (AttributeNames (S.singleton attrName)) (RelationValuedAttribute "_sql_aggregate"))]
+            [SubrelationAttributeAtomExpr "_sql_aggregate" attrName]
     FunctionAtomExpr fname args () -> FunctionAtomExpr fname (map processSQLAggregateFunctions args) ()
-    AggregateFunctionAtomExpr fname aggInfo args () ->
-      AggregateFunctionAtomExpr fname aggInfo (processSQLAggregateFunctions <$> args) ()
     RelationAtomExpr{} -> expr --not supported in SQL
     IfThenAtomExpr ifE thenE elseE -> IfThenAtomExpr (processSQLAggregateFunctions ifE) (processSQLAggregateFunctions thenE) (processSQLAggregateFunctions elseE)
     ConstructedAtomExpr{} -> expr --not supported in SQL

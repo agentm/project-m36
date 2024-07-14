@@ -61,7 +61,6 @@ vectorIndicesForAttributeNames attrNameVec attrs = if not $ V.null unknownAttrNa
     unknownAttrNames = V.filter (`V.notElem` attributeNames attrs) attrNameVec
     mapper attrName = fromMaybe (error "logic failure in vectorIndicesForAttributeNames") (V.elemIndex attrName (attributeNames attrs))
 
-
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
 relationForAttributeName attrName tuple = do
   aType <- atomTypeForAttributeName attrName (tupleAttributes tuple)

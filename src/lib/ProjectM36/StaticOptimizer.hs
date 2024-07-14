@@ -437,10 +437,10 @@ findStaticRestrictionPredicates AtomExprPredicate{} = M.empty
 
 isStaticAtomExpr :: AtomExpr -> Bool
 isStaticAtomExpr NakedAtomExpr{} = True
+isStaticAtomExpr SubrelationAttributeAtomExpr{} = False
 isStaticAtomExpr ConstructedAtomExpr{} = True
 isStaticAtomExpr AttributeAtomExpr{} = False
 isStaticAtomExpr FunctionAtomExpr{} = False
-isStaticAtomExpr AggregateFunctionAtomExpr{} = False
 isStaticAtomExpr IfThenAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
 

@@ -8,7 +8,6 @@ import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.Relation
 import ProjectM36.DatabaseContextFunction
-import ProjectM36.AggregateFunctions.Basic
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = M.empty, 
@@ -16,7 +15,6 @@ empty = DatabaseContext { inclusionDependencies = M.empty,
                           notifications = M.empty,
                           atomFunctions = HS.empty,
                           dbcFunctions = HS.empty,
-                          aggregateFunctions = HS.empty,
                           typeConstructorMapping = mempty,
                           registeredQueries = mempty }
 
@@ -40,7 +38,6 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                                                          ("false", ExistingRelation relationFalse)],
                                          atomFunctions = basicAtomFunctions,
                                          dbcFunctions = basicDatabaseContextFunctions,
-                                         aggregateFunctions = basicAggregateFunctions,
                                          notifications = M.empty,
                                          typeConstructorMapping = basicTypeConstructorMapping,
                                          registeredQueries = M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ()))

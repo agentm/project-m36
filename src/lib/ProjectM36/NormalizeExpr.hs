@@ -112,11 +112,10 @@ processExtendTupleExpr (AttributeExtendTupleExpr nam atomExpr) =
 
 processAtomExpr :: AtomExpr -> ProcessExprM GraphRefAtomExpr
 processAtomExpr (AttributeAtomExpr nam) = pure $ AttributeAtomExpr nam
+processAtomExpr (SubrelationAttributeAtomExpr relAttr subAttr) = pure (SubrelationAttributeAtomExpr relAttr subAttr)
 processAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
   FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askMarker
-processAtomExpr (AggregateFunctionAtomExpr fName aggInfo args ()) =
-  AggregateFunctionAtomExpr fName aggInfo <$> mapM processAtomExpr args <*> askMarker
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
 processAtomExpr (IfThenAtomExpr ifE thenE elseE) =
   IfThenAtomExpr <$> processAtomExpr ifE <*> processAtomExpr thenE <*> processAtomExpr elseE

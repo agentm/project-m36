@@ -122,11 +122,10 @@ processTransGraphTupleExpr (TupleExpr attrMap) = do
   
 processTransGraphAtomExpr :: TransGraphAtomExpr -> TransGraphEvalMonad GraphRefAtomExpr
 processTransGraphAtomExpr (AttributeAtomExpr aname) = pure $ AttributeAtomExpr aname
+processTransGraphAtomExpr (SubrelationAttributeAtomExpr relAttr subAttr) = pure $ SubrelationAttributeAtomExpr relAttr subAttr
 processTransGraphAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processTransGraphAtomExpr (FunctionAtomExpr funcName' args tLookup) =
   FunctionAtomExpr funcName' <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
-processTransGraphAtomExpr (AggregateFunctionAtomExpr funcName' aggInfo args tLookup) =
-  AggregateFunctionAtomExpr funcName' aggInfo <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
 processTransGraphAtomExpr (RelationAtomExpr expr) =
   RelationAtomExpr <$> processTransGraphRelationalExpr expr
 processTransGraphAtomExpr (IfThenAtomExpr ifE thenE elseE) =

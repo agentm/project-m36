@@ -358,6 +358,9 @@ atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
                                else
                                  atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip (attributesVec attrs1) (attributesVec attrs2))
   return x
+atomTypeVerify (SubrelationFoldAtomType typ1) (SubrelationFoldAtomType typ2) = do
+  resTyp <- atomTypeVerify typ1 typ2
+  pure (SubrelationFoldAtomType resTyp)
 atomTypeVerify x y = if x == y then
                        Right x
                      else
@@ -457,4 +460,5 @@ isResolvedAttributes attrs = all isResolvedAttribute (V.toList (attributesVec at
 isResolvedAttribute :: Attribute -> Bool
 isResolvedAttribute = isResolvedType . A.atomType
 
---given two AtomTypes x,y
+anyRelationAtomType :: AtomType
+anyRelationAtomType = RelationAtomType (A.attributesFromList [Attribute "_" (TypeVariableType "a")])

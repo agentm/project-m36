@@ -4,8 +4,8 @@ import ProjectM36.Relation (relFold, oneTuple)
 import ProjectM36.Tuple
 import ProjectM36.AtomFunctionError
 import ProjectM36.AtomFunction
+import ProjectM36.AtomType
 import qualified Data.HashSet as HS
-import qualified Data.Vector as V
 import Control.Monad
 import qualified Data.UUID as U
 import qualified Data.Text as T
@@ -33,25 +33,26 @@ primitiveAtomFunctions = HS.fromList [
                                    x:_ -> pure x
                                    _ -> Left AtomFunctionTypeMismatchError
                                )},
-    Function { funcName = "sum_agg",
+    Function { funcName = "sum",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationAtomFunc relationSum
+               funcBody = body $ relationFoldFunc relationSum
              },
     Function { funcName = "count",
-               funcType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
+               funcType = [anyRelationAtomType,
+                           IntegerAtomType],
                funcBody = body $ relationAtomFunc relationCount
              },
     Function { funcName = "max",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationAtomFunc relationMax 
+               funcBody = body $ relationFoldFunc relationMax 
              },
     Function { funcName = "min",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationAtomFunc relationMin
+               funcBody = body $ relationFoldFunc relationMin
              },
     Function { funcName = "mean",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationAtomFunc relationMean
+               funcBody = body $ relationFoldFunc relationMean
              },
     Function { funcName = "eq",
                funcType = [TypeVariableType "a", TypeVariableType "a", BoolAtomType],
@@ -128,8 +129,10 @@ primitiveAtomFunctions = HS.fromList [
   ] <> scientificAtomFunctions
   where
     body = FunctionBuiltInBody
-    relationAtomFunc f [RelationAtom x] = f x
+    relationAtomFunc f [RelationAtom rel] = f rel
     relationAtomFunc _ _ = Left AtomFunctionTypeMismatchError
+    relationFoldFunc f [SubrelationFoldAtom rel subAttr] = f rel subAttr
+    relationFoldFunc _ _ = Left AtomFunctionTypeMismatchError
                          
 integerAtomFuncLessThan :: Bool -> [Atom] -> Either AtomFunctionError Atom
 integerAtomFuncLessThan equality (IntegerAtom i1:IntegerAtom i2:_) = pure (BoolAtom (i1 `op` i2))
@@ -142,35 +145,48 @@ boolAtomNot (BoolAtom b) = pure (BoolAtom (not b))
 boolAtomNot _ = error "boolAtomNot called on non-Bool atom"
 
 --used by sum atom function
-relationSum :: Relation -> Either AtomFunctionError Atom
-relationSum relIn = pure (IntegerAtom (relFold (\tupIn acc -> acc + newVal tupIn) 0 relIn))
+relationSum :: Relation -> AttributeName -> Either AtomFunctionError Atom
+relationSum relIn subAttr = pure (IntegerAtom (relFold (\tupIn acc -> acc + newVal tupIn) 0 relIn))
   where
     --extract Integer from Atom
-    newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+    newVal tupIn =
+      case atomForAttributeName subAttr tupIn of
+        Left err -> error (show err)
+        Right atom -> castInteger atom
     
 relationCount :: Relation -> Either AtomFunctionError Atom
 relationCount relIn = pure (IntegerAtom (relFold (\_ acc -> acc + 1) (0::Integer) relIn))
 
-relationMax :: Relation -> Either AtomFunctionError Atom
-relationMax relIn = case oneTuple relIn of
+relationMax :: Relation -> AttributeName -> Either AtomFunctionError Atom
+relationMax relIn subAttr = case oneTuple relIn of
     Nothing -> Left AtomFunctionEmptyRelationError
     Just oneTup -> pure (IntegerAtom (relFold (\tupIn acc -> max acc (newVal tupIn)) (newVal oneTup) relIn))
   where
-    newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+    newVal tupIn =
+      case atomForAttributeName subAttr tupIn of
+        Left err -> error (show err)
+        Right atom -> castInteger atom
 
-relationMin :: Relation -> Either AtomFunctionError Atom
-relationMin relIn = case oneTuple relIn of 
+relationMin :: Relation -> AttributeName -> Either AtomFunctionError Atom
+relationMin relIn subAttr = case oneTuple relIn of 
   Nothing -> Left AtomFunctionEmptyRelationError
   Just oneTup -> pure (IntegerAtom (relFold (\tupIn acc -> min acc (newVal tupIn)) (newVal oneTup) relIn))
   where
-    newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+    newVal tupIn =
+      case atomForAttributeName subAttr tupIn of
+        Left err -> error (show err)
+        Right atom -> castInteger atom
 
-relationMean :: Relation -> Either AtomFunctionError Atom
-relationMean relIn = case oneTuple relIn of
+
+relationMean :: Relation -> AttributeName -> Either AtomFunctionError Atom
+relationMean relIn subAttr = case oneTuple relIn of
   Nothing -> Left AtomFunctionEmptyRelationError
   Just _oneTup -> do
     let (sum'', count') = relFold (\tupIn (sum', count) -> (sum' + newVal tupIn, count + 1)) (0, 0) relIn
-        newVal tupIn = castInteger (tupleAtoms tupIn V.! 0)
+        newVal tupIn =
+          case atomForAttributeName subAttr tupIn of
+            Left err -> error (show err)
+            Right atom -> castInteger atom
     pure (IntegerAtom (sum'' `div` count'))
     
 
@@ -180,7 +196,7 @@ castInt _ = error "attempted to cast non-IntAtom to Int"
 
 castInteger :: Atom -> Integer
 castInteger (IntegerAtom i) = i 
-castInteger _ = error "attempted to cast non-IntegerAtom to Int"
+castInteger _ = error "attempted to cast non-IntegerAtom to Integer"
 
 
 scientificAtomFunctions :: AtomFunctions

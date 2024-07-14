@@ -64,8 +64,6 @@ Library
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
                      ProjectM36.AtomFunctionError,
-                     ProjectM36.AggregateFunctions,
-                     ProjectM36.AggregateFunctions.Basic,
                      ProjectM36.ScriptSession,
                      ProjectM36.Shortcuts,
                      ProjectM36.DatabaseContextFunction,

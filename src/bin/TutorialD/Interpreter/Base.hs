@@ -69,6 +69,9 @@ identifier = do
   istart <- letterChar <|> char '_'
   identifierRemainder istart
 
+identifierP :: Parser Text
+identifierP = identifier <* spaceConsumer
+
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do
   rest <- many (alphaNumChar <|> char '_' <|> char '#')
