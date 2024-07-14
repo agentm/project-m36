@@ -1,3 +1,7 @@
+# 2024-07-15 (v1.0.1)
+
+* add support for aggregate functions using sub-relation attributes
+
 # 2024-06-06 (v1.0.0)
 
 * add support for relational expression evaluation against sub-relations

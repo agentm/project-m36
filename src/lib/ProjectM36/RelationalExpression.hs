@@ -51,8 +51,6 @@ import Control.Exception
 import GHC.Paths
 #endif
 
-import Debug.Trace
-
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -959,7 +957,6 @@ typeForGraphRefAtomExpr attrs (FunctionAtomExpr funcName' atomArgs transId) = do
       mapM_ (\(fArg,arg,argCount) -> do
                 let handler :: RelationalError -> GraphRefRelationalExprM AtomType
                     handler (AtomTypeMismatchError expSubType actSubType) = do
-                      traceShowM ("typeForGraphRefAtomExpr"::String, expSubType, actSubType)
                       throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
                     handler err = throwError err
                 lift (except $ atomTypeVerify fArg arg) `catchError` handler
@@ -1021,7 +1018,6 @@ verifyGraphRefAtomExprTypes relIn (FunctionAtomExpr funcName' funcArgExprs tid) 
       funcArgVerifier (atomExpr, expectedType2, argCount) = do
         let handler :: RelationalError -> GraphRefRelationalExprM AtomType
             handler (AtomTypeMismatchError expSubType actSubType) = do
-              traceShowM ("verifyGraphRefAtomExprTypes"::String, expSubType, actSubType)
               throwError (AtomFunctionTypeError funcName' argCount expSubType actSubType)
             handler err = throwError err
         verifyGraphRefAtomExprTypes relIn atomExpr expectedType2 `catchError` handler   
