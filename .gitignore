@@ -22,4 +22,6 @@ juyter/dist
 .ipynb_checkpoints
 project-m36.nix
 stack.yaml
-release.nix
+TutDForSQLDevelopers/??.html
+TutDForSQLDevelopers/?.html
+haddock_hackage*
