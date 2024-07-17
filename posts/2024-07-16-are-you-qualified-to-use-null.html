@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Project:M36 Blog - Are You Qualified To Use NULL in SQL?</title>
+        <link rel="stylesheet" href="../css/brooklyn.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">Project:M36 Blog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="info">
+    Posted on July 16, 2024
+    
+        by AgentM
+    
+	    </div>
+        </div>
+<h1 id="are-you-qualified-to-use-null-in-sql">Are You Qualified To Use Null in SQL?</h1>
+
+<div id="quiz-block">
+    <link rel="stylesheet"
+	  href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', (event) => {{
+      quiz.reset();
+      document.querySelectorAll('code').forEach((el) => {{
+      hljs.highlightElement(el);
+      }});
+      document.getElementById('makeScore').addEventListener('click',makeScore);
+      }});
+      
+      function makeScore(ev)
+      {
+      ev.preventDefault();
+      //clear all markings
+      const markings = Array.from(document.getElementsByClassName('correct')).concat(Array.from(document.getElementsByClassName('wrong')));
+      for(var el of markings)
+      {
+        el.remove();
+      }
+      
+      let score=0;
+      var qcount=0;
+      scored=true;
+        for(const q of Array.from(Array(100).keys()).map(i=>i+1))
+        {
+          let radio = document.querySelectorAll('input[name="'+q.toString()+'"]');
+          if(radio.length==0)
+          {
+            break;
+          }
+          for(const input of Array.from(radio))
+          {
+           if(input.checked && input.dataset.correct)
+           {
+      score++;
+      const el = document.createElement('span');
+      el.classList.add("correct");      
+      el.innerHTML = "&check;";
+      input.parentNode.appendChild(el);
+      }
+      else if(input.checked && !input.dataset.correct)
+      {
+      const el = document.createElement('span');
+      el.classList.add("wrong");      
+      el.innerHTML = "&cross;";
+      input.parentNode.appendChild(el);
+      }
+      
+      }
+      qcount++;
+      }
+      document.getElementById('result').textContent = `You scored ${score}/${qcount}.`;
+      
+      }
+       
+    </script>
+    <style>
+      .hljs {
+      border-radius: 20px;
+      }
+      code.language-sql {
+      margin-left: 10pt;
+      }
+      code::after {
+      content: "\a";
+      white-space:pre;
+
+      }
+      .correct {
+      font-size:20pt;
+      color: green;
+      }
+      .wrong {
+      font-size:20pt;
+      color:red;
+      }
+      #quiz-block div
+      {
+      margin-left: 20pt;
+      margin-bottom: 10pt;
+      min-width: 300pt;
+      padding-top: 10pt;
+      padding-left: 10pt;
+      padding-right: 20pt;
+      padding-bottom: 20pt;
+      box-shadow: 2px -2px 8px 0px rgba(6, 5, 5, 0.3);
+      background-color: #80808012;      
+      }
+      h3{
+       font-size: 14pt;
+      }
+      h4,h1{
+      text-align:center;
+      }
+      td {
+      vertical-align: top;
+      border-collapse: collapse;
+      border-width: 1px;
+      border-style: solid;
+      padding: 15px;
+      border-radius: 10px;
+      border-color: gray;
+      }
+      #makeScore {
+	background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
+	background-color:#44c767;
+	border-radius:28px;
+	border:1px solid #18ab29;
+	display:inline-block;
+	cursor:pointer;
+	color:#ffffff;
+	font-family:Arial;
+	font-size:17px;
+	padding:16px 31px;
+	text-decoration:none;
+	text-shadow:0px 1px 0px #2f6627;
+      }
+      #makeScore:hover {
+	background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+	background-color:#5cbf2a;
+      }
+      #makeScore:active {
+	position:relative;
+	top:1px;
+      }
+      label {
+         display: block;
+      }      
+      code {
+      margin-bottom: 10pt;
+      font-size: 13pt;
+      }
+      #result
+      {
+      font-size: 16pt;
+      }
+    </style>
+    <p>Take this quiz to find out.</p>
+    <hr/>
+    <form name="quiz">
+    <h2>Difficulty: Level 1</h2>
+    <div>
+      <h3>Boolean with NULL</h3>
+      <code class="language-sql">SELECT NULL AND TRUE;</code>
+      <p>
+	<label><input type="radio" name="19" data-correct="1"/>NULL</label>
+	<label><input type="radio" name="19">FALSE</label>
+	</p>
+    </div>
+    <div>
+      <h3>Boolean with NULL 2</h3>
+      <code class="language-sql">SELECT NULL AND FALSE;</code>
+      <p>
+	<label><input type="radio" name="20" data-correct="1"/>FALSE</label>
+	<label><input type="radio" name="20">NULL</label>
+      </p>
+    </div>
+    
+    <div>
+      <h3>SUM with NULL</h3>
+      <code class="language-sql">SELECT SUM(a) FROM (VALUES (3),(NULL)) as x(a);</code>
+      <p>
+      <label><input type="radio" name="1" data-correct="1"/>3</label>
+      <label><input type="radio" name="1">NULL</label>
+      </p>
+    </div>
+    <div>
+      <h3>COUNT with NULL</h3>
+      <code class="language-sql">SELECT COUNT(a) FROM (VALUES (3),(NULL)) as x(a);</code>
+      <p>
+      <label><input type="radio" name="2" data-correct="1"/>1</label>
+      <label><input type="radio" name="2">NULL</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL equality</h3>
+      <code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a = NULL;</code>
+      <p>
+      <label><input type="radio" name="3" data-correct="1"/>(0 rows)</label>
+      <label><input type="radio" name="3">(1 row)</label>
+      </p>
+    </div>
+    <div>
+      <h3>IS NULL</h3>
+      <code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a IS NULL;</code>
+      <p>
+      <label><input type="radio" name="4"/>(0 rows)</label>
+      <label><input type="radio" name="4" data-correct="1">(1 row)</label>
+      </p>
+    </div>
+    <hr/>
+    <h2>Difficulty: Level 2</h2>
+    <div>
+      <h3>OUTER JOIN with NULL</h3>
+      <code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) LEFT OUTER JOIN (VALUES (3),(NULL)) as y(a) ON x.a = y.a;</code>
+      <p>
+      <label><input type="radio" name="5" data-correct="1"/>(2 rows)</label>
+      <label><input type="radio" name="5">(1 row)</label>
+      </p>
+    </div>
+    <div>
+      <h3>SUM of column with NULL</h3>
+      <code class="language-sql">SELECT SUM(a) FROM (VALUES (NULL::int)) AS x(a);</code>
+      <p>
+      <label><input type="radio" name="6" data-correct="1"/>NULL</label>
+      <label><input type="radio" name="6"/>0</label>
+      </p>
+    </div>
+    <div>
+      <h3>SUM of an empty table</h3>
+      <code class="language-sql">SELECT SUM(a) FROM (VALUES (1),(2)) as x(a) WHERE false;</code>
+      <p>
+      <label><input type="radio" name="7"/>0</label>
+      <label><input type="radio" name="7" data-correct="1"/>NULL</label>
+      </p>
+    </div>
+    <div>
+      <h3>AVG with NULL</h3>
+      <code class="language-sql">SELECT AVG(a) FROM (VALUES (3),(NULL)) as x(a);</code>
+      <p>
+      <label><input type="radio" name="8"/>NULL</label>
+      <label><input type="radio" name="8" data-correct="1"/>3.0</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with IN</h3>
+      <code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a IN (NULL,3);</code>
+      <p>
+      <label><input type="radio" name="9" data-correct="1"/>(1 row)</label>
+      <label><input type="radio" name="9"/>(2 rows)</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with NOT IN</h3>
+      <code class="language-sql">SELECT * FROM (VALUES (3),(NULL)) as x(a) WHERE a NOT IN (1);</code>
+      <p>
+      <label><input type="radio" name="10" data-correct="1"/>(1 row)</label>
+      <label><input type="radio" name="10"/>(2 rows)</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with CONCAT</h3>
+      <code class="language-sql">SELECT CONCAT('uh oh', NULL);</code>
+      <p>
+      <label><input type="radio" name="11" data-correct="1"/>uh oh</label>
+      <label><input type="radio" name="11"/>NULL</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with ||</h3>
+      <code class="language-sql">SELECT 'uh oh' || NULL;</code>
+      <p>
+      <label><input type="radio" name="12"/>uh oh</label>
+      <label><input type="radio" name="12" data-correct="1"/>NULL</label>
+      </p>
+    </div>
+    <hr/>    
+    <h2>Difficulty: Level 3</h2>
+    <div>
+      <h3>NULL in CHECK constraint</h3>
+      <code class="language-sql">CREATE TABLE test(a INTEGER CHECK(a>0)); INSERT INTO test(a) VALUES (NULL);</code>
+      <p>
+      <label><input type="radio" name="21"/>Constraint error, INSERT rejected</label>
+      <label><input type="radio" name="21" data-correct="1"/>No error, INSERT succeeds</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with DISTINCT</h3>
+      <code class="language-sql">SELECT DISTINCT(a) FROM (VALUES (3),(NULL),(NULL)) as x(a);</code>
+      <p>
+      <label><input type="radio" name="13" data-correct="1"/>2 rows</label>
+      <label><input type="radio" name="13"/>1 row</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with GROUP BY</h3>
+      <code class="language-sql">SELECT a FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;</code>
+      <p>
+      <label><input type="radio" name="14" data-correct="1"/>2 rows</label>
+      <label><input type="radio" name="14"/>1 row</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with GROUP BY + CASE</h3>
+      <code class="language-sql">SELECT CASE WHEN a IS NULL THEN 5 ELSE a END FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;</code>
+      <p>
+      <label><input type="radio" name="15" data-correct="1"/>3,5</label>
+      <label><input type="radio" name="15"/>3,NULL</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL WITH GROUP BY + NULL equality + CASE</h3>
+      <code class="language-sql">SELECT CASE WHEN a = NULL THEN 5 ELSE a END FROM (VALUES (3),(NULL),(NULL)) as x(a) GROUP BY a;</code>
+      <p>
+      <label><input type="radio" name="16" data-correct="1"/>3,NULL</label>
+      <label><input type="radio" name="16"/>3,5</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with UNIQUE constraint</h3>
+      <code class="language-sql">CREATE TABLE y(a INTEGER, UNIQUE(a));
+	INSERT INTO y(a) VALUES (NULL),(NULL),(3);
+	table y;
+      </code>
+      <p>
+      <label><input type="radio" name="17" data-correct="1"/>NULL,NULL,3</label>
+      <label><input type="radio" name="17"/>NULL,3</label>
+      </p>
+    </div>
+    <div>
+      <h3>NULL with EXISTS</h3>
+      <code class="language-sql">SELECT 5 WHERE EXISTS(SELECT NULL);</code>
+      <p>
+      <label><input type="radio" name="18" data-correct="1"/>(1 row)</label>
+      <label><input type="radio" name="18"/>(0 rows)</label>
+      </p>
+    </div>
+    <div>
+      <h3>Typed NULL</h3>
+      <code class="language-sql">SELECT CAST(NULL AS INTEGER) IS DISTINCT FROM CAST(NULL AS TEXT);</code>
+      <p>
+      <label><input type="radio" name="22" data-correct="1"/>False</label>
+      <label><input type="radio" name="22"/>type error</label>
+      </p>
+    </div>
+<button id="makeScore">Show Me My Score</button>
+</form>
+    <p id="result">
+    </p>
+    <p>
+      Did you score as well as you expected? Did you ever consider that a DBMS could be created which did not include support for NULL? <a href="https://github.com/agentm/project-m36">Project:M36</a> is a ground-up implementation of the relational algebra without NULL or its pitfalls.
+      </p>
+    <p>
+      To learn more about the pitfalls surrounding SQL NULLs and ternary logic, read <a href="https://github.com/agentm/project-m36/blob/master/docs/on_null.markdown">On NULL</a>.
+    </p>
+</div>
+        <div id="footer">
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
