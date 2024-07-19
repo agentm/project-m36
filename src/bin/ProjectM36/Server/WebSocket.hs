@@ -18,11 +18,12 @@ import TutorialD.Interpreter
 import ProjectM36.Interpreter (ConsoleResult(..), SafeEvaluationFlag(..))
 import ProjectM36.Client
 import Control.Exception
-import Data.Attoparsec.Text
+import Data.Attoparsec.Text as Atto
 import Control.Applicative
 import Text.Megaparsec.Error
 import Data.Functor
 import Data.Either (fromRight)
+import qualified Data.UUID as UUID
 
 #if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE
@@ -44,20 +45,21 @@ websocketProxyServer port host pending = do
               Left _ -> pure ()) $ \case
             Left err -> sendError conn err
             Right dbconn -> do
-                eSessionId <- createSessionAtHead dbconn "master"
-                case eSessionId of
-                  Left err -> sendError conn err
-                  Right sessionId -> do
-                    --phase 2- accept tutoriald commands
-                    _ <- forever $ do
-                      pInfo <- promptInfo sessionId dbconn
-                      --figure out why sending three times during startup is necessary
-                      sendPromptInfo pInfo conn
-                      sendPromptInfo pInfo conn
-                      msg <- WS.receiveData conn :: IO T.Text
-                      case parseOnly parseExecuteMessage msg of
+              --phase 2- accept tutoriald commands
+              _ <- forever $ do
+                {-pInfo <- promptInfo sessionId dbconn
+                --figure out why sending three times during startup is necessary
+                sendPromptInfo pInfo conn
+                sendPromptInfo pInfo conn-}
+                msg <- WS.receiveData conn :: IO T.Text
+                case parseOnly parseIncomingRequest msg of
                         Left _ -> unexpectedMsg
-                        Right (presentation, tutdString) ->
+                        Right (CreateSessionAtHeadRequest branchName) -> do
+                          ret <- createSessionAtHead dbconn branchName
+                          case ret of
+                            Left err -> handleOpResult conn dbconn jsonOnlyPresentation (DisplayErrorResult ("createSessionAtHead error: " <> T.pack (show err)))
+                                                                                     
+                        Right (ExecuteTutorialDRequest sessionId presentation tutdString) ->
                           case parseTutorialD tutdString of
                             Left err -> handleOpResult conn dbconn presentation
 #if MIN_VERSION_megaparsec(7,0,0)
@@ -77,7 +79,7 @@ websocketProxyServer port host pending = do
                                     sendPromptInfo pInfo' conn
                                     handleOpResult conn dbconn presentation result
                               catchJust timeoutFilter responseHandler (\_ -> handleOpResult conn dbconn presentation (DisplayErrorResult "Request Timed Out."))
-                    pure ()
+              pure ()
 
 notificationCallback :: WS.Connection -> NotificationCallback
 notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,
@@ -136,10 +138,22 @@ data Presentation = Presentation {
   textPresentation :: Bool,
   htmlPresentation :: Bool }
 
+jsonOnlyPresentation :: Presentation
+jsonOnlyPresentation = Presentation { jsonPresentation = True,
+                                  textPresentation = False,
+                                  htmlPresentation = False }
+                   
 data PresentationFlag = JSONFlag | TextFlag | HTMLFlag
 
-parseExecuteMessage :: Parser (Presentation, T.Text)
-parseExecuteMessage = do
+data IncomingRequest = ExecuteTutorialDRequest SessionId Presentation T.Text |
+                       CreateSessionAtHeadRequest HeadName
+
+parseIncomingRequest :: Parser IncomingRequest
+parseIncomingRequest = parseExecuteTutorialDMessage <|>
+                       parseCreateSessionAtHead
+
+parseExecuteTutorialDMessage :: Parser IncomingRequest
+parseExecuteTutorialDMessage = do
   _ <- string "executetutd/"
   flags <- sepBy ((string "json" $> JSONFlag) <|>
                   (string "text" $> TextFlag) <|>
@@ -149,5 +163,33 @@ parseExecuteMessage = do
                                TextFlag -> acc {textPresentation = True}
                                HTMLFlag -> acc {htmlPresentation = True}) (Presentation False False False) flags
   _ <- char ':'
-  tutd <- T.pack <$> manyTill anyChar endOfInput
-  pure (presentation, tutd)
+  sessionId <- sessionIdP
+  _ <- char ':'
+  tutd <- takeText
+  pure (ExecuteTutorialDRequest sessionId presentation tutd)
+
+parseCreateSessionAtHead :: Parser IncomingRequest
+parseCreateSessionAtHead = do
+  _ <- string "createSessionAtHead:"
+  CreateSessionAtHeadRequest <$> takeText
+
+textToEOFP :: Parser T.Text
+textToEOFP = T.pack <$> manyTill anyChar endOfInput
+
+sessionIdP :: Parser SessionId
+sessionIdP = do
+  let hexDigitP = satisfy isHexDigit
+      nHexDigitsP n = T.pack <$> Atto.count n hexDigitP
+      isHexDigit c = (c >= '0' && c <= '9') ||
+                   (c >= 'a' && c <= 'f') ||
+                   (c >= 'A' && c <= 'F')
+  a <- nHexDigitsP 8
+  _ <- char '-'
+  b <- nHexDigitsP 4
+  _ <- char '-'
+  c <- nHexDigitsP 4
+  _ <- char '-'
+  d <- nHexDigitsP 12
+  case UUID.fromText (T.concat [a,b,c,d]) of
+    Nothing -> fail "invalid UUID"
+    Just uuid -> pure uuid

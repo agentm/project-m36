@@ -48,6 +48,11 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     this.socket = socket;
 }
 
+ProjectM36Connection.prototype.createSessionAtHead(branch)
+{
+    this.socket.send("createSessionAtHead:" + branch)
+}
+
 /**
 * The argument returned as part of the 'statusCallback'. Typically, only one of the three status types is populated. These status updates are groups together so that the callback can feed into a user interface update function.
 * @callback statusCallback

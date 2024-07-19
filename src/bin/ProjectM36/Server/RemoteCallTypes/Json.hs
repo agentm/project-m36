@@ -110,6 +110,11 @@ instance ToJSON Atom where
                                       "val" .= u ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
+  toJSON atom@(SubrelationFoldAtom rel attrName) = object [ "type" .= atomTypeForAtom atom,
+                                                            "val" .=
+                                                            object [ "relation" .= rel,
+                                                                     "attributeName" .= attrName]
+                                                          ]
   toJSON atom@(RelationalExprAtom i) = object [ "type" .= atomTypeForAtom atom,
                                             "val" .= i ]
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
@@ -148,6 +153,9 @@ instance FromJSON Atom where
           Just u -> pure $ UUIDAtom u
           Nothing -> fail "Invalid UUID String"
       RelationalExprAtomType -> RelationalExprAtom <$> o .: "val"
+      SubrelationFoldAtomType _ -> do
+        val <- o .: "val"
+        SubrelationFoldAtom <$> val .: "relation" <*> val .: "attributeName"
 
 instance ToJSON Notification
 instance FromJSON Notification
