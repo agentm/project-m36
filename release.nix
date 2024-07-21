@@ -15,18 +15,18 @@ let
     overrides = self: super: {
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.3.5";
-		      sha256 = "sha256-7mEJOBKzA2rTnLxZme8E6zFv0VkiXBo5L/jUJSNPaNE="; } {};
+		      ver = "0.3.6";
+		      sha256 = "sha256-GgYxb3eBhANGMdN3FlMgD9vZUqoDsz89OFIBxwK4YtY="; } {};
 
       streamly = self.callHackageDirect {
                    pkg = "streamly";
-		   ver = "0.9.0";
-		   sha256 = "sha256-eOxVb8qQjZDo1+S7CStqYSExOg2QHWkMY+zlOYqwZak="; } {};
+		   ver = "0.10.1";
+		   sha256 = "sha256-9tWZ/8YteD9ljhEmj8oYKIAyFcbQflX0D20j/NTe3qM="; } {};
 
       streamly-core = self.callHackageDirect {
       		    pkg = "streamly-core";
-		    ver = "0.1.0";
-  		    sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};
+		    ver = "0.2.2";
+  		    sha256 = "sha256-Ggo5ius3dp/TJFfrZSk31A6gSZHA6kLMtxFKe9MIvqQ="; } {};
 		    
       streamly-bytestring = self.callHackageDirect {
                     pkg = "streamly-bytestring";
