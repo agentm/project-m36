@@ -30,8 +30,8 @@ let
 		    
       streamly-bytestring = self.callHackageDirect {
                     pkg = "streamly-bytestring";
-		    ver = "0.2.1";
-  		    sha256 = "sha256-EcH6qq4nRjea3xQ66Zlqgjjg7lF/grkKJI0+tTO4B84="; } {};		    
+		    ver = "0.2.2";
+  		    sha256 = "sha256-E/sMAvaJ5zGYwb5KAXa2KQo3FqyB+T2mRO6zOTCXpoY="; } {};		    
 
       lockfree-queue = self.callHackageDirect {
       		     pkg = "lockfree-queue";
