@@ -3,9 +3,9 @@ packages:
   - "."
 
 extra-deps:
-  - streamly-0.9.0
-  - streamly-core-0.1.0
-  - streamly-bytestring-0.2.0
+  - streamly-0.10.1
+  - streamly-core-0.2.2
+  - streamly-bytestring-0.2.2
   - curryer-rpc-0.3.2
   - fast-builder-0.1.2.1
   - rset-1.0.0
