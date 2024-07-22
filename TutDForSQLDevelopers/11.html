@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(12)
+  document.location='12.html';
+}
+if(e.keyCode == 37) {
+  if(10)
+  document.location='10.html';
+}
+});
+</script>
+<h1>Deleting Tuples</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): delete x where name = "Bob"
+TutorialD (master/main): :showexpr x</code></pre>
+<pre>
+┌────────────┬──────────┬──────────┐
+│age::Integer│dept::Text│name::Text│
+├────────────┼──────────┼──────────┤
+│30          │"Sales"   │"Steve"   │
+└────────────┴──────────┴──────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># DELETE FROM x WHERE name = 'Bob';
+DELETE 2
+# table x;</code></pre>
+<pre>
+ age | name  | dept
+-----+-------+-------
+  30 | Steve | Sales
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Remove all data in relvar "x" pertaining to any employee named "Bob".
+</h4>
+</body>
+</html>
+

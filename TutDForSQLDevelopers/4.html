@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(5)
+  document.location='5.html';
+}
+if(e.keyCode == 37) {
+  if(3)
+  document.location='3.html';
+}
+});
+</script>
+<h1>Show Relation Variable "s"</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s</code></pre>
+<pre>
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># table s;</code></pre>
+<pre>
+s# | sname | status |  city  
+----+-------+--------+--------
+ S5 | Adams |     30 | Athens
+ S3 | Blake |     30 | Paris
+ S1 | Smith |     20 | London
+ S2 | Jones |     10 | Paris
+ S4 | Clark |     20 | London
+(5 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me all data available on suppliers.
+</h4>
+</body>
+</html>
+

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='36.html';
+}
+if(e.keyCode == 37) {
+  if(34)
+  document.location='34.html';
+}
+});
+
+</script>
+<h1>SQL: Database Constraints</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">ALTER TABLE sp ADD CONSTRAINT fk_s FOREIGN KEY ("s#") REFERENCES s ("s#");</code></pre>
+<pre>
+Table "sp" altered.
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Add a foreign key constraint between tables "s" and "sp" on column "s#".
+</h4>
+</body>
+</html>
+

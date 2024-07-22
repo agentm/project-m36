@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(11)
+  document.location='11.html';
+}
+if(e.keyCode == 37) {
+  if(9)
+  document.location='9.html';
+}
+});
+</script>
+<h1>A Set of Tuples Cannot Include Duplicate Tuples</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): x:=x union x
+TutorialD (master/main): :showexpr x</code></pre>
+<pre>
+┌────────────┬─────────────┬──────────┐
+│age::Integer│dept::Text   │name::Text│
+├────────────┼─────────────┼──────────┤
+│30          │"Sales"      │"Steve"   │
+│20          │"Engineering"│"Bob"     │
+└────────────┴─────────────┴──────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># insert into x (SELECT * FROM x);
+# table x;</code></pre>
+<pre>
+age | name  |    dept     
+-----+-------+-------------
+  20 | Bob   | Engineering
+  30 | Steve | Sales
+  20 | Bob   | Engineering
+  30 | Steve | Sales
+(4 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+If a relation is a set of tuples, it cannot contain duplicate tuples. SQL does not enforce this by default.
+</h4>
+</body>
+</html>
+

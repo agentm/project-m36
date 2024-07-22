@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(27)
+  document.location='27.html';
+}
+if(e.keyCode == 37) {
+  if(25)
+  document.location='25.html';
+}
+});
+</script>
+<h1>Relational Equality</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s = sp</code></pre>
+<pre>
+┌┐
+││
+└┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT * FROM s EXCEPT SELECT * FROM sp;</code></pre>
+<pre>
+ERROR:  each EXCEPT query must have the same number of columns
+LINE 1: SELECT * FROM s EXCEPT SELECT * FROM sp;
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Are relvars "s" and "sp" equal? No, but TutorialD and SQL provide different results.
+</h4>
+</body>
+</html>
+

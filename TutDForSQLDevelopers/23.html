@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(24)
+  document.location='24.html';
+}
+if(e.keyCode == 37) {
+  if(22)
+  document.location='22.html';
+}
+});
+</script>
+<h1>Groups are Related to Joins</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr (p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}</code></pre>
+<pre>
+┌────────┬──────────────────────────────┐
+│p#::Text│suppliers::relation {s#::Text}│
+├────────┼──────────────────────────────┤
+│"P4"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P2"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S3"    │                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P1"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        ││"S2"    │                    │
+│        │└────────┘                    │
+│"P5"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S4"    │                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P3"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P6"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │├────────┤                    │
+│        ││"S1"    │                    │
+│        │└────────┘                    │
+│"P7"    │┌────────┐                    │
+│        ││s#::Text│                    │
+│        │└────────┘                    │
+└────────┴──────────────────────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">SELECT p."p#", ARRAY(SELECT sp."s#" FROM sp WHERE sp."p#" = p."p#") FROM p;</code></pre>
+<pre>
+ p# |     array     
+----+---------------
+ P6 | {S1}
+ P3 | {S1}
+ P4 | {S1,S4}
+ P1 | {S2,S1}
+ P2 | {S2,S4,S3,S1}
+ P5 | {S4,S1}
+ P7 | {}
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show each product mapped to its suppliers. Note that "P7" does not have any suppliers; this is represented by an empty relation in the "suppliers" column.
+</h4>
+</body>
+</html>
+

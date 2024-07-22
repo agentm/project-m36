@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='44.html';
+}
+if(e.keyCode == 37) {
+  if(42)
+  document.location='42.html';
+}
+});
+
+</script>
+<h1>SQL: Database Constraints (Values)</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql"># CREATE TABLE y (a INTEGER CHECK (a > 5));</code></pre>
+<pre>
+Table "y" created.
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Create a table "y" with integer column "a" whose value must always be greater than 5.
+</h4>
+</body>
+</html>
+

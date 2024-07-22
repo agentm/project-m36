@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(18)
+  document.location='18.html';
+}
+if(e.keyCode == 37) {
+  if(16)
+  document.location='16.html';
+}
+});
+</script>
+<h1>Dealing with NULLs #1</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">NULL not supported</code></pre>
+<pre>
+
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">SELECT * FROM (VALUES (1,NULL)) as t(a,b) UNION SELECT * FROM (VALUES (1,NULL)) as t;</code></pre>
+<pre>
+ a | b 
+---+---
+ 1 | 
+(1 row)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+How does SQL's NULL function in a union? When does NULL equivalence apply? The addition of NULL in SQL creates ternary instead of boolean logic.
+</h4>
+</body>
+</html>
+

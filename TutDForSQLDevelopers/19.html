@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(20)
+  document.location='20.html';
+}
+if(e.keyCode == 37) {
+  if(18)
+  document.location='18.html';
+}
+});
+</script>
+<h1>More Unions 2 (Review Duplicate Tuples)</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s union s</code></pre>
+<pre>
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"London"  │"S4"    │"Clark"    │20             │
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"London"  │"S1"    │"Smith"    │20             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+└──────────┴────────┴───────────┴───────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT * FROM s UNION SELECT * FROM s;</code></pre>
+<pre>
+ s# | sname | status |  city  
+----+-------+--------+--------
+ S3 | Blake |     30 | Paris
+ S2 | Jones |     10 | Paris
+ S4 | Clark |     20 | London
+ S1 | Smith |     20 | London
+ S5 | Adams |     30 | Athens
+(5 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show all data from relvar "s" unioned with all data from relvar "s". Recall that UNION in SQL does not return duplicates. TutorialD never returns duplicates.
+</h4>
+</body>
+</html>
+

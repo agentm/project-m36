@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_tutd.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='57.html';
+}
+if(e.keyCode == 37) {
+  if(55)
+  document.location='55.html';
+}
+});
+
+</script>
+<link href="style.css" rel="stylesheet"/>
+<h1>Dealing With "Missing" Data</h1>
+<table border="0">
+<tr>
+<th width="50%">TutorialD</th>
+</tr>
+<tr>
+  <td>
+    <pre>
+      <code class="language-sql">TutorialD (master/main): :showexpr e minus e where age = Dead</code>
+    </pre>
+<pre>
+┌────────────────┬──────────┐
+│age::Age        │name::Text│
+├────────────────┼──────────┤
+│DeclinedToAnswer│"Bob"     │
+│Age 25          │"Steve"   │
+└────────────────┴──────────┘
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me all employees except those who are dead.
+</h4>
+</body>
+</html>
+

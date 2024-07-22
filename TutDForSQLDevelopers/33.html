@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(34)
+  document.location='34.html';
+}
+if(e.keyCode == 37) {
+  if(32)
+  document.location='32.html';
+}
+});
+</script>
+<h1>Aggregate Functions 3</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr (s group ({all but city} as subrel) : {citycount := count(@subrel)}) {all but subrel}</code></pre>
+<pre>
+┌──────────┬──────────────────┐
+│city::Text│citycount::Integer│
+├──────────┼──────────────────┤
+│"Paris"   │2                 │
+│"London"  │2                 │
+│"Athens"  │1                 │
+└──────────┴──────────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT city,count(*) FROM s GROUP BY city;</code></pre>
+<pre>
+  city  | count 
+--------+-------
+ Paris  |     2
+ London |     2
+ Athens |     1
+(3 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me the cities in which we have suppliers and how many there are per city.
+</h4>
+</body>
+</html>
+

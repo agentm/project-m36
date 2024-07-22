@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_tutd.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='43.html';
+}
+if(e.keyCode == 37) {
+  if(41)
+  document.location='41.html';
+}
+});
+
+</script>
+<link href="style.css" rel="stylesheet"/>
+<h1>Database Constraints (Uniqueness)</h1>
+<table border="0">
+<tr>
+<th width="50%">TutorialD</th>
+</tr>
+<tr>
+  <td>
+    <pre>
+      <code class="language-sql">TutorialD (master/main): :showexpr true:{a:=s, b:=count(@a)}</code>
+    </pre>
+<pre>
+┌─────────────────────────────────────────────────────────────┬──────────┐
+│a::relation {s#::Text,sname::Text,status::Integer,city::Text}│b::Integer│
+├─────────────────────────────────────────────────────────────┼──────────┤
+│┌──────────┬────────┬───────────┬───────────────┐            │5         │
+││city::Text│s#::Text│sname::Text│status::Integer│            │          │
+│├──────────┼────────┼───────────┼───────────────┤            │          │
+││"London"  │"S4"    │"Clark"    │20             │            │          │
+││"London"  │"S1"    │"Smith"    │20             │            │          │
+││"Athens"  │"S5"    │"Adams"    │30             │            │          │
+││"Paris"   │"S2"    │"Jones"    │10             │            │          │
+││"Paris"   │"S3"    │"Blake"    │30             │            │          │
+│└──────────┴────────┴───────────┴───────────────┘            │          │
+└─────────────────────────────────────────────────────────────┴──────────┘
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Wrap suppliers in a nested relation to count the number of suppliers.
+</h4>
+</body>
+</html>
+

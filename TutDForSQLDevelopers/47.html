@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='48.html';
+}
+if(e.keyCode == 37) {
+  if(46)
+  document.location='46.html';
+}
+});
+
+</script>
+<h1>SQL: Tables Are Ordered</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">SELECT * FROM (VALUES (1,2),(2,NULL)) as x(a,b) ORDER BY b NULLS FIRST;</code></pre>
+<pre>
+ a | b 
+---+---
+ 2 |  
+ 1 | 2
+(2 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me the tuple 1,2 followed by the tuple 2,NULL ordered by the "b" column with NULLs sorted first. Relations are sets of tuples- sets have no ordering. Since these tuples are ordered, we must conclude that SQL does not deal in sets nor relations.
+</h4>
+</body>
+</html>
+

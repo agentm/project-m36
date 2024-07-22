@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(42)
+  document.location='42.html';
+}
+if(e.keyCode == 37) {
+  if(40)
+  document.location='40.html';
+}
+});
+</script>
+<h1>Database Constraints</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :constraints</code></pre>
+<pre>
+┌──────────┬──────────────────────────────────────────────────────────────────────────────────┬───────────┐
+│name::Text│sub::Text                                                                         │super::Text│
+├──────────┼──────────────────────────────────────────────────────────────────────────────────┼───────────┤
+│"s_pkey"  │"(((true:{a:=s, b:=count(@a)}){b}) != ((true:{a:=s{s#}, b:=count(@a)}){b}))"      │"(false)"  │
+│"s_sp_fk2"│"(sp{s#})"                                                                        │"(s{s#})"  │
+│"sp_pkey" │"(((true:{a:=sp, b:=count(@a)}){b}) != ((true:{a:=sp{p#, s#}, b:=count(@a)}){b}))"│"(false)"  │
+│"p_sp_fk" │"(sp{p#})"                                                                        │"(p{p#})"  │
+│"p_pkey"  │"(((true:{a:=p, b:=count(@a)}){b}) != ((true:{a:=p{p#}, b:=count(@a)}){b}))"      │"(false)"  │
+│"s_sp_fk" │"(sp{s#})"                                                                        │"(s{s#})"  │
+└──────────┴──────────────────────────────────────────────────────────────────────────────────┴───────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">No equivalent.</code></pre>
+<pre>
+
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Database constraints hold logically database wide so we can list them all at once. Here, we see how foreign keys are implemented more generally.
+</h4>
+</body>
+</html>
+

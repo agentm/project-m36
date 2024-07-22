@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(14)
+  document.location='14.html';
+}
+if(e.keyCode == 37) {
+  if(12)
+  document.location='12.html';
+}
+});
+</script>
+<h1>Joins</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s join sp</code></pre>
+<pre>
+┌──────────┬────────┬────────────┬────────┬───────────┬───────────────┐
+│city::Text│p#::Text│qty::Integer│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼────────────┼────────┼───────────┼───────────────┤
+│"London"  │"P2"    │200         │"S1"    │"Smith"    │20             │
+│"London"  │"P5"    │400         │"S4"    │"Clark"    │20             │
+│"London"  │"P2"    │200         │"S4"    │"Clark"    │20             │
+│"London"  │"P1"    │300         │"S1"    │"Smith"    │20             │
+│"Paris"   │"P2"    │400         │"S2"    │"Jones"    │10             │
+│"Paris"   │"P1"    │300         │"S2"    │"Jones"    │10             │
+│"Paris"   │"P2"    │200         │"S3"    │"Blake"    │30             │
+│"London"  │"P3"    │400         │"S1"    │"Smith"    │20             │
+│"London"  │"P4"    │300         │"S4"    │"Clark"    │20             │
+│"London"  │"P4"    │200         │"S1"    │"Smith"    │20             │
+└──────────┴────────┴────────────┴────────┴───────────┴───────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT * FROM s NATURAL JOIN sp;</code></pre>
+<pre>
+ s# | sname | status |  city  | p# | qty 
+----+-------+--------+--------+----+-----
+ S1 | Smith |     20 | London | P4 | 200
+ S4 | Clark |     20 | London | P5 | 400
+ S1 | Smith |     20 | London | P3 | 400
+ S2 | Jones |     10 | Paris  | P2 | 400
+ S2 | Jones |     10 | Paris  | P1 | 300
+ S4 | Clark |     20 | London | P4 | 300
+ S1 | Smith |     20 | London | P1 | 300
+ S3 | Blake |     30 | Paris  | P2 | 200
+ S4 | Clark |     20 | London | P2 | 200
+ S1 | Smith |     20 | London | P2 | 200
+(10 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Merge matching tuples in both relvars "s" and "sp" based on attributes of the same name.
+</h4>
+</body>
+</html>
+

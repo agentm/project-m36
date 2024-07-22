@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='31.html';
+}
+if(e.keyCode == 37) {
+  if(29)
+  document.location='29.html';
+}
+});
+
+</script>
+<h1>SQL: Aggregate Functions</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">SELECT city,COUNT(*) FROM s GROUP BY city;</code></pre>
+<pre>
+  city  | count 
+--------+-------
+ Paris  |     2
+ London |     2
+ Athens |     1
+(3 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me in which cities we have suppliers and how many in each city.
+</h4>
+</body>
+</html>
+

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<body>
+<!-- template_tutd.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  document.location='52.html';
+}
+if(e.keyCode == 37) {
+  if(50)
+  document.location='50.html';
+}
+});
+
+</script>
+<link href="style.css" rel="stylesheet"/>
+<h1>Transactions</h1>
+<table border="0">
+<tr>
+<th width="50%">TutorialD</th>
+</tr>
+<tr>
+  <td>
+    <pre>
+      <code class="language-sql">TutorialD (master/main): :branch debug_334
+TutorialD (debug_334/main):</code>
+    </pre>
+<pre>
+
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Branch the database off the current branch to commit transactions without affecting the original branch.
+</h4>
+</body>
+</html>
+

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(2)
+  document.location='2.html';
+}
+if(e.keyCode == 37) {
+  document.location='index.html';
+}
+});
+</script>
+<h1>Create a Relation</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr relation{tuple{name "Steve", age 30, dept "Sales"}, tuple{name "Bob", age 20, dept "Engineering"}}</code></pre>
+<pre>
+┌────────────┬─────────────┬──────────┐
+│age::Integer│dept::Text   │name::Text│
+├────────────┼─────────────┼──────────┤
+│30          │"Sales"      │"Steve"   │
+│20          │"Engineering"│"Bob"     │
+└────────────┴─────────────┴──────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">select 30 as age, 'Sales' as dept, 'Steve' as name union select 20, 'Engineering', 'Bob';</code></pre>
+<pre>
+ age |    dept     | name  
+-----+-------------+-------
+  20 | Engineering | Bob
+  30 | Sales       | Steve
+(2 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Create a relation with information about two employees: Steve, age 30, in the sales department, and Bob, age 20 in Engineering.
+
+</h4>
+</body>
+</html>
+

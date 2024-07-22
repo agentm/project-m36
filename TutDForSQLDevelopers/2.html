@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(3)
+  document.location='3.html';
+}
+if(e.keyCode == 37) {
+  if(1)
+  document.location='1.html';
+}
+});
+</script>
+<h1>Show Relation Variables (Tables)</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showrelvars</code></pre>
+<pre>
+┌─────────────────────────────────────────────────┬──────────┐
+│attributes::relation {attribute::Text,type::Text}│name::Text│
+├─────────────────────────────────────────────────┼──────────┤
+│┌───────────────┬──────────┐                     │"true"    │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"false"   │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+└─────────────────────────────────────────────────┴──────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">SELECT 
+t.table_name,
+array_agg((column_name::text,c.data_type::text)) AS column_info FROM information_schema.tables AS t 
+JOIN information_schema.columns as c on c.table_name=t.table_name 
+AND c.table_schema=t.table_schema 
+WHERE t.table_schema='public' group by t.table_name;</code></pre>
+<pre>
+ table_name | column_info 
+------------+-------------
+(0 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show relation variables (called "tables" in SQL) in the current schema.
+</h4>
+</body>
+</html>
+

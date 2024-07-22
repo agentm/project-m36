@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(4)
+  document.location='4.html';
+}
+if(e.keyCode == 37) {
+  if(2)
+  document.location='2.html';
+}
+});
+</script>
+<h1>Import Example Schema from C.J. Date's Book</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :importexample cjdate
+TutorialD (master/main): :showrelvars</code></pre>
+<pre>
+┌─────────────────────────────────────────────────┬──────────┐
+│attributes::relation {attribute::Text,type::Text}│name::Text│
+├─────────────────────────────────────────────────┼──────────┤
+│┌───────────────┬──────────┐                     │"true"    │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"sp"      │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"s#"           │"Text"    │                     │          │
+││"p#"           │"Text"    │                     │          │
+││"qty"          │"Integer" │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"false"   │
+││attribute::Text│type::Text│                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"s"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"s#"           │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+││"status"       │"Integer" │                     │          │
+││"sname"        │"Text"    │                     │          │
+│└───────────────┴──────────┘                     │          │
+│┌───────────────┬──────────┐                     │"p"       │
+││attribute::Text│type::Text│                     │          │
+│├───────────────┼──────────┤                     │          │
+││"color"        │"Text"    │                     │          │
+││"city"         │"Text"    │                     │          │
+││"p#"           │"Text"    │                     │          │
+││"pname"        │"Text"    │                     │          │
+││"weight"       │"Integer" │                     │          │
+│└───────────────┴──────────┘                     │          │
+└─────────────────────────────────────────────────┴──────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">SELECT table_name, column_name, data_type FROM information_schema.columns AS c WHERE c.table_schema = 'public' AND table_name IN ('s','sp','p');</code></pre>
+<pre>
+ table_name | column_name |     data_type     
+------------+-------------+-------------------
+ s          | s#          | character varying
+ s          | sname       | character varying
+ s          | status      | integer
+ s          | city        | character varying
+ p          | p#          | character varying
+ p          | pname       | character varying
+ p          | color       | character varying
+ p          | weight      | real
+ p          | city        | character varying
+ sp         | s#          | character varying
+ sp         | p#          | character varying
+ sp         | qty         | integer
+(12 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Load supplier "s", supplier-product "sp", and product "p" relation variables from C.J. Date's "Database In Depth" (2005).
+</h4>
+</body>
+</html>
+

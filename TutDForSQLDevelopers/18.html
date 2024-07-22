@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(19)
+  document.location='19.html';
+}
+if(e.keyCode == 37) {
+  if(17)
+  document.location='17.html';
+}
+});
+</script>
+<h1>More Unions</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s union relation{tuple{city "Beijing", s# "S5", sname "Cui", status 15}}</code></pre>
+<pre>
+┌──────────┬────────┬───────────┬───────────────┐
+│city::Text│s#::Text│sname::Text│status::Integer│
+├──────────┼────────┼───────────┼───────────────┤
+│"Athens"  │"S5"    │"Adams"    │30             │
+│"Paris"   │"S3"    │"Blake"    │30             │
+│"Beijing" │"S5"    │"Cui"      │15             │
+│"Paris"   │"S2"    │"Jones"    │10             │
+│"London"  │"S4"    │"Clark"    │20             │
+│"London"  │"S1"    │"Smith"    │20             │
+└──────────┴────────┴───────────┴───────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT city,"s#",sname,status FROM s UNION SELECT 'Beijing', 'S5', 'Cui', 15;</code></pre>
+<pre>
+  city   | s# | sname | status 
+---------+----+-------+--------
+ Paris   | S2 | Jones |     10
+ Paris   | S3 | Blake |     30
+ Athens  | S5 | Adams |     30
+ London  | S1 | Smith |     20
+ Beijing | S5 | Cui   |     15
+ London  | S4 | Clark |     20
+(6 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me all supplier info stored in relvar "s" along with an additional supplier "S5".
+</h4>
+</body>
+</html>
+

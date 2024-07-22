@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(25)
+  document.location='25.html';
+}
+if(e.keyCode == 37) {
+  if(23)
+  document.location='23.html';
+}
+});
+</script>
+<h1>Group and Ungroup</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr ((p : {suppliers := (sp rename {p# as pid} where p#=@pid) {s#}}) {p#,suppliers}) ungroup suppliers</code></pre>
+<pre>
+┌────────┬────────┐
+│p#::Text│s#::Text│
+├────────┼────────┤
+│"P2"    │"S4"    │
+│"P2"    │"S2"    │
+│"P1"    │"S2"    │
+│"P5"    │"S4"    │
+│"P2"    │"S1"    │
+│"P3"    │"S1"    │
+│"P6"    │"S1"    │
+│"P1"    │"S1"    │
+│"P4"    │"S4"    │
+│"P2"    │"S3"    │
+│"P4"    │"S1"    │
+│"P5"    │"S1"    │
+└────────┴────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql">WITH p_grouped AS (SELECT p."p#", ARRAY(SELECT sp."s#" FROM sp WHERE sp."p#" = p."p#") AS ss FROM p) SELECT "p#",UNNEST(ss) AS "s#" FROM p_grouped;</code></pre>
+<pre>
+ p# | s# 
+----+----
+ P6 | S1
+ P3 | S1
+ P4 | S1
+ P4 | S4
+ P1 | S2
+ P1 | S1
+ P2 | S2
+ P2 | S4
+ P2 | S3
+ P2 | S1
+ P5 | S4
+ P5 | S1
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Map all products to their constituent suppliers (group), then flatten (ungroup) the mapping. Note that product "P7" is missing.
+</h4>
+</body>
+</html>
+

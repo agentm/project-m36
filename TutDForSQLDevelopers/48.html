@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(49)
+  document.location='49.html';
+}
+if(e.keyCode == 37) {
+  if(47)
+  document.location='47.html';
+}
+});
+</script>
+<h1>Dataframes</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showdataframe s orderby {status}</code></pre>
+<pre>
+┌──┬───────────┬─────────┬────────────┬────────────────┐
+│DF│city::Text↕│s#::Text↕│sname::Text↕│status::Integer⬆│
+├──┼───────────┼─────────┼────────────┼────────────────┤
+│1 │"Paris"    │"S2"     │"Jones"     │10              │
+│2 │"London"   │"S4"     │"Clark"     │20              │
+│3 │"London"   │"S1"     │"Smith"     │20              │
+│4 │"Athens"   │"S5"     │"Adams"     │30              │
+│5 │"Paris"    │"S3"     │"Blake"     │30              │
+└──┴───────────┴─────────┴────────────┴────────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT * FROM s ORDER BY status;</code></pre>
+<pre>
+ s# | sname | status |  city  
+----+-------+--------+--------
+ S2 | Jones |     10 | Paris
+ S1 | Smith |     20 | London
+ S4 | Clark |     20 | London
+ S5 | Adams |     30 | Athens
+ S3 | Blake |     30 | Paris
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me suppliers ordered by status.
+</h4>
+</body>
+</html>
+

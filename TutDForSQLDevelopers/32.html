@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(33)
+  document.location='33.html';
+}
+if(e.keyCode == 37) {
+  if(31)
+  document.location='31.html';
+}
+});
+</script>
+<h1>Aggregate Functions 2</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showexpr s group ({all but city} as subrel) : {citycount := count(@subrel)}</code></pre>
+<pre>
+┌──────────┬──────────────────┬───────────────────────────────────────────────────────┐
+│city::Text│citycount::Integer│subrel::relation {s#::Text,sname::Text,status::Integer}│
+├──────────┼──────────────────┼───────────────────────────────────────────────────────┤
+│"Athens"  │1                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S5"    │"Adams"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"London"  │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S1"    │"Smith"    │20             │                 │
+│          │                  ││"S4"    │"Clark"    │20             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+│"Paris"   │2                 │┌────────┬───────────┬───────────────┐                 │
+│          │                  ││s#::Text│sname::Text│status::Integer│                 │
+│          │                  │├────────┼───────────┼───────────────┤                 │
+│          │                  ││"S2"    │"Jones"    │10             │                 │
+│          │                  ││"S3"    │"Blake"    │30             │                 │
+│          │                  │└────────┴───────────┴───────────────┘                 │
+└──────────┴──────────────────┴───────────────────────────────────────────────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT city,COUNT(*),array_agg(ROW("s#",sname,status)) FROM s GROUP BY city;</code></pre>
+<pre>
+  city  | count |             array_agg             
+--------+-------+-----------------------------------
+ Paris  |     2 | {"(S3,Blake,30)","(S2,Jones,10)"}
+ London |     2 | {"(S1,Smith,20)","(S4,Clark,20)"}
+ Athens |     1 | {"(S5,Adams,30)"}
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me supplier data grouped by city along with the counts of suppliers per city. 
+</h4>
+</body>
+</html>
+

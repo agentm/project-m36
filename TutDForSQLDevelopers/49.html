@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+<body>
+<!-- template_tutd_sql.html -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/styles/default.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.7.0/build/highlight.min.js"></script>
+<link href="style.css" rel="stylesheet"/>
+<script>
+document.addEventListener('DOMContentLoaded', (event) => {
+  document.querySelectorAll('code').forEach((el) => {
+    hljs.highlightElement(el);
+  });
+});
+document.addEventListener('keyup',(e)=>{
+if(e.keyCode == 39)
+{
+  if(50)
+  document.location='50.html';
+}
+if(e.keyCode == 37) {
+  if(48)
+  document.location='48.html';
+}
+});
+</script>
+<h1>Dataframes</h1>
+<table border="0" width="97%">
+<tr>
+<th width="50%">TutorialD</th>
+<th width="50%">SQL</th>
+</tr>
+<tr>
+<td>
+<pre><code class="language-sql">TutorialD (master/main): :showdataframe s{status} orderby {status descending} offset 1 limit 3</code></pre>
+<pre>
+┌──┬────────────────┐
+│DF│status::Integer⬇│
+├──┼────────────────┤
+│1 │20              │
+│2 │10              │
+└──┴────────────────┘
+</pre>
+</td>
+<td>
+<pre><code class="language-sql"># SELECT DISTINCT status FROM s ORDER BY status DESC OFFSET 1 LIMIT 3;</code></pre>
+<pre>
+ status 
+--------
+     20
+     10
+(2 rows)
+</pre>
+</td>
+</tr>
+</table>
+<h4>
+Show me supplier status in descending order but skip the first and one and show me only the next three. In SQL, we must explicitly request that the result of the query be deduplicated with "DISTINCT".
+</h4>
+</body>
+</html>
+
