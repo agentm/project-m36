@@ -80,6 +80,13 @@ var ProjectM36SessionCreated = function (requestId, sessionId)
     this.sessionId = sessionId;
 }
 
+var ProjectM36PromptInfo = function(headName, schemaName, sessionId)
+{
+    this.headName = headName;
+    this.schemaName = schemaName;
+    this.sessionId = sessionId;
+}
+
 ProjectM36Connection.prototype.close = function()
 {
     this.socket.close();
@@ -136,13 +143,9 @@ ProjectM36Connection.prototype.handleResponse = function(message)
     }
     else if(message.tag == "PromptInfoResponse")
     {
-	this.statuscallback(new ProjectM36Status(null,
-						 null,
-						 null,
-						 { "sessionId": message.sessionId,
-						   "headName": message.headName,
-						   "schemaName": message.schemaName },
-						 null));
+	this.statuscallback(new ProjectM36PromptInfo(message.headName,
+						     message.schemaName,
+						     message.sessionId));
     }
     else if(message.tag == "RelationalErrorResponse")
     {

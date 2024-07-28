@@ -54,6 +54,10 @@ function updateStatus(status)
     {
 	sessionId = status.sessionId;
     }
+    else if(status instanceof ProjectM36PromptInfo)
+    {
+	promptUpdate(status.headName, status.schemaName);
+    }
     else if(status.relation)
     {
 	var relastable = conn.generateRelation(status.relation);
