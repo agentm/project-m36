@@ -1,3 +1,9 @@
+# 2024-07-27 (v1.0.2)
+
+* upgrade to streamly 0.10.1
+* refactor websocket API to support request UUIDs (#367)
+* refactor websocket API to support `createSessionAtHead` (#367)
+
 # 2024-07-15 (v1.0.1)
 
 * add support for aggregate functions using sub-relation attributes

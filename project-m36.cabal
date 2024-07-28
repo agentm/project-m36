@@ -1,6 +1,6 @@
 Cabal-Version: 2.2
 Name: project-m36
-Version: 1.0.1
+Version: 1.0.2
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
