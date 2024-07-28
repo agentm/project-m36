@@ -10,7 +10,7 @@
 * @param {promptCallback} promptCallback - A function called whenever prompt information such as the current schema name and current branch name (if any).
 * @param {closeCallback} closeCallback - A function called once the connection is closed.
 */
-var ProjectM36Connection = function (protocol, host, port, path, dbname, openCallback, errorCallback, statusCallback, promptCallback, notificationCallback, closeCallback) {
+var ProjectM36Connection = function (protocol, host, port, path, dbname, readyCallback, errorCallback, statusCallback, promptCallback, notificationCallback, closeCallback) {
     this.protocol = protocol;
     this.host = host;
     this.port = port;
@@ -28,8 +28,9 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     var socket = new WebSocket(connectURL);
     var self = this;
     socket.onopen = function(event) {
-	self.socket.send("connectdb:" + self.dbname);
-	openCallback(event);
+	const req = {"tag":"ConnectionSetupRequest",
+		     "databaseName":self.dbname}
+	self.socket.send(JSON.stringify(req));
     };
     socket.onerror = function(event) { 
 	errorCallback(event); 
@@ -42,15 +43,19 @@ var ProjectM36Connection = function (protocol, host, port, path, dbname, openCal
     socket.onclose = function(event) {
 	closeCallback(event);
     };
+    this.readycallback = readyCallback;
     this.statuscallback = statusCallback;
     this.promptcallback = promptCallback;
     this.notificationcallback = notificationCallback;
     this.socket = socket;
 }
 
-ProjectM36Connection.prototype.createSessionAtHead(branch)
+ProjectM36Connection.prototype.createSessionAtHead = function(branch)
 {
-    this.socket.send("createSessionAtHead:" + branch)
+    const req = { "tag" : "CreateSessionAtHeadRequest",
+		  "requestId" : this.makeUUID(),
+		  "headName" : branch };
+    this.socket.send(JSON.stringify(req));
 }
 
 /**
@@ -60,12 +65,19 @@ ProjectM36Connection.prototype.createSessionAtHead(branch)
 * @param {Object} acknowledgementresult - The status update containing an acknowledgement that the query was executed or null.
 * @param {Object} errorResult - The status update containing the error information or null.
 */
-var ProjectM36Status = function (relationResult, dataFrameResult, acknowledgementResult, errorResult)
+var ProjectM36Status = function (requestId, relationResult, dataFrameResult, acknowledgementResult, errorResult)
 {
+    this.requestId = requestId;
     this.relation = relationResult;
     this.dataframe = dataFrameResult;
     this.acknowledgement = acknowledgementResult;
     this.error = errorResult;
+}
+
+var ProjectM36SessionCreated = function (requestId, sessionId)
+{
+    this.requestId = requestId;
+    this.sessionId = sessionId;
 }
 
 ProjectM36Connection.prototype.close = function()
@@ -80,56 +92,148 @@ ProjectM36Connection.prototype.readyState = function()
 
 ProjectM36Connection.prototype.handleResponse = function(message)
 {
-    var relation = message["displayrelation"];
-    var dataframe = message["displaydataframe"];
-    var acknowledged = message["acknowledged"];
-    var error = message["displayerror"];
-    var prompt = message["promptInfo"];
-    var notification = message["notificationname"]
+    if(message.tag == "ConnectionSetupResponse")
+    {
+	this.readycallback();
+    }
+    else if(message.tag == "RelationResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 message.jsonRelation,
+						 null,
+						 null,
+						 null));
+    }
+    else if(message.tag == "DataFrameResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 message.jsonDataFrame,
+						 null,
+						 null));
+    }
+    else if(message.tag == "CreateSessionAtHeadResponse")
+    {
+	this.statuscallback(new ProjectM36SessionCreated(message.requestId,
+							 message.sessionId
+							));
+    }
+    else if(message.tag == "SuccessResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 true,
+						 null));
+    }
+    else if(message.tag == "TimeoutResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 'timeout',
+						 null));
+    }
+    else if(message.tag == "PromptInfoResponse")
+    {
+	this.statuscallback(new ProjectM36Status(null,
+						 null,
+						 null,
+						 { "sessionId": message.sessionId,
+						   "headName": message.headName,
+						   "schemaName": message.schemaName },
+						 null));
+    }
+    else if(message.tag == "RelationalErrorResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 null,
+						 message.error.tag + ': ' + message.error.contents));
+    }
+    else if(message.tag == "TextErrorResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 null,
+						 message.error));
+    }
+    else if(message.tag == "ConnectionClosedResponse")
+    {
+	//??
+    }
+    else if(message.tag == "DisplayTextResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 message.text,
+						 null));
+    }
+    else if(message.tag == "HintWithResponse")
+    {
+	this.statuscallback(new ProjectM36Status(message.requestId,
+						 null,
+						 null,
+						 message.hintText,
+						 null));
+	this.handleResponse(message.response);
+    }
+    else if(message.tag == "NotificationResponse")
+    {
+	this.notificationcallback(message.notificationName, message.evaluatedNotification);
+    }
+    else if(message.tag == "MessageNotExpected")
+    {
+	console.log("message not expected: " + message.expected);
+    }
+    else
+    {
+	console.log("received unknown message: " + JSON.stringify(message));
+    }
+}
 
-    if(relation)
-    {
-        this.statuscallback(new ProjectM36Status(relation['json'], null, null, null));
-    }
+// override this is this API is not available in your context
+ProjectM36Connection.prototype.makeUUID = function()
+{
+    return self.crypto.randomUUID()
+}
 
-    if(dataframe)
-    {
-	this.statuscallback(new ProjectM36Status(null, dataframe['json'], null, null));
-    }
-    
-    if(acknowledged)
-    {
-	this.statuscallback(new ProjectM36Status(null, null, true, null));
-    }
-    
-    if(error)
-    {
-	if(error.tag)
-	{
-	    error=error.tag; // for error objects
-	}
-	this.statuscallback(new ProjectM36Status(null, null, null, error['json']));
-    }
-
-    if(prompt)
-    {
-	this.promptcallback(prompt["headname"], prompt["schemaname"]);
-    }
-
-    if(notification)
-    {
-	var evaldnotif = message.evaldnotification;
-	this.notificationcallback(message.notificationname, evaldnotif);
-    }
+/** 
+* Creates a new session which is necessary for executing TutorialD.
+* @param {string} branch - The branch of the transaction graph, typically "master".
+*/
+ProjectM36Connection.prototype.createSessionAtHead = function(branch)
+{
+    const requestId = this.makeUUID();
+    const req = { "tag": "CreateSessionAtHeadRequest",
+		  "requestId": requestId,
+		  "headName": branch
+		};
+    this.socket.send(JSON.stringify(req));
+    return requestId;
 }
 
 /**
 * Executes a TutorialD string.
 * @param {string} tutd - The TutorialD string.
 */
-ProjectM36Connection.prototype.executeTutorialD = function(tutd)
+ProjectM36Connection.prototype.executeTutorialD = function(sessionId, tutd)
 {
-    this.socket.send("executetutd/json:" + tutd);
+    const requestId = this.makeUUID();
+    const req = { "tag" : "ExecuteTutorialDRequest",
+		  "requestId": requestId,
+		  "sessionId": sessionId,
+		  "presentation": { "jsonPresentation" : true,
+				    "textPresentation" : false,
+				    "htmlPresentation" : false },
+		  "tutoriald" : tutd
+		};
+		  
+    this.socket.send(JSON.stringify(req));
+    return requestId;
 }
 
 /**
@@ -153,15 +257,15 @@ ProjectM36Connection.prototype.generateRelationHeader = function(header)
 {
     var thead = document.createElement("thead");
     var headerrow = document.createElement("tr");
-    for(var hindex=0; hindex < header.length; hindex++)
+    for(var hindex=0; hindex < header.attributes.length; hindex++)
     {
 	var th = document.createElement("th");
-	var attrtype = this.generateAtomType(header[hindex]);
+	var attrtype = this.generateAtomType(header.attributes[hindex]);
 	th.appendChild(attrtype);
 	headerrow.appendChild(th);
     }
     //special case- if there are no attributes (the "true" and "false" relations, then leave a class marker so that the table can be styled to appear regardless
-    if(header.length == 0)
+    if(header.attributes.length == 0)
     {
 	headerrow.setAttribute("class", "emptyrow");
     }
@@ -171,24 +275,25 @@ ProjectM36Connection.prototype.generateRelationHeader = function(header)
 
 ProjectM36Connection.prototype.generateAtomType = function(attr)
 {
-    var atomType = attr[1]["tag"];
-    var attrName = attr[0];
-    var accessory = attr[2];
+    var atomType = attr.type.tag;
+    var attrName = attr.name;
+    var accessory = attr[2]; //??
     var element = document.createElement("span");
     element.textContent = attrName + "::";
     if (atomType == "RelationAtomType")
     {
+	element.textContent += "relation";
 	var table = document.createElement("table");
 	element.appendChild(table);			       
 	var thead = document.createElement("thead");
 	table.appendChild(thead);
 	var tr = document.createElement("tr");
 	thead.appendChild(tr);
-	var relattrs = attr[1]["contents"];
-	for(var attrindex = 0; attrindex < relattrs.length; attrindex++)
+	var relattrs = attr.type.contents;
+	for(var attrindex = 0; attrindex < relattrs.attributes.length; attrindex++)
 	{
 	    var th = document.createElement("th");
-	    var relattrNode = this.generateAtomType(relattrs[attrindex]);
+	    var relattrNode = this.generateAtomType(relattrs.attributes[attrindex]);
 	    th.appendChild(relattrNode);
 	    tr.appendChild(th);
 	}

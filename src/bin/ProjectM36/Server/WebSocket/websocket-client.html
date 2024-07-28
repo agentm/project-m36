@@ -1,8 +1,9 @@
+<!DOCTYPE html>
 <html>
 <head>
 <!-- add examples drop down menu -->
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<title>Project:M36 WebSocket Client</title>
+<title>TutorialD WebSocket Client</title>
 <script type="text/javascript" src="project-m36.js"></script>
 <script type="text/javascript" src="websocket-client.js"></script>
 <script type="text/javascript" src="websocket-config.js"></script>
@@ -12,12 +13,13 @@
   display: none;
 }
 
-.deletesection
+.deletesection 
 {
   border: 1px solid;
   padding: 3px;
   border-radius: 3px;
-  background: #ff8b8b;
+background: #ff8b8b;
+  cursor: pointer;
 }
 
 hr
@@ -75,7 +77,7 @@ margin-bottom: 5pt;
   font-family: Courier;
 }
 
-#samplesouter
+#help
 {
   border: 1px solid;
   display: inline-block;
@@ -83,24 +85,136 @@ margin-bottom: 5pt;
   padding-right: 10px;
 }
 
+#help > details > summary
+{
+cursor: pointer;
+}
+
 #samples li:hover
 {
-  background-color: #d1d1e0;
+background-color: #d1d1e0;
+cursor: pointer;
 }
 
 #tutd
 {
-  width: 300pt;
-  height: 50pt;
+  width: 95%;
+height: 50pt;
+font-size: 12pt;
+}
+
+#tutdcommands
+{
+background-color: #80808014;
+}
+
+#console
+{
+
+}
+
+#eval
+{
+  background-color: #0095ff;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  box-shadow: rgba(255, 255, 255, .4) 0 1px 0 0 inset;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  display: inline-block;
+  font-family: -apple-system,system-ui,"Segoe UI","Liberation Sans",sans-serif;
+  font-size: 12pt;
+  font-weight: 400;
+  line-height: 1.15385;
+  margin: 0;
+  outline: none;
+  padding: 8px .8em;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+#eval:disabled
+{
+  background-color: gray;
+}
+
+#eval:hover:enabled,
+#eval:focus:enabled {
+  background-color: #07c;
+}
+
+#eval:focus:enabled {
+  box-shadow: 0 0 0 4px rgba(0, 149, 255, .15);
+}
+
+#eval:active:enabled {
+  background-color: #0064bd;
+  box-shadow: none;
+}
+
+#poweredby
+{
+float:left;
+margin-left: 10pt;
+margin-top: auto;
+margin-bottom: auto;
+}
+
+#title
+{
+float: left;
+margin-top: 1pt;
+}
+
+#clearer
+{
+ clear:both;
+}
+
+.copy
+{
+  cursor: pointer;
+  border: 1px solid;
+  padding: 3px;
+  border-radius: 3px;
+}
+
+.flashupdate
+{
+animation-duration: 1s;
+animation-name: flash;
+animation-iteration-count: 1;
+}
+
+@keyframes flash
+{
+from {
+background-color: gray;
+}
+to
+{
+background-color: white;
+}
 }
 
 </style>
 </head>
 <body onload="pageload();">
-<h1><a href="https://github.com/agentm/project-m36">Project:M36</a> WebSocket Client</h1>
-<p>This page will allow you to try TutorialD straight from your browser. Try some of the sample queries below.</p>
+  <h1 id="title">TutorialD Websocket Console</h1>
+  <h4 id="poweredby">powered by <a href="https://github.com/agentm/project-m36">Project:M36</a></h4>
+  <hr id="clearer"/>
 <div id="sheet">
   <div id="interactor">
+    <fieldset id="tutdcommands">
+      <legend>TutorialD Console:</legend>
+    
     <form onsubmit="return connectOrDisconnect(this);" id="connection">
       <span id="conninfo">Connect to: </span>
       <select name="protocol">
@@ -113,32 +227,37 @@ margin-bottom: 5pt;
       <label>database:</label><input type="text" placeholder="Database Name" name="dbname" value="test"/>
       <input type="submit" name="connect" value="Connect"/>
     </form>
-    <form onsubmit="return execTutorialD();">
-      <textarea id="tutd" placeholder="Enter a TutorialD query here."></textarea>
+    <form id="console" onsubmit="return execTutorialD();">
+       <textarea id="tutd" disabled="disabled" class="flashupdate" spellcheck="false" placeholder="Enter a TutorialD command here or choose from the examples below."></textarea>
       <br/>
       <label id="promptinfo"></label>
       <input type="submit" id="eval" value="Evaluate TutorialD" disabled="disabled"/>
     </form>
-    <div id="samplesouter">
-      <span>Try our <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a> or click these sample queries below:</span>
-</span>
-      <ul id="samples">
-	<li>:showrelvars</li>
-	<li>:showexpr true</li>
-	<li>:showexpr false</li>
-	<li>:importexample cjdate</li>
-	<li>:showexpr s join sp</li>
-	<li>update s where city=&quot;Paris&quot; (status:=10)</li>
-	<li>:showexpr s</li>
-	<li>:commit</li>
-	<li>:showgraph</li>
-      </ul>
+      </fieldset>
+    
+    <div id="help">
+      <details>
+	<summary>Help</summary>
+	<span>Try our <a href="https://github.com/agentm/project-m36/blob/master/docs/15_minute_tutorial.markdown">15 minute TutorialD Tutorial</a> or click these sample queries below:</span>
+	<ul id="samples">
+	  <li>:showrelvars</li>
+	  <li>:showexpr true</li>
+	  <li>:showexpr false</li>
+	  <li>:importexample cjdate</li>
+	  <li>:showexpr s join sp</li>
+	  <li>update s where city=&quot;Paris&quot; (status:=10)</li>
+	  <li>:showexpr s</li>
+	  <li>:commit</li>
+	  <li>:showgraph</li>
+	</ul>
+      </details>
     </div>
   </div>
   <div id="sectiontemplate">
     <div class="titlesection">
-      <span class="deletesection" onclick="return hideResult(this);">-</span>
       <span class="title"></span>
+      <span class="copy" title="Copy Result to Console" onclick="copyTutorialD(this)">↻</span>
+      <span class="deletesection" title="Delete Result" onclick="return hideResult(this);">✘</span>
     </div>
     <div class="result">
     </div>

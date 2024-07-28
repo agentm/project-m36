@@ -1,52 +1,86 @@
-function appendResult(title, result)
+//when we send a request, we generate a pending request block to fill in later when we receive the result
+function createPendingResult(requestId, title)
 {
-    //prepend the page with an additional relation result
     var sheet = document.getElementById("sheet");
     var template = document.getElementById("sectiontemplate").cloneNode(true);
     template.removeAttribute("id");
     var titleSpan = document.createElement("span");
     titleSpan.textContent = title;
+    template.id = "request-" + requestId
     template.getElementsByClassName("title")[0].appendChild(titleSpan);
-    template.getElementsByClassName("result")[0].appendChild(result);
-    if(result.nodeName == "TABLE") // show some relation statistics
-    {
-	var tupleCount = result.querySelectorAll(".result > table > tbody > tr").length
-	var attrCount = result.querySelectorAll(".result > table > thead > tr > th").length
-	var attrText = attrCount + " attribute" + (attrCount == 1 ? "" : "s")
-	var tupleText = tupleCount + " tuple" + (tupleCount == 1 ? "" : "s")
-	template.getElementsByClassName("relinfo")[0].textContent = attrText + ", " + tupleText;
-    }
+    template.getElementsByClassName("result")[0].textContent = 'Request Pending';
     var interactor = document.getElementById("interactor");
     sheet.insertBefore(template, interactor);
     window.scrollTo(0,document.body.scrollHeight);
+    
+}
+
+function appendResult(requestId, title, result)
+{
+    if(requestId)
+    {
+	const requestResult = document.getElementById("request-" + requestId);
+	if(!requestResult)
+	{
+	    //throw new Error('Failed to find pending request block');
+	    console.log('Failed to find pending request block');
+	}
+	const resultEl = requestResult.getElementsByClassName("result")[0];
+	resultEl.textContent='';
+	resultEl.appendChild(result);
+	if(result.nodeName == "TABLE") // show some relation statistics
+	{
+	    var tupleCount = result.querySelectorAll(".result > table > tbody > tr").length
+	    var attrCount = result.querySelectorAll(".result > table > thead > tr > th").length
+	    var attrText = attrCount + " attribute" + (attrCount == 1 ? "" : "s")
+	    var tupleText = tupleCount + " tuple" + (tupleCount == 1 ? "" : "s")
+	    requestResult.getElementsByClassName("relinfo")[0].textContent = attrText + ", " + tupleText;
+	    window.scrollTo(0,document.body.scrollHeight);
+	}
+    }
+    else //message without a pending result such as connection error
+    {
+	//make up a request id
+	const reqId = conn.makeUUID();
+	createPendingResult(reqId, 'Error');
+	appendResult(reqId, 'Error', result);
+    }
 }
 
 function updateStatus(status)
 {
     var tutd = document.getElementById("tutd").value;
-    if(status.relation)
+    if(status instanceof ProjectM36SessionCreated)
+    {
+	sessionId = status.sessionId;
+    }
+    else if(status.relation)
     {
 	var relastable = conn.generateRelation(status.relation);
-	appendResult(tutd, relastable);
+	appendResult(status.requestId, tutd, relastable);
 	mungeEmptyRows();
     }
-    if(status.dataframe)
+    else if(status.dataframe)
     {
 	var dataframeastable = conn.generateDataFrame(status.dataframe);
-	appendResult(tutd, dataframeastable);
+	appendResult(status.requestId, tutd, dataframeastable);
 	mungeEmptyRows();
     }
-    if(status.acknowledgement)
+    else if(status.acknowledgement)
     {
 	var ok = document.createElement("span");
-	ok.textContent="OK";
-	appendResult(tutd, ok);
+	ok.textContent="ok";
+	appendResult(status.requestId, tutd, ok);
     }
-    if(status.error)
+    else if(status.error)
     {
 	var error = document.createElement("span");
 	error.textContent=status.error;
-	appendResult(tutd, error);
+	appendResult(status.requestId, tutd, error);
+    }
+    else
+    {
+	throw new Error('unknown status')
     }
 }
 
@@ -126,7 +160,7 @@ function connectOrDisconnect(form)
 	conninfo.textContent = "Connected to:";
 	window.conn = new ProjectM36Connection(protocol, host, port, path,
 					       dbname,
-					       connectionOpened,
+					       connectionReady,
 					       connectionError,
 					       updateStatus,
 					       promptUpdate,
@@ -141,7 +175,7 @@ function connectionError(event)
 {
     var err = document.createElement("span");
     err.textContent = "Failed to connect to websocket server. Please check the connection parameters and try again.";
-    appendResult("Connect", err);
+    appendResult(null, "Connect", err);
     connectionClosed(event)
 }
 
@@ -157,10 +191,12 @@ function toggleConnectionFields(form, enabled, status)
 			    form.elements["port"], 
 			    form.elements["dbname"],
 			    form.elements["path"]];
+    const console = document.getElementById('tutd');
     var disableElements = [form.elements["protocol"],
-			  ]
-    var enableElements = [document.getElementById("eval")];
+			   console]
 
+    var enableElements = [document.getElementById("eval"),console];
+    
     for(var ein=0; ein < readonlyElements.length; ein++)
     {
 	var e = readonlyElements[ein];
@@ -206,10 +242,13 @@ function toggleConnectionFields(form, enabled, status)
 
 }
 
-function connectionOpened(event)
+function connectionReady(event)
 {
     toggleConnectionFields(document.getElementById("connection"), false, "Disconnect");
+    conn.createSessionAtHead("master");
 }
+
+var sessionId = null;
 
 function execTutorialD()
 {
@@ -218,11 +257,13 @@ function execTutorialD()
     {
 	var err = document.createElement("span");
 	err.textContent = "Cannot execute command until a database connection is established.";
-	appendResult(tutd, err);
+	appendResult(null,tutd, err);
     }
     else
     {
-	conn.executeTutorialD(tutd);
+	const requestId = conn.executeTutorialD(sessionId, tutd);
+	createPendingResult(requestId, tutd);
+	
     }
     return false;
 }
@@ -241,7 +282,8 @@ function installSampleHandlers()
 	var tutd = document.getElementById("tutd");
 	var el = samples[idx];
 	el.onclick = function(el) { 
-	    tutd.value = el.target.textContent; 
+	    tutd.value = el.target.textContent;
+	    flashtutd();
 	}
     }
 }
@@ -260,3 +302,33 @@ function pageload()
     installSampleHandlers();
     setupDefaultConfig();
 }
+
+function copyTutorialD(el)
+{
+    const expr = el.parentNode.getElementsByClassName('title')[0].textContent;
+    const console = document.getElementById("tutd");
+    console.value = expr;
+    flashtutd()
+}
+
+function flashtutd()
+{
+    const console = document.getElementById("tutd");
+    console.classList.remove('flashupdate');
+    void console.offsetWidth;
+    console.classList.add('flashupdate');
+}
+
+function toggleHelp()
+{
+    const collapser = document.getElementById("helpcollapsible");
+    if(collapser.style.visibility == 'visible')
+    {
+	collapser.style.visibility = 'hidden';
+    }
+    else
+    {
+	collapser.style.visibility = 'visible';
+    }
+}
+    

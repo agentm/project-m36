@@ -19,13 +19,12 @@ import TutorialD.Interpreter
 import ProjectM36.Interpreter (ConsoleResult(..), SafeEvaluationFlag(..))
 import ProjectM36.Client
 import Control.Exception
-import Data.Attoparsec.Text as Atto
 import Text.Megaparsec.Error
-import Data.Functor
 import Data.Either (fromRight)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.UUID as UUID
 import GHC.Generics
+import qualified Data.Text.Encoding as TE
 
 #if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE
@@ -34,12 +33,14 @@ import Data.List.NonEmpty as NE
 websocketProxyServer :: Port -> Hostname -> WS.ServerApp
 websocketProxyServer port host pending = do
   conn <- WS.acceptRequest pending
-  let unexpectedMsg = WS.sendTextData conn ("messagenotexpected" :: T.Text)
+  let unexpectedMsg expecting received = do
+        print (expecting, received)
+        sendResponse conn (MessageNotExpected expecting)
   --phase 1- accept database name for connection
   dbmsg <- WS.receiveData conn :: IO BS.ByteString
   case eitherDecode dbmsg of
     Left _ -> do
-      unexpectedMsg
+      unexpectedMsg "ConnectionSetupRequest" dbmsg
       WS.sendClose conn ("" :: T.Text)
     Right (ConnectionSetupRequest dbname) -> do
         bracket (createConnection conn dbname port host)
@@ -48,6 +49,7 @@ websocketProxyServer port host pending = do
               Left _ -> pure ()) $ \case
             Left err -> sendResponse conn (TextErrorResponse (RequestId UUID.nil) (T.pack (show err)))
             Right dbconn -> do
+              sendResponse conn ConnectionSetupResponse
               --phase 2- accept tutoriald commands
               _ <- forever $ do
                 {-pInfo <- promptInfo sessionId dbconn
@@ -56,7 +58,7 @@ websocketProxyServer port host pending = do
                 sendPromptInfo pInfo conn-}
                 msg <- WS.receiveData conn :: IO BS.ByteString
                 case eitherDecode msg of
-                        Left _ -> unexpectedMsg
+                        Left err -> unexpectedMsg "Request" err
                         Right (CreateSessionAtHeadRequest reqId branchName) -> do
                           ret <- createSessionAtHead dbconn branchName
                           case ret of
@@ -85,9 +87,8 @@ websocketProxyServer port host pending = do
 
         
 notificationCallback :: WS.Connection -> NotificationCallback
-notificationCallback conn notifName evaldNotif = WS.sendTextData conn (encode (object ["notificationname" .= notifName,
-                                                                                       "evaldnotification" .= evaldNotif
-                                        ]))
+notificationCallback conn notifName evaldNotif =
+  sendResponse conn (NotificationResponse notifName evaldNotif)
 
 --this creates a new database for each connection- perhaps not what we want (?)
 createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (Either ConnectionError Connection)
@@ -109,6 +110,9 @@ handleResponse conn dbconn resp =
     RelationalErrorResponse{} -> sendResp
     TextErrorResponse{} -> sendResp
     HintWithResponse{} -> sendResp
+    ConnectionSetupResponse{} -> sendResp
+    NotificationResponse{} -> sendResp
+    MessageNotExpected{} -> sendResp
     where
       sendResp = sendResponse conn resp
     
@@ -140,7 +144,8 @@ makeResponse reqId presentation consoleResult =
   
 sendResponse :: WS.Connection -> Response -> IO ()
 sendResponse conn response =
-  WS.sendBinaryData conn (encode response)
+  -- this could be optimized to work with a lazy bytestring
+  WS.sendTextData conn (TE.decodeUtf8 (BS.toStrict (encode response)))
 
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
@@ -159,6 +164,7 @@ data Presentation = Presentation {
   htmlPresentation :: Bool }
   deriving (Generic, ToJSON, FromJSON)
 
+
 jsonOnlyPresentation :: Presentation
 jsonOnlyPresentation = Presentation { jsonPresentation = True,
                                   textPresentation = False,
@@ -168,16 +174,25 @@ data PresentationFlag = JSONFlag | TextFlag | HTMLFlag
   deriving (Generic, ToJSON, FromJSON)
 
 newtype RequestId = RequestId UUID.UUID
-  deriving newtype (ToJSON, FromJSON)
+  deriving newtype (ToJSON, FromJSON, Eq, Show)
 
 newtype TutorialDText = TutorialDText T.Text
   deriving newtype (ToJSON, FromJSON)
 
-data ConnectionSetupRequest = ConnectionSetupRequest DatabaseName
+newtype ConnectionSetupRequest = ConnectionSetupRequest DatabaseName
 
 instance FromJSON ConnectionSetupRequest where
-  parseJSON = withObject "ConnectionSetupRequest" $ \o ->
-    ConnectionSetupRequest <$> o .: "databaseName"
+  parseJSON = withObject "ConnectionSetupRequest" $ \o -> do
+    tag::T.Text <- o .: "tag"
+    case tag of
+      "ConnectionSetupRequest" ->
+        ConnectionSetupRequest <$> o .: "databaseName"
+      other -> fail ("bad tag: " <> show other)
+
+instance ToJSON ConnectionSetupRequest where
+  toJSON (ConnectionSetupRequest dbName) =
+    object [ "tag" .= ("ConnectionSetupRequest"::T.Text),
+             "databaseName" .= dbName ]
 
 data Request = ExecuteTutorialDRequest RequestId SessionId Presentation TutorialDText |
                CreateSessionAtHeadRequest RequestId HeadName
@@ -191,24 +206,23 @@ data Response = RelationResponse RequestId Relation Presentation |
                 RelationalErrorResponse RequestId RelationalError |
                 TextErrorResponse RequestId T.Text |
                 ConnectionClosedResponse |
+                ConnectionSetupResponse |
                 DisplayTextResponse RequestId T.Text |
-                HintWithResponse RequestId T.Text Response
+                HintWithResponse RequestId T.Text Response |
+                NotificationResponse NotificationName EvaluatedNotification |
+                MessageNotExpected T.Text
 
 instance ToJSON Request where
-  toJSON (ExecuteTutorialDRequest reqId sessionId pres tutd) =
-    object [
-      "tag" .= ("ExecuteTutorialDRequest"::T.Text),
-      "requestId" .= reqId,
-      "sessionId" .= sessionId,
-      "presentation" .= pres,
-      "tutoriald" .= tutd
-    ]
+  toJSON (ExecuteTutorialDRequest reqId sessionId presentation tutd) =
+    object [ "tag" .= ("ExecuteTutorialDRequest"::T.Text),
+             "requestId" .= reqId,
+             "sessionId" .= sessionId,
+             "presentation" .= presentation,
+             "tutoriald" .= tutd ]
   toJSON (CreateSessionAtHeadRequest reqId headName') =
-    object [
-      "tag" .= ("CreateSessionAtHeadRequest"::T.Text),
-      "requestId" .= reqId,
-      "headName" .= headName'
-      ]
+    object [ "tag" .= ("CreateSessionAtHeadRequest"::T.Text),
+             "requestId" .= reqId,
+             "headName" .= headName' ]
 
 instance FromJSON Request where
   parseJSON = withObject "ExecuteTutorialDRequest" $ \o -> do
@@ -224,9 +238,53 @@ instance FromJSON Request where
                                    <*> o .: "headName"
       other -> fail ("bad tag: " <> show other)
 
+-- this is useful for Haskell clients to decode JSON messages
+instance FromJSON Response where
+  parseJSON = withObject "Response" $ \o -> do
+    tag::T.Text <- o .: "tag"
+    case tag of
+      "RelationResponse" -> do
+        mJsonRel <- o .: "jsonRelation"
+        case mJsonRel of
+          Nothing -> fail "missing json relation"
+          Just jsonRel ->
+            RelationResponse <$>  o .: "requestId" <*> pure jsonRel <*> pure jsonOnlyPresentation
+      "DataFrameResponse" -> do
+        mJsonDF <- o .: "jsonDataFrame"
+        case mJsonDF of
+          Nothing -> fail "missing json dataframe"
+          Just jsonDF ->
+            DataFrameResponse <$> o .: "requestId" <*> pure jsonDF <*> pure jsonOnlyPresentation
+      "CreateSessionAtHeadResponse" ->
+        CreateSessionAtHeadResponse <$> o .: "requestId" <*> o .: "sessionId"
+      "SuccessResponse" ->
+        SuccessResponse <$> o .: "requestId"
+      "TimeoutResponse" ->
+        TimeoutResponse <$> o .: "requestId"
+      "PromptInfoResponse" ->
+        PromptInfoResponse <$> o .: "sessionId" <*> o .: "headName" <*> o .: "schemaName"
+      "RelationalErrorResponse" ->
+        RelationalErrorResponse <$> o .: "requestId" <*> o .: "error"
+      "TextErrorResponse" ->
+        TextErrorResponse <$> o .: "requestId" <*> o .: "error"
+      "ConnectionClosedResponse" ->
+        pure ConnectionClosedResponse
+      "DisplayTextResponse" ->
+        DisplayTextResponse <$> o .: "requestId" <*> o .: "text"
+      "HintWithResponse" ->
+        HintWithResponse <$> o .: "requestId" <*> o .: "hintText" <*> o .: "response"
+      "ConnectionSetupResponse" ->
+        pure ConnectionSetupResponse
+      "NotificationResponse" ->
+        NotificationResponse <$> o .: "notificationName" <*> o .: "evaluatedNotification"
+      "MessageNotExpected" ->
+        MessageNotExpected <$> o .: "expected"
+      other ->
+        fail ("unexpected tag: " <> T.unpack other)
+
 instance ToJSON Response where
   toJSON (RelationResponse reqId rel presentation) =
-    object [ "tag" .= ("RelationResult"::T.Text),
+    object [ "tag" .= ("RelationResponse"::T.Text),
              "requestId" .= reqId,
              "jsonRelation" .= if jsonPresentation presentation then
                Just rel else Nothing,
@@ -280,55 +338,13 @@ instance ToJSON Response where
              "requestId" .= reqId,
              "hintText" .= hintTxt,
              "response" .= resp ]
-             
-{-
-parseIncomingRequest :: Parser IncomingRequest
-parseIncomingRequest = parseExecuteTutorialDMessage <|>
-                       parseCreateSessionAtHead
--}
-{-
-parseExecuteTutorialDMessage :: Parser IncomingRequest
-parseExecuteTutorialDMessage = do
-  
-  _ <- string "executetutd/"
-  flags <- sepBy ((string "json" $> JSONFlag) <|>
-                  (string "text" $> TextFlag) <|>
-                  (string "html" $> HTMLFlag)) "+"
-  let presentation = foldr (\flag acc -> case flag of
-                               JSONFlag -> acc {jsonPresentation = True}
-                               TextFlag -> acc {textPresentation = True}
-                               HTMLFlag -> acc {htmlPresentation = True}) (Presentation False False False) flags
-  _ <- char ':'
-  sessionId <- sessionIdP
-  _ <- char ':'
-  tutd <- takeText
-  pure (ExecuteTutorialDRequest sessionId presentation tutd)
-
-parseCreateSessionAtHead :: Parser IncomingRequest
-parseCreateSessionAtHead = do
-  _ <- string "createSessionAtHead:"
-  CreateSessionAtHeadRequest <$> takeText
--}
-textToEOFP :: Parser T.Text
-textToEOFP = T.pack <$> manyTill anyChar endOfInput
-
-sessionIdP :: Parser SessionId
-sessionIdP = uuidP <* void (char ':')
-
-uuidP :: Parser UUID.UUID
-uuidP = do
-  let hexDigitP = satisfy isHexDigit
-      nHexDigitsP n = T.pack <$> Atto.count n hexDigitP
-      isHexDigit c = (c >= '0' && c <= '9') ||
-                   (c >= 'a' && c <= 'f') ||
-                   (c >= 'A' && c <= 'F')
-  a <- nHexDigitsP 8
-  _ <- char '-'
-  b <- nHexDigitsP 4
-  _ <- char '-'
-  c <- nHexDigitsP 4
-  _ <- char '-'
-  d <- nHexDigitsP 12
-  case UUID.fromText (T.concat [a,b,c,d]) of
-    Nothing -> fail "invalid UUID"
-    Just uuid -> pure uuid
+  toJSON ConnectionSetupResponse =
+    object [ "tag" .= ("ConnectionSetupResponse"::T.Text),
+             "status" .= ("ready"::T.Text) ]
+  toJSON (NotificationResponse notificationName evaldNotification) =
+    object [ "tag" .= ("NotificationResponse"::T.Text),
+             "notificationName" .= notificationName,
+             "evaluatedNotification" .= evaldNotification ]
+  toJSON (MessageNotExpected expected) =
+    object [ "tag" .= ("MessageNotExpected"::T.Text),
+             "expected" .= expected ]
