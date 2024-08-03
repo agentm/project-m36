@@ -45,6 +45,8 @@ Project:M36 supports multiple frontends which target different audiences.
 
 ## Community
 
+* [TutorialD for SQL Developers](https://www.udemy.com/course/tutoriald-for-sql-developers/)
+  * ask in IRC channel for discount code to get free access
 * [Developer's Blog](https://agentm.github.io/project-m36/)
 * [Mailing List/Discussion Group](https://groups.google.com/d/forum/project-m36)
 * IRC Channel: irc.libera.chat #project-m36 -- [Chat via Web Client](http://kiwiirc.com/nextclient/irc.libera.chat:+6697/#project-m36)
