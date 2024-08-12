@@ -122,7 +122,10 @@ import ProjectM36.Key
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
-import Control.Monad.State
+#if MIN_VERSION_base(4,16,0)
+import Control.Monad (forever, forM, forM_, unless, void)
+#endif
+--import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
 import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph as TG

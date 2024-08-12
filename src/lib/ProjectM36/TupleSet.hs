@@ -21,10 +21,9 @@ verifyTupleSet attrs tupleSet = do
   let tupleList = map (verifyTuple attrs) (asList tupleSet) `P.using` P.parListChunk chunkSize P.r0
       chunkSize = (length . asList) tupleSet `div` 24
   --let tupleList = P.parMap P.rdeepseq (verifyTuple attrs) (HS.toList tupleSet)
-  if not (null (lefts tupleList)) then
-    Left $ head (lefts tupleList)
-   else
-     return $ RelationTupleSet $ (HS.toList . HS.fromList) (rights tupleList)
+  case lefts tupleList of
+    x : _ -> Left x
+    _ -> pure $ RelationTupleSet $ (HS.toList . HS.fromList) (rights tupleList)
 
 mkTupleSet :: Attributes -> [RelationTuple] -> Either RelationalError RelationTupleSet
 mkTupleSet attrs tuples = verifyTupleSet attrs (RelationTupleSet tuples)

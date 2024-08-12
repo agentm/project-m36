@@ -32,7 +32,7 @@ import Data.Monoid
 data SchemaExpr = AddSubschema SchemaName SchemaIsomorphs |
                   RemoveSubschema SchemaName
                   deriving (Generic, Show)
-  
+
 isomorphs :: Schema -> SchemaIsomorphs
 isomorphs (Schema i) = i
 
@@ -40,10 +40,13 @@ isomorphs (Schema i) = i
 -- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
 --TODO: add relvar must appear exactly once constraint
 validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
-validateSchema potentialSchema baseContext | not (S.null rvDiff) = Just (RelVarReferencesMissing rvDiff)
-                                           | not (null outDupes) = Just (RelVarOutReferencedMoreThanOnce (head outDupes))
-                                           | not (null inDupes) = Just (RelVarInReferencedMoreThanOnce (head inDupes))                
-                                           | otherwise = Nothing
+validateSchema potentialSchema baseContext
+  | not (S.null rvDiff) = Just (RelVarReferencesMissing rvDiff)
+  | otherwise = case outDupes of
+      x : _ -> Just $ RelVarOutReferencedMoreThanOnce x
+      _ -> case inDupes of
+             [] -> Nothing
+             x : _ -> Just $ RelVarInReferencedMoreThanOnce x
   where
     --check that the predicate for IsoUnion and IsoRestrict holds right now
     outDupes = duplicateNames (namesList isomorphOutRelVarNames)
@@ -70,8 +73,8 @@ isomorphsInRelVarNames :: SchemaIsomorphs -> S.Set RelVarName
 isomorphsInRelVarNames morphs = S.fromList (foldr rvnames [] morphs)
   where
     rvnames morph acc = acc ++ isomorphInRelVarNames morph
-    
-isomorphOutRelVarNames :: SchemaIsomorph -> [RelVarName]    
+
+isomorphOutRelVarNames :: SchemaIsomorph -> [RelVarName]
 isomorphOutRelVarNames (IsoRestrict _ _ (rvA, rvB)) = [rvA, rvB]
 isomorphOutRelVarNames (IsoUnion _ _ rv) = [rv]
 isomorphOutRelVarNames (IsoRename _ rv) = [rv]
@@ -89,23 +92,23 @@ validateRelationalExprInSchema schema relExprIn =
                             ex -> Right ex) relExprIn
   where
     validRelVarNames = isomorphsInRelVarNames (isomorphs schema)
-  
+
 processRelationalExprInSchema :: Schema -> RelationalExpr -> Either RelationalError RelationalExpr
 processRelationalExprInSchema (Schema []) expr = pure expr
 processRelationalExprInSchema schema relExprIn = do
   --validate that all rvs are present in the virtual schema- this prevents relation variables being referenced in the underlying schema (falling through the transformation)
   let processRelExpr rexpr morph = relExprMogrify (relExprMorph morph) rexpr
-  validateRelationalExprInSchema schema relExprIn                    
+  validateRelationalExprInSchema schema relExprIn
   foldM processRelExpr relExprIn (isomorphs schema)
 
-validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError ()  
+validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError ()
 validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema)
-  
-processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr  
+
+processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
 processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
   let relExprMogrifier = processRelationalExprInSchema schema
   --validate that all mentioned relvars are in the valid set
-  _ <- validateDatabaseContextExprInSchema schema dbExpr      
+  _ <- validateDatabaseContextExprInSchema schema dbExpr
   --perform the morph
   foldM (\ex morph -> databaseContextExprMorph morph relExprMogrifier ex) dbExpr morphs
 
@@ -120,18 +123,18 @@ processDatabaseContextExprSchemaUpdate schema@(Schema morphs) expr = case expr o
   where
     validSchemaName = isomorphsInRelVarNames morphs
     passthru rvname = Schema (morphs ++ [IsoRename rvname rvname])
-    
-processDatabaseContextExprSchemasUpdate :: Subschemas -> DatabaseContextExpr -> Subschemas    
+
+processDatabaseContextExprSchemasUpdate :: Subschemas -> DatabaseContextExpr -> Subschemas
 processDatabaseContextExprSchemasUpdate subschemas expr = M.map (`processDatabaseContextExprSchemaUpdate` expr) subschemas
-  
--- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema! 
+
+-- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema!
 -- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.
   {-
 -- | Convert inclusion dependencies for display in a specific schema.
 applySchemaToInclusionDependencies :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
-applySchemaToInclusionDependencies (Schema morphs) incDeps = 
+applySchemaToInclusionDependencies (Schema morphs) incDeps =
   let incDepMorph incDep = --check that the mentioned relvars are in fact in the current schema
-  M.update incDepMorph incDeps        
+  M.update incDepMorph incDeps
   -}
 
 -- | Morph a relational expression in one schema to another isomorphic schema.
@@ -144,7 +147,7 @@ relExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \case
   RelationVariable rv m | rv == relIn -> Right (Union (RelationVariable relOutTrue m) (RelationVariable relOutFalse m))
   orig -> Right orig
 relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \case
-  --only the true predicate portion appears in the virtual schema  
+  --only the true predicate portion appears in the virtual schema
   RelationVariable rv m | rv == relInT -> Right (Restrict predi (RelationVariable relTarget m))
 
   RelationVariable rv m | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget m))
@@ -152,7 +155,7 @@ relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \case
 relExprMorph (IsoRename relIn relOut) = \case
   RelationVariable rv m | rv == relIn -> Right (RelationVariable relOut m)
   orig -> Right orig
-  
+
 relExprMogrify :: (RelationalExprBase a -> Either RelationalError (RelationalExprBase a)) -> RelationalExprBase a -> Either RelationalError (RelationalExprBase a)
 relExprMogrify func (Project attrs expr) = func expr >>= \ex -> func (Project attrs ex)
 relExprMogrify func (Union exprA exprB) = do
@@ -187,7 +190,7 @@ spam :: Either RelationalError RelationalExpr
 spam = relExprMogrify (relExprMorph (IsoRestrict "emp" TruePredicate (Just "nonboss", Just "boss"))) (RelationVariable "emp" ())
 
 spam2 :: Either RelationalError RelationalExpr
-spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePredicate "emp")) (RelationVariable "boss" ()) 
+spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePredicate "emp")) (RelationVariable "boss" ())
 -}
 
 databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
@@ -208,14 +211,14 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFu
         falseExpr n = Update n attrMap (AndPredicate predi (NotPredicate filt))
     pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
   MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
-  orig -> pure orig                                    
-databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of   
+  orig -> pure orig
+databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
   -- if any tuples are filtered out of the insert/assign, we need to simulate a constraint violation
   Assign rv relExpr | rv == rvTrue -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut filt,
                                                                                       Insert rvOut (Restrict filt ex)]
-  Assign rv relExpr | rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),            
+  Assign rv relExpr | rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ MultipleExpr [Delete rvOut (NotPredicate filt),
                                                                                            Insert rvOut (Restrict (NotPredicate filt) ex)]
   Insert rv relExpr | rv == rvTrue || rv == rvFalse -> relExprFunc relExpr >>= \ex -> pure $ Insert rvOut ex
   Delete rv delPred | rv == rvTrue -> pure $ Delete rvOut (AndPredicate delPred filt)
@@ -229,9 +232,9 @@ databaseContextExprMorph iso@(IsoRename relIn relOut) relExprFunc expr = case ex
   Insert rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure $ Insert relOut ex
   Delete rv delPred | rv == relIn -> pure $ Delete relOut delPred
   Update rv attrMap predi | rv == relIn -> pure $ Update relOut attrMap predi
-  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs  
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
   orig -> pure orig
-  
+
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
 applyRelationalExprSchemaIsomorphs :: SchemaIsomorphs -> RelationalExpr -> Either RelationalError RelationalExpr
 applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprMogrify (relExprMorph morph) expr') expr morphs
@@ -243,7 +246,7 @@ inclusionDependencyInSchema :: Schema -> InclusionDependency -> Either Relationa
 inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
   --collect all relvars which appear in the schema
   let schemaRelVars = isomorphsInRelVarNames (isomorphs schema)
-  rvAssoc <- mapM (\rvIn -> do 
+  rvAssoc <- mapM (\rvIn -> do
                       rvOut <- processRelationalExprInSchema schema (RelationVariable rvIn ())
                       pure (rvOut, RelationVariable rvIn ())
                   )
@@ -262,7 +265,7 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
 -- for IsoRestrict, consider hiding the two, generated constraints since they can never be thrown in the isomorphic schema
 inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either RelationalError InclusionDependencies
 inclusionDependenciesInSchema schema incDeps = M.fromList <$> mapM (\(depName, dep) -> inclusionDependencyInSchema schema dep >>= \newDep -> pure (depName, newDep)) (M.toList incDeps)
-  
+
 relationVariablesInSchema :: Schema -> Either RelationalError RelationVariables
 relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morphs
   where
@@ -289,7 +292,7 @@ relationVariablesAsRelationInSchema concreteDbContext schema graph = do
       attrs = A.attributesFromList [Attribute "name" TextAtomType,
                                   Attribute "attributes" (RelationAtomType subrelAttrs)]
       relVarToAtomList (rvName, rel) = [TextAtom rvName, attributesToRel (attributesVec (attributes rel))]
-      attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]  
+      attrAtoms a = [TextAtom (A.attributeName a), TextAtom (prettyAtomType (A.atomType a))]
       attributesToRel attrl = case mkRelationFromList subrelAttrs (map attrAtoms (V.toList attrl)) of
         Left err -> error ("relationVariablesAsRelation pooped " ++ show err)
         Right rel -> RelationAtom rel
@@ -297,12 +300,12 @@ relationVariablesAsRelationInSchema concreteDbContext schema graph = do
 
 {-
 proposal
-data DatabaseContext = 
+data DatabaseContext =
 Concrete ...|
 Virtual Isomorphs
 -}
-{-  
-applyRelationVariablesSchemaIsomorphs :: SchemaIsomorphs -> RelationVariables -> Either RelationalError RelationVariables                                                                 
+{-
+applyRelationVariablesSchemaIsomorphs :: SchemaIsomorphs -> RelationVariables -> Either RelationalError RelationVariables
 applyRelationVariablesSchemaIsomorphs {-morphs rvs -}= undefined
 -}
 {-  M.fromList <$> mapM (\(rvname, rvexpr) -> do
@@ -321,10 +324,10 @@ applySchemaIsomorphsToDatabaseContext morphs context = do
                   --notifications = notifs,
                   --typeConstructorMapping = tconsmapping
                 })
-  -}  
-{-    
+  -}
+{-
 validate :: SchemaIsomorph -> S.Set RelVarName -> Either RelationalError SchemaIsomorph
-validate morph underlyingRvNames = if S.size invalidRvNames > 0 then 
+validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
                           Left (MultipleErrors (map RelVarNotDefinedError (S.toList invalidRvNames)))
                          else
                            Right morph
@@ -335,7 +338,7 @@ validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
 
 -- | Create inclusion dependencies mainly for IsoRestrict because the predicate should hold in the base schema.
 createIncDepsForIsomorph :: SchemaName -> SchemaIsomorph -> InclusionDependencies
-createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = let 
+createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = let
   newIncDep predicate rv = InclusionDependency (Project AN.empty (Restrict predicate (RelationVariable rv ()))) (ExistingRelation relationTrue)
   incDepName b = "schema" <> "_" <> sname <> "_" <> b in
   M.fromList [(incDepName (origRv <> "_true"), newIncDep predi rvTrue),
@@ -358,7 +361,7 @@ evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
             dbenv = mkDatabaseContextEvalEnv transId graph
         dbstate <- runDatabaseContextEvalMonad context dbenv (evalGraphRefDatabaseContextExpr incDepExprs)
         pure (newSchemas, dbc_context dbstate)
---need to propagate dirty flag here      
+--need to propagate dirty flag here
 
 evalSchemaExpr (RemoveSubschema sname) context _ _ sschemas = if M.member sname sschemas then
                                            pure (M.delete sname sschemas, context)
@@ -373,14 +376,14 @@ class Morph a where
 instance Morph RelationalExpr where
   morphToSchema schema _ relExprIn = do
       let processRelExpr rexpr morph = relExprMogrify (relExprMorph morph) rexpr
-      validateRelationalExprInSchema schema relExprIn                    
+      validateRelationalExprInSchema schema relExprIn
       foldM processRelExpr relExprIn (isomorphs schema)
 
 -- | The names of inclusion dependencies might leak context about a different schema, but that's arbitrary and cannot be altered without having the user provide a renaming function or a new set of incDep names- seems extraneous.
 instance Morph InclusionDependency where
   morphToSchema schema _ (InclusionDependency rexprA rexprB) = do
     let schemaRelVars = isomorphsInRelVarNames (isomorphs schema)
-    rvAssoc <- mapM (\rvIn -> do 
+    rvAssoc <- mapM (\rvIn -> do
                       rvOut <- processRelationalExprInSchema schema (RelationVariable rvIn ())
                       pure (rvOut, RelationVariable rvIn ())
                   )
@@ -400,7 +403,7 @@ instance Morph InclusionDependencies where
 -- cannot be implemented because relvars map to transaction-graph-traversing expressions and we do not track schema changes over time
 instance Morph RelationVariables where
   morphToSchema schema tg relVars = do
-    let folder acc (IsoRename rvBase rvSchema) = 
+    let folder acc (IsoRename rvBase rvSchema) =
           case M.lookup rvBase relVars of
             Nothing -> Left (RelVarNotDefinedError rvBase)
             Just gfExpr -> do
@@ -412,7 +415,3 @@ instance Morph RelationVariables where
 instance Morph GraphRefRelationalExpr where
 -- cannot be supported because we don't track how the schema changes over the lifetime of a transaction graph
 -}
-                                                                                                                 
-  
-  
-

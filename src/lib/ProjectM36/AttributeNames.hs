@@ -1,7 +1,10 @@
 module ProjectM36.AttributeNames where
 import ProjectM36.Base
 import qualified Data.Set as S
-import Data.List (foldl')
+#if MIN_VERSION_base(4,20,0)
+#else
+import Data.Foldable (foldl')
+#endif
 --AttributeNames is a data structure which can represent inverted projection attributes and attribute names derived from relational expressions
 
 empty :: AttributeNamesBase a

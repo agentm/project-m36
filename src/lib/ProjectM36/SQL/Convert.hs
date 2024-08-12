@@ -32,7 +32,10 @@ import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.Trans.Class (lift)
+#if MIN_VERSION_base(4,20,0)
+#else
 import Data.Foldable (foldl')
+#endif
 import Data.Bifunctor (bimap)
 --import qualified Data.HashSet as HS
 

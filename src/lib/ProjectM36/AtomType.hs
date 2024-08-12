@@ -13,7 +13,11 @@ import qualified Data.Set as S
 import qualified Data.List as L
 import Data.Maybe (isJust)
 import Data.Either (rights, lefts)
+#if MIN_VERSION_ghc(9,6,0)
+import Control.Monad (foldM, unless, when)
+#else
 import Control.Monad.Writer
+#endif
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -416,10 +420,9 @@ resolveFunctionReturnValue funcName' tvMap ctype@(ConstructedAtomType tCons retM
     pure ctype
     else do
     let diff = M.difference retMap tvMap
-    if M.null diff then
-      pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
-      else
-      Left (AtomFunctionTypeVariableResolutionError funcName' (fst (head (M.toList diff))))
+    case M.toList diff of
+      [] -> pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
+      x : _ -> Left (AtomFunctionTypeVariableResolutionError funcName' (fst x))
 resolveFunctionReturnValue funcName' tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName' tvName)
   Just typ -> pure typ

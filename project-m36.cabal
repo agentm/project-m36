@@ -1,6 +1,6 @@
 Cabal-Version: 2.2
 Name: project-m36
-Version: 1.0.2
+Version: 1.1.0
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
@@ -13,7 +13,7 @@ Maintainer: agentm@themactionfaction.com
 Synopsis: Relational Algebra Engine
 Description: A relational algebra engine which can be used to persist and query Haskell data types.
 Extra-Source-Files: Changelog.markdown README.markdown scripts/DateExamples.tutd scripts/multiline.tutd
-tested-with: GHC ==9.2.8 || ==9.4.8
+tested-with: GHC ==9.2.8 || ==9.4.8 || ==9.6.6 || ==9.8.2 || ==9.10.1
 
 Source-Repository head
     Type: git
@@ -37,7 +37,7 @@ Flag haskell-scripting
 
 Library
     Build-Depends:
-                  base>=4.16 && < 4.19,
+                  base >=4.14 && < 5,
                   ghc-paths,
                   mtl,
                   containers,
@@ -98,7 +98,7 @@ Library
                   fast-builder,
                   scientific
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0 && < 9.5
+        Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
     if impl(ghc>= 8) && flag(haskell-scripting)
       build-depends:
@@ -213,7 +213,9 @@ Library
       Other-Modules: ProjectM36.Win32Handle
     else
       --219-  too many exported symbols under Windows and GHC 8.4
-      GHC-Options: -rdynamic -fexternal-interpreter -eventlog
+      GHC-Options: -rdynamic -fexternal-interpreter
+      if impl(ghc <9.4)
+        GHC-Options: -eventlog
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
     CC-Options: -fPIC
@@ -225,7 +227,7 @@ Library
 
 Executable tutd
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0 && < 9.5
+        Build-Depends: ghc >= 9.0
     Build-Depends: base >=4.8,
                    ghc-paths,
                    project-m36,
@@ -291,10 +293,11 @@ Executable tutd
                    ProjectM36.Interpreter
     main-is: TutorialD/tutd.hs
     CC-Options: -fPIC
-    if os(windows)
-      GHC-Options: -Wall -threaded -eventlog -rtsopts
-    else
-      GHC-Options: -Wall -threaded -rdynamic -eventlog -rtsopts
+    GHC-Options: -Wall -threaded -rtsopts
+    if !os(windows)
+      GHC-Options: -rdynamic
+    if impl(ghc <9.4)
+      GHC-Options: -eventlog
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded
     Hs-Source-Dirs: ./src/bin
@@ -303,7 +306,7 @@ Executable tutd
 
 Executable sqlegacy
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0 && < 9.5
+        Build-Depends: ghc >= 9.0
     Build-Depends: base,
                    ghc-paths,
                    project-m36,
@@ -377,7 +380,7 @@ Executable sqlegacy
 
 Executable project-m36-server
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0 && < 9.5
+        Build-Depends: ghc >= 9.0
     Build-Depends: base,
                    ghc-paths,
                    transformers,
@@ -428,7 +431,9 @@ Executable bigrel
     GHC-Options: -Wall -threaded -rtsopts
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
-      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall -eventlog
+      GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+      if impl(ghc <9.4)
+        GHC-Prof-Options: -eventlog
 
 Common commontest
     Default-Language: Haskell2010
@@ -548,7 +553,10 @@ benchmark ondiskclient
     import: commontest
     type: exitcode-stdio-1.0
     main-is: benchmark/OnDiskClient.hs
-    GHC-Options: -rtsopts -Wall -threaded -eventlog -finfo-table-map -fdistinct-constructor-tables
+    GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
+    GHC-Options: -rtsopts -Wall -threaded -finfo-table-map -fdistinct-constructor-tables
+    if impl(ghc <9.4)
+      GHC-Options: -eventlog
 
 Test-Suite test-server
     import: commontest

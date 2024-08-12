@@ -136,9 +136,11 @@ renderBody :: [[Cell]] -> ([Int],[Int]) -> StringType
 renderBody cellMatrix cellLocs = renderRows `T.append` renderBottomBar
   where
     columnLocations = fst cellLocs
-    rowLocations = snd cellLocs
-    renderRows = T.concat (map (\(row, rowHeight)-> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
-    rowHeightMatrix = zip cellMatrix (tail rowLocations)
+    rowLocations = case snd cellLocs of
+      [] -> []
+      _ : xs -> xs
+    renderRows = T.concat (map (\(row, rowHeight) -> renderRow row columnLocations rowHeight boxV) rowHeightMatrix)
+    rowHeightMatrix = zip cellMatrix rowLocations
     renderBottomBar = renderHBar boxBL boxBB boxBR columnLocations
 
 repeatString :: Int -> StringType -> StringType

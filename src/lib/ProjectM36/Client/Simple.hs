@@ -31,6 +31,9 @@ module ProjectM36.Client.Simple (
   ) where
 
 import Control.Exception.Base
+#if MIN_VERSION_ghc(9,6,0)
+import Control.Monad ((<=<))
+#endif
 import Control.Monad.Reader
 import ProjectM36.Base
 import qualified ProjectM36.Client as C

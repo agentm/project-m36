@@ -107,22 +107,29 @@ singleTupleSetJoin tup1 tupSet = HS.union
   where
     mapper tup2 = singleTupleJoin tup1 tup2
 -}
-            
+
 -- if the keys share some keys and values, then merge the tuples
 -- if there are shared attributes, if they match, create a new tuple from the atoms of both tuples based on the attribute ordering argument
 singleTupleJoin :: Attributes -> RelationTuple -> RelationTuple -> Either RelationalError (Maybe RelationTuple)
-singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = if
-  atomsForAttributeNames keysIntersection tup1 /= atomsForAttributeNames keysIntersection tup2
-  then
-    return Nothing
-  else
-    return $ Just $ RelationTuple joinedAttrs newVec
+singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = do
+    k1 <- atomsForAttributeNames keysIntersection tup1
+    k2 <- atomsForAttributeNames keysIntersection tup2
+    pure $ if k1 == k2
+      then Just $ RelationTuple joinedAttrs newVec
+      else Nothing
   where
+    keysIntersection :: V.Vector AttributeName
     keysIntersection = V.map attributeName attrsIntersection
+    attrsIntersection :: V.Vector Attribute
     attrsIntersection = V.filter (`V.elem` attributesVec tupAttrs1) (attributesVec tupAttrs2)
-    newVec = V.map (findAtomForAttributeName . attributeName) (attributesVec joinedAttrs)
+    newVec :: V.Vector Atom
+    newVec = V.mapMaybe (findAtomForAttributeName . attributeName) (attributesVec joinedAttrs)
     --search both tuples for the attribute
-    findAtomForAttributeName attrName = head $ rights $ fmap (atomForAttributeName attrName) [tup1, tup2]
+    findAtomForAttributeName :: AttributeName -> Maybe Atom
+    findAtomForAttributeName attrName =
+      case rights $ atomForAttributeName attrName <$> [tup1, tup2] of
+        [] -> Nothing
+        x : _ -> Just x
 
 --same consideration as Data.List.union- duplicates in v1 are not de-duped
 vectorUnion :: (Eq a) => V.Vector a -> V.Vector a -> V.Vector a

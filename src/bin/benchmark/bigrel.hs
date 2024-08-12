@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+-- This suppresses the incomplete pattern match on @Right x@ in 'matrixRun'
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DateExamples
@@ -111,7 +113,7 @@ vectorMatrixRun = do
 
 -- 20 s 90 MBs- a clear win- ideal size is 10 * 100000 * 8 bytes = 80 MB! without IntAtom wrapper
 --with IntAtom wrapper: 1m12s 90 MB
-{-                    
+{-
 
 vectorMatrixRelation :: Int -> Int -> HS.HashSet (V.Vector Atom)
 vectorMatrixRelation attributeCount tupleCount = HS.fromList $ map mapper [0..tupleCount]
@@ -129,4 +131,3 @@ matrixRelation attributeCount tupleCount = do
       tuple tupleX = RelationTuple attrs (V.generate attributeCount (\_ -> IntAtom (fromIntegral tupleX)))
       tuples = map tuple [0 .. tupleCount]
   mkRelationDeferVerify attrs (RelationTupleSet tuples)
-

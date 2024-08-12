@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
@@ -12,7 +13,11 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Printer
+#if MIN_VERSION_base(4,18,0)
+import Control.Monad (when)
+#else
 import Control.Monad.State
+#endif
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Gnuplot
 import ProjectM36.HashSecurely

@@ -12,11 +12,16 @@ import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
+#if MIN_VERSION_ghc(9,6,0)
+import Control.Monad (foldM)
+#endif
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.Functor.Identity
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
@@ -533,12 +538,14 @@ applyStaticRestrictionCollapse expr =
     Extend n sub ->
       Extend n (applyStaticRestrictionCollapse sub)
     Restrict firstPred _ ->
-      let restrictions = sequentialRestrictions expr
-          finalExpr = last restrictions
+      let (finalExpr, restrictions) = case sequentialRestrictions expr of
+            [] -> (undefined, [])
+            x : xs -> (NE.last $ x :| xs, xs)
+
           optFinalExpr = case finalExpr of
                               Restrict _ subexpr -> applyStaticRestrictionCollapse subexpr
                               otherExpr -> otherExpr
-          andPreds = foldr folder firstPred (tail restrictions)
+          andPreds = foldr folder firstPred restrictions
           folder (Restrict subpred _) acc = AndPredicate acc subpred
           folder _ _ = error "unexpected restriction expression in optimization phase"
       in

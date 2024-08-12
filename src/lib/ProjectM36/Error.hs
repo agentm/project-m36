@@ -125,10 +125,8 @@ data PersistenceError = InvalidDirectoryError FilePath |
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      
 someErrors [] = error "no errors in error list: function misuse" 
-someErrors errList  = if length errList == 1 then
-                        head errList
-                      else
-                        MultipleErrors errList
+someErrors [err] = err
+someErrors errList = MultipleErrors errList
                         
 data MergeError = SelectedHeadMismatchMergeError |
                   PreferredHeadMissingMergeError HeadName |

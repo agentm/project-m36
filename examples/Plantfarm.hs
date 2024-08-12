@@ -1,11 +1,21 @@
 {-# LANGUAGE DeriveGeneric #-}
-
 {-# LANGUAGE OverloadedStrings #-}
-
 {-# LANGUAGE DeriveAnyClass #-}
-
 {-# LANGUAGE DerivingVia #-}
-
+-- The calls to 'S.raise' from the @scotty@ package are /deprecated/
+-- TODO:
+-- Replace 'raise' with 'throw'
+--
+-- Until then, supproess the deprecation warning
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
+module Main
+  ( main
+    -- * Other example exports
+  , closeConn
+  , getAllPlantsWith
+  , update
+  , updatePlant
+  ) where
 
 import Codec.Winery (Serialise, WineryVariant(WineryVariant))
 import Control.DeepSeq (NFData)
@@ -90,7 +100,7 @@ instance S.Parsable Stage where
     | otherwise = Left t
 
 
--- Just for ToJSON for ilustration of stage
+-- Just for ToJSON for illustration of stage
 type ASCIIStage = String
 
 seedStr :: ASCIIStage
@@ -147,7 +157,7 @@ main = do
 
     --  retrieve a plant by name
     S.get "/plant/:name" $ do
-        n <- S.param "name"
+        n <- S.pathParam "name"
         e <- liftIO $ getPlant c n
         p <- handleWebError e
         S.json p
@@ -170,12 +180,12 @@ main = do
     --  watering the plant having the provided name.
     --  This will water the plant and might let it progress to the next stage. It might also die.
     S.post "/plant/water/:name" $ do
-      n <- S.param "name"
+      n <- S.pathParam "name"
       e <- liftIO $ waterPlant c n
       p <- handleWebError e
       S.json p
 
-    --  retriving all the plants as json data
+    --  retrieving all the plants as json data
     S.get "/plants" $ do
       e <- liftIO $ getAllPlants c
       ps <- handleWebErrors e
@@ -190,14 +200,14 @@ main = do
 
     --  deleting all plants at a specific stage
     S.delete "/plants?stage=:stage" $ do
-      s <- S.param "stage"
+      s <- S.pathParam "stage"
       e <- liftIO $ deletePlantsByStage c s
       p <- handleWebError e
       S.json p
 
     --  deleting all plants at a specific stage
     S.delete "/plants" $ do
-      s <- S.param "name"
+      s <- S.pathParam "name"
       e <- liftIO $ deletePlantByName c s
       p <- handleWebError e
       S.json p
@@ -209,14 +219,14 @@ main = do
       S.json ps
 
 handleWebError :: Either Err b -> S.ActionM b
-handleWebError (Left e) = S.raise (TL.pack $ "An error occurred:\n" <> show e)
+handleWebError (Left e) = S.raise . TL.pack $ "An error occurred:\n" <> show e
 handleWebError (Right v) = pure v
 
 handleWebErrors :: [Either Err b] -> S.ActionM [b]
 handleWebErrors e = do
   case lefts e of
     [] -> pure (rights e)
-    l -> S.raise (TL.pack $ "Errors occurred:\n" <> concatMap ((<>"\n") . show) l)
+    l -> S.raise . TL.pack $ "Errors occurred:\n" <> concatMap ((<> "\n") . show) l
 
 
 -- |    watering a plant and thereby possibly updating its stage
@@ -264,7 +274,7 @@ data Err = NotSpecified | NotFound deriving (Show ,Generic)
 
 instance ToJSON Err
 
--- |    Just for convinience for passing around the SessionId
+-- |    Just for convenience for passing around the SessionId
 --      and the Connection
 data DBConnection = DB SessionId Connection
 
@@ -337,7 +347,7 @@ createSchema (DB sessionId conn) = do
   _ <- handleIOErrorsAndQuit $ mapM (executeDatabaseContextExpr sessionId conn) [
         toAddTypeExpr (Proxy :: Proxy Stage) -- Adds the Type Stage as data to the DB
     ,   toDefineExpr (Proxy :: Proxy Plant) "plants" -- Creates the plants relation
-    ,   databaseContextExprForUniqueKey "plants" ["name"] -- Makes name of the plants relation a uniqe Key,
+    ,   databaseContextExprForUniqueKey "plants" ["name"] -- Makes name of the plants relation a unique Key,
                                                           -- Foreign Key restrictions are available too
     ]
   pure ()
@@ -358,7 +368,7 @@ dbConnection = do
   let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
   --  The code below persists the data in a DB with the name "base". \\
 --  let connInfo = InProcessConnectionInfo (CrashSafePersistence "base") emptyNotificationCallback [] \\
-  --  In addition minimal persistance is available. \\
+  --  In addition minimal persistence is available. \\
 --  let connInfo = InProcessConnectionInfo (MinimalPersistence "base") emptyNotificationCallback []
   conn <- handleIOErrorAndQuit $ connectProjectM36 connInfo
   --create a database session at the default branch of the database
@@ -371,7 +381,7 @@ insert :: (Tupleable a, Traversable t) => DBConnection -> t a -> Base.RelVarName
 insert db rlv rlvName = executeWithTransaction db $ toInsertExpr rlv rlvName
 
 -- |    A polymorphic function to update data in the DB.
---      An update in one funtion would take:
+--      An update in one function would take:
 --
 --      - SessionId
 --      - Connection
@@ -388,9 +398,9 @@ update db rlv attr rlvName = executeWithTransaction db $ toUpdateExpr rlvName at
 delete :: (Tupleable a) => DBConnection -> a -> [AttributeName]-> Base.RelVarName -> IO (Either Err ())
 delete db rlv attr rlvName = executeWithTransaction db $ toDeleteExpr rlvName attr rlv
 
--- |    A convenience function to make executing DBContextExpr with commiting simpler. \\
+-- |    A convenience function to make executing DBContextExpr with committing simpler. \\
 --      In particular for expr that just insert, delete and update.
---      Therefor ultimately return Either _ ()
+--      Therefore ultimately return Either _ ()
 executeWithTransaction :: DBConnection -> Either RelationalError DatabaseContextExpr -> IO (Either Err ())
 executeWithTransaction (DB sid conn) expr = do
     iEx <- handleError expr

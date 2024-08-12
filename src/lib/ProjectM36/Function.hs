@@ -52,9 +52,7 @@ loadFunctions _ _ _ _ = pure (Left LoadSymbolError)
 #endif
 
 functionForName :: FunctionName -> HS.HashSet (Function a) -> Either RelationalError (Function a)
-functionForName funcName' funcSet = if HS.null foundFunc then
-                                         Left $ NoSuchFunctionError funcName'
-                                        else
-                                         Right $ head $ HS.toList foundFunc
-  where
-    foundFunc = HS.filter (\f -> funcName f == funcName') funcSet
+functionForName funcName' funcSet =
+  case HS.toList $ HS.filter (\f -> funcName f == funcName') funcSet of
+    [] -> Left $ NoSuchFunctionError funcName'
+    x : _ -> Right x

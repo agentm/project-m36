@@ -298,9 +298,18 @@ sqlNullableIntegerToMaybe _ = Nothing
 sqlEqualsTypes :: Atom -> Atom -> Bool
 sqlEqualsTypes a b = underlyingType a == underlyingType b
   where
-    underlyingType (ConstructedAtom "SQLNull" (ConstructedAtomType "SQLNullable" typmap) []) | M.size typmap == 1 = snd (head (M.assocs typmap))
-    underlyingType (ConstructedAtom "SQLJust" (ConstructedAtomType "SQLNullable" typmap) _args) | M.size typmap == 1 = snd (head (M.assocs typmap))
-    underlyingType atom = atomTypeForAtom atom
+    underlyingType atom =
+      let def = atomTypeForAtom atom 
+      in  case atom of
+            ConstructedAtom x (ConstructedAtomType "SQLNullable" typmap) y ->
+              let getSingle = case M.elems typmap of
+                    [z] -> z
+                    _ -> def 
+              in  case (x, y) of
+                    ("SQLNull", []) -> getSingle 
+                    ("SQLJust", _) -> getSingle
+                    _ -> def
+            _ -> def
 
 sqlEquals :: AtomFunctionBodyType
 sqlEquals [a,b] | sqlEqualsTypes a b =

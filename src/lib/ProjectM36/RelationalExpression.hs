@@ -22,7 +22,16 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
+#if MIN_VERSION_ghc(9,6,0)
+import Control.Monad (foldM, unless, when)
+import Control.Monad.State
+import Control.Monad.Except
+import Control.Monad.Reader as R
+#else
 import Control.Monad.State hiding (join)
+import Control.Monad.Except hiding (join)
+import Control.Monad.Reader as R hiding (join)
+#endif
 import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Tuple (swap)
@@ -36,9 +45,7 @@ import qualified Data.Vector as V
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified Control.Monad.RWS.Strict as RWS
 import Control.Monad.RWS.Strict (RWST, execRWST, runRWST)
-import Control.Monad.Except hiding (join)
 import Control.Monad.Trans.Except (except)
-import Control.Monad.Reader as R hiding (join)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
@@ -1138,7 +1145,9 @@ evalGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
     Nothing -> pure Nothing
   tuples <- evalGraphRefTupleExprs mAttrs tupleExprs
   let attrs = fromMaybe firstTupleAttrs mAttrs
-      firstTupleAttrs = if null tuples then A.emptyAttributes else tupleAttributes (head tuples)
+      firstTupleAttrs = case tuples of
+        [] -> A.emptyAttributes
+        x : _ -> tupleAttributes x
   lift $ except $ mkRelation attrs (RelationTupleSet tuples)
 evalGraphRefRelationalExpr (MakeStaticRelation attributeSet tupleSet) = 
   lift $ except $ mkRelation attributeSet tupleSet
@@ -1215,12 +1224,12 @@ transactionForId :: TransactionId -> TransactionGraph -> Either RelationalError 
 transactionForId tid graph 
   | tid == U.nil =
     Left RootTransactionTraversalError
-  | S.null matchingTrans =
-    Left $ NoSuchTransactionError tid
   | otherwise =
-    Right $ head (S.toList matchingTrans)
-  where
-    matchingTrans = S.filter (\(Transaction idMatch _ _) -> idMatch == tid) (transactionsForGraph graph)
+      let sameTID (Transaction idMatch _ _) = idMatch == tid
+          matchingTrans = S.filter sameTID $ transactionsForGraph graph
+      in  case S.toList matchingTrans of
+        [] -> Left $ NoSuchTransactionError tid
+        x : _ -> Right x
 
 typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
 typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs emptyTupleSet
