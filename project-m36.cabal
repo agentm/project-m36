@@ -586,7 +586,7 @@ Executable Example-Hair
 Executable Example-Plantfarm
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends:  aeson, barbies, base, containers, deepseq, hashable, project-m36, random, scotty >= 0.22, text, winery
+    Build-Depends:  aeson, barbies, base, containers, deepseq, hashable, project-m36, random, scotty >= 0.22, text, winery, exceptions
     Main-Is: examples/Plantfarm.hs
     GHC-Options: -Wall -threaded
 
