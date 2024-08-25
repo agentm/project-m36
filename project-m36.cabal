@@ -88,7 +88,7 @@ Library
                   cryptohash-sha256,
                   text-manipulate >= 0.2.0.1 && < 0.4,
                   winery >= 1.4,
-                  curryer-rpc>=0.3.6,
+                  curryer-rpc>=0.3.7,
                   network,
                   async,
                   vector-instances,

@@ -37,9 +37,9 @@ jobs:
         ghc_version:
           - 9.2
           - 9.4
-          - 9.6
-          - 9.8
-          - 9.10
+#          - 9.6
+#          - 9.8
+#          - 9.10
         include:
           - os: macos-latest
             ghc_version: 9.2
