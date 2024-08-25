@@ -138,7 +138,7 @@ jobs:
         uses: actions/checkout@v4
       - name: update cabal index
         run: |
-          $CABAL v2-update -v
+          $CABAL v2-update -v -w $ARG_COMPILER
       - name: dump install plan
         run: |
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH --dry-run all
