@@ -221,9 +221,7 @@ initScriptSession ghcPkgPaths = do
 #else
           ideclSource    = False,
 #endif
-#if MIN_VERSION_ghc(9,4,0)
           ideclQualified = if isJust _mQualifiedName then QualifiedPre else NotQualified,
-#endif
 #if MIN_VERSION_ghc(9,6,0)
           ideclAs        = Nothing,
 #elif MIN_VERSION_ghc(9,2,0)
