@@ -1,4 +1,4 @@
-# 2024-87-12 (v1.1.0)
+# 2024-08-25 (v1.1.0)
 
 * add support for GHC 9.6, GHC 9.8, and GHC 9.10
 * clean up compiler warnings
