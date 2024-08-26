@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, CPP #-}
 -- | A simplified client interface for Project:M36 database access.
 module ProjectM36.Client.Simple (
   simpleConnectProjectM36,
@@ -31,7 +31,7 @@ module ProjectM36.Client.Simple (
   ) where
 
 import Control.Exception.Base
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_base(4,18,0)
 import Control.Monad ((<=<))
 #endif
 import Control.Monad.Reader

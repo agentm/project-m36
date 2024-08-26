@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module ProjectM36.AttributeNames where
 import ProjectM36.Base
 import qualified Data.Set as S

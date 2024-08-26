@@ -16,14 +16,11 @@ import ProjectM36.HashSecurely
 import ProjectM36.ReferencedTransactionIds
 
 import Codec.Winery
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM, forM, unless, when)
+#endif
 import Control.Monad.Except
 import Control.Monad.Reader
-#else
-import Control.Monad.Except hiding (join)
-import Control.Monad.Reader hiding (join)
-#endif
 import qualified Data.Vector as V
 import qualified Data.UUID as U
 import qualified Data.Set as S

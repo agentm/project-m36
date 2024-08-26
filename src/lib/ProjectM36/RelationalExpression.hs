@@ -22,16 +22,13 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
-#if MIN_VERSION_ghc(9,6,0)
 import Control.Monad (foldM, unless, when)
-import Control.Monad.State
-import Control.Monad.Except
-import Control.Monad.Reader as R
-#else
-import Control.Monad.State hiding (join)
-import Control.Monad.Except hiding (join)
-import Control.Monad.Reader as R hiding (join)
-#endif
+import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError, catchError)
+import Control.Monad.Reader (ReaderT, runReaderT, asks, ask, local)
+import qualified Control.Monad.Reader as R
+import Control.Monad.State (gets, get, put)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Tuple (swap)

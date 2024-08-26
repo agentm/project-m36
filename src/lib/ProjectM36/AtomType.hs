@@ -13,11 +13,7 @@ import qualified Data.Set as S
 import qualified Data.List as L
 import Data.Maybe (isJust)
 import Data.Either (rights, lefts)
-#if MIN_VERSION_ghc(9,6,0)
 import Control.Monad (foldM, unless, when)
-#else
-import Control.Monad.Writer
-#endif
 import qualified Data.Map as M
 import qualified Data.Text as T
 

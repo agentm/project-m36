@@ -12,7 +12,7 @@ import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.TupleSet
-#if MIN_VERSION_ghc(9,6,0)
+#if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 #endif
 import Control.Monad.State
