@@ -2,12 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
--- The calls to 'S.raise' from the @scotty@ package are /deprecated/
--- TODO:
--- Replace 'raise' with 'throw'
---
--- Until then, supproess the deprecation warning
-{-# OPTIONS_GHC -fno-warn-deprecations #-}
 module Main
   ( main
     -- * Other example exports
@@ -17,14 +11,15 @@ module Main
   , updatePlant
   ) where
 
+
+import Control.Monad.Catch (Exception)
 import Codec.Winery (Serialise, WineryVariant(WineryVariant))
 import Control.DeepSeq (NFData)
 import Data.Aeson (FromJSON, ToJSON(toEncoding, toJSON))
 import Data.Data (Proxy(Proxy))
 import Data.Either (lefts, rights)
 import Data.Functor (($>))
-import Data.Text as T (Text)
-import qualified Data.Text.Lazy as TL (pack)
+import Data.Text as T (Text,pack)
 import GHC.Generics (Generic)
 import qualified ProjectM36.Base as Base
 import ProjectM36.DatabaseContext
@@ -207,7 +202,7 @@ main = do
 
     --  deleting all plants at a specific stage
     S.delete "/plants" $ do
-      s <- S.pathParam "name"
+      s <- S.queryParam "name"
       e <- liftIO $ deletePlantByName c s
       p <- handleWebError e
       S.json p
@@ -218,15 +213,20 @@ main = do
       ps <- handleWebErrors e
       S.json ps
 
+data WebError = WebError T.Text
+ deriving Show
+
+instance Exception WebError
+
 handleWebError :: Either Err b -> S.ActionM b
-handleWebError (Left e) = S.raise . TL.pack $ "An error occurred:\n" <> show e
+handleWebError (Left e) = S.throw (WebError (T.pack $ "An error occurred:\n" <> show e))
 handleWebError (Right v) = pure v
 
 handleWebErrors :: [Either Err b] -> S.ActionM [b]
 handleWebErrors e = do
   case lefts e of
     [] -> pure (rights e)
-    l -> S.raise . TL.pack $ "Errors occurred:\n" <> concatMap ((<> "\n") . show) l
+    l -> S.throw (WebError (T.pack $ "Errors occurred:\n" <> concatMap ((<>"\n") . show) l))
 
 
 -- |    watering a plant and thereby possibly updating its stage
