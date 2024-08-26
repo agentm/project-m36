@@ -51,7 +51,7 @@ Requirements:
 
 To build with stack:
 
-* [GHC 8.10.7 or greater](https://www.haskell.org/downloads)
+* [GHC 9.2 or greater](https://www.haskell.org/downloads)
 * [Haskell stack](https://docs.haskellstack.org/en/stable/README/)
 * Linux, macOS, or Microsoft Windows
 
@@ -63,7 +63,7 @@ Compilation steps:
 
 At this point, the TutorialD interactive interpreter can be run using ```stack exec tutd```.
 
-Alternative building with GHC 8.6.5 or greater:
+Alternative building with GHC 9.2 or greater:
 
 * ```cabal new-build```
 
