@@ -11,7 +11,7 @@ import Streamly.Data.Stream.Prelude (MonadAsync)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.Stream as S
 import qualified Streamly.Data.Stream.Prelude as SP
-import qualified Streamly.Internal.Data.Stream.StreamD as SD
+import qualified Streamly.Internal.Data.Stream as SD
 import ProjectM36.Tuple
 import qualified Data.Set as Set
 import qualified Data.Vector as V

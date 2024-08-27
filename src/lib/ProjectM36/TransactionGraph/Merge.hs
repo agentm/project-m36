@@ -1,9 +1,15 @@
+{-# LANGUAGE CPP #-}
 --Transaction Merge Engines
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
+#if MIN_VERSION_base(4,18,0)
+import Control.Monad (foldM)
+import Control.Monad.Except
+#else
 import Control.Monad.Except hiding (join)
+#endif
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
@@ -26,14 +32,14 @@ unionMergeMaps prefer mapA mapB = case prefer of
 unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr
 unionMergeRelation prefer relA relB = do
   let unioned = Union relA relB
-      mergeErr = MergeTransactionError StrategyViolatesRelationVariableMergeError
+      mergeErr e = MergeTransactionError (StrategyViolatesRelationVariableMergeError e)
       preferredRelVar =
         case prefer of
           PreferFirst -> pure relA
           PreferSecond -> pure relB
-          PreferNeither -> throwError mergeErr
+          PreferNeither -> throwError (MergeTransactionError StrategyWithoutPreferredBranchResolutionMergeError)
       handler AttributeNamesMismatchError{} = preferredRelVar
-      handler _err' = throwError mergeErr
+      handler err' = throwError (mergeErr err')
   --typecheck first?
   (evalGraphRefRelationalExpr unioned >> pure (Union relA relB)) `catchError` handler
 
@@ -47,7 +53,7 @@ unionMergeRelVars prefer relvarsA relvarsB = do
                   lookupA = findRel relvarsA
                   lookupB = findRel relvarsB
               case (lookupA, lookupB) of
-                (Just relA, Just relB) -> 
+                (Just relA, Just relB) -> do
                   unionMergeRelation prefer relA relB
                 (Nothing, Just relB) -> pure relB 
                 (Just relA, Nothing) -> pure relA 
@@ -62,7 +68,7 @@ unionMergeAtomFunctions prefer funcsA funcsB = case prefer of
   PreferFirst -> pure $ HS.union funcsA funcsB
   PreferSecond -> pure $ HS.union funcsB funcsA
   PreferNeither -> pure $ HS.union funcsA funcsB
-  
+
 unionMergeTypeConstructorMapping :: MergePreference -> TypeConstructorMapping -> TypeConstructorMapping -> Either MergeError TypeConstructorMapping  
 unionMergeTypeConstructorMapping prefer typesA typesB = do
   let allFuncNames = S.fromList $ map (\(tc,_) -> TCD.name tc) (typesA ++ typesB)

@@ -134,7 +134,10 @@ parseCSVAtomP attrName tConsMap typ@(ConstructedAtomType _ tvmap) takeToEndOfDat
             case lefts atomArgs of
               [] -> pure (Right (ConstructedAtom dConsName typ (rights atomArgs)))
               errs -> pure (Left (someErrors errs))
-parseCSVAtomP attrName _ (RelationAtomType _) _ = pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
+parseCSVAtomP attrName _ (RelationAtomType _) _ =
+  pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
+parseCSVAtomP attrName _ (SubrelationFoldAtomType _) _ =
+  pure (Left (RelationValuedAttributesNotSupportedError [attrName]))
 parseCSVAtomP _ _ (TypeVariableType x) _ = pure (Left (TypeConstructorTypeVarMissing x))
       
 capitalizedIdentifier :: APT.Parser T.Text

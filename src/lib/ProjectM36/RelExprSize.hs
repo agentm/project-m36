@@ -29,10 +29,11 @@ instance Size (RelationalExprBase a) where
       MakeStaticRelation _ tupSet -> size tupSet
       ExistingRelation (Relation _ tupSet) -> size tupSet
       RelationVariable _ _ -> 0
+      RelationValuedAttribute _ -> 0
       Project _ expr' -> size expr'
       Union exprA exprB -> size exprA + size exprB
       Join exprA exprB -> size exprA + size exprB
-      Rename _ _ expr' -> size expr'
+      Rename _ expr' -> size expr'
       Difference exprA exprB -> size exprA + size exprB
       Group _ _ expr' -> size expr'
       Ungroup _ expr' -> size expr'
@@ -65,6 +66,8 @@ instance Size (AtomExprBase a) where
       FunctionAtomExpr _ exprs _ -> sum (fmap size exprs) + ptrSize (length exprs)
       RelationAtomExpr relexpr -> size relexpr
       ConstructedAtomExpr _ exprs _ -> sum (fmap size exprs) + ptrSize (length exprs)
+      SubrelationAttributeAtomExpr{} -> 0
+      IfThenAtomExpr if' then' else' -> size if' + size then' + size else'
 
 instance Size Atom where
   size atom =
@@ -82,6 +85,7 @@ instance Size Atom where
       RelationAtom rel -> size rel
       RelationalExprAtom expr -> size expr
       ConstructedAtom _ _ atoms -> 8 + sum (fmap size atoms)
+      SubrelationFoldAtom rel _attr -> 8 + size rel
 
 instance Size Relation where
   size (Relation _ tupSet) = size tupSet + ptrSize (length (asList tupSet))

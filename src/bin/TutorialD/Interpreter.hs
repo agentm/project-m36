@@ -1,5 +1,6 @@
-{-# LANGUAGE GADTs, LambdaCase, CPP #-}
+{-# LANGUAGE GADTs, CPP #-}
 module TutorialD.Interpreter where
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
@@ -21,15 +22,12 @@ import TutorialD.Interpreter.Export.Base
 
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Relation.Show.Term
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
 import System.Console.Haskeline
-import System.Directory (getHomeDirectory)
 import qualified Data.Text as T
-import System.IO (hPutStrLn, stderr)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -95,13 +93,11 @@ parseRelationalExpr = parse relExprP ""
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
 
-type InteractiveConsole = Bool
-
-evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO TutorialDOperatorResult
+evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO ConsoleResult
 evalTutorialD sessionId conn safe = evalTutorialDInteractive sessionId conn safe False
 
 --execute the operation and display result
-evalTutorialDInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> ParsedOperation -> IO TutorialDOperatorResult
+evalTutorialDInteractive :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> InteractiveConsole -> ParsedOperation -> IO ConsoleResult
 evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   --this does not pass through the ProjectM36.Client library because the operations
   --are specific to the interpreter, though some operations may be of general use in the future
@@ -220,7 +216,7 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
-    barf :: RelationalError -> IO TutorialDOperatorResult
+    barf :: RelationalError -> IO ConsoleResult
     barf (ScriptError (OtherScriptCompilationError errStr)) = pure (DisplayErrorResult (T.pack errStr))
     barf (ParseError err) = pure (DisplayErrorResult err)
     barf err = return $ DisplayErrorResult (T.pack (show err))
@@ -230,49 +226,17 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
         Left err -> barf err
         Right () -> return QuietSuccessResult
 
-type GhcPkgPath = String
-type TutorialDExec = String
-type CheckFS = Bool
 
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe TutorialDExec) [GhcPkgPath] CheckFS |
-                         RemoteInterpreterConfig C.Hostname C.Port C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
-
-outputNotificationCallback :: C.NotificationCallback
-outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
-
-prettyEvaluatedNotification :: C.EvaluatedNotification -> String
-prettyEvaluatedNotification eNotif = let eRelShow eRel = case eRel of
-                                           Left err -> show err
-                                           Right reportRel -> T.unpack (showRelation reportRel) in
-  eRelShow (C.reportOldRelation eNotif) <> "\n" <> eRelShow (C.reportNewRelation eNotif)
-
-reprLoop :: InterpreterConfig -> C.SessionId -> C.Connection -> IO ()
-reprLoop config sessionId conn = do
-  homeDirectory <- getHomeDirectory
-  let settings = defaultSettings {historyFile = Just (homeDirectory ++ "/.tutd_history")}
-  eHeadName <- C.headName sessionId conn
-  eSchemaName <- C.currentSchemaName sessionId conn
-  let prompt = promptText eHeadName eSchemaName
-      catchInterrupt = handleJust (\case
-                                      UserInterrupt -> Just Nothing
-                                      _ -> Nothing) (\_ -> do
-                                                        hPutStrLn stderr "Statement cancelled. Use \":quit\" to exit tutd."
-                                                        pure (Just ""))
-  maybeLine <- catchInterrupt $ runInputT settings $ getInputLine (T.unpack prompt)
-  case maybeLine of
-    Nothing -> return ()
-    Just line -> do
-      runTutorialD sessionId conn (Just (T.length prompt)) (T.pack line)
-      reprLoop config sessionId conn
 
 
 runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
 runTutorialD sessionId conn mPromptLength tutd =
   case parseTutorialD tutd of
     Left err ->
-      displayOpResult $ DisplayParseErrorResult mPromptLength err
+      displayResult $ DisplayParseErrorResult mPromptLength err
     Right parsed ->
       catchJust (\exc -> if exc == C.RequestTimeoutException then Just exc else Nothing) (do
         evald <- evalTutorialDInteractive sessionId conn UnsafeEvaluation True parsed
-        displayOpResult evald)
-        (\_ -> displayOpResult (DisplayErrorResult "Request timed out."))
+        displayResult evald)
+        (\_ -> displayResult (DisplayErrorResult "Request timed out."))
+

@@ -64,6 +64,7 @@ processTransGraphRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = 
       pure (MakeRelationFromExprs (Just attrExprs') tupleExprs')
 processTransGraphRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processTransGraphRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
+processTransGraphRelationalExpr (RelationValuedAttribute attrName) = pure (RelationValuedAttribute attrName)
 processTransGraphRelationalExpr (RelationVariable rvname transLookup) = 
   RelationVariable rvname <$> findTransId transLookup
 processTransGraphRelationalExpr (Project transAttrNames expr) = 
@@ -72,8 +73,8 @@ processTransGraphRelationalExpr (Union exprA exprB) =
   Union <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Join exprA exprB) =
   Join <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
-processTransGraphRelationalExpr (Rename attrName1 attrName2 expr) =
-  Rename attrName1 attrName2 <$> processTransGraphRelationalExpr expr
+processTransGraphRelationalExpr (Rename attrs expr) =
+  Rename attrs <$> processTransGraphRelationalExpr expr
 processTransGraphRelationalExpr (Difference exprA exprB) =
   Difference <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Group transAttrNames attrName expr) = 
@@ -121,11 +122,14 @@ processTransGraphTupleExpr (TupleExpr attrMap) = do
   
 processTransGraphAtomExpr :: TransGraphAtomExpr -> TransGraphEvalMonad GraphRefAtomExpr
 processTransGraphAtomExpr (AttributeAtomExpr aname) = pure $ AttributeAtomExpr aname
+processTransGraphAtomExpr (SubrelationAttributeAtomExpr relAttr subAttr) = pure $ SubrelationAttributeAtomExpr relAttr subAttr
 processTransGraphAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processTransGraphAtomExpr (FunctionAtomExpr funcName' args tLookup) =
   FunctionAtomExpr funcName' <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
 processTransGraphAtomExpr (RelationAtomExpr expr) =
   RelationAtomExpr <$> processTransGraphRelationalExpr expr
+processTransGraphAtomExpr (IfThenAtomExpr ifE thenE elseE) =
+  IfThenAtomExpr <$> processTransGraphAtomExpr ifE <*> processTransGraphAtomExpr thenE <*> processTransGraphAtomExpr elseE
 processTransGraphAtomExpr (ConstructedAtomExpr dConsName args tLookup) =
   ConstructedAtomExpr dConsName <$> mapM processTransGraphAtomExpr args <*> findTransId tLookup
 evalTransGraphRestrictionPredicateExpr :: TransGraphRestrictionPredicateExpr -> TransGraphEvalMonad GraphRefRestrictionPredicateExpr

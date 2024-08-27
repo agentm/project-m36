@@ -11,6 +11,7 @@ import GHC.Generics (Generic)
 import qualified Data.Text as T
 import Data.Typeable
 import Control.Exception
+import ProjectM36.SQL.Select
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -19,6 +20,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeTypeMismatchError Attributes
                      | AttributeCountMismatchError Int
                      | AttributeNamesMismatchError (S.Set AttributeName)
+                     | AttributeTypesMismatchError Attributes
                      | AttributeNameInUseError AttributeName
                      | AttributeIsNotRelationValuedError AttributeName
                      | CouldNotInferAttributes
@@ -60,6 +62,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | DataConstructorTypeVarsMismatch DataConstructorName TypeVarMap TypeVarMap
                      | AtomFunctionTypeVariableResolutionError FunctionName TypeVarName
                      | AtomFunctionTypeVariableMismatch TypeVarName AtomType AtomType
+                     | IfThenExprExpectedBooleanError AtomType
                      | AtomTypeNameInUseError AtomTypeName
                      | IncompletelyDefinedAtomTypeWithConstructorError
                      | AtomTypeNameNotInUseError AtomTypeName
@@ -110,6 +113,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RegisteredQueryNameInUseError RegisteredQueryName
                      | RegisteredQueryNameNotInUseError RegisteredQueryName
 
+                     | SQLConversionError SQLError
+
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Typeable, NFData) 
 
@@ -121,10 +126,8 @@ data PersistenceError = InvalidDirectoryError FilePath |
 --collapse list of errors into normal error- if there is just one, just return one
 someErrors :: [RelationalError] -> RelationalError                                      
 someErrors [] = error "no errors in error list: function misuse" 
-someErrors errList  = if length errList == 1 then
-                        head errList
-                      else
-                        MultipleErrors errList
+someErrors [err] = err
+someErrors errList = MultipleErrors errList
                         
 data MergeError = SelectedHeadMismatchMergeError |
                   PreferredHeadMissingMergeError HeadName |
@@ -132,7 +135,8 @@ data MergeError = SelectedHeadMismatchMergeError |
                   InvalidMergeStrategyError MergeStrategy | -- this is an internal coding error
                   DisconnectedTransactionNotAMergeHeadError TransactionId |
                   StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
-                  StrategyViolatesRelationVariableMergeError |
+                  StrategyViolatesRelationVariableMergeError RelationalError |
+                  StrategyWithoutPreferredBranchResolutionMergeError |
                   StrategyViolatesTypeConstructorMergeError |
                   StrategyViolatesRegisteredQueryMergeError [RegisteredQueryName]
                   deriving (Show, Eq, Generic, Typeable)
@@ -161,3 +165,27 @@ data ImportError' = InvalidSHA256Error T.Text
                   | ImportFileError T.Text
                   | ImportDownloadError T.Text
                   deriving (Show, Eq, Generic, Typeable, NFData)
+
+data SQLError = NotSupportedError T.Text |
+                TypeMismatchError AtomType AtomType |
+                NoSuchSQLFunctionError FuncName |
+                NoSuchSQLOperatorError OperatorName |
+                DuplicateTableReferenceError TableAlias |
+                MissingTableReferenceError TableAlias |
+                TableAliasMismatchError TableAlias |
+                UnexpectedTableNameError TableName |
+                UnexpectedColumnNameError ColumnName |
+                ColumnNamesMismatch (S.Set UnqualifiedColumnName) (S.Set UnqualifiedColumnName) | -- used for INSERT expressions
+                ColumnResolutionError ColumnName |
+                ColumnAliasResolutionError ColumnAlias |
+                UnexpectedRelationalExprError RelationalExpr |
+                UnexpectedAsteriskError ColumnProjectionName |
+                UnexpectedColumnProjectionName ColumnProjectionName |
+                AmbiguousColumnResolutionError ColumnName |
+                DuplicateColumnAliasError ColumnAlias |
+                AggregateGroupByMismatchError ProjectionScalarExpr |
+                GroupByColumnNotReferencedInGroupByError [ProjectionScalarExpr] |
+                UnsupportedGroupByProjectionError ProjectionScalarExpr |
+                QueryOperatorTypeMismatchError QueryOperator Attributes Attributes |
+                SQLRelationalError RelationalError 
+  deriving (Show, Eq, Generic, Typeable, NFData)

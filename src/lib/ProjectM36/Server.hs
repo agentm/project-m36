@@ -114,7 +114,13 @@ requestHandlers testFlag ti =
                         handleRetrieveDDLAsRelation ti sessionId conn),
      RequestHandler (\sState (RetrieveRegisteredQueries sessionId) -> do
                         conn <- getConn sState
-                        handleRetrieveRegisteredQueries ti sessionId conn)
+                        handleRetrieveRegisteredQueries ti sessionId conn),
+     RequestHandler (\sState (ConvertSQLQuery sessionId q) -> do
+                        conn <- getConn sState
+                        handleConvertSQLQuery ti sessionId conn q),
+     RequestHandler (\sState (ConvertSQLUpdates sessionId updates) -> do
+                        conn <- getConn sState
+                        handleConvertSQLUpdates ti sessionId conn updates)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection
@@ -202,7 +208,7 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig))
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext)
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)

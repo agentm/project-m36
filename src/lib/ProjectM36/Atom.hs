@@ -23,7 +23,7 @@ atomToText (ByteStringAtom i) = (T.pack . show) i
 atomToText (BoolAtom i) = (T.pack . show) i
 atomToText (UUIDAtom u) = (T.pack . show) u
 atomToText (RelationalExprAtom re) = (T.pack . show) re
-
+atomToText (SubrelationFoldAtom rel attrName) = (T.pack . show) rel <> " @" <> attrName
 atomToText (RelationAtom i) = (T.pack . show) i
 atomToText (ConstructedAtom dConsName typ atoms) 
   | isIntervalAtomType typ = case atoms of --special handling for printing intervals

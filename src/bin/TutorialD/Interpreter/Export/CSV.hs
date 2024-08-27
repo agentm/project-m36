@@ -1,5 +1,6 @@
 module TutorialD.Interpreter.Export.CSV where
 import ProjectM36.Relation.Show.CSV
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Export.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.Base hiding (try)

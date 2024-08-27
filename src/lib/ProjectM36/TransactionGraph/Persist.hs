@@ -68,11 +68,9 @@ checkForOtherVersions :: FilePath -> IO (Either PersistenceError ())
 checkForOtherVersions dbdir = do
   versionMatches <- globDir1 (compile "m36v*") dbdir
   let otherVersions = L.delete transactionLogFileName (map takeFileName versionMatches)
-  if not (null otherVersions) then
-     pure (Left (WrongDatabaseFormatVersionError transactionLogFileName (head otherVersions)))
-     else
-     pure (Right ())
- 
+  pure $ case otherVersions of
+    [] -> Right ()
+    x : _ -> Left $ WrongDatabaseFormatVersionError transactionLogFileName x
 
 setupDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (Either PersistenceError (LockFile, LockFileHash))
 setupDatabaseDir sync dbdir bootstrapGraph = do

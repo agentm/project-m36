@@ -3,6 +3,7 @@
 module TutorialD.Interpreter.Import.BasicExamples where
 import ProjectM36.DateExamples
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import ProjectM36.DatabaseContext
 import TutorialD.Interpreter.Base
 
@@ -19,7 +20,7 @@ evalImportBasicExampleOperator ImportBasicDateExampleOperator = databaseContextA
 importBasicExampleOperatorP :: Parser ImportBasicExampleOperator
 importBasicExampleOperatorP = do 
   reservedOp ":importexample"
-  example <- identifier
+  example <- identifierP
   if example == "cjdate" then
     pure ImportBasicDateExampleOperator
     else

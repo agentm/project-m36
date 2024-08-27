@@ -24,12 +24,10 @@ emptyDatabaseContextFunction name = Function {
   }
 
 databaseContextFunctionForName :: FunctionName -> DatabaseContextFunctions -> Either RelationalError DatabaseContextFunction
-databaseContextFunctionForName funcName' funcs = if HS.null foundFunc then
-                                                   Left $ NoSuchFunctionError funcName'
-                                                else
-                                                  Right (head (HS.toList foundFunc))
-  where
-    foundFunc = HS.filter (\f -> funcName f == funcName') funcs
+databaseContextFunctionForName funcName' funcs =
+  case HS.toList $ HS.filter (\f -> funcName f == funcName') funcs of
+    [] -> Left $ NoSuchFunctionError funcName'
+    x : _ -> Right x
 
 evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 evalDatabaseContextFunction func args ctx =

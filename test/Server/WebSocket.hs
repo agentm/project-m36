@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, TypeApplications #-}
 -- test the websocket server
 import Test.HUnit
 import qualified Network.WebSockets as WS
@@ -6,7 +6,6 @@ import ProjectM36.Server.WebSocket
 import ProjectM36.Server.Config
 import ProjectM36.Server
 import ProjectM36.Client
-import ProjectM36.Base
 
 import Network.Socket
 import Control.Exception
@@ -15,10 +14,10 @@ import System.Exit
 import Data.Typeable
 import Data.Text hiding (map)
 import Data.Aeson
-import qualified Data.Map as M
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation
 import Control.Monad (void)
+import Data.UUID.V4 (nextRandom)
 
 --start the websocket server
 -- run some tutoriald against it
@@ -75,35 +74,55 @@ basicConnection :: PortNumber -> WS.ClientApp () -> IO ()
 basicConnection port = WS.runClient "127.0.0.1" (fromIntegral port) "/"
 
 basicConnectionWithDatabase :: PortNumber -> DatabaseName -> WS.ClientApp () -> IO ()
-basicConnectionWithDatabase port dbname block = basicConnection port (\conn -> do
-                                                                WS.sendTextData conn ("connectdb:" `append` pack dbname)
-                                                                block conn)
+basicConnectionWithDatabase port dbname block = basicConnection port
+  (\conn -> do
+      --setup connection
+      let connectMsg = encode (ConnectionSetupRequest dbname)
+      WS.sendTextData conn connectMsg
+      setupResponse <- WS.receiveData conn
+      case eitherDecode setupResponse of
+        Left err -> error (show err)
+        Right ConnectionSetupResponse{} -> pure ()
+        Right _other -> error (show setupResponse)
+      block conn)
     
 testBasicConnection :: PortNumber -> DatabaseName -> Test
-testBasicConnection port _ = TestCase $ basicConnection port (\conn -> WS.sendClose conn ("test close"::Text))
+testBasicConnection port _ = TestCase $ basicConnection port (\conn -> WS.sendClose conn (""::Text))
 
 testTutorialD :: PortNumber -> DatabaseName -> Test
 testTutorialD port dbname = TestCase $ basicConnectionWithDatabase port dbname testtutd
   where
     discardPromptInfo conn = do
       response <- WS.receiveData conn :: IO BS.ByteString
-      let decoded = decode response :: Maybe (M.Map Text (M.Map Text Text))
-      case decoded of
-        Just _ -> pure ()
-        Nothing ->  assertFailure ("failed to decode prompt info: " ++ show response)
+      case eitherDecode @Response response of
+        Right _promptInfo -> pure ()
+        Left err -> assertFailure ("failed to decode prompt info: " ++ err ++ ": " ++ show response)
       
     testtutd conn = do
-      discardPromptInfo conn
-      WS.sendTextData conn ("executetutd/json:" `append` ":showexpr true")
-      discardPromptInfo conn
+      -- create new session at master
+      reqId <- RequestId <$> nextRandom
+      let createSessionMsg = encode (CreateSessionAtHeadRequest reqId "master")
+      WS.sendTextData conn createSessionMsg
+      sessionResponse <- WS.receiveData conn :: IO BS.ByteString
+      sessionId <- case eitherDecode sessionResponse of
+                     Left err -> assertFailure err
+                     Right (CreateSessionAtHeadResponse reqId' sid) -> do
+                       assertEqual "request ID round-trip" reqId' reqId
+                       pure sid
+                     Right _other -> assertFailure ("expected session response but got: " <> show sessionResponse)
+      -- send tutd message
+      reqIdB <- RequestId <$> nextRandom
+      let tutdMsg = encode (ExecuteTutorialDRequest reqIdB sessionId jsonOnlyPresentation (TutorialDText ":showexpr true"))
+      WS.sendTextData conn tutdMsg
       discardPromptInfo conn
       
       --receive relation response
       response <- WS.receiveData conn :: IO BS.ByteString      
-      let decoded = decode response :: Maybe (M.Map Text (M.Map Text Relation))
+      let decoded = decode @Response response 
       case decoded of 
         Nothing -> assertFailure "failed to decode"
-        Just decoded' -> do
-            assertEqual "round-trip true relation" ((decoded' M.! "displayrelation") M.! "json") relationTrue 
-            WS.sendClose conn ("test close" :: Text)
+        Just (RelationResponse _ trueRel _) -> do
+            assertEqual "round-trip true relation" trueRel relationTrue 
+            WS.sendClose conn ("" :: Text)
+        Just _other -> assertFailure ("unexpected response: " <> show response)
 

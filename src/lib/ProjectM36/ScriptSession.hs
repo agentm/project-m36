@@ -22,15 +22,40 @@ import System.Environment
 
 import Unsafe.Coerce
 import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,ImplicitPrelude,ScopedTypeVariables))
-
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,6,0)
+import Data.List.NonEmpty(NonEmpty(..))
+#else
+#endif
+#if MIN_VERSION_ghc(9,6,0)
+#else
+#endif
+#if MIN_VERSION_ghc(9,6,0)
+import GHC.Core.TyCo.Compare (eqType)
+#elif MIN_VERSION_ghc(9,0,0)
+import GHC.Core.Type (eqType)
+#else
+import Type (eqType)
+#endif
+#if MIN_VERSION_ghc(9,6,0)
+#elif MIN_VERSION_ghc(9,0,0)
+import GHC.Unit.Types (IsBootInterface(NotBoot))
+#else
+#endif
+#if MIN_VERSION_ghc(9,4,0)
+import GHC.Utils.Panic (handleGhcException)
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Types.SourceText (SourceText(NoSourceText))
+import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Core.TyCo.Ppr (pprType)
+import GHC.Utils.Encoding (zEncodeString)
+import GHC.Unit.State (emptyUnitState)
+import GHC.Types.PkgQual (RawPkgQual(NoRawPkgQual))
+#elif MIN_VERSION_ghc(9,2,0)
 -- GHC 9.2.2
 import GHC.Utils.Panic (handleGhcException)
 import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
 import GHC.Types.SourceText (SourceText(NoSourceText))
-import GHC.Unit.Types (IsBootInterface(NotBoot))
 import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Core.Type (eqType)
 import GHC.Types.TyThing.Ppr (pprTypeForUser)
 import GHC.Utils.Encoding (zEncodeString)
 import GHC.Unit.State (emptyUnitState)
@@ -39,8 +64,6 @@ import GHC.Unit.State (emptyUnitState)
 import GHC.Utils.Panic (handleGhcException)
 import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
 import GHC.Types.Basic (SourceText(NoSourceText))
-import GHC.Unit.Types (IsBootInterface(NotBoot))
-import GHC.Core.Type (eqType)
 import GHC.Utils.Outputable (showSDocForUser)
 import GHC.Utils.Encoding (zEncodeString)
 import GHC.Core.Ppr.TyThing (pprTypeForUser)
@@ -49,7 +72,6 @@ import GHC.Core.Ppr.TyThing (pprTypeForUser)
 import BasicTypes (SourceText(NoSourceText))
 import Outputable (showSDocForUser)
 import PprTyThing (pprTypeForUser)
-import Type (eqType)
 import Encoding (zEncodeString)
 import Panic (handleGhcException)
 import DynFlags (projectVersion, PkgConfRef(PkgConfFile), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming), PackageDBFlag(PackageDB))
@@ -115,7 +137,9 @@ initScriptSession ghcPkgPaths = do
     let localPkgPaths = map pkgConf (ghcPkgPaths ++ sandboxPkgPaths ++ maybeToList mNixLibDir)
 
     let dflags' = applyGopts . applyXopts $ dflags {
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,6,0)
+                           backend = interpreterBackend,
+#elif MIN_VERSION_ghc(9,2,0)
                            backend = Interpreter,
 #else  
                            hscTarget = HscInterpreted ,
@@ -154,13 +178,32 @@ initScriptSession ghcPkgPaths = do
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
     let safeImportDecl :: String -> Maybe String -> ImportDecl (GhcPass 'Parsed)
-        safeImportDecl fullModuleName mQualifiedName = ImportDecl {
+        safeImportDecl fullModuleName _mQualifiedName = ImportDecl {
+#if MIN_VERSION_ghc(9,6,0)
+#else
           ideclSourceSrc = NoSourceText,
-
-#if MIN_VERSION_ghc(9,2,0)
+#endif
+#if MIN_VERSION_ghc(9,6,0)
+          ideclImportList = Nothing,
+#endif
+#if MIN_VERSION_ghc(9,10,0)
+          ideclExt = XImportDeclPass
+            { ideclAnn = noAnn
+            , ideclSourceText = NoSourceText
+            , ideclImplicit = False
+            },
+#elif MIN_VERSION_ghc(9,6,0)
+          ideclExt = XImportDeclPass
+            { ideclAnn = EpAnnNotUsed
+            , ideclSourceText = NoSourceText
+            , ideclImplicit = False
+            },
+#elif MIN_VERSION_ghc(9,2,0)
           ideclExt = noAnn,
+          ideclImplicit  = False,
 #else
           ideclExt = noExtField,
+          ideclImplicit  = False,
 #endif
 #if MIN_VERSION_ghc(9,2,0)
           --GenLocated SrcSpanAnnA ModuleName
@@ -168,22 +211,29 @@ initScriptSession ghcPkgPaths = do
 #else
           ideclName      = noLoc (mkModuleName fullModuleName),
 #endif
+#if MIN_VERSION_ghc(9,4,0)
+          ideclPkgQual   = NoRawPkgQual,
+#else
           ideclPkgQual   = Nothing,
+#endif
 #if MIN_VERSION_ghc(9,0,0)
           ideclSource    = NotBoot,
 #else
           ideclSource    = False,
 #endif
-
-          ideclSafe      = True,
-          ideclImplicit  = False,
-          ideclQualified = if isJust mQualifiedName then QualifiedPre else NotQualified,
-#if MIN_VERSION_ghc(9,2,0)
+          ideclQualified = if isJust _mQualifiedName then QualifiedPre else NotQualified,
+#if MIN_VERSION_ghc(9,6,0)
+          ideclAs        = Nothing,
+#elif MIN_VERSION_ghc(9,2,0)
           ideclAs        = Just (noLocA (mkModuleName fullModuleName)),
 #else
-          ideclAs        = noLoc . mkModuleName <$> mQualifiedName,
+          ideclAs        = noLoc . mkModuleName <$> _mQualifiedName,
 #endif
-          ideclHiding    = Nothing
+#if MIN_VERSION_ghc(9,6,0)
+#else
+          ideclHiding    = Nothing,
+#endif
+          ideclSafe      = True
           }
         unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl modn Nothing) [
           "Prelude",
@@ -212,7 +262,9 @@ addImport moduleNam = do
   setContext (IIDecl (simpleImportDecl (mkModuleName moduleNam)) : ctx)
 
 showType :: DynFlags -> Type -> String
-#if MIN_VERSION_ghc(9,2,0)
+#if MIN_VERSION_ghc(9,4,0)
+showType dflags ty = showSDocForUser dflags emptyUnitState alwaysQualify (pprType ty)  
+#elif MIN_VERSION_ghc(9,2,0)
 showType dflags ty = showSDocForUser dflags emptyUnitState alwaysQualify (pprTypeForUser ty)
 #else
 showType dflags ty = showSDocForUser dflags alwaysQualify (pprTypeForUser ty)
@@ -222,9 +274,14 @@ mkTypeForName :: String -> Ghc Type
 mkTypeForName name = do
   lBodyName <- parseName name
   case lBodyName of
+#if MIN_VERSION_ghc(9,6,0)
+    _ :| (_:_) -> error "too many name matches"
+    bodyName :| _ -> do
+#else
     [] -> error ("failed to parse " ++ name)
     _:_:_ -> error "too many name matches"
     [bodyName] -> do
+#endif
       mThing <- lookupName bodyName
       case mThing of
         Nothing -> error ("failed to find " ++ name)

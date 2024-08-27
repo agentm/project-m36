@@ -68,7 +68,6 @@ indicesForAttributeNames attrNamessToFind attrs =
     finder nam =
       (nam, V.findIndex (\x -> attributeName x == nam) (attributesVec attrs))
 
-
 relationForAttributeName :: AttributeName -> RelationTuple -> Either RelationalError Relation
 relationForAttributeName attrName tuple = do
   aType <- atomTypeForAttributeName attrName (tupleAttributes tuple)
@@ -83,6 +82,9 @@ tupleRenameAttribute :: AttributeName -> AttributeName -> RelationTuple -> Relat
 tupleRenameAttribute oldattr newattr (RelationTuple tupAttrs tupVec) = RelationTuple newAttrs tupVec
   where
     newAttrs = renameAttributes oldattr newattr tupAttrs
+
+tupleRenameAttributes :: S.Set (AttributeName, AttributeName) -> RelationTuple -> RelationTuple
+tupleRenameAttributes attrsAssoc tup = foldr (\(a,b) tup' -> tupleRenameAttribute a b tup') tup (S.toList attrsAssoc)
 
 mkRelationTuple :: Attributes -> V.Vector Atom -> RelationTuple
 mkRelationTuple = RelationTuple 
@@ -116,22 +118,29 @@ singleTupleSetJoin tup1 tupSet = HS.union
   where
     mapper tup2 = singleTupleJoin tup1 tup2
 -}
-            
+
 -- if the keys share some keys and values, then merge the tuples
 -- if there are shared attributes, if they match, create a new tuple from the atoms of both tuples based on the attribute ordering argument
 singleTupleJoin :: Attributes -> RelationTuple -> RelationTuple -> Either RelationalError (Maybe RelationTuple)
-singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = if
-  V.null keysIntersection || atomsForAttributeNames keysIntersection tup1 /= atomsForAttributeNames keysIntersection tup2
-  then
-    return Nothing
-  else
-    return $ Just $ RelationTuple joinedAttrs newVec
+singleTupleJoin joinedAttrs tup1@(RelationTuple tupAttrs1 _) tup2@(RelationTuple tupAttrs2 _) = do
+    k1 <- atomsForAttributeNames keysIntersection tup1
+    k2 <- atomsForAttributeNames keysIntersection tup2
+    pure $ if k1 == k2
+      then Just $ RelationTuple joinedAttrs newVec
+      else Nothing
   where
+    keysIntersection :: V.Vector AttributeName
     keysIntersection = V.map attributeName attrsIntersection
+    attrsIntersection :: V.Vector Attribute
     attrsIntersection = V.filter (`V.elem` attributesVec tupAttrs1) (attributesVec tupAttrs2)
-    newVec = V.map (findAtomForAttributeName . attributeName) (attributesVec joinedAttrs)
+    newVec :: V.Vector Atom
+    newVec = V.mapMaybe (findAtomForAttributeName . attributeName) (attributesVec joinedAttrs)
     --search both tuples for the attribute
-    findAtomForAttributeName attrName = head $ rights $ fmap (atomForAttributeName attrName) [tup1, tup2]
+    findAtomForAttributeName :: AttributeName -> Maybe Atom
+    findAtomForAttributeName attrName =
+      case rights $ atomForAttributeName attrName <$> [tup1, tup2] of
+        [] -> Nothing
+        x : _ -> Just x
 
 --same consideration as Data.List.union- duplicates in v1 are not de-duped
 vectorUnion :: (Eq a) => V.Vector a -> V.Vector a -> V.Vector a
@@ -223,6 +232,7 @@ trimTuple index (RelationTuple attrs vals) =
     newAttrs = A.drop index attrs
 
 -- | Used in tuple context evaluation- the first tuple can replace atoms of the second if the attribute names overlap.
+{-
 mergeTuples :: RelationTuple -> RelationTuple -> RelationTuple
 mergeTuples tup1 tup2 =
   V.foldr folder tup2 attrsToAdd
@@ -248,3 +258,4 @@ mergeTuples tup1 tup2 =
 extendTupleAtom :: Attribute -> Atom -> RelationTuple -> RelationTuple
 extendTupleAtom attrAdd atomAdd tupIn =
   RelationTuple (addAttribute attrAdd (tupleAttributes tupIn)) (V.snoc (tupleAtoms tupIn) atomAdd)
+-}

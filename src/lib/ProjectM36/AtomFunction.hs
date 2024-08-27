@@ -13,15 +13,15 @@ import qualified Data.Text as T
 
 foldAtomFuncType :: AtomType -> AtomType -> [AtomType]
 --the underscore in the attribute name means that any attributes are acceptable
-foldAtomFuncType foldType returnType = [RelationAtomType (A.attributesFromList [Attribute "_" foldType]), returnType]
+foldAtomFuncType foldType returnType =
+  [SubrelationFoldAtomType foldType,
+   returnType]
 
 atomFunctionForName :: FunctionName -> AtomFunctions -> Either RelationalError AtomFunction
-atomFunctionForName funcName' funcSet = if HS.null foundFunc then
-                                         Left $ NoSuchFunctionError funcName'
-                                        else
-                                         Right $ head $ HS.toList foundFunc
-  where
-    foundFunc = HS.filter (\f -> funcName f == funcName') funcSet
+atomFunctionForName funcName' funcSet =
+  case HS.toList  $ HS.filter (\f -> funcName f == funcName') funcSet of
+    [] -> Left $ NoSuchFunctionError funcName'
+    x : _ -> Right x
 
 -- | Create a junk named atom function for use with searching for an already existing function in the AtomFunctions HashSet.
 emptyAtomFunction :: FunctionName -> AtomFunction

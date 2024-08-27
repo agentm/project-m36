@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, CPP #-}
+{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Base (
   module TutorialD.Interpreter.Base,
   module Text.Megaparsec,
@@ -13,14 +13,12 @@ module TutorialD.Interpreter.Base (
 import ProjectM36.Base
 import ProjectM36.AtomType
 import ProjectM36.Attribute as A
-import ProjectM36.Relation
-import ProjectM36.DataFrame
+import ProjectM36.Interpreter
 
 #if MIN_VERSION_megaparsec(6,0,0)
 import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
-import Data.Void
 import Control.Applicative hiding (many, some)
 #else
 import Text.Megaparsec.Text
@@ -28,19 +26,13 @@ import qualified Text.Megaparsec.Lexer as Lex
 #endif
 
 import Data.Text hiding (count)
-import System.Random
 import qualified Data.Text as T
 import qualified Data.List as L
-import qualified Data.Text.IO as TIO
-import System.IO
-import ProjectM36.Relation.Show.Term
-import GHC.Generics
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
 import qualified Data.UUID as U
 import Control.Monad.Random
-import Data.List.NonEmpty as NE
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Char
@@ -50,36 +42,8 @@ anySingle :: Parsec Void Text (Token Text)
 anySingle = anyChar
 #endif
 
-displayOpResult :: TutorialDOperatorResult -> IO ()
-displayOpResult QuitResult = return ()
-displayOpResult (DisplayResult out) = TIO.putStrLn out
-displayOpResult (DisplayIOResult ioout) = ioout
-displayOpResult (DisplayErrorResult err) = let outputf = if T.length err > 0 && T.last err /= '\n' then TIO.hPutStrLn else TIO.hPutStr in
-  outputf stderr ("ERR: " <> err)
-displayOpResult QuietSuccessResult = return ()
-displayOpResult (DisplayRelationResult rel) = do
-  gen <- newStdGen
-  let randomlySortedRel = evalRand (randomizeTupleOrder rel) gen
-  TIO.putStrLn (showRelation randomlySortedRel)
-displayOpResult (DisplayParseErrorResult mPromptLength err) = do
-#if MIN_VERSION_megaparsec(7,0,0)
-  let errorIndent = errorOffset . NE.head . bundleErrors $ err
-      errString = T.pack (parseErrorPretty . NE.head . bundleErrors $ err)
-#else
-  let errorIndent = unPos (sourceColumn (NE.head (errorPos err)))
-      errString = T.pack (parseErrorPretty err)
-#endif
-      pointyString len = T.justifyRight (len + fromIntegral errorIndent) '_' "^"
-  maybe (pure ()) (TIO.putStrLn . pointyString) mPromptLength
-  TIO.putStr ("ERR:" <> errString)
-displayOpResult (DisplayDataFrameResult dFrame) = TIO.putStrLn (showDataFrame dFrame)
 
-#if MIN_VERSION_megaparsec(6,0,0)
-type Parser = Parsec Void Text
 type ParseStr = Text
-#else
-type ParseStr = String
-#endif
 
 -- consumes only horizontal spaces
 spaceConsumer :: Parser ()
@@ -105,10 +69,12 @@ identifier = do
   istart <- letterChar <|> char '_'
   identifierRemainder istart
 
+identifierP :: Parser Text
+identifierP = identifier <* spaceConsumer
+
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do
   rest <- many (alphaNumChar <|> char '_' <|> char '#')
-  spaceConsumer
   pure (pack (c:rest))
 
 symbol :: ParseStr -> Parser Text
@@ -184,25 +150,6 @@ showRelationAttributes attrs = "{" <> T.concat (L.intersperse ", " $ L.map showA
     showAttribute (Attribute name atomType') = name <> " " <> prettyAtomType atomType'
     attrsL = A.toList attrs
 
-type PromptLength = Int
-
-#if MIN_VERSION_megaparsec(7,0,0)
-type ParserError = ParseErrorBundle T.Text Void
-#elif MIN_VERSION_megaparsec(6,0,0)
-type ParserError = ParseError Char Void
-#else
-type ParserError = ParseError Char Dec
-#endif
-
-data TutorialDOperatorResult = QuitResult |
-                               DisplayResult StringType |
-                               DisplayIOResult (IO ()) |
-                               DisplayRelationResult Relation |
-                               DisplayDataFrameResult DataFrame |
-                               DisplayErrorResult StringType |
-                               DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text
-                               QuietSuccessResult
-                               deriving (Generic)
 
 type TransactionGraphWasUpdated = Bool
 

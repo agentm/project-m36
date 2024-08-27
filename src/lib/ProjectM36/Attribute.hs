@@ -150,6 +150,11 @@ renameAttributes oldAttrName newAttrName attrs = Attributes {
                    else
                      attr
 
+renameAttributes' :: S.Set (AttributeName, AttributeName) -> Attributes -> Attributes
+renameAttributes' renameSet attrs = 
+  foldr (\(old, new) acc -> renameAttributes old new acc) attrs renameSet
+    
+
 atomTypeForAttributeName :: AttributeName -> Attributes -> Either RelationalError AtomType
 atomTypeForAttributeName attrName attrs = do
   (Attribute _ atype) <- attributeForName attrName attrs
@@ -186,6 +191,9 @@ attributeNameSet attrs = S.fromList $ V.toList $ V.map (\(Attribute name _) -> n
 
 attributeNames :: Attributes -> V.Vector AttributeName
 attributeNames attrs = V.map attributeName (attributesVec attrs)
+
+attributeNamesList :: Attributes -> [AttributeName]
+attributeNamesList = V.toList . attributeNames
 
 --checks if set s1 is wholly contained in the set s2
 attributesContained :: Attributes -> Attributes -> Bool
@@ -240,7 +248,7 @@ verifyAttributes :: Attributes -> Either RelationalError Attributes
 verifyAttributes attrs =
   if vecSet == attributesSet attrs then
     pure attrs
-  else
+  else do
     Left (TupleAttributeTypeMismatchError diffAttrs)
   where
     vecSet = V.foldr' HS.insert HS.empty (attributesVec attrs)

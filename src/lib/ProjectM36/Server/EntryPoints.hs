@@ -3,6 +3,8 @@ module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base hiding (inclusionDependencies)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.HashSecurely
+import ProjectM36.SQL.Select
+import ProjectM36.SQL.DBUpdate
 import ProjectM36.Client as C
 import Data.Map
 import Control.Concurrent (threadDelay)
@@ -161,3 +163,9 @@ handleRetrieveDDLAsRelation ti sessionId conn =
 handleRetrieveRegisteredQueries :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
 handleRetrieveRegisteredQueries ti sessionId conn =
   timeoutRelErr ti (C.registeredQueriesAsRelation sessionId conn)
+
+handleConvertSQLQuery :: Maybe Timeout -> SessionId -> Connection -> Query -> IO (Either RelationalError DataFrameExpr)
+handleConvertSQLQuery ti sessionId conn sel = timeoutRelErr ti (C.convertSQLQuery sessionId conn sel)
+
+handleConvertSQLUpdates :: Maybe Timeout -> SessionId -> Connection -> [DBUpdate] -> IO (Either RelationalError DatabaseContextExpr)
+handleConvertSQLUpdates ti sessionId conn ups = timeoutRelErr ti (C.convertSQLDBUpdates sessionId conn ups)

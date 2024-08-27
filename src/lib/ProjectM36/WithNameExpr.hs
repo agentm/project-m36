@@ -1,21 +1,23 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
---import qualified Data.Set as S
---import ProjectM36.Error
+import Data.List (find)
 
+lookup :: RelVarName -> WithNamesAssocsBase a -> Maybe (RelationalExprBase a)
+lookup matchrv assocs =
+  snd <$> find (\(WithNameExpr rv _, _) -> rv == matchrv) assocs
+  
 -- substitute all instances of With-based macros to remove macro context
 -- ideally, we would use a different relational expr type to "prove" that the with macros can no longer exist
-type WithNameAssocs = [(GraphRefWithNameExpr, GraphRefRelationalExpr)]
-
 -- | Drop macros into the relational expression wherever they are referenced.
 substituteWithNameMacros ::
-  WithNameAssocs ->
+  GraphRefWithNameAssocs ->
   GraphRefRelationalExpr ->
   GraphRefRelationalExpr
 substituteWithNameMacros _ e@MakeRelationFromExprs{} = e
 substituteWithNameMacros _ e@MakeStaticRelation{} = e
 substituteWithNameMacros _ e@ExistingRelation{} = e
+substituteWithNameMacros _ e@RelationValuedAttribute{} = e
 substituteWithNameMacros macros e@(RelationVariable rvname tid) =
   let
     macroFilt (WithNameExpr macroName macroTid, _) = rvname == macroName && tid== macroTid in
@@ -24,13 +26,13 @@ substituteWithNameMacros macros e@(RelationVariable rvname tid) =
     [(_,replacement)] -> replacement
     _ -> error "more than one macro matched!"
 substituteWithNameMacros macros (Project attrs expr) =
-  Project attrs (substituteWithNameMacros macros expr)
+  Project (substituteWithNameMacrosAttributeNames macros attrs) (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Union exprA exprB) =
   Union (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Join exprA exprB) =
   Join (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
-substituteWithNameMacros macros (Rename attrA attrB expr) =
-  Rename attrA attrB (substituteWithNameMacros macros expr)
+substituteWithNameMacros macros (Rename attrs expr) =
+  Rename attrs (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Difference exprA exprB) =
   Difference (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Group attrs attr expr) =
@@ -55,7 +57,7 @@ substituteWithNameMacros macros (With moreMacros expr) =
   substituteWithNameMacros newMacros expr
 
 
-substituteWithNameMacrosRestrictionPredicate :: WithNameAssocs -> GraphRefRestrictionPredicateExpr -> GraphRefRestrictionPredicateExpr
+substituteWithNameMacrosRestrictionPredicate :: GraphRefWithNameAssocs -> GraphRefRestrictionPredicateExpr -> GraphRefRestrictionPredicateExpr
 substituteWithNameMacrosRestrictionPredicate macros pred' =
   let sub = substituteWithNameMacrosRestrictionPredicate macros in
   case pred' of
@@ -73,21 +75,25 @@ substituteWithNameMacrosRestrictionPredicate macros pred' =
     AttributeEqualityPredicate attrName atomExpr ->
       AttributeEqualityPredicate attrName (substituteWithNameMacrosAtomExpr macros atomExpr)
 
-substituteWitNameMacrosExtendTupleExpr :: WithNameAssocs -> GraphRefExtendTupleExpr -> GraphRefExtendTupleExpr
+substituteWitNameMacrosExtendTupleExpr :: GraphRefWithNameAssocs -> GraphRefExtendTupleExpr -> GraphRefExtendTupleExpr
 substituteWitNameMacrosExtendTupleExpr macros (AttributeExtendTupleExpr attrName atomExpr) =
   AttributeExtendTupleExpr attrName (substituteWithNameMacrosAtomExpr macros atomExpr)
 
-substituteWithNameMacrosAtomExpr :: WithNameAssocs -> GraphRefAtomExpr -> GraphRefAtomExpr
+substituteWithNameMacrosAtomExpr :: GraphRefWithNameAssocs -> GraphRefAtomExpr -> GraphRefAtomExpr
 substituteWithNameMacrosAtomExpr macros atomExpr =
   case atomExpr of
     e@AttributeAtomExpr{} -> e
+    e@SubrelationAttributeAtomExpr{} -> e
     e@NakedAtomExpr{} -> e
     FunctionAtomExpr fname atomExprs tid ->
       FunctionAtomExpr fname (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
     RelationAtomExpr reExpr ->
       RelationAtomExpr (substituteWithNameMacros macros reExpr)
+    IfThenAtomExpr ifE thenE elseE ->
+      IfThenAtomExpr (substituteWithNameMacrosAtomExpr macros ifE) (substituteWithNameMacrosAtomExpr macros thenE) (substituteWithNameMacrosAtomExpr macros elseE)
     ConstructedAtomExpr dconsName atomExprs tid ->
       ConstructedAtomExpr dconsName (map (substituteWithNameMacrosAtomExpr macros) atomExprs) tid
+
 
 {-
 -- | Return error if with clause name is shadowed. We're not sure if name shadowing is a useful feature or a footgun, so disable it for now.
@@ -143,3 +149,18 @@ instance ValidateWith GraphRefRelationalExpr where
          
       
 -}
+
+substituteWithNameMacrosAttributeNames :: GraphRefWithNameAssocs -> GraphRefAttributeNames -> GraphRefAttributeNames
+substituteWithNameMacrosAttributeNames macros attrNames =
+  case attrNames of
+    AttributeNames{} -> attrNames
+    InvertedAttributeNames{} -> attrNames
+    UnionAttributeNames a b ->
+      UnionAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
+    IntersectAttributeNames a b ->
+      IntersectAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
+    RelationalExprAttributeNames relExpr ->
+      RelationalExprAttributeNames (substituteWithNameMacros macros relExpr)
+
+      
+

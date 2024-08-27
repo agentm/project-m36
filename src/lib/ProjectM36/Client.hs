@@ -49,6 +49,8 @@ module ProjectM36.Client
        defaultHeadName,
        addClientNode,
        getDDLHash,
+       convertSQLQuery,
+       convertSQLDBUpdates,
        PersistenceStrategy(..),
        RelationalExpr,
        RelationalExprBase(..),
@@ -106,12 +108,14 @@ module ProjectM36.Client
        TupleExprsBase(..),
        AtomExprBase(..),
        RestrictionPredicateExprBase(..),
-       withTransaction
+       withTransaction,
+       basicDatabaseContext
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
 import ProjectM36.Serialise.Error ()
 import ProjectM36.Error
+import ProjectM36.DatabaseContext
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
@@ -119,9 +123,11 @@ import ProjectM36.Key
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
-import Control.Monad.State
+#if MIN_VERSION_base(4,16,0)
+import Control.Monad (forever, forM, forM_, unless, void)
+#endif
+--import Control.Monad.State
 import qualified ProjectM36.RelationalExpression as RE
-import ProjectM36.DatabaseContext (basicDatabaseContext)
 import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph as TG
 import qualified ProjectM36.Transaction as Trans
@@ -171,6 +177,9 @@ import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
 import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
+import ProjectM36.SQL.Select as SQL
+import ProjectM36.SQL.DBUpdate as SQL
+import ProjectM36.SQL.Convert 
 
 type Hostname = String
 
@@ -196,7 +205,7 @@ data RequestTimeoutException = RequestTimeoutException
 instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] |
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DatabaseContext |
                       RemoteConnectionInfo DatabaseName Hostname ServiceName NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
@@ -263,11 +272,10 @@ createScriptSession ghcPkgPaths = do
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext) = do
   freshId <- nextRandom
   tstamp <- getCurrentTime
-  let bootstrapContext = basicDatabaseContext 
-      freshGraph = bootstrapTransactionGraph tstamp freshId bootstrapContext
+  let freshGraph = bootstrapTransactionGraph tstamp freshId bootstrapDatabaseContext
   case strat of
     --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
@@ -1124,6 +1132,46 @@ getDDLHash sessionId (InProcessConnection conf) = do
         graph <- readTVar (ipTransactionGraph conf)
         pure (ddlHash ctx graph)
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
+
+-- | Convert a SQL Query expression into a DataFrameExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant DataFrameExpr has come from SQL.
+convertSQLQuery :: SessionId -> Connection -> Query -> IO (Either RelationalError DF.DataFrameExpr)
+convertSQLQuery sessionId (InProcessConnection conf) query = do
+  let sessions = ipSessions conf
+      graphTvar = ipTransactionGraph conf  
+  atomically $ do
+    transGraph <- readTVar graphTvar    
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
+        let ctx = Sess.concreteDatabaseContext session
+            reEnv = RE.mkRelationalExprEnv ctx transGraph
+            typeF expr =
+              RE.runRelationalExprM reEnv (RE.typeForRelationalExpr expr) 
+        -- convert SQL data into DataFrameExpr
+        case evalConvertM mempty (convertQuery typeF query) of
+          Left err -> pure (Left (SQLConversionError err))
+          Right dfExpr -> pure (Right dfExpr)
+convertSQLQuery sessionId conn@RemoteConnection{} q = remoteCall conn (ConvertSQLQuery sessionId q)
+
+convertSQLDBUpdates :: SessionId -> Connection -> [SQL.DBUpdate] -> IO (Either RelationalError DatabaseContextExpr)
+convertSQLDBUpdates sessionId (InProcessConnection conf) updates = do
+  let sessions = ipSessions conf
+      graphTvar = ipTransactionGraph conf  
+  atomically $ do
+    transGraph <- readTVar graphTvar    
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
+        let ctx = Sess.concreteDatabaseContext session
+            reEnv = RE.mkRelationalExprEnv ctx transGraph
+            typeF = optimizeAndEvalRelationalExpr reEnv -- TODO: replace with typeForRelationalExpr
+        -- convert SQL data into DataFrameExpr
+        case evalConvertM mempty (convertDBUpdates typeF updates) of
+          Left err -> pure (Left (SQLConversionError err))
+          Right updateExpr -> pure (Right updateExpr)
+convertSQLDBUpdates sessionId conn@RemoteConnection{} ups = remoteCall conn (ConvertSQLUpdates sessionId ups)   
 
 registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 registeredQueriesAsRelation sessionId (InProcessConnection conf) = do

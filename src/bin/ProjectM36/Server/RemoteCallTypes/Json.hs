@@ -12,6 +12,7 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.MerkleHash
 import ProjectM36.Attribute as A
+import ProjectM36.SQL.Select
 
 import Data.Aeson
 import Data.ByteString.Base64 as B64
@@ -109,6 +110,11 @@ instance ToJSON Atom where
                                       "val" .= u ]
   toJSON atom@(RelationAtom i) = object [ "type" .= atomTypeForAtom atom,
                                           "val" .= i ]
+  toJSON atom@(SubrelationFoldAtom rel attrName) = object [ "type" .= atomTypeForAtom atom,
+                                                            "val" .=
+                                                            object [ "relation" .= rel,
+                                                                     "attributeName" .= attrName]
+                                                          ]
   toJSON atom@(RelationalExprAtom i) = object [ "type" .= atomTypeForAtom atom,
                                             "val" .= i ]
   toJSON (ConstructedAtom dConsName atomtype atomlist) = object [
@@ -147,6 +153,9 @@ instance FromJSON Atom where
           Just u -> pure $ UUIDAtom u
           Nothing -> fail "Invalid UUID String"
       RelationalExprAtomType -> RelationalExprAtom <$> o .: "val"
+      SubrelationFoldAtomType _ -> do
+        val <- o .: "val"
+        SubrelationFoldAtom <$> val .: "relation" <*> val .: "attributeName"
 
 instance ToJSON Notification
 instance FromJSON Notification
@@ -172,6 +181,33 @@ instance FromJSON Attributes where
 instance ToJSON RelationalError
 instance FromJSON RelationalError
 
+instance ToJSON SQLError
+instance FromJSON SQLError
+
+instance ToJSON ColumnProjectionName
+instance FromJSON ColumnProjectionName
+
+instance ToJSON UnqualifiedColumnName
+instance FromJSON UnqualifiedColumnName
+
+instance ToJSON ProjectionName
+instance FromJSON ProjectionName
+
+instance ToJSON ColumnAlias
+instance FromJSON ColumnAlias
+
+instance ToJSON ColumnName
+instance FromJSON ColumnName
+
+instance ToJSON TableName
+instance FromJSON TableName
+
+instance ToJSON TableAlias
+instance FromJSON TableAlias
+
+instance ToJSON FuncName
+instance FromJSON FuncName
+
 instance ToJSON SchemaError
 instance FromJSON SchemaError
 
@@ -196,4 +232,74 @@ instance FromJSON AtomFunctionError
 instance ToJSON WithNameExpr
 instance FromJSON WithNameExpr
 
+instance ToJSON (ScalarExprBase ColumnProjectionName)
+instance FromJSON (ScalarExprBase ColumnProjectionName)
 
+instance ToJSON OperatorName
+instance FromJSON OperatorName
+
+instance ToJSON BoolOp
+instance FromJSON BoolOp
+
+instance ToJSON InPredicateValue
+instance FromJSON InPredicateValue
+
+instance ToJSON Select
+instance FromJSON Select
+
+instance ToJSON InFlag
+instance FromJSON InFlag
+
+instance ToJSON QuantifiedComparisonPredicate
+instance FromJSON QuantifiedComparisonPredicate
+
+instance ToJSON ComparisonOperator
+instance FromJSON ComparisonOperator
+
+instance ToJSON (ScalarExprBase ColumnName)
+instance FromJSON (ScalarExprBase ColumnName)
+
+instance ToJSON WithClause
+instance FromJSON WithClause
+
+instance ToJSON Distinctness
+instance FromJSON Distinctness
+
+instance ToJSON TableExpr
+instance FromJSON TableExpr
+
+instance ToJSON WithExpr
+instance FromJSON WithExpr
+
+instance ToJSON SortExpr
+instance FromJSON SortExpr
+
+instance ToJSON HavingExpr
+instance FromJSON HavingExpr
+
+instance ToJSON GroupByExpr
+instance FromJSON GroupByExpr
+
+instance ToJSON RestrictionExpr
+instance FromJSON RestrictionExpr
+
+instance ToJSON TableRef
+instance FromJSON TableRef
+
+instance ToJSON WithExprAlias
+instance FromJSON WithExprAlias
+
+instance ToJSON Direction
+instance FromJSON Direction
+
+instance ToJSON JoinCondition
+instance FromJSON JoinCondition
+
+instance ToJSON NullsOrder
+instance FromJSON NullsOrder
+
+instance ToJSON JoinOnCondition
+instance FromJSON JoinOnCondition
+
+instance ToJSON QueryOperator
+instance FromJSON QueryOperator

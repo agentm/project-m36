@@ -18,7 +18,7 @@ import GHC.Generics
 import Control.Monad (when, foldM)
 import Control.Exception
 import qualified Streamly.Data.Stream.Prelude as SP
-import qualified Streamly.Internal.Data.Stream.StreamD as SD
+import qualified Streamly.Internal.Data.Stream as SD
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.Bifunctor
 import Data.Proxy

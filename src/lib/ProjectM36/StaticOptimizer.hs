@@ -13,13 +13,20 @@ import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
 import ProjectM36.Streaming.RelationalExpression
+#if MIN_VERSION_base(4,18,0)
+import Control.Monad (foldM)
+#endif
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Except
 import Control.Monad.Trans.Except
 import Data.Functor.Identity
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Functor.Foldable as Fold
+--import Debug.Trace
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -68,11 +75,10 @@ instance Optimize DatabaseContextExpr GraphRefDatabaseContextExpr where
 -- | Apply pure optimizations.
 optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
 optimizeAndEvalRelationalExpr env expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
-      graph = re_graph env
+  let graph = re_graph env
       ctx = re_context env
       gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-  optExpr <- runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
+  optExpr <- optimizeRelationalExpr env expr
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 -- | Uses streamly interface for parallel execution.
@@ -98,6 +104,12 @@ optimizeAndEvalRelationalExpr' env expr = do
                 Right resultStream ->
                   --convert tuple stream into relation
                   pure <$> streamRelationAsRelation resultStream
+
+optimizeRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError GraphRefRelationalExpr
+optimizeRelationalExpr env expr = do
+  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+      ctx = re_context env
+  runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
 class Monad m => AskGraphContext m where
   askGraph :: m TransactionGraph
@@ -228,6 +240,8 @@ optimizeGraphRefRelationalExpr e@(MakeStaticRelation _ _) = pure e
 optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
 
 optimizeGraphRefRelationalExpr e@(ExistingRelation _) = pure e
+
+optimizeGraphRefRelationalExpr e@(RelationValuedAttribute{}) = pure e
 
 optimizeGraphRefRelationalExpr e@(RelationVariable _ _) = pure e
   
@@ -469,9 +483,11 @@ findStaticRestrictionPredicates AtomExprPredicate{} = M.empty
 
 isStaticAtomExpr :: AtomExpr -> Bool
 isStaticAtomExpr NakedAtomExpr{} = True
+isStaticAtomExpr SubrelationAttributeAtomExpr{} = False
 isStaticAtomExpr ConstructedAtomExpr{} = True
 isStaticAtomExpr AttributeAtomExpr{} = False
 isStaticAtomExpr FunctionAtomExpr{} = False
+isStaticAtomExpr IfThenAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
 
 --if the projection of a join only uses the attributes from one of the expressions and there is a foreign key relationship between the expressions, we know that the join is inconsequential and can be removed
@@ -540,6 +556,7 @@ applyStaticRestrictionCollapse expr =
     MakeRelationFromExprs _ _ -> expr
     MakeStaticRelation _ _ -> expr
     ExistingRelation _ -> expr
+    RelationValuedAttribute{} -> expr
     RelationVariable _ _ -> expr
     With _ _ -> expr
     Project attrs subexpr -> 
@@ -548,8 +565,8 @@ applyStaticRestrictionCollapse expr =
       Union (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)    
     Join sub1 sub2 ->
       Join (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
-    Rename n1 n2 sub -> 
-      Rename n1 n2 (applyStaticRestrictionCollapse sub)
+    Rename attrs sub -> 
+      Rename attrs (applyStaticRestrictionCollapse sub)
     Difference sub1 sub2 -> 
       Difference (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
     Group n1 n2 sub ->
@@ -563,12 +580,14 @@ applyStaticRestrictionCollapse expr =
     Extend n sub ->
       Extend n (applyStaticRestrictionCollapse sub)
     Restrict firstPred _ ->
-      let restrictions = sequentialRestrictions expr
-          finalExpr = last restrictions
+      let (finalExpr, restrictions) = case sequentialRestrictions expr of
+            [] -> (undefined, [])
+            x : xs -> (NE.last $ x :| xs, xs)
+
           optFinalExpr = case finalExpr of
                               Restrict _ subexpr -> applyStaticRestrictionCollapse subexpr
                               otherExpr -> otherExpr
-          andPreds = foldr folder firstPred (tail restrictions)
+          andPreds = foldr folder firstPred restrictions
           folder (Restrict subpred _) acc = AndPredicate acc subpred
           folder _ _ = error "unexpected restriction expression in optimization phase"
       in
@@ -586,6 +605,7 @@ applyStaticRestrictionPushdown expr = case expr of
   MakeRelationFromExprs _ _ -> expr
   MakeStaticRelation _ _ -> expr
   ExistingRelation _ -> expr
+  RelationValuedAttribute{} -> expr
   RelationVariable _ _ -> expr
   With _ _ -> expr
   Project _ _ -> expr
@@ -603,8 +623,8 @@ applyStaticRestrictionPushdown expr = case expr of
     Union (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Join sub1 sub2 ->
     Join (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
-  Rename n1 n2 sub ->
-    Rename n1 n2 (applyStaticRestrictionPushdown sub)
+  Rename attrs sub ->
+    Rename attrs (applyStaticRestrictionPushdown sub)
   Difference sub1 sub2 -> 
     Difference (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Group n1 n2 sub ->
@@ -617,8 +637,30 @@ applyStaticRestrictionPushdown expr = case expr of
     NotEquals (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Extend n sub ->
     Extend n (applyStaticRestrictionPushdown sub)
-    
--- no optimizations available
+
+-- if the rename is completely redundant because it renames an attribute name to the same attribute name, remove it
+-- Rename [(x,x)] == Rename []
+applyRedundantRenameCleanup :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyRedundantRenameCleanup = Fold.cata folder
+  where
+    folder (RenameF renameSet e) =
+      if S.null renameSet then
+        e
+      else
+        Rename (S.filter (uncurry (/=)) renameSet) e
+    folder e = Fold.embed e
+
+-- if the destination name in the rename is unused, we can remove it- does not detect errors if an a Rename is missing
+-- Project ["x"] (Rename [("y","z"),("w","x")] (RelationVariable "rv" ())) == Project ["x"] (Rename [("w","x")] (RelationVariable "rv" ()))
+{-
+applyUnusedRenameCleanup :: Show a => RelationalExprBase a -> RelationalExprBase a
+applyUnusedRenameCleanup expr = Fold.para folder expr
+  where
+    folder :: Show a => RelationalExprBaseF a (RelationalExprBase a, RelationalExprBase a) -> RelationalExprBase a
+    folder (RenameF renameSet (expr', acc)) = traceShow ("para", expr', acc) (Rename renameSet expr')
+    folder e = traceShow ("para2", Fold.embed $ fst <$> e) $ Fold.embed $ fst <$> e
+-}    
+-- no optimizations available  
 optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextIOExpr
 optimizeDatabaseContextIOExpr = pure
 

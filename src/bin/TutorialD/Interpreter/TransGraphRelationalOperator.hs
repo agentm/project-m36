@@ -3,6 +3,7 @@
 module TutorialD.Interpreter.TransGraphRelationalOperator where
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.TransactionGraph
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Types
 import qualified ProjectM36.Client as C
 
@@ -19,7 +20,7 @@ newtype TransGraphRelationalOperator = ShowTransGraphRelation TransGraphRelation
 
 transactionIdLookupP :: Parser TransactionIdLookup
 transactionIdLookupP =  (TransactionIdLookup <$> uuidP) <|>
-                        (TransactionIdHeadNameLookup <$> identifier <*> many transactionIdHeadBacktrackP)
+                        (TransactionIdHeadNameLookup <$> identifierP <*> many transactionIdHeadBacktrackP)
                         
 transactionIdHeadBacktrackP :: Parser TransactionIdHeadBacktrack                        
 transactionIdHeadBacktrackP = (string "~" *> (TransactionIdHeadParentBacktrack <$> backtrackP)) <|>
@@ -37,7 +38,7 @@ showTransGraphRelationalOpP = do
   reservedOp ":showtransgraphexpr"
   ShowTransGraphRelation <$> relExprP  
   
-evalTransGraphRelationalOp :: C.SessionId -> C.Connection -> TransGraphRelationalOperator -> IO TutorialDOperatorResult
+evalTransGraphRelationalOp :: C.SessionId -> C.Connection -> TransGraphRelationalOperator -> IO ConsoleResult
 evalTransGraphRelationalOp sessionId conn (ShowTransGraphRelation expr) = do
   res <- C.executeTransGraphRelationalExpr sessionId conn expr
   case res of

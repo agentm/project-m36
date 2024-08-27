@@ -19,6 +19,7 @@ import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
 import ProjectM36.Client
 import ProjectM36.HashSecurely
+import ProjectM36.Interpreter
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.AttributeNames as AN
 import qualified ProjectM36.Session as Sess
@@ -92,7 +93,10 @@ main = do
       testExtendProcessorTuplePushdown,
       testDDLHash,
       testShowDDL,
-      testRegisteredQueries
+      testRegisteredQueries,
+      testCrossJoin,
+      testIfThenExpr,
+      testSubrelationAttributeAtomExpr
       ]
 
 simpleRelTests :: Test
@@ -181,14 +185,14 @@ dateExampleRelTests = TestCase $ do
                            --relatom function tests
                            ("x:=((s group ({city} as y)):{z:=count(@y)}){z}", mkRelation groupCountAttrs (RelationTupleSet [mkRelationTuple groupCountAttrs (V.singleton $ IntegerAtom 1)])),
                            ("x:=(sp group ({s#} as y)) ungroup y", Right supplierProductsRel),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=max(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
-                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=max(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 400), ("S2", 400), ("S3", 200), ("S4", 400)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=min(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 100), ("S2", 300), ("S3", 200), ("S4", 200)])),
+                           ("x:=((sp{s#,qty}) group ({qty} as x):{z:=sum(@x.qty)}){s#,z}", mkRelationFromList minMaxAttrs (map (\(s,i) -> [TextAtom s,IntegerAtom i]) [("S1", 1000), ("S2", 700), ("S3", 200), ("S4", 900)])),
                            --boolean function restriction
                            ("x:=s where lt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            ("x:=s where gt(@status,20)", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S3", TextAtom "Blake", IntegerAtom 30, TextAtom "Paris"],
                                                                                                        [TextAtom "S5", TextAtom "Adams", IntegerAtom 30, TextAtom "Athens"]]),
-                           ("x:=s where sum(@status)", Left $ AtomFunctionTypeError "sum" 1 (RelationAtomType (attributesFromList [Attribute "_" IntegerAtomType])) IntegerAtomType),
+                           ("x:=s where sum(@status)", Left $ AtomFunctionTypeError "sum" 1 (SubrelationFoldAtomType IntegerAtomType) IntegerAtomType),
                            ("x:=s where not(gte(@status,20))", mkRelationFromList (R.attributes suppliersRel) [[TextAtom "S2", TextAtom "Jones", IntegerAtom 10, TextAtom "Paris"]]),
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
@@ -249,6 +253,8 @@ transactionGraphAddCommitTest = TestCase $ do
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
           assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
+        DisplayRelationalErrorResult err -> assertFailure (show err)
+        DisplayHintWith{} -> assertFailure "displayhintwith?"
 
 transactionRollbackTest :: Test
 transactionRollbackTest = TestCase $ do
@@ -614,7 +620,9 @@ testRelationAttributeDefinition = TestCase $ do
     let expected = mkRelationFromList attrs [[RelationAtom subRel]]
         attrs = attributesFromList [Attribute "a" (RelationAtomType subRelAttrs)]
         subRelAttrs = attributesFromList [Attribute "b" IntegerAtomType]
-        Right subRel = mkRelationFromList subRelAttrs [[IntegerAtom 4]]
+        subRel = case mkRelationFromList subRelAttrs [[IntegerAtom 4]] of
+                   Left err -> error (show err)
+                   Right rel -> rel
     assertEqual "relation attribute construction" expected eX
     -- test rejected subrelation construction due to floating type variables
     expectTutorialDErr sessionId dbconn (T.isPrefixOf "TypeConstructorTypeVarMissing") "y:=relation{a relation{b x}}"
@@ -799,7 +807,7 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "tR4K1rdBcMsWS9qcveTZefsRmnPd6qV3Qc42La6wnsU=" (B64.encode (_unSecureHash hash1))
+  assertEqual "static hash check" "3aNi/azK9QNSXQQQ0QOuGcqAPlRh0d7zX0bNwjowPDA=" (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn
@@ -848,3 +856,34 @@ testRegisteredQueries = TestCase $ do
   Right () <- executeDatabaseContextExpr sessionId dbconn (Undefine "x")  
   pure ()
   
+testCrossJoin :: Test
+testCrossJoin = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  -- Athens, London, Paris cross joined with 17, 12, 14, 19
+  executeTutorialD session dbconn "x:=(s{city}) join (s{status})"
+  eActual <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  let eExpected = mkRelationFromList (attributesFromList [Attribute "city" TextAtomType, Attribute "status" IntegerAtomType]) [[city,status] | city <- map TextAtom ["Athens", "London", "Paris"], status <- map IntegerAtom [30,20,10]]
+  assertBool "cross join error" (isRight eActual)
+  assertEqual "cross join" eExpected eActual
+
+  executeTutorialD session dbconn "y:=relation{tuple{a 1},tuple{a 2},tuple{a 3}} join relation{tuple{b 4}, tuple{b 5}, tuple{b 6}}"
+  let eExpected' = mkRelationFromList (attributesFromList [Attribute "a" IntegerAtomType, Attribute "b" IntegerAtomType]) [[a,b] | a <- map IntegerAtom [1,2,3], b <- map IntegerAtom [4,5,6]]
+  eActual' <- executeRelationalExpr session dbconn (RelationVariable "y" ())
+  assertBool "cross join 2 error" (isRight eActual')  
+  assertEqual "cross join 2" eExpected' eActual'
+  
+testIfThenExpr :: Test
+testIfThenExpr = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "x:=(s:{islondon:=if eq(@city,\"London\") then True else False}){city,islondon} = relation{tuple{city \"London\", islondon True},tuple{city \"Paris\",islondon False},tuple{city \"Athens\", islondon False}}"
+  eEqRel <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  assertEqual "if-then" (Right relationTrue) eEqRel
+
+testSubrelationAttributeAtomExpr :: Test
+testSubrelationAttributeAtomExpr = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "x:=(s group ({all from s} as sub):{l:=sum(@sub.status)}){l}"
+  executeTutorialD session dbconn "y:=relation{tuple{l 110}}"
+  executeTutorialD session dbconn "z:= x = y"
+  res <- executeRelationalExpr session dbconn (RelationVariable "z" ())
+  assertEqual "sum" (Right relationTrue) res

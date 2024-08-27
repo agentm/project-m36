@@ -1,8 +1,42 @@
-# Future (v0.9.7)
+# Future
 
 * add result caching layer
 * add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
-* require GHC 9.2+
+
+# 2024-08-25 (v1.1.0)
+
+* add support for GHC 9.6, GHC 9.8, and GHC 9.10
+* clean up compiler warnings
+
+# 2024-07-27 (v1.0.2)
+
+* upgrade to streamly 0.10.1
+* refactor websocket API to support request UUIDs (#367)
+* refactor websocket API to support `createSessionAtHead` (#367)
+
+# 2024-07-15 (v1.0.1)
+
+* add support for aggregate functions using sub-relation attributes
+
+# 2024-06-06 (v1.0.0)
+
+* add support for relational expression evaluation against sub-relations
+* add support for SQL dialect and console called "SQLegacy"
+
+# 2024-01-12 (v0.9.9)
+
+* revert to using streamly 0.9.0 due to over-the-wire corruption bug in 0.10.0
+* fixed toAtom/fromAtom for NonEmpty lists (#363)
+
+# 2023-12-30 (v0.9.8)
+
+* fix notification serialization in transaction (#362)
+* require minimum GHC 9.2 (dropping GHC 8.10 and GHC 9.0)
+* add support for GHC 9.4
+
+# 2023-07-18 (v0.9.7)
+
+* fix critical bug resulting in empty results from cross joins
 
 # 2022-11-05 (v0.9.6)
 
@@ -10,16 +44,16 @@
 * add ddl hash- useful for validating that the client supports the current schema
 * add registered queries- useful for constraining what DDL can be applied to the database so as not to break client applications
 * reduce memory usage during Merkle hashing by an order of magnitude by using strict serialization and hashing
-	
+
 # 2022-08-19 (v0.9.5)
-  
+
 * removed necessity for caret "^" when using boolean atom expressions in restriction predicates
 * `True` and `False` are now value constructors for `Bool` atom values (previously `t` and `f); changed for better discoverability by Haskell developers
 * add `Scientific` data type for arbitrary-precision values (backed by Data.Scientific)
 * add support for GHC 9.0 and GHC 9.2
 * drop support for GHC < 8.10.7
 * fix relational equality when the relation includes a nested relation
-	
+
 # 2021-12-05 (v0.9.4)
 
 * fix bug which [caused tuple storage to be duplicated unnecessarily](https://github.com/agentm/project-m36/pull/328)
@@ -30,11 +64,11 @@
 * fix constraint checking after undefining a relation variable
 * optionally allow TLS and client certificate authentication in Project:M36 server
 * require GHC >=8.8
-	
+
 # 2021-04-01 (v0.9.3)
 
-* add new ":importtutd <URI> <SHA256 hash>" feature to import TutorialD from a local file or a HTTP/HTTPS URI	
-	
+* add new ":importtutd <URI> <SHA256 hash>" feature to import TutorialD from a local file or a HTTP/HTTPS URI
+
 # 2020-12-27 (v0.9.0)
 
 * replace unmaintained distributed-process-client-server RPC package with new curryer RPC package
@@ -73,7 +107,7 @@
 
 * fix atom function type validation
 * add support for GHC 8.4 (now we support GHC 8.0, 8.2, and 8.4)
-	
+
 # 2018-08-10 (v0.5)
 
 * fix critical type bug which allowed unresolved types to be used
@@ -100,8 +134,8 @@
 
 * alter websocket server API to allow for multiple representations (JSON, text, or HTML) to be selected and returned simultaneously
 * add jupyter kernel for TutorialD interpreter
-* fix warnings suggested by new hlint 2.0.10	
-	
+* fix warnings suggested by new hlint 2.0.10
+
 # 2017-10-08 (v0.3)
 
 * replaced overuse of `undefined` with `Proxy` in `Tupleable` and `Atomable` typeclasses

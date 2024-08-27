@@ -17,7 +17,7 @@ The default sort order is `ascending`.
 ## Examples
 
 ```
-TutorialD (master/main): :showdataframe s orderby {status}
+TutorialD (master/main): :showdataframe (s) orderby {status}
 ┌──┬───────────┬─────────┬────────────┬────────────────┐
 │DF│city::Text↕│s#::Text↕│sname::Text↕│status::Integer⬆│
 ├──┼───────────┼─────────┼────────────┼────────────────┤
@@ -27,7 +27,7 @@ TutorialD (master/main): :showdataframe s orderby {status}
 │4 │"Athens"   │"S5"     │"Adams"     │30              │
 │5 │"Paris"    │"S3"     │"Blake"     │30              │
 └──┴───────────┴─────────┴────────────┴────────────────┘
-TutorialD (master/main): :showdataframe s{status} orderby {status}
+TutorialD (master/main): :showdataframe (s{status}) orderby {status}
 ┌──┬────────────────┐
 │DF│status::Integer⬆│
 ├──┼────────────────┤
@@ -35,13 +35,13 @@ TutorialD (master/main): :showdataframe s{status} orderby {status}
 │2 │20              │
 │3 │30              │
 └──┴────────────────┘
-TutorialD (master/main): :showdataframe s{status} orderby {status descending} limit 1
+TutorialD (master/main): :showdataframe (s{status}) orderby {status descending} limit 1
 ┌──┬────────────────┐
 │DF│status::Integer⬇│
 ├──┼────────────────┤
 │1 │30              │
 └──┴────────────────┘
-TutorialD (master/main): :showdataframe s{status} orderby {status descending} offset 1 limit 3
+TutorialD (master/main): :showdataframe (s{status}) orderby {status descending} offset 1 limit 3
 ┌──┬────────────────┐
 │DF│status::Integer⬇│
 ├──┼────────────────┤

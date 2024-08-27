@@ -7,6 +7,7 @@ import Control.Monad.Combinators.Expr
 import Text.Megaparsec.Expr
 #endif
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
 import qualified Data.Text as T
@@ -14,6 +15,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.List (sort)
 import ProjectM36.MiscUtils
+import Control.Monad (void)
 
 --used in projection
 attributeListP :: RelationalMarkerExpr a => Parser (AttributeNamesBase a)
@@ -82,9 +84,9 @@ renameP = do
   reservedOp "rename"
   renameList <- braces (sepBy renameClauseP comma)
   case renameList of
-    [] -> pure (Restrict TruePredicate) --no-op when rename list is empty
+    [] -> pure id
     renames ->
-      pure $ \expr -> foldl (\acc (oldAttr, newAttr) -> Rename oldAttr newAttr acc) expr renames
+      pure $ Rename (S.fromList renames)
 
 whereClauseP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a)
 whereClauseP = reservedOp "where" *> (Restrict <$> restrictionPredicateP)
@@ -157,6 +159,11 @@ relTerm :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relTerm = parens relExprP
           <|> makeRelationP
           <|> (relVarP <* notFollowedBy "(")
+          <|> relationValuedAttributeP
+
+relationValuedAttributeP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
+relationValuedAttributeP = do
+  RelationValuedAttribute <$> (single '@' *> attributeNameP)
 
 restrictionPredicateP :: RelationalMarkerExpr a => Parser (RestrictionPredicateExprBase a)
 restrictionPredicateP = makeExprParser predicateTerm predicateOperators
@@ -201,13 +208,16 @@ atomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 atomExprP = consumeAtomExprP True
 
 consumeAtomExprP :: RelationalMarkerExpr a => Bool -> Parser (AtomExprBase a)
-consumeAtomExprP consume = try functionAtomExprP <|>
-            try (parens (constructedAtomExprP True)) <|>
-            constructedAtomExprP consume <|>
-            attributeAtomExprP <|>
-            try nakedAtomExprP <|>
-            relationalAtomExprP
-            
+consumeAtomExprP consume =
+  try functionAtomExprP <|>
+  ifThenAtomExprP <|>  
+  boolAtomExprP <|> -- we do this before the constructed atom parser to consume True and False 
+  try (parens (constructedAtomExprP True)) <|>
+  constructedAtomExprP consume <|>
+  try subrelationAttributeExprP <|>  
+  relationalAtomExprP <|>
+  attributeAtomExprP <|>
+  try nakedAtomExprP
 
 attributeAtomExprP :: Parser (AtomExprBase a)
 attributeAtomExprP = do
@@ -230,12 +240,46 @@ atomP = stringAtomP <|>
         integerAtomP <|>
         boolAtomP
 
+-- Haskell-like if-then-else expression for TutorialD
+ifThenAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+ifThenAtomExprP = do
+  reserved "if"
+  ifE <- atomExprP
+  reserved "then"
+  thenE <- atomExprP
+  reserved "else"
+  IfThenAtomExpr ifE thenE <$> atomExprP
+
+
+-- "@relattr.subrelattr"
+subrelationAttributeNameP :: Parser (AttributeName, AttributeName)
+subrelationAttributeNameP = do
+  void $ single '@'
+  relAttr <- uncapitalizedOrQuotedIdentifier
+  void $ single '.'
+  subrelAttr <- uncapitalizedOrQuotedIdentifier
+  spaceConsumer
+  pure (relAttr, subrelAttr)
+
+subrelationAttributeExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
+subrelationAttributeExprP = do
+  void $ single '@'
+  relAttr <- uncapitalizedOrQuotedIdentifier
+  void $ single '.'
+  subrelAttr <- uncapitalizedOrQuotedIdentifier
+  spaceConsumer
+  pure (SubrelationAttributeAtomExpr relAttr subrelAttr)
+
 functionAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 functionAtomExprP =
   FunctionAtomExpr <$> functionNameP <*> parens (sepBy atomExprP comma) <*> parseMarkerP
 
 relationalAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
-relationalAtomExprP = RelationAtomExpr <$> relExprP
+relationalAtomExprP = do
+  expr <- relExprP
+  case expr of
+    RelationValuedAttribute attrName -> pure $ AttributeAtomExpr attrName
+    other -> pure $ RelationAtomExpr other
 
 stringAtomP :: Parser Atom
 stringAtomP = TextAtom <$> quotedString
@@ -246,14 +290,18 @@ doubleAtomP = DoubleAtom <$> float
 integerAtomP :: Parser Atom
 integerAtomP = IntegerAtom <$> integer
 
+boolP :: Parser Bool
+boolP =
+  (chunk "True" >> spaceConsumer >> pure True) <|>
+  (chunk "False" >> spaceConsumer >> pure False)
+  
 boolAtomP :: Parser Atom
-boolAtomP = do
-  v <- identifier
-  if v == "True" || v == "False" then
-    pure $ BoolAtom (v == "t")    
-    else
-    fail "invalid boolAtom"
-    
+boolAtomP = 
+  BoolAtom <$> boolP
+
+boolAtomExprP :: Parser (AtomExprBase a)
+boolAtomExprP =
+  NakedAtomExpr <$> boolAtomP
 
 relationAtomExprP :: RelationalMarkerExpr a => Parser (AtomExprBase a)
 relationAtomExprP = RelationAtomExpr <$> makeRelationP
@@ -266,7 +314,7 @@ withMacroExprP = do
 
 createMacroP :: RelationalMarkerExpr a => Parser (WithNameExprBase a, RelationalExprBase a)
 createMacroP = do 
-  name <- identifier
+  name <- identifierP
   reservedOp "as"
   expr <- relExprP
   marker <- parseMarkerP

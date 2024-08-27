@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
 import ProjectM36.Relation
+import ProjectM36.Interpreter
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.Error
 import ProjectM36.Tuple
@@ -11,7 +12,7 @@ import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
 import TutorialD.Printer
-import Control.Monad.State
+import Control.Monad (when)
 import qualified Data.Text as T
 import ProjectM36.Relation.Show.Gnuplot
 import ProjectM36.HashSecurely
@@ -72,7 +73,7 @@ quitP = do
 showConstraintsP :: Parser RODatabaseContextOperator
 showConstraintsP = do
   colonOp ":constraints"
-  ShowConstraints <$> option "" identifier
+  ShowConstraints <$> option "" identifierP
   
 plotRelExprP :: Parser RODatabaseContextOperator  
 plotRelExprP = do
@@ -96,7 +97,7 @@ roDatabaseContextOperatorP = typeP
              <|> quitP
 
 --logically, these read-only operations could happen purely, but not if a remote call is required
-evalRODatabaseContextOp :: C.SessionId -> C.Connection -> RODatabaseContextOperator -> IO TutorialDOperatorResult
+evalRODatabaseContextOp :: C.SessionId -> C.Connection -> RODatabaseContextOperator -> IO ConsoleResult
 evalRODatabaseContextOp sessionId conn (ShowRelationType expr) = do
   res <- C.typeForRelationalExpr sessionId conn expr
   case res of
@@ -194,7 +195,7 @@ evalRODatabaseContextOp sessionId conn ShowRegisteredQueries = do
  
 evalRODatabaseContextOp _ _ Quit = pure QuitResult
 
-interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO TutorialDOperatorResult
+interpretRODatabaseContextOp :: C.SessionId -> C.Connection -> T.Text -> IO ConsoleResult
 interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseContextOperatorP "" tutdstring of
   Left err -> pure $ DisplayErrorResult (T.pack (show err))
   Right parsed -> evalRODatabaseContextOp sessionId conn parsed
@@ -202,13 +203,15 @@ interpretRODatabaseContextOp sessionId conn tutdstring = case parse roDatabaseCo
 showDataFrameP :: Parser RODatabaseContextOperator
 showDataFrameP = do
   colonOp ":showdataframe"
-  relExpr <- relExprP
-  reservedOp "orderby"
-  attrOrdersExpr <- attrOrdersExprP
-  mbOffset <- optional offsetP
-  mbLimit <- optional limitP
-  pure $ ShowDataFrame (DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit)
+  ShowDataFrame <$> dataFrameP
 
+dataFrameP :: Parser DF.DataFrameExpr
+dataFrameP = do
+  relExpr <- parens relExprP
+  attrOrdersExpr <- try attrOrdersExprP <|> pure []
+  mbLimit <- optional limitP
+  mbOffset <- optional offsetP
+  pure $ DF.DataFrameExpr relExpr attrOrdersExpr mbOffset mbLimit
 
 offsetP :: Parser Integer
 offsetP = do
@@ -221,10 +224,10 @@ limitP = do
   natural
 
 attrOrdersExprP :: Parser [DF.AttributeOrderExpr]
-attrOrdersExprP = braces (sepBy attrOrderExprP comma)
+attrOrdersExprP = reserved "orderby" *> braces (sepBy attrOrderExprP comma)
 
 attrOrderExprP :: Parser DF.AttributeOrderExpr
-attrOrderExprP = DF.AttributeOrderExpr <$> identifier <*> orderP
+attrOrderExprP = DF.AttributeOrderExpr <$> identifierP <*> orderP
 
 orderP :: Parser DF.Order
 orderP = try (reservedOp "ascending" >> pure DF.AscendingOrder) <|> try (reservedOp "descending" >> pure DF.DescendingOrder) <|> pure DF.AscendingOrder

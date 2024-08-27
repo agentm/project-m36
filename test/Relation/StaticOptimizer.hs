@@ -6,9 +6,9 @@ import ProjectM36.TupleSet as TS
 import ProjectM36.StaticOptimizer
 import ProjectM36.DatabaseContext as DBC
 import System.Exit
-import Control.Monad.State
 import Test.HUnit
 import qualified Data.Set as S
+import Control.Monad (forM_)
 
 main :: IO ()
 main = do

@@ -11,13 +11,15 @@
 
 ## Introduction
 
-Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date.
+Project:M36 implements a relational algebra engine as inspired by the writings of Chris Date. Project:M36 supports both SQL and TutorialD interactive access.
 
 ## Quick Install
 
-Project:M36 can be downloaded and run via docker, which supports Windows 10, macOS, and Linux.
+Project:M36 can be downloaded and run via docker, which supports Windows 10+, macOS, and Linux.
 
-Run `docker run -it projectm36/project-m36 tutd` to start the TutorialD command line interface.
+Run `docker run -it projectm36/project-m36 tutd` to start the [TutorialD](docs/tutd_tutorial.markdown) command line interface.
+
+Run `docker run -it projectm36/project-m36 sqlegacy` to start the [SQLegacy](docs/sqlegacy.markdown) (SQL dialect) command line interface.
 
 ## Description
 
@@ -36,11 +38,14 @@ Project:M36 is written entirely in the [Haskell programming language](https://ww
 Project:M36 supports multiple frontends which target different audiences.
 
 * learn about the relational algebra via TutorialD
+* use SQLegacy to learn how SQL differs from the relational algebra
 * store and manipulate databases
 * use Project:M36 as a native Haskell database backend
 
 ## Community
 
+* [TutorialD for SQL Developers](https://www.udemy.com/course/tutoriald-for-sql-developers/)
+  * ask in IRC channel for discount code to get free access
 * [Developer's Blog](https://agentm.github.io/project-m36/)
 * [Mailing List/Discussion Group](https://groups.google.com/d/forum/project-m36)
 * IRC Channel: irc.libera.chat #project-m36 -- [Chat via Web Client](http://kiwiirc.com/nextclient/irc.libera.chat:+6697/#project-m36)
@@ -67,7 +72,13 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [ACID Database Properties](docs/acid_assessment.markdown)
 1. [On NULL (in SQL)](docs/on_null.markdown)
 1. [Reaching "Out of the Tarpit" with Project:M36](docs/reaching_out_of_the_tarpit.markdown)
-1. [An Architecture for Data Independence](docs/data_independence.markdown)
+1. [An Architecture for Data Independence](docs/data_independence.markdown)'
+
+
+### SQL Support
+
+1. [Why SQLegacy?](docs/why_sqlegacy.markdown)
+1. [SQLegacy Documentation](docs/sqlegacy.markdown)
 
 ### Advanced Features
 

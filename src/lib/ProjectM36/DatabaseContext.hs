@@ -43,3 +43,9 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = M.empty,
                                          registeredQueries = M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ()))
                                          }
 
+someDatabaseContextExprs :: [DatabaseContextExpr] -> DatabaseContextExpr
+someDatabaseContextExprs [s] = s
+someDatabaseContextExprs (s:ss) = MultipleExpr (s:ss)
+someDatabaseContextExprs [] = NoOperation
+
+

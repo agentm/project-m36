@@ -1,4 +1,4 @@
-name: "CI"
+name: "Stack"
 on:
   pull_request:
   push:
@@ -6,11 +6,11 @@ jobs:
   dockerimage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v20
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - uses: cachix/cachix-action@v12
+      - uses: cachix/cachix-action@v15
         with:
           name: project-m36
           signingKey: "${{ secrets.CACHIX_SIGNING_KEY }}"
@@ -33,34 +33,52 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc:
-          - ghc9.2
+        os: [ubuntu-latest]
+        ghc_version:
+          - 9.2
+          - 9.4
+#          - 9.6
+#          - 9.8
+#          - 9.10
+        include:
+          - os: macos-latest
+            ghc_version: 9.2
     env:
-      STACK_YAML: stack.${{ matrix.ghc }}.yaml
+      STACK_YAML: stack.ghc${{ matrix.ghc_version }}.yaml
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.stack
-          key: ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
+          key: ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}-${{ hashFiles(env.STACK_YAML) }}-${{ hashFiles('**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-build-stack-${{ matrix.ghc }}-${{ hashFiles(env.STACK_YAML) }}
-            ${{ runner.os }}-build-stack-${{ matrix.ghc }}
+            ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}-${{ hashFiles(env.STACK_YAML) }}
+            ${{ runner.os }}-build-stack-ghc${{ matrix.ghc_version }}
       - name: Fix macOS cache bug
         run: rm -rf ~/.stack/setup-exe-cache
-        if: startsWith(runner.os, 'Mac')
-      - name: Build
-        uses: freckle/stack-action@v4
-        with:
-          stack-yaml: ${{ env.STACK_YAML }}
-          pedantic: false
 #      - name: HLint
 #        run: curl -sSL https://raw.github.com/ndmitchell/hlint/master/misc/run.sh | sh -s .
+      - name: Install ghcup dependencies
+        run: sudo apt-get install build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
+        if: runner.os == 'Linux'
+      - name: Setup GHCUp
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+          echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
+          ls -al $HOME/.ghcup/bin
+          echo $GITHUB_PATH
+      - name: Install GHC
+        run: ghcup install ghc ${{ matrix.ghc_version }}
+      - name: Install Stack
+        run: ghcup install stack
+      - name: Build
+        run: stack build --ghc-options -O2 --local-bin-path out --copy-bins
+      - name: Test
+        run: stack test --stack-yaml=${{ env.STACK_YAML }}
       - name: Haddock
         run: stack --no-install-ghc --system-ghc --no-haddock-deps haddock
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: project-m36-${{ matrix.os }}-${{ matrix.ghc }}
+          name: project-m36-${{ matrix.os }}-ghc${{ matrix.ghc_version }}
           path: out/

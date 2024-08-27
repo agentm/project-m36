@@ -25,12 +25,13 @@ processRelationalExpr (MakeRelationFromExprs mAttrs tupleExprs) = do
 processRelationalExpr (MakeStaticRelation attrs tupSet) = pure (MakeStaticRelation attrs tupSet)
 processRelationalExpr (ExistingRelation rel) = pure (ExistingRelation rel)
 --requires current trans id and graph
+processRelationalExpr (RelationValuedAttribute attrName) = pure (RelationValuedAttribute attrName)
 processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askMarker
 processRelationalExpr (Project attrNames expr) = Project <$> processAttributeNames attrNames <*> processRelationalExpr expr
 processRelationalExpr (Union exprA exprB) = Union <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Join exprA exprB) = Join <$> processRelationalExpr exprA <*> processRelationalExpr exprB
-processRelationalExpr (Rename attrA attrB expr) =
-  Rename attrA attrB <$> processRelationalExpr expr
+processRelationalExpr (Rename attrs expr) =
+  Rename attrs <$> processRelationalExpr expr
 processRelationalExpr (Difference exprA exprB) = Difference <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Group attrNames attrName expr) = Group <$> processAttributeNames attrNames <*> pure attrName <*> processRelationalExpr expr
 processRelationalExpr (Ungroup attrName expr) = Ungroup attrName <$> processRelationalExpr expr
@@ -111,10 +112,13 @@ processExtendTupleExpr (AttributeExtendTupleExpr nam atomExpr) =
 
 processAtomExpr :: AtomExpr -> ProcessExprM GraphRefAtomExpr
 processAtomExpr (AttributeAtomExpr nam) = pure $ AttributeAtomExpr nam
+processAtomExpr (SubrelationAttributeAtomExpr relAttr subAttr) = pure (SubrelationAttributeAtomExpr relAttr subAttr)
 processAtomExpr (NakedAtomExpr atom) = pure $ NakedAtomExpr atom
 processAtomExpr (FunctionAtomExpr fName atomExprs ()) =
   FunctionAtomExpr fName <$> mapM processAtomExpr atomExprs  <*> askMarker
 processAtomExpr (RelationAtomExpr expr) = RelationAtomExpr <$> processRelationalExpr expr
+processAtomExpr (IfThenAtomExpr ifE thenE elseE) =
+  IfThenAtomExpr <$> processAtomExpr ifE <*> processAtomExpr thenE <*> processAtomExpr elseE
 processAtomExpr (ConstructedAtomExpr dConsName atomExprs ()) = ConstructedAtomExpr dConsName <$> mapM processAtomExpr atomExprs <*> askMarker
 
 processTupleExprs :: TupleExprs -> ProcessExprM GraphRefTupleExprs

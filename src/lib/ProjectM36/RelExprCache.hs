@@ -129,11 +129,11 @@ add rgen expr exprResult calcTime cache = do
           upperBound' <- readTVar (upperBound cache)
           -- calculate probability of immediate ejection
           let probRetain = probOfRetention (keySize + valSize) upperBound' 0 0 calcTime
-#if MIN_VERSION_random(1,2,0)	  
+
               (rand, rgen') = uniformR (0.0, 1.0) rgen
-#else
-              (rand, rgen') = randomR (0.0, 1.0) rgen
-#endif
+
+--              (rand, rgen') = randomR (0.0, 1.0) rgen
+
           when (probRetain >= rand) $ M.insert newCacheInfo expr (cacheMap cache)
           pure rgen'
         Just _ -> -- then entry is already cached, nothing to do

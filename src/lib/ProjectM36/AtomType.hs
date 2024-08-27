@@ -13,7 +13,7 @@ import qualified Data.Set as S
 import qualified Data.List as L
 import Data.Maybe (isJust)
 import Data.Either (rights, lefts)
-import Control.Monad.Writer
+import Control.Monad (foldM, unless, when)
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -358,6 +358,9 @@ atomTypeVerify x@(RelationAtomType attrs1) y@(RelationAtomType attrs2) = do
                                else
                                  atomTypeVerify (A.atomType attr1) (A.atomType attr2)) $ V.toList (V.zip (attributesVec attrs1) (attributesVec attrs2))
   return x
+atomTypeVerify (SubrelationFoldAtomType typ1) (SubrelationFoldAtomType typ2) = do
+  resTyp <- atomTypeVerify typ1 typ2
+  pure (SubrelationFoldAtomType resTyp)
 atomTypeVerify x y = if x == y then
                        Right x
                      else
@@ -413,10 +416,9 @@ resolveFunctionReturnValue funcName' tvMap ctype@(ConstructedAtomType tCons retM
     pure ctype
     else do
     let diff = M.difference retMap tvMap
-    if M.null diff then
-      pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
-      else
-      Left (AtomFunctionTypeVariableResolutionError funcName' (fst (head (M.toList diff))))
+    case M.toList diff of
+      [] -> pure (ConstructedAtomType tCons (M.intersection tvMap retMap))
+      x : _ -> Left (AtomFunctionTypeVariableResolutionError funcName' (fst x))
 resolveFunctionReturnValue funcName' tvMap (TypeVariableType tvName) = case M.lookup tvName tvMap of
   Nothing -> Left (AtomFunctionTypeVariableResolutionError funcName' tvName)
   Just typ -> pure typ
@@ -448,6 +450,7 @@ isResolvedType typ =
     RelationalExprAtomType -> True
     RelationAtomType attrs -> isResolvedAttributes attrs
     ConstructedAtomType _ tvMap -> all isResolvedType (M.elems tvMap)
+    SubrelationFoldAtomType typ' -> isResolvedType typ'
     TypeVariableType _ -> False
 
 isResolvedAttributes :: Attributes -> Bool
@@ -456,4 +459,5 @@ isResolvedAttributes attrs = all isResolvedAttribute (V.toList (attributesVec at
 isResolvedAttribute :: Attribute -> Bool
 isResolvedAttribute = isResolvedType . A.atomType
 
---given two AtomTypes x,y
+anyRelationAtomType :: AtomType
+anyRelationAtomType = RelationAtomType (A.attributesFromList [Attribute "_" (TypeVariableType "a")])

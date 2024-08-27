@@ -3,6 +3,7 @@ module TutorialD.Interpreter.TransactionGraphOperator where
 import TutorialD.Interpreter.Base
 import ProjectM36.TransactionGraph hiding (autoMergeToHead)
 import ProjectM36.Client as C
+import ProjectM36.Interpreter
 import ProjectM36.Base
 import ProjectM36.Relation (relationTrue)
 import Data.Functor
@@ -16,12 +17,12 @@ convenienceTransactionGraphOpP = autoMergeToHeadP
 autoMergeToHeadP :: Parser ConvenienceTransactionGraphOperator
 autoMergeToHeadP = do
   reserved ":automergetohead"
-  AutoMergeToHead <$> mergeTransactionStrategyP <*> identifier
+  AutoMergeToHead <$> mergeTransactionStrategyP <*> identifierP
 
 jumpToHeadP :: Parser TransactionGraphOperator
 jumpToHeadP = do
   reservedOp ":jumphead"
-  JumpToHead <$> identifier
+  JumpToHead <$> identifierP
 
 jumpToTransactionP :: Parser TransactionGraphOperator
 jumpToTransactionP = do
@@ -36,12 +37,12 @@ walkBackToTimeP = do
 branchTransactionP :: Parser TransactionGraphOperator
 branchTransactionP = do
   reservedOp ":branch"
-  Branch <$> identifier
+  Branch <$> identifierP
 
 deleteBranchP :: Parser TransactionGraphOperator
 deleteBranchP = do
   reserved ":deletebranch"
-  DeleteBranch <$> identifier
+  DeleteBranch <$> identifierP
 
 commitTransactionP :: Parser TransactionGraphOperator
 commitTransactionP = do
@@ -62,15 +63,15 @@ mergeTransactionStrategyP :: Parser MergeStrategy
 mergeTransactionStrategyP = (reserved "union" $> UnionMergeStrategy) <|>
                             (do
                                 reserved "selectedbranch"
-                                SelectedBranchMergeStrategy <$> identifier) <|>
+                                SelectedBranchMergeStrategy <$> identifierP) <|>
                             (do
                                 reserved "unionpreferbranch"
-                                UnionPreferMergeStrategy <$> identifier)
+                                UnionPreferMergeStrategy <$> identifierP)
   
 mergeTransactionsP :: Parser TransactionGraphOperator
 mergeTransactionsP = do
   reservedOp ":mergetrans"
-  MergeTransactions <$> mergeTransactionStrategyP <*> identifier <*> identifier
+  MergeTransactions <$> mergeTransactionStrategyP <*> identifierP <*> identifierP
 
 validateMerkleHashesP :: Parser ROTransactionGraphOperator
 validateMerkleHashesP = reservedOp ":validatemerklehashes" $> ValidateMerkleHashes

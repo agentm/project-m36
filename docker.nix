@@ -1,4 +1,4 @@
-{ compiler ? "ghc927"
+{ compiler ? "ghc928"
 , sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 }:
@@ -9,11 +9,7 @@ in
 pkgs.dockerTools.buildImage {
   name = "project-m36";
   tag = "latest";
-  copyToRoot = pkgs.buildEnv {
-    name = "image-root";
-    paths = [ static-project-m36 ];
-    pathsToLink = ["/bin"];
-    };
+  copyToRoot = [ static-project-m36 ];
   # expose default project-m36 and websocket server ports
   config = {
     Env = [ "LC_ALL=en_US.UTF-8" ];

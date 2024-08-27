@@ -344,7 +344,7 @@ But all we have really done is add even more NULLs. Retrieving a sensible value 
 
 ## Runtime Types
 
-Project:M36 supports management of new algebraic data types at runtime. These types are associated with transactions and can changed over time whereas primitive Atoms cannot be changed.
+Project:M36 supports management of new algebraic data types at runtime. These types are associated with transactions and can change over time whereas primitive Atoms cannot be changed.
 
 ```
 TutorialD (master/main): data Age = PreciseAge Int | ForgotToAsk | RefusedToDisclose | NotApplicable | ApproximateAge Int Int

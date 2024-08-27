@@ -11,8 +11,8 @@ import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Stream.Prelude as Stream
 import Streamly.Internal.Control.Concurrent (MonadAsync)
-import qualified Streamly.Internal.Data.Stream.StreamD as SD
-import qualified Streamly.Internal.Data.Stream.StreamK as StreamK
+import qualified Streamly.Internal.Data.Stream as SD
+import qualified Streamly.Data.StreamK as StreamK
 
 import qualified Data.Map as M
 import Control.Monad.IO.Class
@@ -37,10 +37,11 @@ data RelExprExecPlanBase a =
                        
                        RestrictTupleStreamPlan RestrictionFilter (RelExprExecPlanBase a) | 
                        ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a) |
-                       RenameTupleStreamPlan AttributeName AttributeName (RelExprExecPlanBase a) |
+                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase a) |
                        GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase a) |
                        UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a) |
                        ExtendTupleStreamPlan ExtendTupleProcessor (RelExprExecPlanBase a) |
+                       RelationValuedAttributeStreamPlan Attribute | 
                        
                        UnionTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
                        NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a) (RelExprExecPlanBase a) |
@@ -59,10 +60,11 @@ instance Show (RelExprExecPlanBase a) where
       ReadTuplesFromMemoryPlan attrs tupSet -> "ReadTuplesFromMemoryPlan " <> show attrs <> " " <> show tupSet
       RestrictTupleStreamPlan _ expr' -> "RestrictTupleStreamPlan <function> (" <> show expr' <> ")"
       ProjectTupleStreamPlan attrs expr' -> "ProjectTupleStreamPlan " <> show attrs <> " (" <> show expr' <> ")"
-      RenameTupleStreamPlan attrs nam expr' -> "RenameTupleStreamPlan " <> show attrs <> " " <> show nam <> " (" <> show expr' <> ")"
+      RenameTupleStreamPlan attrs expr' -> "RenameTupleStreamPlan " <> show attrs <> " " <> " (" <> show expr' <> ")"
       GroupTupleStreamPlan attrs nam expr' -> "GroupTupleStreamPlan " <> show attrs <> " " <> show nam <> " (" <> show expr' <> ")"
       UngroupTupleStreamPlan nam expr' -> "UngroupTupleStreamPlan " <> show nam <> " (" <> show expr' <> ")"
       ExtendTupleStreamPlan _ expr' -> "ExtendTupleStreamPlan <function> (" <> show expr' <> ")"
+      RelationValuedAttributeStreamPlan relAttr -> "RelationValuedAttributeStreamPlan(@" <> show relAttr <> ")"
       UnionTupleStreamsPlan e1 e2 -> "UnionTupleStreamsPlan (" <> show e1 <> ") (" <> show e2 <> ")"
       NaiveJoinTupleStreamsPlan e1 e2 -> "NaiveJoinTupleStreamsPlan (" <> show e1 <> ") (" <> show e2 <> ")"
       DifferenceTupleStreamsPlan e1 e2 -> "DifferenceTupleStreamsPlan (" <> show e1 <> ") (" <> show e2 <> ")"
@@ -82,6 +84,11 @@ planGraphRefRelationalExpr (RelationVariable name tid) gfEnv = do
   case M.lookup name rvMap of
     Nothing -> Left (RelVarNotDefinedError name)
     Just rvExpr -> planGraphRefRelationalExpr rvExpr gfEnv
+planGraphRefRelationalExpr (RelationValuedAttribute relAttrName) gfEnv = do
+  case A.attributeForName relAttrName (envAttributes gfEnv) of
+    Left err -> throw err
+    Right relAttr -> 
+      pure (RelationValuedAttributeStreamPlan relAttr)
   
 planGraphRefRelationalExpr (Project attrNames expr) gfEnv = do
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
@@ -116,8 +123,8 @@ planGraphRefRelationalExpr expr@MakeRelationFromExprs{} gfEnv = do
   
 planGraphRefRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelationPlan rel)  
 
-planGraphRefRelationalExpr (Rename oldAttrName newAttrName relExpr) state = 
-  RenameTupleStreamPlan oldAttrName newAttrName <$> planGraphRefRelationalExpr relExpr state
+planGraphRefRelationalExpr (Rename renameAssoc relExpr) state = 
+  RenameTupleStreamPlan renameAssoc <$> planGraphRefRelationalExpr relExpr state
   
 planGraphRefRelationalExpr (Group groupAttrNames newAttrName relExpr) gfEnv = do
   groupAttrs <- runGraphRefRelationalExprM gfEnv $ do
@@ -182,11 +189,11 @@ executePlan (ReadTuplesFromMemoryPlan attrs tupSet) _ =
 executePlan (StreamTuplesFromCacheFilePlan{}) _ =
   --todo: enable streaming tuples from file
   undefined
-executePlan (RenameTupleStreamPlan oldName newName expr) ctx = do
+executePlan (RenameTupleStreamPlan attrsAssoc expr) ctx = do
   relS <- executePlan expr ctx
-  let newAttrs = renameAttributes oldName newName (sRelAttributes relS)
+  let newAttrs = renameAttributes' attrsAssoc (sRelAttributes relS)
   --potential optimization- lookup attrs in advance to rename the correct vector index
-  pure $ streamRelationMap newAttrs (pure . tupleRenameAttribute oldName newName) relS
+  pure $ streamRelationMap newAttrs (pure . tupleRenameAttributes attrsAssoc) relS
 executePlan (RestrictTupleStreamPlan restrictionFilter expr) ctx = do
   (StreamRelation attrs tupS) <- executePlan expr ctx
   let tupS' = Stream.filterM filt tupS
@@ -222,7 +229,14 @@ executePlan (EqualTupleStreamsPlan exprA exprB) ctx = do
         SD.mkCross $ Stream.fromList $ 
           [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
   pure (StreamRelation mempty tupS')
-
+executePlan (RelationValuedAttributeStreamPlan relAttr) ctx = do
+  case contextTupleAtomForAttributeName ctx (A.attributeName relAttr) of
+    Left err -> Left err
+    Right relAtom@(RelationAtom{}) -> do
+      let newTup = RelationTuple (A.singleton relAttr) (V.singleton relAtom)
+          tupS = Stream.fromList [newTup]
+      pure (StreamRelation (A.singleton relAttr) tupS)
+    Right _ -> Left (AttributeIsNotRelationValuedError (A.attributeName relAttr))
 executePlan (NotEqualTupleStreamsPlan exprA exprB) ctx = do
   (StreamRelation _ tupS) <- executePlan (EqualTupleStreamsPlan exprA exprB) ctx
   let tupS' = SD.unCross $ do

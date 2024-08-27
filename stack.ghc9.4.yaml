@@ -1,0 +1,25 @@
+resolver: lts-21.0
+packages:
+  - "."
+
+extra-deps:
+  - streamly-0.10.1
+  - streamly-core-0.2.2
+  - streamly-bytestring-0.2.2
+  - curryer-rpc-0.3.7
+  - fast-builder-0.1.2.1
+  - rset-1.0.0
+  - winery-1.4
+  - barbies-th-0.1.10
+  - base16-bytestring-1.0.2.0 
+  - unicode-data-0.2.0
+  - stm-containers-1.2
+  - stm-hamt-1.2.0.7
+  - scotty-0.22
+  - wai-extra-3.1.14
+  - wai-3.2.4
+
+flags:
+  project-m36:
+    stack: true
+allow-newer: true

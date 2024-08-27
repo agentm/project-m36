@@ -1,10 +1,9 @@
-{ compiler ? "ghc927"
+{ compiler ? "ghc928"
 , sources ? import ./nix/sources.nix
 , pkgs ? import sources.nixpkgs { }
 }:
 let
   doJailbreak = pkgs.haskell.lib.doJailbreak;
-  dontCheck = pkgs.haskell.lib.dontCheck;
   needsCocoa = drv:
     if pkgs.stdenv.isDarwin
     then drv.overrideDerivation (old:
@@ -14,50 +13,31 @@ let
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
-      mkDerivation = args: super.mkDerivation (args // {
-        doCheck = false;
-        doHaddock = false;
-      });
-      wai = dontCheck super.wai;
-      wai-websockets = dontCheck super.wai-websockets;
-      scotty = dontCheck super.scotty;
-      warp = dontCheck super.warp;
-      warp-tls = dontCheck super.warp-tls;
-      retry = dontCheck super.retry;
-      uniplate = dontCheck super.uniplate;
-      filepattern = dontCheck super.filepattern;
-      http-api-data = dontCheck super.http-api-data;
-      deferred-folds = dontCheck super.deferred-folds;
-
-      Cabal = dontCheck (self.callHackageDirect {
-          pkg = "Cabal";
-	  ver = "3.6.3.0";
-          sha256 = "sha256-c1U5klS7V9eB6jwt69+vlR61prrrnTE1UXNCTgiyUkQ=";
-        } {});
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.3.0";
-		      sha256 = "sha256-sKRHx49yhfvLxMUPRHs2apZ1v0iGbZm/JTTjXJKVD9M="; } {};
+		      ver = "0.3.7";
+		      sha256 = "sha256-zRp356hxlQtpm2n2lohZxT+O+h6ebmNoxaJeY/Go/cU="; } {};
 
       streamly = self.callHackageDirect {
                    pkg = "streamly";
-		   ver = "0.9.0";
-		   sha256 = "sha256-eOxVb8qQjZDo1+S7CStqYSExOg2QHWkMY+zlOYqwZak="; } {};
+		   ver = "0.10.1";
+		   sha256 = "sha256-9tWZ/8YteD9ljhEmj8oYKIAyFcbQflX0D20j/NTe3qM="; } {};
 
       streamly-core = self.callHackageDirect {
-      		   pkg = "streamly-core";
-		   ver = "0.1.0";
-		   sha256 = "sha256-hoSV6Q2+X5a7hFnJAArqNPjcMaCVyX9Vz4FcxeJ+jgI="; } {};
-		   
+      		    pkg = "streamly-core";
+		    ver = "0.2.2";
+  		    sha256 = "sha256-Ggo5ius3dp/TJFfrZSk31A6gSZHA6kLMtxFKe9MIvqQ="; } {};
+		    
       streamly-bytestring = self.callHackageDirect {
-      		   pkg = "streamly-bytestring";
-		   ver = "0.2.0";
-		   sha256 = "sha256-9mZiEVPtB0fU65nTcx2CX/3GoXbpZs5BXOgZyT+R2AY="; } {};
+                    pkg = "streamly-bytestring";
+		    ver = "0.2.2";
+  		    sha256 = "sha256-E/sMAvaJ5zGYwb5KAXa2KQo3FqyB+T2mRO6zOTCXpoY="; } {};		    
 
       lockfree-queue = self.callHackageDirect {
-      		   pkg = "lockfree-queue";
-		   ver = "0.2.4";
-		   sha256 = "sha256-h1s/tiBq5Gzl8FtenQacmxJp7zPJPnmZXtKDPvxTSa4="; } {};
+      		     pkg = "lockfree-queue";
+		     ver = "0.2.4";
+                     sha256 = "sha256-h1s/tiBq5Gzl8FtenQacmxJp7zPJPnmZXtKDPvxTSa4="; } {};
+      
 
       unicode-data = self.callHackageDirect {
                       pkg = "unicode-data";
@@ -71,36 +51,29 @@ let
                  sha256 = "sha256-ApJg6Qc25UyNZtSN52N9OrUQ/9K4w258oSE5BokO4tE=";
 		 } {};
 
-      hashable = self.callHackageDirect {
-                    pkg = "hashable";
-		    ver = "1.4.2.0";
-		    sha256 = "sha256-OVHUu/JroAHC3fG/UAZbWNCcV/zq09EBkaHC9ago0tQ=";
-		    } {};
-
-      linux-xattr = doJailbreak (self.callHackageDirect {
-      		      pkg = "linux-xattr";
-		      ver = "0.1.1.0";
-		      sha256 = "sha256-l35drTPGKwpip77/3BwDr7Eo0Arjfp34Cc3oRGyf+po=";
-                    } {});
-
-      text = self.callHackageDirect {
-                pkg = "text";
-		ver = "2.0.2";
-                sha256 = "sha256-SJPgiC0LOE3x5RBxZ0lxyODnGy3tzbrOKdTJrGZyKb4=";		
+      barbies-th = self.callHackageDirect {
+      	      pkg = "barbies-th";
+	      ver = "0.1.10";
+  	      sha256 = "sha256-cnTevB2qoEBMmGbqypQwJzPVF6z3cOXADbWF8OKQGAo=";	      
       } {};
 
-      hedgehog = dontCheck (self.callHackageDirect {
-      	       pkg = "hedgehog";
-	       ver = "1.1.2";
-	       sha256 = "sha256-O9r3Djws1ZN4deeymQw/Wdb7d/3GYXagcHtA0ghV6X4=";
-      
-      } {});
+      scotty = self.callHackageDirect {
+      	     pkg = "scotty";
+	     ver = "0.22";
+             sha256 = "sha256-DY4lKmAmqGTrzKq93Mft9bu9Qc0QcsEVpKzgoWcBL2I=";
+	     } {};
 
-      parsec = dontCheck (self.callHackageDirect {
-      	     pkg = "parsec";
-	     ver = "3.1.16.0";
-             sha256 = "sha256-zI+x9BAbrRTcZZf0LSxyjy7VsYeSPXMZ1ByT3c0FaSw=";
-	    } {});
+      wai = self.callHackageDirect {
+            pkg = "wai";
+	    ver = "3.2.4";
+            sha256 = "sha256-NARmVhT5G1eMdtMM1xp7RFpevunThAB4tltCMih+qu8=";
+	    } {};
+
+      wai-extra = self.callHackageDirect {
+           pkg = "wai-extra";
+	   ver = "3.1.14";
+           sha256 = "sha256-wMI9eTituRbMvYvbcA9pgIwFxkbdL1+2Xw78lghfWaU=";
+	   } {};
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };

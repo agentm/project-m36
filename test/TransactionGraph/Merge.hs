@@ -99,7 +99,7 @@ testSubGraphToFirstAncestorBasic = TestCase $ do
   transB <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB"
   subgraph <- assertEither $ subGraphOfFirstCommonAncestor graph (transactionHeadsForGraph graph) transA transB S.empty
   let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)  
-  assertEqual "no graph changes" (graphEq subgraph) (graphEq graph)
+  assertEqual "no graph changes" (graphEq graph) (graphEq subgraph) 
   
 -- | Test that a branch anchored at the root transaction is removed when using the first ancestor function.
 testSubGraphToFirstAncestorSnipBranch :: Test  
@@ -247,7 +247,7 @@ testUnionMergeStrategy = TestCase $ do
           gfEnv' = freshGraphRefRelationalExprEnv Nothing graph'''
       case failingMerge of
         Right _ -> assertFailure "expected merge failure"
-        Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyViolatesRelationVariableMergeError)
+        Left err -> assertEqual "merge failure" err (MergeTransactionError StrategyWithoutPreferredBranchResolutionMergeError)
 
 -- test that a merge will fail if a constraint is violated
 testUnionMergeIncDepViolation :: Test

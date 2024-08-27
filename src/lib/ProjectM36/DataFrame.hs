@@ -1,8 +1,8 @@
-{-# LANGUAGE DeriveGeneric, DerivingVia #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, DeriveAnyClass #-}
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
-import ProjectM36.Attribute as A hiding (drop)
+import qualified ProjectM36.Attribute as A hiding (drop)
 import ProjectM36.Error
 import qualified ProjectM36.Relation as R
 import ProjectM36.Relation.Show.Term
@@ -14,6 +14,8 @@ import qualified Data.Vector as V
 import GHC.Generics
 import qualified Data.List as L
 import qualified Data.Set as S
+import qualified Data.HashSet as HS
+import Data.Hashable (Hashable)
 import Data.Maybe
 import qualified Data.Text as T
 import Control.Arrow
@@ -23,10 +25,10 @@ import Data.Monoid
 #endif
 
 data AttributeOrderExpr = AttributeOrderExpr AttributeName Order
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
 
 data AttributeOrder = AttributeOrder AttributeName Order
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
 
 data Order = AscendingOrder | DescendingOrder
   deriving (Eq, Show, Generic)
@@ -47,13 +49,23 @@ data DataFrame = DataFrame {
   }
   deriving (Show, Generic)
 
+-- if there is no ordering, then compare sets of tuples
+instance Eq DataFrame where
+  dfA == dfB =
+    attributes dfA == attributes dfB &&
+    orders dfA == orders dfB &&
+    if null (orders dfA) && null (orders dfB) then
+      HS.fromList (tuples dfA) == HS.fromList (tuples dfB)
+      else
+      tuples dfA == tuples dfB
+
 data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hashable)
 
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
   attrs <- mapM (\(AttributeOrder nam _) -> A.attributeForName nam (attributes frame)) attrOrders 
-  mapM_ (\attr -> unless (isSortableAtomType (atomType attr)) $ Left (AttributeNotSortableError attr)) attrs
+  mapM_ (\attr -> unless (isSortableAtomType (A.atomType attr)) $ Left (AttributeNotSortableError attr)) attrs
   pure $ DataFrame attrOrders (attributes frame) (sortTuplesBy (compareTupleByAttributeOrders attrOrders) (tuples frame))
 
 sortTuplesBy :: (DataFrameTuple -> DataFrameTuple -> Ordering) -> [DataFrameTuple] -> [DataFrameTuple]
@@ -79,7 +91,7 @@ compareTupleByOneAttributeName attr tuple1 tuple2 =
         Right atom2 -> compareAtoms atom1 atom2
 
 atomForAttributeName :: AttributeName -> DataFrameTuple -> Either RelationalError Atom
-atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> attributeName attr == attrName) (attributesVec tupAttrs) of
+atomForAttributeName attrName (DataFrameTuple tupAttrs tupVec) = case V.findIndex (\attr -> A.attributeName attr == attrName) (attributesVec tupAttrs) of
   Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
   Just index -> case tupVec V.!? index of
     Nothing -> Left (NoSuchAttributeNamesError (S.singleton attrName))
@@ -106,10 +118,10 @@ showDataFrame = renderTable . dataFrameAsTable
 dataFrameAsTable :: DataFrame -> Table
 dataFrameAsTable df = (header, body)
   where
-    oAttrNames = orderedAttributeNames (attributes df)
-    oAttrs = orderedAttributes (attributes df)
+    oAttrNames = A.orderedAttributeNames (attributes df)
+    oAttrs = A.orderedAttributes (attributes df)
     header = "DF" : map dfPrettyAttribute oAttrs
-    dfPrettyAttribute attr = prettyAttribute attr <> case L.find (\(AttributeOrder nam _) -> nam == attributeName attr) (orders df) of
+    dfPrettyAttribute attr = prettyAttribute attr <> case L.find (\(AttributeOrder nam _) -> nam == A.attributeName attr) (orders df) of
       Nothing -> arbitrary
       Just (AttributeOrder _ AscendingOrder) -> ascending
       Just (AttributeOrder _ DescendingOrder) -> descending
@@ -127,7 +139,18 @@ data DataFrameExpr = DataFrameExpr {
   offset :: Maybe Integer,
   limit :: Maybe Integer
   }
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
+
+-- | True iff dataframe features are required to execute this expression, False if this expression could be evaluated as a relational expression (no sorting, limit, or offset).
+usesDataFrameFeatures :: DataFrameExpr -> Bool
+usesDataFrameFeatures df = not (null (orderExprs df)) || isJust (offset df) || isJust (limit df)
+
+-- | Returns a data frame expression without any sorting or limits.
+nakedDataFrameExpr :: RelationalExpr -> DataFrameExpr
+nakedDataFrameExpr rexpr = DataFrameExpr { convertExpr = rexpr,
+                                           orderExprs = [],
+                                           offset = Nothing,
+                                           limit = Nothing }
 
 dataFrameAsHTML :: DataFrame -> T.Text
 -- web browsers don't display tables with empty cells or empty headers, so we have to insert some placeholders- it's not technically the same, but looks as expected in the browser
@@ -160,7 +183,7 @@ tuplesAsHTML = foldr folder ""
     folder tuple acc = acc <> tupleAsHTML tuple
 
 tupleAssocs :: DataFrameTuple -> [(AttributeName, Atom)]
-tupleAssocs (DataFrameTuple attrs tupVec) = V.toList $ V.map (first attributeName) (V.zip (attributesVec attrs) tupVec)
+tupleAssocs (DataFrameTuple attrs tupVec) = V.toList $ V.map (first A.attributeName) (V.zip (attributesVec attrs) tupVec)
     
 
 tupleAsHTML :: DataFrameTuple -> T.Text
@@ -174,7 +197,7 @@ tupleAsHTML tuple = "<tr>" <> T.concat (L.map tupleFrag (tupleAssocs tuple)) <> 
 attributesAsHTML :: Attributes -> [AttributeOrder] -> T.Text
 attributesAsHTML attrs orders' = "<tr>" <> T.concat (map oneAttrHTML (A.toList attrs)) <> "</tr>"
   where
-    oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (attributeName attr) <> "</th>"
+    oneAttrHTML attr = "<th>" <> prettyAttribute attr <> ordering (A.attributeName attr) <> "</th>"
     ordering attrName = " " <> case L.find (\(AttributeOrder nam _) -> nam == attrName) orders' of
       Nothing -> "(arb)"
       Just (AttributeOrder _ AscendingOrder) -> "(asc)"

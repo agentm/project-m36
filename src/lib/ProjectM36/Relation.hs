@@ -78,17 +78,21 @@ relationFalse = Relation A.emptyAttributes TS.empty
 
 --if the relation contains one tuple, return it, otherwise Nothing
 singletonTuple :: Relation -> Maybe RelationTuple
-singletonTuple rel@(Relation _ tupleSet') = if cardinality rel == Finite 1 then
-                                         Just $ head $ asList tupleSet'
-                                       else
-                                         Nothing
+singletonTuple rel@(Relation _ tupleSet') =
+  case cardinality rel of
+    Countable -> Nothing
+    _ -> case asList tupleSet' of
+      [] -> Nothing
+      x : _ -> Just x
 
 -- this is still unncessarily expensive for (bigx union bigx) because each tuple is hashed and compared for equality (when the hashes match), but the major expense is attributesEqual, but we already know that all tuple attributes are equal (it's a precondition)
 union :: Relation -> Relation -> Either RelationalError Relation
-union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) =
-  if not (A.attributesEqual attrs1 attrs2)
-     then Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
-  else
+union (Relation attrs1 tupSet1) (Relation attrs2 tupSet2) 
+  | A.attributeNameSet attrs1 /= A.attributeNameSet attrs2 =
+    Left $ AttributeNamesMismatchError (A.attributeNameSet (A.attributesDifference attrs1 attrs2))
+  | not (A.attributesEqual attrs1 attrs2) =
+    Left $ AttributeTypesMismatchError $ A.attributesDifference attrs1 attrs2
+  | otherwise =
     Right $ Relation attrs1 newtuples
   where
     newtuples = tupleSetUnion attrs1 tupSet1 tupSet2
@@ -99,6 +103,11 @@ project attrNames rel@(Relation _ tupSet) = do
   newTupleList <- mapM (tupleProject newAttrs) (asList tupSet)
   pure (Relation newAttrs (RelationTupleSet (HS.toList (HS.fromList newTupleList))))
 
+renameMany :: S.Set (AttributeName, AttributeName) -> Relation -> Either RelationalError Relation
+renameMany renames rel = foldM folder rel (S.toList renames)
+  where
+    folder r (oldName, newName) = rename oldName newName r
+  
 rename :: AttributeName -> AttributeName -> Relation -> Either RelationalError Relation
 rename oldAttrName newAttrName rel@(Relation oldAttrs oldTupSet) 
   | not attributeValid = Left $ AttributeNamesMismatchError (S.singleton oldAttrName)

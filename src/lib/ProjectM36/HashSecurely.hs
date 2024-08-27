@@ -50,6 +50,7 @@ instance HashBytes Atom where
       UUIDAtom u -> up ("UUIDAtom" <> BL.toStrict (UUID.toByteString u))
       RelationAtom r -> hashBytesL ctx "RelationAtom" [SHash r]
       RelationalExprAtom e -> hashBytesL ctx "RelationalExprAtom" [SHash e]
+      SubrelationFoldAtom rel subAttr -> hashBytesL ctx "SubrelationFoldAtom" [SHash rel, SHash subAttr]
       ConstructedAtom d typ args ->
           hashBytesL ctx "ConstructedAtom" ([SHash d, SHash typ] <> map SHash args)
       where
@@ -72,9 +73,10 @@ hashBytesL ctx name = foldr (\(SHash i) ctx'@(SHA256.Ctx !bs) -> bs `seq` hashBy
 instance HashBytes a => HashBytes (RelationalExprBase a) where
   hashBytes (MakeRelationFromExprs mAttrs tupleExprs) ctx =
     hashBytesL ctx "MakeRelationFromExprs" [SHash mAttrs, SHash tupleExprs]
-  hashBytes (MakeStaticRelation attrs tupSet) ctx = -- blowing up here!
+  hashBytes (MakeStaticRelation attrs tupSet) ctx = 
     hashBytesL ctx "MakeStaticRelation" [SHash attrs, SHash tupSet]
---  hashBytes _ ctx = ctx
+  hashBytes (RelationValuedAttribute attrName) ctx =
+    hashBytesL ctx "RelationValuedAttribute" [SHash attrName]
   hashBytes (ExistingRelation (Relation attrs tupSet)) ctx =
     hashBytesL ctx "ExistingRelation" [SHash tupSet, SHash attrs]
   hashBytes (RelationVariable rvName marker) ctx =
@@ -85,8 +87,8 @@ instance HashBytes a => HashBytes (RelationalExprBase a) where
     hashBytesL ctx "Union" [SHash exprA, SHash exprB]
   hashBytes (Join exprA exprB) ctx =
     hashBytesL ctx "Join" [SHash exprA, SHash exprB]
-  hashBytes (Rename nameA nameB expr) ctx =
-    hashBytesL ctx "Rename" [SHash nameA, SHash nameB, SHash expr]
+  hashBytes (Rename attrs expr) ctx =
+    hashBytesL ctx "Rename" [SHash attrs, SHash expr]
   hashBytes (Difference exprA exprB) ctx =
     hashBytesL ctx "Difference" [SHash exprA, SHash exprB]
   hashBytes (Group names name expr) ctx =
@@ -115,6 +117,10 @@ instance HashBytes a => HashBytes (ExtendTupleExprBase a) where
   hashBytes (AttributeExtendTupleExpr name expr) ctx =
     hashBytesL ctx "AttributeExtendTupleExpr" [SHash name, SHash expr]
 
+instance HashBytes (S.Set (AttributeName, AttributeName)) where
+  hashBytes attrs ctx =
+    hashBytesL ctx "RenameAttrSet" (V.concatMap (\(a,b) -> V.fromList [SHash a, SHash b]) (V.fromList $ S.toList attrs))
+
 instance HashBytes a => HashBytes (WithNameExprBase a) where
   hashBytes (WithNameExpr rv marker) ctx = hashBytesL ctx "WithNameExpr" [SHash rv, SHash marker]
   
@@ -133,10 +139,12 @@ instance HashBytes a => HashBytes (AtomExprBase a) where
   hashBytes atomExpr ctx =
     case atomExpr of
       (AttributeAtomExpr a) -> hashBytesL ctx "AttributeAtomExpr" [SHash a]
+      (SubrelationAttributeAtomExpr relAttr subAttr) -> hashBytesL ctx "SubrelationAttributeAtomExpr" [SHash relAttr, SHash subAttr]
       (NakedAtomExpr a) -> hashBytesL ctx "NakedAtomExpr" [SHash a]
       (FunctionAtomExpr fname args marker) ->
         hashBytesL ctx "FunctionAtomExpr" $ [SHash fname, SHash marker] <> map SHash args
       (RelationAtomExpr r) -> hashBytesL ctx "RelationAtomExpr" [SHash r]
+      (IfThenAtomExpr i t e) -> hashBytesL ctx "IfThenAtomExpr" [SHash i, SHash t, SHash e]
       (ConstructedAtomExpr dConsName args marker) ->
         hashBytesL ctx "ConstructedAtomExpr" ([SHash dConsName, SHash marker] <> map SHash args)
 
@@ -159,6 +167,7 @@ instance HashBytes AtomType where
       RelationAtomType attrs -> hashBytesL ctx "RelationAtomType" (V.map SHash (attributesVec attrs))
       ConstructedAtomType tConsName tvarMap -> hashBytesL ctx "ConstructedAtomType" (SHash tConsName : map SHash (M.toAscList tvarMap))
       RelationalExprAtomType -> hashb "RelationalExprAtomType"
+      SubrelationFoldAtomType typ' -> hashBytesL ctx "SubrelationFoldAtomType" [SHash typ']
       TypeVariableType tvn -> hashBytesL ctx "TypeVariableType" [SHash tvn]
     where
       hashb = SHA256.update ctx

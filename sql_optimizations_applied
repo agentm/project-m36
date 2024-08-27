@@ -1,0 +1,87 @@
+https://blog.jooq.org/2017/09/28/10-cool-sql-optimisations-that-do-not-depend-on-the-cost-model/#top3
+
+1. Transitive Closure - done
+
+SELECT first_name, last_name, film_id
+FROM actor a
+JOIN film_actor fa ON a.actor_id = fa.actor_id
+WHERE a.actor_id = 1;
+
+-->
+
+SELECT first_name, last_name, film_id
+FROM actor a
+JOIN film_actor fa ON a.actor_id = fa.actor_id
+WHERE a.actor_id = 1
+AND fa.actor_id = 1;
+
+(x join y [on x.a = y.a]) where x.a = 1
+->
+(x where x.a = 1) join (y where y.a = 1)
+
+or 
+
+x where a=@b and b=3
+->
+x where a=3 and b=3
+
+2. Impossible Predicates - Done
+
+s where 3 = 5
+s where true -> s
+s where false -> emptied s
+
+3. Join Elimination - Done
+
+SELECT first_name, last_name
+FROM customer c
+JOIN address a ON c.address_id = a.address_id
+
+-->
+
+SELECT first_name, last_name
+FROM customer c
+
+
+(x join y){x.attrs only} iff there is a foreign key constraint on the full join condition from x to y
+
+4. Silly Predicates - done
+
+where true -> X
+where attr = attr -> X
+insert s s where name = @name -> X
+
+5. Projections in Exists Subqueries
+
+Our exists clause is a projection against zero attributes already.
+
+6. Predicate Merging - Done
+
+where X and X -> where X
+where X or X -> where X
+
+7. Empty Sets
+
+Use constraints to determine if a predicate is provably false:
+
+constraint x > 100
+where x = 10 -> where false
+
+X join false -> x where false
+x join true -> x where false
+
+8. CHECK() constraints
+
+not relevant - see 7
+
+9. Unneeded self join - done
+
+x join x -> x
+(x where c1) join (x where c2) -> x where c1 and c2 
+(x where c1) union (x where c2) -> x where c1 or c2
+
+10. Predicate Pushdown - done
+
+(x where c1) where c2 -> x where c1 and c2 - done
+x{proj} where c1 -> (x where c1){proj} #project on fewer tuples
+(x union y) where c -> (x where c) union (y where c)

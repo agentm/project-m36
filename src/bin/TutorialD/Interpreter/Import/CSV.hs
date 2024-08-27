@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.Import.CSV where
 import TutorialD.Interpreter.Import.Base
 import ProjectM36.Base
+import ProjectM36.Interpreter
 import ProjectM36.Error
 import ProjectM36.Relation.Parse.CSV hiding (quotedString)
 import qualified Data.ByteString.Lazy as BS
@@ -24,6 +25,6 @@ importCSVP = do
   reserved ":importcsv"
   path <- quotedString
   spaceConsumer
-  relVarName <- identifier
+  relVarName <- identifierP
   return $ RelVarDataImportOperator relVarName (T.unpack path) importCSVRelation
   

@@ -1,5 +1,5 @@
-var defaultConfig = { 'protocol': 'wss',
-		      'host': 'try.project-m36.io',
-		      'port': '',
+var defaultConfig = { 'protocol': 'ws',
+		      'host': 'localhost',
+		      'port': '8000',
 		      'path': 'ws/',
 		      'dbname': 'test' }
