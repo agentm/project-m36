@@ -91,8 +91,6 @@ safeParseTutorialD = parse safeInterpreterParserP ""
 parseRelationalExpr :: RelationalMarkerExpr a => T.Text -> Either ParserError (RelationalExprBase a)
 parseRelationalExpr = parse relExprP ""
 
-data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
-
 evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO ConsoleResult
 evalTutorialD sessionId conn safe = evalTutorialDInteractive sessionId conn safe False
 
