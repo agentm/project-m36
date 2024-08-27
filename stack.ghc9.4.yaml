@@ -18,7 +18,8 @@ extra-deps:
   - scotty-0.22
   - wai-extra-3.1.14
   - wai-3.2.4
-  - crypton-1.0.0  
+  - crypton-1.0.0
+  - linux-xattr-0.1.1.0
 
 flags:
   project-m36:
