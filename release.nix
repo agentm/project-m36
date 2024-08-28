@@ -74,6 +74,12 @@ let
 	   ver = "3.1.14";
            sha256 = "sha256-wMI9eTituRbMvYvbcA9pgIwFxkbdL1+2Xw78lghfWaU=";
 	   } {};
+
+      linux-xattr = doJailbreak (self.callHackageDirect {
+          pkg = "linux-xattr";
+	  ver = "0.1.1.0";
+         sha256 = "sha256-l35drTPGKwpip77/3BwDr7Eo0Arjfp34Cc3oRGyf+po=";
+      } {});
     
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" {}));
     };
