@@ -5,7 +5,7 @@ package *
   split-sections: True
 
 if impl(ghc >= 9.2)
-  allow-newer: fast-builder:base, linux-xattr:bytestring    
+  allow-newer: linux-xattr:bytestring
 
 -- Required patch from head.hackage to fix:
 --   * `winery` compilation with GHC-9.6
@@ -31,8 +31,7 @@ if impl(ghc >= 9.6)
 if impl(ghc >= 9.6)
   allow-newer:
     barbies-th:base,
-    barbies-th:template-haskell,
-    fast-builder:base,
+    barbies-th:template-haskell
 
 if impl(ghc >= 9.8)
   allow-newer:
