@@ -140,7 +140,7 @@ import ProjectM36.DDLType
 import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
-import ProjectM36.Streaming.RelationalExpression (planGraphRefRelationalExpr)
+import ProjectM36.Streaming.RelationalExpression (planGraphRefRelationalExpr, renderPretty)
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
 import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
@@ -830,7 +830,7 @@ planForRelationalExpr sessionId (InProcessConnection conf) rexpr = do
             let ctx = Sess.concreteDatabaseContext session
                 gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr rexpr')
                 gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) graph
-            pure (T.pack . show <$> planGraphRefRelationalExpr gfExpr gfEnv)
+            pure (renderPretty <$> planGraphRefRelationalExpr gfExpr gfEnv)
 
 planForRelationalExpr sessionId conn@RemoteConnection{} expr = remoteCall conn (RetrievePlanForRelationalExpr sessionId expr)
 

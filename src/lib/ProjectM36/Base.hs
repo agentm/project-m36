@@ -211,6 +211,8 @@ type RelVarName = StringType
 
 type RelationalExpr = RelationalExprBase ()
 
+type RenameAssocs = S.Set (AttributeName, AttributeName)
+
 -- | A relational expression represents query (read) operations on a database.
 data RelationalExprBase a =
   --- | Create a relation from tuple expressions.
@@ -233,7 +235,7 @@ data RelationalExprBase a =
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
   Join (RelationalExprBase a) (RelationalExprBase a)  |
   --- | Rename an attribute (first argument) to another (second argument).
-  Rename (S.Set (AttributeName, AttributeName)) (RelationalExprBase a) | -- should the rename be a Map?
+  Rename RenameAssocs (RelationalExprBase a) | -- should the rename be a Map?
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).
   Difference (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a sub-relation composed of the first argument's attributes which will become an attribute of the result expression. The unreferenced attributes are not altered in the result but duplicate tuples in the projection of the expression minus the attribute names are compressed into one. For more information, <https://github.com/agentm/project-m36/blob/master/docs/introduction_to_the_relational_algebra.markdown#group read the relational algebra tutorial.>

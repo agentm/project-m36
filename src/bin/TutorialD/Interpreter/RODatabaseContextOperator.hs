@@ -21,21 +21,22 @@ import Data.Maybe
 import Data.Functor
 
 --operators which only rely on database context reading
-data RODatabaseContextOperator where
-  ShowRelation :: RelationalExpr -> RODatabaseContextOperator
-  PlotRelation :: RelationalExpr -> RODatabaseContextOperator
-  ShowRelationType :: RelationalExpr -> RODatabaseContextOperator
-  ShowConstraints :: StringType -> RODatabaseContextOperator
-  ShowPlan :: DatabaseContextExpr -> RODatabaseContextOperator
-  ShowTypes :: RODatabaseContextOperator
-  ShowRelationVariables :: RODatabaseContextOperator
-  ShowAtomFunctions :: RODatabaseContextOperator
-  ShowDatabaseContextFunctions :: RODatabaseContextOperator
-  ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
-  GetDDLHash :: RODatabaseContextOperator
-  ShowDDL :: RODatabaseContextOperator
-  ShowRegisteredQueries :: RODatabaseContextOperator
-  Quit :: RODatabaseContextOperator
+data RODatabaseContextOperator =
+  ShowRelation RelationalExpr |
+  PlotRelation RelationalExpr |
+  ShowRelationType RelationalExpr |
+  ShowConstraints StringType |
+  ShowDatabaseContextExprPlan DatabaseContextExpr |
+  ShowRelationalExprPlan RelationalExpr |
+  ShowTypes |
+  ShowRelationVariables |
+  ShowAtomFunctions |
+  ShowDatabaseContextFunctions |
+  ShowDataFrame DF.DataFrameExpr |
+  GetDDLHash |
+  ShowDDL |
+  ShowRegisteredQueries |
+  Quit
   deriving (Show)
 
 typeP :: Parser RODatabaseContextOperator
@@ -48,10 +49,15 @@ showRelP = do
   colonOp ":showexpr"
   ShowRelation <$> relExprP
 
-showPlanP :: Parser RODatabaseContextOperator
-showPlanP = do
-  colonOp ":showplan"
-  ShowPlan <$> databaseContextExprP
+showDatabaseContextExprPlanP :: Parser RODatabaseContextOperator
+showDatabaseContextExprPlanP = do
+  colonOp ":showdbcexprplan"
+  ShowDatabaseContextExprPlan <$> databaseContextExprP
+
+showRelationalExprPlanP :: Parser RODatabaseContextOperator
+showRelationalExprPlanP = do
+  colonOp ":showrelexprplan"
+  ShowRelationalExprPlan <$> relExprP
 
 showTypesP :: Parser RODatabaseContextOperator
 showTypesP = colonOp ":showtypes" >> pure ShowTypes
@@ -86,7 +92,8 @@ roDatabaseContextOperatorP = typeP
              <|> showRelationVariables
              <|> plotRelExprP
              <|> showConstraintsP
-             <|> showPlanP
+             <|> showDatabaseContextExprPlanP
+             <|> showRelationalExprPlanP
              <|> showTypesP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
@@ -132,11 +139,17 @@ evalRODatabaseContextOp sessionId conn (ShowConstraints name) = do
      Left err -> DisplayErrorResult (T.pack (show err))
      Right rel -> DisplayRelationResult rel
 
-evalRODatabaseContextOp sessionId conn (ShowPlan dbExpr) = do
+evalRODatabaseContextOp sessionId conn (ShowDatabaseContextExprPlan dbExpr) = do
   plan <- C.planForDatabaseContextExpr sessionId conn dbExpr
   pure $ case plan of 
     Left err -> DisplayErrorResult (T.pack (show err))
     Right optDbExpr -> DisplayResult $ T.pack (show optDbExpr)
+
+evalRODatabaseContextOp sessionId conn (ShowRelationalExprPlan relExpr) = do
+  plan <- C.planForRelationalExpr sessionId conn relExpr
+  pure $ case plan of
+    Left err -> DisplayErrorResult (T.pack (show err))
+    Right optRelExpr -> DisplayResult optRelExpr
 
 evalRODatabaseContextOp sessionId conn ShowTypes = do  
   eRel <- C.atomTypesAsRelation sessionId conn
