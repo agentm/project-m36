@@ -97,7 +97,8 @@ Library
                   streamly == 0.10.1,
                   convertible,
                   fast-builder,
-                  scientific
+                  scientific,
+                  landlock
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
