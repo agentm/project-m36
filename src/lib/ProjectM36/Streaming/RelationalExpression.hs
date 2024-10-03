@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns, FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns, FlexibleInstances, TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
@@ -11,6 +11,7 @@ import ProjectM36.WithNameExpr
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Stream.Prelude as Stream
+import qualified Streamly.Internal.Data.Stream as Stream
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import qualified Streamly.Internal.Data.Stream as SD
 import qualified Streamly.Data.StreamK as StreamK
@@ -20,13 +21,18 @@ import Prettyprinter.Render.Text
 import qualified Data.Map as M
 import Control.Monad.IO.Class
 import qualified Data.Vector as V
-import Control.Exception
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import Control.DeepSeq (force)
 import qualified Data.Text as T
 import Data.Time.Clock (DiffTime)
 import qualified Data.List.NonEmpty as NE
+import Control.Exception
+
+data CacheMissException = CacheMissException FilePath
+  deriving Show
+
+instance Exception CacheMissException
 
 type RelExprExecPlan = RelExprExecPlanBase () ()
 
@@ -47,9 +53,9 @@ data RelExprExecPlanBase a t =
   -- | Read tuples from memory.
   ReadTuplesFromMemoryPlan Attributes RelationTupleSet t |
   -- | Alternative plans in case of failure. For example, the first node in the list may be to read from a cache file but the cache has since deleted the entry, so we proceed with an alternative. This is not a node to use for otherwise fatal errors.
-  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) |
+  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
-  RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) |
+  RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
                        RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase a) (RelExprExecPlanBase a t) t | -- include compiled mode for stream execution and ADT version for planning printer
                        ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a t) t |
@@ -115,6 +121,10 @@ instance (Pretty t, Show a) => Pretty (RelExprExecPlanBase a t) where
         prettyNode "ExistingRelationPlan" [pretty (attributes rel)] ["<tuples elided>"] t
       UniqueifyTupleStreamPlan e t ->
         prettyNode "UniqueifyTupleStreamPlan" [] [pretty e] t
+      AlternativePlan one remainder t ->
+        prettyNode "AlternativePlan" [] (pretty one : (map pretty (NE.toList remainder))) t
+      RacePlan one remainder t ->
+        prettyNode "RacePlan" [] (pretty one : (map pretty (NE.toList remainder))) t
     where
       prettyNode :: forall b. T.Text -> [Doc b] -> [Doc b] -> t -> Doc b
       prettyNode nodeName details subexprs execInfo =
@@ -382,7 +392,18 @@ executePlan (UniqueifyTupleStreamPlan e ()) ctx = do
         uniqTups <- liftIO $ tuplesHashSet tupS
         SD.mkCross $ StreamK.toStream (StreamK.fromFoldable uniqTups)
   pure (StreamRelation attrs tupS')
-  
+executePlan (AlternativePlan first remainder ()) ctx = do
+  -- catch cache miss exception- the cache entry may have been deleted
+  let initOptions = first : NE.init remainder
+      lastOption = NE.last remainder -- if the last option throws an exception, just bubble it up
+      --convert to streamly
+      runOptions :: (MonadIO m, MonadAsync m) => [GraphRefRelExprExecPlan] -> GraphRefRelExprExecPlan -> StreamRelation m
+      runOptions (fstStream:remStream) finalStream =
+        Stream.handle (\(_e :: CacheMissException) -> runOptions remStream finalStream) fstStream -- we may have other alternative-triggering exceptions in the future
+      runOptions [] finalStream = finalStream
+  initStreams <- mapM ((flip executePlan) ctx) initOptions
+  finalStream <- executePlan lastOption ctx
+  pure $ runOptions initStreams finalStream
 
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])
