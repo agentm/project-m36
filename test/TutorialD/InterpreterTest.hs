@@ -96,7 +96,8 @@ main = do
       testRegisteredQueries,
       testCrossJoin,
       testIfThenExpr,
-      testSubrelationAttributeAtomExpr
+      testSubrelationAttributeAtomExpr,
+      testComplexTypeVarResolution
       ]
 
 simpleRelTests :: Test
@@ -886,3 +887,31 @@ testSubrelationAttributeAtomExpr = TestCase $ do
   executeTutorialD session dbconn "z:= x = y"
   res <- executeRelationalExpr session dbconn (RelationVariable "z" ())
   assertEqual "sum" (Right relationTrue) res
+
+testComplexTypeVarResolution :: Test
+testComplexTypeVarResolution = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "data F = F (Maybe Integer) (Maybe Integer)"
+  executeTutorialD session dbconn "x:=relation{x F}{tuple{x F Nothing (Just 4)}}"
+  executeTutorialD session dbconn "y:=relation{x F}{tuple{x F Nothing Nothing}}"
+  
+  resX <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  resY <- executeRelationalExpr session dbconn (RelationVariable "y" ())
+
+  
+  let expectedX = mkRelationFromList attrs
+        [[ConstructedAtom "F"
+         (ConstructedAtomType "F" mempty)
+          [ConstructedAtom "Nothing" mint [],
+            ConstructedAtom "Just" mint [IntegerAtom 4]]]]
+      attrs = A.attributesFromList [Attribute "x" (ConstructedAtomType "F" mempty)]
+      mint = ConstructedAtomType "Maybe" (M.singleton "a" IntegerAtomType)
+  assertEqual "type var resolution x" expectedX resX
+
+  let expectedY = mkRelationFromList attrs
+                  [[ConstructedAtom "F"
+                    (ConstructedAtomType "F" mempty)
+                    [ConstructedAtom "Nothing" mint [],
+                     ConstructedAtom "Nothing" mint []]]]
+ 
+  assertEqual "type var resolution y" expectedY resY
