@@ -53,7 +53,7 @@ data RelExprExecPlanBase a t =
   -- | Read tuples from memory.
   ReadTuplesFromMemoryPlan Attributes RelationTupleSet t |
   -- | Alternative plans in case of failure. For example, the first node in the list may be to read from a cache file but the cache has since deleted the entry, so we proceed with an alternative. This is not a node to use for otherwise fatal errors.
-  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
+--  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
   RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
@@ -121,10 +121,10 @@ instance (Pretty t, Show a) => Pretty (RelExprExecPlanBase a t) where
         prettyNode "ExistingRelationPlan" [pretty (attributes rel)] ["<tuples elided>"] t
       UniqueifyTupleStreamPlan e t ->
         prettyNode "UniqueifyTupleStreamPlan" [] [pretty e] t
-      AlternativePlan one remainder t ->
-        prettyNode "AlternativePlan" [] (pretty one : (map pretty (NE.toList remainder))) t
-      RacePlan one remainder t ->
-        prettyNode "RacePlan" [] (pretty one : (map pretty (NE.toList remainder))) t
+{-      AlternativePlan one remainder t ->
+        prettyNode "AlternativePlan" [] (pretty one : (map pretty (NE.toList remainder))) t-}
+{-      RacePlan one remainder t ->
+        prettyNode "RacePlan" [] (pretty one : (map pretty (NE.toList remainder))) t -}
     where
       prettyNode :: forall b. T.Text -> [Doc b] -> [Doc b] -> t -> Doc b
       prettyNode nodeName details subexprs execInfo =
@@ -392,7 +392,7 @@ executePlan (UniqueifyTupleStreamPlan e ()) ctx = do
         uniqTups <- liftIO $ tuplesHashSet tupS
         SD.mkCross $ StreamK.toStream (StreamK.fromFoldable uniqTups)
   pure (StreamRelation attrs tupS')
-executePlan (AlternativePlan first remainder ()) ctx = do
+{-executePlan (AlternativePlan first remainder ()) ctx = do
   -- catch cache miss exception- the cache entry may have been deleted
   let initOptions = first : NE.init remainder
       lastOption = NE.last remainder -- if the last option throws an exception, just bubble it up
@@ -404,7 +404,7 @@ executePlan (AlternativePlan first remainder ()) ctx = do
   initStreams <- mapM ((flip executePlan) ctx) initOptions
   finalStream <- executePlan lastOption ctx
   pure $ runOptions initStreams finalStream
-
+-}
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])
 
