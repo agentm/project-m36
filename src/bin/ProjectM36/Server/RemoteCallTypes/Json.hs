@@ -181,6 +181,9 @@ instance FromJSON Attributes where
 instance ToJSON RelationalError
 instance FromJSON RelationalError
 
+instance ToJSON NotificationExpression
+instance FromJSON NotificationExpression
+
 instance ToJSON SQLError
 instance FromJSON SQLError
 

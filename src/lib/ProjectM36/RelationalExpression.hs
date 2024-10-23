@@ -22,7 +22,7 @@ import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
-import Control.Monad (foldM, unless, when)
+import Control.Monad (foldM, unless, when, forM_)
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError, catchError)
 import Control.Monad.Reader (ReaderT, runReaderT, asks, ask, local)
 import qualified Control.Monad.Reader as R
@@ -382,15 +382,20 @@ evalGraphRefDatabaseContextExpr (RemoveInclusionDependency depName) = do
 -- | Add a notification which will send the resultExpr when triggerExpr changes between commits.
 evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldExpr resultNewExpr) = do
   currentContext <- getStateContext
+  graph <- dbcGraph
+  transId <- dbcTransId
   let nots = notifications currentContext
   if M.member notName nots then
     dbErr (NotificationNameInUseError notName)
     else do
-      let newNotifications = M.insert notName newNotification nots
-          newNotification = Notification { changeExpr = triggerExpr,
+      let newNotification = Notification { changeExpr = triggerExpr,
                                            reportOldExpr = resultOldExpr, 
                                            reportNewExpr = resultNewExpr}
-      putStateContext $ currentContext { notifications = newNotifications }
+          newNotifications = M.insert notName newNotification nots
+          potentialContext = currentContext { notifications = newNotifications }
+      case checkConstraints potentialContext transId graph of
+        Left err -> dbErr err
+        Right () -> putStateContext potentialContext
   
 evalGraphRefDatabaseContextExpr (RemoveNotification notName) = do
   currentContext <- getStateContext
@@ -693,6 +698,7 @@ checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Eith
 checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = do
   mapM_ (uncurry checkIncDep) (M.toList deps)
   mapM_ checkRegisteredQuery (M.toList (registeredQueries context))
+  mapM_ checkNotification (M.toList (notifications context))
   where
     potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
     tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
@@ -734,6 +740,18 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
       case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
         Left err -> Left (RegisteredQueryValidationError qName err)
         Right _ -> pure ()
+    checkRelExpr relExpr = do
+      let gfExpr = process (processRelationalExpr relExpr)
+      runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+    checkNotification (notName, notif) = do
+      forM_ [(NotificationChangeExpression, changeExpr notif),
+             (NotificationReportOldExpression, reportOldExpr notif),
+             (NotificationReportNewExpression, reportNewExpr notif)] $
+        \(typ, relExpr) -> do
+          case checkRelExpr relExpr of
+            Left err -> Left (NotificationValidationError notName typ err)
+            Right _ -> pure ()
+      
 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
@@ -1582,3 +1600,13 @@ addTargetTypeHints targetAttrs expr =
   where
     targetAttrExprs = map NakedAttributeExpr (A.toList targetAttrs)
     hint = addTargetTypeHints targetAttrs
+
+-- | Ensure that the notification contains valid, type-checkable relational expressions. These relational expressions therefore become registered queries: queries which must remain valid.
+validateNotification :: Notification -> DatabaseContext -> TransactionGraph -> Either RelationalError Notification
+validateNotification notif context graph = do
+  let reEnv = mkRelationalExprEnv context graph
+  runRelationalExprM reEnv $ do
+    _ <- typeForRelationalExpr (changeExpr notif)
+    _ <- typeForRelationalExpr (reportOldExpr notif)
+    _ <- typeForRelationalExpr (reportNewExpr notif)
+    pure notif

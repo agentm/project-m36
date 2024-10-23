@@ -36,6 +36,7 @@ module ProjectM36.Client
        transactionGraphAsRelation,
        relationVariablesAsRelation,
        registeredQueriesAsRelation,
+       notificationsAsRelation,
        ddlAsRelation,
        ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
@@ -876,7 +877,18 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
       Right (session, _) ->
         pure (DCF.databaseContextFunctionsAsRelation (dbcFunctions (concreteDatabaseContext session)))
 
-databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
+databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
+
+notificationsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+notificationsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) ->
+        pure (Schema.notificationsAsRelationInSchema (notifications (concreteDatabaseContext session)) schema)
+notificationsAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveNotificationsAsRelation sessionId)
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
 headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)

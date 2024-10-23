@@ -76,6 +76,9 @@ data CloseSession = CloseSession SessionId
   
 data RetrieveAtomTypesAsRelation = RetrieveAtomTypesAsRelation SessionId
   RPCData(RetrieveAtomTypesAsRelation)
+
+data RetrieveNotificationsAsRelation = RetrieveNotificationsAsRelation SessionId
+  RPCData(RetrieveNotificationsAsRelation)
   
 data RetrieveRelationVariableSummary = RetrieveRelationVariableSummary SessionId
   RPCData(RetrieveRelationVariableSummary)

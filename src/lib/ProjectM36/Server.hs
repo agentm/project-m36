@@ -117,7 +117,10 @@ requestHandlers testFlag ti =
                         handleConvertSQLQuery ti sessionId conn q),
      RequestHandler (\sState (ConvertSQLUpdates sessionId updates) -> do
                         conn <- getConn sState
-                        handleConvertSQLUpdates ti sessionId conn updates)
+                        handleConvertSQLUpdates ti sessionId conn updates),
+     RequestHandler (\sState (RetrieveNotificationsAsRelation sessionId) -> do
+                        conn <- getConn sState
+                        handleRetrieveNotificationsAsRelation ti sessionId conn)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection

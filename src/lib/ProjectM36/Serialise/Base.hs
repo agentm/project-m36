@@ -49,6 +49,7 @@ deriving via WineryVariant (AttributeNamesBase a) instance Serialise a => Serial
 deriving via WineryVariant (ExtendTupleExprBase a) instance Serialise a => Serialise (ExtendTupleExprBase a)
 deriving via WineryVariant Schema instance Serialise Schema
 deriving via WineryVariant MergeStrategy instance Serialise MergeStrategy
+deriving via WineryVariant NotificationExpression instance Serialise NotificationExpression
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d

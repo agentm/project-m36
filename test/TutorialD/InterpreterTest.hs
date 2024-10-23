@@ -54,7 +54,6 @@ main = do
       transactionJumpTest, 
       transactionBranchTest, 
       simpleJoinTest, 
-      testNotification,
       testTypeConstructors, 
       testMergeTransactions, 
       testComments, 
@@ -97,7 +96,8 @@ main = do
       testCrossJoin,
       testIfThenExpr,
       testSubrelationAttributeAtomExpr,
-      testComplexTypeVarResolution
+      testComplexTypeVarResolution,
+      testNotifications
       ]
 
 simpleRelTests :: Test
@@ -336,8 +336,8 @@ inclusionDependencies _ = error "remote connection used"
 -}
                            
 -- test notifications over the InProcessConnection
-testNotification :: Test
-testNotification = TestCase $ do
+testNotifications :: Test
+testNotifications = TestCase $ do
   notifmvar <- newEmptyMVar
   let notifCallback mvar _ _ = putMVar mvar ()
       relvarx = RelationVariable "x" ()
@@ -348,7 +348,17 @@ testNotification = TestCase $ do
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail
   takeMVar notifmvar
-    
+
+  -- test documented behavior
+  let notifCallback2 name _evald = 
+        assertEqual "notification" "steve_change" name
+  (session, dbconn) <- dateExamplesConnection notifCallback2
+  executeTutorialD session dbconn "person:=relation{tuple{name \"Steve\",address \"Main St.\"},tuple{name \"John\", address \"Elm St.\"}}"
+  executeTutorialD session dbconn "notify steve_change person where name=\"Steve\" true (person where name=\"Steve\"){address}"
+  _ <- commit session dbconn
+  executeTutorialD session dbconn "update person where name=\"Steve\" (address:=\"Grove St.\")"
+  expectTutorialDErr session dbconn (T.isPrefixOf "NotificationValidationError") "undefine person"
+      
 testTypeConstructors :: Test
 testTypeConstructors = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
@@ -915,3 +925,4 @@ testComplexTypeVarResolution = TestCase $ do
                      ConstructedAtom "Nothing" mint []]]]
  
   assertEqual "type var resolution y" expectedY resY
+

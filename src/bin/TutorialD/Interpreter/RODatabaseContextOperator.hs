@@ -31,6 +31,7 @@ data RODatabaseContextOperator where
   ShowRelationVariables :: RODatabaseContextOperator
   ShowAtomFunctions :: RODatabaseContextOperator
   ShowDatabaseContextFunctions :: RODatabaseContextOperator
+  ShowNotifications :: RODatabaseContextOperator
   ShowDataFrame :: DF.DataFrameExpr -> RODatabaseContextOperator
   GetDDLHash :: RODatabaseContextOperator
   ShowDDL :: RODatabaseContextOperator
@@ -65,6 +66,9 @@ showAtomFunctionsP = colonOp ":showatomfunctions" >> pure ShowAtomFunctions
 showDatabaseContextFunctionsP :: Parser RODatabaseContextOperator
 showDatabaseContextFunctionsP = colonOp ":showdatabasecontextfunctions" >> pure ShowDatabaseContextFunctions
 
+showNotificationsP :: Parser RODatabaseContextOperator
+showNotificationsP = colonOp ":shownotifications" >> pure ShowNotifications
+
 quitP :: Parser RODatabaseContextOperator
 quitP = do
   colonOp ":quit"
@@ -90,6 +94,7 @@ roDatabaseContextOperatorP = typeP
              <|> showTypesP
              <|> showAtomFunctionsP
              <|> showDatabaseContextFunctionsP
+             <|> showNotificationsP
              <|> showDataFrameP
              <|> ddlHashP
              <|> showDDLP
@@ -158,6 +163,12 @@ evalRODatabaseContextOp sessionId conn ShowAtomFunctions = do
     
 evalRODatabaseContextOp sessionId conn ShowDatabaseContextFunctions = do
   eRel <- C.databaseContextFunctionsAsRelation sessionId conn
+  case eRel of
+    Left err -> pure $ DisplayErrorResult (T.pack (show err))
+    Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))
+    
+evalRODatabaseContextOp sessionId conn ShowNotifications = do
+  eRel <- C.notificationsAsRelation sessionId conn
   case eRel of
     Left err -> pure $ DisplayErrorResult (T.pack (show err))
     Right rel -> evalRODatabaseContextOp sessionId conn (ShowRelation (ExistingRelation rel))

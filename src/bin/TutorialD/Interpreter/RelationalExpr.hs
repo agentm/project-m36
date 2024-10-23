@@ -158,7 +158,7 @@ relVarP = RelationVariable <$> relVarNameP <*> parseMarkerP
 relTerm :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
 relTerm = parens relExprP
           <|> makeRelationP
-          <|> (relVarP <* notFollowedBy "(")
+          <|> relVarP
           <|> relationValuedAttributeP
 
 relationValuedAttributeP :: RelationalMarkerExpr a => Parser (RelationalExprBase a)
