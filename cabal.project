@@ -6,7 +6,6 @@ package *
 
 -- Required patch from head.hackage to fix:
 --   * `winery` compilation with GHC-9.6
---   * `barbies-th` compilation with GHC-9.8
 if impl(ghc >= 9.6)
   repository head.hackage.ghc.haskell.org
    url: https://ghc.gitlab.haskell.org/head.hackage/
@@ -25,10 +24,6 @@ if impl(ghc >= 9.6)
 -- conditional statement which is satisfied will have thier listed packages
 -- unioned together into an aggregated set of 'allow-newer' packages constraints.
 -- Hence the 'allow-newer' constraints /accumulate/ as GHC versions increase.  
-if impl(ghc >= 9.6)
-  allow-newer:
-    barbies-th:base,
-    barbies-th:template-haskell
 
 if impl(ghc >= 9.8)
   allow-newer:

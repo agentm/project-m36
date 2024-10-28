@@ -10,7 +10,7 @@ extra-deps:
   - fast-builder-0.1.4.0
   - rset-1.0.0
   - winery-1.4
-  - barbies-th-0.1.10
+  - barbies-th-0.1.11
   - base16-bytestring-1.0.2.0 
   - unicode-data-0.2.0
   - stm-containers-1.2

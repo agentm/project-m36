@@ -53,8 +53,8 @@ let
 
       barbies-th = self.callHackageDirect {
       	      pkg = "barbies-th";
-	      ver = "0.1.10";
-  	      sha256 = "sha256-cnTevB2qoEBMmGbqypQwJzPVF6z3cOXADbWF8OKQGAo=";	      
+	      ver = "0.1.11";
+  	      sha256 = "sha256-U9mHuHAA0v74dKB2w2kLGx9dBKU6w8CRObtYQF97Gao=";	      
       } {};
 
       scotty = self.callHackageDirect {
