@@ -121,3 +121,20 @@ instance Serialise RelationTupleSet where
   toBuilder tupSet = toBuilder (slimTupleSet tupSet)
   extractor = fattenTupleSet <$> extractor
   decodeCurrent = fattenTupleSet <$> decodeCurrent
+
+data GraphRefOrUpdateValue a =
+  -- | Use the value from the same field at the transaction marker (no difference).
+  GraphRefValue TransactionMarker |
+  UpdateValue a
+
+-- | Used only for serialization.
+data GraphRefDatabaseContext = GraphRefDatabaseContext
+  {
+    inclusionDependencies :: GraphRefOrUpdate InclusionDependencies,
+    relationVariables :: GraphRefOrUpdate RelationVariables,
+    atomFunctions :: GraphRefOrUpdate AtomFunctions,
+    dbcFunctions :: GraphRefOrUpdate DatabaseContextFunctions,
+    notifications :: GraphRefOrUpdate Notifications,
+    typeConstructorMapping :: GraphRefOrUpdate TypeConstructorMapping,
+    registeredQueries :: GraphRefOrUpdate RegisteredQueries
+  } deriving (NFData, Generic)
