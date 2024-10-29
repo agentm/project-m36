@@ -24,7 +24,11 @@ if impl(ghc >= 9.6)
 -- conditional statement which is satisfied will have thier listed packages
 -- unioned together into an aggregated set of 'allow-newer' packages constraints.
 -- Hence the 'allow-newer' constraints /accumulate/ as GHC versions increase.  
-
+if impl(ghc >= 9.6)
+   allow-newer:
+     barbies-th:base,
+     barbies-th:template-haskell
+     
 if impl(ghc >= 9.8)
   allow-newer:
     streamly-bytestring:bytestring,
