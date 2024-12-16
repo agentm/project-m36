@@ -3,15 +3,18 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Attribute
 import ProjectM36.Relation
-import ProjectM36.Transaction
 import ProjectM36.TransactionInfo as TI
 import ProjectM36.TransactionGraph
+import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.Error
 import ProjectM36.Key
 import qualified ProjectM36.DisconnectedTransaction as Discon
-import qualified ProjectM36.DatabaseContext as DBC
+import ProjectM36.DatabaseContext (DatabaseContext(..),relationVariables, inclusionDependencies,asDatabaseContext)
+import qualified ProjectM36.DatabaseContext.Basic as DBC
 import ProjectM36.RelationalExpression
 import ProjectM36.StaticOptimizer
+import ProjectM36.Transaction.Types
 
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
@@ -22,6 +25,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
+import Optics.Core
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 
@@ -52,7 +56,7 @@ root 1
 -}
 
 createTrans :: TransactionId -> TransactionInfo -> DatabaseContext -> Transaction
-createTrans tid info ctx = Transaction tid info (Schemas ctx M.empty)
+createTrans tid info' ctx = Transaction tid info' (Schemas ctx M.empty)
 
 basicTransactionGraph :: IO TransactionGraph
 basicTransactionGraph = do
@@ -169,7 +173,7 @@ testSelectedBranchMerge = TestCase $ do
 
   --validate that the branchB relvar does *not* appear in the merge because branchA was selected
   mergeTrans <- assertEither (transactionForId (fakeUUID 4) graph'')
-  assertBool "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (relationVariables (concreteDatabaseContext mergeTrans)))
+  assertBool "branchOnlyRelvar is present in merge" (M.notMember "branchBOnlyRelvar" (concreteDatabaseContext mergeTrans ^. relationVariables))
 
 -- try various individual component conflicts and check for resolution
 testUnionPreferMergeStrategy :: Test
@@ -179,9 +183,9 @@ testUnionPreferMergeStrategy = TestCase $ do
   branchATrans <- assertMaybe (transactionForHead "branchA" graph) "branchATrans"
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "branchBTrans"
   branchBRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) []  
-  let branchAContext = (concreteDatabaseContext branchATrans) {relationVariables = M.insert conflictRelVarName branchARelVar (relationVariables (concreteDatabaseContext branchATrans))}
+  let branchAContext = concreteDatabaseContext branchATrans & relationVariables .~ M.insert conflictRelVarName branchARelVar (concreteDatabaseContext branchATrans ^. relationVariables)
       branchARelVar = ExistingRelation relationTrue 
-      branchBContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.insert conflictRelVarName (ExistingRelation branchBRelVar) (relationVariables (concreteDatabaseContext branchBTrans))}
+      branchBContext = concreteDatabaseContext branchBTrans & relationVariables .~ M.insert conflictRelVarName (ExistingRelation branchBRelVar) (concreteDatabaseContext branchBTrans ^. relationVariables)
       conflictRelVarName = "conflictRelVar" 
 
   (_, graph') <- addTransaction "branchA" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchATrans) testTime) branchAContext) graph
@@ -192,8 +196,8 @@ testUnionPreferMergeStrategy = TestCase $ do
   case merged of
     Left err -> assertFailure ("expected merge success: " ++ show err)
     Right (discon, _) -> do
-      let Just rvExpr = M.lookup conflictRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
-          reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
+      let Just rvExpr = M.lookup conflictRelVarName (Discon.concreteDatabaseContext discon ^. relationVariables)
+          reEnv = freshGraphRefRelationalExprEnv (Just (asDatabaseContext (Discon.concreteDatabaseContext discon))) graph
       let eRvRel = runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
       assertEqual "branchB relvar preferred in conflict" (Right branchBRelVar) eRvRel
   
@@ -208,8 +212,8 @@ testUnionMergeStrategy = TestCase $ do
   -- add another relvar to branchB - branchBOnlyRelvar should appear in the merge  
   -- add inclusion dependency in branchA
 
-  let updatedBranchBContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.insert branchBOnlyRelVarName branchBOnlyRelVar (relationVariables (concreteDatabaseContext branchBTrans)) }
-      updatedBranchAContext = (concreteDatabaseContext branchATrans) {inclusionDependencies = M.insert branchAOnlyIncDepName branchAOnlyIncDep (inclusionDependencies (concreteDatabaseContext branchATrans)) }
+  let updatedBranchBContext = concreteDatabaseContext branchBTrans & relationVariables .~ M.insert branchBOnlyRelVarName branchBOnlyRelVar (concreteDatabaseContext branchBTrans ^. relationVariables)
+      updatedBranchAContext = concreteDatabaseContext branchATrans & inclusionDependencies .~ M.insert branchAOnlyIncDepName branchAOnlyIncDep (concreteDatabaseContext branchATrans ^. inclusionDependencies) 
       branchBOnlyRelVar = ExistingRelation relationTrue
       branchAOnlyIncDepName = "branchAOnlyIncDep"
       branchBOnlyRelVarName = "branchBOnlyRelVar"
@@ -217,9 +221,9 @@ testUnionMergeStrategy = TestCase $ do
   (_, graph') <- addTransaction "branchB" (createTrans (fakeUUID 3) (TI.singleParent (transactionId branchBTrans) testTime) updatedBranchBContext) graph
   let env = freshGraphRefRelationalExprEnv Nothing graph'
   (discon, _) <- assertEither $ runGraphRefRelationalExprM env $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 10) UnionMergeStrategy ("branchA", "branchB")
-  let Just rvExpr = M.lookup branchBOnlyRelVarName (relationVariables (Discon.concreteDatabaseContext discon))
+  let Just rvExpr = M.lookup branchBOnlyRelVarName (Discon.concreteDatabaseContext discon ^. relationVariables)
       Right rvRel = runGraphRefRelationalExprM reEnv (evalGraphRefRelationalExpr rvExpr)
-      reEnv = freshGraphRefRelationalExprEnv (Just (Discon.concreteDatabaseContext discon)) graph
+      reEnv = freshGraphRefRelationalExprEnv (Just (asDatabaseContext (Discon.concreteDatabaseContext discon))) graph
       
   assertEqual "branchBOnlyRelVar should appear in the merge" relationTrue rvRel
   (_, graph'') <- addTransaction "branchA" (createTrans (fakeUUID 4) (TI.singleParent (transactionId branchATrans) testTime) updatedBranchAContext) graph'
@@ -233,14 +237,14 @@ testUnionMergeStrategy = TestCase $ do
       let mergeContext = concreteDatabaseContext mergeTrans
       assertEqual "merge transaction parents" (parentIds mergeTrans) (S.fromList [fakeUUID 3, fakeUUID 4])
       -- check that the new merge tranasction has elements from both A and B branches
-      let Just rvExpr' = M.lookup branchBOnlyRelVarName (relationVariables mergeContext)
+      let Just rvExpr' = M.lookup branchBOnlyRelVarName (mergeContext ^. relationVariables)
           Right rvRel' = runGraphRefRelationalExprM reEnv' (evalGraphRefRelationalExpr rvExpr')
           reEnv' = freshGraphRefRelationalExprEnv (Just mergeContext) graph
       assertEqual "merge transaction relvars" relationTrue rvRel'
-      assertEqual "merge transaction incdeps" (Just branchAOnlyIncDep) (M.lookup branchAOnlyIncDepName (inclusionDependencies mergeContext)) 
+      assertEqual "merge transaction incdeps" (Just branchAOnlyIncDep) (M.lookup branchAOnlyIncDepName (mergeContext ^. inclusionDependencies)) 
       -- test an expected conflict- add branchBOnlyRelVar with same name but different attributes
       conflictRelVar <- assertEither $ mkRelationFromList (attributesFromList [Attribute "conflict" IntAtomType]) []
-      let conflictContextA = updatedBranchAContext {relationVariables = M.insert branchBOnlyRelVarName (ExistingRelation conflictRelVar) (relationVariables updatedBranchAContext) }
+      let conflictContextA = updatedBranchAContext & relationVariables .~ M.insert branchBOnlyRelVarName (ExistingRelation conflictRelVar) (updatedBranchAContext ^. relationVariables)
       conflictBranchATrans <- assertMaybe (transactionForHead "branchA" graph'') "retrieving head transaction for expected conflict"
       (_, graph''') <- addTransaction "branchA" (createTrans (fakeUUID 6) (TI.singleParent (transactionId conflictBranchATrans) testTime) conflictContextA) graph''
       let failingMerge = runGraphRefRelationalExprM gfEnv' $ mergeTransactions testTime (fakeUUID 5) (fakeUUID 3) UnionMergeStrategy ("branchA", "branchB")
@@ -263,9 +267,9 @@ testUnionMergeIncDepViolation = TestCase $ do
       rvName = "x"
       Right branchArv = eRel 2
       Right branchBrv = eRel 3
-      branchAContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.singleton rvName (ExistingRelation branchArv)}
-      branchBContext = (concreteDatabaseContext branchBTrans) {relationVariables = M.singleton rvName (ExistingRelation branchBrv), 
-                                                               inclusionDependencies = M.singleton incDepName incDep}      
+      branchAContext = (concreteDatabaseContext branchBTrans) {_relationVariables = M.singleton rvName (ExistingRelation branchArv)}
+      branchBContext = (concreteDatabaseContext branchBTrans) { _relationVariables = M.singleton rvName (ExistingRelation branchBrv), 
+                                                                _inclusionDependencies = M.singleton incDepName incDep}      
       incDepName = "x_key"
       incDep = inclusionDependencyForKey (AttributeNames (S.singleton "x")) (RelationVariable "x" ())
 

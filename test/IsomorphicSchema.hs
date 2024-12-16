@@ -1,11 +1,13 @@
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.StaticOptimizer
+import ProjectM36.DatabaseContext (_relationVariables, relationVariables)
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.DatabaseContext.Basic as DBC
 import ProjectM36.Attribute (attributesFromList)
@@ -39,7 +41,7 @@ assertMaybe x msg = case x of
 testSchemaValidation :: Test
 testSchemaValidation = TestCase $ do  
   let potentialSchema = DBC.basicDatabaseContext {
-        relationVariables = M.singleton "anotherRel" (ExistingRelation relationTrue)
+        _relationVariables = M.singleton "anotherRel" (ExistingRelation relationTrue)
         }
   -- missing relvars failure
       morphs = [IsoRename "true" "true", IsoRename "false" "false"]
@@ -54,7 +56,7 @@ testIsoRename :: Test
 testIsoRename = TestCase $ do
   -- create a schema with two relvars and rename one while the other remains the same in the isomorphic schema
   let ctx = DBC.empty { 
-        relationVariables = M.fromList [("employee", ExistingRelation relationTrue), 
+        _relationVariables = M.fromList [("employee", ExistingRelation relationTrue), 
                                         ("department", ExistingRelation relationFalse)]
         }
   (graph, _) <- freshTransactionGraph ctx
@@ -84,7 +86,7 @@ testIsoRestrict = TestCase $ do
             
   let schemaA = mkRelationalExprEnv baseContext graph
       baseContext = DBC.empty {
-        relationVariables = M.fromList [("nonboss", ExistingRelation nonBossRel),
+        _relationVariables = M.fromList [("nonboss", ExistingRelation nonBossRel),
                                         ("boss", ExistingRelation bossRel)]
         }
       isomorphsAtoB = [IsoRestrict "employee" predicate ("boss", "nonboss")]
@@ -136,7 +138,7 @@ testIsoUnion = TestCase $ do
                 [TextAtom "Auto", IntegerAtom 200],
                 [TextAtom "Tractor", IntegerAtom 500]]
   let env = mkRelationalExprEnv (DBC.basicDatabaseContext &
-        relationVariables ~. M.singleton "motor" (ExistingRelation motorsRel)
+        relationVariables .~ M.singleton "motor" (ExistingRelation motorsRel)
         ) graph
       splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntegerAtom 50)] ())
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",

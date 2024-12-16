@@ -463,7 +463,7 @@ Executable bigrel
 
 Common commontest
     Default-Language: Haskell2010
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256, scientific, streamly
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, websockets, optparse-applicative, network, aeson, project-m36, random, MonadRandom, semigroups, parser-combinators, winery, curryer-rpc, prettyprinter, base64-bytestring, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256, scientific, streamly, optics-core
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded -with-rtsopts=-N
     Hs-Source-Dirs: test, src/bin

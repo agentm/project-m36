@@ -5,6 +5,7 @@ test client/server interaction
 import Test.HUnit
 import ProjectM36.Client
 import qualified ProjectM36.Client as C
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Relation

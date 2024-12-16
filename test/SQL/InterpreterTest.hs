@@ -25,6 +25,7 @@ import Text.Megaparsec
 import qualified Data.Text as T
 import qualified Data.Map as M
 import TutorialD.Printer
+import Optics.Core
 
 main :: IO ()
 main = do
@@ -56,7 +57,7 @@ testFindColumn = TestCase $ do
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples) }
+  let sqlDBContext = dateExamples & relationVariables ~. M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables)
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
@@ -333,7 +334,7 @@ testSelect = TestCase $ do
 
 testCreateTable :: Test
 testCreateTable = TestCase $ do
-  let sqlDBContext = dateExamples { relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples) }
+  let sqlDBContext = dateExamples { _relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables) }
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
 
   let createTableTests = [
@@ -396,9 +397,9 @@ testCreateTable = TestCase $ do
 
 testDBUpdate :: Test
 testDBUpdate = TestCase $ do
-  let sqlDBContext = dateExamples { relationVariables =
+  let sqlDBContext = dateExamples { _relationVariables =
                                       M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples),
-                                    typeConstructorMapping = typeConstructorMapping dateExamples <> nullTypeConstructorMapping
+                                    _typeConstructorMapping = dateExamples ^. typeConstructorMapping <> nullTypeConstructorMapping
                                   }
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
 
