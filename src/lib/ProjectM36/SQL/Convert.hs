@@ -4,8 +4,9 @@ module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.DataTypes.SQL.Null
+import ProjectM36.DatabaseContext
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.SQL.Select
-import ProjectM36.DatabaseContext (someDatabaseContextExprs)
 import ProjectM36.SQL.Insert as Insert
 import ProjectM36.Key (databaseContextExprForUniqueKey, inclusionDependencyForKey)
 import ProjectM36.SQL.DBUpdate
@@ -27,6 +28,7 @@ import Data.List (intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (isJust)
+import Optics.Core
 --import Control.Monad (void)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
@@ -1096,7 +1098,7 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
         
 mkTableContextFromDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError TableContext
 mkTableContextFromDatabaseContext dbc tgraph = do
-  TableContext . M.fromList <$> mapM rvMapper (M.toList (relationVariables dbc))
+  TableContext . M.fromList <$> mapM rvMapper (M.toList (dbc ^. relationVariables))
   where
     rvMapper (nam, rvexpr) = do
       let gfEnv = freshGraphRefRelationalExprEnv (Just dbc) tgraph

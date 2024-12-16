@@ -7,11 +7,13 @@ import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.StaticOptimizer
 import qualified ProjectM36.DatabaseContext as DBC
+import qualified ProjectM36.DatabaseContext.Basic as DBC
 import ProjectM36.Attribute (attributesFromList)
 import System.Exit
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
+import Optics.Core
 
 testList :: Test
 testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
@@ -133,9 +135,9 @@ testIsoUnion = TestCase $ do
                 [TextAtom "Scooter", IntegerAtom 49],
                 [TextAtom "Auto", IntegerAtom 200],
                 [TextAtom "Tractor", IntegerAtom 500]]
-  let env = mkRelationalExprEnv DBC.basicDatabaseContext {
-        relationVariables = M.singleton "motor" (ExistingRelation motorsRel)
-        } graph
+  let env = mkRelationalExprEnv (DBC.basicDatabaseContext &
+        relationVariables ~. M.singleton "motor" (ExistingRelation motorsRel)
+        ) graph
       splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntegerAtom 50)] ())
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",
                         IsoRename "true" "true",

@@ -4,6 +4,9 @@ import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error
 import qualified ProjectM36.DisconnectedTransaction as Discon
+import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
+import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.ChangeTrackingDatabaseContext
 
 type SessionId = UUID
 
@@ -21,17 +24,17 @@ disconnectedTransaction (Session discon _) = discon
 isDirty :: Session -> DirtyFlag
 isDirty (Session discon _) = Discon.isDirty discon
 
-concreteDatabaseContext :: Session -> DatabaseContext
-concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _) _) _) = context
+concreteDatabaseContext :: Session -> ChangeTrackingDatabaseContext
+concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _)) _) = context
 
 parentId :: Session -> TransactionId
-parentId (Session (DisconnectedTransaction parentUUID _ _) _) = parentUUID
+parentId (Session (DisconnectedTransaction parentUUID _) _) = parentUUID
 
 subschemas :: Session -> Subschemas
-subschemas (Session (DisconnectedTransaction _ (Schemas _ s) _) _) = s
+subschemas (Session (DisconnectedTransaction _ (Schemas _ s)) _) = s
 
-schemas :: Session -> Schemas
-schemas (Session (DisconnectedTransaction _ s _) _) = s
+schemas :: Session -> Discon.ChangeTrackingSchemas
+schemas (Session (DisconnectedTransaction _ s) _) = s
 
 schemaName :: Session -> SchemaName
 schemaName (Session _ s) = s

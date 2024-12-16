@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, CPP #-}
 module TutorialD.Interpreter where
 import ProjectM36.Interpreter
+import ProjectM36.IsomorphicSchema.Types
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr

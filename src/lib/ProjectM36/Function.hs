@@ -2,7 +2,7 @@
 module ProjectM36.Function where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Serialise.Base ()
+--import ProjectM36.Serialise.Base ()
 import ProjectM36.ScriptSession
 import qualified Data.HashSet as HS
 

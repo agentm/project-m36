@@ -6,6 +6,7 @@ import ProjectM36.TransactionGraph
 import ProjectM36.DataFrame
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Serialise.DataFrame ()
 import ProjectM36.Serialise.IsomorphicSchema ()
 import ProjectM36.SQL.Select

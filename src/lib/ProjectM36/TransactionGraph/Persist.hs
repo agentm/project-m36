@@ -2,6 +2,8 @@ module ProjectM36.TransactionGraph.Persist where
 import ProjectM36.Error
 import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.Transaction.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
@@ -170,11 +172,11 @@ transactionGraphLoad dbdir graphIn mScriptSession = do
   freshHeadsAssoc <- transactionGraphHeadsLoad dbdir
   case uuidInfo of
     Left err -> return $ Left err
-    Right info -> do  
+    Right info' -> do  
       let folder eitherGraph transId = case eitherGraph of
             Left err -> return $ Left err
             Right graph -> readTransactionIfNecessary dbdir transId mScriptSession graph
-      loadedGraph <- foldM folder (Right graphIn) (map (\(tid,_,_) -> tid) info)
+      loadedGraph <- foldM folder (Right graphIn) (map (\(tid,_,_) -> tid) info')
       case loadedGraph of 
         Left err -> return $ Left err
         Right freshGraph -> do

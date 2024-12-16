@@ -5,6 +5,9 @@ import ProjectM36.Error
 import ProjectM36.MiscUtils
 import ProjectM36.Relation
 import ProjectM36.NormalizeExpr
+import ProjectM36.DatabaseContext
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.RelationalExpression
 import qualified ProjectM36.AttributeNames as AN
 import Control.Monad
@@ -15,9 +18,7 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import ProjectM36.AtomType
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
+import Optics.Core
 
 -- isomorphic schemas offer bi-directional functors between two schemas
 
@@ -39,7 +40,7 @@ isomorphs (Schema i) = i
 -- | Return an error if the schema is not isomorphic to the base database context.
 -- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
 --TODO: add relvar must appear exactly once constraint
-validateSchema :: Schema -> DatabaseContext -> Maybe SchemaError
+validateSchema :: IsDatabaseContext ctx => Schema -> ctx -> Maybe SchemaError
 validateSchema potentialSchema baseContext
   | not (S.null rvDiff) = Just (RelVarReferencesMissing rvDiff)
   | otherwise = case outDupes of
@@ -53,7 +54,7 @@ validateSchema potentialSchema baseContext
     inDupes = duplicateNames (namesList isomorphInRelVarNames)
     duplicateNames = dupes . L.sort
     namesList isoFunc = concatMap isoFunc (isomorphs potentialSchema)
-    expectedRelVars = M.keysSet (relationVariables baseContext)
+    expectedRelVars = M.keysSet (baseContext ^. relationVariables)
     schemaRelVars = isomorphsOutRelVarNames (isomorphs potentialSchema)
     rvDiff = S.difference expectedRelVars schemaRelVars
 
@@ -194,7 +195,7 @@ spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePred
 -}
 
 databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
-databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFunc expr = case expr of
+databaseContextExprMorph iso'@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFunc expr = case expr of
   Assign rv relExpr | rv == rvIn -> do
     ex <- relExprFunc relExpr
     let trueExpr n = Assign n (Restrict filt ex)
@@ -210,9 +211,9 @@ databaseContextExprMorph iso@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFu
     let trueExpr n = Update n attrMap (AndPredicate predi filt)
         falseExpr n = Update n attrMap (AndPredicate predi (NotPredicate filt))
     pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
-  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso' relExprFunc) exprs
   orig -> pure orig
-databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of
+databaseContextExprMorph iso'@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = case expr of
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
   -- if any tuples are filtered out of the insert/assign, we need to simulate a constraint violation
@@ -225,14 +226,14 @@ databaseContextExprMorph iso@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc
   Delete rv delPred | rv == rvFalse -> pure $ Delete rvOut (AndPredicate delPred (NotPredicate filt))
   Update rv attrMap predi | rv == rvTrue -> pure $ Update rvOut attrMap (AndPredicate predi filt)
   Update rv attrMap predi | rv == rvFalse -> pure $ Update rvOut attrMap (AndPredicate (NotPredicate filt) predi)
-  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso' relExprFunc) exprs
   orig -> pure orig
-databaseContextExprMorph iso@(IsoRename relIn relOut) relExprFunc expr = case expr of
+databaseContextExprMorph iso'@(IsoRename relIn relOut) relExprFunc expr = case expr of
   Assign rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure (Assign relOut ex)
   Insert rv relExpr | rv == relIn -> relExprFunc relExpr >>= \ex -> pure $ Insert relOut ex
   Delete rv delPred | rv == relIn -> pure $ Delete relOut delPred
   Update rv attrMap predi | rv == relIn -> pure $ Update relOut attrMap predi
-  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso relExprFunc) exprs
+  MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso' relExprFunc) exprs
   orig -> pure orig
 
 -- | Apply the isomorphism transformations to the relational expression to convert the relational expression from operating on one schema to a disparate, isomorphic schema.
@@ -346,7 +347,7 @@ createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = le
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
-evalSchemaExpr :: SchemaExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
+evalSchemaExpr :: IsDatabaseContext ctx => SchemaExpr -> ctx -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, ctx)
 evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
   if M.member sname sschemas then
     Left (SubschemaNameInUseError sname)

@@ -10,8 +10,10 @@ module ProjectM36.Transaction.Persist where
 import ProjectM36.Trace
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.Transaction
-import ProjectM36.DatabaseContextFunction
+import ProjectM36.Transaction.Types
+import ProjectM36.DatabaseContext
+import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.DatabaseContextFunctions.Basic
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
 import ProjectM36.Function
@@ -28,6 +30,7 @@ import Codec.Winery
 import Control.Concurrent.Async
 import GHC.Generics
 import qualified Data.Text.Encoding as TE
+import Optics.Core
 
 
 #if defined(__APPLE__) || defined(linux_HOST_OS)
@@ -111,13 +114,13 @@ readTransaction dbdir transId mScriptSession = do
     dbcFuncs <- readFuncs transDir (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession
     atomFuncs <- readFuncs transDir (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession
     registeredQs <- readRegisteredQueries transDir
-    let newContext = DatabaseContext { inclusionDependencies = incDeps,
-                                       relationVariables = relvars,
-                                       typeConstructorMapping = typeCons,
-                                       notifications = notifs,
-                                       atomFunctions = atomFuncs,
-                                       dbcFunctions = dbcFuncs,
-                                       registeredQueries = registeredQs }
+    let newContext = DatabaseContext { _inclusionDependencies = incDeps,
+                                       _relationVariables = relvars,
+                                       _typeConstructorMapping = typeCons,
+                                       _notifications = notifs,
+                                       _atomFunctions = atomFuncs,
+                                       _dbcFunctions = dbcFuncs,
+                                       _registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
         
@@ -130,14 +133,14 @@ writeTransaction sync dbdir trans = do
   unless transDirExists $ do
     --create sub directories
     mapM_ createDirectory [tempTransDir, incDepsDir tempTransDir]
-    writeRelVars sync tempTransDir (relationVariables context)
-    writeIncDeps sync tempTransDir (inclusionDependencies context)
-    writeFuncs sync (atomFuncsPath tempTransDir) (HS.toList (atomFunctions context))
-    writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (dbcFunctions context))
-    writeNotifications sync tempTransDir (notifications context)
-    writeTypeConstructorMapping sync tempTransDir (typeConstructorMapping context)
+    writeRelVars sync tempTransDir (context ^. relationVariables)
+    writeIncDeps sync tempTransDir (context ^. inclusionDependencies)
+    writeFuncs sync (atomFuncsPath tempTransDir) (HS.toList (context ^. atomFunctions))
+    writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (context ^. dbcFunctions ))
+    writeNotifications sync tempTransDir (context ^. notifications)
+    writeTypeConstructorMapping sync tempTransDir (context ^. typeConstructorMapping)
     writeSubschemas sync tempTransDir (subschemas trans)
-    writeRegisteredQueries sync tempTransDir (registeredQueries context)
+    writeRegisteredQueries sync tempTransDir (context ^. registeredQueries)
     writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir

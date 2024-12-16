@@ -4,6 +4,7 @@ module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
+import ProjectM36.DatabaseContext
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 import Control.Monad.Except

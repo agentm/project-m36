@@ -3,7 +3,9 @@
 --really, a better name for this module could be "TransTransactionGraphRelationalExpr", but that name is too long
 module ProjectM36.TransGraphRelationalExpression where
 import ProjectM36.Base
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.TransactionGraph
+import ProjectM36.Transaction.Types
 import ProjectM36.Error
 import qualified Data.Map as M
 import Control.Monad.Trans.Reader

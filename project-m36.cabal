@@ -103,7 +103,8 @@ Library
                   crypton,
                   streamly-core,
                   streamly,
-                  network-byte-order
+                  network-byte-order,
+                  optics-core
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -143,6 +144,9 @@ Library
                      ProjectM36.Key,
                      ProjectM36.FunctionalDependency,
                      ProjectM36.DatabaseContext,
+                     ProjectM36.ChangeTrackingDatabaseContext,
+                     ProjectM36.DatabaseContextFunctions.Basic,
+                     ProjectM36.TransactionGraph.Types,
                      ProjectM36.DateExamples,
                      ProjectM36.DisconnectedTransaction,
                      ProjectM36.AtomFunctionBody,
@@ -182,6 +186,7 @@ Library
                      ProjectM36.DataTypes.ByteString,
                      ProjectM36.DataTypes.SQL.Null,
                      ProjectM36.SQLDatabaseContext,
+                     ProjectM36.DatabaseContext.Basic,
                      ProjectM36.MiscUtils,
                      ProjectM36.Notifications,
                      ProjectM36.Relation,
@@ -197,6 +202,8 @@ Library
                      ProjectM36.Session,
                      ProjectM36.Sessions,
                      ProjectM36.Transaction.Persist,
+                     ProjectM36.Transaction.Types,
+                     ProjectM36.IsomorphicSchema.Types,
                      ProjectM36.TypeConstructor,
                      ProjectM36.TypeConstructorDef,
                      ProjectM36.FileLock,
@@ -208,7 +215,7 @@ Library
                      ProjectM36.WithNameExpr, 
                      ProjectM36.Trace,
                      ProjectM36.Streaming.Tuple,
-                     ProjectM36.Streaming.RelationalExpression,                     
+                     ProjectM36.Streaming.RelationalExpression,     
                      ProjectM36.RelExprCache,
                      ProjectM36.Cache.Tuple,
                      ProjectM36.RelExprSize,
@@ -514,7 +521,7 @@ Test-Suite test-tutoriald
     type: exitcode-stdio-1.0
     main-is: TutorialD/InterpreterTest.hs
     Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer, ProjectM36.Interpreter
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific, optics-core
 
 Test-Suite test-tutoriald-atomfunctionscript
     import: commontest

@@ -6,12 +6,13 @@ import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Attribute as A
 import ProjectM36.Tuple
+import ProjectM36.DatabaseContext
 import ProjectM36.Relation (RestrictionFilter, ContextTuples, attributes, contextTupleAtomForAttributeName, tupleSet, singletonContextTuple)
 import ProjectM36.WithNameExpr
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Stream.Prelude as Stream
-import qualified Streamly.Internal.Data.Stream as Stream
+--import qualified Streamly.Internal.Data.Stream as Stream
 import Streamly.Internal.Control.Concurrent (MonadAsync)
 import qualified Streamly.Internal.Data.Stream as SD
 import qualified Streamly.Data.StreamK as StreamK
@@ -26,8 +27,9 @@ import qualified Data.Set as S
 import Control.DeepSeq (force)
 import qualified Data.Text as T
 import Data.Time.Clock (DiffTime)
-import qualified Data.List.NonEmpty as NE
+--import qualified Data.List.NonEmpty as NE
 import Control.Exception
+import Optics.Core
 
 data CacheMissException = CacheMissException FilePath
   deriving Show
@@ -55,7 +57,7 @@ data RelExprExecPlanBase a t =
   -- | Alternative plans in case of failure. For example, the first node in the list may be to read from a cache file but the cache has since deleted the entry, so we proceed with an alternative. This is not a node to use for otherwise fatal errors.
 --  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
-  RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
+  -- RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
                        RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase a) (RelExprExecPlanBase a t) t | -- include compiled mode for stream execution and ADT version for planning printer
                        ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a t) t |
@@ -144,7 +146,7 @@ planGraphRefRelationalExpr :: GraphRefRelationalExpr ->
                               Either RelationalError GraphRefRelExprExecPlan
 planGraphRefRelationalExpr (RelationVariable name tid) gfEnv = do
   ctx <- runGraphRefRelationalExprM gfEnv (gfDatabaseContextForMarker tid)
-  let rvMap = relationVariables ctx
+  let rvMap = ctx ^. relationVariables
   case M.lookup name rvMap of
     Nothing -> Left (RelVarNotDefinedError name)
     Just rvExpr -> planGraphRefRelationalExpr rvExpr gfEnv
@@ -446,7 +448,7 @@ instance Pretty AtomType where
   pretty aType = pretty (show aType)
 
 instance Pretty Atom where
-  pretty at = pretty (show at)
+  pretty atom = pretty (show atom)
 
 instance Show a => Pretty (RestrictionPredicateExprBase a) where
   pretty x = pretty (show x)

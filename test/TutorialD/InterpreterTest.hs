@@ -17,6 +17,8 @@ import ProjectM36.DataTypes.List
 import ProjectM36.DateExamples
 import ProjectM36.Base hiding (Finite)
 import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.Transaction.Types
 import ProjectM36.Client
 import ProjectM36.HashSecurely
 import ProjectM36.Interpreter
@@ -39,6 +41,7 @@ import Data.Time.Calendar (fromGregorian)
 import Data.Either
 import Data.Scientific
 import Data.ByteString.Base64 as B64
+import Optics.Core
 
 main :: IO ()
 main = do
@@ -219,7 +222,7 @@ assertTutdEqual databaseContext transId graph expected tutd = assertEqual (unpac
   where
     interpreted = case interpretDatabaseContextExpr databaseContext transId graph tutd of
       Left err -> Left err
-      Right context -> case M.lookup "x" (relationVariables context) of
+      Right context -> case M.lookup "x" (context ^. relationVariables) of
         Nothing -> Left $ RelVarNotDefinedError "x"
         Just relExpr -> do
           let env = freshGraphRefRelationalExprEnv (Just context) graph
@@ -252,7 +255,7 @@ transactionGraphAddCommitTest = TestCase $ do
           commit sessionId dbconn >>= eitherFail
           discon <- disconnectedTransaction_ sessionId dbconn
           let context = Discon.concreteDatabaseContext discon
-          assertEqual "ensure x was added" (M.lookup "x" (relationVariables context)) (Just (ExistingRelation suppliersRel))
+          assertEqual "ensure x was added" (M.lookup "x" (context ^. relationVariables)) (Just (ExistingRelation suppliersRel))
         DisplayRelationalErrorResult err -> assertFailure (show err)
         DisplayHintWith{} -> assertFailure "displayhintwith?"
 
@@ -264,7 +267,7 @@ transactionRollbackTest = TestCase $ do
   rollback sessionId dbconn >>= eitherFail
   discon <- disconnectedTransaction_ sessionId dbconn
   graph' <- transactionGraph_ dbconn
-  assertEqual "validate context" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))
+  assertEqual "validate context" Nothing (M.lookup "x" ((Discon.concreteDatabaseContext discon) ^. relationVariables))
   let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)
   assertEqual "validate graph" (graphEq graph) (graphEq graph')
 
@@ -272,14 +275,14 @@ transactionRollbackTest = TestCase $ do
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  (DisconnectedTransaction firstUUID _ _) <- disconnectedTransaction_ sessionId dbconn
+  (Discon.DisconnectedTransaction firstUUID _) <- disconnectedTransaction_ sessionId dbconn
   executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ())) >>= eitherFail
   commit sessionId dbconn >>= eitherFail
   --perform the jump
   executeGraphExpr sessionId dbconn (JumpToTransaction firstUUID) >>= eitherFail
   --check that the disconnected transaction does not include "x"
   discon <- disconnectedTransaction_ sessionId dbconn
-  assertEqual "ensure x is not present" Nothing (M.lookup "x" (relationVariables (Discon.concreteDatabaseContext discon)))          
+  assertEqual "ensure x is not present" Nothing (M.lookup "x" ((Discon.concreteDatabaseContext discon) ^. relationVariables))          
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do

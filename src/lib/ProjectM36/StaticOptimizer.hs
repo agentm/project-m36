@@ -6,9 +6,11 @@ import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Relation
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.Transaction.Types
+import ProjectM36.DatabaseContext
 import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
 import ProjectM36.Error
-import ProjectM36.Transaction
 import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
 import qualified ProjectM36.AttributeNames as AS
@@ -26,7 +28,9 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
+import Optics.Core
 --import Debug.Trace
+
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -138,14 +142,14 @@ optimizeDatabaseContextExpr expr = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
   optimizeGraphRefDatabaseContextExpr gfExpr
   
-optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr :: IsDatabaseContext ctx => Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ctx ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
       eOptExpr = if runOpt then
-                   runGraphRefSOptDatabaseContextExprM transId context graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+                   runGraphRefSOptDatabaseContextExprM transId (asDatabaseContext context) graph (optimizeGraphRefDatabaseContextExpr gfExpr)
                    else
                    pure gfExpr
   case eOptExpr of
@@ -160,13 +164,13 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
-optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
+optimizeAndEvalDatabaseContextIOExpr :: IsDatabaseContext ctx => DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ctx (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do
   transId <- asks dbcio_transId
   ctx <- getDBCIOContext
   graph <- asks dbcio_graph
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
-      eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
+      eOptExpr = runGraphRefSOptDatabaseContextExprM transId (asDatabaseContext ctx) graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
     Left err -> pure (Left err)
     Right optExpr ->
@@ -390,7 +394,7 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   graph <- askGraph
   parentId <- askTransId
   
-  let emptyRvs ctx = ctx { relationVariables = mkEmptyRelVars (relationVariables ctx) }
+  let emptyRvs ctx = ctx & relationVariables .~ mkEmptyRelVars (ctx ^. relationVariables)
       dbcEnv = mkDatabaseContextEvalEnv parentId graph
       folder (ctx, expracc) expr = do
         --optimize the expr and run it against empty relvars to add it to the context
@@ -521,7 +525,7 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
         Just ((joinedExpr, joinedType), (unjoinedExpr, _)) -> do
         --lookup transaction
         --scan inclusion dependencies for a foreign key relationship
-         let incDeps = inclusionDependencies commonContext
+         let incDeps = commonContext ^. inclusionDependencies
              fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
              isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do

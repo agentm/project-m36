@@ -3,6 +3,7 @@ import Text.Megaparsec
 import ProjectM36.Interpreter
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Session
 import ProjectM36.Client
 import TutorialD.Interpreter.RelationalExpr

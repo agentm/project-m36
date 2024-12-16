@@ -3,6 +3,8 @@ import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.Error
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.DatabaseContext
 import ProjectM36.StaticOptimizer
 
 executeDatabaseContextExpr :: DatabaseContextExpr -> TransactionId -> TransactionGraph -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext

@@ -2,6 +2,7 @@ module ProjectM36.DateExamples where
 import ProjectM36.Base
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Key
+import ProjectM36.DatabaseContext.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
 import ProjectM36.DatabaseContext
@@ -10,11 +11,11 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 dateExamples :: DatabaseContext
-dateExamples = empty { inclusionDependencies = dateIncDeps,
-                                 relationVariables = M.union (relationVariables basicDatabaseContext) dateRelVars,
-                                 notifications = M.empty,
-                                 atomFunctions = basicAtomFunctions,
-                                 typeConstructorMapping = basicTypeConstructorMapping }
+dateExamples = empty { _inclusionDependencies = dateIncDeps,
+                       _relationVariables = M.union (_relationVariables basicDatabaseContext) dateRelVars,
+                       _notifications = M.empty,
+                       _atomFunctions = basicAtomFunctions,
+                       _typeConstructorMapping = basicTypeConstructorMapping }
   where -- these must be lower case now that data constructors are in play
     dateRelVars = M.fromList [("s", ExistingRelation suppliers),
                               ("p", ExistingRelation products),

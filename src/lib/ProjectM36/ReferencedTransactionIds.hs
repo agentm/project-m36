@@ -2,11 +2,14 @@
 module ProjectM36.ReferencedTransactionIds where
 import ProjectM36.Base
 import ProjectM36.Error
-import qualified ProjectM36.Transaction as T
+import ProjectM36.DatabaseContext
+import ProjectM36.Transaction.Types
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad (foldM)
+import Optics.Core
 
 type TransactionIds = S.Set TransactionId
 
@@ -113,7 +116,7 @@ instance ReferencedTransactionIds DatabaseContext where
   referencedTransactionIds dbc =
     S.unions [
     --referencedTransactionIds (inclusionDependencies dbc),
-    referencedTransactionIds (relationVariables dbc)
+    referencedTransactionIds (dbc ^. relationVariables)
     --referencedTransactionIds (atomFunctions dbc),
     --referencedTransactionIds (dbcFunctions dbc),
     --referencedTransactionIds (notifications dbc),
@@ -130,11 +133,11 @@ instance ReferencedTransactionIds RelationVariables where
 -- should be trim merge parents that don't contribute to the relvars? maybe
 referencedTransactionIdsForTransaction :: Transaction -> TransactionGraph -> Either RelationalError (S.Set Transaction)
 referencedTransactionIdsForTransaction trans graph
-  | parentIds == T.rootParent = pure (S.singleton trans)
+  | parentIds' == rootParent = pure (S.singleton trans)
   | otherwise = 
-    foldM folder (S.singleton trans) parentIds
+    foldM folder (S.singleton trans) parentIds'
   where
-    parentIds = parents (transactionInfo trans)
+    parentIds' = parents (transactionInfo trans)
     folder acc transId' = do
       trans' <- transactionForId transId' graph
       transSet <- referencedTransactionIdsForTransaction trans' graph

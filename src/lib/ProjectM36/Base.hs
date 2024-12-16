@@ -1,11 +1,8 @@
-{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, BangPatterns #-}
+{-# LANGUAGE ExistentialQuantification,DeriveGeneric,DeriveAnyClass,FlexibleInstances,OverloadedStrings, DeriveTraversable, DerivingVia, TemplateHaskell, TypeFamilies, BangPatterns, DuplicateRecordFields #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module ProjectM36.Base where
-import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
-import ProjectM36.MerkleHash
-
 import Data.Functor.Foldable.TH
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -23,7 +20,6 @@ import Data.Time.Clock
 import Data.Time.Calendar (Day(..))
 import Data.Typeable
 import Data.ByteString (ByteString)
-import qualified Data.List.NonEmpty as NE
 import Data.Vector.Instances ()
 import Data.Scientific
 
@@ -260,6 +256,7 @@ type PinnedRelationalExpr = RelationalExprBase TransactionId
 
 instance Hashable PinnedRelationalExpr
     
+type TransactionId = UUID
 
 type WithNamesAssocs = WithNamesAssocsBase ()
 
@@ -326,41 +323,12 @@ data GraphRefTransactionMarker = TransactionMarker TransactionId |
 -- a fundamental relational expr to which other relational expressions compile
 type GraphRefRelationalExpr = RelationalExprBase GraphRefTransactionMarker
 
-type SchemaName = StringType                         
-
-type Subschemas = M.Map SchemaName Schema
-
--- | Every transaction has one concrete database context and any number of isomorphic subschemas.
-data Schemas = Schemas DatabaseContext Subschemas
-  deriving (Generic)
-
--- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
--- I spent some time thinking about whether the VirtualDatabaseContext/Schema and DatabaseContext data constructors should be the same constructor, but that would allow relation variables to be created in a "virtual" context which would appear to defeat the isomorphisms of the contexts. It should be possible to switch to an alternative schema to view the same equivalent information without information loss. However, allowing all contexts to reference another context while maintaining its own relation variables, new types, etc. could be interesting from a security perspective. For example, if a user creates a new relvar in a virtual context, then does it necessarily appear in all linked contexts? After deliberation, I think the relvar should appear in *all* linked contexts to retain the isomorphic properties, even when the isomorphism is for a subset of the context. This hints that the IsoMorphs should allow for "fall-through"; that is, when a relvar is not defined in the virtual context (for morphing), then the lookup should fall through to the underlying context.
-newtype Schema = Schema SchemaIsomorphs
-              deriving (Generic)
-                              
-data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarName, RelVarName) | 
-                      IsoRename RelVarName RelVarName |
-                      IsoUnion (RelVarName, RelVarName) RestrictionPredicateExpr RelVarName  --maps two relvars to one relvar
-                      -- IsoTypeConstructor in morphAttrExpr
-                      deriving (Generic, Show)
-                      
-type SchemaIsomorphs = [SchemaIsomorph]
+type HeadName = StringType
 
 type RegisteredQueryName = StringType
 
 type RegisteredQueries = M.Map RegisteredQueryName RelationalExpr
-                              
-data DatabaseContext = DatabaseContext {
-  inclusionDependencies :: InclusionDependencies,
-  relationVariables :: RelationVariables,
-  atomFunctions :: AtomFunctions,
-  dbcFunctions :: DatabaseContextFunctions,
-  notifications :: Notifications,
-  typeConstructorMapping :: TypeConstructorMapping,
-  registeredQueries :: RegisteredQueries
-  } deriving (NFData, Generic)
-             
+  
 type IncDepName = StringType             
 
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
@@ -444,60 +412,9 @@ data RestrictionPredicateExprBase a =
   AttributeEqualityPredicate AttributeName (AtomExprBase a) -- relationalexpr must result in relation with single tuple
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
--- child + parent links
--- | A transaction graph's head name references the leaves of the transaction graph and can be used during session creation to indicate at which point in the graph commits should persist.
-type HeadName = StringType
-
-type TransactionHeads = M.Map HeadName Transaction
-
--- | The transaction graph is the global database's state which references every committed transaction.
-data TransactionGraph = TransactionGraph TransactionHeads (S.Set Transaction)
-  deriving Generic
-
-transactionHeadsForGraph :: TransactionGraph -> TransactionHeads
-transactionHeadsForGraph (TransactionGraph hs _) = hs
-
-transactionsForGraph :: TransactionGraph -> S.Set Transaction
-transactionsForGraph (TransactionGraph _ ts) = ts
-
-transactionIdsForGraph :: TransactionGraph -> S.Set TransactionId
-transactionIdsForGraph = S.map transactionId . transactionsForGraph
-
--- | Every transaction has context-specific information attached to it.
--- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
-data TransactionInfo = TransactionInfo {
-  parents :: TransactionParents,
-  stamp :: UTCTime,
-  merkleHash :: MerkleHash
-  } deriving (Show, Generic)
-
-type TransactionParents = NE.NonEmpty TransactionId
-
--- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
-type TransactionId = UUID
-
-data Transaction = Transaction TransactionId TransactionInfo Schemas
-  deriving Generic
-                            
--- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
-data DisconnectedTransaction = DisconnectedTransaction TransactionId Schemas DirtyFlag
---the database context expression represents a difference between the disconnected transaction and its immutable parent transaction- is this diff expr used at all?
-
 type DirtyFlag = Bool
 
 type TransactionDiffExpr = DatabaseContextExpr
-                            
-transactionId :: Transaction -> TransactionId
-transactionId (Transaction tid _ _) = tid
-
-transactionInfo :: Transaction -> TransactionInfo
-transactionInfo (Transaction _ info _) = info
-
-instance Eq Transaction where                            
-  (Transaction uuidA _ _) == (Transaction uuidB _ _) = uuidA == uuidB
-                   
-instance Ord Transaction where                            
-  compare (Transaction uuidA _ _) (Transaction uuidB _ _) = compare uuidA uuidB
 
 type AtomExpr = AtomExprBase ()
 
@@ -611,10 +528,6 @@ data MergeStrategy =
                      deriving (Eq, Show, Generic, NFData)
 
 
-
-type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
-type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
-
 type FunctionName = StringType
 type FunctionBodyScript = StringType
 
@@ -651,9 +564,6 @@ instance NFData a => NFData (FunctionBody a) where
 
 type AtomFunction = Function AtomFunctionBodyType
 type AtomFunctionBody = FunctionBody AtomFunctionBodyType
-
-type DatabaseContextFunction = Function DatabaseContextFunctionBodyType
-type DatabaseContextFunctionBody = FunctionBody DatabaseContextFunctionBodyType
 
 attrTypeVars :: Attribute -> S.Set TypeVarName
 attrTypeVars (Attribute _ aType) = case aType of

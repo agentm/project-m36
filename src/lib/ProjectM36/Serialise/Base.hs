@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables, DeriveGeneric #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 --Serialise instances for ProjectM36.Base data types- orphan instance city
 module ProjectM36.Serialise.Base where
@@ -10,12 +10,16 @@ import ProjectM36.MerkleHash
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet as TS
+import ProjectM36.DatabaseContext
+import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.Transaction.Types
 import Data.UUID
 import Data.Proxy
 import Data.Word
 import ProjectM36.Attribute as A
 import qualified Data.Vector as V
 import Data.Time.Calendar (Day,toGregorian,fromGregorian)
+import GHC.Generics (Generic)
 #if MIN_VERSION_winery(1,4,0)
 #else
 import qualified Data.List.NonEmpty as NE
@@ -122,9 +126,9 @@ instance Serialise RelationTupleSet where
   extractor = fattenTupleSet <$> extractor
   decodeCurrent = fattenTupleSet <$> decodeCurrent
 
-data GraphRefOrUpdateValue a =
+data GraphRefOrUpdate a =
   -- | Use the value from the same field at the transaction marker (no difference).
-  GraphRefValue TransactionMarker |
+  GraphRefValue GraphRefTransactionMarker |
   UpdateValue a
 
 -- | Used only for serialization.
@@ -137,4 +141,4 @@ data GraphRefDatabaseContext = GraphRefDatabaseContext
     notifications :: GraphRefOrUpdate Notifications,
     typeConstructorMapping :: GraphRefOrUpdate TypeConstructorMapping,
     registeredQueries :: GraphRefOrUpdate RegisteredQueries
-  } deriving (NFData, Generic)
+  } deriving (Generic)

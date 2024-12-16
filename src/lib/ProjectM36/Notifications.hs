@@ -2,6 +2,8 @@ module ProjectM36.Notifications where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.DatabaseContext
 import ProjectM36.StaticOptimizer
 import qualified Data.Map as M
 import Data.Either (isRight)

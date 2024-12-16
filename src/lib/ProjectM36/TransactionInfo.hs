@@ -1,5 +1,6 @@
 module ProjectM36.TransactionInfo where
 import ProjectM36.Base
+import ProjectM36.Transaction.Types
 import Data.Time.Clock
 import qualified Data.List.NonEmpty as NE
 

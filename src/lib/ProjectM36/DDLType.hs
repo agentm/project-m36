@@ -10,6 +10,10 @@ import ProjectM36.InclusionDependency
 import ProjectM36.AtomFunction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.IsomorphicSchema
+import ProjectM36.DatabaseContext
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.IsomorphicSchema.Types
+import Optics.Core
 
 -- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema.
 ddlHash :: DatabaseContext -> TransactionGraph -> Either RelationalError SecureHash
@@ -26,16 +30,16 @@ typesForRelationVariables ctx tgraph = do
   M.fromList <$> mapM (\(rvname, rvexpr) -> do
            rvtype <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr rvexpr)
            pure (rvname, rvtype)
-                      ) (M.toList (relationVariables ctx))
+                      ) (M.toList (ctx ^. relationVariables))
 
 
 -- | Return a Relation which represents the database context's current DDL schema.
 ddlType :: Schema -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation
 ddlType schema ctx tgraph = do
-  incDepsRel <- inclusionDependenciesInSchema schema (inclusionDependencies ctx) >>= inclusionDependenciesAsRelation
-  atomFuncsRel <- atomFunctionsAsRelation (atomFunctions ctx)
-  dbcFuncsRel <- databaseContextFunctionsAsRelation (dbcFunctions ctx)
-  typesRel <- typesAsRelation (typeConstructorMapping ctx)
+  incDepsRel <- inclusionDependenciesInSchema schema (ctx ^. inclusionDependencies) >>= inclusionDependenciesAsRelation
+  atomFuncsRel <- atomFunctionsAsRelation (ctx ^. atomFunctions)
+  dbcFuncsRel <- databaseContextFunctionsAsRelation (ctx ^. dbcFunctions )
+  typesRel <- typesAsRelation (ctx ^. typeConstructorMapping )
   relvarTypesRel <- relationVariablesAsRelationInSchema ctx schema tgraph
   let attrsAssocs = [("inclusion_dependencies", incDepsRel),
                      ("atom_functions", atomFuncsRel),

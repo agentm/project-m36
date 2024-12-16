@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.MerkleHash
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
+import ProjectM36.IsomorphicSchema.Types
 import qualified Data.Set as S
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)

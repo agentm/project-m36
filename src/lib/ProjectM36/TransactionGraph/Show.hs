@@ -1,6 +1,7 @@
 module ProjectM36.TransactionGraph.Show where
-import ProjectM36.Base
 import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.Transaction.Types
 import qualified Data.Set as S
 
 showTransactionStructure :: Transaction -> TransactionGraph -> String
