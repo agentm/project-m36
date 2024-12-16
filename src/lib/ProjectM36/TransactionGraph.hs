@@ -179,7 +179,7 @@ newTransUncommittedReplace trans@(Transaction tid tinfo (Schemas ctx sschemas)) 
   where
   uncommittedReplace UncommittedContextMarker = TransactionMarker tid
   uncommittedReplace marker = marker
-  relvars = (concreteDatabaseContext trans) ^. relationVariables
+  relvars = concreteDatabaseContext trans ^. relationVariables
   fixedRelvars = M.map (fmap uncommittedReplace) relvars
   fixedContext = ctx & relationVariables .~ fixedRelvars
 
@@ -480,7 +480,7 @@ showTransactionStructureX :: Bool -> Transaction -> TransactionGraph -> String
 showTransactionStructureX showRelVars trans graph = headInfo ++ " " ++ show (transactionId trans) ++ " " ++ parentTransactionsInfo ++ relVarsInfo
   where
     relVarsInfo | not showRelVars = ""
-                | otherwise = "\n" <> concatMap show (M.toList ((concreteDatabaseContext trans) ^. relationVariables))
+                | otherwise = "\n" <> concatMap show (M.toList (concreteDatabaseContext trans ^. relationVariables))
     headInfo = maybe "" show (headNameForTransaction trans graph)
     parentTransactionsInfo = if isRootTransaction trans then "root" else case parentTransactions trans graph of
       Left err -> show err

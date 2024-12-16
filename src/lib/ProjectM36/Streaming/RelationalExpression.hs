@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns, FlexibleInstances, TypeApplications #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
@@ -31,7 +31,7 @@ import Data.Time.Clock (DiffTime)
 import Control.Exception
 import Optics.Core
 
-data CacheMissException = CacheMissException FilePath
+newtype CacheMissException = CacheMissException FilePath
   deriving Show
 
 instance Exception CacheMissException

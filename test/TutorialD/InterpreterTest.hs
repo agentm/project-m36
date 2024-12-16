@@ -267,7 +267,7 @@ transactionRollbackTest = TestCase $ do
   rollback sessionId dbconn >>= eitherFail
   discon <- disconnectedTransaction_ sessionId dbconn
   graph' <- transactionGraph_ dbconn
-  assertEqual "validate context" Nothing (M.lookup "x" ((Discon.concreteDatabaseContext discon) ^. relationVariables))
+  assertEqual "validate context" Nothing (M.lookup "x" (Discon.concreteDatabaseContext discon ^. relationVariables))
   let graphEq graphArg = S.map transactionId (transactionsForGraph graphArg)
   assertEqual "validate graph" (graphEq graph) (graphEq graph')
 
@@ -282,7 +282,7 @@ transactionJumpTest = TestCase $ do
   executeGraphExpr sessionId dbconn (JumpToTransaction firstUUID) >>= eitherFail
   --check that the disconnected transaction does not include "x"
   discon <- disconnectedTransaction_ sessionId dbconn
-  assertEqual "ensure x is not present" Nothing (M.lookup "x" ((Discon.concreteDatabaseContext discon) ^. relationVariables))          
+  assertEqual "ensure x is not present" Nothing (M.lookup "x" (Discon.concreteDatabaseContext discon ^. relationVariables))          
 --branch from the first transaction and verify that there are two heads
 transactionBranchTest :: Test
 transactionBranchTest = TestCase $ do

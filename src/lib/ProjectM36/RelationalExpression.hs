@@ -686,7 +686,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
     Right dbstate -> do
          --Assign
            let existingRelVar = M.lookup relVarName relVarTable
-               relVarTable = (dbc_context dbstate) ^. relationVariables 
+               relVarTable = dbc_context dbstate ^. relationVariables 
            case existingRelVar of
                 Nothing -> pure $ Left (RelVarNotDefinedError relVarName)
                 Just existingRel -> do
@@ -695,7 +695,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
                     Left err -> pure (Left err)
                     Right relType -> do
                       let expectedAttributes = attributes relType
-                          tcMap = (dbc_context dbstate) ^. typeConstructorMapping
+                          tcMap = dbc_context dbstate ^. typeConstructorMapping
                       eitherRel <- liftIO $ generate $ runReaderT (arbitraryRelation expectedAttributes range) tcMap
                       case eitherRel of
                         Left err -> pure $ Left err

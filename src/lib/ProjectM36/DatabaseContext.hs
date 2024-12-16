@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, DeriveGeneric, DeriveAnyClass, MultiParamTypeClasses, TypeApplications, ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes, DeriveGeneric, DeriveAnyClass, MultiParamTypeClasses, ExistentialQuantification #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import Control.DeepSeq (NFData)

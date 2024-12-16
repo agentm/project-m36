@@ -800,7 +800,7 @@ typeConstructorMapping sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure $ Left err 
       Right (session, _) -> --warning, no schema support for typeconstructors
-        pure (Right ((Sess.concreteDatabaseContext session) ^. DBC.typeConstructorMapping ))
+        pure (Right (Sess.concreteDatabaseContext session ^. DBC.typeConstructorMapping ))
 typeConstructorMapping sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveTypeConstructorMapping sessionId)
   
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
@@ -898,7 +898,7 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right (session, _) -> 
-        pure (AF.atomFunctionsAsRelation ((concreteDatabaseContext session) ^. atomFunctions))
+        pure (AF.atomFunctionsAsRelation (concreteDatabaseContext session ^. atomFunctions))
         
 atomFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
 
@@ -910,7 +910,7 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right (session, _) ->
-        pure (DCF.databaseContextFunctionsAsRelation ((concreteDatabaseContext session) ^. dbcFunctions))
+        pure (DCF.databaseContextFunctionsAsRelation (concreteDatabaseContext session ^. dbcFunctions))
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
 
@@ -954,7 +954,7 @@ atomTypesAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right session ->
-        case typesAsRelation ((Sess.concreteDatabaseContext session) ^. DBC.typeConstructorMapping) of
+        case typesAsRelation (Sess.concreteDatabaseContext session ^. DBC.typeConstructorMapping) of
           Left err -> pure (Left err)
           Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)
