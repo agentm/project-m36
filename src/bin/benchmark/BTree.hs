@@ -8,7 +8,7 @@ import Data.ByteUnits
 -- | creates a completely BTree from a uniform distribution of positive integers.
 
 createBTree :: Branches -> Int -> BTree
-createBTree branches itemCount = build branches (V.fromList [0..itemCount - 1])
+createBTree branches' itemCount = build branches' (V.fromList [0..itemCount - 1])
   
 main :: IO ()
 main = do

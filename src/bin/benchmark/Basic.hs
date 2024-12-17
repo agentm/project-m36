@@ -9,6 +9,7 @@ import ProjectM36.TransactionGraph
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified ProjectM36.DatabaseContext as DBC
+import qualified ProjectM36.DatabaseContext.Basic as DBC
 import qualified Data.Set as S
 import System.IO.Temp
 import System.FilePath
