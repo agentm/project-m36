@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 import TutorialD.Interpreter
 import ProjectM36.Cli
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Basic
 import System.Directory
 import System.FilePath
 

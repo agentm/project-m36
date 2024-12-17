@@ -5,6 +5,7 @@ import ProjectM36.Relation
 import qualified ProjectM36.Client as C
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Basic
 import System.IO.Temp
 import System.FilePath
 import ProjectM36.TupleSet as TS

@@ -22,7 +22,7 @@ import Data.Functor (($>))
 import Data.Text as T (Text,pack)
 import GHC.Generics (Generic)
 import qualified ProjectM36.Base as Base
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Basic
 import ProjectM36.Client
        ( AtomExprBase(NakedAtomExpr)
        , Atomable(toAddTypeExpr, toAtom)

@@ -57,7 +57,7 @@ testFindColumn = TestCase $ do
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  let sqlDBContext = dateExamples & relationVariables ~. M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables)
+  let sqlDBContext = dateExamples & relationVariables .~ M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables)
   (tgraph,transId) <- freshTransactionGraph sqlDBContext
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
@@ -398,7 +398,7 @@ testCreateTable = TestCase $ do
 testDBUpdate :: Test
 testDBUpdate = TestCase $ do
   let sqlDBContext = dateExamples { _relationVariables =
-                                      M.insert "snull" (ExistingRelation sNullRelVar) (relationVariables dateExamples),
+                                      M.insert "snull" (ExistingRelation sNullRelVar) (_relationVariables dateExamples),
                                     _typeConstructorMapping = dateExamples ^. typeConstructorMapping <> nullTypeConstructorMapping
                                   }
   (tgraph,transId) <- freshTransactionGraph sqlDBContext

@@ -4,6 +4,8 @@ module ProjectM36.Cli where
 import qualified ProjectM36.Client as C
 import qualified Data.Text as T
 import ProjectM36.Base
+import ProjectM36.DatabaseContext
+import ProjectM36.IsomorphicSchema.Types
 import System.Console.Haskeline
 import Control.Exception
 import System.IO

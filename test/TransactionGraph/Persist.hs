@@ -3,8 +3,13 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
 import ProjectM36.TransactionGraph.Persist
+import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.Transaction.Types as T
 import ProjectM36.TransactionGraph as TG
-import ProjectM36.Transaction
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.DatabaseContext
+import ProjectM36.ChangeTrackingDatabaseContext
+import ProjectM36.DisconnectedTransaction
 import ProjectM36.DateExamples
 import System.IO.Temp
 import System.Exit
@@ -20,6 +25,7 @@ import Data.Time.Calendar
 import ProjectM36.Client as C
 import ProjectM36.Relation
 import ProjectM36.Transaction.Persist
+import Optics.Core
 
 main :: IO ()           
 main = do 
@@ -56,11 +62,11 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
     Just headTrans -> 
-          case interpretDatabaseContextExpr (concreteDatabaseContext headTrans) (transactionId headTrans) graph "x:=s" of
+          case interpretDatabaseContextExpr (T.concreteDatabaseContext headTrans) (transactionId headTrans) graph "x:=s" of
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
-              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) False
+              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas (fromDatabaseContext context') M.empty)
                   addTrans = addDisconnectedTransaction stamp' freshId' "master" newdiscon graph
               --add a transaction to the graph
               case addTrans of
@@ -107,11 +113,11 @@ testMerkleHashValidation = TestCase $
           updatedTrans = Transaction (transactionId trans) (transactionInfo trans) updatedSchemas
           transactionDir' = dbdir </> show (transactionId trans)
           updatedSchemas =
-            case schemas trans of
+            case T.schemas trans of
               Schemas ctx sschemas ->
-                let updatedContext = ctx {
-                      relationVariables = M.insert "malicious" (ExistingRelation relationFalse) (relationVariables ctx)
-                      } in
+                let updatedContext = ctx &
+                      relationVariables .~ M.insert "malicious" (ExistingRelation relationFalse) (ctx ^. relationVariables)
+                      in
                 Schemas updatedContext sschemas
           maliciousGraph = TransactionGraph malHeads malTransSet
           malHeads = M.insert "master" updatedTrans (transactionHeadsForGraph graph)

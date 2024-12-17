@@ -4,6 +4,7 @@ import ProjectM36.Base
 import ProjectM36.Cli
 import SQL.Interpreter
 import ProjectM36.SQLDatabaseContext
+import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Error
 import System.Directory
 import System.FilePath
