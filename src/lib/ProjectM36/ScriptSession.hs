@@ -243,6 +243,7 @@ initScriptSession ghcPkgPaths = do
           "Control.Monad.State",
           "ProjectM36.Base",
           "ProjectM36.Relation",
+          "ProjectM36.DatabaseContext",
           "ProjectM36.AtomFunctionError",
           "ProjectM36.DatabaseContextFunctionError",
           "ProjectM36.DatabaseContextFunctionUtils",

@@ -467,6 +467,7 @@ Common commontest
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded -with-rtsopts=-N
     Hs-Source-Dirs: test, src/bin
+    Other-Modules: ProjectM36.Interpreter
 
 Benchmark basic-benchmark
     Default-Language: Haskell2010
