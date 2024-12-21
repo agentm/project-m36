@@ -153,7 +153,7 @@ readTupleStream h = SD.unCross $ do
   let readTupleBlock (offset', byteLength) = liftIO $ do
 --        print ("readTupleBlock", offset', byteLength)
         hSeek h AbsoluteSeek (fromIntegral offset')
-        tuples <- deserialiseOnly <$> BS.hGet h (fromIntegral byteLength)
+        tuples <- deserialiseOnly' <$> BS.hGet h (fromIntegral byteLength)
         case tuples of
           Left err -> throw err
           Right tuples' -> do
@@ -161,8 +161,8 @@ readTupleStream h = SD.unCross $ do
             pure $ SP.fromList tuples'
   SD.mkCross $ SP.concatMapM readTupleBlock (SP.fromList (V.toList (blockSizes tupleCacheInfo)))
   
-deserialiseOnly :: forall s. Serialise s => BS.ByteString -> Either WineryException s
-deserialiseOnly bytes = do
+deserialiseOnly' :: forall s. Serialise s => BS.ByteString -> Either WineryException s
+deserialiseOnly' bytes = do
   dec <- getDecoder (schema (Proxy :: Proxy s))
   pure (evalDecoder dec bytes)
 
