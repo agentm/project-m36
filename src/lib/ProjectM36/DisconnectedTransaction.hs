@@ -39,10 +39,12 @@ isDirty disconTrans = CTDBC.isDirty (concreteDatabaseContext disconTrans)
 -- | Create a fresh (unchanged marker-ed) disconnected transaction- used after a commit
 freshTransaction :: TransactionId -> ChangeTrackingSchemas -> DisconnectedTransaction
 freshTransaction tid (Schemas ctx subschemas') =
-  DisconnectedTransaction tid (Schemas (makeClean ctx) subschemas')
+  DisconnectedTransaction tid (Schemas (makeClean tid ctx) subschemas')
 
+{-
 freshTransaction' :: TransactionId -> Schemas DatabaseContext -> DisconnectedTransaction
 freshTransaction' tid (Schemas parentContext parentSchemas) =
   DisconnectedTransaction tid schemas'
   where
     schemas' = Schemas (fromDatabaseContext parentContext) parentSchemas
+-}

@@ -4,6 +4,7 @@ import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
+import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
@@ -26,6 +27,7 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
+import qualified Data.List.NonEmpty as NE
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -100,37 +102,38 @@ bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   locker <- openLockFile (lockFilePath dbdir)
   let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
   createDirectoryIfMissing False (ProjectM36.TransactionGraph.Persist.objectFilesPath dbdir)
-  digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir allTransIds bootstrapGraph)
+  digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir bootstrapGraph)
   pure (locker, digest)
 
 objectFilesPath :: FilePath -> FilePath
 objectFilesPath dbdir = dbdir </> "compiled_modules"
-{- 
-incrementally updates an existing database directory
---algorithm: 
---assume that all transaction data has already been written
--assume that all non-head transactions have already been written because this is an incremental (and concurrent!) write method
---store the head names with a symlink to the transaction under "heads"
--}
-transactionGraphPersist :: DiskSync -> FilePath -> [TransactionId] -> TransactionGraph -> IO LockFileHash
-transactionGraphPersist sync destDirectory transIds graph = do
-  transactionsPersist sync transIds destDirectory graph
-  --write graph file
-  newDigest <- writeGraphTransactionIdFile sync destDirectory graph
-  --write heads file
-  transactionGraphHeadsPersist sync destDirectory graph
-  pure newDigest
-  
+
+-- | Write an entire transaction graph to storage.
+transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
+transactionGraphPersist sync destDirectory graph = do
+  let tgWriteInfo = TransactionGraphIncrementalWriteInfo {}
+  transactionGraphPersistIncremental sync destDirectory tgWriteInfo 
+
+
 -- | The incremental writer writes the transactions ids specified by the second argument.
+transactionGraphPersistIncremental :: DiskSync -> FilePath -> TransactionGraphIncrementalWriteInfo -> IO LockFileHash
+transactionGraphPersistIncremental sync destDirectory tgWriteInfo = do
+  mapM (writeTransaction sync destDirectory) (S.toList (unwrittenTransactions tgWriteInfo))
+  --write graph file
+  newDigest <- writeGraphTransactionIdFile sync destDirectory (newGraph tgWriteInfo)
+  --write heads file
+  transactionGraphHeadsPersist sync destDirectory (newGraph tgWriteInfo)
+  pure newDigest
 
 -- There was a bug here via #128 because automerge added multiple transactions to the graph but this function used to only write the head transactions from the graph. Automerge creates multiple transactions, so these are now passed in as the second argument.
+{-
 transactionsPersist :: DiskSync -> [TransactionId] -> FilePath -> TransactionGraph -> IO ()
 transactionsPersist sync transIds destDirectory graphIn = mapM_ writeTrans transIds
   where writeTrans tid =
           case transactionForId tid graphIn of 
             Left err -> error ("writeTransaction: " ++ show err)
             Right trans -> writeTransaction sync destDirectory trans
-
+-}
 {- 
 write graph heads to a file which can be atomically swapped
 -}

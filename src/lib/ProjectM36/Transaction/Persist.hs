@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
 #ifdef PM36_HASKELL_SCRIPTING
@@ -14,6 +15,7 @@ import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContextFunctions.Basic
+import ProjectM36.ChangeTrackingDatabaseContext
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
 import ProjectM36.Function
@@ -31,6 +33,7 @@ import Control.Concurrent.Async
 import GHC.Generics
 import qualified Data.Text.Encoding as TE
 import Optics.Core
+import qualified Data.Set as S
 
 
 #if defined(__APPLE__) || defined(linux_HOST_OS)
@@ -98,6 +101,10 @@ aggregateFunctionsPath transdir = transdir </> "aggregateFunctions"
 objectFilesPath :: FilePath -> FilePath
 objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
 
+-- note that some database context function elements don't change between transactions
+unchangedElementsPath :: FilePath -> FilePath
+unchangedElementsPath transdir = transdir </> "unchanged"
+
 readTransaction :: FilePath -> TransactionId -> Maybe ScriptSession -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transId mScriptSession = do
   let transDir = transactionDir dbdir transId
@@ -123,17 +130,20 @@ readTransaction dbdir transId mScriptSession = do
                                        _registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
-        
-writeTransaction :: DiskSync -> FilePath -> Transaction -> IO ()
+
+-- | Transactions are always written write-once-read-many
+writeTransaction :: DiskSync -> FilePath -> UnwrittenTransaction -> IO ()
 writeTransaction sync dbdir trans = do
   let tempTransDir = tempTransactionDir dbdir (transactionId trans)
       finalTransDir = transactionDir dbdir (transactionId trans)
       context = concreteDatabaseContext trans
   transDirExists <- doesDirectoryExist finalTransDir
   unless transDirExists $ do
-    --create sub directories
+    --create sub directories if necessary
     mapM_ createDirectory [tempTransDir, incDepsDir tempTransDir]
-    writeRelVars sync tempTransDir (context ^. relationVariables)
+    writeUnchangedTransactionMarkers sync tempTransDir context
+
+    writeRelVars sync tempTransDir (_ctrelationVariables context)
     writeIncDeps sync tempTransDir (context ^. inclusionDependencies)
     writeFuncs sync (atomFuncsPath tempTransDir) (HS.toList (context ^. atomFunctions))
     writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (context ^. dbcFunctions ))
@@ -154,9 +164,46 @@ data SingleFileRelationVariables = SingleFileRelationVariables
   }
   deriving (Show, Generic, Eq)
   deriving Serialise via WineryRecord SingleFileRelationVariables
-  
-writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
-writeRelVars sync transDir relvars = do
+
+-- | ADT used to serialize fast-path, "unchanged" database context value relative to parent transaction.
+data UnchangedDatabaseContextValues =
+  UnchangedDatabaseContextValues {
+     unchangedRelationVariables :: Maybe TransactionId,
+     unchangedInclusionDependencies :: Maybe TransactionId,
+     unchangedAtomFunctions :: Maybe TransactionId,
+     unchangedDBCFunctions :: Maybe TransactionId,
+     unchangedNotifications :: Maybe TransactionId,
+     unchangedTypeConstructorMapping :: Maybe TransactionId,
+     unchangedRegisteredQueries :: Maybe TransactionId
+  }
+  deriving (Generic, Show)
+  deriving Serialise via WineryRecord UnchangedDatabaseContextValues
+
+unwrittenTransactionCanUseDatabaseContextValuesFastPath :: UnwrittenTransaction -> Bool
+unwrittenTransactionCanUseDatabaseContextValuesFastPath trans =
+  S.size (parentIds trans) == 1
+
+-- | For database context values which have *not* changed since the parent, write into a single file.
+writeUnchangedTransactionMarkers :: DiskSync -> FilePath -> ChangeTrackingDatabaseContext -> IO ()
+writeUnchangedTransactionMarkers sync transDir ctdbc = do
+  let wUnchanged = UnchangedDatabaseContextValues {
+        unchangedRelationVariables = mTrans (_ctrelationVariables ctdbc),
+        unchangedInclusionDependencies = mTrans (_ctinclusionDependencies ctdbc),
+        unchangedAtomFunctions = mTrans (_ctatomFunctions ctdbc),
+        unchangedDBCFunctions = mTrans (_ctdbcFunctions ctdbc),
+        unchangedNotifications = mTrans (_ctnotifications ctdbc),
+        unchangedTypeConstructorMapping = mTrans (_cttypeConstructorMapping ctdbc),
+        unchangedRegisteredQueries = mTrans (_ctregisteredQueries ctdbc)
+        }
+      mTrans :: forall a. ChangedMarker a -> Maybe TransactionId
+      mTrans (NotChangedMarker tid _) = Just tid
+      mTrans ChangedMarker{} = Nothing
+      unchangedPath = unchangedElementsPath transDir
+  writeSerialiseSync sync unchangedPath wUnchanged
+
+writeRelVars :: DiskSync -> FilePath -> ChangedMarker RelationVariables -> IO ()
+writeRelVars _sync _transDir NotChangedMarker{} = pure ()
+writeRelVars sync transDir (ChangedMarker relvars) = do
   let relvarsPath = relvarsDir transDir
       simpleInfoPath = relvarsSimplePath transDir
   --write unchanged relvars and file name mapping to "relvars" file

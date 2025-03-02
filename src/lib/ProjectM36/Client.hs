@@ -607,16 +607,19 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
           Nothing -> pure (Left (NoSuchHeadNameError headName'))
           Just headTrans -> do
             --attempt fast-forward commit, if possible
-            let graphInfo = if Sess.parentId session == Trans.transactionId headTrans then do
-                              ret <- Graph.evalGraphOp tstamp id1 (Sess.disconnectedTransaction session) graph Commit
-                              pure (ret, [id1])
-                            else do
-                              ret <- Graph.autoMergeToHead tstamp (id1, id2, id3) (Sess.disconnectedTransaction session) headName' strat graph 
-                              pure (ret, [id1,id2,id3])
-            case graphInfo of
-              Left err -> pure (Left err)
-              Right ((discon', graph'), transactionIdsAdded) ->
-                pure (Right (discon', graph', transactionIdsAdded))
+            let disconIn = Sess.disconnectedTransaction session
+            if Sess.parentId session == Trans.transactionId headTrans then do
+              let ret = Graph.evalGraphOp tstamp id1 disconIn graph Commit
+              case ret of
+                Left err -> pure (Left err)
+                Right (discon', tGraph) ->
+                  pure (Right (TransactionGraphIncrementalWriteInfo {
+                              newDisconnectedHead = discon',
+                              unwrittenDisconnectedTransactions = [(id1, disconIn)],
+                              newGraph = tGraph
+                              }))
+            else do
+              pure $ Graph.autoMergeToHead tstamp (id1, id2, id3) disconIn headName' strat graph
 autoMergeToHead sessionId conn@(RemoteConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
@@ -686,8 +689,13 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
           Left err -> pure (Left err)
           Right (discon', graph') -> do
             --if freshId appears in the graph, then we need to pass it on
-            let transIds = [freshId | isRight (RE.transactionForId freshId graph')]
-            pure (Right (discon', graph', transIds))
+            -- return previous change-tracking disconnected transaction which includes informationison which database context fields were changed
+            let incrementalTransWriteInfo = [(freshId, discon) | isRight (RE.transactionForId freshId graph')]
+            pure (Right (TransactionGraphIncrementalWriteInfo {
+                            newDisconnectedHead = discon',
+                            unwrittenDisconnectedTransactions = incrementalTransWriteInfo,
+                            newGraph = graph'
+                            }))
 
 executeGraphExpr sessionId conn@(RemoteConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
@@ -740,10 +748,10 @@ rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId con
 rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
 
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
-processTransactionGraphPersistence :: PersistenceStrategy -> [TransactionId] -> TransactionGraph -> IO ()
-processTransactionGraphPersistence NoPersistence _ _ = pure ()
-processTransactionGraphPersistence (MinimalPersistence dbdir) transIds graph = void $ transactionGraphPersist NoDiskSync dbdir transIds graph
-processTransactionGraphPersistence (CrashSafePersistence dbdir) transIds graph = void $ transactionGraphPersist FsyncDiskSync dbdir transIds graph
+processTransactionGraphPersistence :: PersistenceStrategy -> TransactionGraphIncrementalWriteInfo -> IO ()
+processTransactionGraphPersistence NoPersistence _ = pure ()
+processTransactionGraphPersistence (MinimalPersistence dbdir) tWriteInfo = void $ transactionGraphPersist NoDiskSync dbdir tWriteInfo
+processTransactionGraphPersistence (CrashSafePersistence dbdir) tWriteInfo = void $ transactionGraphPersist FsyncDiskSync dbdir tWriteInfo
 
 readGraphTransactionIdDigest :: PersistenceStrategy -> IO LockFileHash
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
@@ -991,10 +999,11 @@ disconnectedTransaction_ sessionId (InProcessConnection conf) = do
 disconnectedTransaction_ _ _= error "remote connection used"
 
 -- wrap a graph evaluation in file locking
+-- the wrapped function returns multiple disconnected transaction and transaction ids because we anticipate coalescing multiple in-flight commits into one big fsync
 commitLock_ :: SessionId -> 
                InProcessConnectionConf -> 
                (TransactionGraph -> 
-                STM (Either RelationalError (DisconnectedTransaction, TransactionGraph, [TransactionId]))) -> 
+                STM (Either RelationalError TransactionGraphIncrementalWriteInfo)) -> 
                IO (Either RelationalError ())
 commitLock_ sessionId conf stmBlock = do
   let sessions = ipSessions conf
@@ -1036,28 +1045,28 @@ commitLock_ sessionId conf stmBlock = do
         case eRefreshedGraph of
           Left err -> pure (Left (DatabaseLoadError err))
           Right refreshedGraph -> do
-            eGraph <- stmBlock refreshedGraph
-            case eGraph of
+            eTransWriteInfo <- stmBlock refreshedGraph
+            case eTransWriteInfo of
               Left err -> pure (Left err)
-              Right (discon', graph', transactionIdsToPersist) -> do
-                writeTVar graphTvar graph'
-                let newSession = Session discon' (Sess.schemaName session)
+              Right tWriteInfo -> do
+                writeTVar graphTvar (newGraph tWriteInfo)
+                let newSession = Session (newDisconnectedHead tWriteInfo) (Sess.schemaName session)
                 StmMap.insert newSession sessionId sessions
                 case RE.transactionForId (Sess.parentId session) oldGraph of
                   Left err -> pure $ Left err
                   Right previousTrans ->
-                    if not (Prelude.null transactionIdsToPersist) then do
-                      (evaldNots, nodes) <- executeCommitExprSTM_ graph' (fromDatabaseContext (Trans.concreteDatabaseContext previousTrans)) (Sess.concreteDatabaseContext session) clientNodes
+                    if not (Prelude.null (unwrittenDisconnectedTransactions tWriteInfo)) then do
+                      (evaldNots, nodes) <- executeCommitExprSTM_ (newGraph tWriteInfo) (fromDatabaseContext (Trans.concreteDatabaseContext previousTrans)) (Sess.concreteDatabaseContext session) clientNodes
                       nodesToNotify <- stmSetToList nodes
-                      pure $ Right (evaldNots, nodesToNotify, graph', transactionIdsToPersist)
-                    else pure (Right (M.empty, [], graph', []))
+                      pure $ Right (evaldNots, nodesToNotify, tWriteInfo)
+                    else pure (Right (M.empty, [], tWriteInfo))
 
       --handle notification firing                
   case manip of 
     Left err -> pure (Left err)
-    Right (notsToFire, nodesToNotify, newGraph, transactionIdsToPersist) -> do
+    Right (notsToFire, nodesToNotify, tWriteInfo) -> do
       --update filesystem database, if necessary
-      processTransactionGraphPersistence strat transactionIdsToPersist newGraph
+      processTransactionGraphPersistence strat tWriteInfo
       sendNotifications nodesToNotify notsToFire
       pure (Right ())
 
