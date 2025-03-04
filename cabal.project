@@ -29,7 +29,7 @@ if impl(ghc >= 9.6)
   allow-newer:
     barbies-th:base,
     barbies-th:template-haskell,
-    landlock:base,
+    landlock:base,optparse-applicative,
     psx:base
 
 if impl(ghc >= 9.8)
