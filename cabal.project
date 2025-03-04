@@ -28,7 +28,9 @@ if impl(ghc >= 9.6)
 if impl(ghc >= 9.6)
   allow-newer:
     barbies-th:base,
-    barbies-th:template-haskell
+    barbies-th:template-haskell,
+    landlock:base,
+    psx:base
 
 if impl(ghc >= 9.8)
   allow-newer:
