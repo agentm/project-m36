@@ -2,6 +2,7 @@
 module ProjectM36.Server where
 
 import ProjectM36.Client
+import ProjectM36.Base
 import ProjectM36.Server.EntryPoints 
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
@@ -13,8 +14,14 @@ import System.FilePath (takeDirectory)
 import System.Directory (doesDirectoryExist)
 import Network.RPC.Curryer.Server
 import Network.Socket
+import Control.Monad (when)
 import qualified StmContainers.Map as StmMap
 import Control.Concurrent.STM
+#ifdef MIN_VERSION_landlock
+import qualified System.Landlock as LL
+#endif
+
+import Debug.Trace
 
 type TestMode = Bool
 
@@ -190,6 +197,49 @@ connectionForClient sock sState =
       Just dbname -> 
         StmMap.lookup dbname (stateDBMap sState)
 
+-- | Run platform-specific means of reducing privileges (sandboxing). Returns True if the privilege reduction worked, False otherwise. If the first path argument is Nothing, then no file privileges are granted.
+setupReducedPrivileges :: Maybe FilePath -> IO Bool
+setupReducedPrivileges mDbdir = do
+#ifdef MIN_VERSION_landlock
+  landlock_supported <- LL.isSupported
+  traceShowM ("ll supported", landlock_supported)
+  if landlock_supported then do
+    landlock_version <- LL.abiVersion
+    traceShowM ("accessFsFlags", LL.accessFsFlags)
+    let fileFlags = case lookup LL.version3 LL.accessFsFlags of
+                    Just f -> f
+                    Nothing -> error "Failed to query accessFsFlags from landlock API."
+        isReadWriteFlag f =
+          case f of
+            LL.AccessFsExecute -> False
+            LL.AccessFsWriteFile -> True
+            LL.AccessFsReadFile -> True
+            LL.AccessFsReadDir -> True
+            LL.AccessFsRemoveDir -> False
+            LL.AccessFsRemoveFile -> False
+            LL.AccessFsMakeChar -> False
+            LL.AccessFsMakeDir -> True
+            LL.AccessFsMakeReg -> True
+            LL.AccessFsMakeSock -> False
+            LL.AccessFsMakeFifo -> False
+            LL.AccessFsMakeBlock -> False
+            LL.AccessFsMakeSym -> False
+            LL.AccessFsRefer -> True -- used for atomic file renaming
+            LL.AccessFsTruncate -> False
+        rwFlags = filter isReadWriteFlag fileFlags
+    LL.landlock (LL.RulesetAttr rwFlags) [] [] $ \addRule -> do
+      -- Allow read-only access to the /usr hierarchy
+      case mDbdir of
+        Nothing -> pure ()
+        Just dbdir -> do
+          LL.withOpenPath dbdir LL.defaultOpenPathFlags{ LL.directory = True } $
+            \fd ->
+              addRule (LL.pathBeneath fd rwFlags) []
+    pure True
+  else
+#endif
+    pure False
+
 initialServerState :: DatabaseName -> Connection -> IO ServerState
 initialServerState dbName conn = 
   atomically $ do
@@ -197,6 +247,7 @@ initialServerState dbName conn =
   clientMap <- StmMap.new
   StmMap.insert conn dbName dbmap
   pure (ServerState { stateDBMap = dbmap, stateClientMap = clientMap })
+
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar SockAddr) -> IO Bool
 launchServer daemonConfig mAddr = do
@@ -214,7 +265,8 @@ launchServer daemonConfig mAddr = do
           let hostname = bindHost daemonConfig
               port = fromIntegral (bindPort daemonConfig)
 
-
+          sandboxed <- setupReducedPrivileges (persistenceDirectory (persistenceStrategy daemonConfig))
+          when (not sandboxed) (error "Failed to setup sandbox.")
           --curryer only supports IPv4 for now
           let addrHints = defaultHints { addrSocketType = Stream, addrFamily = AF_INET }
           hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) Nothing
