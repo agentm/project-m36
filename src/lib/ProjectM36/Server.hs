@@ -21,8 +21,6 @@ import Control.Concurrent.STM
 import qualified System.Landlock as LL
 #endif
 
-import Debug.Trace
-
 type TestMode = Bool
 
 requestHandlers :: TestMode -> Maybe Timeout -> RequestHandlers ServerState
@@ -202,10 +200,9 @@ setupReducedPrivileges :: Maybe FilePath -> IO Bool
 setupReducedPrivileges mDbdir = do
 #ifdef MIN_VERSION_landlock
   landlock_supported <- LL.isSupported
-  traceShowM ("ll supported", landlock_supported)
   if landlock_supported then do
-    landlock_version <- LL.abiVersion
-    traceShowM ("accessFsFlags", LL.accessFsFlags)
+    --landlock_version <- LL.abiVersion
+    --traceShowM ("accessFsFlags", LL.accessFsFlags)
     let fileFlags = case lookup LL.version3 LL.accessFsFlags of
                     Just f -> f
                     Nothing -> error "Failed to query accessFsFlags from landlock API."

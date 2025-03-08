@@ -97,8 +97,7 @@ Library
                   streamly == 0.10.1,
                   convertible,
                   fast-builder,
-                  scientific,
-                  landlock
+                  scientific
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -107,6 +106,8 @@ Library
         ghc-boot, ghci
     if impl(ghc>= 8.6)
         Build-Depends: deferred-folds
+    if os(linux)
+       Build-Depends: landlock>=0.2.1.1, psx
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
@@ -674,7 +675,7 @@ Test-Suite test-client-simple
 Executable handles
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256, landlock
     main-is: benchmark/Handles.hs
     Other-Modules: TutorialD.Interpreter,
       TutorialD.Interpreter.Base,
@@ -695,7 +696,7 @@ Executable handles
       TutorialD.Interpreter.Types,
       TutorialD.Printer,
       ProjectM36.Interpreter
-    GHC-Options: -Wall -threaded -rtsopts
+    GHC-Options: -Wall -threaded -rtsopts -rdynamic
     HS-Source-Dirs: ./src/bin
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
