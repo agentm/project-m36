@@ -2,7 +2,7 @@
 module ProjectM36.Transaction.Types where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema.Types
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.ChangeTrackingDatabaseContext
 import ProjectM36.MerkleHash
 import GHC.Generics
@@ -14,10 +14,10 @@ import qualified Data.Set as S
 data TransactionBase ctx = Transaction TransactionId TransactionInfo (Schemas ctx)
   deriving Generic
 
-type Transaction = TransactionBase DatabaseContext
+type Transaction = TransactionBase TransactionRefDatabaseContext
 
 -- | Data needed to write a transaction to permanent storage. This is different from a DisconnectedTransaction in that it's not clear if the DisconnectedTransaction will be written to disk (or rolled back). This transaction will be written.
-type UnwrittenTransaction = TransactionBase ChangeTrackingDatabaseContext
+type UncommittedTransaction = TransactionBase ChangeTrackingDatabaseContext
 
 --- | Every transaction has context-specific information attached to it.
 --- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).
@@ -55,7 +55,7 @@ concreteDatabaseContext :: TransactionBase a -> a
 concreteDatabaseContext (Transaction _ _ (Schemas context _)) = context
 
 -- | Returns all schemas including the concrete schema.
-schemas :: Transaction -> Schemas DatabaseContext
+schemas :: TransactionBase a -> Schemas a
 schemas (Transaction _ _ schemas') = schemas'
     
 -- | Returns all subschemas which are isomorphic or sub-isomorphic to the concrete schema.

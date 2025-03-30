@@ -1,6 +1,7 @@
 module ProjectM36.Transaction where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.Transaction.Types
 import qualified Data.Set as S
 import qualified Data.UUID as U
@@ -24,7 +25,7 @@ filterTransaction :: S.Set TransactionId -> Transaction -> Transaction
 filterTransaction filterIds (Transaction selfId tInfo context) = Transaction selfId (filterTransactionInfoTransactions filterIds tInfo) context
 
 
-fresh :: TransactionId -> UTCTime -> Schemas DatabaseContext -> Transaction
+fresh :: TransactionId -> UTCTime -> Schemas TransactionRefDatabaseContext -> Transaction
 fresh freshId stamp' = Transaction freshId tinfo
   where
     tinfo = TransactionInfo {parents = rootParent,

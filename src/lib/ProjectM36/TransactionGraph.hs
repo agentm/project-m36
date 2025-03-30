@@ -57,9 +57,12 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ gi
                                   deriving Serialise via WineryVariant TransactionIdHeadBacktrack
 
 
-data ROTransactionGraphOperator = JumpToHead HeadName  |
+data TransactionGraphOperator = JumpToHead HeadName  |
                                 JumpToTransaction TransactionId |
-                                WalkBackToTime UTCTime |
+                                WalkBackToTime UTCTime
+                              deriving (Eq, Show, Generic)
+  deriving Serialise via WineryVariant TransactionGraphOperator
+                                
 -- | Operators which manipulate a transaction graph and which transaction the current 'Session' is based upon.
 data AlterTransactionGraphOperator = 
                                 Branch HeadName |
@@ -68,9 +71,9 @@ data AlterTransactionGraphOperator =
                                 Commit |
                                 Rollback
                               deriving (Eq, Show, Generic)
-                              deriving Serialise via WineryVariant TransactionGraphOperator
+                              deriving Serialise via WineryVariant AlterTransactionGraphOperator
 
-isCommit :: TransactionGraphOperator -> Bool
+isCommit :: AlterTransactionGraphOperator -> Bool
 isCommit Commit = True
 isCommit _ = False
 
@@ -132,21 +135,21 @@ childTransactions trans graph = transactionsForIds childIds graph
 
 -- create a new commit and add it to the heads
 -- technically, the new head could be added to an existing commit, but by adding a new commit, the new head is unambiguously linked to a new commit (with a context indentical to its parent)
-addBranch :: UTCTime -> TransactionId -> HeadName -> TransactionId -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addBranch :: UTCTime -> TransactionId -> HeadName -> TransactionId -> TransactionGraph -> Either RelationalError (UncommittedTransaction, TransactionGraph)
 addBranch stamp' newId newBranchName branchPointId graph = do
   parentTrans <- transactionForId branchPointId graph
   let newTrans = Transaction newId (TI.singleParent branchPointId stamp') (schemas parentTrans)
   addTransactionToGraph newBranchName newTrans graph
 
 --adds a disconnected transaction to a transaction graph at some head
-addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addDisconnectedTransaction :: UTCTime -> TransactionId -> HeadName -> DisconnectedTransaction -> TransactionGraph -> Either RelationalError (UncommittedTransaction, TransactionGraph)
 addDisconnectedTransaction stamp' newId headName discon@(DisconnectedTransaction parentId (Schemas _ subschemas')) = addTransactionToGraph headName newTrans
   where
     newTrans = Transaction newId newTInfo schemas'
     schemas' = Schemas (asDatabaseContext (Discon.concreteDatabaseContext discon)) subschemas'
     newTInfo = TI.singleParent parentId stamp'
 
-addTransactionToGraph :: HeadName -> Transaction -> TransactionGraph -> Either RelationalError (Transaction, TransactionGraph)
+addTransactionToGraph :: HeadName -> UncommittedTransaction -> TransactionGraph -> Either RelationalError (UncommittedTransaction, TransactionGraph)
 addTransactionToGraph headName newTrans graph = do
   let parentIds' = parentIds newTrans
       newId = transactionId newTrans
@@ -240,8 +243,32 @@ data ROTransactionGraphCreateDisconnectedTransaction =
   PureDisconnectedTransaction DisconnectedTransaction 
   
 -- | Evaluate the graph-changing operator, reading graph info from disk, if necessary. Returns the new disconnected transaction and new graph. When jumping to a new part of the graph, we may need to read from disk to update the diconnected transaction
-evalGraphOp :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> (ROTransactionGraphCreateDisconnectedTransaction, TransactionGraph)
-                                                                                                                                          
+evalTransactionGraphOperator :: DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> ROTransactionGraphCreateDisconnectedTransaction
+evalTransactionGraphOperator discon graph (JumpToHead headName) =
+    case transactionForHead headName graph of
+      Just newHeadTransaction ->
+        pure (MakeDisconnectedTransactionFromTransaction (transactionId newHeadTransaction))
+      Nothing -> Left $ NoSuchHeadNameError headName
+evalTransactionGraphOperator discon graph (JumpToTransaction jumpId) =
+  case transactionForId jumpId graph of
+    Left err -> Left err
+    Right _parentTrans -> Right (MakeDisconnectedTransactionFromTransaction jumpId)
+evalTransactionGraphOperator discon graph (WalkBackToTime backTime) = do
+  let startTransId = Discon.parentId discon
+  jumpDest <- backtrackGraph graph startTransId (TransactionStampHeadBacktrack backTime)
+  case transactionForId jumpDest graph of
+    Left err -> Left err
+    Right trans -> do
+      pure (MakeDisconnectedTransactionFromTransaction (transactionId trans))
+
+evalAlterTransactionGraphOperator :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> AlterTransactionGraphOperator -> (DisconnectedTransaction, UncommittedTransaction)
+evalAlterTransactionGraphOperator stamp' newId (DisconnectedTransaction parentId schemas') graph (Branch newBranchName) = do
+  let newDiscon = DisconnectedTransaction newId schemas'  
+  case addBranch stamp' newId newBranchName parentId graph of
+    Left err -> Left err
+    Right (newTrans, newGraph') -> Right (newDiscon, newGraph')
+
+
 -- returns the new disconnected transaction, updated graph
 -- the current transaction is not part of the transaction graph until it is committed
 evalGraphOp :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> Either RelationalError (DisconnectedTransaction, TransactionGraph)
@@ -623,7 +650,7 @@ autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) disc
 -}
   pure (discon''''',
         TransactionGraphIncrementalWriteInfo {
-           unwrittenTransactions = [(tempBranchTransId, discon),
+           uncommittedTransactions = [(tempBranchTransId, discon),
                                      (tempCommitTransId, discon'),
                                      (tempBranchTransId, discon''''),
                                      (mergeTransId, discon''')],
@@ -673,3 +700,9 @@ validateConnectivity graph = do
   mapM_ validateTrans (transactionsForGraph graph)
   pure graph
 
+-- | Traverse the transaction graph to resolve transaction-id-referenced values.
+dbcResolve :: TransactionGraph -> (DatabaseContext -> ValueMarker a) -> Either RelationalError a
+dbcResolve _graph _f (ValueMarker x) = x
+dbcResolve graph f (NotChangedSinceMarker tid) = do
+  trans <- transactionForId tid graph
+  f (concreteDatabaseContext trans)

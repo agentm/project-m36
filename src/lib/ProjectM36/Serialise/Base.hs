@@ -10,7 +10,7 @@ import ProjectM36.MerkleHash
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet as TS
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Transaction.Types
 import Data.UUID

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.TransactionGraph.Types where
 import ProjectM36.Base
-import ProjectM36.DisconnectedTransaction
+--import ProjectM36.DisconnectedTransaction
 import ProjectM36.Transaction.Types
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -36,10 +36,10 @@ transactionIdsForGraph = S.map transactionId . transactionsForGraph
 -- | Used to track changes to child transactions relative to parent transactions as a write optimization. We can refer to the parent transaction for the data which has already been written, but we need to track then what actually changed.
 data TransactionGraphIncrementalWriteInfo =
   TransactionGraphIncrementalWriteInfo {
-  unwrittenTransactions :: S.Set UnwrittenTransaction, -- the disconnected transaction holds the parent id, but the fst transaction id is the transaction id of the transaction in the "newGraph" which has not yet been flushed to permanent storage
+  uncommittedTransactions :: S.Set UncommittedTransaction, -- the disconnected transaction holds the parent id, but the fst transaction id is the transaction id of the transaction in the "newGraph" which has not yet been flushed to permanent storage
   newGraph :: TransactionGraph
       }
 
 affectedTransactionIds :: TransactionGraphIncrementalWriteInfo -> S.Set TransactionId
-affectedTransactionIds winfo = S.map transactionId (unwrittenTransactions winfo)
+affectedTransactionIds winfo = S.map transactionId (uncommittedTransactions winfo)
 

@@ -132,7 +132,7 @@ readTransaction dbdir transId mScriptSession = do
     return $ Right $ Transaction transId transInfo newSchemas
 
 -- | Transactions are always written write-once-read-many
-writeTransaction :: DiskSync -> FilePath -> UnwrittenTransaction -> IO ()
+writeTransaction :: DiskSync -> FilePath -> UncommittedTransaction -> IO ()
 writeTransaction sync dbdir trans = do
   let tempTransDir = tempTransactionDir dbdir (transactionId trans)
       finalTransDir = transactionDir dbdir (transactionId trans)
@@ -179,7 +179,7 @@ data UnchangedDatabaseContextValues =
   deriving (Generic, Show)
   deriving Serialise via WineryRecord UnchangedDatabaseContextValues
 
-unwrittenTransactionCanUseDatabaseContextValuesFastPath :: UnwrittenTransaction -> Bool
+unwrittenTransactionCanUseDatabaseContextValuesFastPath :: UncommittedTransaction -> Bool
 unwrittenTransactionCanUseDatabaseContextValuesFastPath trans =
   S.size (parentIds trans) == 1
 

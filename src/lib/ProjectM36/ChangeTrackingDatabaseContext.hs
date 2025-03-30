@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, RankNTypes #-}
 module ProjectM36.ChangeTrackingDatabaseContext where
 import ProjectM36.Base
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import Control.DeepSeq (NFData)
 import GHC.Generics
 import Optics.Core
@@ -47,7 +47,7 @@ makeClean tid ctdbc = ChangeTrackingDatabaseContext {
     makeNotChanged :: forall a. ChangedMarker a -> ChangedMarker a
     makeNotChanged n@NotChangedMarker{} = n
     makeNotChanged (ChangedMarker x) = NotChangedMarker tid x
-
+{-
 instance IsDatabaseContext ChangeTrackingDatabaseContext where
   inclusionDependencies = lens (unmarked . _ctinclusionDependencies) (\ctx v -> ctx { _ctinclusionDependencies = ChangedMarker v})
   relationVariables = lens (unmarked . _ctrelationVariables) (\ctx v -> ctx { _ctrelationVariables = ChangedMarker v })
@@ -56,7 +56,7 @@ instance IsDatabaseContext ChangeTrackingDatabaseContext where
   notifications = lens (unmarked . _ctnotifications) (\ctx v -> ctx { _ctnotifications = ChangedMarker v })
   typeConstructorMapping = lens (unmarked . _cttypeConstructorMapping) (\ctx v -> ctx { _cttypeConstructorMapping = ChangedMarker v })
   registeredQueries = lens (unmarked . _ctregisteredQueries) (\ctx v -> ctx { _ctregisteredQueries = ChangedMarker v })
-
+-}
 isDirty :: ChangeTrackingDatabaseContext -> Bool
 isDirty dbc = isChanged (_ctinclusionDependencies dbc) ||
                 isChanged (_ctrelationVariables dbc) ||

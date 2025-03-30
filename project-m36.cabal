@@ -144,6 +144,7 @@ Library
                      ProjectM36.Key,
                      ProjectM36.FunctionalDependency,
                      ProjectM36.DatabaseContext,
+                     ProjectM36.DatabaseContext.Types,                     
                      ProjectM36.ChangeTrackingDatabaseContext,
                      ProjectM36.DatabaseContextFunctions.Basic,
                      ProjectM36.TransactionGraph.Types,
