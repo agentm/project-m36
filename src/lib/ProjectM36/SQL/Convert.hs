@@ -1032,7 +1032,7 @@ needsToRenameAllAttributes (RestrictionExpr sexpr) =
       PrefixOperator _ e1 -> rec' e1
       PostfixOperator e1 _ -> rec' e1
       BetweenOperator e1 _ e2 -> rec' e1 || rec' e2
-      FunctionApplication _ e1 -> or (rec' <$> e1)
+      FunctionApplication _ e1 -> any rec' e1
       CaseExpr cases else' -> any (\(when', then') ->
                                           rec' when' || rec' then' || maybe False rec' else') cases
       QuantifiedComparison{} -> True

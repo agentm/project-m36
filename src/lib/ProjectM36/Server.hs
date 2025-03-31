@@ -200,6 +200,35 @@ initialServerState dbName conn =
   clientMap <- StmMap.new
   StmMap.insert conn dbName dbmap
   pure (ServerState { stateDBMap = dbmap, stateClientMap = clientMap })
+
+-- wip - can I reuse this in the Client.hs- only the sock options are different
+{-
+resolveAddress :: ServerConfig -> IO (SockSpec, SockAddr)
+resolveAddress daemonConfig =
+  case bindAddress daemonConfig of
+      ServerConfigUnixDomainSocketAddress fp -> do
+        let sockSpec = SockSpec { sockFamily = AF_UNIX,
+                                  sockType = Stream,
+                                  sockProto = 0,
+                                  sockOpts = [] }
+            sockAddr = SockAddrUnix fp
+        pure (sockSpec, sockAddr)
+      ServerConfigHostAddress hostname port -> do
+        let addrHints = defaultHints { addrSocketType = Stream }
+        hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) (Just (show port))
+        case hostAddrs of
+          (AddrInfo _flags family socketType proto sockAddr _canonicalName NE.:| _) -> do
+            let sockOpts' = case family of
+                              AF_UNIX -> []
+                              AF_INET -> defaultSocketOptions
+                              AF_INET6 -> defaultSocketOptions
+                              other -> error $ "unsupported socket family: " <> show other
+                sockSpec = SockSpec { sockFamily = family,
+                                      sockType = socketType,
+                                      sockProto = proto,
+                                      sockOpts = sockOpts' }
+            pure (sockSpec, sockAddr)
+  -}
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar SockAddr) -> IO Bool
 launchServer daemonConfig mAddr = do
@@ -214,22 +243,12 @@ launchServer daemonConfig mAddr = do
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)
           pure False
         Right conn -> do
-          let hostname = bindHost daemonConfig
-              port = fromIntegral (bindPort daemonConfig)
+          let mTimeout = fromIntegral <$>
+                case perRequestTimeout daemonConfig of
+                  0 -> Nothing
+                  v -> Just v
+          (sockSpec, sockAddr) <- resolveRemoteServerAddress (bindAddress daemonConfig)
+          sState <- initialServerState (databaseName daemonConfig) conn
+          serve (requestHandlers (testMode daemonConfig) mTimeout) sState sockSpec sockAddr mAddr
 
-
-          --curryer only supports IPv4 for now
-          let addrHints = defaultHints { addrSocketType = Stream, addrFamily = AF_INET }
-          hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) Nothing
-          case hostAddrs of
-            [] -> hPutStrLn stderr ("Failed to resolve: " <> hostname) >> pure False
-            (AddrInfo _ _ _ _ (SockAddrInet _ addr32) _):_ -> do
-              let hostAddr = hostAddressToTuple addr32
-                  mTimeout = fromIntegral <$> case perRequestTimeout daemonConfig of
-                                              0 -> Nothing
-                                              v -> Just v
-                  
-              sState <- initialServerState (databaseName daemonConfig) conn
-              serve (requestHandlers (testMode daemonConfig) mTimeout) sState hostAddr port mAddr
-            _ -> error "unsupported socket addressing mode (IPv4 only currently)"
 

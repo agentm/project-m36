@@ -4,6 +4,7 @@ module ProjectM36.Cli where
 import qualified ProjectM36.Client as C
 import qualified Data.Text as T
 import ProjectM36.Base
+import ProjectM36.Client (RemoteServerAddress(..))
 import System.Console.Haskeline
 import Control.Exception
 import System.IO
@@ -28,7 +29,7 @@ type DirectExecute = String
 type ParserError = ParseErrorBundle T.Text Void
 
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe DirectExecute) [GhcPkgPath] CheckFS |
-                         RemoteInterpreterConfig C.Hostname C.Port C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
+                         RemoteInterpreterConfig RemoteServerAddress C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -63,7 +64,7 @@ reprLoop config historyFilePath reprLoopEvaluator promptText sessionId conn = do
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseDirectExecute <*> many parseGhcPkgPath <*> parseCheckFS <|>
-            RemoteInterpreterConfig <$> parseHostname "127.0.0.1" <*> parsePort C.defaultServerPort <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS
+            RemoteInterpreterConfig <$> parseServerAddress <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS
 
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
@@ -120,19 +121,19 @@ opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> DatabaseContext -> C.ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext
-connectionInfoForConfig (RemoteInterpreterConfig remoteHost remotePort remoteDBName _ _ _) _ = C.RemoteConnectionInfo remoteDBName remoteHost (show remotePort) outputNotificationCallback
+connectionInfoForConfig (RemoteInterpreterConfig remoteAddress remoteDBName _ _ _) _ = C.RemoteConnectionInfo remoteDBName remoteAddress outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn _ _ _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ _ headn _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ headn _ _) = headn
 
 directExecForConfig :: InterpreterConfig -> Maybe String
 directExecForConfig (LocalInterpreterConfig _ _ t _ _) = t
-directExecForConfig (RemoteInterpreterConfig _ _ _ _ t _) = t
+directExecForConfig (RemoteInterpreterConfig _ _ _ t _) = t
 
 checkFSForConfig :: InterpreterConfig -> Bool
 checkFSForConfig (LocalInterpreterConfig _ _ _ _ c) = c
-checkFSForConfig (RemoteInterpreterConfig _ _ _ _ _ c) = c
+checkFSForConfig (RemoteInterpreterConfig _ _ _ _ c) = c
 
 persistenceStrategyForConfig :: InterpreterConfig -> Maybe PersistenceStrategy
 persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _) = Just strat

@@ -26,7 +26,7 @@ launchTestServer :: IO (PortNumber, DatabaseName)
 launchTestServer = do
   addressMVar <- newEmptyMVar
   let config = defaultServerConfig { databaseName = testDatabaseName, 
-                                     bindPort = 0,
+                                     bindAddress = RemoteServerHostAddress "127.0.0.1" 0,
                                      checkFS = False}
       testDatabaseName = "test"
   -- start normal server

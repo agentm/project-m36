@@ -16,19 +16,22 @@ import ProjectM36.Server
 import ProjectM36.Server.Config
 import ProjectM36.Server.ParseArgs
 import ProjectM36.Server.WebSocket
+import ProjectM36.Client (RemoteServerAddress(..))
 
 main :: IO ()
 main = do
   -- launch normal project-m36-server
   addressMVar <- newEmptyMVar
-  wsConfig <- parseWSConfigWithDefaults (defaultServerConfig {bindPort = 8000, bindHost = "127.0.0.1"})
+  wsConfig <- parseWSConfigWithDefaults (defaultServerConfig {bindAddress = RemoteServerHostAddress "127.0.0.1" 8000})
 
   --usurp the serverConfig for our websocket server and make the proxied server run locally
   let serverConfig = wsServerConfig wsConfig
-      wsHost = bindHost serverConfig
-      wsPort = bindPort serverConfig
+      wsAddress = bindAddress serverConfig
+      (wsHost, wsPort) = case wsAddress of
+                           RemoteServerHostAddress host port -> (host, port)
+                           _ -> error "expected host-based address"
       serverHost = "127.0.0.1"
-      serverConfig' = serverConfig {bindPort = 0, bindHost = serverHost}
+      serverConfig' = serverConfig {bindAddress = RemoteServerHostAddress serverHost 0}
       configCertificateFile = tlsCertificatePath wsConfig
       configKeyFile = tlsKeyPath wsConfig
 
