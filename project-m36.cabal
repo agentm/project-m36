@@ -90,7 +90,7 @@ Library
                   text-manipulate >= 0.2.0.1 && < 0.4,
                   winery >= 1.4,
                   curryer-rpc>=0.4.0,
-                  network >= 3.2.3.0,
+                  network,
                   async,
                   vector-instances,
                   recursion-schemes,

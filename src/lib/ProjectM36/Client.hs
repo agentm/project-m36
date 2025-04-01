@@ -112,7 +112,8 @@ module ProjectM36.Client
        basicDatabaseContext,
        RemoteServerAddress(..),
        resolveRemoteServerAddress,
-       defaultRemoteServerAddress
+       defaultRemoteServerAddress,
+       defaultServerHostname
        ) where
 import ProjectM36.Base hiding (inclusionDependencies) --defined in this module as well
 import qualified ProjectM36.Base as B
@@ -145,7 +146,7 @@ import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
-import ProjectM36.ScriptSession (initScriptSession, ScriptSession, ScriptSessionError(..))
+import ProjectM36.ScriptSession (initScriptSession, ScriptSession)
 import qualified ProjectM36.Relation as R
 import Control.Exception.Base
 import Control.Concurrent.STM
@@ -182,7 +183,6 @@ import ProjectM36.SQL.Select as SQL
 import ProjectM36.SQL.DBUpdate as SQL
 import ProjectM36.SQL.Convert
 import Streamly.Internal.Network.Socket (SockSpec(..))
-import qualified Data.List.NonEmpty as NE
 
 type Hostname = String
 type Port = Word16
@@ -284,7 +284,8 @@ resolveRemoteServerAddress (RemoteServerHostAddress hostname port) = do
   let addrHints = defaultHints { addrSocketType = Stream }
   hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) (Just (show port))
   case hostAddrs of
-    (AddrInfo _flags family socketType proto sockAddr _canonicalName NE.:| _) -> do
+    [] -> error "getAddrInfo returned zero matches"
+    (AddrInfo _flags family socketType proto sockAddr _canonicalName:_) -> do
       let sockSpec = SockSpec { sockFamily = family,
                                 sockType = socketType,
                                 sockProto = proto,

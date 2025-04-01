@@ -201,34 +201,6 @@ initialServerState dbName conn =
   StmMap.insert conn dbName dbmap
   pure (ServerState { stateDBMap = dbmap, stateClientMap = clientMap })
 
--- wip - can I reuse this in the Client.hs- only the sock options are different
-{-
-resolveAddress :: ServerConfig -> IO (SockSpec, SockAddr)
-resolveAddress daemonConfig =
-  case bindAddress daemonConfig of
-      ServerConfigUnixDomainSocketAddress fp -> do
-        let sockSpec = SockSpec { sockFamily = AF_UNIX,
-                                  sockType = Stream,
-                                  sockProto = 0,
-                                  sockOpts = [] }
-            sockAddr = SockAddrUnix fp
-        pure (sockSpec, sockAddr)
-      ServerConfigHostAddress hostname port -> do
-        let addrHints = defaultHints { addrSocketType = Stream }
-        hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) (Just (show port))
-        case hostAddrs of
-          (AddrInfo _flags family socketType proto sockAddr _canonicalName NE.:| _) -> do
-            let sockOpts' = case family of
-                              AF_UNIX -> []
-                              AF_INET -> defaultSocketOptions
-                              AF_INET6 -> defaultSocketOptions
-                              other -> error $ "unsupported socket family: " <> show other
-                sockSpec = SockSpec { sockFamily = family,
-                                      sockType = socketType,
-                                      sockProto = proto,
-                                      sockOpts = sockOpts' }
-            pure (sockSpec, sockAddr)
-  -}
 -- | A synchronous function to start the project-m36 daemon given an appropriate 'ServerConfig'. Note that this function only returns if the server exits. Returns False if the daemon exited due to an error. If the second argument is not Nothing, the port is put after the server is ready to service the port.
 launchServer :: ServerConfig -> Maybe (MVar SockAddr) -> IO Bool
 launchServer daemonConfig mAddr = do

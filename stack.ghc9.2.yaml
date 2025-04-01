@@ -18,7 +18,6 @@ extra-deps:
   - scotty-0.22
   - wai-extra-3.1.14
   - wai-3.2.4
-  - network-3.2.7.0
   
 flags:
   project-m36:
