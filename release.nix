@@ -57,6 +57,12 @@ let
   	      sha256 = "sha256-U9mHuHAA0v74dKB2w2kLGx9dBKU6w8CRObtYQF97Gao=";	      
       } {};
 
+      network = self.callHackageDirect {
+      	      pkg = "network";
+	      ver = "3.2.7.0";
+  	      sha256 = "sha256-QJCy1P8R/ghy1Y9odCNgEaDsgaTu10qxSksIUl+q2SE=";
+	      } {};
+
       scotty = self.callHackageDirect {
       	     pkg = "scotty";
 	     ver = "0.22";
