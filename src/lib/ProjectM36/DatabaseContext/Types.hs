@@ -10,9 +10,9 @@ import Data.Functor.Identity
 data ValueMarker a = ValueMarker a | NotChangedSinceMarker TransactionId
   deriving (NFData, Generic)
 
-isUpdated :: ValueMarker a -> Bool
-isUpdated ValueMarker{} = True
-isUpdated NotChangedSinceMarker{} = False
+valueIsUpdated :: ValueMarker a -> Bool
+valueIsUpdated ValueMarker{} = True
+valueIsUpdated NotChangedSinceMarker{} = False
 
 emptyValue :: Monoid a => ValueMarker a
 emptyValue = ValueMarker mempty
@@ -28,13 +28,13 @@ data DatabaseContextBase a = DatabaseContext {
   } 
 
 -- | The type of the database context when stored in the graph. It can reference data from other transactions in the graph.
-type TransactionRefDatabaseContext = DatabaseContextBase ValueMarker
+type DatabaseContext = DatabaseContextBase ValueMarker
 
-deriving instance NFData TransactionRefDatabaseContext
-deriving instance Generic TransactionRefDatabaseContext
+deriving instance NFData DatabaseContext
+deriving instance Generic DatabaseContext
 
 -- | The type of the database context when it is fully resolved (of transaction markers such as in the TransactionRefDatabaseContext); standalone, ready-to-use.
-type DatabaseContext = DatabaseContextBase Identity
+type ResolvedDatabaseContext = DatabaseContextBase Identity
 
 data TransactionIdMarker a = TransactionIdMarker TransactionId a
   deriving (NFData, Generic)

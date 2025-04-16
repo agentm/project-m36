@@ -41,5 +41,5 @@ data TransactionGraphIncrementalWriteInfo =
       }
 
 affectedTransactionIds :: TransactionGraphIncrementalWriteInfo -> S.Set TransactionId
-affectedTransactionIds winfo = S.map transactionId (uncommittedTransactions winfo)
+affectedTransactionIds winfo = S.map (\(UncommittedTransaction t) -> transactionId t) (uncommittedTransactions winfo)
 

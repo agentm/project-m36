@@ -12,7 +12,7 @@ import ProjectM36.Trace
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Transaction.Types
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContextFunctions.Basic
 import ProjectM36.ChangeTrackingDatabaseContext
@@ -67,6 +67,9 @@ transactionDir dbdir transId = dbdir </> show transId
 transactionInfoPath :: FilePath -> FilePath
 transactionInfoPath transdir = transdir </> "info"
 
+notChangedSinceDatabaseContextPath :: FilePath -> FilePath
+notChangedSinceDatabaseContextPath transdir = transdir </> "ncs"
+
 relvarsDir :: FilePath -> FilePath        
 relvarsDir transdir = transdir </> "relvars"
 
@@ -105,6 +108,19 @@ objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
 unchangedElementsPath :: FilePath -> FilePath
 unchangedElementsPath transdir = transdir </> "unchanged"
 
+data NotChangedSinceDatabaseContext =
+  NotChangedSinceDatabaseContext {
+  ncsInclusionDependencies :: Maybe TransactionId,
+  ncsRelationVariables :: Maybe TransactionId,
+  ncsAtomFunctions :: Maybe TransactionId,
+  ncsDbcFunctions :: Maybe TransactionId,
+  ncsNotifications :: Maybe TransactionId,
+  ncsTypeConstructorMapping :: Maybe TransactionId,
+  ncsRegisteredQueries :: Maybe TransactionId
+  }
+  deriving (Show, Generic)
+  deriving Serialise via WineryRecord NotChangedSinceDatabaseContext
+
 readTransaction :: FilePath -> TransactionId -> Maybe ScriptSession -> IO (Either PersistenceError Transaction)
 readTransaction dbdir transId mScriptSession = do
   let transDir = transactionDir dbdir transId
@@ -112,45 +128,61 @@ readTransaction dbdir transId mScriptSession = do
   if not transDirExists then    
     return $ Left $ MissingTransactionError transId
     else do
-    relvars <- readRelVars transDir
+    ncs <- readNotChangedSinceDatabaseContext transDir
+    let ncsRead :: forall a. (NotChangedSinceDatabaseContext -> Maybe TransactionId) ->
+                   (FilePath -> IO a) -> IO (ValueMarker a)
+        ncsRead f readIO = do
+          case f ncs of
+            Nothing -> ValueMarker <$> readIO transDir
+            Just tid -> pure (NotChangedSinceMarker tid)
+
     transInfo <- readFileDeserialise (transactionInfoPath transDir)
-    incDeps <- readIncDeps transDir
-    typeCons <- readTypeConstructorMapping transDir
+    relvars <- ncsRead ncsRelationVariables readRelVars
+    incDeps <- ncsRead ncsInclusionDependencies readIncDeps
+    typeCons <- ncsRead ncsTypeConstructorMapping readTypeConstructorMapping
     sschemas <- readSubschemas transDir
-    notifs <- readNotifications transDir
-    dbcFuncs <- readFuncs transDir (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession
-    atomFuncs <- readFuncs transDir (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession
-    registeredQs <- readRegisteredQueries transDir
-    let newContext = DatabaseContext { _inclusionDependencies = incDeps,
-                                       _relationVariables = relvars,
-                                       _typeConstructorMapping = typeCons,
-                                       _notifications = notifs,
-                                       _atomFunctions = atomFuncs,
-                                       _dbcFunctions = dbcFuncs,
-                                       _registeredQueries = registeredQs }
+    notifs <- ncsRead ncsNotifications readNotifications
+    dbcFuncs <- ncsRead ncsDbcFunctions (\d -> readFuncs d (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession)
+    atomFuncs <- ncsRead ncsAtomFunctions (\d -> readFuncs d (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession)
+    registeredQs <- ncsRead ncsRegisteredQueries readRegisteredQueries
+    let newContext = DatabaseContext { inclusionDependencies = incDeps,
+                                       relationVariables = relvars,
+                                       typeConstructorMapping = typeCons,
+                                       notifications = notifs,
+                                       atomFunctions = atomFuncs,
+                                       dbcFunctions = dbcFuncs,
+                                       registeredQueries = registeredQs }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
 
 -- | Transactions are always written write-once-read-many
 writeTransaction :: DiskSync -> FilePath -> UncommittedTransaction -> IO ()
-writeTransaction sync dbdir trans = do
+writeTransaction sync dbdir (UncommittedTransaction trans) = do
   let tempTransDir = tempTransactionDir dbdir (transactionId trans)
       finalTransDir = transactionDir dbdir (transactionId trans)
       context = concreteDatabaseContext trans
   transDirExists <- doesDirectoryExist finalTransDir
   unless transDirExists $ do
-    --create sub directories if necessary
-    mapM_ createDirectory [tempTransDir, incDepsDir tempTransDir]
-    writeUnchangedTransactionMarkers sync tempTransDir context
-
-    writeRelVars sync tempTransDir (_ctrelationVariables context)
-    writeIncDeps sync tempTransDir (context ^. inclusionDependencies)
-    writeFuncs sync (atomFuncsPath tempTransDir) (HS.toList (context ^. atomFunctions))
-    writeFuncs sync (dbcFuncsPath tempTransDir) (HS.toList (context ^. dbcFunctions ))
-    writeNotifications sync tempTransDir (context ^. notifications)
-    writeTypeConstructorMapping sync tempTransDir (context ^. typeConstructorMapping)
+    createDirectory tempTransDir
+    let ncs = mkNotChangedSinceDatabaseContext context
+    writeNotChangedSinceDatabaseContext sync tempTransDir ncs
+    
+    let ncsWrite :: forall a. (DatabaseContext -> ValueMarker a) -> FilePath -> (DiskSync -> FilePath -> a -> IO ()) -> IO ()
+        ncsWrite f path writeIO =
+          case f context of
+            ValueMarker val -> writeIO sync path val
+            NotChangedSinceMarker{} -> pure ()
+            
+    ncsWrite relationVariables tempTransDir writeRelVars
+    ncsWrite inclusionDependencies tempTransDir writeIncDeps
+    ncsWrite atomFunctions (atomFuncsPath tempTransDir) (\ds fp v -> writeFuncs ds fp (HS.toList v))
+    ncsWrite dbcFunctions (dbcFuncsPath tempTransDir) (\ds fp v -> writeFuncs ds fp (HS.toList v))
+    ncsWrite notifications tempTransDir writeNotifications
+    ncsWrite typeConstructorMapping tempTransDir writeTypeConstructorMapping
+    ncsWrite registeredQueries tempTransDir writeRegisteredQueries
+    
     writeSubschemas sync tempTransDir (subschemas trans)
-    writeRegisteredQueries sync tempTransDir (context ^. registeredQueries)
+    
     writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
@@ -180,7 +212,7 @@ data UnchangedDatabaseContextValues =
   deriving Serialise via WineryRecord UnchangedDatabaseContextValues
 
 unwrittenTransactionCanUseDatabaseContextValuesFastPath :: UncommittedTransaction -> Bool
-unwrittenTransactionCanUseDatabaseContextValuesFastPath trans =
+unwrittenTransactionCanUseDatabaseContextValuesFastPath (UncommittedTransaction trans) =
   S.size (parentIds trans) == 1
 
 -- | For database context values which have *not* changed since the parent, write into a single file.
@@ -201,9 +233,8 @@ writeUnchangedTransactionMarkers sync transDir ctdbc = do
       unchangedPath = unchangedElementsPath transDir
   writeSerialiseSync sync unchangedPath wUnchanged
 
-writeRelVars :: DiskSync -> FilePath -> ChangedMarker RelationVariables -> IO ()
-writeRelVars _sync _transDir NotChangedMarker{} = pure ()
-writeRelVars sync transDir (ChangedMarker relvars) = do
+writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
+writeRelVars sync transDir relvars = do
   let relvarsPath = relvarsDir transDir
       simpleInfoPath = relvarsSimplePath transDir
   --write unchanged relvars and file name mapping to "relvars" file
@@ -246,6 +277,44 @@ readOneRelVar transDir rvName = do
         Just rvnum ->
           readFileDeserialise (relvarsDir transDir </> show rvnum)
 -}
+
+readNotChangedSinceDatabaseContext :: FilePath -> IO NotChangedSinceDatabaseContext
+readNotChangedSinceDatabaseContext transDir = do
+  let nscPath = notChangedSinceDatabaseContextPath transDir
+  fExists <- doesFileExist nscPath
+  if fExists then
+    readFileDeserialise nscPath
+  else
+    pure $ NotChangedSinceDatabaseContext {
+            ncsInclusionDependencies = Nothing,
+            ncsRelationVariables = Nothing,
+            ncsAtomFunctions = Nothing,
+            ncsDbcFunctions = Nothing,
+            ncsNotifications = Nothing,
+            ncsTypeConstructorMapping = Nothing,
+            ncsRegisteredQueries = Nothing
+    }
+
+mkNotChangedSinceDatabaseContext :: DatabaseContext -> NotChangedSinceDatabaseContext
+mkNotChangedSinceDatabaseContext ctx =
+  NotChangedSinceDatabaseContext {
+  ncsInclusionDependencies = mkVal (inclusionDependencies ctx),
+  ncsRelationVariables = mkVal (relationVariables ctx),
+  ncsAtomFunctions = mkVal (atomFunctions ctx),
+  ncsDbcFunctions = mkVal (dbcFunctions ctx),
+  ncsNotifications = mkVal (notifications ctx),
+  ncsTypeConstructorMapping = mkVal (typeConstructorMapping ctx),
+  ncsRegisteredQueries = mkVal (registeredQueries ctx)
+  }
+  where
+    mkVal :: forall a. ValueMarker a -> Maybe TransactionId
+    mkVal ValueMarker{} = Nothing
+    mkVal (NotChangedSinceMarker tid) = Just tid
+  
+writeNotChangedSinceDatabaseContext :: DiskSync -> FilePath -> NotChangedSinceDatabaseContext -> IO ()
+writeNotChangedSinceDatabaseContext diskSync transDir ncs = do
+  let ncsPath = notChangedSinceDatabaseContextPath transDir
+  writeSerialiseSync diskSync ncsPath ncs
 
 readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = do
@@ -377,7 +446,7 @@ readIncDep transDir incdepName = do
   incDepData <- readFileDeserialise incDepPath
   pure (incdepName, incDepData)
   
-readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)  
+readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)
 readIncDeps transDir = do
   let incDepsPath = incDepsDir transDir
   incDepNames <- getDirectoryNames incDepsPath

@@ -6,6 +6,7 @@ import ProjectM36.Attribute as A
 import ProjectM36.Relation
 import ProjectM36.AtomType
 import ProjectM36.Function
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -27,7 +28,7 @@ databaseContextFunctionForName funcName' funcs =
     [] -> Left $ NoSuchFunctionError funcName'
     x : _ -> Right x
 
-evalDatabaseContextFunction' :: IsDatabaseContext ctx => DatabaseContextFunction -> [Atom] -> ctx -> Either RelationalError ctx
+evalDatabaseContextFunction' :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError ctx
 evalDatabaseContextFunction' = error "unimplemented dbc func eval"
 
 evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext

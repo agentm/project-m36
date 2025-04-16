@@ -1,5 +1,6 @@
 module ProjectM36.Session where
 import ProjectM36.Base
+import ProjectM36.DatabaseContext.Types
 import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error
@@ -21,10 +22,10 @@ defaultSchemaName = "main"
 disconnectedTransaction :: Session -> DisconnectedTransaction
 disconnectedTransaction (Session discon _) = discon
 
-isDirty :: Session -> DirtyFlag
-isDirty (Session discon _) = Discon.isDirty discon
+isUpdated :: Session -> DirtyFlag
+isUpdated (Session discon _) = Discon.isUpdated discon
 
-concreteDatabaseContext :: Session -> ChangeTrackingDatabaseContext
+concreteDatabaseContext :: Session -> DatabaseContext
 concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _)) _) = context
 
 parentId :: Session -> TransactionId
@@ -33,7 +34,7 @@ parentId (Session (DisconnectedTransaction parentUUID _) _) = parentUUID
 subschemas :: Session -> Subschemas
 subschemas (Session (DisconnectedTransaction _ (Schemas _ s)) _) = s
 
-schemas :: Session -> Discon.ChangeTrackingSchemas
+schemas :: Session -> Discon.TransactionRefSchemas
 schemas (Session (DisconnectedTransaction _ s) _) = s
 
 schemaName :: Session -> SchemaName

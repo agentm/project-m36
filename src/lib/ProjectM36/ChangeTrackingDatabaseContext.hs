@@ -5,7 +5,6 @@ import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types
 import Control.DeepSeq (NFData)
 import GHC.Generics
-import Optics.Core
 
 -- | Indicate whether a record field has been changed. This is used in the DatabaseContext ot mark fields which have been modified relative to the previous transactions' state as an optimization when persisting transactions on disk.
 data ChangedMarker a = ChangedMarker a | NotChangedMarker TransactionId a

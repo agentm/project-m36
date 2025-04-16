@@ -116,7 +116,7 @@ import ProjectM36.Serialise.Error ()
 import ProjectM36.Error
 import qualified ProjectM36.DatabaseContext as DBC
 import ProjectM36.DatabaseContext.Basic
-import ProjectM36.DatabaseContext (DatabaseContext(..), asDatabaseContext, notifications, atomFunctions, dbcFunctions, registeredQueries)
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
@@ -609,7 +609,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
             --attempt fast-forward commit, if possible
             let disconIn = Sess.disconnectedTransaction session
             if Sess.parentId session == Trans.transactionId headTrans then do
-              let ret = Graph.evalGraphOp tstamp id1 disconIn graph Commit
+              let ret = Graph.evalAlterTransactionGraphOperator tstamp id1 disconIn graph Commit
               case ret of
                 Left err -> pure (Left err)
                 Right (discon', tGraph) ->

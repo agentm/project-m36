@@ -10,7 +10,7 @@ import ProjectM36.InclusionDependency
 import ProjectM36.AtomFunction
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.IsomorphicSchema
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
 import Optics.Core
@@ -26,20 +26,29 @@ ddlHash ctx tgraph = do
 -- | Process all relations within the context of the transaction graph to extract the relation variables types.
 typesForRelationVariables :: DatabaseContext -> TransactionGraph -> Either RelationalError (M.Map RelVarName Relation)
 typesForRelationVariables ctx tgraph = do
+  rvs <- resolveDBC' tgraph ctx relationVariables
   let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) tgraph
   M.fromList <$> mapM (\(rvname, rvexpr) -> do
            rvtype <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr rvexpr)
            pure (rvname, rvtype)
-                      ) (M.toList (ctx ^. relationVariables))
+                      ) (M.toList rvs)
 
 
 -- | Return a Relation which represents the database context's current DDL schema.
 ddlType :: Schema -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation
 ddlType schema ctx tgraph = do
-  incDepsRel <- inclusionDependenciesInSchema schema (ctx ^. inclusionDependencies) >>= inclusionDependenciesAsRelation
-  atomFuncsRel <- atomFunctionsAsRelation (ctx ^. atomFunctions)
-  dbcFuncsRel <- databaseContextFunctionsAsRelation (ctx ^. dbcFunctions )
-  typesRel <- typesAsRelation (ctx ^. typeConstructorMapping )
+  incDeps <- resolveDBC' tgraph ctx inclusionDependencies
+  incDepsRel <- inclusionDependenciesInSchema schema incDeps >>= inclusionDependenciesAsRelation
+
+  atomFuncs <- resolveDBC' tgraph ctx atomFunctions
+  atomFuncsRel <- atomFunctionsAsRelation atomFuncs
+
+  dbcFuncs <- resolveDBC' tgraph ctx dbcFunctions
+  dbcFuncsRel <- databaseContextFunctionsAsRelation dbcFuncs
+
+  tConsMap <- resolveDBC' tgraph ctx typeConstructorMapping
+  typesRel <- typesAsRelation tConsMap
+  
   relvarTypesRel <- relationVariablesAsRelationInSchema ctx schema tgraph
   let attrsAssocs = [("inclusion_dependencies", incDepsRel),
                      ("atom_functions", atomFuncsRel),

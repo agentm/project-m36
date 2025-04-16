@@ -4,6 +4,7 @@ module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
 import ProjectM36.Error
 import ProjectM36.DataTypes.SQL.Null
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.SQL.Select
@@ -1098,7 +1099,8 @@ pushDownAttributeRename renameSet matchExpr targetExpr =
         
 mkTableContextFromDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError TableContext
 mkTableContextFromDatabaseContext dbc tgraph = do
-  TableContext . M.fromList <$> mapM rvMapper (M.toList (dbc ^. relationVariables))
+  rvs <- resolveDBC' tgraph dbc relationVariables
+  TableContext . M.fromList <$> mapM rvMapper (M.toList rvs)
   where
     rvMapper (nam, rvexpr) = do
       let gfEnv = freshGraphRefRelationalExprEnv (Just dbc) tgraph

@@ -14,10 +14,13 @@ import qualified Data.Set as S
 data TransactionBase ctx = Transaction TransactionId TransactionInfo (Schemas ctx)
   deriving Generic
 
-type Transaction = TransactionBase TransactionRefDatabaseContext
+type Transaction = TransactionBase DatabaseContext
 
 -- | Data needed to write a transaction to permanent storage. This is different from a DisconnectedTransaction in that it's not clear if the DisconnectedTransaction will be written to disk (or rolled back). This transaction will be written.
-type UncommittedTransaction = TransactionBase ChangeTrackingDatabaseContext
+newtype UncommittedTransaction = UncommittedTransaction {
+  _uncommittedTransaction :: TransactionBase DatabaseContext
+  }
+  deriving (Ord, Eq)
 
 --- | Every transaction has context-specific information attached to it.
 --- The `TransactionDiff`s represent child/edge relationships to previous transactions (branches or continuations of the same branch).

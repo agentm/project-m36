@@ -118,7 +118,7 @@ transactionGraphPersist sync destDirectory graph = do
 -- | The incremental writer writes the transactions ids specified by the second argument.
 transactionGraphPersistIncremental :: DiskSync -> FilePath -> TransactionGraphIncrementalWriteInfo -> IO LockFileHash
 transactionGraphPersistIncremental sync destDirectory tgWriteInfo = do
-  mapM (writeTransaction sync destDirectory) (S.toList (unwrittenTransactions tgWriteInfo))
+  mapM (writeTransaction sync destDirectory) (S.toList (uncommittedTransactions tgWriteInfo))
   --write graph file
   newDigest <- writeGraphTransactionIdFile sync destDirectory (newGraph tgWriteInfo)
   --write heads file

@@ -2,7 +2,7 @@
 module ProjectM36.ReferencedTransactionIds where
 import ProjectM36.Base
 import ProjectM36.Error
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
@@ -116,13 +116,17 @@ instance ReferencedTransactionIds DatabaseContext where
   referencedTransactionIds dbc =
     S.unions [
     --referencedTransactionIds (inclusionDependencies dbc),
-    referencedTransactionIds (dbc ^. relationVariables)
+    referencedTransactionIds (relationVariables dbc)
     --referencedTransactionIds (atomFunctions dbc),
     --referencedTransactionIds (dbcFunctions dbc),
     --referencedTransactionIds (notifications dbc),
     --referencedTransactionIds (typeConstructorMapping dbc),
     --referencedTransactionIds (registeredQueries dbc)
     ]
+
+instance ReferencedTransactionIds a => ReferencedTransactionIds (ValueMarker a) where
+  referencedTransactionIds (ValueMarker a) = referencedTransactionIds a
+  referencedTransactionIds (NotChangedSinceMarker tid) = S.singleton tid
 
 instance ReferencedTransactionIds RelationVariables where
   referencedTransactionIds relVars =

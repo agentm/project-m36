@@ -2,11 +2,15 @@
 module ProjectM36.SQLDatabaseContext where
 import ProjectM36.DatabaseContext.Basic
 import ProjectM36.DataTypes.SQL.Null
-import ProjectM36.DatabaseContext
-import Optics.Core
+import ProjectM36.DatabaseContext.Types
+import Data.Functor.Identity
 
-sqlDatabaseContext :: DatabaseContext
+sqlDatabaseContext :: ResolvedDatabaseContext
 sqlDatabaseContext =
-  (basicDatabaseContext & atomFunctions .~ (basicDatabaseContext ^. atomFunctions  <> nullAtomFunctions)) & (typeConstructorMapping .~ (basicDatabaseContext ^. typeConstructorMapping <> nullTypeConstructorMapping))
-
+  basicDatabaseContext {
+      atomFunctions =
+      atomFunctions basicDatabaseContext <> Identity nullAtomFunctions,
+      typeConstructorMapping =
+      typeConstructorMapping basicDatabaseContext <> Identity nullTypeConstructorMapping
+      }
 

@@ -11,7 +11,7 @@ import ProjectM36.Serialise.Base ()
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Transaction.Types
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import qualified Data.HashSet as HS
 import qualified ProjectM36.DataConstructorDef as DC
 import ProjectM36.MerkleHash
@@ -262,13 +262,19 @@ instance HashBytes UTCTime where
 
 instance HashBytes DatabaseContext where
   hashBytes db ctx =
-    hashBytesL ctx "DatabaseContext" [SHash (db ^. inclusionDependencies),
-                                      SHash (db ^. relationVariables),
-                                      SHash (db ^. notifications),
-                                      SHash (db ^. typeConstructorMapping),
-                                      SHash (db ^. atomFunctions),
-                                      SHash (db ^. dbcFunctions)]
-
+    hashBytesL ctx "DatabaseContext" [SHash (inclusionDependencies db),
+                                      SHash (relationVariables db),
+                                      SHash (notifications db),
+                                      SHash (typeConstructorMapping db),
+                                      SHash (atomFunctions db),
+                                      SHash (dbcFunctions db)]
+    
+instance HashBytes a => HashBytes (ValueMarker a) where 
+  hashBytes (ValueMarker a) ctx =
+    hashBytesL ctx "ValueMarker" [SHash a]
+  hashBytes (NotChangedSinceMarker tid) ctx =
+    hashBytesL ctx "NotChangedSinceMarker" [SHash tid]
+    
 instance HashBytes InclusionDependencies where
   hashBytes incDeps ctx =
     hashBytesL ctx "InclusionDependencies" (map SHash (M.toAscList incDeps))
@@ -364,8 +370,9 @@ mkDDLHash :: DatabaseContext -> M.Map RelVarName Relation -> SecureHash
 mkDDLHash ctx rvtypemap = do
   -- we cannot merely hash the relational representation of the type because the order of items matters when hashing
   -- registered queries are not included here because a client could be compatible with a schema even if the queries are not registered. The client should validate registered query state up-front. Perhaps there should be another hash for registered queries.
-  SecureHash $ SHA256.finalize $ hashBytesL SHA256.init "DDLHash" [SHash (ctx ^. inclusionDependencies),
-                                                                    SHash (ctx ^. atomFunctions),
-                                                                    SHash (ctx ^. dbcFunctions),
-                                                                    SHash (ctx ^. typeConstructorMapping),
-                                                                    SHash rvtypemap]
+  SecureHash $ SHA256.finalize $
+    hashBytesL SHA256.init "DDLHash" [SHash (inclusionDependencies ctx),
+                                      SHash (atomFunctions ctx),
+                                      SHash (dbcFunctions ctx),
+                                      SHash (typeConstructorMapping ctx),
+                                      SHash rvtypemap]

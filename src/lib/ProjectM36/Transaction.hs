@@ -25,7 +25,7 @@ filterTransaction :: S.Set TransactionId -> Transaction -> Transaction
 filterTransaction filterIds (Transaction selfId tInfo context) = Transaction selfId (filterTransactionInfoTransactions filterIds tInfo) context
 
 
-fresh :: TransactionId -> UTCTime -> Schemas TransactionRefDatabaseContext -> Transaction
+fresh :: TransactionId -> UTCTime -> Schemas DatabaseContext -> Transaction
 fresh freshId stamp' = Transaction freshId tinfo
   where
     tinfo = TransactionInfo {parents = rootParent,

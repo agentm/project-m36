@@ -1,6 +1,6 @@
 module ProjectM36.DatabaseContextFunctions.Basic where
 import ProjectM36.DatabaseContextFunction
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.Base
 import qualified Data.HashSet as HS
 import Optics.Core
@@ -9,7 +9,7 @@ basicDatabaseContextFunctions :: DatabaseContextFunctions
 basicDatabaseContextFunctions = HS.fromList [
   Function { funcName = "deleteAll",
              funcType = [],
-             funcBody = FunctionBuiltInBody (\_ ctx -> pure $ ctx & relationVariables .~ mempty )
+             funcBody = FunctionBuiltInBody (\_ ctx -> pure $ ctx { relationVariables = emptyValue })
            }
   ]
 

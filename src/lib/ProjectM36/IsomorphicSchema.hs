@@ -6,6 +6,7 @@ import ProjectM36.MiscUtils
 import ProjectM36.Relation
 import ProjectM36.NormalizeExpr
 import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.RelationalExpression
@@ -40,8 +41,8 @@ isomorphs (Schema i) = i
 -- | Return an error if the schema is not isomorphic to the base database context.
 -- A schema is fully isomorphic iff all relvars in the base context are in the "out" relvars, but only once.
 --TODO: add relvar must appear exactly once constraint
-validateSchema :: IsDatabaseContext ctx => Schema -> ctx -> Maybe SchemaError
-validateSchema potentialSchema baseContext
+validateSchema :: Schema -> S.Set RelVarName -> Maybe SchemaError
+validateSchema potentialSchema expectedRelVars
   | not (S.null rvDiff) = Just (RelVarReferencesMissing rvDiff)
   | otherwise = case outDupes of
       x : _ -> Just $ RelVarOutReferencedMoreThanOnce x
@@ -54,7 +55,6 @@ validateSchema potentialSchema baseContext
     inDupes = duplicateNames (namesList isomorphInRelVarNames)
     duplicateNames = dupes . L.sort
     namesList isoFunc = concatMap isoFunc (isomorphs potentialSchema)
-    expectedRelVars = M.keysSet (baseContext ^. relationVariables)
     schemaRelVars = isomorphsOutRelVarNames (isomorphs potentialSchema)
     rvDiff = S.difference expectedRelVars schemaRelVars
 
@@ -347,12 +347,13 @@ createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = le
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
-evalSchemaExpr :: IsDatabaseContext ctx => SchemaExpr -> ctx -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, ctx)
+evalSchemaExpr :: SchemaExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
 evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
   if M.member sname sschemas then
     Left (SubschemaNameInUseError sname)
-    else
-    case validateSchema (Schema morphs) context of
+    else do
+    relVars <- resolveDBC' graph context relationVariables
+    case validateSchema (Schema morphs) (M.keysSet relVars) of
       Just err -> Left (SchemaCreationError err)
       Nothing -> do
         let newSchemas = M.insert sname newSchema sschemas

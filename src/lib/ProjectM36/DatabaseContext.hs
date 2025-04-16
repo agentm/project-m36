@@ -2,7 +2,7 @@
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import Control.DeepSeq (NFData)
-import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Types as DBT
 import ProjectM36.TransactionGraph.Types
 import Control.Monad (void)
 import qualified Data.Map as M
@@ -23,26 +23,27 @@ import Data.Functor.Identity
 -- | Indicate whether a record field has been changed in this transaction. This is used in the DatabaseContext ot mark fields which have been modified relative to the previous transactions' state as an optimization when persisting transactions on disk.
 
 empty :: DatabaseContext
-empty = DatabaseContext { inclusionDependencies = mempty, 
-                          relationVariables = mempty, 
-                          notifications = mempty,
-                          atomFunctions = mempty,
-                          dbcFunctions = mempty,
-                          typeConstructorMapping = mempty,
-                          registeredQueries = mempty }
+empty = DatabaseContext { inclusionDependencies = emptyValue, 
+                          relationVariables = emptyValue, 
+                          notifications = emptyValue,
+                          atomFunctions = emptyValue,
+                          dbcFunctions = emptyValue,
+                          typeConstructorMapping = emptyValue,
+                          registeredQueries = emptyValue }
   
 -- | Remove TransactionId markers on GraphRefRelationalExpr
 stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
 stripGraphRefRelationalExpr = void
 
--- | convert an existing database context into its constituent expression.   
-databaseContextAsDatabaseContextExpr :: DatabaseContext -> TransactionGraph -> DatabaseContextExpr
-databaseContextAsDatabaseContextExpr context graph = MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
-  where
-    relVarsExprs = map (\(name, rel) -> Assign name (stripGraphRefRelationalExpr rel)) (M.toList (runIdentity (context & relationVariables)))
-    incDepsExprs :: [DatabaseContextExpr]
-    incDepsExprs = map (uncurry AddInclusionDependency) (M.toList (runIdentity (context & inclusionDependencies)))
-    funcsExprs = [] -- map (\func -> ) (HS.toList funcs) -- there are no databaseExprs to add atom functions yet-}
+-- | If the database context has any values which do *not* reference previous transactions, it must be new data.
+isUpdated :: DatabaseContext -> Bool
+isUpdated ctx = or [DBT.valueIsUpdated (inclusionDependencies ctx),
+                     DBT.valueIsUpdated (relationVariables ctx),
+                     DBT.valueIsUpdated (atomFunctions ctx),
+                     DBT.valueIsUpdated (dbcFunctions ctx),
+                     DBT.valueIsUpdated (notifications ctx),
+                     DBT.valueIsUpdated (typeConstructorMapping ctx),
+                     DBT.valueIsUpdated (registeredQueries ctx)]
 
 someDatabaseContextExprs :: [DatabaseContextExpr] -> DatabaseContextExpr
 someDatabaseContextExprs [s] = s
@@ -63,3 +64,20 @@ asDatabaseContext ctx =
                   }
 
 -}
+
+-- | The "fresh" database context is created after a commit, so all values will refer to previous transactions.
+freshDatabaseContext :: TransactionId -> DatabaseContext -> DatabaseContext
+freshDatabaseContext previousTransactionId ctx =
+  DatabaseContext { inclusionDependencies = freshen (inclusionDependencies ctx),
+                    relationVariables = freshen (relationVariables ctx),
+                    atomFunctions = freshen (atomFunctions ctx),
+                    dbcFunctions = freshen (dbcFunctions ctx),
+                    notifications = freshen (notifications ctx),
+                    typeConstructorMapping = freshen (typeConstructorMapping ctx),
+                    registeredQueries = freshen (registeredQueries ctx)
+                  }
+  where
+    freshen :: forall a. ValueMarker a -> ValueMarker a
+    freshen (ValueMarker _) = NotChangedSinceMarker previousTransactionId
+    freshen m@NotChangedSinceMarker{} = m
+                    

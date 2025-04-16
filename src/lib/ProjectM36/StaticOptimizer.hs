@@ -8,7 +8,7 @@ import qualified ProjectM36.TupleSet as TS
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
 import ProjectM36.Error
 import ProjectM36.NormalizeExpr
@@ -142,14 +142,14 @@ optimizeDatabaseContextExpr expr = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
   optimizeGraphRefDatabaseContextExpr gfExpr
   
-optimizeAndEvalDatabaseContextExpr :: IsDatabaseContext ctx => Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ctx ()
+optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
       eOptExpr = if runOpt then
-                   runGraphRefSOptDatabaseContextExprM transId (asDatabaseContext context) graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+                   runGraphRefSOptDatabaseContextExprM transId context graph (optimizeGraphRefDatabaseContextExpr gfExpr)
                    else
                    pure gfExpr
   case eOptExpr of
@@ -164,13 +164,13 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
-optimizeAndEvalDatabaseContextIOExpr :: IsDatabaseContext ctx => DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ctx (Either RelationalError ())
+optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do
   transId <- asks dbcio_transId
   ctx <- getDBCIOContext
   graph <- asks dbcio_graph
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
-      eOptExpr = runGraphRefSOptDatabaseContextExprM transId (asDatabaseContext ctx) graph (optimizeDatabaseContextIOExpr gfExpr)
+      eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
     Left err -> pure (Left err)
     Right optExpr ->
@@ -394,7 +394,9 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   graph <- askGraph
   parentId <- askTransId
   
-  let emptyRvs ctx = ctx & relationVariables .~ mkEmptyRelVars (ctx ^. relationVariables)
+  let emptyRvs ctx = do
+        emptyRvs' <- mkEmptyRelVars' graph (relationVariables ctx)
+        pure $ ctx { relationVariables = emptyRvs' }
       dbcEnv = mkDatabaseContextEvalEnv parentId graph
       folder (ctx, expracc) expr = do
         --optimize the expr and run it against empty relvars to add it to the context
@@ -403,8 +405,9 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
           Right optExpr ->
             case runDatabaseContextEvalMonad ctx dbcEnv (evalGraphRefDatabaseContextExpr optExpr) of
               Left err -> throwError err
-              Right dbcState ->
-                pure (emptyRvs $ dbc_context dbcState, expracc ++ [optExpr])
+              Right dbcState -> do
+                emptyRelVars <- lift (except (emptyRvs (dbc_context dbcState)))
+                pure (emptyRelVars, expracc ++ [optExpr])
 
   (_, exprs') <- foldM folder (context,[]) exprs
   pure (MultipleExpr exprs')
@@ -525,8 +528,8 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
         Just ((joinedExpr, joinedType), (unjoinedExpr, _)) -> do
         --lookup transaction
         --scan inclusion dependencies for a foreign key relationship
-         let incDeps = commonContext ^. inclusionDependencies
-             fkConstraint = foldM isFkConstraint False incDeps
+         incDeps <- lift (except (resolveDBC' graph commonContext inclusionDependencies))
+         let fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
              isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do
                let gfSubAttrNames = processM (processAttributeNames subAttrNames)

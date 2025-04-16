@@ -6,7 +6,7 @@ import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Attribute as A
 import ProjectM36.Tuple
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.Relation (RestrictionFilter, ContextTuples, attributes, contextTupleAtomForAttributeName, tupleSet, singletonContextTuple)
 import ProjectM36.WithNameExpr
 import Streamly.Data.Stream (Stream)
@@ -146,7 +146,8 @@ planGraphRefRelationalExpr :: GraphRefRelationalExpr ->
                               Either RelationalError GraphRefRelExprExecPlan
 planGraphRefRelationalExpr (RelationVariable name tid) gfEnv = do
   ctx <- runGraphRefRelationalExprM gfEnv (gfDatabaseContextForMarker tid)
-  let rvMap = ctx ^. relationVariables
+  let graph = gre_graph gfEnv
+  rvMap <- resolveDBC' graph ctx relationVariables
   case M.lookup name rvMap of
     Nothing -> Left (RelVarNotDefinedError name)
     Just rvExpr -> planGraphRefRelationalExpr rvExpr gfEnv
