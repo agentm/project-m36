@@ -45,10 +45,9 @@ freshTransaction :: TransactionId -> TransactionRefSchemas -> DisconnectedTransa
 freshTransaction tid (Schemas ctx subschemas') =
   DisconnectedTransaction tid (Schemas (freshDatabaseContext tid ctx) subschemas')
 
-{-
 freshTransaction' :: TransactionId -> Schemas DatabaseContext -> DisconnectedTransaction
 freshTransaction' tid (Schemas parentContext parentSchemas) =
   DisconnectedTransaction tid schemas'
   where
-    schemas' = Schemas (fromDatabaseContext parentContext) parentSchemas
--}
+    schemas' = Schemas (freshDatabaseContext tid parentContext) parentSchemas
+

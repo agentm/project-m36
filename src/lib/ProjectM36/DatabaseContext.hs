@@ -50,21 +50,6 @@ someDatabaseContextExprs [s] = s
 someDatabaseContextExprs (s:ss) = MultipleExpr (s:ss)
 someDatabaseContextExprs [] = NoOperation
 
--- | Strip change tracking information for read-only queries
-{-
-asDatabaseContext :: IsDatabaseContext ctx => ctx -> DatabaseContext
-asDatabaseContext ctx =
-  DatabaseContext { _inclusionDependencies = ctx ^. inclusionDependencies,
-                    _relationVariables = ctx ^. relationVariables,
-                    _atomFunctions = ctx ^. atomFunctions,
-                    _dbcFunctions = ctx ^. dbcFunctions,
-                    _notifications = ctx ^. notifications,
-                    _typeConstructorMapping = ctx ^. typeConstructorMapping,
-                    _registeredQueries =  ctx ^. registeredQueries
-                  }
-
--}
-
 -- | The "fresh" database context is created after a commit, so all values will refer to previous transactions.
 freshDatabaseContext :: TransactionId -> DatabaseContext -> DatabaseContext
 freshDatabaseContext previousTransactionId ctx =
