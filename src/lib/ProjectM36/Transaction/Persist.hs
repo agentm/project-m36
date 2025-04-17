@@ -215,6 +215,7 @@ unwrittenTransactionCanUseDatabaseContextValuesFastPath (UncommittedTransaction 
   S.size (parentIds trans) == 1
 
 -- | For database context values which have *not* changed since the parent, write into a single file.
+{-
 writeUnchangedTransactionMarkers :: DiskSync -> FilePath -> DatabaseContext -> IO ()
 writeUnchangedTransactionMarkers sync transDir ctdbc = do
   let wUnchanged = UnchangedDatabaseContextValues {
@@ -231,6 +232,7 @@ writeUnchangedTransactionMarkers sync transDir ctdbc = do
       mTrans ChangedMarker{} = Nothing
       unchangedPath = unchangedElementsPath transDir
   writeSerialiseSync sync unchangedPath wUnchanged
+-}
 
 writeRelVars :: DiskSync -> FilePath -> RelationVariables -> IO ()
 writeRelVars sync transDir relvars = do

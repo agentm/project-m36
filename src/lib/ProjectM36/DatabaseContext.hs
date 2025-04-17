@@ -2,16 +2,7 @@
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types as DBT
-import ProjectM36.TransactionGraph.Types
-import qualified Data.Map as M
 import Control.Monad (void)
-import ProjectM36.DatabaseContextFunctionError
-import ProjectM36.Error
---import ProjectM36.DataTypes.Basic
---import ProjectM36.AtomFunctions.Basic
---import ProjectM36.Relation
---import ProjectM36.DatabaseContextFunction
-import Optics.Core
 import Data.Functor.Identity
 
 -- | The DatabaseContext is a snapshot of a database's evolving state and contains everything a database client can change over time.
@@ -64,3 +55,15 @@ freshDatabaseContext previousTransactionId ctx =
     freshen (ValueMarker _) = NotChangedSinceMarker previousTransactionId
     freshen m@NotChangedSinceMarker{} = m
                     
+toDatabaseContext :: ResolvedDatabaseContext -> DatabaseContext
+toDatabaseContext r =
+  DatabaseContext {
+    inclusionDependencies = ValueMarker (runIdentity (inclusionDependencies r)),
+    relationVariables = ValueMarker (runIdentity (relationVariables r)),
+    atomFunctions = ValueMarker (runIdentity (atomFunctions r)),
+    dbcFunctions = ValueMarker (runIdentity (dbcFunctions r)),
+    notifications = ValueMarker (runIdentity (notifications r)),
+    typeConstructorMapping = ValueMarker (runIdentity (typeConstructorMapping r)),
+    registeredQueries = ValueMarker (runIdentity (registeredQueries r))
+    }
+

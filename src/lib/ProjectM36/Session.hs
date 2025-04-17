@@ -8,7 +8,6 @@ import ProjectM36.Error
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
 import ProjectM36.IsomorphicSchema.Types
-import ProjectM36.ChangeTrackingDatabaseContext
 
 type SessionId = UUID
 
