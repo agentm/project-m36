@@ -1,12 +1,10 @@
 {-# LANGUAGE RankNTypes, DeriveGeneric, DeriveAnyClass, MultiParamTypeClasses, ExistentialQuantification #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
-import Control.DeepSeq (NFData)
 import ProjectM36.DatabaseContext.Types as DBT
 import ProjectM36.TransactionGraph.Types
-import Control.Monad (void)
 import qualified Data.Map as M
-import qualified Data.HashSet as HS
+import Control.Monad (void)
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.Error
 --import ProjectM36.DataTypes.Basic

@@ -3,10 +3,6 @@ import ProjectM36.Base
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContext as DBC
 import ProjectM36.DatabaseContext.Types as DBC
-import ProjectM36.ChangeTrackingDatabaseContext as CTDBC
-import Data.Map
-import Optics.Core
-import Data.Functor.Identity
 
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 

@@ -53,9 +53,13 @@ handleLogin conn lockSock = do
   addClientNode conn lockSock
   pure True
   
-handleExecuteGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
-handleExecuteGraphExpr ti sessionId conn graphExpr =
+handleExecuteTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())
+handleExecuteTransactionGraphExpr ti sessionId conn graphExpr =
   timeoutRelErr ti (executeGraphExpr sessionId conn graphExpr)
+
+handleExecuteAlterTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> AlterTransactionGraphExpr -> IO (Either RelationalError ())
+handleExecuteAlterTransactionGraphExpr ti sessionId conn alterGraphExpr =
+  timeoutRelErr ti (executeAlterTransactionGraphExpr sessionId conn alterGraphExpr)
   
 handleExecuteTransGraphRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
 handleExecuteTransGraphRelationalExpr ti sessionId conn graphExpr =
@@ -85,9 +89,9 @@ handleRetrieveHeadTransactionId :: Maybe Timeout -> SessionId -> Connection -> I
 handleRetrieveHeadTransactionId ti sessionId conn =
   timeoutRelErr ti (headTransactionId sessionId conn)
   
-handleCreateSessionAtCommit :: Maybe Timeout -> Connection -> TransactionId -> IO (Either RelationalError SessionId)
-handleCreateSessionAtCommit ti conn commitId =
-  timeoutRelErr ti (createSessionAtCommit conn commitId)
+handleCreateSessionAtTransactionId :: Maybe Timeout -> Connection -> TransactionId -> IO (Either RelationalError SessionId)
+handleCreateSessionAtTransactionId ti conn commitId =
+  timeoutRelErr ti (createSessionAtTransactionId conn commitId)
   
 handleCreateSessionAtHead :: Maybe Timeout -> Connection -> HeadName -> IO (Either RelationalError SessionId)
 handleCreateSessionAtHead ti conn headn = 

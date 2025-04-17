@@ -37,8 +37,11 @@ data ExecuteDatabaseContextExpr = ExecuteDatabaseContextExpr SessionId DatabaseC
 data ExecuteDatabaseContextIOExpr = ExecuteDatabaseContextIOExpr SessionId DatabaseContextIOExpr
   RPCData(ExecuteDatabaseContextIOExpr)
   
-data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphOperator 
+data ExecuteGraphExpr = ExecuteGraphExpr SessionId TransactionGraphExpr
   RPCData(ExecuteGraphExpr)
+
+data ExecuteAlterTransactionGraphExpr = ExecuteAlterTransactionGraphExpr SessionId AlterTransactionGraphExpr
+  RPCData(ExecuteAlterTransactionGraphExpr)
   
 data ExecuteTransGraphRelationalExpr = ExecuteTransGraphRelationalExpr SessionId TransGraphRelationalExpr                               
   RPCData(ExecuteTransGraphRelationalExpr)
@@ -69,8 +72,8 @@ data RetrieveTransactionGraph = RetrieveTransactionGraph SessionId
 data RetrieveHeadTransactionId = RetrieveHeadTransactionId SessionId
   RPCData(RetrieveHeadTransactionId)
   
-data CreateSessionAtCommit = CreateSessionAtCommit TransactionId
-  RPCData(CreateSessionAtCommit)
+data CreateSessionAtTransactionId = CreateSessionAtTransactionId TransactionId
+  RPCData(CreateSessionAtTransactionId)
   
 data CreateSessionAtHead = CreateSessionAtHead HeadName
   RPCData(CreateSessionAtHead)

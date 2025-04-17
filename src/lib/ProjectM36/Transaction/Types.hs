@@ -3,7 +3,6 @@ module ProjectM36.Transaction.Types where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.ChangeTrackingDatabaseContext
 import ProjectM36.MerkleHash
 import GHC.Generics
 import Data.Time.Clock

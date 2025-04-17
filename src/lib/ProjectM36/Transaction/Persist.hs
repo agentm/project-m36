@@ -15,7 +15,6 @@ import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContextFunctions.Basic
-import ProjectM36.ChangeTrackingDatabaseContext
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
 import ProjectM36.Function
@@ -216,7 +215,7 @@ unwrittenTransactionCanUseDatabaseContextValuesFastPath (UncommittedTransaction 
   S.size (parentIds trans) == 1
 
 -- | For database context values which have *not* changed since the parent, write into a single file.
-writeUnchangedTransactionMarkers :: DiskSync -> FilePath -> ChangeTrackingDatabaseContext -> IO ()
+writeUnchangedTransactionMarkers :: DiskSync -> FilePath -> DatabaseContext -> IO ()
 writeUnchangedTransactionMarkers sync transDir ctdbc = do
   let wUnchanged = UnchangedDatabaseContextValues {
         unchangedRelationVariables = mTrans (_ctrelationVariables ctdbc),

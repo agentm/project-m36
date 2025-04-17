@@ -46,7 +46,7 @@ requestHandlers testFlag ti =
                         handleExecuteDatabaseContextIOExpr ti sessionId conn expr),
      RequestHandler (\sState (ExecuteGraphExpr sessionId expr) -> do
                         conn <- getConn sState
-                        handleExecuteGraphExpr ti sessionId conn expr),
+                        handleExecuteTransactionGraphExpr ti sessionId conn expr),
      RequestHandler (\sState (ExecuteTransGraphRelationalExpr sessionId expr) -> do
                        conn <- getConn sState
                        handleExecuteTransGraphRelationalExpr ti sessionId conn expr),
@@ -71,9 +71,9 @@ requestHandlers testFlag ti =
      RequestHandler (\sState (CreateSessionAtHead headn) -> do
                        conn <- getConn sState                        
                        handleCreateSessionAtHead ti conn headn),
-     RequestHandler (\sState (CreateSessionAtCommit commitId) -> do
+     RequestHandler (\sState (CreateSessionAtTransactionId commitId) -> do
                         conn <- getConn sState
-                        handleCreateSessionAtCommit ti conn commitId),
+                        handleCreateSessionAtTransactionId ti conn commitId),
      RequestHandler (\sState (CloseSession sessionId) -> do
                         conn <- getConn sState                 
                         handleCloseSession sessionId conn),
@@ -212,7 +212,7 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext)
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) (toDatabaseContext basicDatabaseContext))
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)

@@ -58,23 +58,23 @@ data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ gi
                                   deriving Serialise via WineryVariant TransactionIdHeadBacktrack
 
 
-data TransactionGraphOperator = JumpToHead HeadName  |
-                                JumpToTransaction TransactionId |
-                                WalkBackToTime UTCTime
-                              deriving (Eq, Show, Generic)
-  deriving Serialise via WineryVariant TransactionGraphOperator
+data TransactionGraphExpr = JumpToHead HeadName  |
+                            JumpToTransaction TransactionId |
+                            WalkBackToTime UTCTime
+                          deriving (Eq, Show, Generic)
+  deriving Serialise via WineryVariant TransactionGraphExpr
                                 
 -- | Operators which manipulate a transaction graph and which transaction the current 'Session' is based upon.
-data AlterTransactionGraphOperator = 
+data AlterTransactionGraphExpr = 
                                 Branch HeadName |
                                 DeleteBranch HeadName |
                                 MergeTransactions MergeStrategy HeadName HeadName |
                                 Commit |
                                 Rollback
                               deriving (Eq, Show, Generic)
-                              deriving Serialise via WineryVariant AlterTransactionGraphOperator
+                              deriving Serialise via WineryVariant AlterTransactionGraphExpr
 
-isCommit :: AlterTransactionGraphOperator -> Bool
+isCommit :: AlterTransactionGraphExpr -> Bool
 isCommit Commit = True
 isCommit _ = False
 
@@ -249,19 +249,19 @@ data ROTransactionGraphCreateDisconnectedTransaction =
   PureDisconnectedTransaction DisconnectedTransaction 
   
 -- | Evaluate the graph-changing operator, reading graph info from disk, if necessary. Returns the new disconnected transaction and new graph. When jumping to a new part of the graph, we may need to read from disk to update the diconnected transaction.
-evalTransactionGraphOperator :: DisconnectedTransaction -> TransactionGraph -> TransactionGraphOperator -> Either RelationalError DisconnectedTransaction
-evalTransactionGraphOperator discon graph (JumpToHead headName) =
+evalTransactionGraphExpr :: DisconnectedTransaction -> TransactionGraph -> TransactionGraphExpr -> Either RelationalError DisconnectedTransaction
+evalTransactionGraphExpr discon graph (JumpToHead headName) =
     case transactionForHead headName graph of
       Just newHeadTransaction -> do
         let discon = DisconnectedTransaction (transactionId newHeadTransaction) (schemas newHeadTransaction)
         pure discon
       Nothing -> Left $ NoSuchHeadNameError headName
-evalTransactionGraphOperator discon graph (JumpToTransaction jumpId) =
+evalTransactionGraphExpr discon graph (JumpToTransaction jumpId) =
   case transactionForId jumpId graph of
     Left err -> Left err
     Right parentTrans ->
       pure (DisconnectedTransaction (transactionId parentTrans) (schemas parentTrans))
-evalTransactionGraphOperator discon graph (WalkBackToTime backTime) = do
+evalTransactionGraphExpr discon graph (WalkBackToTime backTime) = do
   let startTransId = Discon.parentId discon
   jumpDest <- backtrackGraph graph startTransId (TransactionStampHeadBacktrack backTime)
   case transactionForId jumpDest graph of
@@ -269,8 +269,8 @@ evalTransactionGraphOperator discon graph (WalkBackToTime backTime) = do
     Right trans -> do
       pure (DisconnectedTransaction (transactionId trans) (schemas trans))
 
-evalAlterTransactionGraphOperator :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> AlterTransactionGraphOperator -> Either RelationalError (DisconnectedTransaction, UncommittedTransaction, TransactionGraph)
-evalAlterTransactionGraphOperator stamp' newId (DisconnectedTransaction parentId schemas') graph (Branch newBranchName) = do
+evalAlterTransactionGraphExpr :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> AlterTransactionGraphExpr -> Either RelationalError (DisconnectedTransaction, UncommittedTransaction, TransactionGraph)
+evalAlterTransactionGraphExpr stamp' newId (DisconnectedTransaction parentId schemas') graph (Branch newBranchName) = do
   let newDiscon = DisconnectedTransaction newId schemas'  
   case addBranch stamp' newId newBranchName parentId graph of
     Left err -> Left err
@@ -643,19 +643,19 @@ autoMergeToHead :: UTCTime -> (TransactionId, TransactionId, TransactionId) -> D
 autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) discon mergeToHeadName strat graph = do
   let tempBranchName = "mergebranch_" <> U.toText tempBranchTransId
   --create the temp branch
-  (discon', trans', graph') <- evalAlterTransactionGraphOperator stamp' tempBranchTransId discon graph (Branch tempBranchName)
+  (discon', trans', graph') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon graph (Branch tempBranchName)
 
   --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
-  (discon'', trans'', graph'') <- evalAlterTransactionGraphOperator stamp' tempCommitTransId discon' graph' Commit
+  (discon'', trans'', graph'') <- evalAlterTransactionGraphExpr stamp' tempCommitTransId discon' graph' Commit
 
   --jump to merge head
-  discon''' <- evalTransactionGraphOperator discon'' graph'' (JumpToHead mergeToHeadName)
+  discon''' <- evalTransactionGraphExpr discon'' graph'' (JumpToHead mergeToHeadName)
 
   --create the merge
-  (discon'''', trans'''', graph'''') <- evalAlterTransactionGraphOperator stamp' mergeTransId discon''' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
+  (discon'''', trans'''', graph'''') <- evalAlterTransactionGraphExpr stamp' mergeTransId discon''' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
 
   --delete the temp branch
-  (discon''''', trans''''', graph''''') <- evalAlterTransactionGraphOperator stamp' tempBranchTransId discon'''' graph'''' (DeleteBranch tempBranchName)
+  (discon''''', trans''''', graph''''') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon'''' graph'''' (DeleteBranch tempBranchName)
   {-
   let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
   traceShowM rel

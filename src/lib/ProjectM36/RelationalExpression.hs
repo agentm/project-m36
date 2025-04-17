@@ -401,6 +401,8 @@ evalGraphRefDatabaseContextExpr (RemoveInclusionDependency depName) = do
 evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldExpr resultNewExpr) = do
   currentContext <- getStateContext
   nots <- resolveDBC notifications
+  transId <- dbcTransId
+  graph <- dbcGraph
   if M.member notName nots then
     dbErr (NotificationNameInUseError notName)
     else do
@@ -408,7 +410,6 @@ evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldEx
           newNotification = Notification { changeExpr = triggerExpr,
                                            reportOldExpr = resultOldExpr, 
                                            reportNewExpr = resultNewExpr}
-          newNotifications = M.insert notName newNotification nots
           potentialContext = currentContext { notifications = newNotifications }
       case checkConstraints potentialContext transId graph of
         Left err -> dbErr err

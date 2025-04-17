@@ -20,6 +20,7 @@ module ProjectM36.Client
        executeDatabaseContextIOExpr,
        executeDataFrameExpr,
        executeGraphExpr,
+       executeAlterTransactionGraphExpr,
        executeSchemaExpr,
        executeTransGraphRelationalExpr,
        commit,
@@ -62,12 +63,13 @@ module ProjectM36.Client
        Attribute(..),
        MergeStrategy(..),
        attributesFromList,
-       createSessionAtCommit,
+       createSessionAtTransactionId,
        createSessionAtHead,
        closeSession,
        callTestTimeout_,
        RelationCardinality(..),
-       TransactionGraphOperator(..),
+       TransactionGraphExpr(..),
+       AlterTransactionGraphExpr(..),
        ProjectM36.Client.autoMergeToHead,
        transactionGraph_,
        disconnectedTransaction_,
@@ -121,7 +123,8 @@ import ProjectM36.Serialise.Error ()
 import ProjectM36.Error
 import qualified ProjectM36.DatabaseContext.Types as DBC
 import ProjectM36.DatabaseContext.Basic
-import ProjectM36.DatabaseContext.Types
+import qualified ProjectM36.DatabaseContext as DBC
+import ProjectM36.DatabaseContext.Types (DatabaseContext(..), atomFunctions, dbcFunctions, notifications, registeredQueries)
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
@@ -189,7 +192,6 @@ import ProjectM36.SQL.DBUpdate as SQL
 import ProjectM36.SQL.Convert
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
-import ProjectM36.ChangeTrackingDatabaseContext as CTDBC
 import Optics.Core
 import qualified Data.Set as S
 import Streamly.Internal.Network.Socket (SockSpec(..))
@@ -421,7 +423,7 @@ createSessionAtTransactionId :: Connection -> TransactionId -> IO (Either Relati
 createSessionAtTransactionId conn@(InProcessConnection _) commitId = do
    newSessionId <- nextRandom
    atomically $ createSessionAtCommit_ commitId newSessionId conn
-createSessionAtTransactionId conn@(RemoteConnection _) uuid = remoteCall conn (CreateSessionAtCommit uuid)
+createSessionAtTransactionId conn@(RemoteConnection _) uuid = remoteCall conn (CreateSessionAtTransactionId uuid)
 
 createSessionAtCommit_ :: TransactionId -> SessionId -> Connection -> STM (Either RelationalError SessionId)
 createSessionAtCommit_ commitId newSessionId (InProcessConnection conf) = do
@@ -601,7 +603,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
           case RE.runDatabaseContextEvalMonad ctx env (optimizeAndEvalDatabaseContextExpr True expr'') of
             Left err -> pure (Left err)
             Right newState ->
-              if not (CTDBC.isDirty (RE.dbc_context newState)) then --nothing dirtied, nothing to do
+              if not (DBC.isUpdated (RE.dbc_context newState)) then --nothing dirtied, nothing to do
                 pure (Right ())
               else do
                 let newDiscon = DisconnectedTransaction (Sess.parentId session) newSchemas
@@ -632,11 +634,11 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
             --attempt fast-forward commit, if possible
             let disconIn = Sess.disconnectedTransaction session
             if Sess.parentId session == Trans.transactionId headTrans then do
-              let ret = Graph.evalAlterTransactionGraphOperator tstamp id1 disconIn graph Commit
+              let ret = Graph.evalAlterTransactionGraphExpr tstamp id1 disconIn graph Commit
               case ret of
                 Left err -> pure (Left err)
                 Right (discon', trans', tGraph) ->
-                  pure (Right (TransactionGraphIncrementalWriteInfo {
+                  pure (Right (discon', TransactionGraphIncrementalWriteInfo {
                               uncommittedTransactions = S.singleton trans',
                               newGraph = tGraph
                               }))
@@ -674,15 +676,15 @@ executeDatabaseContextIOExpr sessionId conn@(RemoteConnection _) dbExpr = remote
 -- process notifications for commits
 executeCommitExprSTM_
   :: TransactionGraph
-  -> ChangeTrackingDatabaseContext
-  -> ChangeTrackingDatabaseContext
+  -> DatabaseContext
+  -> DatabaseContext
   -> ClientNodes
   -> STM (EvaluatedNotifications, ClientNodes)
-executeCommitExprSTM_ graph oldCTContext newCTContext nodes = do
-  let nots = notifications oldContext
-      oldContext = oldCTContext
-      newContext = newCTContext
-      fireNots = notificationChanges nots graph oldContext newContext
+executeCommitExprSTM_ graph oldContext newContext nodes = do
+  nots <- case RE.resolveDBC' graph oldContext notifications of
+            Left err -> throwSTM err
+            Right nots' -> pure nots'
+  let fireNots = notificationChanges nots graph oldContext newContext
       evaldNots = M.map mkEvaldNot fireNots
       evalInContext expr ctx = optimizeAndEvalRelationalExpr (RE.mkRelationalExprEnv ctx graph) expr
  
@@ -696,7 +698,7 @@ executeCommitExprSTM_ graph oldCTContext newCTContext nodes = do
 -- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
 -- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
 -- perhaps keep hash of data file instead of checking if our head was updated on every write
-executeGraphExpr :: SessionId -> Connection -> TransactionGraphOperator -> IO (Either RelationalError ())
+executeGraphExpr :: SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let sessions = ipSessions conf
   freshId <- nextRandom
@@ -707,17 +709,36 @@ executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
       Left err -> pure (Left err)
       Right session -> do
         let discon = Sess.disconnectedTransaction session
-        case evalTransactionGraphOperator discon updatedGraph graphExpr of
+        case evalTransactionGraphExpr discon updatedGraph graphExpr of
           Left err -> pure (Left err)
-          Right (discon', graph') -> do
-            --if freshId appears in the graph, then we need to pass it on
-            -- return previous change-tracking disconnected transaction which includes informationison which database context fields were changed
-            pure (Right (TransactionGraphIncrementalWriteInfo {
+          Right discon' -> do
+            pure (Right (discon', TransactionGraphIncrementalWriteInfo {
                             uncommittedTransactions = mempty,
-                            newGraph = graph'
+                            newGraph = updatedGraph
                             }))
 
 executeGraphExpr sessionId conn@(RemoteConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
+
+-- | Execute an operator which alters the transaction graph such as commit, branching, or merge.
+executeAlterTransactionGraphExpr :: SessionId -> Connection -> AlterTransactionGraphExpr -> IO (Either RelationalError ())
+executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraphExpr = do
+  let sessions = ipSessions conf
+  freshId <- nextRandom
+  tstamp <- getCurrentTime
+  commitLock_ sessionId conf $ \updatedGraph -> do
+    eSession <- sessionForSessionId sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right session -> do
+        let discon = Sess.disconnectedTransaction session
+        case evalAlterTransactionGraphExpr tstamp freshId discon updatedGraph alterGraphExpr of
+          Left err -> pure (Left err)
+          Right (discon', trans', graph') -> do
+            pure (Right (discon', TransactionGraphIncrementalWriteInfo {
+                            uncommittedTransactions = S.singleton trans',
+                            newGraph = graph'
+                            }))
+  
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
@@ -752,8 +773,8 @@ executeSchemaExpr sessionId conn@(RemoteConnection _) schemaExpr = remoteCall co
 
 -- | After modifying a 'DatabaseContext', 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
 commit :: SessionId -> Connection -> IO (Either RelationalError ())
-commit sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Commit 
-commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Commit)
+commit sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Commit 
+commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Commit)
 
 sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
 sendNotifications clients notifs =
@@ -764,14 +785,14 @@ sendNotifications clients notifs =
 
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
-rollback sessionId conn@(InProcessConnection _) = executeGraphExpr sessionId conn Rollback      
-rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteGraphExpr sessionId Rollback)
+rollback sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Rollback      
+rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Rollback)
 
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
 processTransactionGraphPersistence :: PersistenceStrategy -> TransactionGraphIncrementalWriteInfo -> IO ()
 processTransactionGraphPersistence NoPersistence _ = pure ()
-processTransactionGraphPersistence (MinimalPersistence dbdir) tWriteInfo = void $ transactionGraphPersist NoDiskSync dbdir tWriteInfo
-processTransactionGraphPersistence (CrashSafePersistence dbdir) tWriteInfo = void $ transactionGraphPersist FsyncDiskSync dbdir tWriteInfo
+processTransactionGraphPersistence (MinimalPersistence dbdir) tWriteInfo = void $ transactionGraphPersistIncremental NoDiskSync dbdir tWriteInfo
+processTransactionGraphPersistence (CrashSafePersistence dbdir) tWriteInfo = void $ transactionGraphPersistIncremental FsyncDiskSync dbdir tWriteInfo
 
 readGraphTransactionIdDigest :: PersistenceStrategy -> IO LockFileHash
 readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from transaction log without persistence enabled"
@@ -812,11 +833,15 @@ inclusionDependencies sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure $ Left err 
       Right (session, schema) -> do
+            graph <- readTVar (ipTransactionGraph conf)        
             let context = Sess.concreteDatabaseContext session
-            if schemaName session == defaultSchemaName then
-              pure $ Right (DBC.inclusionDependencies context)
-              else
-              pure (Schema.inclusionDependenciesInSchema schema (context ^. DBC.inclusionDependencies))
+            case RE.resolveDBC' graph context DBC.inclusionDependencies of
+              Left err -> pure (Left err)
+              Right incDeps -> do
+                if schemaName session == defaultSchemaName then
+                  pure (Right incDeps)
+                  else
+                    pure $ Schema.inclusionDependenciesInSchema schema incDeps
 
 inclusionDependencies sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveInclusionDependencies sessionId)
 
@@ -827,8 +852,13 @@ typeConstructorMapping sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure $ Left err 
-      Right (session, _) -> --warning, no schema support for typeconstructors
-        pure (Right (Sess.concreteDatabaseContext session ^. DBC.typeConstructorMapping ))
+      Right (session, _) -> do --warning, no schema support for typeconstructors
+        let context = Sess.concreteDatabaseContext session
+        graph <- readTVar (ipTransactionGraph conf)            
+        case RE.resolveDBC' graph context DBC.typeConstructorMapping of
+          Left err -> pure (Left err)
+          Right tConsMap ->
+            pure (Right tConsMap)
 typeConstructorMapping sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveTypeConstructorMapping sessionId)
   
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
@@ -925,8 +955,13 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, _) -> 
-        pure (AF.atomFunctionsAsRelation (concreteDatabaseContext session ^. atomFunctions))
+      Right (session, _) -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        let context = concreteDatabaseContext session
+        case RE.resolveDBC' graph context DBC.atomFunctions of
+          Left err -> pure (Left err)
+          Right afuncs ->
+            pure (AF.atomFunctionsAsRelation afuncs)
         
 atomFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
 
@@ -937,8 +972,13 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, _) ->
-        pure (DCF.databaseContextFunctionsAsRelation (concreteDatabaseContext session ^. dbcFunctions))
+      Right (session, _) -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        let context = concreteDatabaseContext session
+        case RE.resolveDBC' graph context DBC.dbcFunctions of
+          Left err -> pure (Left err)
+          Right dbcFuncs ->
+            pure (DCF.databaseContextFunctionsAsRelation dbcFuncs)
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
 
@@ -949,8 +989,13 @@ notificationsAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionAndSchema sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right (session, schema) ->
-        pure (Schema.notificationsAsRelationInSchema (notifications (concreteDatabaseContext session)) schema)
+      Right (session, schema) -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        let context = concreteDatabaseContext session
+        case RE.resolveDBC' graph context DBC.notifications of
+          Left err -> pure (Left err)
+          Right notifs ->
+            pure (Schema.notificationsAsRelationInSchema notifs schema)
 notificationsAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveNotificationsAsRelation sessionId)
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
@@ -992,10 +1037,15 @@ atomTypesAsRelation sessionId (InProcessConnection conf) = do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
       Left err -> pure (Left err)
-      Right session ->
-        case typesAsRelation (Sess.concreteDatabaseContext session ^. DBC.typeConstructorMapping) of
+      Right session -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        let context = concreteDatabaseContext session
+        case RE.resolveDBC' graph context DBC.typeConstructorMapping of
           Left err -> pure (Left err)
-          Right rel -> pure (Right rel)
+          Right tConsMap ->
+            case typesAsRelation tConsMap of
+              Left err -> pure (Left err)
+              Right rel -> pure (Right rel)
 atomTypesAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomTypesAsRelation sessionId)
 
 disconnectedTransactionIsDirty :: SessionId -> Connection -> IO (Either RelationalError Bool)
@@ -1229,8 +1279,12 @@ registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
     case eSession of
       Left err -> pure (Left err)
       Right (session, schema) -> do
-        let ctx = Sess.concreteDatabaseContext session        
-        pure $ registeredQueriesAsRelationInSchema schema (ctx ^. registeredQueries)
+        graph <- readTVar (ipTransactionGraph conf)        
+        let context = Sess.concreteDatabaseContext session
+        case RE.resolveDBC' graph context DBC.registeredQueries of
+          Left err -> pure (Left err)
+          Right regQs ->
+            pure $ registeredQueriesAsRelationInSchema schema regQs
 registeredQueriesAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveRegisteredQueries sessionId)        
 
 type ClientNodes = StmSet.Set ClientInfo
