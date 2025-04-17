@@ -169,3 +169,7 @@ handleConvertSQLQuery ti sessionId conn sel = timeoutRelErr ti (C.convertSQLQuer
 
 handleConvertSQLUpdates :: Maybe Timeout -> SessionId -> Connection -> [DBUpdate] -> IO (Either RelationalError DatabaseContextExpr)
 handleConvertSQLUpdates ti sessionId conn ups = timeoutRelErr ti (C.convertSQLDBUpdates sessionId conn ups)
+
+handleRetrieveNotificationsAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
+handleRetrieveNotificationsAsRelation ti sessionId conn =
+  timeoutRelErr ti (C.notificationsAsRelation sessionId conn)

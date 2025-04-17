@@ -86,6 +86,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelationValuedAttributesNotSupportedError [AttributeName]
                      | NotificationNameInUseError NotificationName
                      | NotificationNameNotInUseError NotificationName
+                     | NotificationValidationError NotificationName NotificationExpression RelationalError
                      | ImportError ImportError'
                      | ExportError T.Text
                      | UnhandledExceptionError String

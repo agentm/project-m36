@@ -6,11 +6,11 @@ extra-deps:
   - streamly-0.10.1
   - streamly-core-0.2.2
   - streamly-bytestring-0.2.2
-  - curryer-rpc-0.3.8
+  - curryer-rpc-0.4.0
   - fast-builder-0.1.4.0
   - rset-1.0.0
   - winery-1.4
-  - barbies-th-0.1.10
+  - barbies-th-0.1.11
   - base16-bytestring-1.0.2.0 
   - unicode-data-0.2.0
   - stm-containers-1.2

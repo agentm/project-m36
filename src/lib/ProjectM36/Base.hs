@@ -282,6 +282,11 @@ data Notification = Notification {
   }
   deriving (Show, Eq, Generic, NFData)
 
+data NotificationExpression = NotificationChangeExpression |
+                              NotificationReportOldExpression |
+                              NotificationReportNewExpression
+                              deriving (Show, Eq, Generic, NFData)
+
 type TypeVarName = StringType
   
 -- | Metadata definition for type constructors such as @data Either a b@.

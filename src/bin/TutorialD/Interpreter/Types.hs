@@ -78,6 +78,6 @@ monoTypeConstructorP :: Parser TypeConstructor
 monoTypeConstructorP = ADTypeConstructor <$> typeConstructorNameP <*> pure [] <|>
                        TypeVariable <$> typeVariableIdentifierP
                    
-
+-- regular, uncapitalized name, but don't conflate it with a function (followed by parenthesis)
 relVarNameP :: Parser RelVarName
-relVarNameP = uncapitalizedOrQuotedIdentifier <* spaceConsumer
+relVarNameP = uncapitalizedOrQuotedIdentifier <* notFollowedBy "(" <* spaceConsumer

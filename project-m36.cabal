@@ -1,6 +1,6 @@
 Cabal-Version: 2.2
 Name: project-m36
-Version: 1.1.0
+Version: 1.1.1
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
@@ -91,7 +91,7 @@ Library
                   cryptohash-sha256,
                   text-manipulate >= 0.2.0.1 && < 0.4,
                   winery >= 1.4,
-                  curryer-rpc>=0.3.8,
+                  curryer-rpc>=0.4.0,
                   network,
                   async,
                   vector-instances,
@@ -298,7 +298,9 @@ Executable tutd
                    http-conduit,
                    modern-uri,
                    http-types,
-                   recursion-schemes
+                   recursion-schemes,
+                   data-default < 0.8
+                   --data-default 0.8.0.0 breaks http-tls-client
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,

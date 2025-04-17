@@ -81,7 +81,7 @@ resolveDataConstructorTypeVars dCons@(DataConstructorDef _ defArgs) aTypeArgs tC
   --if any two maps have the same key and different values, this indicates a type arg mismatch
     let typeVarMapFolder valMap acc = case acc of
           Left err -> Left err
-          Right accMap -> 
+          Right accMap -> do
             case resolveAtomTypesInTypeVarMap valMap accMap of
               Left (TypeConstructorTypeVarMissing _) -> Left (DataConstructorTypeVarsMismatch (DCD.name dCons) accMap valMap)
               Left err -> Left err
@@ -232,7 +232,7 @@ resolveAttributes attrA attrB =
     
 --given two atom types, try to resolve type variables                                     
 resolveAtomType :: AtomType -> AtomType -> Either RelationalError AtomType  
-resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) =
+resolveAtomType (ConstructedAtomType tConsName resolvedTypeVarMap) (ConstructedAtomType _ unresolvedTypeVarMap) = do
   ConstructedAtomType tConsName <$> resolveAtomTypesInTypeVarMap resolvedTypeVarMap unresolvedTypeVarMap 
 resolveAtomType typeFromRelation unresolvedType = if typeFromRelation == unresolvedType then
                                                     Right typeFromRelation
@@ -267,10 +267,13 @@ resolveAtomTypesInTypeVarMap resolvedTypeMap unresolvedTypeMap = do
               resSubType <- resolveAtomType resType subType
               pure (resKey, resSubType)
             TypeVariableType _ -> pure (resKey, resType)
-            typ -> if typ == resType then
-                     pure (resKey, resType)
+            -- in the data type F (Maybe Integer) (Maybe Integer), if the first Maybe Integer is "Nothing", then we want to prefer the concrete "unresolved type"- improvement: create different Haskell types for unresolved and concrete types using Void phantom type for TypeVariableType for concrete type
+            typ -> if isResolvedType typ then
+                       pure (resKey, typ)
+                   else if isResolvedType resType && typ == resType then
+                       pure (resKey, resType)
                    else
-                     Left $ AtomTypeMismatchError typ resType
+                       Left $ AtomTypeMismatchError typ resType
           Nothing ->
             pure (resKey, resType) --swipe the missing type var from the expected map
   tVarList <- mapM (uncurry resolveTypePair) (M.toList resolvedTypeMap)

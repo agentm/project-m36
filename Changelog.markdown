@@ -3,6 +3,12 @@
 * add result caching layer
 * add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
 
+# 2025-03-30 (v1.1.1)
+
+* upgrade to curryer-rpc 0.4.0 which includes support for IPv6 and Unix domain socket communications
+
+This improvement changes the connectProjectM36 API. When connecting to a database over IPv4 or IPv6, use `RemoteConnectionInfo <dbname> (RemoteServerHostAddress <String ip_addr> <Int port>) <NotificationCallback>`.
+
 # 2024-08-25 (v1.1.0)
 
 * add support for GHC 9.6, GHC 9.8, and GHC 9.10

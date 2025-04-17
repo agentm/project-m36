@@ -12,8 +12,7 @@ parseArgsWithDefaults defaults = ServerConfig <$>
                                  parsePersistenceStrategy <*>
                                  parseCheckFS <*>
                                  parseDatabaseName <*>
-                                 parseHostname (bindHost defaults) <*>
-                                 parsePort (bindPort defaults) <*>
+                                 parseServerAddress <*>
                                  many parseGhcPkgPath <*>
                                  parseTimeout (perRequestTimeout defaults) <*>
                                  parseTestMode
@@ -38,6 +37,19 @@ parseTestMode = flag True False (long "test-mode" <> hidden)
 parseCheckFS :: Parser Bool
 parseCheckFS = flag True False (long "disable-fscheck" <>
                                 help "Disable filesystem check for journaling.")
+
+parseServerAddress :: Parser RemoteServerAddress
+parseServerAddress =
+  (RemoteServerHostAddress <$>
+   parseHostname "127.0.0.1" <*>
+   parsePort 6543)
+  <|>
+  (RemoteServerUnixDomainSocketAddress <$> parseUnixDomainSocketPath)
+
+parseUnixDomainSocketPath :: Parser FilePath
+parseUnixDomainSocketPath = strOption (short 'x' <>
+                                       long "unix-domain-socket" <>
+                                       metavar "SOCKET_PATH")
 
 parseDatabaseName :: Parser DatabaseName
 parseDatabaseName = strOption (short 'n' <>

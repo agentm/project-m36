@@ -57,7 +57,6 @@ main = do
       transactionJumpTest, 
       transactionBranchTest, 
       simpleJoinTest, 
-      testNotification,
       testTypeConstructors, 
       testMergeTransactions, 
       testComments, 
@@ -99,7 +98,9 @@ main = do
       testRegisteredQueries,
       testCrossJoin,
       testIfThenExpr,
-      testSubrelationAttributeAtomExpr
+      testSubrelationAttributeAtomExpr,
+      testComplexTypeVarResolution,
+      testNotifications
       ]
 
 simpleRelTests :: Test
@@ -338,8 +339,8 @@ inclusionDependencies _ = error "remote connection used"
 -}
                            
 -- test notifications over the InProcessConnection
-testNotification :: Test
-testNotification = TestCase $ do
+testNotifications :: Test
+testNotifications = TestCase $ do
   notifmvar <- newEmptyMVar
   let notifCallback mvar _ _ = putMVar mvar ()
       relvarx = RelationVariable "x" ()
@@ -350,7 +351,17 @@ testNotification = TestCase $ do
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail
   takeMVar notifmvar
-    
+
+  -- test documented behavior
+  let notifCallback2 name _evald = 
+        assertEqual "notification" "steve_change" name
+  (session, dbconn) <- dateExamplesConnection notifCallback2
+  executeTutorialD session dbconn "person:=relation{tuple{name \"Steve\",address \"Main St.\"},tuple{name \"John\", address \"Elm St.\"}}"
+  executeTutorialD session dbconn "notify steve_change person where name=\"Steve\" true (person where name=\"Steve\"){address}"
+  _ <- commit session dbconn
+  executeTutorialD session dbconn "update person where name=\"Steve\" (address:=\"Grove St.\")"
+  expectTutorialDErr session dbconn (T.isPrefixOf "NotificationValidationError") "undefine person"
+      
 testTypeConstructors :: Test
 testTypeConstructors = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
@@ -890,3 +901,32 @@ testSubrelationAttributeAtomExpr = TestCase $ do
   executeTutorialD session dbconn "z:= x = y"
   res <- executeRelationalExpr session dbconn (RelationVariable "z" ())
   assertEqual "sum" (Right relationTrue) res
+
+testComplexTypeVarResolution :: Test
+testComplexTypeVarResolution = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "data F = F (Maybe Integer) (Maybe Integer)"
+  executeTutorialD session dbconn "x:=relation{x F}{tuple{x F Nothing (Just 4)}}"
+  executeTutorialD session dbconn "y:=relation{x F}{tuple{x F Nothing Nothing}}"
+  
+  resX <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  resY <- executeRelationalExpr session dbconn (RelationVariable "y" ())
+
+  
+  let expectedX = mkRelationFromList attrs
+        [[ConstructedAtom "F"
+         (ConstructedAtomType "F" mempty)
+          [ConstructedAtom "Nothing" mint [],
+            ConstructedAtom "Just" mint [IntegerAtom 4]]]]
+      attrs = A.attributesFromList [Attribute "x" (ConstructedAtomType "F" mempty)]
+      mint = ConstructedAtomType "Maybe" (M.singleton "a" IntegerAtomType)
+  assertEqual "type var resolution x" expectedX resX
+
+  let expectedY = mkRelationFromList attrs
+                  [[ConstructedAtom "F"
+                    (ConstructedAtomType "F" mempty)
+                    [ConstructedAtom "Nothing" mint [],
+                     ConstructedAtom "Nothing" mint []]]]
+ 
+  assertEqual "type var resolution y" expectedY resY
+

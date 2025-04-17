@@ -66,7 +66,7 @@ testDatabaseName = "test"
 
 testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
 testConnection serverPort mvar = do
-  let connInfo = RemoteConnectionInfo testDatabaseName "127.0.0.1" (show serverPort) (testNotificationCallback mvar)
+  let connInfo = RemoteConnectionInfo testDatabaseName (RemoteServerHostAddress "127.0.0.1" serverPort) (testNotificationCallback mvar)
   --putStrLn ("testConnection: " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
@@ -87,7 +87,7 @@ launchTestServer ti = do
                                          persistenceStrategy = CrashSafePersistence (tempdir </> "db"),
                                          perRequestTimeout = ti,
                                          testMode = True,
-                                         bindPort = 0,
+                                         bindAddress = RemoteServerHostAddress "127.0.0.1" 0,
                                          checkFS = False --not stricly needed for these tests
                                        }
     
@@ -243,7 +243,7 @@ testFileDescriptorCount = TestCase (pure ())
 
 testClientConnectFail :: Test
 testClientConnectFail = TestCase $ do
-  let connInfo = RemoteConnectionInfo "nonexistentdb" "127.0.0.1" "7777" emptyNotificationCallback
+  let connInfo = RemoteConnectionInfo "nonexistentdb" (RemoteServerHostAddress "127.0.0.1" 7777) emptyNotificationCallback
   eConn <- connectProjectM36 connInfo
   case eConn of
     Left (IOExceptionError _) -> pure ()

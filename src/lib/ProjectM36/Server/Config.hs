@@ -4,8 +4,7 @@ import ProjectM36.Client
 data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    checkFS :: Bool,
                                    databaseName :: DatabaseName,
-                                   bindHost :: Hostname,
-                                   bindPort :: Port,
+                                   bindAddress :: RemoteServerAddress,
                                    ghcPkgPaths :: [String], -- used for AtomFunction dynamic compilation
                                    perRequestTimeout :: Int,
                                    testMode :: Bool -- used exclusively for automated testing of the server, thus not accessible from the command line
@@ -19,12 +18,12 @@ data WebsocketServerConfig = WebsocketServerConfig { wsServerConfig :: ServerCon
                               deriving (Show)
 
 defaultServerConfig :: ServerConfig
-defaultServerConfig = ServerConfig { persistenceStrategy = NoPersistence,
-                                     checkFS = True,
-                                     databaseName = "base", 
-                                     bindHost = "127.0.0.1",
-                                     bindPort = 6543,
-                                     ghcPkgPaths = [],
-                                     perRequestTimeout = 0,
-                                     testMode = False
-                                     }
+defaultServerConfig =
+  ServerConfig { persistenceStrategy = NoPersistence,
+                 checkFS = True,
+                 databaseName = "base", 
+                 bindAddress = RemoteServerHostAddress "127.0.0.1" 6543,
+                 ghcPkgPaths = [],
+                 perRequestTimeout = 0,
+                 testMode = False
+               }

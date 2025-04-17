@@ -20,6 +20,10 @@ import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import ProjectM36.AtomType
 import Optics.Core
+import Data.Text (Text)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Monoid
+#endif
 
 -- isomorphic schemas offer bi-directional functors between two schemas
 
@@ -417,3 +421,31 @@ instance Morph RelationVariables where
 instance Morph GraphRefRelationalExpr where
 -- cannot be supported because we don't track how the schema changes over the lifetime of a transaction graph
 -}
+
+notificationsAsRelationInSchema :: Notifications -> Schema -> Either RelationalError Relation
+notificationsAsRelationInSchema notifs schema  = do
+  let attrs = A.attributesFromList [Attribute "name" TextAtomType,
+                                    Attribute "changeExpr" RelationalExprAtomType,
+                                    Attribute "reportOldExpr" RelationalExprAtomType,
+                                    Attribute "reportNewExpr" RelationalExprAtomType]
+      relExprT = processRelationalExprInSchema schema
+      transform (name, e1, e2, e3) = do
+        e1' <- relExprT e1
+        e2' <- relExprT e2
+        e3' <- relExprT e3
+        pure (name, e1', e2', e3')
+  notifsData <- mapM transform (notificationsAsData notifs)
+  let mkRow (name, changeE, oldE, newE) = [TextAtom name,
+                                           RelationalExprAtom changeE,
+                                           RelationalExprAtom oldE,
+                                           RelationalExprAtom newE]
+  mkRelationFromList attrs (map mkRow notifsData)
+
+notificationsAsData :: Notifications -> [(Text, RelationalExpr, RelationalExpr, RelationalExpr)]
+notificationsAsData notifs =
+    map mkRow (M.toList notifs)
+  where
+    mkRow (name, notif) = (name,
+                           changeExpr notif,
+                           reportOldExpr notif,
+                           reportNewExpr notif)

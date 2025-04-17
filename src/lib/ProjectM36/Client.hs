@@ -37,6 +37,7 @@ module ProjectM36.Client
        transactionGraphAsRelation,
        relationVariablesAsRelation,
        registeredQueriesAsRelation,
+       notificationsAsRelation,
        ddlAsRelation,
        ProjectM36.Client.atomFunctionsAsRelation,
        disconnectedTransactionIsDirty,
@@ -109,7 +110,11 @@ module ProjectM36.Client
        AtomExprBase(..),
        RestrictionPredicateExprBase(..),
        withTransaction,
-       basicDatabaseContext
+       basicDatabaseContext,
+       RemoteServerAddress(..),
+       resolveRemoteServerAddress,
+       defaultRemoteServerAddress,
+       defaultServerHostname
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -177,7 +182,7 @@ import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as RPC
 import qualified Network.RPC.Curryer.Server as RPC
-import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, AddrInfoFlag(..), SocketType(..), ServiceName, hostAddressToTuple, SockAddr(..))
+import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, SocketType(..), ServiceName, SockAddr, Family(..), SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 import ProjectM36.SQL.Select as SQL
 import ProjectM36.SQL.DBUpdate as SQL
@@ -187,10 +192,14 @@ import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
 import ProjectM36.ChangeTrackingDatabaseContext as CTDBC
 import Optics.Core
 import qualified Data.Set as S
+import Streamly.Internal.Network.Socket (SockSpec(..))
 
 type Hostname = String
-
 type Port = Word16
+
+data RemoteServerAddress = RemoteServerHostAddress Hostname Port |
+                           RemoteServerUnixDomainSocketAddress FilePath
+                           deriving (Show)
 
 -- | The type for notifications callbacks in the client. When a registered notification fires due to a changed relational expression evaluation, the server propagates the notifications to the clients in the form of the callback.
 type NotificationCallback = NotificationName -> EvaluatedNotification -> IO ()
@@ -213,7 +222,7 @@ instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DatabaseContext |
-                      RemoteConnectionInfo DatabaseName Hostname ServiceName NotificationCallback
+                      RemoteConnectionInfo DatabaseName RemoteServerAddress NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
@@ -244,10 +253,14 @@ defaultDatabaseName = "base"
 defaultHeadName :: HeadName
 defaultHeadName = "master"
 
+-- | Use this for connecting to the default remote server.
+defaultRemoteServerAddress :: RemoteServerAddress
+defaultRemoteServerAddress = RemoteServerHostAddress "127.0.0.1" defaultServerPort
+
 -- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
 defaultRemoteConnectionInfo :: ConnectionInfo
 defaultRemoteConnectionInfo =
-  RemoteConnectionInfo defaultDatabaseName defaultServerHostname (show defaultServerPort) emptyNotificationCallback
+  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress emptyNotificationCallback
 
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
@@ -275,6 +288,26 @@ createScriptSession ghcPkgPaths = do
     Left err -> hPutStrLn stderr ("Warning: Haskell scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
+-- | Resolve a server address using DNS, if necessary. The caller is expected to set any necessary socket options afterwards.
+resolveRemoteServerAddress :: RemoteServerAddress -> IO (SockSpec, SockAddr)
+resolveRemoteServerAddress (RemoteServerHostAddress hostname port) = do
+  let addrHints = defaultHints { addrSocketType = Stream }
+  hostAddrs <- getAddrInfo (Just addrHints) (Just hostname) (Just (show port))
+  case hostAddrs of
+    [] -> error "getAddrInfo returned zero matches"
+    (AddrInfo _flags family socketType proto sockAddr _canonicalName:_) -> do
+      let sockSpec = SockSpec { sockFamily = family,
+                                sockType = socketType,
+                                sockProto = proto,
+                                sockOpts = [] }
+      pure (sockSpec, sockAddr)
+resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
+  let sockSpec = SockSpec { sockFamily = AF_UNIX,
+                            sockType = Stream,
+                            sockProto = 0,
+                            sockOpts = [] }
+      sockAddr = SockAddrUnix sockPath
+  pure (sockSpec, sockAddr)
 
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
@@ -304,36 +337,25 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
         
-connectProjectM36 (RemoteConnectionInfo dbName hostName servicePort notificationCallback) = do
-  --TODO- add notification callback thread
-  let resolutionHints = defaultHints { addrFlags = [AI_NUMERICHOST, AI_NUMERICSERV],
-                                       addrSocketType = Stream
-                                       }
-  resolved <- getAddrInfo (Just resolutionHints) (Just hostName) (Just servicePort)
-  case resolved of
-    [] -> error ("DNS resolution failed for" <> hostName <> ":" <> servicePort)
-    addrInfo:_ -> do
-      --supports IPv4 only for now
-      let (port, addr) = case addrAddress addrInfo of
-                           SockAddrInet p a -> (p, a)
-                           _ -> error "no IPv4 address available (IPv6 not implemented)"
-          notificationHandlers =
-            [RPC.ClientAsyncRequestHandler $
-             \(NotificationMessage notifications') ->
-               forM_ (M.toList notifications') (uncurry notificationCallback)
-            ]
-      let connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
-      eConn <- (Right <$> RPC.connect notificationHandlers (hostAddressToTuple addr) port) `catch` connectExcHandler
-      case eConn of
-        Left err -> pure (Left err)
-        Right conn -> do
-          eRet <- RPC.call conn (Login dbName)
-          case eRet of
-            Left err -> error (show err)
-            Right False -> error "wtf"
-            Right True ->
+connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallback) = do
+  (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
+  let notificationHandlers =
+        [RPC.ClientAsyncRequestHandler $
+          \(NotificationMessage notifications') ->
+            forM_ (M.toList notifications') (uncurry notificationCallback)
+        ]
+      connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
+  eConn <- (Right <$> RPC.connect notificationHandlers sockSpec sockAddr) `catch` connectExcHandler
+  case eConn of
+    Left err -> pure (Left err)
+    Right conn -> do
+      eRet <- RPC.call conn (Login dbName)
+      case eRet of
+        Left err -> error (show err)
+        Right False -> error "wtf"
+        Right True ->
       --TODO handle connection errors!
-              pure (Right (RemoteConnection (RemoteConnectionConf conn)))
+          pure (Right (RemoteConnection (RemoteConnectionConf conn)))
 
 --convert RPC errors into exceptions
 convertRPCErrors :: RPC.ConnectionError -> IO a
@@ -918,7 +940,18 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
       Right (session, _) ->
         pure (DCF.databaseContextFunctionsAsRelation (concreteDatabaseContext session ^. dbcFunctions))
 
-databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)        
+databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
+
+notificationsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
+notificationsAsRelation sessionId (InProcessConnection conf) = do
+  let sessions = ipSessions conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId sessions
+    case eSession of
+      Left err -> pure (Left err)
+      Right (session, schema) ->
+        pure (Schema.notificationsAsRelationInSchema (notifications (concreteDatabaseContext session)) schema)
+notificationsAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveNotificationsAsRelation sessionId)
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
 headTransactionId :: SessionId -> Connection -> IO (Either RelationalError TransactionId)
