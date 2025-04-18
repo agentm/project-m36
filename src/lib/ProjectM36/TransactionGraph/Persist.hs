@@ -4,7 +4,6 @@ import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
-import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
@@ -27,7 +26,6 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
-import qualified Data.List.NonEmpty as NE
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid
 #endif
@@ -100,7 +98,6 @@ bootstrapDatabaseDir :: DiskSync -> FilePath -> TransactionGraph -> IO (LockFile
 bootstrapDatabaseDir sync dbdir bootstrapGraph = do
   createDirectory dbdir
   locker <- openLockFile (lockFilePath dbdir)
-  let allTransIds = map transactionId (S.toList (transactionsForGraph bootstrapGraph))
   createDirectoryIfMissing False (ProjectM36.TransactionGraph.Persist.objectFilesPath dbdir)
   digest  <- bracket_ (lockFile locker WriteLock) (unlockFile locker) (transactionGraphPersist sync dbdir bootstrapGraph)
   pure (locker, digest)
@@ -111,14 +108,20 @@ objectFilesPath dbdir = dbdir </> "compiled_modules"
 -- | Write an entire transaction graph to storage.
 transactionGraphPersist :: DiskSync -> FilePath -> TransactionGraph -> IO LockFileHash
 transactionGraphPersist sync destDirectory graph = do
-  let tgWriteInfo = TransactionGraphIncrementalWriteInfo {}
+  let tgWriteInfo =
+        TransactionGraphIncrementalWriteInfo
+        {
+          uncommittedTransactions = newTransactions,
+          newGraph = graph
+        }
+      newTransactions = S.map UncommittedTransaction (transactionsForGraph graph)
   transactionGraphPersistIncremental sync destDirectory tgWriteInfo 
 
 
 -- | The incremental writer writes the transactions ids specified by the second argument.
 transactionGraphPersistIncremental :: DiskSync -> FilePath -> TransactionGraphIncrementalWriteInfo -> IO LockFileHash
 transactionGraphPersistIncremental sync destDirectory tgWriteInfo = do
-  mapM (writeTransaction sync destDirectory) (S.toList (uncommittedTransactions tgWriteInfo))
+  mapM_ (writeTransaction sync destDirectory) (S.toList (uncommittedTransactions tgWriteInfo))
   --write graph file
   newDigest <- writeGraphTransactionIdFile sync destDirectory (newGraph tgWriteInfo)
   --write heads file

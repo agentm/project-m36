@@ -31,7 +31,6 @@ import Codec.Winery
 import Control.Concurrent.Async
 import GHC.Generics
 import qualified Data.Text.Encoding as TE
-import Optics.Core
 import qualified Data.Set as S
 
 
@@ -130,9 +129,9 @@ readTransaction dbdir transId mScriptSession = do
     ncs <- readNotChangedSinceDatabaseContext transDir
     let ncsRead :: forall a. (NotChangedSinceDatabaseContext -> Maybe TransactionId) ->
                    (FilePath -> IO a) -> IO (ValueMarker a)
-        ncsRead f readIO = do
+        ncsRead f readIO' = do
           case f ncs of
-            Nothing -> ValueMarker <$> readIO transDir
+            Nothing -> ValueMarker <$> readIO' transDir
             Just tid -> pure (NotChangedSinceMarker tid)
 
     transInfo <- readFileDeserialise (transactionInfoPath transDir)

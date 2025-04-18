@@ -6,7 +6,6 @@ import ProjectM36.DatabaseContext.Basic
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
-import ProjectM36.DatabaseContext
 import ProjectM36.Relation
 import qualified Data.Map as M
 import qualified Data.Set as S

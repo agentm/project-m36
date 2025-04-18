@@ -39,6 +39,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RootTransactionTraversalError 
                      | HeadNameSwitchingHeadProhibitedError HeadName
                      | NoSuchHeadNameError HeadName
+                     | HeadNameAlreadyInUseError HeadName
                      | UnknownHeadError
                      | NewTransactionMayNotHaveChildrenError TransactionId
                      | ParentCountTraversalError Int Int --maximum, requested

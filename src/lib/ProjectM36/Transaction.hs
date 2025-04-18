@@ -7,7 +7,6 @@ import qualified Data.Set as S
 import qualified Data.UUID as U
 import Data.Time.Clock
 import qualified Data.List.NonEmpty as NE
-import ProjectM36.DatabaseContext
 
 -- | Return the same transaction but referencing only the specific child transactions. This is useful when traversing a graph and returning a subgraph. This doesn't filter parent transactions because it assumes a head-to-root traversal.
 filterTransactionInfoTransactions :: S.Set TransactionId -> TransactionInfo -> TransactionInfo

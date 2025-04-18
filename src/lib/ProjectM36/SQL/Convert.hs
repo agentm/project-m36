@@ -29,8 +29,6 @@ import Data.List (intercalate, find)
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (isJust)
-import Optics.Core
---import Control.Monad (void)
 import Control.Monad.Trans.State (StateT, get, put, runStateT, evalStateT)
 import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
 import Control.Monad.Identity (Identity, runIdentity)

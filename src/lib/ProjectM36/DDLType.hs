@@ -13,7 +13,6 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
-import Optics.Core
 
 -- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema.
 ddlHash :: DatabaseContext -> TransactionGraph -> Either RelationalError SecureHash

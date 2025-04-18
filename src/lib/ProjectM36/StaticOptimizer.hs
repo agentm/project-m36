@@ -28,8 +28,6 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
-import Optics.Core
---import Debug.Trace
 
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account

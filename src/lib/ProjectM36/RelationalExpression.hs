@@ -20,7 +20,6 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.Arbitrary
 import ProjectM36.IsomorphicSchema.Types
-import ProjectM36.DatabaseContext
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
 import qualified ProjectM36.Attribute as A
@@ -56,7 +55,6 @@ import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
-import Optics.Core
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
@@ -417,7 +415,6 @@ evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldEx
   
 evalGraphRefDatabaseContextExpr (RemoveNotification notName) = do
   currentContext <- getStateContext
-  graph <- dbcGraph
   nots <- resolveDBC notifications
   if M.notMember notName nots then
     dbErr (NotificationNameNotInUseError notName)
@@ -429,7 +426,6 @@ evalGraphRefDatabaseContextExpr (RemoveNotification notName) = do
 -- validate that the type *and* constructor names are unique! not yet implemented!
 evalGraphRefDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
   currentContext <- getStateContext
-  graph <- dbcGraph
   oldTypes <- resolveDBC typeConstructorMapping
   let tConsName = TCD.name tConsDef
   -- validate that the constructor's types exist
@@ -444,7 +440,6 @@ evalGraphRefDatabaseContextExpr (AddTypeConstructor tConsDef dConsDefList) = do
 -- | Removing the atom constructor prevents new atoms of the type from being created. Existing atoms of the type remain. Thus, the atomTypes list in the DatabaseContext need not be all-inclusive.
 evalGraphRefDatabaseContextExpr (RemoveTypeConstructor tConsName) = do
   currentContext <- getStateContext
-  graph <- dbcGraph
   oldTypes <- resolveDBC typeConstructorMapping
   if isNothing (findTypeConstructor tConsName oldTypes) then
     dbErr (AtomTypeNameNotInUseError tConsName)
@@ -458,7 +453,6 @@ evalGraphRefDatabaseContextExpr (MultipleExpr exprs) =
 
 evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName') = do
   currentContext <- getStateContext
-  graph <- dbcGraph
   atomFuncs <- resolveDBC atomFunctions
   case atomFunctionForName funcName' atomFuncs of
     Left err -> dbErr err
@@ -471,7 +465,6 @@ evalGraphRefDatabaseContextExpr (RemoveAtomFunction funcName') = do
       
 evalGraphRefDatabaseContextExpr (RemoveDatabaseContextFunction funcName') = do      
   context <- getStateContext
-  graph <- dbcGraph
   dbcFuncs <- resolveDBC dbcFunctions
   case databaseContextFunctionForName funcName' dbcFuncs of
     Left err -> dbErr err
@@ -805,13 +798,6 @@ typeForRelationalExpr expr = do
       runGf = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
   lift $ except runGf
 
-liftE :: (Monad m) => m (Either a b) -> ExceptT a m b
-liftE v = do
-  y <- lift v
-  case y of
-    Left err -> throwError err
-    Right val -> pure val
-
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
 predicateRestrictionFilter :: Attributes -> GraphRefRestrictionPredicateExpr -> GraphRefRelationalExprM RestrictionFilter
 predicateRestrictionFilter attrs (AndPredicate expr1 expr2) = do
@@ -931,8 +917,9 @@ evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
 -- first argumentr is starting value, second argument is relationatom
 evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
+  graph <- gfGraph
   context <- gfDatabaseContextForMarker tid
-  functions <- resolveGR atomFunctions
+  functions <- lift $ except $ resolveDBC' graph context atomFunctions
   func <- lift $ except (atomFunctionForName funcName' functions)
   let expectedArgCount = length (funcType func) - 1
       actualArgCount = length argTypes
@@ -1080,7 +1067,8 @@ verifyGraphRefAtomExprTypes attrsIn (SubrelationAttributeAtomExpr relAttr subAtt
     lift $ except $ atomTypeVerify expectedType (SubrelationFoldAtomType subAttrType)
 verifyGraphRefAtomExprTypes attrsIn (FunctionAtomExpr funcName' funcArgExprs tid) expectedType = do
   context <- gfDatabaseContextForMarker tid
-  functions <- resolveGR atomFunctions
+  graph <- gfGraph
+  functions <- lift $ except $ resolveDBC' graph context atomFunctions
   func <- lift $ except $ atomFunctionForName funcName' functions
   let expectedArgTypes = funcType func
       funcArgVerifier (atomExpr, expectedType2, argCount) = do
@@ -1226,7 +1214,8 @@ evalGraphRefRelationalExpr (MakeStaticRelation attributeSet tupleSet') =
 evalGraphRefRelationalExpr (ExistingRelation rel) = pure rel
 evalGraphRefRelationalExpr (RelationVariable name tid) = do
   ctx <- gfDatabaseContextForMarker tid
-  rvs <- resolveGR relationVariables
+  graph <- gfGraph
+  rvs <- lift $ except $ resolveDBC' graph ctx relationVariables
   case M.lookup name rvs of
     Nothing -> throwError (RelVarNotDefinedError name)
     Just rv -> evalGraphRefRelationalExpr rv

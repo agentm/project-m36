@@ -29,7 +29,6 @@ import qualified Data.Text as T
 import Data.Time.Clock (DiffTime)
 --import qualified Data.List.NonEmpty as NE
 import Control.Exception
-import Optics.Core
 
 newtype CacheMissException = CacheMissException FilePath
   deriving Show

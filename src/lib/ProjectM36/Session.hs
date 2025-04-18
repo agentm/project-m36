@@ -1,7 +1,6 @@
 module ProjectM36.Session where
 import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types
-import qualified ProjectM36.DatabaseContext as DBC
 import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error

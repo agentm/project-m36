@@ -7,7 +7,6 @@ import ProjectM36.Relation
 import ProjectM36.AtomType
 import ProjectM36.Function
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.DatabaseContext
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Data.Maybe (isJust)

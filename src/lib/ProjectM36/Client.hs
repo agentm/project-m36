@@ -124,7 +124,7 @@ import ProjectM36.Error
 import qualified ProjectM36.DatabaseContext.Types as DBC
 import ProjectM36.DatabaseContext.Basic
 import qualified ProjectM36.DatabaseContext as DBC
-import ProjectM36.DatabaseContext.Types (DatabaseContext(..), atomFunctions, dbcFunctions, notifications, registeredQueries)
+import ProjectM36.DatabaseContext.Types (DatabaseContext, notifications)
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
 import ProjectM36.StaticOptimizer
@@ -159,7 +159,6 @@ import Control.Exception.Base
 import Control.Concurrent.STM
 import Control.Concurrent.Async
 
-import Data.Either (isRight)
 import Data.UUID.V4 (nextRandom)
 import Data.Word
 import Data.Hashable
@@ -192,9 +191,9 @@ import ProjectM36.SQL.DBUpdate as SQL
 import ProjectM36.SQL.Convert
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
-import Optics.Core
 import qualified Data.Set as S
 import Streamly.Internal.Network.Socket (SockSpec(..))
+import Data.Maybe (catMaybes)
 
 type Hostname = String
 type Port = Word16
@@ -637,9 +636,9 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
               let ret = Graph.evalAlterTransactionGraphExpr tstamp id1 disconIn graph Commit
               case ret of
                 Left err -> pure (Left err)
-                Right (discon', trans', tGraph) ->
+                Right (discon', mtrans', tGraph) ->
                   pure (Right (discon', TransactionGraphIncrementalWriteInfo {
-                              uncommittedTransactions = S.singleton trans',
+                              uncommittedTransactions = S.fromList (catMaybes [mtrans']),
                               newGraph = tGraph
                               }))
             else do
@@ -701,8 +700,6 @@ executeCommitExprSTM_ graph oldContext newContext nodes = do
 executeGraphExpr :: SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())
 executeGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let sessions = ipSessions conf
-  freshId <- nextRandom
-  tstamp <- getCurrentTime
   commitLock_ sessionId conf $ \updatedGraph -> do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
@@ -733,12 +730,13 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
         let discon = Sess.disconnectedTransaction session
         case evalAlterTransactionGraphExpr tstamp freshId discon updatedGraph alterGraphExpr of
           Left err -> pure (Left err)
-          Right (discon', trans', graph') -> do
+          Right (discon', mtrans', graph') -> do
             pure (Right (discon', TransactionGraphIncrementalWriteInfo {
-                            uncommittedTransactions = S.singleton trans',
+                            uncommittedTransactions = S.fromList (catMaybes [mtrans']),
                             newGraph = graph'
                             }))
-  
+executeAlterTransactionGraphExpr sessionId conn@RemoteConnection{} alterGraphExpr =
+  remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId alterGraphExpr)
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)

@@ -5,7 +5,6 @@ import ProjectM36.Error
 import ProjectM36.MiscUtils
 import ProjectM36.Relation
 import ProjectM36.NormalizeExpr
-import ProjectM36.DatabaseContext
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
@@ -19,7 +18,6 @@ import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified ProjectM36.Attribute as A
 import ProjectM36.AtomType
-import Optics.Core
 import Data.Text (Text)
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid

@@ -9,7 +9,6 @@ import ProjectM36.RelationalExpression
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad (foldM)
-import Optics.Core
 
 type TransactionIds = S.Set TransactionId
 
