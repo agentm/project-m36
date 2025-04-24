@@ -4,7 +4,7 @@ module ProjectM36.Cli where
 import qualified ProjectM36.Client as C
 import qualified Data.Text as T
 import ProjectM36.Base
-import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Client (RemoteServerAddress(..))
 import System.Console.Haskeline
@@ -43,15 +43,15 @@ prettyEvaluatedNotification eNotif = let eRelShow eRel = case eRel of
   eRelShow (C.reportOldRelation eNotif) <> "\n" <> eRelShow (C.reportNewRelation eNotif)
 
 type ReprLoopEvaluator = C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
-type MakePrompt = Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
+type MakePrompt = Either RelationalError C.CurrentHead -> Either RelationalError SchemaName -> StringType
 type HistoryFilePath = FilePath
   
 reprLoop :: InterpreterConfig -> HistoryFilePath -> ReprLoopEvaluator -> MakePrompt -> C.SessionId -> C.Connection -> IO ()
 reprLoop config historyFilePath reprLoopEvaluator promptText sessionId conn = do
   let settings = defaultSettings {historyFile = Just historyFilePath} -- (homeDirectory ++ "/.tutd_history")}
-  eHeadName <- C.headName sessionId conn
+  eCurrentHead <- C.currentHead sessionId conn
   eSchemaName <- C.currentSchemaName sessionId conn
-  let prompt = promptText eHeadName eSchemaName
+  let prompt = promptText eCurrentHead eSchemaName
       catchInterrupt = handleJust (\case
                                       UserInterrupt -> Just Nothing
                                       _ -> Nothing) (\_ -> do
@@ -85,7 +85,7 @@ parseDirectExecute = optional $ strOption (long "exec-tutd" <>
 type PrintWelcome = IO ()
 type ExecUserInput = C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
 
-mainLoop :: IO () -> HistoryFilePath -> ReprLoopEvaluator -> MakePrompt -> ExecUserInput -> DatabaseContext -> IO ()
+mainLoop :: IO () -> HistoryFilePath -> ReprLoopEvaluator -> MakePrompt -> ExecUserInput -> ResolvedDatabaseContext -> IO ()
 mainLoop printWelcome historyFilePath reprLoopEvaluator promptText execUserInput defaultDBContext = do
   setLocaleIfNecessary
   interpreterConfig <- execParser opts
@@ -121,7 +121,7 @@ setLocaleIfNecessary = do
 opts :: ParserInfo InterpreterConfig            
 opts = info (parseArgs <**> helpOption) idm
 
-connectionInfoForConfig :: InterpreterConfig -> DatabaseContext -> C.ConnectionInfo
+connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> C.ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext
 connectionInfoForConfig (RemoteInterpreterConfig remoteAddress remoteDBName _ _ _) _ = C.RemoteConnectionInfo remoteDBName remoteAddress outputNotificationCallback
 

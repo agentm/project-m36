@@ -5,7 +5,10 @@ import ProjectM36.Base
 import qualified Data.Map as M
 
 -- | Every transaction has one concrete database context and any number of isomorphic subschemas.
-data Schemas ctx = Schemas ctx Subschemas
+data Schemas ctx = Schemas {
+  concreteDatabaseContext :: ctx,
+  subschemas :: Subschemas
+  }
   deriving (Generic)
 
 type Subschemas = M.Map SchemaName Schema

@@ -1,49 +1,57 @@
+{-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.DisconnectedTransaction where
 import ProjectM36.Base
-import ProjectM36.IsomorphicSchema.Types
+import qualified ProjectM36.IsomorphicSchema.Types as Schema
+import ProjectM36.IsomorphicSchema.Types (Schemas)
 import ProjectM36.DatabaseContext as DBC
 import ProjectM36.DatabaseContext.Types as DBC
+import GHC.Generics
 
 -- | Every set of modifications made to the database are atomically committed to the transaction graph as a transaction.
 
 -- | The disconnected transaction represents an in-progress workspace used by sessions before changes are committed. This is similar to git's "index". After a transaction is committed, it is "connected" in the transaction graph and can no longer be modified.
 
-data DisconnectedTransaction = DisconnectedTransaction TransactionId (Schemas DatabaseContext)
+data DisconnectedTransaction = DisconnectedTransaction {
+  disconTransactionId :: TransactionId,
+  disconSchemas :: Schemas DatabaseContext,
+  disconCurrentHead :: CurrentHead
+  }
+
+data CurrentHead = CurrentHeadBranch HeadName | -- ^ track a branch
+                   CurrentHeadTransactionId TransactionId -- ^ peg to a transaction which is not a head
+                   deriving (Show, Eq, Generic)
 
 type TransactionRefSchemas = Schemas DatabaseContext
 
 --the database context expression represents a difference between the disconnected transaction and its immutable parent transaction- is this diff expr used at all?
 
 concreteDatabaseContext :: DisconnectedTransaction -> DatabaseContext
-concreteDatabaseContext (DisconnectedTransaction _ (Schemas context _)) = context
-
-schemas :: DisconnectedTransaction -> TransactionRefSchemas
-schemas (DisconnectedTransaction _ s) = s
-
-{-
--- | Mark all database context values as NotChangedSince- used for about-to-be-committed transactions
-loadGraphRefRelVarsOnly :: TransactionId -> TransactionRefSchemas -> TransactionRefSchemas 
-loadGraphRefRelVarsOnly commitId (Schemas concreteCtx subschemas) = 
-  let f k _ = RelationVariable k (TransactionMarker commitId)
-      ctx' = concreteCtx { relationVariables = ValueMarker $ mapWithKey f (concreteCtx & relationVariables) }
-  in Schemas ctx' subschemas
--}
-
+concreteDatabaseContext discon = Schema.concreteDatabaseContext (disconSchemas discon)
 
 parentId :: DisconnectedTransaction -> TransactionId
-parentId (DisconnectedTransaction pid _) = pid
+parentId = disconTransactionId
 
 isUpdated :: DisconnectedTransaction -> Bool
 isUpdated disconTrans = DBC.isUpdated (concreteDatabaseContext disconTrans)
 
 -- | Create a fresh (unchanged marker-ed) disconnected transaction- used after a commit so all database context values should refer to previous transactions.
-freshTransaction :: TransactionId -> TransactionRefSchemas -> DisconnectedTransaction
-freshTransaction tid (Schemas ctx subschemas') =
-  DisconnectedTransaction tid (Schemas (freshDatabaseContext tid ctx) subschemas')
+freshTransaction :: CurrentHead -> TransactionId -> TransactionRefSchemas -> DisconnectedTransaction
+freshTransaction head' tid schemas =
+  DisconnectedTransaction {
+  disconTransactionId = tid,
+  disconSchemas = schemas { Schema.concreteDatabaseContext = freshDatabaseContext tid (Schema.concreteDatabaseContext schemas) },
+  disconCurrentHead = head'
+  }
 
-freshTransaction' :: TransactionId -> Schemas DatabaseContext -> DisconnectedTransaction
-freshTransaction' tid (Schemas parentContext parentSchemas) =
-  DisconnectedTransaction tid schemas'
+
+freshTransaction' :: CurrentHead -> TransactionId -> Schemas DatabaseContext -> DisconnectedTransaction
+freshTransaction' head' tid schemas =
+  DisconnectedTransaction {
+  disconTransactionId = tid,
+  disconSchemas = schemas',
+  disconCurrentHead = head'
+  }
   where
-    schemas' = Schemas (freshDatabaseContext tid parentContext) parentSchemas
+    schemas' = schemas { Schema.concreteDatabaseContext = freshDatabaseContext tid (Schema.concreteDatabaseContext schemas)
+                       }
 

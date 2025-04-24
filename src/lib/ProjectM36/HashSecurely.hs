@@ -8,7 +8,7 @@ import qualified Data.ByteString.Builder.Scientific as BSB
 import ProjectM36.Base
 import ProjectM36.Tuple (tupleAttributes, tupleAtoms)
 import ProjectM36.Serialise.Base ()
-import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.IsomorphicSchema.Types hiding (subschemas, concreteDatabaseContext)
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types

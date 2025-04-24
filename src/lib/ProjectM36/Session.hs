@@ -1,12 +1,13 @@
 module ProjectM36.Session where
 import ProjectM36.Base
-import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Types 
 import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
-import ProjectM36.IsomorphicSchema.Types
+import qualified ProjectM36.IsomorphicSchema.Types as Schema
+import ProjectM36.IsomorphicSchema.Types (SchemaName, Subschemas)
 
 type SessionId = UUID
 
@@ -25,16 +26,16 @@ isUpdated :: Session -> DirtyFlag
 isUpdated (Session discon _) = Discon.isUpdated discon
 
 concreteDatabaseContext :: Session -> DatabaseContext
-concreteDatabaseContext (Session (DisconnectedTransaction _ (Schemas context _)) _) = context
+concreteDatabaseContext (Session discon _) = Discon.concreteDatabaseContext discon
 
 parentId :: Session -> TransactionId
-parentId (Session (DisconnectedTransaction parentUUID _) _) = parentUUID
+parentId (Session discon _) = Discon.parentId discon
 
 subschemas :: Session -> Subschemas
-subschemas (Session (DisconnectedTransaction _ (Schemas _ s)) _) = s
+subschemas (Session discon _) = Schema.subschemas (disconSchemas discon)
 
 schemas :: Session -> Discon.TransactionRefSchemas
-schemas (Session (DisconnectedTransaction _ s) _) = s
+schemas (Session discon _) = disconSchemas discon
 
 schemaName :: Session -> SchemaName
 schemaName (Session _ s) = s

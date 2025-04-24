@@ -128,7 +128,7 @@ processDatabaseContextExprSchemaUpdate schema@(Schema morphs) expr = case expr o
     passthru rvname = Schema (morphs ++ [IsoRename rvname rvname])
 
 processDatabaseContextExprSchemasUpdate :: Subschemas -> DatabaseContextExpr -> Subschemas
-processDatabaseContextExprSchemasUpdate subschemas expr = M.map (`processDatabaseContextExprSchemaUpdate` expr) subschemas
+processDatabaseContextExprSchemasUpdate subschemas' expr = M.map (`processDatabaseContextExprSchemaUpdate` expr) subschemas'
 
 -- re-evaluate- it's not possible to display an incdep that may be for a foreign key to a relvar which is not available in the subschema!
 -- weird compromise: allow inclusion dependencies failures not in the subschema to be propagated- in the worst case, only the inclusion dependency's name is leaked.

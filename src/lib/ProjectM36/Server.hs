@@ -6,7 +6,6 @@ import ProjectM36.Server.EntryPoints
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
-import ProjectM36.DatabaseContext
 
 import Control.Concurrent.MVar (MVar)
 import System.IO (stderr, hPutStrLn)
@@ -32,7 +31,7 @@ requestHandlers testFlag ti =
     RequestHandler $ \sState (ExecuteHeadName sessionId) -> do
       --socket -> dbname --maybe create a socket->client state mapping in the server state, too
       conn <- getConn sState
-      handleExecuteHeadName ti sessionId conn,
+      handleExecuteCurrentHead ti sessionId conn,
     RequestHandler (\sState (ExecuteRelationalExpr sessionId expr) -> do
                        conn <- getConn sState                        
                        handleExecuteRelationalExpr ti sessionId conn expr),
@@ -213,7 +212,7 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) (toDatabaseContext basicDatabaseContext))
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext)
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)

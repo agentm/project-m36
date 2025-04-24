@@ -78,10 +78,11 @@ withTransaction sessconn = withTransactionUsing sessconn UnionMergeStrategy
 -- | Same as 'withTransaction' except that the merge strategy can be specified.
 withTransactionUsing :: DbConn -> MergeStrategy -> Db a -> IO (Either DbError a)
 withTransactionUsing (sess, conn) strat dbm = do
-  eHeadName <- C.headName sess conn
+  eHeadName <- C.currentHead sess conn
   case eHeadName of
     Left err -> pure (Left (RelError err))
-    Right headName -> do
+    Right (C.CurrentHeadTransactionId tid) -> pure (Left (RelError (MergeTransactionError (DisconnectedTransactionNotAMergeHeadError tid))))
+    Right (C.CurrentHeadBranch headName) -> do
       let successFunc = C.autoMergeToHead sess conn strat headName
           block = runReaderT (runDb dbm) (sess, conn)
           handler :: TransactionCancelled -> IO (Either DbError a)

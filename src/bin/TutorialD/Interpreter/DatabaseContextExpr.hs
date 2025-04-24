@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
 import ProjectM36.Interpreter
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.TransactionGraph.Types
 import TutorialD.Interpreter.Base

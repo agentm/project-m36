@@ -6,7 +6,17 @@ import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Types
 import qualified Data.Map as M
+import Data.Functor.Identity
 
+resolvedDatabaseContextAsDatabaseContextExpr :: ResolvedDatabaseContext -> DatabaseContextExpr
+resolvedDatabaseContextAsDatabaseContextExpr context = do
+  let relVarsExprs = map (\(name, rel) -> Assign name (stripGraphRefRelationalExpr rel)) (M.toList relVars)
+      relVars = runIdentity (relationVariables context)
+      incDeps = runIdentity (inclusionDependencies context)
+      incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)
+      funcsExprs = []
+  MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
+  
 -- | convert an existing database context into its constituent expression.   
 databaseContextAsDatabaseContextExpr :: DatabaseContext -> TransactionGraph -> Either RelationalError DatabaseContextExpr
 databaseContextAsDatabaseContextExpr context graph = do

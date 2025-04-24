@@ -19,7 +19,7 @@ import ProjectM36.DatabaseContextFunction
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.Arbitrary
-import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
 import qualified ProjectM36.Attribute as A
@@ -60,6 +60,7 @@ import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
 #endif
+import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -1216,6 +1217,7 @@ evalGraphRefRelationalExpr (RelationVariable name tid) = do
   ctx <- gfDatabaseContextForMarker tid
   graph <- gfGraph
   rvs <- lift $ except $ resolveDBC' graph ctx relationVariables
+  when (name == "s") $ traceShowM ("evalgfrelexpr"::String, name, tid, M.lookup "s" rvs)
   case M.lookup name rvs of
     Nothing -> throwError (RelVarNotDefinedError name)
     Just rv -> evalGraphRefRelationalExpr rv

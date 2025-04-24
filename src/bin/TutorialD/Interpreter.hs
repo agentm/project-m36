@@ -46,7 +46,8 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseContextExprOp DatabaseContextExpr |
                        DatabaseContextIOExprOp DatabaseContextIOExpr |
                        InfoOp InformationOperator |
-                       GraphOp TransactionGraphOperator |
+                       GraphOp TransactionGraphExpr |
+                       AlterGraphOp AlterTransactionGraphExpr |
                        ConvenienceGraphOp ConvenienceTransactionGraphOperator |
                        ROGraphOp ROTransactionGraphOperator |
                        ImportRelVarOp RelVarDataImportOperator |
@@ -69,6 +70,7 @@ safeInterpreterParserP :: Parser ParsedOperation
 safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <* eof) <|>
                          fmap InfoOp (infoOpP <* eof) <|>
                          fmap GraphOp (transactionGraphOpP <* eof) <|>
+                         fmap AlterGraphOp (alterTransactionGraphOpP <* eof) <|>
                          fmap ConvenienceGraphOp (convenienceTransactionGraphOpP <* eof) <|>
                          fmap ROGraphOp (roTransactionGraphOpP <* eof) <|>
                          fmap DatabaseContextExprOp (databaseExprOpP <* eof) <|>
@@ -76,10 +78,14 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
                          fmap TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
                          fmap SchemaOp (schemaOperatorP <* eof)
 
-promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
-promptText eHeadName eSchemaName = "TutorialD (" <> transInfo <> "): "
+promptText :: Either RelationalError C.CurrentHead -> Either RelationalError SchemaName -> StringType
+promptText eCurrentHead eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
-    transInfo = fromRight "<unknown>" eHeadName <> "/" <> fromRight "<no schema>" eSchemaName
+    headStr = case eCurrentHead of
+      Left _ -> "<unknown>"
+      Right (C.CurrentHeadTransactionId tid) -> T.pack (show tid)
+      Right (C.CurrentHeadBranch branch) -> branch
+    transInfo = headStr <> "/" <> fromRight "<no schema>" eSchemaName
 
 parseTutorialD :: T.Text -> Either ParserError ParsedOperation
 parseTutorialD = parse interpreterParserP ""
@@ -117,11 +123,12 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
       unsafeError
       else
       eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
-
   (GraphOp execOp) -> do
+    eHandler $ C.executeTransactionGraphExpr sessionId conn execOp
+  (AlterGraphOp execOp) -> do
     -- warn if the graph op could cause uncommited changes to be discarded
     eIsDirty <- C.disconnectedTransactionIsDirty sessionId conn
-    let runGraphOp = eHandler $ C.executeGraphExpr sessionId conn execOp
+    let runGraphOp = eHandler $ C.executeAlterTransactionGraphExpr sessionId conn execOp
         settings = Settings {complete = noCompletion,
                              historyFile = Nothing,
                              autoAddHistory = False}

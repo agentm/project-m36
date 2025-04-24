@@ -44,9 +44,9 @@ handleExecuteDatabaseContextIOExpr :: Maybe Timeout -> SessionId -> Connection -
 handleExecuteDatabaseContextIOExpr ti sessionId conn dbexpr =
   timeoutRelErr ti (executeDatabaseContextIOExpr sessionId conn dbexpr)
   
-handleExecuteHeadName :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError HeadName)
-handleExecuteHeadName ti sessionId conn =
-  timeoutRelErr ti (headName sessionId conn)
+handleExecuteCurrentHead :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError CurrentHead)
+handleExecuteCurrentHead ti sessionId conn =
+  timeoutRelErr ti (currentHead sessionId conn)
   
 handleLogin :: Connection -> Locking Socket -> IO Bool
 handleLogin conn lockSock = do
@@ -55,7 +55,7 @@ handleLogin conn lockSock = do
   
 handleExecuteTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())
 handleExecuteTransactionGraphExpr ti sessionId conn graphExpr =
-  timeoutRelErr ti (executeGraphExpr sessionId conn graphExpr)
+  timeoutRelErr ti (executeTransactionGraphExpr sessionId conn graphExpr)
 
 handleExecuteAlterTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> AlterTransactionGraphExpr -> IO (Either RelationalError ())
 handleExecuteAlterTransactionGraphExpr ti sessionId conn alterGraphExpr =

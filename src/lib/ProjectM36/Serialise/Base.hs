@@ -11,6 +11,7 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet as TS
 import ProjectM36.DatabaseContext.Types
+import ProjectM36.DisconnectedTransaction (CurrentHead)
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Transaction.Types
 import Data.UUID
@@ -54,6 +55,7 @@ deriving via WineryVariant (ExtendTupleExprBase a) instance Serialise a => Seria
 deriving via WineryVariant Schema instance Serialise Schema
 deriving via WineryVariant MergeStrategy instance Serialise MergeStrategy
 deriving via WineryVariant NotificationExpression instance Serialise NotificationExpression
+deriving via WineryVariant CurrentHead instance Serialise CurrentHead
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d

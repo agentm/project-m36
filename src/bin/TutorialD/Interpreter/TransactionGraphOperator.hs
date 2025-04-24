@@ -19,37 +19,37 @@ autoMergeToHeadP = do
   reserved ":automergetohead"
   AutoMergeToHead <$> mergeTransactionStrategyP <*> identifierP
 
-jumpToHeadP :: Parser TransactionGraphOperator
+jumpToHeadP :: Parser TransactionGraphExpr
 jumpToHeadP = do
   reservedOp ":jumphead"
   JumpToHead <$> identifierP
 
-jumpToTransactionP :: Parser TransactionGraphOperator
+jumpToTransactionP :: Parser TransactionGraphExpr
 jumpToTransactionP = do
   reservedOp ":jump"
   JumpToTransaction <$> uuidP
   
-walkBackToTimeP :: Parser TransactionGraphOperator  
+walkBackToTimeP :: Parser TransactionGraphExpr 
 walkBackToTimeP = do
   reservedOp ":walkbacktotime"
   WalkBackToTime <$> utcTimeP
 
-branchTransactionP :: Parser TransactionGraphOperator
+branchTransactionP :: Parser AlterTransactionGraphExpr
 branchTransactionP = do
   reservedOp ":branch"
   Branch <$> identifierP
 
-deleteBranchP :: Parser TransactionGraphOperator
+deleteBranchP :: Parser AlterTransactionGraphExpr
 deleteBranchP = do
   reserved ":deletebranch"
   DeleteBranch <$> identifierP
 
-commitTransactionP :: Parser TransactionGraphOperator
+commitTransactionP :: Parser AlterTransactionGraphExpr
 commitTransactionP = do
   reservedOp ":commit"
   pure Commit 
 
-rollbackTransactionP :: Parser TransactionGraphOperator
+rollbackTransactionP :: Parser AlterTransactionGraphExpr
 rollbackTransactionP = do
   reservedOp ":rollback"
   return Rollback
@@ -68,7 +68,7 @@ mergeTransactionStrategyP = (reserved "union" $> UnionMergeStrategy) <|>
                                 reserved "unionpreferbranch"
                                 UnionPreferMergeStrategy <$> identifierP)
   
-mergeTransactionsP :: Parser TransactionGraphOperator
+mergeTransactionsP :: Parser AlterTransactionGraphExpr
 mergeTransactionsP = do
   reservedOp ":mergetrans"
   MergeTransactions <$> mergeTransactionStrategyP <*> identifierP <*> identifierP
@@ -76,12 +76,15 @@ mergeTransactionsP = do
 validateMerkleHashesP :: Parser ROTransactionGraphOperator
 validateMerkleHashesP = reservedOp ":validatemerklehashes" $> ValidateMerkleHashes
 
-transactionGraphOpP :: Parser TransactionGraphOperator
+transactionGraphOpP :: Parser TransactionGraphExpr
 transactionGraphOpP = 
   jumpToHeadP
   <|> jumpToTransactionP
   <|> walkBackToTimeP
-  <|> branchTransactionP
+
+alterTransactionGraphOpP :: Parser AlterTransactionGraphExpr
+alterTransactionGraphOpP =
+  branchTransactionP
   <|> deleteBranchP
   <|> commitTransactionP
   <|> rollbackTransactionP

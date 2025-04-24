@@ -7,7 +7,7 @@ import qualified Data.Set as S
 showTransactionStructure :: Transaction -> TransactionGraph -> String
 showTransactionStructure trans graph = headInfo ++ " " ++ show (transactionId trans) ++ " p" ++ parentTransactionsInfo
   where
-    headInfo = maybe "" show (headNameForTransaction trans graph)
+    headInfo = show (headNamesForTransaction trans graph)
     parentTransactionsInfo = if isRootTransaction trans then "root" else case parentTransactions trans graph of
       Left err -> show err
       Right parentTransSet -> concat $ S.toList $ S.map (show . transactionId) parentTransSet

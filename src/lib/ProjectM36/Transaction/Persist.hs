@@ -13,7 +13,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import ProjectM36.DatabaseContextFunctions.Basic
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
