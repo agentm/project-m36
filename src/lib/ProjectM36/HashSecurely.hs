@@ -27,6 +27,7 @@ import qualified Data.Set as S
 import Data.Time.Calendar
 import Data.Time.Clock
 import Codec.Winery (Serialise)
+import Data.Functor.Identity
 
 newtype SecureHash = SecureHash { _unSecureHash :: B.ByteString }
   deriving (Serialise, Show, Eq)
@@ -266,8 +267,9 @@ instance HashBytes DatabaseContext where
                                       SHash (notifications db),
                                       SHash (typeConstructorMapping db),
                                       SHash (atomFunctions db),
-                                      SHash (dbcFunctions db)]
-    
+                                      SHash (dbcFunctions db)
+                                     ]
+  
 instance HashBytes a => HashBytes (ValueMarker a) where 
   hashBytes (ValueMarker a) ctx =
     hashBytesL ctx "ValueMarker" [SHash a]
@@ -364,14 +366,15 @@ hashTransaction trans parentTranses = MerkleHash (SHA256.finalize newHash)
     getMerkleHash t = merkleHash (transactionInfo t)
     transIds = transactionId trans : S.toAscList (parentIds trans)
 
--- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema.
-mkDDLHash :: DatabaseContext -> M.Map RelVarName Relation -> SecureHash
+-- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema. DDL hashing only works on a fully-resolved database context so that the hash is valida even across different servers which may converge on the same database DDL.
+mkDDLHash :: ResolvedDatabaseContext -> M.Map RelVarName Relation -> SecureHash
 mkDDLHash ctx rvtypemap = do
   -- we cannot merely hash the relational representation of the type because the order of items matters when hashing
   -- registered queries are not included here because a client could be compatible with a schema even if the queries are not registered. The client should validate registered query state up-front. Perhaps there should be another hash for registered queries.
   SecureHash $ SHA256.finalize $
-    hashBytesL SHA256.init "DDLHash" [SHash (inclusionDependencies ctx),
-                                      SHash (atomFunctions ctx),
-                                      SHash (dbcFunctions ctx),
-                                      SHash (typeConstructorMapping ctx),
-                                      SHash rvtypemap]
+    hashBytesL SHA256.init "DDLHash" [SHash (runIdentity $ inclusionDependencies ctx),
+                                      SHash (runIdentity $ atomFunctions ctx),
+                                      SHash (runIdentity $ dbcFunctions ctx),
+                                      SHash (runIdentity $ typeConstructorMapping ctx),
+                                      SHash rvtypemap
+                                     ]

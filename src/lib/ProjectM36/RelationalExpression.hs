@@ -60,7 +60,6 @@ import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
 #endif
-import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -1217,7 +1216,6 @@ evalGraphRefRelationalExpr (RelationVariable name tid) = do
   ctx <- gfDatabaseContextForMarker tid
   graph <- gfGraph
   rvs <- lift $ except $ resolveDBC' graph ctx relationVariables
-  when (name == "s") $ traceShowM ("evalgfrelexpr"::String, name, tid, M.lookup "s" rvs)
   case M.lookup name rvs of
     Nothing -> throwError (RelVarNotDefinedError name)
     Just rv -> evalGraphRefRelationalExpr rv
@@ -1775,3 +1773,22 @@ validateNotification notif context graph = do
     _ <- typeForRelationalExpr (reportNewExpr notif)
     pure notif
 
+-- | Resolved all fields which link to previous transactions.
+toResolvedDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError ResolvedDatabaseContext
+toResolvedDatabaseContext ctx graph = do
+  incDeps <- resolveDBC' graph ctx inclusionDependencies
+  relVars <- resolveDBC' graph ctx relationVariables
+  aFuncs <- resolveDBC' graph ctx atomFunctions
+  dbcFuncs <- resolveDBC' graph ctx dbcFunctions
+  nots <- resolveDBC' graph ctx notifications
+  tConsMap <- resolveDBC' graph ctx typeConstructorMapping
+  regQs <- resolveDBC' graph ctx registeredQueries
+  pure (DatabaseContext {
+           inclusionDependencies = Identity incDeps,
+           relationVariables = Identity relVars,
+           atomFunctions = Identity aFuncs,
+           dbcFunctions = Identity dbcFuncs,
+           notifications = Identity nots,
+           typeConstructorMapping = Identity tConsMap,
+           registeredQueries = Identity regQs
+           })

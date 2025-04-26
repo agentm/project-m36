@@ -14,13 +14,14 @@ import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
 
--- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema.
+-- | Return a hash of just DDL-specific (schema) attributes. This is useful for determining if a client has the appropriate updates needed to work with the current schema. The database context is fully resolved and materialized so that no references to previous transactions exist in the hash calculation.
 ddlHash :: DatabaseContext -> TransactionGraph -> Either RelationalError SecureHash
 ddlHash ctx tgraph = do
   -- we cannot merely hash the relational representation of the type because the order of items matters when hashing
   -- registered queries are not included here because a client could be compatible with a schema even if the queries are not registered. The client should validate registered query state up-front. Perhaps there should be another hash for registered queries.
   rvtypemap <- typesForRelationVariables ctx tgraph
-  pure $ mkDDLHash ctx rvtypemap
+  resDBContext <- toResolvedDatabaseContext ctx tgraph
+  pure $ mkDDLHash resDBContext rvtypemap
 
 -- | Process all relations within the context of the transaction graph to extract the relation variables types.
 typesForRelationVariables :: DatabaseContext -> TransactionGraph -> Either RelationalError (M.Map RelVarName Relation)

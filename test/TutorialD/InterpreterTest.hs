@@ -49,7 +49,7 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   where
     tests = [
-      {-simpleRelTests,
+      simpleRelTests,
       dateExampleRelTests,
       transactionGraphBasicTest, 
       transactionGraphAddCommitTest, 
@@ -59,8 +59,8 @@ main = do
       simpleJoinTest, 
       testTypeConstructors, 
       testMergeTransactions, 
-      testComments, -}
-      testTransGraphRelationalExpr{-, 
+      testComments,
+      testTransGraphRelationalExpr, 
       failJoinTest, 
       testMultiAttributeRename, 
       testSchemaExpr, 
@@ -100,7 +100,7 @@ main = do
       testIfThenExpr,
       testSubrelationAttributeAtomExpr,
       testComplexTypeVarResolution,
-      testNotifications-}
+      testNotifications
       ]
 
 simpleRelTests :: Test
@@ -280,7 +280,7 @@ transactionRollbackTest = TestCase $ do
 transactionJumpTest :: Test
 transactionJumpTest = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  (Discon.DisconnectedTransaction firstUUID _) <- disconnectedTransaction_ sessionId dbconn
+  firstUUID <- Discon.disconTransactionId <$> disconnectedTransaction_ sessionId dbconn
   executeDatabaseContextExpr sessionId dbconn (Assign "x" (RelationVariable "s" ())) >>= eitherFail
   commit sessionId dbconn >>= eitherFail
   --perform the jump

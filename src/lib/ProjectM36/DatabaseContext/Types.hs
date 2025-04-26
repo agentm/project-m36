@@ -8,7 +8,7 @@ import qualified Data.HashSet as HS
 import Data.Functor.Identity
 
 data ValueMarker a = ValueMarker a | NotChangedSinceMarker TransactionId
-  deriving (NFData, Generic)
+  deriving (NFData, Generic, Show)
 
 valueIsUpdated :: ValueMarker a -> Bool
 valueIsUpdated ValueMarker{} = True
