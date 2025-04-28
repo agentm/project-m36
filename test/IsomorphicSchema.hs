@@ -7,7 +7,8 @@ import ProjectM36.Relation
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.StaticOptimizer
-import ProjectM36.DatabaseContext (_relationVariables, relationVariables)
+import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContext.Types
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.DatabaseContext.Basic as DBC
 import ProjectM36.Attribute (attributesFromList)
@@ -15,7 +16,7 @@ import System.Exit
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
-import Optics.Core
+import Data.Functor.Identity
 
 testList :: Test
 testList = TestList [testIsoRename, testIsoRestrict, testIsoUnion, testSchemaValidation]
@@ -40,24 +41,23 @@ assertMaybe x msg = case x of
 -- create some potential schemas which should not be accepted  
 testSchemaValidation :: Test
 testSchemaValidation = TestCase $ do  
-  let potentialSchema = DBC.basicDatabaseContext {
-        _relationVariables = M.singleton "anotherRel" (ExistingRelation relationTrue)
-        }
+  let rvNames = S.singleton "anotherRel"
   -- missing relvars failure
       morphs = [IsoRename "true" "true", IsoRename "false" "false"]
       missingRelVarError = Just (RelVarReferencesMissing (S.singleton "anotherRel"))
-  assertEqual "missing relvar validation" missingRelVarError (validateSchema (Schema morphs) potentialSchema)
+  assertEqual "missing relvar validation" missingRelVarError (validateSchema (Schema morphs) rvNames)
   -- duplicate relvar mention
   let morphs' = [IsoRename "true" "true", IsoRename "false" "true", IsoRename "true" "anotherRel"]
       duplicateRelVarError = Just (RelVarOutReferencedMoreThanOnce "true")
-  assertEqual "duplicate relvars in morphs" duplicateRelVarError (validateSchema (Schema morphs') potentialSchema)
+  assertEqual "duplicate relvars in morphs" duplicateRelVarError (validateSchema (Schema morphs') rvNames)
   
 testIsoRename :: Test
 testIsoRename = TestCase $ do
   -- create a schema with two relvars and rename one while the other remains the same in the isomorphic schema
   let ctx = DBC.empty { 
-        _relationVariables = M.fromList [("employee", ExistingRelation relationTrue), 
-                                        ("department", ExistingRelation relationFalse)]
+        relationVariables = ValueMarker $
+          M.fromList [("employee", ExistingRelation relationTrue), 
+                      ("department", ExistingRelation relationFalse)]
         }
   (graph, _) <- freshTransactionGraph ctx
   let isomorphsAtoB = [IsoRename "emp" "employee", 
@@ -86,7 +86,7 @@ testIsoRestrict = TestCase $ do
             
   let schemaA = mkRelationalExprEnv baseContext graph
       baseContext = DBC.empty {
-        _relationVariables = M.fromList [("nonboss", ExistingRelation nonBossRel),
+        relationVariables = ValueMarker $ M.fromList [("nonboss", ExistingRelation nonBossRel),
                                         ("boss", ExistingRelation bossRel)]
         }
       isomorphsAtoB = [IsoRestrict "employee" predicate ("boss", "nonboss")]
@@ -104,13 +104,13 @@ testIsoRestrict = TestCase $ do
   bobRel <- assertEither (mkRelationFromList empattrs [[TextAtom "Bob", TextAtom ""]])
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
-  let Right dbcState = evalDBCExpr schemaBInsertExpr'
-      postInsertContext = dbc_context dbcState
-      evalDBCExpr expr' = runDatabaseContextEvalMonad baseContext dbcenv (optimizeAndEvalDatabaseContextExpr False expr')
+  let evalDBCExpr expr' = runDatabaseContextEvalMonad baseContext dbcenv (optimizeAndEvalDatabaseContextExpr False expr')
       dbcenv = mkDatabaseContextEvalEnv transId graph
+  --execute the expression against the schema and compare against the base context
+  dbcState <- assertEither $ evalDBCExpr schemaBInsertExpr'
+  let postInsertContext = dbc_context dbcState
       expectedRel = runRelationalExprM postInsertEnv (evalRelationalExpr (Union (RelationVariable "boss" ()) (RelationVariable "nonboss" ())))
       postInsertEnv = mkRelationalExprEnv postInsertContext graph
-  --execute the expression against the schema and compare against the base context
   processedExpr <- assertEither (processRelationalExprInSchema (Schema isomorphsAtoB) (RelationVariable "employee" ()))
   let processedRel = runRelationalExprM postInsertEnv (evalRelationalExpr processedExpr)
   assertEqual "insert bob boss" expectedRel processedRel
@@ -137,8 +137,9 @@ testIsoUnion = TestCase $ do
                 [TextAtom "Scooter", IntegerAtom 49],
                 [TextAtom "Auto", IntegerAtom 200],
                 [TextAtom "Tractor", IntegerAtom 500]]
-  let env = mkRelationalExprEnv (DBC.basicDatabaseContext &
-        relationVariables .~ M.singleton "motor" (ExistingRelation motorsRel)
+  let env = mkRelationalExprEnv (toDatabaseContext $ DBC.basicDatabaseContext {
+        relationVariables = Identity $ M.singleton "motor" (ExistingRelation motorsRel)
+        }
         ) graph
       splitPredicate = AtomExprPredicate (FunctionAtomExpr "lt" [AttributeAtomExpr "power", NakedAtomExpr (IntegerAtom 50)] ())
       splitIsomorphs = [IsoUnion ("lowpower", "highpower") splitPredicate "motor",

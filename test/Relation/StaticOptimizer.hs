@@ -40,12 +40,12 @@ testOptimizeDatabaseContextExpr = TestCase $ do
                        Assign "z" (Restrict TruePredicate (relvar "s"))])
         ]
   forM_ testInfos $ \(name, expectedExpr, unoptExpr) -> do
-    let optExpr = runGraphRefSOptDatabaseContextExprM transId dateExamples graph (optimizeDatabaseContextExpr unoptExpr)
+    let optExpr = runGraphRefSOptDatabaseContextExprM transId (toDatabaseContext dateExamples) graph (optimizeDatabaseContextExpr unoptExpr)
     assertEqual name expectedExpr optExpr
 
 testTransitiveOptimization :: Test
 testTransitiveOptimization = TestCase $ do
-  (graph, _) <- freshTransactionGraph dateExamples
+  (graph, _) <- freshTransactionGraph' dateExamples
   let expr atomexpr = AndPredicate (AttributeEqualityPredicate "a" (NakedAtomExpr (IntegerAtom 300))) (AttributeEqualityPredicate "b" atomexpr)
       exprIn = expr (AttributeAtomExpr "a")
       exprOut = expr (NakedAtomExpr (IntegerAtom 300))
@@ -55,7 +55,7 @@ testTransitiveOptimization = TestCase $ do
 
 testOptimizeRelationalExpr :: Test
 testOptimizeRelationalExpr = TestCase $ do
-  (graph, _) <- freshTransactionGraph dateExamples
+  (graph, _) <- freshTransactionGraph' dateExamples
   let relvarId nam = RelationVariable nam UncommittedContextMarker
       relationOptTests = [
         ("StaticProject",
@@ -69,19 +69,19 @@ testOptimizeRelationalExpr = TestCase $ do
          Join (relvarId "s") (relvarId "s"))
         ]
   forM_ relationOptTests $ \(name, expr, unoptExpr) -> do
-    let optExpr = runGraphRefSOptRelationalExprM (Just dateExamples) graph (optimizeGraphRefRelationalExpr unoptExpr)
+    let optExpr = runGraphRefSOptRelationalExprM (Just (toDatabaseContext dateExamples)) graph (optimizeGraphRefRelationalExpr unoptExpr)
     assertEqual name expr optExpr
 
 testImpossiblePredicates :: Test  
 testImpossiblePredicates = TestCase $ do
-  (graph, _) <- freshTransactionGraph dateExamples  
+  (graph, _) <- freshTransactionGraph' dateExamples
   let tautTrue = Restrict (AtomExprPredicate (NakedAtomExpr (BoolAtom True))) rel
       tautTrue2 = Restrict TruePredicate rel
       tautFalse = Restrict (AtomExprPredicate (NakedAtomExpr (BoolAtom False))) rel
       tautFalse2 = Restrict (NotPredicate TruePredicate) rel
       emptyRel = MakeStaticRelation (attributes suppliersRel) TS.empty
       rel = RelationVariable "s" UncommittedContextMarker
-      optRelExpr = optimizeGraphRefRelationalExpr' (Just dateExamples) graph
+      optRelExpr = optimizeGraphRefRelationalExpr' (Just (toDatabaseContext dateExamples)) graph
   assertEqual "remove tautology where true" (Right rel) (optRelExpr tautTrue)
   assertEqual "remove tautology where true2" (Right rel) (optRelExpr tautTrue2)
   assertEqual "remove tautology where false" (Right emptyRel) (optRelExpr tautFalse)
@@ -89,9 +89,9 @@ testImpossiblePredicates = TestCase $ do
 
 testJoinElimination :: Test  
 testJoinElimination = TestCase $ do
-  (graph, _) <- freshTransactionGraph dateExamples  
+  (graph, _) <- freshTransactionGraph' dateExamples
   let marker = UncommittedContextMarker
-      optJoinExpr expr = runGraphRefSOptRelationalExprM (Just dateExamples) graph (applyStaticJoinElimination expr)
+      optJoinExpr expr = runGraphRefSOptRelationalExprM (Just (toDatabaseContext dateExamples)) graph (applyStaticJoinElimination expr)
       relvar rv = RelationVariable rv marker
 
   -- (s join sp){s#,qty,p#} == sp

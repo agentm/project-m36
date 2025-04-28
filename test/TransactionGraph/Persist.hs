@@ -2,13 +2,13 @@
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Persist (DiskSync(NoDiskSync))
+import ProjectM36.RelationalExpression (resolveDBC')
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Transaction.Types as T
 import ProjectM36.TransactionGraph as TG
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext
-import ProjectM36.ChangeTrackingDatabaseContext
 import ProjectM36.DisconnectedTransaction
 import ProjectM36.DateExamples
 import System.IO.Temp
@@ -25,7 +25,7 @@ import Data.Time.Calendar
 import ProjectM36.Client as C
 import ProjectM36.Relation
 import ProjectM36.Transaction.Persist
-import Optics.Core
+import ProjectM36.DatabaseContext.Types
 
 main :: IO ()           
 main = do 
@@ -47,7 +47,7 @@ testBootstrapDB = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> d
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp' freshId dateExamples)
+  _ <- bootstrapDatabaseDir NoDiskSync dbdir (bootstrapTransactionGraph stamp' freshId (toDatabaseContext dateExamples))
   loadedGraph <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
   assertBool "transactionGraphLoad" $ isRight loadedGraph
 
@@ -57,7 +57,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
   let dbdir = tempdir </> "dbdir"
   freshId <- nextRandom
 
-  let graph = bootstrapTransactionGraph stamp' freshId dateExamples
+  let graph = bootstrapTransactionGraph stamp' freshId (toDatabaseContext dateExamples)
   _ <- bootstrapDatabaseDir NoDiskSync dbdir graph
   case transactionForHead "master" graph of
     Nothing -> assertFailure "Failed to retrieve head transaction for master branch."
@@ -66,14 +66,14 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
-              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas (fromDatabaseContext context') M.empty)
-                  addTrans = addDisconnectedTransaction stamp' freshId' "master" newdiscon graph
+              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) (CurrentHeadBranch "master")
+                  addTrans = addDisconnectedTransaction stamp' freshId' newdiscon graph
               --add a transaction to the graph
               case addTrans of
                 Left err -> assertFailure (show err)
                 Right (_, graph') -> do
                   --persist the new graph
-                  _ <- transactionGraphPersist NoDiskSync dbdir [freshId'] graph'
+                  _ <- transactionGraphPersist NoDiskSync dbdir graph'
                   --reload the graph from the filesystem and confirm that the transaction is present
                   graphErr <- transactionGraphLoad dbdir emptyTransactionGraph Nothing
                   let mapEq graphArg = S.map transactionId (transactionsForGraph graphArg)
@@ -115,8 +115,11 @@ testMerkleHashValidation = TestCase $
           updatedSchemas =
             case T.schemas trans of
               Schemas ctx sschemas ->
-                let updatedContext = ctx &
-                      relationVariables .~ M.insert "malicious" (ExistingRelation relationFalse) (ctx ^. relationVariables)
+                let relVars = case resolveDBC' graph ctx relationVariables of
+                                Left err -> error ("resolveDBC' failure: " <> show err)
+                                Right rv -> rv
+                    updatedContext = ctx {
+                      relationVariables = ValueMarker (M.insert "malicious" (ExistingRelation relationFalse) relVars) }
                       in
                 Schemas updatedContext sschemas
           maliciousGraph = TransactionGraph malHeads malTransSet
@@ -129,7 +132,7 @@ testMerkleHashValidation = TestCase $
       assertEqual "loaded graph merkle hashes" (Left [MerkleValidationError (transactionId trans) regMerkleHash malMerkleHash]) val''
       --delete existing transaction directory
       removeDirectoryRecursive transactionDir'
-      writeTransaction NoDiskSync dbdir updatedTrans
+      writeTransaction NoDiskSync dbdir (UncommittedTransaction updatedTrans)
 
       --read graph from disk
       eConnFail <- connectProjectM36 connInfo

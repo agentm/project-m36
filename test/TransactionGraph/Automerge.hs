@@ -51,8 +51,8 @@ testAutomergeSuccess = TestCase $ do
   
   assertEqual "new S7" relationTrue result'
   
-  eHeadName <- headName sessionPastId conn
-  assertEqual "back on master" (Right "master") eHeadName
+  eCurrentHead <- currentHead sessionPastId conn
+  assertEqual "back on master" (Right (CurrentHeadBranch "master")) eCurrentHead
   
 testAutomergeFailure :: Test  
 testAutomergeFailure = TestCase $ do

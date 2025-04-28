@@ -3,7 +3,9 @@ import ProjectM36.Base
 import ProjectM36.Interpreter
 import ProjectM36.SQL.Select
 import ProjectM36.DatabaseContext
+import ProjectM36.DatabaseContextExpr
 import ProjectM36.DateExamples
+import ProjectM36.TransactionGraph (emptyTransactionGraph)
 import ProjectM36.Error
 import TutorialD.Printer
 import SQL.Interpreter.ImportBasicExample
@@ -72,8 +74,11 @@ evalSQLInteractive sessionId conn _safeFlag _interactiveConsole =
             Left err -> pure $ DisplayRelationalErrorResult err
             Right df -> pure $ DisplayHintWith ("[Equivalent TutorialD] " <> hint) (DisplayDataFrameResult df)
     ImportBasicExampleOp (ImportBasicExampleOperator exampleName) -> do
-      if exampleName == "cjdate" then
-        evalOneCommand (DatabaseContextExprOp (databaseContextAsDatabaseContextExpr dateExamples))
+      if exampleName == "cjdate" then do
+        case databaseContextAsDatabaseContextExpr (toDatabaseContext dateExamples) emptyTransactionGraph of
+          Left err -> pure $ DisplayRelationalErrorResult err
+          Right dbexpr ->
+            evalOneCommand (DatabaseContextExprOp dbexpr)
         else
           pure (DisplayErrorResult ("No such example: " <> exampleName))
     DatabaseContextExprOp dbcExpr -> do

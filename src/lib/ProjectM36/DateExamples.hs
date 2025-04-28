@@ -1,5 +1,9 @@
 module ProjectM36.DateExamples where
 import ProjectM36.Base
+import ProjectM36.Error
+import ProjectM36.DatabaseContextExpr
+import ProjectM36.DatabaseContext
+import ProjectM36.TransactionGraph
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Key
 import ProjectM36.DatabaseContext.Basic
@@ -94,3 +98,7 @@ productsRel = case mkRelationFromList attrs matrix of
       [TextAtom "P5", TextAtom "Cam", TextAtom "Blue", IntegerAtom 12, TextAtom "Paris"],
       [TextAtom "P6", TextAtom "Cog", TextAtom "Red", IntegerAtom 19, TextAtom "London"]
       ]
+
+dateExamplesDatabaseContextExpr :: Either RelationalError DatabaseContextExpr
+dateExamplesDatabaseContextExpr =
+  databaseContextAsDatabaseContextExpr (toDatabaseContext dateExamples) emptyTransactionGraph

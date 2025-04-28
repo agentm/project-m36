@@ -5,7 +5,7 @@ import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
 import ProjectM36.RelationalExpression
---import ProjectM36.StaticOptimizer
+import ProjectM36.DatabaseContext.Types
 import SQL.Interpreter.DBUpdate
 import SQL.Interpreter.CreateTable
 import SQL.Interpreter.Base (semi)
@@ -16,6 +16,7 @@ import ProjectM36.DatabaseContext
 import ProjectM36.NormalizeExpr
 import ProjectM36.Client hiding (typeConstructorMapping)
 import ProjectM36.SQLDatabaseContext
+import ProjectM36.DatabaseContextExpr
 import ProjectM36.Base
 import ProjectM36.Relation
 import qualified ProjectM36.Attribute as A
@@ -25,7 +26,7 @@ import Text.Megaparsec
 import qualified Data.Text as T
 import qualified Data.Map as M
 import TutorialD.Printer
-import Optics.Core
+import Data.Functor.Identity
 
 main :: IO ()
 main = do
@@ -57,8 +58,8 @@ testFindColumn = TestCase $ do
 testSelect :: Test
 testSelect = TestCase $ do
   -- check that SQL and tutd compile to same thing
-  let sqlDBContext = dateExamples & relationVariables .~ M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables)
-  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+  let sqlDBContext = dateExamples { relationVariables = Identity (M.singleton "snull" (ExistingRelation sNullRelVar)) <> relationVariables dateExamples }
+  (tgraph,transId) <- freshTransactionGraph (toDatabaseContext sqlDBContext)
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   
   let readTests = [{-
@@ -287,7 +288,7 @@ testSelect = TestCase $ do
          "(relation{attr_1 SQLNullable Bool}{tuple{attr_1 SQLJust True}})")-}
         ]
       gfEnv = GraphRefRelationalExprEnv {
-        gre_context = Just sqlDBContext,
+        gre_context = Just (toDatabaseContext sqlDBContext),
         gre_graph = tgraph,
         gre_extra = mempty }
       typeF expr = do
@@ -334,8 +335,8 @@ testSelect = TestCase $ do
 
 testCreateTable :: Test
 testCreateTable = TestCase $ do
-  let sqlDBContext = dateExamples { _relationVariables = M.insert "snull" (ExistingRelation sNullRelVar) (dateExamples ^. relationVariables) }
-  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+  let sqlDBContext = dateExamples { relationVariables = Identity (M.singleton "snull" (ExistingRelation sNullRelVar)) <> relationVariables dateExamples }
+  (tgraph,transId) <- freshTransactionGraph (toDatabaseContext sqlDBContext)
 
   let createTableTests = [
         --no columns
@@ -369,7 +370,7 @@ testCreateTable = TestCase $ do
           Right x -> do
             pure x
       gfEnv = GraphRefRelationalExprEnv {
-        gre_context = Just sqlDBContext,
+        gre_context = Just (toDatabaseContext sqlDBContext),
         gre_graph = tgraph,
         gre_extra = mempty }
       typeF expr = do
@@ -397,11 +398,11 @@ testCreateTable = TestCase $ do
 
 testDBUpdate :: Test
 testDBUpdate = TestCase $ do
-  let sqlDBContext = dateExamples { _relationVariables =
-                                      M.insert "snull" (ExistingRelation sNullRelVar) (_relationVariables dateExamples),
-                                    _typeConstructorMapping = dateExamples ^. typeConstructorMapping <> nullTypeConstructorMapping
+  let sqlDBContext = dateExamples { relationVariables =
+                                      Identity (M.singleton "snull" (ExistingRelation sNullRelVar)) <> relationVariables dateExamples,
+                                    typeConstructorMapping = typeConstructorMapping dateExamples <> Identity nullTypeConstructorMapping
                                   }
-  (tgraph,transId) <- freshTransactionGraph sqlDBContext
+  (tgraph,transId) <- freshTransactionGraph (toDatabaseContext sqlDBContext)
 
   let updateTests = [
         -- simple insert with no nulls
@@ -432,7 +433,7 @@ testDBUpdate = TestCase $ do
           Right x -> do
             pure x
       gfEnv = GraphRefRelationalExprEnv {
-        gre_context = Just sqlDBContext,
+        gre_context = Just (toDatabaseContext sqlDBContext),
         gre_graph = tgraph,
         gre_extra = mempty }
 {-      typeF = 
@@ -486,11 +487,14 @@ dateExamplesConnection callback = do
       case eSessionId of
         Left err -> error (show err)
         Right sessionId -> do
-          executeDatabaseContextExpr sessionId conn (databaseContextAsDatabaseContextExpr dateExamples) >>= eitherFail
-          --add a relvar with some nulls
-          executeDatabaseContextExpr sessionId conn addNullTable >>= eitherFail
-          commit sessionId conn >>= eitherFail
-          pure (sessionId, conn)
+          case databaseContextAsDatabaseContextExpr (toDatabaseContext dateExamples) emptyTransactionGraph of
+            Left err -> assertFailure (show err)
+            Right dbexpr -> do
+              executeDatabaseContextExpr sessionId conn dbexpr >>= eitherFail
+              --add a relvar with some nulls
+              executeDatabaseContextExpr sessionId conn addNullTable >>= eitherFail
+              commit sessionId conn >>= eitherFail
+              pure (sessionId, conn)
 
 eitherFail :: Either RelationalError a -> IO ()
 eitherFail (Left err) = assertFailure (show err)

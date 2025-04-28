@@ -39,7 +39,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testPlanForDatabaseContextExpr,
       testTransactionGraphAsRelation,
       testHeadTransactionId,
-      testHeadName,
+      testCurrentHead,
       testSession,
       testRelationVariableSummary,
       testNotification notificationTestMVar
@@ -126,7 +126,7 @@ testDatabaseContextExpr sessionId conn = TestCase $ do
     Right rel -> assertEqual "dbcontext definition failed" expected (Right rel)
         
 testGraphExpr :: SessionId -> Connection -> Test        
-testGraphExpr sessionId conn = TestCase (executeGraphExpr sessionId conn (JumpToHead "master") >>= eitherFail)
+testGraphExpr sessionId conn = TestCase (executeTransactionGraphExpr sessionId conn (JumpToHead "master") >>= eitherFail)
     
 testTypeForRelationalExpr :: SessionId -> Connection -> Test
 testTypeForRelationalExpr sessionId conn = TestCase $ do
@@ -159,10 +159,10 @@ testHeadTransactionId sessionId conn = TestCase $ do
   assertBool "invalid head transaction uuid" (isRight uuid)
   pure ()
   
-testHeadName :: SessionId -> Connection -> Test
-testHeadName sessionId conn = TestCase $ do
-  eHeadName <- headName sessionId conn
-  assertEqual "headName failure" (Right "master") eHeadName
+testCurrentHead :: SessionId -> Connection -> Test
+testCurrentHead sessionId conn = TestCase $ do
+  eCurrentHead <- currentHead sessionId conn
+  assertEqual "headName failure" (Right (CurrentHeadBranch "master")) eCurrentHead
   
 testRelationVariableSummary :: SessionId -> Connection -> Test  
 testRelationVariableSummary sessionId conn = TestCase $ do
@@ -182,7 +182,7 @@ testSession _ conn = TestCase $ do
       case eHeadId of
         Left err -> assertFailure ("invalid head id: " ++ show err)
         Right headId -> do
-          eSessionId2 <- createSessionAtCommit conn headId
+          eSessionId2 <- createSessionAtTransactionId conn headId
           assertBool ("invalid session: " ++ show eSessionId2) (isRight eSessionId2)
           closeSession sessionId1 conn
 

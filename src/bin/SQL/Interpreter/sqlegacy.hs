@@ -1,11 +1,8 @@
 -- the sqlegacy SQL interpreter wrap
 {-# LANGUAGE CPP #-}
-import ProjectM36.Base
 import ProjectM36.Cli
 import SQL.Interpreter
 import ProjectM36.SQLDatabaseContext
-import ProjectM36.IsomorphicSchema.Types
-import ProjectM36.Error
 import System.Directory
 import System.FilePath
 import qualified ProjectM36.Client as C
@@ -43,8 +40,13 @@ sqlReprLoop sessionId conn mPromptLength userInput = do
         (\_ -> displayResult (DisplayErrorResult "Request timed out."))
       
 
-promptText :: Either RelationalError HeadName -> Either RelationalError SchemaName -> StringType
-promptText eHeadName eSchemaName = "SQLegacy (" <> transInfo <> "): "
+promptText :: MakePrompt
+promptText eCurrentHead eSchemaName = "SQLegacy (" <> transInfo <> "): "
   where
-    transInfo = fromRight "<unknown>" eHeadName <> "/" <> fromRight "<no schema>" eSchemaName
+    headStr = case eCurrentHead of
+      Left _ -> "<unknown>"
+      Right (C.CurrentHeadTransactionId tid) -> T.pack (show tid)
+      Right (C.CurrentHeadBranch branch) -> branch
+    transInfo = headStr <> "/" <> fromRight "<no schema>" eSchemaName
+
   

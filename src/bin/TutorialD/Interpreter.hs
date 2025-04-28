@@ -1,7 +1,6 @@
 {-# LANGUAGE GADTs, CPP #-}
 module TutorialD.Interpreter where
 import ProjectM36.Interpreter
-import ProjectM36.IsomorphicSchema.Types
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
@@ -23,6 +22,7 @@ import TutorialD.Interpreter.Export.Base
 
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.Cli (MakePrompt)
 import ProjectM36.TransactionGraph
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
@@ -78,7 +78,7 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
                          fmap TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
                          fmap SchemaOp (schemaOperatorP <* eof)
 
-promptText :: Either RelationalError C.CurrentHead -> Either RelationalError SchemaName -> StringType
+promptText :: MakePrompt
 promptText eCurrentHead eSchemaName = "TutorialD (" <> transInfo <> "): "
   where
     headStr = case eCurrentHead of

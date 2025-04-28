@@ -319,7 +319,6 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
   tstamp <- getCurrentTime
   let freshGraph = bootstrapTransactionGraph tstamp freshId (DBC.toDatabaseContext bootstrapDatabaseContext)
   case strat of
-    --create date examples graph for now- probably should be empty context in the future
     NoPersistence -> do
         graphTvar <- newTVarIO freshGraph
         clientNodes <- StmSet.newIO

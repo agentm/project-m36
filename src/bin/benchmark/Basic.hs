@@ -1,4 +1,5 @@
 import ProjectM36.Base
+import ProjectM36.DatabaseContext
 import Criterion.Main
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Relation
@@ -48,7 +49,7 @@ restrictRelationToHalfRelation cutoff rel = validate (runRelationalExprM basicRE
   predicateMatch = AtomExprPredicate (FunctionAtomExpr "lte" [AttributeAtomExpr "a0", NakedAtomExpr (IntAtom cutoff)] ())
 
 basicREEnv :: RelationalExprEnv
-basicREEnv = mkRelationalExprEnv DBC.basicDatabaseContext emptyTransactionGraph
+basicREEnv = mkRelationalExprEnv (toDatabaseContext DBC.basicDatabaseContext) emptyTransactionGraph
 
 projectRelationToAttributes :: AttributeNames -> Relation -> Relation
 projectRelationToAttributes attrNames rel = validate (runRelationalExprM basicREEnv (evalRelationalExpr projection))

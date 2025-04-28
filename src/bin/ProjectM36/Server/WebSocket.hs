@@ -150,9 +150,13 @@ sendResponse conn response =
 -- get current schema and head name for client
 promptInfo :: SessionId -> Connection -> IO (HeadName, SchemaName)
 promptInfo sessionId conn = do
-  eHeadName <- headName sessionId conn
+  eCurrentHead <- currentHead sessionId conn
   eSchemaName <- currentSchemaName sessionId conn
-  pure (fromRight "<unknown>" eHeadName, fromRight "<no schema>" eSchemaName)
+  let headName = case eCurrentHead of
+                   Left _err -> "<unknown>"
+                   Right (CurrentHeadTransactionId tid) -> T.pack (show tid)
+                   Right (CurrentHeadBranch hname) -> hname
+  pure (headName, fromRight "<no schema>" eSchemaName)
 
 sendPromptInfo :: (HeadName, SchemaName) -> WS.Connection -> IO ()
 sendPromptInfo (hName, sName) conn = WS.sendTextData conn (encode (object ["promptInfo" .= object ["headname" .= hName, "schemaname" .= sName]]))

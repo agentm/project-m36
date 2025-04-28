@@ -3,6 +3,7 @@ import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
+import ProjectM36.DatabaseContext
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
@@ -69,12 +70,12 @@ validateAttrTypesMatchTupleAttrTypes rel@(Relation attrs tupSet) = foldr (\tuple
                                   A.atomTypeForAttributeName (A.attributeName attr) attrs) (attributesVec (attributes rel))
     
 simpleRel :: Relation    
-simpleRel = case mkRelation attrs tupleSet of
+simpleRel = case mkRelation attrs tupleSet' of
   Right rel -> rel
   Left _ -> undefined
   where
     attrs = A.attributesFromList [Attribute "a" TextAtomType, Attribute "b" TextAtomType]
-    tupleSet = RelationTupleSet [mkRelationTuple attrs (V.fromList [TextAtom "spam", TextAtom "spam2"])]
+    tupleSet' = RelationTupleSet [mkRelationTuple attrs (V.fromList [TextAtom "spam", TextAtom "spam2"])]
     
 --rename tests
 testRename1 :: Test
@@ -106,9 +107,9 @@ testMkRelationFromExprsBadAttrs = TestCase $ do
 
 testExistingRelationType :: Test
 testExistingRelationType = TestCase $ do
-  (graph, _) <- freshTransactionGraph dateExamples
+  (graph, _) <- freshTransactionGraph' dateExamples
   let typeResult = runRelationalExprM reenv (typeForRelationalExpr (ExistingRelation relationTrue))
-      reenv = mkRelationalExprEnv dateExamples graph
+      reenv = mkRelationalExprEnv (toDatabaseContext dateExamples) graph
   assertEqual "ExistingRelation with tuples type" (Right relationFalse) typeResult
 
 -- | Ensure that tuple reordering honors the 

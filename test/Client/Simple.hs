@@ -4,7 +4,6 @@ import System.Exit
 import ProjectM36.Relation
 import qualified ProjectM36.Client as C
 import ProjectM36.DateExamples
-import ProjectM36.DatabaseContext
 import ProjectM36.DatabaseContext.Basic
 import System.IO.Temp
 import System.FilePath
@@ -67,7 +66,8 @@ testSimpleUpdate :: Test
 testSimpleUpdate = TestCase $ do
   let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
   dbconn <- assertEither (simpleConnectProjectM36 connInfo)
+  Right dateExprs <- pure dateExamplesDatabaseContextExpr
   assertEither $ withTransaction dbconn $ 
-    execute $ databaseContextAsDatabaseContextExpr dateExamples
+    execute $ dateExprs
   assertEither $ withTransaction dbconn $ 
     execute $ Update "s" (M.singleton "sname" (C.NakedAtomExpr (C.TextAtom "Blakey"))) (C.AttributeEqualityPredicate "sname" (C.NakedAtomExpr (C.TextAtom "Blake")))

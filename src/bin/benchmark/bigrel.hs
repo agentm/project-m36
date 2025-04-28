@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import ProjectM36.Relation.Show.HTML
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph
+import ProjectM36.DatabaseContext
 --import qualified Data.HashSet as HS
 --import qualified Data.ByteString.Lazy.Char8 as BS
 --import qualified Data.IntMap as IM
@@ -69,9 +70,9 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) =
                    now <- getCurrentTime
                    tid <- nextRandom
                    let setx = Assign "x" (ExistingRelation (force rel))
-                       graph = bootstrapTransactionGraph now tid dateExamples
+                       graph = bootstrapTransactionGraph now tid (toDatabaseContext dateExamples)
                        env = mkDatabaseContextEvalEnv tid graph
-                       eNewState = runDatabaseContextEvalMonad dateExamples env (optimizeAndEvalDatabaseContextExpr True setx)
+                       eNewState = runDatabaseContextEvalMonad (toDatabaseContext dateExamples) env (optimizeAndEvalDatabaseContextExpr True setx)
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
                    case eNewState of

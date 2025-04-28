@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, DeriveGeneric, DeriveAnyClass, MultiParamTypeClasses, ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes, MultiParamTypeClasses, ExistentialQuantification #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types as DBT
