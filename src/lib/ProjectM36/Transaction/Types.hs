@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module ProjectM36.Transaction.Types where
 import ProjectM36.Base
+import ProjectM36.ValueMarker
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.MerkleHash
@@ -61,7 +62,7 @@ schemas :: TransactionBase a -> Schemas a
 schemas (Transaction _ _ schemas') = schemas'
     
 -- | Returns all subschemas which are isomorphic or sub-isomorphic to the concrete schema.
-subschemas :: TransactionBase a -> Subschemas
+subschemas :: TransactionBase a -> ValueMarker Subschemas
 subschemas (Transaction _ _ (Schemas _ sschemas)) = sschemas
 
 parentIds :: TransactionBase a -> S.Set TransactionId

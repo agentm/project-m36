@@ -15,6 +15,7 @@ import ProjectM36.Attribute (emptyAttributes, attributesFromList)
 import ProjectM36.ScriptSession
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AtomFunction
+import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
@@ -736,7 +737,7 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
     potentialGraph = TransactionGraph graphHeads (S.insert tempTrans transSet)
     tempStamp = UTCTime { utctDay = fromGregorian 2000 1 1,
                           utctDayTime = secondsToDiffTime 0 }
-    tempSchemas = Schemas context M.empty
+    tempSchemas = Schemas context emptyValue
     tempTrans = Transaction U.nil tempTransInfo tempSchemas
     tempTransInfo = TransactionInfo { parents = transId NE.:| [],
                                       stamp = tempStamp,

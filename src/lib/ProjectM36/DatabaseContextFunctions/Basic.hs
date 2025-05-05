@@ -1,6 +1,7 @@
 module ProjectM36.DatabaseContextFunctions.Basic where
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.DatabaseContext.Types
+import ProjectM36.ValueMarker
 import ProjectM36.Base
 import qualified Data.HashSet as HS
 

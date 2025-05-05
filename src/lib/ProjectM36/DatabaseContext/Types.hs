@@ -3,19 +3,10 @@ module ProjectM36.DatabaseContext.Types where
 import GHC.Generics
 import Control.DeepSeq (NFData)
 import ProjectM36.Base
+import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContextFunctionError
 import qualified Data.HashSet as HS
 import Data.Functor.Identity
-
-data ValueMarker a = ValueMarker a | NotChangedSinceMarker TransactionId
-  deriving (NFData, Generic, Show)
-
-valueIsUpdated :: ValueMarker a -> Bool
-valueIsUpdated ValueMarker{} = True
-valueIsUpdated NotChangedSinceMarker{} = False
-
-emptyValue :: Monoid a => ValueMarker a
-emptyValue = ValueMarker mempty
 
 data DatabaseContextBase a = DatabaseContext {
   inclusionDependencies :: a InclusionDependencies,

@@ -3,6 +3,7 @@
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.ValueMarker
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types

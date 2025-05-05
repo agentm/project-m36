@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.ReferencedTransactionIds where
 import ProjectM36.Base
+import ProjectM36.ValueMarker
 import ProjectM36.Error
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.Transaction.Types

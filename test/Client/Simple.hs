@@ -68,6 +68,6 @@ testSimpleUpdate = TestCase $ do
   dbconn <- assertEither (simpleConnectProjectM36 connInfo)
   Right dateExprs <- pure dateExamplesDatabaseContextExpr
   assertEither $ withTransaction dbconn $ 
-    execute $ dateExprs
+    execute dateExprs
   assertEither $ withTransaction dbconn $ 
     execute $ Update "s" (M.singleton "sname" (C.NakedAtomExpr (C.TextAtom "Blakey"))) (C.AttributeEqualityPredicate "sname" (C.NakedAtomExpr (C.TextAtom "Blake")))

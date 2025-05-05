@@ -11,6 +11,7 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.DisconnectedTransaction
 import ProjectM36.DateExamples
+import ProjectM36.ValueMarker
 import System.IO.Temp
 import System.Exit
 import System.Directory
@@ -26,6 +27,7 @@ import ProjectM36.Client as C
 import ProjectM36.Relation
 import ProjectM36.Transaction.Persist
 import ProjectM36.DatabaseContext.Types
+import Control.Monad (forM)
 
 main :: IO ()           
 main = do 
@@ -36,7 +38,9 @@ testList :: Test
 testList = TestList [testBootstrapDB, 
                      testDBSimplePersistence,
                      testFunctionPersistence,
-                     testMerkleHashValidation]
+                     testMerkleHashValidation,
+                     testTransactionDirectorySizeGrowth
+                     ]
 
 stamp' :: UTCTime
 stamp' = UTCTime (fromGregorian 1980 01 01) (secondsToDiffTime 1000)
@@ -66,7 +70,7 @@ testDBSimplePersistence = TestCase $ withSystemTempDirectory "m36testdb" $ \temp
             Left err -> assertFailure (show err)
             Right context' -> do
               freshId' <- nextRandom
-              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' M.empty) (CurrentHeadBranch "master")
+              let newdiscon = DisconnectedTransaction (transactionId headTrans) (Schemas context' emptyValue) (CurrentHeadBranch "master")
                   addTrans = addDisconnectedTransaction stamp' freshId' newdiscon graph
               --add a transaction to the graph
               case addTrans of
@@ -176,3 +180,37 @@ assertIOEither x = do
   case ret of
     Left err -> assertFailure (show err) >> undefined
     Right val -> pure val
+
+-- test that the transaction graph sizes on disk are within expected bounds
+-- create an empty database, check its size, add a commit, check the difference in size
+testTransactionDirectorySizeGrowth :: Test
+testTransactionDirectorySizeGrowth = TestCase $
+  withSystemTempDirectory "m36testdb" $ \tempdir -> do
+    Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext)
+    Right sessionId <- C.createSessionAtHead db "master"
+
+    originalDBSize <- getDirectorySize tempdir
+    let expectedOriginalSize = 2057
+    
+    assertBool ("graph with one transaction size: " <> show originalDBSize) (originalDBSize <= expectedOriginalSize)
+
+    Right () <- C.executeDatabaseContextExpr sessionId db (Assign "x" (RelationVariable "true" ()))
+    Right () <- C.commit sessionId db
+
+    postUpdateDBSize <- getDirectorySize tempdir
+    let postUpdateExpectedDiffSize = 1591
+        sizeDiff = postUpdateDBSize - originalDBSize 
+    assertBool ("graph with two transaction size: " <> show postUpdateDBSize) (sizeDiff <= postUpdateExpectedDiffSize)
+        
+
+getDirectorySize :: FilePath -> IO Integer
+getDirectorySize dir = do
+    contents <- getDirectoryContents dir
+    let filteredContents = filter (`notElem` [".", ".."]) contents
+    sizes <- forM filteredContents $ \name -> do
+        let path' = dir </> name
+        isDir <- doesDirectoryExist path'
+        if isDir
+            then getDirectorySize path'
+            else getFileSize path' 
+    pure $ sum sizes        

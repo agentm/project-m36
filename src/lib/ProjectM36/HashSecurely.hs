@@ -15,6 +15,7 @@ import ProjectM36.DatabaseContext.Types
 import qualified Data.HashSet as HS
 import qualified ProjectM36.DataConstructorDef as DC
 import ProjectM36.MerkleHash
+import ProjectM36.ValueMarker
 import Data.List (sortOn)
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCons
@@ -351,14 +352,18 @@ instance HashBytes (M.Map RelVarName Relation) where
   hashBytes m ctx =
     hashBytesL ctx "rvtypes" (map SHash (M.toAscList m))
 
+instance HashBytes Subschemas where
+  hashBytes m ctx =
+    hashBytesL ctx "subschemas" (map SHash (M.toAscList m))
+
 -- | Hash a transaction within its graph context to create a Merkle hash for it.
 hashTransaction :: Transaction -> S.Set Transaction -> MerkleHash
 hashTransaction trans parentTranses = MerkleHash (SHA256.finalize newHash)
   where
     newHash = hashBytesL SHA256.init "Transaction" (map SHash transIds <>
-                                         map SHash (M.toAscList (subschemas trans)) <>
                                          map SHash parentMerkleHashes <>
                                          [SHash tstamp,
+                                         SHash (subschemas trans),
                                          SHash (concreteDatabaseContext trans)]
                                                    )
     tstamp = stamp (transactionInfo trans)

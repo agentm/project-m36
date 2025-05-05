@@ -12,11 +12,12 @@ import ProjectM36.Trace
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Transaction.Types
+import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import ProjectM36.DatabaseContextFunctions.Basic
 import ProjectM36.AtomFunction
-import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync)
+import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync, readDeserialise)
 import ProjectM36.Function
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -114,7 +115,8 @@ data NotChangedSinceDatabaseContext =
   ncsDbcFunctions :: Maybe TransactionId,
   ncsNotifications :: Maybe TransactionId,
   ncsTypeConstructorMapping :: Maybe TransactionId,
-  ncsRegisteredQueries :: Maybe TransactionId
+  ncsRegisteredQueries :: Maybe TransactionId,
+  ncsSchemas :: Maybe TransactionId
   }
   deriving (Show, Generic)
   deriving Serialise via WineryRecord NotChangedSinceDatabaseContext
@@ -134,11 +136,13 @@ readTransaction dbdir transId mScriptSession = do
             Nothing -> ValueMarker <$> readIO' transDir
             Just tid -> pure (NotChangedSinceMarker tid)
 
-    transInfo <- readFileDeserialise (transactionInfoPath transDir)
+    transInfo <- readDeserialise (transactionInfoPath transDir)
     relvars <- ncsRead ncsRelationVariables readRelVars
     incDeps <- ncsRead ncsInclusionDependencies readIncDeps
     typeCons <- ncsRead ncsTypeConstructorMapping readTypeConstructorMapping
-    sschemas <- readSubschemas transDir
+    sschemas <- case ncsSchemas ncs of
+                  Nothing -> ValueMarker <$> readSubschemas transDir
+                  Just tid -> pure $ NotChangedSinceMarker tid
     notifs <- ncsRead ncsNotifications readNotifications
     dbcFuncs <- ncsRead ncsDbcFunctions (\d -> readFuncs d (dbcFuncsPath transDir) basicDatabaseContextFunctions mScriptSession)
     atomFuncs <- ncsRead ncsAtomFunctions (\d -> readFuncs d (atomFuncsPath transDir) precompiledAtomFunctions mScriptSession)
@@ -162,13 +166,14 @@ writeTransaction sync dbdir (UncommittedTransaction trans) = do
   transDirExists <- doesDirectoryExist finalTransDir
   unless transDirExists $ do
     createDirectory tempTransDir
-    let ncs = mkNotChangedSinceDatabaseContext context
+    let ncs = mkNotChangedSinceDatabaseContext context (subschemas trans)
     writeNotChangedSinceDatabaseContext sync tempTransDir ncs
     
     let ncsWrite :: forall a. (DatabaseContext -> ValueMarker a) -> FilePath -> (DiskSync -> FilePath -> a -> IO ()) -> IO ()
         ncsWrite f path writeIO =
           case f context of
-            ValueMarker val -> writeIO sync path val
+            ValueMarker val -> do
+              writeIO sync path val
             NotChangedSinceMarker{} -> pure ()
             
     ncsWrite relationVariables tempTransDir writeRelVars
@@ -178,10 +183,13 @@ writeTransaction sync dbdir (UncommittedTransaction trans) = do
     ncsWrite notifications tempTransDir writeNotifications
     ncsWrite typeConstructorMapping tempTransDir writeTypeConstructorMapping
     ncsWrite registeredQueries tempTransDir writeRegisteredQueries
+
+    case subschemas trans of
+      NotChangedSinceMarker{} -> pure ()
+      ValueMarker sschemas -> 
+        writeSubschemas sync tempTransDir sschemas
     
-    writeSubschemas sync tempTransDir (subschemas trans)
-    
-    writeFileSerialise (transactionInfoPath tempTransDir) (transactionInfo trans)
+    writeSerialiseSync sync (transactionInfoPath tempTransDir) (transactionInfo trans)
     --move the temp directory to final location
     renameSync sync tempTransDir finalTransDir
 
@@ -238,9 +246,10 @@ writeRelVars sync transDir relvars = do
   let relvarsPath = relvarsDir transDir
       simpleInfoPath = relvarsSimplePath transDir
   --write unchanged relvars and file name mapping to "relvars" file
-      (simplervs, complexrvs) = M.partition isSimple relvars
-      isSimple (RelationVariable _ _) = True
-      isSimple _ = False
+      (simplervs, complexrvs) = M.partition isSmallRelExpr relvars
+      -- with the winery schema, one relational expression takes 28 KB to store, so we should do our best to compact expressions into one file
+      isSmallRelExpr _ = True
+--      isSmallRelExpr _ = False
       --add incrementing integer to use as file name
       writeRvMapExprs = snd $ M.mapAccum (\acc rexpr -> (acc + 1, (acc, rexpr))) (0 :: Int) complexrvs
       writeRvMap = M.map (show . fst) writeRvMapExprs
@@ -268,14 +277,14 @@ writeRelVars sync transDir relvars = do
 readOneRelVar :: FilePath -> RelVarName -> IO GraphRefRelationalExpr
 readOneRelVar transDir rvName = do
   let relvarsIndex = relvarsSimplePath transDir
-  rvindex <- readFileDeserialise relvarsIndex
+  rvindex <- readDeserialise relvarsIndex
   case M.lookup rvName (simpleRelVars rvindex) of
     Just rvexpr -> pure rvexpr
     Nothing -> do --look in complex rvs
       case M.lookup rvName (complexRelVarNameMap rvindex) of
         Nothing -> error $ "failed to find " <> T.unpack rvName <> " in filesystem."
         Just rvnum ->
-          readFileDeserialise (relvarsDir transDir </> show rvnum)
+          readDeserialise (relvarsDir transDir </> show rvnum)
 -}
 
 readNotChangedSinceDatabaseContext :: FilePath -> IO NotChangedSinceDatabaseContext
@@ -283,7 +292,7 @@ readNotChangedSinceDatabaseContext transDir = do
   let nscPath = notChangedSinceDatabaseContextPath transDir
   fExists <- doesFileExist nscPath
   if fExists then
-    readFileDeserialise nscPath
+    readDeserialise nscPath
   else
     pure $ NotChangedSinceDatabaseContext {
             ncsInclusionDependencies = Nothing,
@@ -292,11 +301,12 @@ readNotChangedSinceDatabaseContext transDir = do
             ncsDbcFunctions = Nothing,
             ncsNotifications = Nothing,
             ncsTypeConstructorMapping = Nothing,
-            ncsRegisteredQueries = Nothing
+            ncsRegisteredQueries = Nothing,
+            ncsSchemas = Nothing
     }
 
-mkNotChangedSinceDatabaseContext :: DatabaseContext -> NotChangedSinceDatabaseContext
-mkNotChangedSinceDatabaseContext ctx =
+mkNotChangedSinceDatabaseContext :: DatabaseContext -> ValueMarker Subschemas -> NotChangedSinceDatabaseContext
+mkNotChangedSinceDatabaseContext ctx mSubschemas =
   NotChangedSinceDatabaseContext {
   ncsInclusionDependencies = mkVal (inclusionDependencies ctx),
   ncsRelationVariables = mkVal (relationVariables ctx),
@@ -304,7 +314,8 @@ mkNotChangedSinceDatabaseContext ctx =
   ncsDbcFunctions = mkVal (dbcFunctions ctx),
   ncsNotifications = mkVal (notifications ctx),
   ncsTypeConstructorMapping = mkVal (typeConstructorMapping ctx),
-  ncsRegisteredQueries = mkVal (registeredQueries ctx)
+  ncsRegisteredQueries = mkVal (registeredQueries ctx),
+  ncsSchemas = mkVal mSubschemas
   }
   where
     mkVal :: forall a. ValueMarker a -> Maybe TransactionId
@@ -319,9 +330,9 @@ writeNotChangedSinceDatabaseContext diskSync transDir ncs = do
 readRelVars :: FilePath -> IO RelationVariables
 readRelVars transDir = do
   let relvarsIndex = relvarsSimplePath transDir
-  rvindex <- readFileDeserialise relvarsIndex
+  rvindex <- readDeserialise relvarsIndex
   complexRvAssocs <- forConcurrently (M.toList (complexRelVarNameMap rvindex)) $ \(rvname, rvpath) -> do
-    rvExpr <- readFileDeserialise (relvarsDir transDir </> rvpath)
+    rvExpr <- readDeserialise (relvarsDir transDir </> rvpath)
     pure (rvname, rvExpr)
   pure (simpleRelVars rvindex <> M.fromList complexRvAssocs)
 
@@ -348,7 +359,7 @@ writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
 
 readFuncs :: FilePath -> FilePath -> HS.HashSet (Function a) -> Maybe ScriptSession -> IO (HS.HashSet (Function a))
 readFuncs transDir funcPath precompiledFunctions mScriptSession = do
-  funcsList <- readFileDeserialise funcPath
+  funcsList <- readDeserialise funcPath
   --we always return the pre-compiled functions
   --load object files and functions in objects (shared libraries or flat object files)
   let objFilesDir = objectFilesPath transDir
@@ -408,7 +419,7 @@ readAtomFunc _ _ _ _ = error "Haskell scripting is disabled"
 #else
 readAtomFunc transDir funcName' mScriptSession precompiledFuncs = do
   let atomFuncPath = atomFuncsPath transDir
-  (funcType', mFuncScript) <- readFileDeserialise @([AtomType],Maybe T.Text) atomFuncPath
+  (funcType', mFuncScript) <- readDeserialise @([AtomType],Maybe T.Text) atomFuncPath
   case mFuncScript of
     --handle pre-compiled case- pull it from the precompiled list
     Nothing -> case atomFunctionForName funcName' precompiledFuncs of
@@ -432,30 +443,19 @@ readAtomFunc transDir funcName' mScriptSession precompiledFuncs = do
                                                     funcBody = FunctionScriptBody funcScript compiledScript }
 #endif
 
-writeIncDep :: DiskSync -> FilePath -> (IncDepName, InclusionDependency) -> IO ()  
-writeIncDep sync transDir (incDepName, incDep) = do
-  writeSerialiseSync sync (incDepsDir transDir </> T.unpack incDepName) incDep
-  
 writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  
-writeIncDeps sync transDir incdeps = 
-  traceBlock "write incdeps" $ mapM_ (writeIncDep sync transDir) $ M.toList incdeps 
-  
-readIncDep :: FilePath -> IncDepName -> IO (IncDepName, InclusionDependency)
-readIncDep transDir incdepName = do
-  let incDepPath = incDepsDir transDir </> T.unpack incdepName
-  incDepData <- readFileDeserialise incDepPath
-  pure (incdepName, incDepData)
+writeIncDeps sync transDir incdeps = do
+  traceBlock "write incdeps" $ writeSerialiseSync sync (incDepsDir transDir) incdeps
   
 readIncDeps :: FilePath -> IO (M.Map IncDepName InclusionDependency)
 readIncDeps transDir = do
   let incDepsPath = incDepsDir transDir
-  incDepNames <- getDirectoryNames incDepsPath
-  M.fromList <$> mapM (readIncDep transDir . T.pack) incDepNames
+  readDeserialise incDepsPath
   
-readSubschemas :: FilePath -> IO Subschemas  
+readSubschemas :: FilePath -> IO Subschemas
 readSubschemas transDir = do
   let sschemasPath = subschemasPath transDir
-  readFileDeserialise sschemasPath
+  readDeserialise sschemasPath
 
 writeSubschemas :: DiskSync -> FilePath -> Subschemas -> IO ()  
 writeSubschemas sync transDir sschemas = do
@@ -470,12 +470,12 @@ writeTypeConstructorMapping sync path types = do
 readTypeConstructorMapping :: FilePath -> IO TypeConstructorMapping
 readTypeConstructorMapping path = do
   let atPath = typeConsPath path
-  readFileDeserialise atPath
+  readDeserialise atPath
   
 readRegisteredQueries :: FilePath -> IO RegisteredQueries
 readRegisteredQueries transDir = do
   let regQsPath = registeredQueriesPath transDir
-  readFileDeserialise regQsPath
+  readDeserialise regQsPath
 
 writeRegisteredQueries :: DiskSync -> FilePath -> RegisteredQueries -> IO ()
 writeRegisteredQueries sync transDir regQs = do
@@ -485,7 +485,7 @@ writeRegisteredQueries sync transDir regQs = do
 readNotifications :: FilePath -> IO Notifications
 readNotifications transDir = do
   let notifsPath = notificationsPath transDir
-  readFileDeserialise notifsPath
+  readDeserialise notifsPath
 
 writeNotifications :: DiskSync -> FilePath -> Notifications -> IO ()
 writeNotifications sync transDir notifs = do

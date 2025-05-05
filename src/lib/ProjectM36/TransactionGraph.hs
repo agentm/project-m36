@@ -5,6 +5,7 @@ import ProjectM36.Error
 import ProjectM36.Transaction
 import ProjectM36.TransactionInfo as TI
 import ProjectM36.Relation
+import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.TransactionGraph.Types
@@ -85,7 +86,7 @@ bootstrapTransactionGraph :: UTCTime -> TransactionId -> DatabaseContext -> Tran
 bootstrapTransactionGraph stamp' freshId context = TransactionGraph bootstrapHeads bootstrapTransactions
   where
     bootstrapHeads = M.singleton "master" freshTransaction
-    newSchemas = Schemas context M.empty
+    newSchemas = Schemas context emptyValue
     freshTransaction = fresh freshId stamp' newSchemas
     hashedTransaction = Transaction freshId ((transactionInfo freshTransaction) { merkleHash = calculateMerkleHash freshTransaction emptyTransactionGraph }) newSchemas
     bootstrapTransactions = S.singleton hashedTransaction

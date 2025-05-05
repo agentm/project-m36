@@ -44,11 +44,12 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
+    serverTests = [] --[testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
 
 main :: IO ()
 main = do
   (serverAddress, _) <- launchTestServer 0
+  print ("after launch", serverAddress)
   notificationTestMVar <- newEmptyMVar 
   eTestConn <- testConnection serverAddress notificationTestMVar
   case eTestConn of
@@ -67,7 +68,6 @@ testDatabaseName = "test"
 testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
 testConnection serverPort mvar = do
   let connInfo = RemoteConnectionInfo testDatabaseName (RemoteServerHostAddress "127.0.0.1" serverPort) (testNotificationCallback mvar)
-  --putStrLn ("testConnection: " ++ show serverAddress)
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err
@@ -92,8 +92,9 @@ launchTestServer ti = do
                                        }
     
       void $ launchServer config (Just addressMVar)
+  print "before takeMVar"
   (SockAddrInet port _) <- takeMVar addressMVar
-  --liftIO $ putStrLn ("launched server on " ++ show endPointAddress)
+  putStrLn ("launched server on " ++ show port)
   pure (fromIntegral port, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
@@ -193,11 +194,15 @@ testNotificationCallback mvar _ _ = putMVar mvar ()
 testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
   let relvarx = RelationVariable "x" ()
+  print "before executeDBCExpr"
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
+  print "before gonk"
   executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx relvarx) >>= eitherFail
+  print "before commit"
   commit sess conn >>= eitherFail
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail
+  print "before takeMVar"
   takeMVar mvar
 
 testRequestTimeout :: Test

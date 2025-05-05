@@ -1,14 +1,19 @@
-{-# LANGUAGE ForeignFunctionInterface, CPP #-}
+{-# LANGUAGE ForeignFunctionInterface, CPP, RankNTypes, ScopedTypeVariables #-}
 --this module is related to persisting Project:M36 structures to disk and not related to the persistent library
 module ProjectM36.Persist (writeFileSync, 
                            writeSerialiseSync,
+                           readDeserialise,
                            renameSync,
                            printFdCount,
                            DiskSync(..)) where
 -- on Windows, use FlushFileBuffers and MoveFileEx
 import qualified Data.Text as T
 import Codec.Winery
+import Data.Proxy
 import qualified Data.ByteString.FastBuilder as BB
+
+-- serialising with winery with the schema intact, while safer, writes a lot of redundant data while writing transactions.
+#define SERIALISE_WITH_SCHEMA 0
 #if defined(linux_HOST_OS)
 # define FDCOUNTSUPPORTED 1
 # define FDDIR "/proc/self/fd"
@@ -51,12 +56,29 @@ foreign import ccall unsafe "cDirectoryFsync" cHSDirectoryFsync :: CString -> IO
 data DiskSync = NoDiskSync | FsyncDiskSync
 
 --using withFile here is OK because we use a WORM strategy- the file is written but not read until after the handle is synced, closed, and unhidden (moved from ".X" to "X") at the top level in the transaction directory 
-writeFileSync :: DiskSync -> FilePath -> T.Text -> IO()
+writeFileSync :: DiskSync -> FilePath -> T.Text -> IO ()
 writeFileSync sync path strOut = withFile path WriteMode handler
   where
     handler handle = do
       BS.hPut handle (TE.encodeUtf8 strOut)
       syncHandle sync handle
+
+--use winery to decode only the data structure and skip the schema
+deserialiseOnly' :: forall s. Serialise s => BS.ByteString -> Either WineryException s
+deserialiseOnly' bytes = do
+  dec <- getDecoder (schema (Proxy :: Proxy s))
+  pure (evalDecoder dec bytes)
+
+readDeserialise :: Serialise a => FilePath -> IO a
+readDeserialise path = do
+#if SERIALISE_WITH_SCHEMA
+  readFileDeserialise path
+#else
+  bsin <- BS.readFile path
+  case deserialiseOnly' bsin of
+    Left err -> error ("readDeserialise: " <> show err)
+    Right val -> pure val
+#endif
 
 renameSync :: DiskSync -> FilePath -> FilePath -> IO ()
 renameSync sync srcPath dstPath = do
@@ -106,7 +128,12 @@ syncDirectory NoDiskSync _ = pure ()
 writeSerialiseSync :: Serialise a => DiskSync -> FilePath -> a -> IO ()
 writeSerialiseSync sync path val = 
   withBinaryFile path WriteMode $ \handle -> do
-    BB.hPutBuilder handle $ toBuilderWithSchema val
+    BB.hPutBuilder handle $
+#if SERIALISE_WITH_SCHEMA      
+      toBuilderWithSchema val
+#else
+     toBuilder val
+#endif
     syncHandle sync handle
   
 directoryFsync :: FilePath -> IO ()

@@ -2,6 +2,7 @@
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types as DBT
+import ProjectM36.ValueMarker as VM
 import Control.Monad (void)
 import Data.Functor.Identity
 
@@ -26,13 +27,13 @@ stripGraphRefRelationalExpr = void
 
 -- | If the database context has any values which do *not* reference previous transactions, it must be new data.
 isUpdated :: DatabaseContext -> Bool
-isUpdated ctx = or [DBT.valueIsUpdated (inclusionDependencies ctx),
-                     DBT.valueIsUpdated (relationVariables ctx),
-                     DBT.valueIsUpdated (atomFunctions ctx),
-                     DBT.valueIsUpdated (dbcFunctions ctx),
-                     DBT.valueIsUpdated (notifications ctx),
-                     DBT.valueIsUpdated (typeConstructorMapping ctx),
-                     DBT.valueIsUpdated (registeredQueries ctx)]
+isUpdated ctx = or [VM.valueIsUpdated (inclusionDependencies ctx),
+                     VM.valueIsUpdated (relationVariables ctx),
+                     VM.valueIsUpdated (atomFunctions ctx),
+                     VM.valueIsUpdated (dbcFunctions ctx),
+                     VM.valueIsUpdated (notifications ctx),
+                     VM.valueIsUpdated (typeConstructorMapping ctx),
+                     VM.valueIsUpdated (registeredQueries ctx)]
 
 someDatabaseContextExprs :: [DatabaseContextExpr] -> DatabaseContextExpr
 someDatabaseContextExprs [s] = s
