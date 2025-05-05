@@ -3,6 +3,7 @@ import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Attribute
 import ProjectM36.Relation
+import ProjectM36.ValueMarker
 import ProjectM36.TransactionInfo as TI
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph
@@ -57,7 +58,7 @@ root 1
 -}
 
 createTrans :: TransactionId -> TransactionInfo -> DatabaseContext -> UncommittedTransaction
-createTrans tid info' ctx = UncommittedTransaction $ Transaction tid info' (Schemas ctx M.empty)
+createTrans tid info' ctx = UncommittedTransaction $ Transaction tid info' (Schemas ctx emptyValue)
 
 basicTransactionGraph :: IO TransactionGraph
 basicTransactionGraph = do

@@ -1,6 +1,7 @@
 import Test.HUnit
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.ValueMarker
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Relation
