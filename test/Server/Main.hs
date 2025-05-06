@@ -49,7 +49,6 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
 main :: IO ()
 main = do
   (serverAddress, _) <- launchTestServer 0
-  print ("after launch", serverAddress)
   notificationTestMVar <- newEmptyMVar 
   eTestConn <- testConnection serverAddress notificationTestMVar
   case eTestConn of
@@ -92,9 +91,7 @@ launchTestServer ti = do
                                        }
     
       void $ launchServer config (Just addressMVar)
-  print "before takeMVar"
   (SockAddrInet port _) <- takeMVar addressMVar
-  putStrLn ("launched server on " ++ show port)
   pure (fromIntegral port, tid)
   
 testRelationalExpr :: SessionId -> Connection -> Test  
@@ -194,15 +191,11 @@ testNotificationCallback mvar _ _ = putMVar mvar ()
 testNotification :: MVar () -> SessionId -> Connection -> Test
 testNotification mvar sess conn = TestCase $ do
   let relvarx = RelationVariable "x" ()
-  print "before executeDBCExpr"
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue)) >>= eitherFail
-  print "before gonk"
   executeDatabaseContextExpr sess conn (AddNotification "test notification" relvarx relvarx relvarx) >>= eitherFail
-  print "before commit"
   commit sess conn >>= eitherFail
   executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationFalse)) >>= eitherFail
   commit sess conn >>= eitherFail
-  print "before takeMVar"
   takeMVar mvar
 
 testRequestTimeout :: Test

@@ -123,7 +123,10 @@ requestHandlers testFlag ti =
                         handleConvertSQLUpdates ti sessionId conn updates),
      RequestHandler (\sState (RetrieveNotificationsAsRelation sessionId) -> do
                         conn <- getConn sState
-                        handleRetrieveNotificationsAsRelation ti sessionId conn)
+                        handleRetrieveNotificationsAsRelation ti sessionId conn),
+     RequestHandler (\sState (ExecuteAlterTransactionGraphExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteAlterTransactionGraphExpr ti sessionId conn expr)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection
