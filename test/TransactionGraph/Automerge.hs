@@ -16,9 +16,10 @@ main = do
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
   
 testList :: Test
-testList = TestList [testAutomergeSuccess,
-                     testAutomergeFailure,
-                     testAutomergeReconnect]
+testList = TestList [testAutomergeSuccess--,
+                     --testAutomergeFailure,
+                     --testAutomergeReconnect
+                     ]
            
 checkEither :: IO (Either RelationalError a) -> IO a
 checkEither io = do

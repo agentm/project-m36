@@ -528,10 +528,9 @@ data MergeStrategy =
   UnionMergeStrategy |
   -- | Similar to a union merge, but, on conflict, prefer the unmerged section (relvar, function, etc.) from the branch named as the argument.
   UnionPreferMergeStrategy HeadName |
-  -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the last transaction in the selected branch.
+  -- | Similar to the our/theirs merge strategy in git, the merge transaction's context is identical to that of the head of the selected branch.
   SelectedBranchMergeStrategy HeadName
                      deriving (Eq, Show, Generic, NFData)
-
 
 type FunctionName = StringType
 type FunctionBodyScript = StringType

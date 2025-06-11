@@ -43,3 +43,6 @@ data TransactionGraphIncrementalWriteInfo =
 affectedTransactionIds :: TransactionGraphIncrementalWriteInfo -> S.Set TransactionId
 affectedTransactionIds winfo = S.map (\(UncommittedTransaction t) -> transactionId t) (uncommittedTransactions winfo)
 
+data MergeHeadNames = MergeHeadNames { sourceHead :: HeadName,
+                                       targetHead :: HeadName }
+                      deriving (Eq, Show)

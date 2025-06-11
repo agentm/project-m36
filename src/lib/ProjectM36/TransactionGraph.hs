@@ -292,7 +292,11 @@ evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph grap
     Just _ -> Right (discon, Nothing, TransactionGraph (M.delete branchName graphHeads) transSet)
 evalAlterTransactionGraphExpr stamp' newId discon graph (MergeTransactions mergeStrategy headNameA headNameB) = do
   let env = freshGraphRefRelationalExprEnv Nothing graph
-  (discon', uTrans, graph') <- runGraphRefRelationalExprM env $ mergeTransactions stamp' newId (Discon.parentId discon) mergeStrategy (headNameA, headNameB)
+  (uTrans@(UncommittedTransaction trans), graph') <- runGraphRefRelationalExprM env $ mergeTransactions stamp' newId (Discon.parentId discon) mergeStrategy (MergeHeadNames { sourceHead = headNameA,
+        targetHead = headNameB })
+  let discon' = discon { disconSchemas = schemas trans,
+                         disconCurrentHead = CurrentHeadBranch headNameB
+                       }
   pure (discon', Just uTrans, graph')
 
 evalAlterTransactionGraphExpr stamp' newTransId discon graph Commit =
@@ -447,8 +451,8 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
           -- we have some paths!
           _ -> Right $ S.unions paths
 
-mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> MergeStrategy -> (HeadName, HeadName) -> GraphRefRelationalExprM (DisconnectedTransaction, UncommittedTransaction, TransactionGraph)
-mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = do
+mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
+mergeTransactions stamp' newId parentId mergeStrategy mergeHeadNames = do
   graph <- gfGraph
   let transactionForHeadErr name = case transactionForHead name graph of
         Nothing -> throwError (NoSuchHeadNameError name)
@@ -456,10 +460,10 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
       runE e = case e of
         Left e' -> throwError e'
         Right v -> pure v
-  transA <- transactionForHeadErr headNameA
-  transB <- transactionForHeadErr headNameB
+  transA <- transactionForHeadErr (sourceHead mergeHeadNames)
+  transB <- transactionForHeadErr (targetHead mergeHeadNames)
   disconParent <- gfTransForId parentId
-  let subHeads = M.filterWithKey (\k _ -> k `elem` [headNameA, headNameB]) (transactionHeadsForGraph graph)
+  let subHeads = M.filterWithKey (\k _ -> k `elem` [sourceHead mergeHeadNames, targetHead mergeHeadNames]) (transactionHeadsForGraph graph)
   -- is this an optimization???
   subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
   _ <- runE $ validateConnectivity subGraph
@@ -471,13 +475,12 @@ mergeTransactions stamp' newId parentId mergeStrategy (headNameA, headNameB) = d
   case headNamesForTransaction disconParent graph of
         [] -> throwError (TransactionIsNotAHeadError parentId)
         _ -> do
-          (uTrans@(UncommittedTransaction newTrans), newGraph') <- runE $ addTransactionToGraph headNameB mergedTrans graph
+          (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
           case checkConstraints (concreteDatabaseContext (_uncommittedTransaction mergedTrans)) newId graph of
             Left err -> throwError err
             Right _ -> do
               let newGraph'' = TransactionGraph (transactionHeadsForGraph newGraph') (transactionsForGraph newGraph')
-                  newDiscon = Discon.freshTransaction (CurrentHeadBranch headNameB) newId (schemas newTrans)
-              pure (newDiscon, uTrans, newGraph'')
+              pure (uTrans, newGraph'')
 
 --TEMPORARY COPY/PASTE
 showTransactionStructureX :: Bool -> Transaction -> TransactionGraph -> String
