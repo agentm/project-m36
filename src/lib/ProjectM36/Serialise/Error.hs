@@ -6,9 +6,11 @@ import Codec.Winery
 import ProjectM36.Serialise.Base ()
 import ProjectM36.Serialise.AtomFunctionError ()
 import ProjectM36.Serialise.DatabaseContextFunctionError ()
+import ProjectM36.DatabaseContext.Types
 
 deriving via WineryVariant RelationalError instance Serialise RelationalError
 deriving via WineryVariant MergeError instance Serialise MergeError
+deriving via WineryVariant DatabaseContextField instance Serialise DatabaseContextField
 deriving via WineryVariant ScriptCompilationError instance Serialise ScriptCompilationError
 deriving via WineryVariant PersistenceError instance Serialise PersistenceError
 deriving via WineryVariant SchemaError instance Serialise SchemaError

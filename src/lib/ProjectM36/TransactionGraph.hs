@@ -529,10 +529,10 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
         Just preferredTrans -> pure $ if t1 == preferredTrans then PreferFirst else PreferSecond
     badStrat -> throwError (MergeTransactionError (InvalidMergeStrategyError badStrat))
 
-  incDeps <- liftE $ unionMergeMaps preference graph inclusionDependencies (inclusionDependencies contextA) (inclusionDependencies contextB)
+  incDeps <- liftE $ unionMergeMaps InclusionDependenciesField preference graph inclusionDependencies (inclusionDependencies contextA) (inclusionDependencies contextB)
   relVars <- unionMergeRelVars preference graph (relationVariables contextA) (relationVariables contextB)
   atomFuncs <- liftE $ unionMergeAtomFunctions preference graph (atomFunctions contextA) (atomFunctions contextB)
-  notifs <- liftE $ unionMergeMaps preference graph notifications (notifications contextA) (notifications contextB)
+  notifs <- liftE $ unionMergeMaps NotificationsField preference graph notifications (notifications contextA) (notifications contextB)
   types <- liftE $ unionMergeTypeConstructorMapping preference graph (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   dbcFuncs <- liftE $ unionMergeDatabaseContextFunctions preference graph (dbcFunctions contextA) (dbcFunctions contextB)
   registeredQs <- liftE $ unionMergeRegisteredQueries preference graph (registeredQueries contextA) (registeredQueries contextB)

@@ -5,6 +5,7 @@ import ProjectM36.MerkleHash
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.DatabaseContext.Types (DatabaseContextField)
 import qualified Data.Set as S
 import Control.DeepSeq (NFData, rnf)
 import Control.DeepSeq.Generics (genericRnf)
@@ -137,7 +138,7 @@ data MergeError = SelectedHeadMismatchMergeError |
                   StrategyViolatesConstraintMergeError |
                   InvalidMergeStrategyError MergeStrategy | -- this is an internal coding error
                   DisconnectedTransactionNotAMergeHeadError TransactionId |
-                  StrategyViolatesComponentMergeError | --failed merge in inc deps, relvars, etc.
+                  StrategyViolatesComponentMergeError DatabaseContextField StringType | --failed merge in inc deps, relvars, etc.
                   StrategyViolatesRelationVariableMergeError RelationalError |
                   StrategyWithoutPreferredBranchResolutionMergeError |
                   StrategyViolatesTypeConstructorMergeError |

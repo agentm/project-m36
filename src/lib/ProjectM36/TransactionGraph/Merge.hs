@@ -22,20 +22,28 @@ import qualified Data.Text as T
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
 -- Check for overlapping keys. If the values differ, try a preference resolution
-unionMergeMaps :: (Ord k, Eq a) => MergePreference -> TransactionGraph -> (DatabaseContext -> ValueMarker (M.Map k a)) -> ValueMarker (M.Map k a) -> ValueMarker (M.Map k a) -> Either RelationalError (ValueMarker (M.Map k a))
-unionMergeMaps _prefer _graph _f a@(NotChangedSinceMarker tidA) (NotChangedSinceMarker tidB)
+unionMergeMaps :: Eq a => DatabaseContextField -> MergePreference -> TransactionGraph -> (DatabaseContext -> ValueMarker (M.Map StringType a)) -> ValueMarker (M.Map StringType a) -> ValueMarker (M.Map StringType a) -> Either RelationalError (ValueMarker (M.Map StringType a))
+unionMergeMaps _field _prefer _graph _f a@(NotChangedSinceMarker tidA) (NotChangedSinceMarker tidB)
   | tidA == tidB =
       pure a
-unionMergeMaps prefer graph f v_mapA v_mapB = do
+unionMergeMaps field prefer graph f v_mapA v_mapB = do
   mapA <- resolveValueMarker graph f v_mapA
   mapB <- resolveValueMarker graph f v_mapB
+  let diff = foldr folder Nothing overlappingKeys
+      overlappingKeys = S.intersection (M.keysSet mapA) (M.keysSet mapB)
+      folder _key (Just ret) = Just ret
+      folder key acc =
+        if mapA M.! key /= mapB M.! key then
+          Just key
+          else
+          acc
   case prefer of
     PreferFirst -> pure (ValueMarker $ M.union mapA mapB)
     PreferSecond -> pure $ ValueMarker $ M.union mapB mapA
-    PreferNeither -> if M.intersection mapA mapB == M.intersection mapA mapB then
-                       pure $ ValueMarker $ M.union mapA mapB
-                     else
-                       Left (MergeTransactionError StrategyViolatesComponentMergeError)
+    PreferNeither -> case diff of
+                       Nothing -> pure $ ValueMarker $ M.union mapA mapB
+                       Just violatingKey ->
+                         Left (MergeTransactionError (StrategyViolatesComponentMergeError field violatingKey))
                      
 -- perform the merge even if the attributes are different- is this what we want? Obviously, we need finer-grained merge options.
 unionMergeRelation :: MergePreference -> GraphRefRelationalExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM GraphRefRelationalExpr

@@ -8,6 +8,16 @@ import ProjectM36.DatabaseContextFunctionError
 import qualified Data.HashSet as HS
 import Data.Functor.Identity
 
+data DatabaseContextField =
+  InclusionDependenciesField |
+  RelationVariablesField |
+  NotificationsField |
+  AtomFunctionsField |
+  DbcFunctionsField |
+  TypeConstructorMappingField |
+  RegisteredQueriesField
+  deriving (Show, Eq, NFData, Generic)
+
 data DatabaseContextBase a = DatabaseContext {
   inclusionDependencies :: a InclusionDependencies,
   relationVariables :: a RelationVariables,
