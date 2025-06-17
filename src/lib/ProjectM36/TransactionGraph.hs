@@ -284,7 +284,9 @@ evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph head
     Left (HeadNameAlreadyInUseError newBranchName)
     else do
     trans <- transactionForId (Discon.parentId discon) graph
-    let discon' = Discon.freshTransaction (CurrentHeadBranch newBranchName) (transactionId trans) (schemas trans)
+    let discon' = discon { disconTransactionId = transactionId trans,
+                           disconCurrentHead = CurrentHeadBranch newBranchName
+                         }
     pure (discon', Nothing, TransactionGraph (M.insert newBranchName trans heads) transSet)
 evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) =
   case transactionForHead branchName graph of
@@ -603,7 +605,7 @@ backtrackGraph graph currentTid btrack@(TransactionStampHeadBacktrack stamp') = 
 autoMergeToHead :: UTCTime -> (TransactionId, TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraphIncrementalWriteInfo)
 autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) discon mergeToHeadName strat graph = do
   let tempBranchName = "mergebranch_" <> U.toText tempBranchTransId
-  --create the temp branch
+  --create the temp branch, branching does not create a new transaction
   (discon', mtrans', graph') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon graph (Branch tempBranchName)
 
   --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
@@ -614,6 +616,7 @@ autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) disc
 
   --create the merge
   (discon'''', mtrans'''', graph'''') <- evalAlterTransactionGraphExpr stamp' mergeTransId discon''' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
+
 
   --delete the temp branch
   (discon''''', mtrans''''', graph''''') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon'''' graph'''' (DeleteBranch tempBranchName)

@@ -6,6 +6,7 @@ import ProjectM36.AtomFunctionError
 import ProjectM36.Base
 import ProjectM36.DataFrame
 import ProjectM36.IsomorphicSchema.Types
+import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
@@ -217,6 +218,9 @@ instance FromJSON SchemaError
 
 instance ToJSON MergeError
 instance FromJSON MergeError
+
+instance ToJSON DatabaseContextField
+instance FromJSON DatabaseContextField
 
 instance ToJSON ImportError'
 instance FromJSON ImportError'
