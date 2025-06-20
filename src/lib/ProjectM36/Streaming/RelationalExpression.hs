@@ -6,6 +6,8 @@ import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Attribute as A
 import ProjectM36.Tuple
+import ProjectM36.PinnedRelationalExpr
+import ProjectM36.Cache.RelationalExprCache as RECache
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.Relation (RestrictionFilter, ContextTuples, attributes, contextTupleAtomForAttributeName, tupleSet, singletonContextTuple)
 import ProjectM36.WithNameExpr
@@ -29,6 +31,7 @@ import qualified Data.Text as T
 import Data.Time.Clock (DiffTime)
 --import qualified Data.List.NonEmpty as NE
 import Control.Exception
+import Control.Concurrent.STM
 
 newtype CacheMissException = CacheMissException FilePath
   deriving Show
@@ -44,6 +47,8 @@ type PostExecutionGraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransact
 newtype PlanNodeExecutionInfo = PlanNodeExecutionInfo { duration :: DiffTime }
   
 --this will become more useful once we have multiple join strategies, etc.
+-- a: transaction marker
+-- t: collected execution information as the graph is evaluated
 data RelExprExecPlanBase a t =
   -- | Read relvar expr from transaction graph to generate tuple stream.
   -- Instead of locking cache entries during plans so that the entry is not ejected before the plan can run (race condition), the plan can point to a cache entry, but if the entry no longer exists, then the plan must provide an alternative solution.
@@ -58,23 +63,43 @@ data RelExprExecPlanBase a t =
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
   -- RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
-                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase a) (RelExprExecPlanBase a t) t | -- include compiled mode for stream execution and ADT version for planning printer
-                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a t) t |
-                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase a t) t|
-                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase a t) t |
-                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a t) t |
-                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase a) (RelExprExecPlanBase a t) t |
-                       RelationValuedAttributeStreamPlan Attribute t | 
+                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase a) (RelExprExecPlanBase a t) t (RelationalExprBase a) | -- include compiled mode for stream execution and ADT version for planning printer
+                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase a) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       RelationValuedAttributeStreamPlan Attribute t (RelationalExprBase a) | 
                        
-                       UnionTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
-                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t |
-                       DifferenceTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t |
-                       EqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t |
-                       NotEqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t |
+                       UnionTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
+                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       DifferenceTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       EqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       NotEqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
                        
                        MakeStaticRelationPlan Attributes RelationTupleSet t |
                        ExistingRelationPlan Relation t |
                        UniqueifyTupleStreamPlan (RelExprExecPlanBase a t) t -- ^ handy uniqueifier for cases when we know the sub-plan could include duplicates
+
+-- | Get the original relational expression linked to the node. It can be used to generate the cache key, if relevant.
+originalRelExpr :: RelExprExecPlanBase a t -> Maybe (RelationalExprBase a)
+originalRelExpr StreamTuplesFromCacheFilePlan{} = Nothing
+originalRelExpr ReadTuplesFromMemoryPlan{} = Nothing
+originalRelExpr (RestrictTupleStreamPlan _ _ _ _ e) = Just e
+originalRelExpr (ProjectTupleStreamPlan _ _ _ e) = Just e
+originalRelExpr (RenameTupleStreamPlan _ _ _ e) = Just e
+originalRelExpr (GroupTupleStreamPlan _ _ _ _ e) = Just e
+originalRelExpr (UngroupTupleStreamPlan _ _ _ e) = Just e
+originalRelExpr (ExtendTupleStreamPlan _ _ _ _ e) = Just e
+originalRelExpr (RelationValuedAttributeStreamPlan _ _ e) = Just e
+originalRelExpr (UnionTupleStreamsPlan _ _ _ e) = Just e
+originalRelExpr (NaiveJoinTupleStreamsPlan _ _ _ e) = Just e
+originalRelExpr (DifferenceTupleStreamsPlan _ _ _ e) = Just e
+originalRelExpr (EqualTupleStreamsPlan _ _ _ e) = Just e
+originalRelExpr (NotEqualTupleStreamsPlan _ _ _ e) = Just e
+originalRelExpr MakeStaticRelationPlan{} = Nothing
+originalRelExpr ExistingRelationPlan{} = Nothing
+originalRelExpr UniqueifyTupleStreamPlan{} = Nothing
 
 {-
 junction :: T.Text
@@ -92,29 +117,29 @@ instance (Pretty t, Show a) => Pretty (RelExprExecPlanBase a t) where
         prettyNode "StreamTuplesFromCacheFilePlan" [pretty attrs, pretty path] [] t
       ReadTuplesFromMemoryPlan attrs _tupSet t ->
         prettyNode "ReadTuplesFromMemoryPlan" [pretty attrs, "<tuples elided"] [] t
-      RestrictTupleStreamPlan _ predExpr expr' t ->
+      RestrictTupleStreamPlan _ predExpr expr' t _origExpr ->
         prettyNode "RestrictTupleStreamPlan" [pretty predExpr] [pretty expr'] t
-      ProjectTupleStreamPlan attrs expr' t ->
+      ProjectTupleStreamPlan attrs expr' t _ ->
         prettyNode "ProjectTupleStreamPlan " [pretty attrs] [pretty expr'] t
-      RenameTupleStreamPlan attrs expr' t ->
+      RenameTupleStreamPlan attrs expr' t _ ->
         prettyNode "RenameTupleStreamPlan" [pretty attrs] [pretty expr'] t
-      GroupTupleStreamPlan attrs nam expr' t ->
+      GroupTupleStreamPlan attrs nam expr' t _ ->
         prettyNode "GroupTupleStreamPlan" [pretty attrs <+> "as" <+> pretty nam] [pretty expr'] t
-      UngroupTupleStreamPlan nam expr' t ->
+      UngroupTupleStreamPlan nam expr' t _ ->
         prettyNode "UngroupTupleStreamPlan" [pretty nam] [pretty expr'] t
-      ExtendTupleStreamPlan _ extender expr' t ->
+      ExtendTupleStreamPlan _ extender expr' t _ ->
         prettyNode "ExtendTupleStreamPlan" [pretty extender] [pretty expr'] t
-      RelationValuedAttributeStreamPlan relAttr t ->
+      RelationValuedAttributeStreamPlan relAttr t _ ->
         prettyNode "RelationValuedAttributeStreamPlan" [pretty relAttr] [] t
-      UnionTupleStreamsPlan e1 e2 t ->
+      UnionTupleStreamsPlan e1 e2 t _ ->
         prettyNode "UnionTupleStreamsPlan" [] [pretty e1, pretty e2] t
-      NaiveJoinTupleStreamsPlan e1 e2 t ->
+      NaiveJoinTupleStreamsPlan e1 e2 t _ ->
         prettyNode "NaiveJoinTupleStreamsPlan" [] [pretty e1, pretty e2] t
-      DifferenceTupleStreamsPlan e1 e2 t ->
+      DifferenceTupleStreamsPlan e1 e2 t _ ->
         prettyNode "DifferenceTupleStreamsPlan" [] [pretty e1, pretty e2] t
-      EqualTupleStreamsPlan e1 e2 t ->
+      EqualTupleStreamsPlan e1 e2 t _->
         prettyNode "EqualTupleStreamsPlan" [] [pretty e1, pretty e2] t
-      NotEqualTupleStreamsPlan e1 e2 t ->
+      NotEqualTupleStreamsPlan e1 e2 t _ ->
         prettyNode "NotEqualTupleStreamsPlan" [] [pretty e1, pretty e2] t
       MakeStaticRelationPlan attrs _tupSet t ->
         prettyNode "MakeStaticRelationPlan" [pretty attrs] ["<tuples elided>"] t
@@ -150,13 +175,13 @@ planGraphRefRelationalExpr (RelationVariable name tid) gfEnv = do
   case M.lookup name rvMap of
     Nothing -> Left (RelVarNotDefinedError name)
     Just rvExpr -> planGraphRefRelationalExpr rvExpr gfEnv
-planGraphRefRelationalExpr (RelationValuedAttribute relAttrName) gfEnv = do
+planGraphRefRelationalExpr orig@(RelationValuedAttribute relAttrName) gfEnv = do
   case A.attributeForName relAttrName (envAttributes gfEnv) of
     Left err -> throw err
     Right relAttr -> 
-      pure (RelationValuedAttributeStreamPlan relAttr ())
+      pure (RelationValuedAttributeStreamPlan relAttr () orig)
   
-planGraphRefRelationalExpr (Project attrNames expr) gfEnv = do
+planGraphRefRelationalExpr orig@(Project attrNames expr) gfEnv = do
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
   projectionAttrNames <- runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames attrNames expr)
   case projectionAttributesForNames projectionAttrNames (attributes exprT) of
@@ -164,22 +189,22 @@ planGraphRefRelationalExpr (Project attrNames expr) gfEnv = do
     Right attrs' -> do
       subExpr <- planGraphRefRelationalExpr expr gfEnv
       --if we know that the projection attributes represent a key, then we don't need to run the uniquification
-      pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr ()) ())
+      pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr () orig) ())
   
-planGraphRefRelationalExpr (Union exprA exprB) state = do  
+planGraphRefRelationalExpr orig@(Union exprA exprB) state = do  
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (UnionTupleStreamsPlan planA planB ())
+  pure (UnionTupleStreamsPlan planA planB () orig)
   
-planGraphRefRelationalExpr (Join exprA exprB) state = do  
+planGraphRefRelationalExpr orig@(Join exprA exprB) state = do  
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (NaiveJoinTupleStreamsPlan planA planB ())
+  pure (NaiveJoinTupleStreamsPlan planA planB () orig)
   
-planGraphRefRelationalExpr (Difference exprA exprB) state = do
+planGraphRefRelationalExpr orig@(Difference exprA exprB) state = do
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (DifferenceTupleStreamsPlan planA planB ())
+  pure (DifferenceTupleStreamsPlan planA planB () orig)
 
 planGraphRefRelationalExpr (MakeStaticRelation attributeSet tupSet) _ = pure (MakeStaticRelationPlan attributeSet tupSet ())
 
@@ -189,34 +214,34 @@ planGraphRefRelationalExpr expr@MakeRelationFromExprs{} gfEnv = do
   
 planGraphRefRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelationPlan rel ())  
 
-planGraphRefRelationalExpr (Rename renameAssoc relExpr) state = 
-  RenameTupleStreamPlan renameAssoc <$> planGraphRefRelationalExpr relExpr state <*> pure ()
+planGraphRefRelationalExpr orig@(Rename renameAssoc relExpr) state = 
+  RenameTupleStreamPlan renameAssoc <$> planGraphRefRelationalExpr relExpr state <*> pure () <*> pure orig
   
-planGraphRefRelationalExpr (Group groupAttrNames newAttrName relExpr) gfEnv = do
+planGraphRefRelationalExpr orig@(Group groupAttrNames newAttrName relExpr) gfEnv = do
   groupAttrs <- runGraphRefRelationalExprM gfEnv $ do
     groupTypes <- typeForGraphRefRelationalExpr (Project groupAttrNames relExpr)
     pure (attributes groupTypes)
-  GroupTupleStreamPlan groupAttrs newAttrName <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure ()
+  GroupTupleStreamPlan groupAttrs newAttrName <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure orig
   
-planGraphRefRelationalExpr (Ungroup attrName relExpr) state = 
-  UngroupTupleStreamPlan attrName <$> planGraphRefRelationalExpr relExpr state <*> pure ()
+planGraphRefRelationalExpr orig@(Ungroup attrName relExpr) state = 
+  UngroupTupleStreamPlan attrName <$> planGraphRefRelationalExpr relExpr state <*> pure () <*> pure orig
   
-planGraphRefRelationalExpr (Restrict predExpr relExpr) gfEnv = do
+planGraphRefRelationalExpr origExpr@(Restrict predExpr relExpr) gfEnv = do
   rfilt <- runGraphRefRelationalExprM gfEnv $ do
     exprT <- typeForGraphRefRelationalExpr relExpr    
     predicateRestrictionFilter (attributes exprT) predExpr
-  RestrictTupleStreamPlan rfilt predExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure ()
+  RestrictTupleStreamPlan rfilt predExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure origExpr
   
-planGraphRefRelationalExpr (Equals relExprA relExprB) state =   
-  EqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure ()
+planGraphRefRelationalExpr orig@(Equals relExprA relExprB) state =   
+  EqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure () <*> pure orig
   
-planGraphRefRelationalExpr (NotEquals relExprA relExprB) state =
-  NotEqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure ()
+planGraphRefRelationalExpr orig@(NotEquals relExprA relExprB) state =
+  NotEqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure () <*> pure orig
   
-planGraphRefRelationalExpr (Extend extendTupleExpr relExpr) gfEnv = do
+planGraphRefRelationalExpr orig@(Extend extendTupleExpr relExpr) gfEnv = do
   subExprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr)
   extendProc <- runGraphRefRelationalExprM gfEnv (extendGraphRefTupleExpressionProcessor (attributes subExprT) extendTupleExpr)
-  ExtendTupleStreamPlan extendProc extendTupleExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure ()
+  ExtendTupleStreamPlan extendProc extendTupleExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure orig
 
 planGraphRefRelationalExpr (With macros expr) gfEnv = 
   --TODO: determine if macros should be expanded or executed separately- perhaps calculate how many times a macro appears and it's calculation and size cost to determine if it should be precalculated.
@@ -226,6 +251,7 @@ data StreamRelation m = StreamRelation {
   sRelAttributes :: Attributes,
   sRelTupStream :: Stream m RelationTuple
   }
+
 
 -- | Process a tuple stream into a Relation. This function presumes all validation has already been completed and will not remove duplicate tuples or tuples which do not match the attributes.
 streamRelationAsRelation :: MonadIO m => StreamRelation m -> m Relation
@@ -255,12 +281,12 @@ executePlan (ReadTuplesFromMemoryPlan attrs tupSet ()) _ =
 executePlan (StreamTuplesFromCacheFilePlan{}) _ =
   --todo: enable streaming tuples from file
   undefined
-executePlan (RenameTupleStreamPlan attrsAssoc expr ()) ctx = do
+executePlan (RenameTupleStreamPlan attrsAssoc expr () _) ctx = do
   relS <- executePlan expr ctx
   let newAttrs = renameAttributes' attrsAssoc (sRelAttributes relS)
   --potential optimization- lookup attrs in advance to rename the correct vector index
   pure $ streamRelationMap newAttrs (pure . tupleRenameAttributes attrsAssoc) relS
-executePlan (RestrictTupleStreamPlan restrictionFilter _predExpr expr ()) ctx = do
+executePlan (RestrictTupleStreamPlan restrictionFilter _predExpr expr () _origExpr) ctx = do
   (StreamRelation attrs tupS) <- executePlan expr ctx
   let tupS' = Stream.filterM filt tupS
       -- since we are building up a stream data structure, we can represent in-stream failure using exceptions- we won't be able to execute the stream here to extract errors
@@ -269,7 +295,7 @@ executePlan (RestrictTupleStreamPlan restrictionFilter _predExpr expr ()) ctx = 
         Left err -> throw err -- this will blow up in a separate thread but streamly should shuttle it to the caller (I hope)
         Right !t' -> t'
   pure $ StreamRelation attrs tupS'
-executePlan (ProjectTupleStreamPlan attrs expr ()) ctx = do
+executePlan (ProjectTupleStreamPlan attrs expr () _) ctx = do
   (StreamRelation _ tupS) <- executePlan expr ctx
   let tupS' = fmap projector tupS
       --optimize by projecting on vector indexes instead
@@ -277,14 +303,14 @@ executePlan (ProjectTupleStreamPlan attrs expr ()) ctx = do
                       Left err -> throw err
                       Right t' -> t'
   pure $ StreamRelation attrs tupS'
-executePlan (UnionTupleStreamsPlan exprA exprB ()) ctx = do
+executePlan (UnionTupleStreamsPlan exprA exprB () _) ctx = do
   --ideally, the streams would have pre-ordered tuples and we could zip them together right away- if we have an ordered representation, we can drop the sorting here
   -- glue two streams together, then uniqueify
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
   let tupS' = Stream.parList id [tupSa, tupSb]
   pure (StreamRelation attrsA tupS')
-executePlan (EqualTupleStreamsPlan exprA exprB ()) ctx = do
+executePlan (EqualTupleStreamsPlan exprA exprB () _) ctx = do
   (StreamRelation _ tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
   let hsA = tuplesHashSet tupSa
@@ -295,7 +321,7 @@ executePlan (EqualTupleStreamsPlan exprA exprB ()) ctx = do
         SD.mkCross $ Stream.fromList $ 
           [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
   pure (StreamRelation mempty tupS')
-executePlan (RelationValuedAttributeStreamPlan relAttr ()) ctx = do
+executePlan (RelationValuedAttributeStreamPlan relAttr () _) ctx = do
   case contextTupleAtomForAttributeName ctx (A.attributeName relAttr) of
     Left err -> Left err
     Right relAtom@(RelationAtom{}) -> do
@@ -303,26 +329,26 @@ executePlan (RelationValuedAttributeStreamPlan relAttr ()) ctx = do
           tupS = Stream.fromList [newTup]
       pure (StreamRelation (A.singleton relAttr) tupS)
     Right _ -> Left (AttributeIsNotRelationValuedError (A.attributeName relAttr))
-executePlan (NotEqualTupleStreamsPlan exprA exprB ()) ctx = do
-  (StreamRelation _ tupS) <- executePlan (EqualTupleStreamsPlan exprA exprB ()) ctx
+executePlan (NotEqualTupleStreamsPlan exprA exprB () orig) ctx = do
+  (StreamRelation _ tupS) <- executePlan (EqualTupleStreamsPlan exprA exprB () orig) ctx
   let tupS' = SD.unCross $ do
         el <- liftIO $ SD.head tupS
         SD.mkCross $ Stream.fromList $ case el of
                             Nothing -> [RelationTuple mempty mempty]
                             Just _ -> []
   pure (StreamRelation mempty tupS')
-executePlan (MakeStaticRelationPlan attrs tupSet ()) _ =
+executePlan (MakeStaticRelationPlan attrs tupSet ()) _ = do
   pure (StreamRelation attrs (Stream.fromList (asList tupSet)))
 executePlan (ExistingRelationPlan rel ()) _ = do
   pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
-executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr ()) ctx = do
+executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr () _) ctx = do
   relS <- executePlan expr ctx
   let extender tup =
         case extendProcessor tup ctx of
           Left err -> throw err
           Right t' -> pure t'
   pure (streamRelationMap newAttrs extender relS)
-executePlan (NaiveJoinTupleStreamsPlan exprA exprB ()) ctx = do
+executePlan (NaiveJoinTupleStreamsPlan exprA exprB () _) ctx = do
   --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation attrsB tupSb) <- executePlan exprB ctx
@@ -339,21 +365,21 @@ executePlan (NaiveJoinTupleStreamsPlan exprA exprB ()) ctx = do
                         ) bTupleList
         SD.mkCross $ Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
   pure (StreamRelation attrsOut tupS')
-executePlan (DifferenceTupleStreamsPlan exprA exprB ()) ctx = do
+executePlan (DifferenceTupleStreamsPlan exprA exprB () _) ctx = do
   (StreamRelation attrsA tupSa) <- executePlan exprA ctx
   (StreamRelation _ tupSb) <- executePlan exprB ctx
   let tupS' = SD.unCross $ do
         bTupleList <- liftIO $ Stream.toList tupSb        
         SD.mkCross $ Stream.filter (`notElem` bTupleList) tupSa
   pure (StreamRelation attrsA tupS')
-executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr ()) ctx = do
+executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr () orig) ctx = do
   --naive implementation scans for image relation for each grouped value
   (StreamRelation attrsIn tupS) <- executePlan expr ctx
   let nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (A.attributeNameSet attrsIn)
       groupAttrNames = A.attributeNameSet groupAttrs
   nonGroupProjectionAttributes <- projectionAttributesForNames nonGroupAttrNames attrsIn
   groupProjectionAttributes <- projectionAttributesForNames groupAttrNames attrsIn
-  (StreamRelation _ nonGroupProjectionTupS) <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr()) ctx
+  (StreamRelation _ nonGroupProjectionTupS) <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ctx
   let outAttrs = addAttribute newAttr nonGroupProjectionAttributes
       matchAttrs = V.fromList $ S.toList $ attributeNameSet nonGroupProjectionAttributes
       newAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
@@ -372,7 +398,7 @@ executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr ()) ctx = do
               tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
         SD.mkCross $ fmap singleTupleGroupMatcher nonGroupProjectionTupS
   pure (StreamRelation outAttrs tupS')
-executePlan (UngroupTupleStreamPlan groupAttrName expr ()) ctx = do
+executePlan (UngroupTupleStreamPlan groupAttrName expr () _) ctx = do
   (StreamRelation attrsIn tupS) <- executePlan expr ctx
   subRelAttrs <- case atomTypeForAttributeName groupAttrName attrsIn of
     Right (RelationAtomType attrs) -> pure attrs
@@ -407,6 +433,25 @@ executePlan (UniqueifyTupleStreamPlan e ()) ctx = do
   finalStream <- executePlan lastOption ctx
   pure $ runOptions initStreams finalStream
 -}
+
+executePlanWithCache :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> RelExprCache -> m (Either RelationalError (StreamRelation m))
+executePlanWithCache origPlan ctxTuples cache = do
+  let uncachedExec = pure $ executePlan origPlan ctxTuples
+  case originalRelExpr origPlan of
+    Nothing -> uncachedExec
+    Just origRelExpr -> 
+      case toPinnedRelationalExpr origRelExpr of -- check that we can generate a key for the cache
+        Nothing -> uncachedExec
+        Just key -> do
+          mCachedVal <- liftIO $ atomically $ RECache.lookup key cache
+          case mCachedVal of -- check if the key is in the cache
+            Just cacheInfo ->
+              case result cacheInfo of
+                PinnedExpressionRep _pRelExpr -> error "pinnedexprrep"
+                UnsortedTupleSetRep attrs tupSet -> pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
+                SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep"
+            Nothing -> uncachedExec
+      
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])
 

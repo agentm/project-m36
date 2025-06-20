@@ -1,5 +1,5 @@
 -- an in-memory cache for relational expression results keyed off of the expressions
-module ProjectM36.RelExprCache where
+module ProjectM36.Cache.RelationalExprCache where
 import ProjectM36.Base
 import Data.Time.Clock.POSIX
 import Data.Time.Clock
@@ -10,8 +10,10 @@ import GHC.Conc (unsafeIOToSTM)
 import System.Random
 import Control.Monad
 import qualified ProjectM36.RelExprSize as RE
+import ProjectM36.SystemMemory
 import ProjectM36.RelExprSize (ByteCount)
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe (fromMaybe)
 
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
 
@@ -33,6 +35,12 @@ data RelExprCache = RelExprCache {
   cacheMap :: M.Map PinnedRelationalExpr RelExprCacheInfo
   }
 
+-- | Use all available RAM. In the future, some sort of memory heuristics engine could juggle how much memory is allocated to caching vs. processing.
+defaultUpperBound :: IO ByteCount
+defaultUpperBound = do
+  mem <- getTotalMemory
+  pure (fromMaybe 0 mem)
+
 empty :: ByteCount -> IO RelExprCache
 empty upper = do
   maxSize <- newTVarIO upper
@@ -53,12 +61,12 @@ empty upper = do
 -- These representations are used to cache evaluated relational expressions out of the transaction graph
 data RelationRepresentation =
   PinnedExpressionRep PinnedRelationalExpr |
-  UnsortedTupleSetRep RelationTupleSet |
+  UnsortedTupleSetRep Attributes RelationTupleSet |
   SortedTuplesRep [RelationTuple] (NE.NonEmpty (AttributeName, SortOrder))
 
 instance RE.Size RelationRepresentation where
   size (PinnedExpressionRep pRelExpr) = RE.size pRelExpr
-  size (UnsortedTupleSetRep tupSet) = RE.size tupSet
+  size (UnsortedTupleSetRep _ tupSet) = RE.size tupSet
   size (SortedTuplesRep tups _) = RE.size tups
 
 data SortOrder = AscSortOrder | DescSortOrder  
@@ -75,6 +83,8 @@ data RelExprCacheInfo =
 purgeToSize :: RelExprCache -> ByteCount -> STM ()
 purgeToSize = undefined
 
+lookup :: PinnedRelationalExpr -> RelExprCache -> STM (Maybe RelExprCacheInfo)
+lookup key cache = M.lookup key (cacheMap cache)
 
 type HitCount = Int64
 type Probability = Double

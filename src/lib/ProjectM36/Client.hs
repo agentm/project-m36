@@ -179,6 +179,7 @@ import ProjectM36.ValueMarker
 import ProjectM36.Sessions
 import ProjectM36.HashSecurely (SecureHash)
 import ProjectM36.RegisteredQuery
+import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
@@ -326,6 +327,9 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         sessions <- StmMap.newIO
         mScriptSession <- createScriptSession ghcPkgPaths
         notifAsync <- startNotificationListener clientNodes notificationCallback
+        maxCacheSize <- RelExprCache.defaultUpperBound
+        cache <- RelExprCache.empty maxCacheSize
+        tvarCache <- newTVarIO cache
         let conn = InProcessConnection InProcessConnectionConf {
                                            ipPersistenceStrategy = strat, 
                                            ipClientNodes = clientNodes, 
@@ -333,7 +337,8 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                                            ipTransactionGraph = graphTvar, 
                                            ipScriptSession = mScriptSession,
                                            ipLocks = Nothing,
-                                           ipCallbackAsync = notifAsync
+                                           ipCallbackAsync = notifAsync,
+                                           ipRelExprCache = tvarCache
                                            }
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -398,6 +403,9 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               clientNodes <- StmSet.newIO
               lockMVar <- newMVar digest
               notifAsync <- startNotificationListener clientNodes notificationCallback
+              maxCacheSize <- RelExprCache.defaultUpperBound
+              cache <- RelExprCache.empty maxCacheSize
+              tvarCache <- newTVarIO cache
               let conn = InProcessConnection InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
@@ -405,7 +413,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipTransactionGraph = tvarGraph,
                                              ipScriptSession = mScriptSession,
                                              ipLocks = Just (lockFileH, lockMVar),
-                                             ipCallbackAsync = notifAsync
+                                             ipCallbackAsync = notifAsync,
+                                             ipRelExprCache = tvarCache
                                              }
               pure (Right conn)
 
@@ -1303,11 +1312,12 @@ type ClientNodes = StmSet.Set ClientInfo
 data InProcessConnectionConf = InProcessConnectionConf {
   ipPersistenceStrategy :: PersistenceStrategy, 
   ipClientNodes :: ClientNodes, 
-  ipSessions :: Sessions, 
+  ipSessions :: Sessions,
   ipTransactionGraph :: TVar TransactionGraph,
   ipScriptSession :: Maybe ScriptSession,
   ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
-  ipCallbackAsync :: Async ()
+  ipCallbackAsync :: Async (),
+  ipRelExprCache :: TVar RelExprCache -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks

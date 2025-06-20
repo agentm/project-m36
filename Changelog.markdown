@@ -2,6 +2,7 @@
 
 * add result caching layer
 * add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
+* reduce copying of database context fields in persistence layer by enabling references to previous transactions
 
 # 2025-03-30 (v1.1.1)
 

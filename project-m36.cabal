@@ -217,7 +217,7 @@ Library
                      ProjectM36.Trace,
                      ProjectM36.Streaming.Tuple,
                      ProjectM36.Streaming.RelationalExpression,     
-                     ProjectM36.RelExprCache,
+                     ProjectM36.Cache.RelationalExprCache,
                      ProjectM36.Cache.Tuple,
                      ProjectM36.RelExprSize,
                      ProjectM36.HashSecurely,
@@ -230,8 +230,10 @@ Library
                      ProjectM36.SQL.Delete,
                      ProjectM36.SQL.DBUpdate,
                      ProjectM36.SQL.CreateTable,
-                     ProjectM36.SQL.DropTable
-                     ProjectM36.ReferencedTransactionIds
+                     ProjectM36.SQL.DropTable,
+                     ProjectM36.ReferencedTransactionIds,
+                     ProjectM36.SystemMemory,
+                     ProjectM36.PinnedRelationalExpr
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
