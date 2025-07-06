@@ -434,6 +434,7 @@ executePlan (UniqueifyTupleStreamPlan e ()) ctx = do
   pure $ runOptions initStreams finalStream
 -}
 
+-- should this function also add items to the cache- if not here, then what is adding to the cache?
 executePlanWithCache :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> RelExprCache -> m (Either RelationalError (StreamRelation m))
 executePlanWithCache origPlan ctxTuples cache = do
   let uncachedExec = pure $ executePlan origPlan ctxTuples
@@ -450,7 +451,11 @@ executePlanWithCache origPlan ctxTuples cache = do
                 PinnedExpressionRep _pRelExpr -> error "pinnedexprrep"
                 UnsortedTupleSetRep attrs tupSet -> pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
                 SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep"
-            Nothing -> uncachedExec
+            Nothing ->
+              uncachedExec
+              -- pipe result to cache or maybe pipe just the expensive parts to the cache. but then we need to track which parts of the pipeline are actually expensive
+              -- we know this entry is not in the cache, so we want to add it, but we don't want to add the plan, but the mostly evaluated expression, which we don't have here.
+
       
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])

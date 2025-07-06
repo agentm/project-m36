@@ -14,6 +14,7 @@ import ProjectM36.SystemMemory
 import ProjectM36.RelExprSize (ByteCount)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
+import Debug.Trace
 
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
 
@@ -103,16 +104,32 @@ probOfRetention :: ByteCount -> -- ^ size of cache entry
                   Probability
 probOfRetention entrySize upperBound' sinceLastReqTime hitCount calcTime =
     --instead of dealing with multivariate normal distributions, we average the distributions' probabilities- yes, this is dumb and arbitrary, but it's a start
-  (nEntrySize + nSinceLastReqTime + nHitCount + nCalcTime) / 4.0
+  traceShow ("probOfRetention"::String,
+             nEntrySize,
+             nSinceLastReqTime,
+             nHitCount,
+             nCalcTime)
+             (nEntrySize + nSinceLastReqTime + nHitCount + nCalcTime) / 4.0
   where
       --normalize the input values    
-      e = 2.71828182845904523536028747135266249775724709369995
-      normalDist :: Double -> Double -> Double -> Double
-      normalDist t x s = (t / sqrt (2 * pi)) * e ** (-0.5 * (x / s) ** 2)  -- map to normal distribution which could be ML-trained later
       nEntrySize = fromIntegral $ min entrySize upperBound' `div` upperBound' -- larger cache entries are more highly valued      
       nSinceLastReqTime = normalDist 2.5 (realToFrac sinceLastReqTime) 10
       nHitCount = 1 - normalDist 2.5 (realToFrac hitCount) 30
       nCalcTime = 1 - normalDist 2.5 (realToFrac calcTime) 10
+
+e' :: Double
+e' = 2.71828182845904523536028747135266249775724709369995
+
+normalDist :: Double -> Double -> Double -> Double
+normalDist t x s = (t / sqrt (2 * pi)) * e' ** (-0.5 * (x / s) ** 2)  -- map to normal distribution which could be ML-trained later
+
+probabilityDensity :: Double -> Double
+probabilityDensity z = numerator / denominator
+  where
+    numerator = e' ** (-(z ** 2) / 2)
+    denominator = sqrt (2 * pi)
+
+type IsRegisteredQuery = Bool
 
 --allow the cache to decide if this result or one of it constituents should be cached
 add :: RandomGen g 
@@ -120,9 +137,10 @@ add :: RandomGen g
     -> PinnedRelationalExpr
     -> RelationRepresentation
     -> NominalDiffTime -- ^ time it took to calculate this value
+    -> IsRegisteredQuery -- ^ Used to determine if the result to cache may potentially be used to evaluate a registered query, which should increase the result's likelihood of being cached.
     -> RelExprCache
     -> STM g
-add rgen expr exprResult calcTime cache = do
+add rgen expr exprResult calcTime isRegisteredQuery cache = do
   -- if the time to calculate is less than a certain threshold, don't bother caching it
   now <- unsafeIOToSTM getCurrentTime  
   let newCacheInfo = RelExprCacheInfo { calculatedInTime = calcTime,
@@ -140,6 +158,7 @@ add rgen expr exprResult calcTime cache = do
           -- calculate probability of immediate ejection
           let probRetain = probOfRetention (keySize + valSize) upperBound' 0 0 calcTime
               (rand, rgen') = uniformR (0.0, 1.0) rgen
+          traceShowM ("probRetain"::String, probRetain, "rand"::String, rand, probRetain >= rand)
           when (probRetain >= rand) $ M.insert newCacheInfo expr (cacheMap cache)
           pure rgen'
         Just _ -> -- then entry is already cached, nothing to do

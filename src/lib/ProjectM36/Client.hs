@@ -329,7 +329,6 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         notifAsync <- startNotificationListener clientNodes notificationCallback
         maxCacheSize <- RelExprCache.defaultUpperBound
         cache <- RelExprCache.empty maxCacheSize
-        tvarCache <- newTVarIO cache
         let conn = InProcessConnection InProcessConnectionConf {
                                            ipPersistenceStrategy = strat, 
                                            ipClientNodes = clientNodes, 
@@ -338,7 +337,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                                            ipScriptSession = mScriptSession,
                                            ipLocks = Nothing,
                                            ipCallbackAsync = notifAsync,
-                                           ipRelExprCache = tvarCache
+                                           ipRelExprCache = cache
                                            }
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
@@ -405,7 +404,6 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               notifAsync <- startNotificationListener clientNodes notificationCallback
               maxCacheSize <- RelExprCache.defaultUpperBound
               cache <- RelExprCache.empty maxCacheSize
-              tvarCache <- newTVarIO cache
               let conn = InProcessConnection InProcessConnectionConf {
                                              ipPersistenceStrategy = strat,
                                              ipClientNodes = clientNodes,
@@ -414,7 +412,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipScriptSession = mScriptSession,
                                              ipLocks = Just (lockFileH, lockMVar),
                                              ipCallbackAsync = notifAsync,
-                                             ipRelExprCache = tvarCache
+                                             ipRelExprCache = cache
                                              }
               pure (Right conn)
 
@@ -592,7 +590,7 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
   case res of
     Left err -> pure (Left err)
     Right (reEnv, rexpr) -> do
-      qres <- optimizeAndEvalRelationalExpr' reEnv rexpr
+      qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
       case qres of
         Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
         Left err -> pure (Left err)
@@ -774,10 +772,12 @@ executeAlterTransactionGraphExpr sessionId conn@RemoteConnection{} alterGraphExp
 
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
-executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = excEither . atomically $ do
-  let graphTvar = ipTransactionGraph conf
-  graph <- readTVar graphTvar
-  pure $ force $ optimizeAndEvalTransGraphRelationalExpr graph tgraphExpr
+executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = do
+  let graphTvar = ipTransactionGraph conf  
+  graph <- atomically $ do
+    readTVar graphTvar
+  optimizeAndEvalTransGraphRelationalExprWithCache graph tgraphExpr (ipRelExprCache conf)
+  
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
 -- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'.
@@ -822,7 +822,7 @@ sendNotifications clients notifs =
 
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
-rollback sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Rollback      
+rollback sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Rollback >> pure (Right ())
 rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Rollback)
 
 -- | Write the transaction graph to disk. This function can be used to incrementally write new transactions to disk.
@@ -1317,7 +1317,7 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipScriptSession :: Maybe ScriptSession,
   ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
   ipCallbackAsync :: Async (),
-  ipRelExprCache :: TVar RelExprCache -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
+  ipRelExprCache :: RelExprCache -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks

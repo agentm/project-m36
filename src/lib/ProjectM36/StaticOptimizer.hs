@@ -4,8 +4,10 @@ module ProjectM36.StaticOptimizer where
 import ProjectM36.Base
 import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Relation
+import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.RelationalExpression
+import ProjectM36.PinnedRelationalExpr
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
@@ -28,7 +30,11 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
-
+import Data.Time.Clock
+import Control.Exception
+import Control.DeepSeq
+import System.Random
+import Control.Monad.STM
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -84,8 +90,8 @@ optimizeAndEvalRelationalExpr env expr = do
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 -- | Uses streamly interface for parallel execution.
-optimizeAndEvalRelationalExpr' :: RelationalExprEnv -> RelationalExpr -> IO (Either RelationalError Relation)
-optimizeAndEvalRelationalExpr' env expr = do
+optimizeAndEvalRelationalExpr' :: RelationalExprEnv -> RelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
+optimizeAndEvalRelationalExpr' env expr cache = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
       graph = re_graph env
       ctx = re_context env
@@ -98,14 +104,34 @@ optimizeAndEvalRelationalExpr' env expr = do
       case runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right optGfExpr -> 
-          case planGraphRefRelationalExpr optGfExpr gfEnv of
-            Left err -> pure (Left err)
-            Right plan ->
-              case executePlan plan mempty of -- try/catch to handle exceptions
-                Left err -> pure (Left err)
-                Right resultStream ->
-                  --convert tuple stream into relation
-                  pure <$> streamRelationAsRelation resultStream
+          evalGraphRefRelationalExprWithCache gfEnv optGfExpr cache
+          
+-- | For internal use- expression argument should pass through static optimizer beforehand.
+evalGraphRefRelationalExprWithCache :: GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
+evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
+  case planGraphRefRelationalExpr gfExpr gfEnv of
+    Left err -> pure (Left err)
+    Right plan -> do
+      startExecTime <- getCurrentTime
+      exec <- executePlanWithCache plan mempty cache -- try/catch to handle exceptions
+      case exec of
+        Left err -> pure (Left err)
+        Right resultStream -> do
+          --convert tuple stream into relation- we could push the results to the socket directly without materializing the entire relation
+          relationResult <- streamRelationAsRelation resultStream
+          relationResult' <- evaluate (force relationResult)
+          endExecTime <- getCurrentTime
+          let execDiffTime = endExecTime `diffUTCTime` startExecTime
+          --add to the cache- we cannot add uncommitted data to the cache since uncommitted data does not have a unique key (transaction id) (should uncommitted data be able to be cached with a transaction id that has not been committed?)
+              mCacheKey = toPinnedRelationalExpr gfExpr
+              cacheValue = PinnedExpressionRep (ExistingRelation relationResult') -- ideally, we would cache the expensive parts of the plan, not just the top-level result
+          case mCacheKey of
+            Nothing -> pure (Right relationResult')
+            Just cacheKey -> do
+              rando <- initStdGen
+              void $ atomically $ RelExprCache.add rando cacheKey cacheValue execDiffTime cache
+              pure (Right relationResult')
+  
 
 optimizeRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError GraphRefRelationalExpr
 optimizeRelationalExpr env expr = do
@@ -161,6 +187,17 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   optExpr <- runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
+
+optimizeAndEvalTransGraphRelationalExprWithCache :: TransactionGraph -> TransGraphRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
+optimizeAndEvalTransGraphRelationalExprWithCache graph tgExpr cache = do
+  let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
+      res = do
+        gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
+        runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
+  case res of
+    Left err -> pure (Left err)
+    Right optExpr ->
+      evalGraphRefRelationalExprWithCache gfEnv optExpr cache
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do
