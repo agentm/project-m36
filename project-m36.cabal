@@ -235,7 +235,8 @@ Library
                      ProjectM36.SQL.DropTable,
                      ProjectM36.ReferencedTransactionIds,
                      ProjectM36.SystemMemory,
-                     ProjectM36.PinnedRelationalExpr
+                     ProjectM36.PinnedRelationalExpr,
+                     ProjectM36.AccessControlList
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -774,3 +775,9 @@ Test-Suite test-cache
    import: commontest
    type: exitcode-stdio-1.0
    Main-Is: Cache.hs
+
+Test-Suite test-accesscontrollist
+    import: commontest
+    type: exitcode-stdio-1.0
+    Main-Is: AccessControlList.hs
+
