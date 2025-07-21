@@ -176,7 +176,9 @@ import qualified STMContainers.Set as StmSet
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.ValueMarker
+import ProjectM36.AccessControl
 import ProjectM36.Sessions
+import ProjectM36.AccessControlList
 import ProjectM36.HashSecurely (SecureHash)
 import ProjectM36.RegisteredQuery
 import ProjectM36.Cache.RelationalExprCache as RelExprCache
@@ -225,7 +227,7 @@ data RequestTimeoutException = RequestTimeoutException
 instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext |
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext [RoleId] |
                       RemoteConnectionInfo DatabaseName RemoteServerAddress NotificationCallback
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
@@ -316,7 +318,7 @@ resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleIds) = do
   freshId <- nextRandom
   tstamp <- getCurrentTime
   let freshGraph = bootstrapTransactionGraph tstamp freshId (DBC.toDatabaseContext bootstrapDatabaseContext)
@@ -337,11 +339,12 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                                            ipScriptSession = mScriptSession,
                                            ipLocks = Nothing,
                                            ipCallbackAsync = notifAsync,
-                                           ipRelExprCache = cache
+                                           ipRelExprCache = cache,
+                                           ipRoles = roleIds
                                            }
         pure (Right conn)
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleIds
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleIds
         
 connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallback) = do
   (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
@@ -382,9 +385,10 @@ connectPersistentProjectM36 :: PersistenceStrategy ->
                                FilePath -> 
                                TransactionGraph ->
                                NotificationCallback ->
-                               [GhcPkgPath] -> 
+                               [GhcPkgPath] ->
+                               [RoleId] ->
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths = do
+connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths roleIds = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Left err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -412,7 +416,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                                              ipScriptSession = mScriptSession,
                                              ipLocks = Just (lockFileH, lockMVar),
                                              ipCallbackAsync = notifAsync,
-                                             ipRelExprCache = cache
+                                             ipRelExprCache = cache,
+                                             ipRoles = roleIds
                                              }
               pure (Right conn)
 
@@ -616,7 +621,10 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
           let ctx = Sess.concreteDatabaseContext session
               env = RE.mkDatabaseContextEvalEnv transId graph
               transId = Sess.parentId session
-          case RE.runDatabaseContextEvalMonad ctx env (optimizeAndEvalDatabaseContextExpr True expr'') of
+              runExpr = do
+                applyACLDatabaseContextExpr (ipRoles conf) expr''
+                optimizeAndEvalDatabaseContextExpr True expr''
+          case RE.runDatabaseContextEvalMonad ctx env runExpr of
             Left err -> pure (Left err)
             Right newState ->
               if not (DBC.isUpdated (RE.dbc_context newState)) then --nothing dirtied, nothing to do
@@ -1317,7 +1325,8 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipScriptSession :: Maybe ScriptSession,
   ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
   ipCallbackAsync :: Async (),
-  ipRelExprCache :: RelExprCache -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
+  ipRelExprCache :: RelExprCache, -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
+  ipRoles :: [RoleId] -- ^ the roles 
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks

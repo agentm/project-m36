@@ -7,6 +7,7 @@ import ProjectM36.ValueMarker
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
+import ProjectM36.AccessControlList
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 import Control.Monad.Except
@@ -170,3 +171,14 @@ unionMergeRegisteredQueries prefer graph v_regQsA v_regQsB = do
              Left (MergeTransactionError (StrategyViolatesRegisteredQueryMergeError (M.keys isect)))
   pure (ValueMarker v)
         
+unionMergeACLs :: MergePreference -> TransactionGraph -> ValueMarker DatabaseContextACL -> ValueMarker DatabaseContextACL -> Either RelationalError (ValueMarker DatabaseContextACL)
+unionMergeACLs _prefer _g v@(NotChangedSinceMarker tidA) (NotChangedSinceMarker tidB)
+  | tidA == tidB = pure v
+unionMergeACLs _prefer graph v_aclA v_aclB = do
+  aclA <- resolveValueMarker graph acl v_aclA
+  aclB <- resolveValueMarker graph acl v_aclB
+
+  pure $ ValueMarker $ DatabaseContextACL {
+    relvarsACL = relvarsACL aclA <> relvarsACL aclB,
+    dbcFunctionsACL = dbcFunctionsACL aclA <> dbcFunctionsACL aclB
+    }

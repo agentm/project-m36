@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables, DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, TypeSynonymInstances, ScopedTypeVariables, DeriveGeneric, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 --Serialise instances for ProjectM36.Base data types- orphan instance city
 module ProjectM36.Serialise.Base where
@@ -11,6 +11,7 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import ProjectM36.TupleSet as TS
 import ProjectM36.DatabaseContext.Types
+import ProjectM36.AccessControlList
 import ProjectM36.DisconnectedTransaction (CurrentHead)
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Transaction.Types
@@ -56,6 +57,16 @@ deriving via WineryVariant Schema instance Serialise Schema
 deriving via WineryVariant MergeStrategy instance Serialise MergeStrategy
 deriving via WineryVariant NotificationExpression instance Serialise NotificationExpression
 deriving via WineryVariant CurrentHead instance Serialise CurrentHead
+-- ACL
+deriving via WineryRecord DatabaseContextACL instance Serialise DatabaseContextACL
+deriving via WineryRecord RelVarAccessControlList instance Serialise RelVarAccessControlList
+deriving via WineryRecord RelVarRoleAccess instance Serialise RelVarRoleAccess
+deriving via WineryVariant RelVarPermission instance Serialise RelVarPermission
+
+deriving via WineryRecord FunctionAccessControlList instance Serialise FunctionAccessControlList
+deriving via WineryRecord FunctionRoleAccess instance Serialise FunctionRoleAccess
+deriving via WineryVariant FunctionPermission instance Serialise FunctionPermission
+
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d

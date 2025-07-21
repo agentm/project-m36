@@ -129,7 +129,7 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
             Nothing -> pure (Right relationResult')
             Just cacheKey -> do
               rando <- initStdGen
-              void $ atomically $ RelExprCache.add rando cacheKey cacheValue execDiffTime cache
+              void $ atomically $ RelExprCache.add rando cacheKey cacheValue execDiffTime False cache
               pure (Right relationResult')
   
 

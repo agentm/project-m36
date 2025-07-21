@@ -236,7 +236,8 @@ Library
                      ProjectM36.ReferencedTransactionIds,
                      ProjectM36.SystemMemory,
                      ProjectM36.PinnedRelationalExpr,
-                     ProjectM36.AccessControlList
+                     ProjectM36.AccessControlList,
+                     ProjectM36.AccessControl
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12

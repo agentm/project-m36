@@ -11,6 +11,7 @@ import ProjectM36.DatabaseContext.Types
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
 import ProjectM36.Relation
+import ProjectM36.AccessControlList as ACL
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Identity
@@ -23,7 +24,8 @@ dateExamples = DatabaseContext {
   dbcFunctions = Identity mempty,
   atomFunctions = Identity basicAtomFunctions,
   registeredQueries = Identity mempty,
-  typeConstructorMapping = Identity basicTypeConstructorMapping
+  typeConstructorMapping = Identity basicTypeConstructorMapping,
+  acl = Identity ACL.basic
   }
   where -- these must be lower case now that data constructors are in play
     dateRelVars = M.fromList [("s", ExistingRelation suppliers),

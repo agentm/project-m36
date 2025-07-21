@@ -215,7 +215,7 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext)
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext [])
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)

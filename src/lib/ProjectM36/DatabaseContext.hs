@@ -14,12 +14,14 @@ import Data.Functor.Identity
 
 empty :: DatabaseContext
 empty = DatabaseContext { inclusionDependencies = emptyValue, 
-                          relationVariables = emptyValue, 
+                          relationVariables = emptyValue,
                           notifications = emptyValue,
                           atomFunctions = emptyValue,
                           dbcFunctions = emptyValue,
                           typeConstructorMapping = emptyValue,
-                          registeredQueries = emptyValue }
+                          registeredQueries = emptyValue,
+                          acl = emptyValue            
+                          }
   
 -- | Remove TransactionId markers on GraphRefRelationalExpr
 stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
@@ -49,7 +51,8 @@ freshDatabaseContext previousTransactionId ctx =
                     dbcFunctions = freshen (dbcFunctions ctx),
                     notifications = freshen (notifications ctx),
                     typeConstructorMapping = freshen (typeConstructorMapping ctx),
-                    registeredQueries = freshen (registeredQueries ctx)
+                    registeredQueries = freshen (registeredQueries ctx),
+                    acl = freshen (acl ctx)
                   }
   where
     freshen :: forall a. ValueMarker a -> ValueMarker a
@@ -65,6 +68,7 @@ toDatabaseContext r =
     dbcFunctions = ValueMarker (runIdentity (dbcFunctions r)),
     notifications = ValueMarker (runIdentity (notifications r)),
     typeConstructorMapping = ValueMarker (runIdentity (typeConstructorMapping r)),
-    registeredQueries = ValueMarker (runIdentity (registeredQueries r))
+    registeredQueries = ValueMarker (runIdentity (registeredQueries r)),
+    acl = ValueMarker (runIdentity (acl r))
     }
 

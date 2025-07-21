@@ -1784,6 +1784,7 @@ toResolvedDatabaseContext ctx graph = do
   nots <- resolveDBC' graph ctx notifications
   tConsMap <- resolveDBC' graph ctx typeConstructorMapping
   regQs <- resolveDBC' graph ctx registeredQueries
+  acls <- resolveDBC' graph ctx acl
   pure (DatabaseContext {
            inclusionDependencies = Identity incDeps,
            relationVariables = Identity relVars,
@@ -1791,5 +1792,6 @@ toResolvedDatabaseContext ctx graph = do
            dbcFunctions = Identity dbcFuncs,
            notifications = Identity nots,
            typeConstructorMapping = Identity tConsMap,
-           registeredQueries = Identity regQs
+           registeredQueries = Identity regQs,
+           acl = Identity acls
            })

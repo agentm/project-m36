@@ -140,7 +140,7 @@ add :: RandomGen g
     -> IsRegisteredQuery -- ^ Used to determine if the result to cache may potentially be used to evaluate a registered query, which should increase the result's likelihood of being cached.
     -> RelExprCache
     -> STM g
-add rgen expr exprResult calcTime isRegisteredQuery cache = do
+add rgen expr exprResult calcTime _isRegisteredQuery cache = do
   -- if the time to calculate is less than a certain threshold, don't bother caching it
   now <- unsafeIOToSTM getCurrentTime  
   let newCacheInfo = RelExprCacheInfo { calculatedInTime = calcTime,

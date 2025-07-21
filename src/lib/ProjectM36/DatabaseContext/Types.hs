@@ -4,6 +4,7 @@ import GHC.Generics
 import Control.DeepSeq (NFData)
 import ProjectM36.Base
 import ProjectM36.ValueMarker
+import ProjectM36.AccessControlList
 import ProjectM36.DatabaseContextFunctionError
 import qualified Data.HashSet as HS
 import Data.Functor.Identity
@@ -25,7 +26,8 @@ data DatabaseContextBase a = DatabaseContext {
   dbcFunctions :: a DatabaseContextFunctions,
   notifications :: a Notifications,
   typeConstructorMapping :: a TypeConstructorMapping,
-  registeredQueries :: a RegisteredQueries
+  registeredQueries :: a RegisteredQueries,
+  acl :: a DatabaseContextACL
   } 
 
 -- | The type of the database context when stored in the graph. It can reference data from other transactions in the graph.

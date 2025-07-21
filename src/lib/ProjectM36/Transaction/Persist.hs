@@ -19,6 +19,7 @@ import ProjectM36.DatabaseContextFunctions.Basic
 import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync, readDeserialise)
 import ProjectM36.Function
+import ProjectM36.AccessControlList
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import System.FilePath
@@ -107,6 +108,9 @@ objectFilesPath transdir = transdir </> ".." </> "compiled_modules"
 unchangedElementsPath :: FilePath -> FilePath
 unchangedElementsPath transdir = transdir </> "unchanged"
 
+aclPath :: FilePath -> FilePath
+aclPath transdir = transdir </> "acl"
+
 data NotChangedSinceDatabaseContext =
   NotChangedSinceDatabaseContext {
   ncsInclusionDependencies :: Maybe TransactionId,
@@ -116,7 +120,8 @@ data NotChangedSinceDatabaseContext =
   ncsNotifications :: Maybe TransactionId,
   ncsTypeConstructorMapping :: Maybe TransactionId,
   ncsRegisteredQueries :: Maybe TransactionId,
-  ncsSchemas :: Maybe TransactionId
+  ncsSchemas :: Maybe TransactionId,
+  ncsAcl :: Maybe TransactionId
   }
   deriving (Show, Generic)
   deriving Serialise via WineryRecord NotChangedSinceDatabaseContext
@@ -140,6 +145,7 @@ readTransaction dbdir transId mScriptSession = do
     relvars <- ncsRead ncsRelationVariables readRelVars
     incDeps <- ncsRead ncsInclusionDependencies readIncDeps
     typeCons <- ncsRead ncsTypeConstructorMapping readTypeConstructorMapping
+    acl' <- ncsRead ncsAcl readAcl
     sschemas <- case ncsSchemas ncs of
                   Nothing -> ValueMarker <$> readSubschemas transDir
                   Just tid -> pure $ NotChangedSinceMarker tid
@@ -153,7 +159,8 @@ readTransaction dbdir transId mScriptSession = do
                                        notifications = notifs,
                                        atomFunctions = atomFuncs,
                                        dbcFunctions = dbcFuncs,
-                                       registeredQueries = registeredQs }
+                                       registeredQueries = registeredQs,
+                                       acl = acl' }
         newSchemas = Schemas newContext sschemas
     return $ Right $ Transaction transId transInfo newSchemas
 
@@ -183,6 +190,7 @@ writeTransaction sync dbdir (UncommittedTransaction trans) = do
     ncsWrite notifications tempTransDir writeNotifications
     ncsWrite typeConstructorMapping tempTransDir writeTypeConstructorMapping
     ncsWrite registeredQueries tempTransDir writeRegisteredQueries
+    ncsWrite acl tempTransDir writeAcl
 
     case subschemas trans of
       NotChangedSinceMarker{} -> pure ()
@@ -302,7 +310,8 @@ readNotChangedSinceDatabaseContext transDir = do
             ncsNotifications = Nothing,
             ncsTypeConstructorMapping = Nothing,
             ncsRegisteredQueries = Nothing,
-            ncsSchemas = Nothing
+            ncsSchemas = Nothing,
+            ncsAcl = Nothing
     }
 
 mkNotChangedSinceDatabaseContext :: DatabaseContext -> ValueMarker Subschemas -> NotChangedSinceDatabaseContext
@@ -315,7 +324,8 @@ mkNotChangedSinceDatabaseContext ctx mSubschemas =
   ncsNotifications = mkVal (notifications ctx),
   ncsTypeConstructorMapping = mkVal (typeConstructorMapping ctx),
   ncsRegisteredQueries = mkVal (registeredQueries ctx),
-  ncsSchemas = mkVal mSubschemas
+  ncsSchemas = mkVal mSubschemas,
+  ncsAcl = mkVal (acl ctx)
   }
   where
     mkVal :: forall a. ValueMarker a -> Maybe TransactionId
@@ -492,5 +502,14 @@ writeNotifications sync transDir notifs = do
   let notifsPath = notificationsPath transDir
   traceBlock "write notifications" $ writeSerialiseSync sync notifsPath notifs
 
+readAcl :: FilePath -> IO DatabaseContextACL
+readAcl transDir = do
+  let aclPath' = aclPath transDir
+  readDeserialise aclPath'
+
+writeAcl :: DiskSync -> FilePath -> DatabaseContextACL -> IO ()
+writeAcl sync transDir acl' = do
+  let aclPath' = aclPath transDir
+  traceBlock "write acl" $ writeSerialiseSync sync aclPath' acl'
 
 

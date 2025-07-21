@@ -538,6 +538,7 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
   types <- liftE $ unionMergeTypeConstructorMapping preference graph (typeConstructorMapping contextA) (typeConstructorMapping contextB)
   dbcFuncs <- liftE $ unionMergeDatabaseContextFunctions preference graph (dbcFunctions contextA) (dbcFunctions contextB)
   registeredQs <- liftE $ unionMergeRegisteredQueries preference graph (registeredQueries contextA) (registeredQueries contextB)
+  acls <- liftE $ unionMergeACLs preference graph (acl contextA) (acl contextB)
   -- TODO: add merge of subschemas
   let newContext = DatabaseContext {
         inclusionDependencies = incDeps,
@@ -546,7 +547,8 @@ createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
         dbcFunctions = dbcFuncs,
         notifications = notifs,
         typeConstructorMapping = types,
-        registeredQueries = registeredQs
+        registeredQueries = registeredQs,
+        acl = acls
         }
       newSchemas = Schemas newContext (subschemas t1)
   pure $ UncommittedTransaction $ addMerkleHash graph $

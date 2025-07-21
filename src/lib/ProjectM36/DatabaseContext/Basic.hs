@@ -5,6 +5,7 @@ import ProjectM36.Relation
 import ProjectM36.DataTypes.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DatabaseContextFunctions.Basic
+import ProjectM36.AccessControlList as ACL
 import qualified Data.Map as M
 import Data.Functor.Identity
 
@@ -17,5 +18,6 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = Identity mempty
                                          dbcFunctions = Identity basicDatabaseContextFunctions,
                                          notifications = Identity mempty,
                                          typeConstructorMapping = Identity basicTypeConstructorMapping,
-                                         registeredQueries = Identity $ M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ()))
+                                         registeredQueries = Identity $ M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ())),
+                                         acl = Identity ACL.basic
                                          }

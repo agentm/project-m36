@@ -116,6 +116,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RegisteredQueryValidationError RegisteredQueryName RelationalError
                      | RegisteredQueryNameInUseError RegisteredQueryName
                      | RegisteredQueryNameNotInUseError RegisteredQueryName
+                     | AccessDeniedError
 
                      | SQLConversionError SQLError
 
