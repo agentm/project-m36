@@ -10,6 +10,7 @@ import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.Error
+import ProjectM36.AccessControlList
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.MerkleHash
@@ -311,3 +312,18 @@ instance FromJSON JoinOnCondition
 
 instance ToJSON QueryOperator
 instance FromJSON QueryOperator
+
+instance ToJSON SomePermission
+instance FromJSON SomePermission
+
+instance ToJSON AlterTransGraphPermission
+instance FromJSON AlterTransGraphPermission
+
+instance ToJSON RelVarPermission
+instance FromJSON RelVarPermission
+
+instance ToJSON AlterSchemaPermission
+instance FromJSON AlterSchemaPermission
+
+instance ToJSON FunctionPermission
+instance FromJSON FunctionPermission

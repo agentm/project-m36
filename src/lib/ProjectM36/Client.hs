@@ -117,7 +117,8 @@ module ProjectM36.Client
        resolveRemoteServerAddress,
        defaultRemoteServerAddress,
        defaultServerHostname,
-       Discon.CurrentHead(..)
+       Discon.CurrentHead(..),
+       superAdminRole
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -187,9 +188,9 @@ import Control.DeepSeq (force)
 import System.IO
 import qualified Data.Text as T
 import Data.Time.Clock
-import qualified Network.RPC.Curryer.Client as RPC
-import qualified Network.RPC.Curryer.Server as RPC
-import Network.Socket (Socket, AddrInfo(..), getAddrInfo, defaultHints, SocketType(..), ServiceName, SockAddr, Family(..), SockAddr(..))
+import qualified Network.RPC.Curryer.Client as CRPC
+import qualified Network.RPC.Curryer.Server as SRPC
+import Network.Socket (AddrInfo(..), getAddrInfo, defaultHints, SocketType(..), ServiceName, SockAddr, Family(..), SockAddr(..))
 import GHC.Conc (unsafeIOToSTM)
 import ProjectM36.SQL.Select as SQL
 import ProjectM36.SQL.DBUpdate as SQL
@@ -271,7 +272,7 @@ defaultRemoteConnectionInfo =
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
 
-newtype RemoteConnectionConf = RemoteConnectionConf RPC.Connection
+newtype RemoteConnectionConf = RemoteConnectionConf CRPC.Connection
   
 data Connection = InProcessConnection InProcessConnectionConf |
                   RemoteConnection RemoteConnectionConf
@@ -315,7 +316,7 @@ resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
       sockAddr = SockAddrUnix sockPath
   pure (sockSpec, sockAddr)
 
--- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'.
+-- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'. 
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleIds) = do
@@ -349,16 +350,16 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
 connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallback) = do
   (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
   let notificationHandlers =
-        [RPC.ClientAsyncRequestHandler $
+        [CRPC.ClientAsyncRequestHandler $
           \(NotificationMessage notifications') ->
             forM_ (M.toList notifications') (uncurry notificationCallback)
         ]
       connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
-  eConn <- (Right <$> RPC.connect notificationHandlers sockSpec sockAddr) `catch` connectExcHandler
+  eConn <- (Right <$> CRPC.connect notificationHandlers CRPC.UnencryptedConnectionConfig sockSpec sockAddr) `catch` connectExcHandler
   case eConn of
     Left err -> pure (Left err)
     Right conn -> do
-      eRet <- RPC.call conn (Login dbName)
+      eRet <- CRPC.call conn (Login dbName)
       case eRet of
         Left err -> error (show err)
         Right False -> error "wtf"
@@ -367,18 +368,18 @@ connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallbac
           pure (Right (RemoteConnection (RemoteConnectionConf conn)))
 
 --convert RPC errors into exceptions
-convertRPCErrors :: RPC.ConnectionError -> IO a
+convertRPCErrors :: SRPC.ConnectionError -> IO a
 convertRPCErrors err =
   case err of
-    RPC.TimeoutError -> throw RequestTimeoutException
-    RPC.CodecError msg -> error $ "decoding message failed on server: " <> msg
-    RPC.ExceptionError msg -> error $ "server threw exception: " <> msg
+    SRPC.TimeoutError -> throw RequestTimeoutException
+    SRPC.CodecError msg -> error $ "decoding message failed on server: " <> msg
+    SRPC.ExceptionError msg -> error $ "server threw exception: " <> msg
 
-addClientNode :: Connection -> RPC.Locking Socket -> IO ()
+addClientNode :: Connection -> SRPC.SocketContext -> IO ()
 addClientNode (RemoteConnection _) _ = error "addClientNode called on remote connection"
-addClientNode (InProcessConnection conf) lockSock = atomically (StmSet.insert clientInfo (ipClientNodes conf))
+addClientNode (InProcessConnection conf) sockCtx = atomically (StmSet.insert clientInfo (ipClientNodes conf))
   where
-    clientInfo = RemoteClientInfo lockSock
+    clientInfo = RemoteClientInfo sockCtx
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -493,12 +494,12 @@ close (InProcessConnection conf) = do
     Just (lockFileH, _) -> closeLockFile lockFileH
 
 close (RemoteConnection (RemoteConnectionConf conn)) =
-  RPC.close conn
+  CRPC.close conn
 
 --used only by the server EntryPoints
 closeRemote_ :: Connection -> IO ()
 closeRemote_ (InProcessConnection _) = error "invalid call of closeRemote_ on InProcessConnection"
-closeRemote_ (RemoteConnection (RemoteConnectionConf conn)) = RPC.close conn
+closeRemote_ (RemoteConnection (RemoteConnectionConf conn)) = CRPC.close conn
 
   --we need to actually close the localNode's connection to the remote
 --within the database server, we must catch and handle all exception lest they take down the database process- this handling might be different for other use-cases
@@ -514,7 +515,7 @@ excEither = handle handler
 remoteCall :: (Serialise a, Serialise b) => Connection -> a -> IO b
 remoteCall (InProcessConnection _ ) _ = error "remoteCall called on local connection"
 remoteCall (RemoteConnection (RemoteConnectionConf rpcConn)) arg = do
-  eRet <- RPC.call rpcConn arg
+  eRet <- CRPC.call rpcConn arg
   case eRet of
     Left err -> convertRPCErrors err
     Right val -> pure val
@@ -573,7 +574,7 @@ setCurrentSchemaName sessionId (InProcessConnection conf) sname = atomically $ d
         Right newSession -> StmMap.insert newSession sessionId sessions >> pure (Right ())
 setCurrentSchemaName sessionId conn@(RemoteConnection _) sname = remoteCall conn (ExecuteSetCurrentSchema sessionId sname)
 
--- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database.
+-- | Execute a relational expression in the context of the session and connection. Relational expressions are queries and therefore cannot alter the database. Requires `AccessRelVars` permission if the relational expression includes a reference to a relation variable.
 executeRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 executeRelationalExpr sessionId (InProcessConnection conf) expr = do
   res <- excEither $ atomically $ do
@@ -584,25 +585,32 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
       let expr' = if schemaName session /= defaultSchemaName then
                     Schema.processRelationalExprInSchema schema expr
                   else
-                    Right expr
+                    Right expr                    
       case expr' of
         Left err -> pure (Left err)
         Right expr'' -> do
           let graphTvar = ipTransactionGraph conf
           graph <- readTVar graphTvar
-          let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
-          pure (Right (reEnv, expr''))
+          let reEnv = RE.mkRelationalExprEnv dbctx graph
+              dbctx = Sess.concreteDatabaseContext session
+          pure (Right (graph, reEnv, expr''))
   case res of
     Left err -> pure (Left err)
-    Right (reEnv, rexpr) -> do
-      qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
-      case qres of
-        Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+    Right (graph, reEnv, rexpr) -> do
+      case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
         Left err -> pure (Left err)
+        Right acl' -> 
+          case applyACLRelationalExpr (ipRoles conf) (relvarsACL acl') rexpr of
+            Left err -> pure (Left err)
+            Right () -> do
+              qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
+              case qres of
+                Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+                Left err -> pure (Left err)
 
 executeRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
--- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph.
+-- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph. Requires AccessRelVarsPermission. Requires ExecuteFunctionPermission if a function is executed.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError ())
 executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither $ atomically $ do
   let sessions = ipSessions conf
@@ -650,7 +658,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
                     pure (Right ())
 executeDatabaseContextExpr sessionId conn@(RemoteConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextExpr sessionId dbExpr)
 
--- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing). Alternatively, as an optimization, if a simple commit is possible (meaning that the head has not changed), then a fast-forward commit takes place instead.
+-- | Similar to a git rebase, 'autoMergeToHead' atomically creates a temporary branch and merges it to the latest commit of the branch referred to by the 'HeadName' and commits the merge. This is useful to reduce incidents of 'TransactionIsNotAHeadError's but at the risk of merge errors (thus making it similar to rebasing). Alternatively, as an optimization, if a simple commit is possible (meaning that the head has not changed), then a fast-forward commit takes place instead. Requires CommitTransactionPermission.
 autoMergeToHead :: SessionId -> Connection -> MergeStrategy -> HeadName -> IO (Either RelationalError ())
 autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   let sessions = ipSessions conf
@@ -668,20 +676,29 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
           Just headTrans -> do
             --attempt fast-forward commit, if possible
             let disconIn = Sess.disconnectedTransaction session
-            if Sess.parentId session == Trans.transactionId headTrans then do
-              let ret = Graph.evalAlterTransactionGraphExpr tstamp id1 disconIn graph Commit
-              case ret of
-                Left err -> pure (Left err)
-                Right (discon', mtrans', tGraph) ->
-                  pure (Right (discon', TransactionGraphIncrementalWriteInfo {
-                              uncommittedTransactions = S.fromList (catMaybes [mtrans']),
-                              newGraph = tGraph
-                              }))
-            else do
-              pure $ Graph.autoMergeToHead tstamp (id1, id2, id3) disconIn headName' strat graph
+                dbctx = Sess.concreteDatabaseContext session
+            --check permission
+            case RE.resolveDBC' graph dbctx DBC.acl of
+              Left err -> pure (Left err)
+              Right acl' -> do
+                let alterTGACL = transGraphACL acl'
+                case applyACLAlterTransGraphExpr (ipRoles conf) alterTGACL Commit of
+                  Left err -> pure (Left err)
+                  Right () -> do
+                    if Sess.parentId session == Trans.transactionId headTrans then do
+                      let ret = Graph.evalAlterTransactionGraphExpr tstamp id1 disconIn graph Commit
+                      case ret of
+                        Left err -> pure (Left err)
+                        Right (discon', mtrans', tGraph) ->
+                          pure (Right (discon', TransactionGraphIncrementalWriteInfo {
+                                          uncommittedTransactions = S.fromList (catMaybes [mtrans']),
+                                          newGraph = tGraph
+                                          }))
+                      else do
+                      pure $ Graph.autoMergeToHead tstamp (id1, id2, id3) disconIn headName' strat graph
 autoMergeToHead sessionId conn@(RemoteConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
--- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented.
+-- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented. Requires ExecuteFunctionPermission.
 --this is almost completely identical to executeDatabaseContextExpr above
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
 executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEither $ do
@@ -696,7 +713,11 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           objFilesPath = objectFilesPath <$> persistenceDirectory (ipPersistenceStrategy conf)
           transId = Sess.parentId session
           context = Sess.concreteDatabaseContext session
-      res <- RE.runDatabaseContextIOEvalMonad env context (optimizeAndEvalDatabaseContextIOExpr expr)
+          runExpr = do
+            --check perms
+            applyACLDatabaseContextIOExpr (ipRoles conf) expr
+            optimizeAndEvalDatabaseContextIOExpr expr
+      res <- RE.runDatabaseContextIOEvalMonad env context runExpr
       case res of
         Left err -> pure (Left err)
         Right newState -> do
@@ -711,7 +732,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           atomically $ StmMap.insert newSession sessionId sessions
           pure (Right ())
 executeDatabaseContextIOExpr sessionId conn@(RemoteConnection _) dbExpr = remoteCall conn (ExecuteDatabaseContextIOExpr sessionId dbExpr)
-         
+                                                                          
 -- process notifications for commits
 executeCommitExprSTM_
   :: TransactionGraph
@@ -732,7 +753,7 @@ executeCommitExprSTM_ graph oldContext newContext nodes = do
                                                  reportNewRelation = evalInContext (reportNewExpr notif) newContext}
   pure (evaldNots, nodes)
   
--- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators cannot modify the transaction graph state.
+-- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators cannot modify the transaction graph state. Requires no specific permission.
 
 -- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
 -- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
@@ -756,7 +777,7 @@ executeTransactionGraphExpr sessionId (InProcessConnection conf) graphExpr = exc
 
 executeTransactionGraphExpr sessionId conn@(RemoteConnection _) graphExpr = remoteCall conn (ExecuteGraphExpr sessionId graphExpr)
 
--- | Execute an operator which alters the transaction graph such as commit, branching, or merge.
+-- | Execute an operator which alters the transaction graph such as commit, branching, or merge. Requires CommitTransactionPermission.
 executeAlterTransactionGraphExpr :: SessionId -> Connection -> AlterTransactionGraphExpr -> IO (Either RelationalError ())
 executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraphExpr = do
   let sessions = ipSessions conf
@@ -768,27 +789,52 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
       Left err -> pure (Left err)
       Right session -> do
         let discon = Sess.disconnectedTransaction session
-        case evalAlterTransactionGraphExpr tstamp freshId discon updatedGraph alterGraphExpr of
+            dbctx = Sess.concreteDatabaseContext session        
+        case RE.resolveDBC' updatedGraph dbctx DBC.acl of
           Left err -> pure (Left err)
-          Right (discon', mtrans', graph') -> do
-            pure (Right (discon', TransactionGraphIncrementalWriteInfo {
-                            uncommittedTransactions = S.fromList (catMaybes [mtrans']),
-                            newGraph = graph'
-                            }))
+          Right acl' -> do
+            let alterTGACL = transGraphACL acl'            
+            case applyACLAlterTransGraphExpr (ipRoles conf) alterTGACL alterGraphExpr of
+              Left err -> pure (Left err)
+              Right () -> do
+
+                case evalAlterTransactionGraphExpr tstamp freshId discon updatedGraph alterGraphExpr of
+                  Left err -> pure (Left err)
+                  Right (discon', mtrans', graph') -> do
+                    pure (Right (discon', TransactionGraphIncrementalWriteInfo {
+                                    uncommittedTransactions = S.fromList (catMaybes [mtrans']),
+                                    newGraph = graph'
+                                    }))
 executeAlterTransactionGraphExpr sessionId conn@RemoteConnection{} alterGraphExpr =
   remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId alterGraphExpr)
 
--- | A trans-graph expression is a relational query executed against the entirety of a transaction graph.
+-- | A trans-graph expression is a relational query executed against the entirety of a transaction graph. Requires AccessRelVarsPermission if the expression mentions a relation variable.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
-executeTransGraphRelationalExpr _ (InProcessConnection conf) tgraphExpr = do
-  let graphTvar = ipTransactionGraph conf  
-  graph <- atomically $ do
-    readTVar graphTvar
-  optimizeAndEvalTransGraphRelationalExprWithCache graph tgraphExpr (ipRelExprCache conf)
+executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr = do
+  eGraph <- atomically $ do
+    eSession <- sessionAndSchema sessionId conf    
+    case eSession of
+      Left err -> pure $ Left err
+      Right (session, _schema) -> do
+        let dbctx = Sess.concreteDatabaseContext session
+            graphTvar = ipTransactionGraph conf
+        graph <- readTVar graphTvar
+        case RE.resolveDBC' graph dbctx DBC.acl of
+          Left err -> pure (Left err)
+          Right acl' -> do
+            let rvACL = relvarsACL acl'
+            case applyACLTransGraphRelationalExpr (ipRoles conf) rvACL tgraphExpr of
+              Left err -> pure (Left err)
+              Right () ->
+                pure (Right graph)
+  case eGraph of
+    Left err -> pure (Left err)
+    Right graph ->
+      optimizeAndEvalTransGraphRelationalExprWithCache graph tgraphExpr (ipRelExprCache conf)
   
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
--- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'.
+-- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'. Requires AlterSchemaPermission.
 executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Either RelationalError ())
 executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $ do
   let sessions = ipSessions conf
@@ -802,18 +848,24 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
         Right subschemas' -> do
           let transId = Sess.parentId session
               context = Sess.concreteDatabaseContext session
-          case Schema.evalSchemaExpr schemaExpr context transId graph subschemas' of
+          case RE.resolveDBC' graph context DBC.acl of
             Left err -> pure (Left err)
-            Right (newSubschemas, newContext) -> do
-              --hm- maybe we should start using lenses
-              let discon = Sess.disconnectedTransaction session 
-                  newSchemas = Schemas newContext (ValueMarker newSubschemas)
-                  newSession = Session (DisconnectedTransaction {
-                                           disconTransactionId = Discon.parentId discon,
-                                           disconSchemas = newSchemas,
-                                           disconCurrentHead = Discon.disconCurrentHead (Sess.disconnectedTransaction session) }) (Sess.schemaName session)
-              StmMap.insert newSession sessionId sessions
-              pure (Right ())
+            Right acl' ->
+              case applyACLSchemaExpr (ipRoles conf) (schemaACL acl') schemaExpr of
+                Left err -> pure (Left err)
+                Right () ->
+                  case Schema.evalSchemaExpr schemaExpr context transId graph subschemas' of
+                    Left err -> pure (Left err)
+                    Right (newSubschemas, newContext) -> do
+                      --hm- maybe we should start using lenses
+                      let discon = Sess.disconnectedTransaction session 
+                          newSchemas = Schemas newContext (ValueMarker newSubschemas)
+                          newSession = Session (DisconnectedTransaction {
+                                                   disconTransactionId = Discon.parentId discon,
+                                                   disconSchemas = newSchemas,
+                                                   disconCurrentHead = Discon.disconCurrentHead (Sess.disconnectedTransaction session) }) (Sess.schemaName session)
+                      StmMap.insert newSession sessionId sessions
+                      pure (Right ())
 executeSchemaExpr sessionId conn@(RemoteConnection _) schemaExpr = remoteCall conn (ExecuteSchemaExpr sessionId schemaExpr)          
 
 -- | After modifying a 'DatabaseContext', 'commit' the transaction to the transaction graph at the head which the session is referencing. This will also trigger checks for any notifications which need to be propagated.
@@ -825,10 +877,10 @@ sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
 sendNotifications clients notifs =
   unless (M.null notifs) $ forM_ clients sender
  where
-  sender (RemoteClientInfo sock) = RPC.sendMessage sock (NotificationMessage notifs)
+  sender (RemoteClientInfo sock) = SRPC.sendMessage sock (NotificationMessage notifs)
   sender (InProcessClientInfo tvar) = putMVar tvar notifs
 
--- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation.
+-- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation. Requires CommitTransactionPermission.
 rollback :: SessionId -> Connection -> IO (Either RelationalError ())
 rollback sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Rollback >> pure (Right ())
 rollback sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Rollback)
@@ -844,9 +896,11 @@ readGraphTransactionIdDigest NoPersistence = error "attempt to read digest from 
 readGraphTransactionIdDigest (MinimalPersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
 readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransactionIdFileDigest dbdir 
 
--- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types.
+-- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types. If relvars are mentioned, requires AccessRelVarsPermission. If functions are mentioned, requires ViewFunctionPermission.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-typeForRelationalExpr sessionId conn@(InProcessConnection _) relExpr = atomically $ typeForRelationalExprSTM sessionId conn relExpr
+typeForRelationalExpr sessionId conn@(InProcessConnection _) relExpr =
+-- TODO  applyACLRelationalExpr 
+  atomically $ typeForRelationalExprSTM sessionId conn relExpr
 typeForRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr sessionId relExpr)
     
 typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
@@ -1330,14 +1384,14 @@ data InProcessConnectionConf = InProcessConnectionConf {
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks
-data ClientInfo = RemoteClientInfo (RPC.Locking Socket) |
+data ClientInfo = RemoteClientInfo SRPC.SocketContext |
                   InProcessClientInfo (MVar EvaluatedNotifications)
 
 instance Eq ClientInfo where
-  (RemoteClientInfo a) == (RemoteClientInfo b) = RPC.lockless a == RPC.lockless b
+  (RemoteClientInfo a) == (RemoteClientInfo b) = a == b
   (InProcessClientInfo a) == (InProcessClientInfo b) = a == b
   _ == _ = False
 
 instance Hashable ClientInfo where
-  hashWithSalt salt (RemoteClientInfo sock) = hashWithSalt salt (show (RPC.lockless sock))
+  hashWithSalt salt (RemoteClientInfo sockCtx) = hashWithSalt salt (show (SRPC.lockless (SRPC.lockingSocket sockCtx)))
   hashWithSalt salt (InProcessClientInfo _) = hashWithSalt salt (1::Int)

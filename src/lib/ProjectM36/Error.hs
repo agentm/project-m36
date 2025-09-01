@@ -14,6 +14,7 @@ import qualified Data.Text as T
 import Data.Typeable
 import Control.Exception
 import ProjectM36.SQL.Select
+import ProjectM36.AccessControlList
 
 data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | TupleAttributeCountMismatchError Int --attribute name
@@ -116,8 +117,8 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RegisteredQueryValidationError RegisteredQueryName RelationalError
                      | RegisteredQueryNameInUseError RegisteredQueryName
                      | RegisteredQueryNameNotInUseError RegisteredQueryName
-                     | AccessDeniedError
-
+                     | AccessDeniedError SomePermission
+                     
                      | SQLConversionError SQLError
 
                      | MultipleErrors [RelationalError]

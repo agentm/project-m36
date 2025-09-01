@@ -39,7 +39,7 @@ data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand
 main :: IO ()
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext []
       check x = case x of 
         Left err -> error (show err)
         Right x' -> x'

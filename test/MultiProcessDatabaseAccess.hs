@@ -24,7 +24,7 @@ testList = TestList [testMultipleProcessAccess]
 testMultipleProcessAccess :: Test
 testMultipleProcessAccess = TestCase $ 
   withSystemTempDirectory "pm36" $ \tmpdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext
+    let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext [superAdminRole]
         master = "master"
         dudExpr = Assign "x" (RelationVariable "true" ())
         dbdir = tmpdir </> "db"

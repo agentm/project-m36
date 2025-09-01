@@ -5,7 +5,6 @@ import TutorialD.Interpreter.Import.TutorialD
 import System.Exit
 import qualified Data.Text as T
 import System.IO.Temp
-import System.FilePath
 import qualified Data.Map as M
 import System.IO
 import qualified Data.ByteString as BS

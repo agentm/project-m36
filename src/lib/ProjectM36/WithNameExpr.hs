@@ -2,10 +2,16 @@
 module ProjectM36.WithNameExpr where
 import ProjectM36.Base
 import Data.List (find)
+import qualified Data.Set as S
 
 lookup :: RelVarName -> WithNamesAssocsBase a -> Maybe (RelationalExprBase a)
 lookup matchrv assocs =
   snd <$> find (\(WithNameExpr rv _, _) -> rv == matchrv) assocs
+
+macroNames :: WithNamesAssocsBase a -> S.Set RelVarName
+macroNames assocs = S.fromList (map getMacroName assocs)
+  where
+    getMacroName (WithNameExpr rvName _, _expand) = rvName
   
 -- substitute all instances of With-based macros to remove macro context
 -- ideally, we would use a different relational expr type to "prove" that the with macros can no longer exist

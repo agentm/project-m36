@@ -67,6 +67,13 @@ deriving via WineryRecord FunctionAccessControlList instance Serialise FunctionA
 deriving via WineryRecord FunctionRoleAccess instance Serialise FunctionRoleAccess
 deriving via WineryVariant FunctionPermission instance Serialise FunctionPermission
 
+deriving via WineryRecord AlterTransGraphAccessControlList instance Serialise AlterTransGraphAccessControlList
+deriving via WineryVariant AlterTransGraphPermission instance Serialise AlterTransGraphPermission
+deriving via WineryRecord AlterTransGraphRoleAccess instance Serialise AlterTransGraphRoleAccess
+
+deriving via WineryRecord SchemaAccessControlList instance Serialise SchemaAccessControlList
+deriving via WineryVariant AlterSchemaPermission instance Serialise AlterSchemaPermission
+deriving via WineryRecord SchemaRoleAccess instance Serialise SchemaRoleAccess
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d

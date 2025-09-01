@@ -122,7 +122,7 @@ opts :: ParserInfo InterpreterConfig
 opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> C.ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext [] -- no role ids here?
 connectionInfoForConfig (RemoteInterpreterConfig remoteAddress remoteDBName _ _ _) _ = C.RemoteConnectionInfo remoteDBName remoteAddress outputNotificationCallback
 
 headNameForConfig :: InterpreterConfig -> HeadName

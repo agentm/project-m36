@@ -24,7 +24,7 @@ requestHandlers testFlag ti =
     RequestHandler (\sState (Login dbName) -> do
                        addClientLogin dbName sState
                        conn <- getConn sState
-                       handleLogin conn (connectionSocket sState)),
+                       handleLogin conn (connectionSocketContext sState)),
      RequestHandler (\sState Logout -> do
                         conn <- getConn sState                        
                         handleLogout ti conn),
@@ -131,7 +131,7 @@ requestHandlers testFlag ti =
 
 getConn :: ConnectionState ServerState -> IO Connection
 getConn connState = do
-  let sock = lockless (connectionSocket connState)
+  let sock = lockless (lockingSocket (connectionSocketContext connState))
       sState = connectionServerState connState
   mConn <- connectionForClient sock sState
   case mConn of
@@ -183,7 +183,7 @@ data ServerState =
 addClientLogin :: DatabaseName -> ConnectionState ServerState -> IO ()
 addClientLogin dbName cState = do
   let clientMap = stateClientMap (connectionServerState cState)
-      sock = lockless (connectionSocket cState)
+      sock = lockless (lockingSocket (connectionSocketContext cState))
   atomically $ do
     mVal <- StmMap.lookup (show sock) clientMap
     case mVal of
@@ -227,6 +227,6 @@ launchServer daemonConfig mAddr = do
                   v -> Just v
           (sockSpec, sockAddr) <- resolveRemoteServerAddress (bindAddress daemonConfig)
           sState <- initialServerState (databaseName daemonConfig) conn
-          serve (requestHandlers (testMode daemonConfig) mTimeout) sState sockSpec sockAddr mAddr
+          serve (requestHandlers (testMode daemonConfig) mTimeout) sState UnencryptedConnectionConfig sockSpec sockAddr mAddr
 
 

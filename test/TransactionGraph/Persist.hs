@@ -90,7 +90,7 @@ testMerkleHashValidation = TestCase $
   -- add a commit and validate the hashes successfully
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let dbdir = tempdir </> "dbdir"
-      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext
+      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext [superAdminRole]
   conn <- assertIOEither $ connectProjectM36 connInfo
   sess <- assertIOEither $ createSessionAtHead conn "master"
   Right _ <- executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
@@ -186,7 +186,7 @@ assertIOEither x = do
 testTransactionDirectorySizeGrowth :: Test
 testTransactionDirectorySizeGrowth = TestCase $
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
-    Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext)
+    Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext [superAdminRole])
     Right sessionId <- C.createSessionAtHead db "master"
 
     originalDBSize <- getDirectorySize tempdir

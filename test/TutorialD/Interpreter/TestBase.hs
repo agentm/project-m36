@@ -9,7 +9,7 @@ import Data.Text
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] basicDatabaseContext)
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] basicDatabaseContext [superAdminRole])
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do

@@ -76,7 +76,7 @@ handleIOErrors m = do
 main :: IO ()                       
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext []
   conn <- handleIOError $ connectProjectM36 connInfo
   
   sessionId <- handleIOError $ createSessionAtHead conn "master"

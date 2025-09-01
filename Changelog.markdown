@@ -3,6 +3,9 @@
 * add result caching layer
 * add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
 * reduce copying of database context fields in persistence layer by enabling references to previous transactions
+* require GHC 9.4+
+* add TLS encryption including mutual TLS support for client authentication
+* add role-based authentication for a variety of database permissions
 
 # 2025-03-30 (v1.1.1)
 

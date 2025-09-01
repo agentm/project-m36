@@ -10,7 +10,6 @@ import Data.Map
 import Control.Concurrent (threadDelay)
 import Network.RPC.Curryer.Server 
 import System.Timeout hiding (Timeout)
-import Network.Socket
 import Control.Exception
 
 timeoutOrDie :: Maybe Timeout -> IO a -> IO (Maybe a)
@@ -48,9 +47,9 @@ handleExecuteCurrentHead :: Maybe Timeout -> SessionId -> Connection -> IO (Eith
 handleExecuteCurrentHead ti sessionId conn =
   timeoutRelErr ti (currentHead sessionId conn)
   
-handleLogin :: Connection -> Locking Socket -> IO Bool
-handleLogin conn lockSock = do
-  addClientNode conn lockSock
+handleLogin :: Connection -> SocketContext -> IO Bool
+handleLogin conn sockCtx = do
+  addClientNode conn sockCtx
   pure True
   
 handleExecuteTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())

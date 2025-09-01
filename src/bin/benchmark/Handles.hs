@@ -49,7 +49,7 @@ main = do
 
 runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()
 runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
-  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback [] basicDatabaseContext
+  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback [] basicDatabaseContext []
   eConn <- connectProjectM36 connInfo 
   case eConn of
     Left err -> error (show err)

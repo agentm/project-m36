@@ -178,7 +178,5 @@ unionMergeACLs _prefer graph v_aclA v_aclB = do
   aclA <- resolveValueMarker graph acl v_aclA
   aclB <- resolveValueMarker graph acl v_aclB
 
-  pure $ ValueMarker $ DatabaseContextACL {
-    relvarsACL = relvarsACL aclA <> relvarsACL aclB,
-    dbcFunctionsACL = dbcFunctionsACL aclA <> dbcFunctionsACL aclB
-    }
+  pure $ ValueMarker $ aclA <> aclB
+

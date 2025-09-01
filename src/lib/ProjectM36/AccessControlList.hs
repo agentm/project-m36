@@ -30,23 +30,44 @@ type RelVarRoleAccess = RoleAccess RoleId RelVarPermission
 type FunctionAccessControlList = AccessControlList RoleId FunctionPermission
 type FunctionRoleAccess = RoleAccess RoleId FunctionPermission
 
+type AlterTransGraphAccessControlList = AccessControlList RoleId AlterTransGraphPermission
+type AlterTransGraphRoleAccess = RoleAccess RoleId AlterTransGraphPermission
+
+type SchemaAccessControlList = AccessControlList RoleId AlterSchemaPermission
+type SchemaRoleAccess = RoleAccess RoleId AlterSchemaPermission
+
 class AllPermissions a where
   allPermissions :: S.Set a
 
-data RelVarPermission = AccessRelVars
+data RelVarPermission = AccessRelVarsPermission {-| AccessTypeConstructorsPermission -}
   deriving (Eq, Show, Ord, Generic, NFData)
 
 instance AllPermissions RelVarPermission where
-  allPermissions = S.singleton AccessRelVars
+  allPermissions = S.fromList [AccessRelVarsPermission]
 
 data FunctionPermission =
   ExecuteFunctionPermission -- ^ allow the role to execute the function
   | ViewFunctionPermission -- ^ allow the role to see that the function exists
+  | LoadFunctionPermission -- ^ allow the role to load functions from outside the database
   deriving (Eq, Show, Ord, Generic, NFData)
 
 instance AllPermissions FunctionPermission where
-  allPermissions = S.fromList [ExecuteFunctionPermission, ViewFunctionPermission]
+  allPermissions = S.fromList [ExecuteFunctionPermission, ViewFunctionPermission, LoadFunctionPermission]
 
+data AlterTransGraphPermission =
+  CommitTransactionPermission -- ^ allow the role to commit a transaction to the graph
+  deriving (Eq, Show, Ord, Generic, NFData)  
+
+instance AllPermissions AlterTransGraphPermission where
+  allPermissions = S.fromList [CommitTransactionPermission]
+
+data AlterSchemaPermission =
+  AlterSchemaPermission -- ^ allow the role to add or remove a schema
+  deriving (Eq, Show, Ord, Generic, NFData)
+
+instance AllPermissions AlterSchemaPermission where
+  allPermissions = S.fromList [AlterSchemaPermission]
+    
 hasAccess :: (Eq role', Eq perm) => [role'] -> perm -> AccessControlList role' perm -> Bool
 hasAccess hasRoles checkPerm (AccessControlList roleAccesses) =
   or (map (\ra -> role ra `elem` hasRoles && checkPerm `elem` perms ra) roleAccesses)
@@ -98,32 +119,55 @@ merge (AccessControlList acl1) (AccessControlList acl2) =
 data DatabaseContextACL =
   DatabaseContextACL {
   relvarsACL :: RelVarAccessControlList,
-  dbcFunctionsACL :: FunctionAccessControlList
-                     }
+  dbcFunctionsACL :: FunctionAccessControlList,
+  transGraphACL :: AlterTransGraphAccessControlList,
+  schemaACL :: SchemaAccessControlList
+      }
   deriving (Show, NFData, Generic)
 
 instance Semigroup DatabaseContextACL where
   a <> b = DatabaseContextACL {
     relvarsACL = relvarsACL a <> relvarsACL b,
-    dbcFunctionsACL = dbcFunctionsACL a <> dbcFunctionsACL b
+    dbcFunctionsACL = dbcFunctionsACL a <> dbcFunctionsACL b,
+    transGraphACL = transGraphACL a <> transGraphACL b,
+    schemaACL = schemaACL a <> schemaACL b
     }
 
 instance Monoid DatabaseContextACL where
   mempty = DatabaseContextACL {
     relvarsACL = mempty,
-    dbcFunctionsACL = mempty
+    dbcFunctionsACL = mempty,
+    transGraphACL = mempty,
+    schemaACL = mempty
     }
 
 basic :: DatabaseContextACL
 basic = DatabaseContextACL {
   relvarsACL = AccessControlList [RoleAccess {
-                                     role = superRole,
+                                     role = superAdminRole,
                                      perms = allPermissions
                                      }],
   dbcFunctionsACL = AccessControlList [RoleAccess {
-                                          role = superRole,
+                                          role = superAdminRole,
                                           perms = allPermissions
-                                          }]
+                                          }],
+  transGraphACL = AccessControlList [RoleAccess {
+                                        role = superAdminRole,
+                                        perms = allPermissions
+                                        }],
+  schemaACL = AccessControlList [RoleAccess {
+                                        role = superAdminRole,
+                                        perms = allPermissions
+                                        }]
   }
-  where
-    superRole = nil
+
+superAdminRole :: RoleId
+superAdminRole = nil
+
+-- used in access control error reporting
+data SomePermission = SomeRelVarPermission RelVarPermission |
+                      SomeFunctionPermission FunctionPermission |
+                      SomeAlterSchemaPermission AlterSchemaPermission |
+                      SomeAlterTransGraphPermission AlterTransGraphPermission
+                    deriving (Show, NFData, Generic, Eq)
+                     
