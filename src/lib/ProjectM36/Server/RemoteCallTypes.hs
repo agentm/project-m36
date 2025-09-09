@@ -19,7 +19,7 @@ import Codec.Winery
 
 {-# ANN module ("HLint: ignore Use newtype instead of data" :: String) #-}
 -- | The initial login message. The argument should be the process id of the initiating client. This ProcessId will receive notification callbacks.
-data Login = Login DatabaseName
+data Login = Login DatabaseName RoleName
   RPCData(Login)
                     
 data Logout = Logout

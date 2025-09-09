@@ -30,8 +30,8 @@ type CheckFS = Bool
 type DirectExecute = String
 type ParserError = ParseErrorBundle T.Text Void
 
-data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe DirectExecute) [GhcPkgPath] CheckFS |
-                         RemoteInterpreterConfig RemoteServerAddress C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS
+data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe DirectExecute) [GhcPkgPath] CheckFS RoleName |
+                         RemoteInterpreterConfig RemoteServerAddress (Maybe C.TlsConfig) C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS RoleName
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -65,8 +65,8 @@ reprLoop config historyFilePath reprLoopEvaluator promptText sessionId conn = do
       reprLoop config historyFilePath reprLoopEvaluator promptText sessionId conn
 
 parseArgs :: Parser InterpreterConfig
-parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseDirectExecute <*> many parseGhcPkgPath <*> parseCheckFS <|>
-            RemoteInterpreterConfig <$> parseServerAddress <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS
+parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseDirectExecute <*> many parseGhcPkgPath <*> parseCheckFS <*> parseRoleName <|>
+            RemoteInterpreterConfig <$> parseServerAddress <*> optional (parseTlsConfig False) <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS <*> parseRoleName
 
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
@@ -122,23 +122,23 @@ opts :: ParserInfo InterpreterConfig
 opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> C.ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext [] -- no role ids here?
-connectionInfoForConfig (RemoteInterpreterConfig remoteAddress remoteDBName _ _ _) _ = C.RemoteConnectionInfo remoteDBName remoteAddress outputNotificationCallback
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _ roleName) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext roleName
+connectionInfoForConfig (RemoteInterpreterConfig remoteAddress mTlsConfig remoteDBName _ _ _ roleName) _ = C.RemoteConnectionInfo remoteDBName remoteAddress mTlsConfig outputNotificationCallback roleName
 
 headNameForConfig :: InterpreterConfig -> HeadName
-headNameForConfig (LocalInterpreterConfig _ headn _ _ _) = headn
-headNameForConfig (RemoteInterpreterConfig _ _ headn _ _) = headn
+headNameForConfig (LocalInterpreterConfig _ headn _ _ _ _) = headn
+headNameForConfig (RemoteInterpreterConfig _ _ _ headn _ _ _) = headn
 
 directExecForConfig :: InterpreterConfig -> Maybe String
-directExecForConfig (LocalInterpreterConfig _ _ t _ _) = t
-directExecForConfig (RemoteInterpreterConfig _ _ _ t _) = t
+directExecForConfig (LocalInterpreterConfig _ _ t _ _ _) = t
+directExecForConfig (RemoteInterpreterConfig _ _ _ _ t _ _) = t
 
 checkFSForConfig :: InterpreterConfig -> Bool
-checkFSForConfig (LocalInterpreterConfig _ _ _ _ c) = c
-checkFSForConfig (RemoteInterpreterConfig _ _ _ _ c) = c
+checkFSForConfig (LocalInterpreterConfig _ _ _ _ c _) = c
+checkFSForConfig (RemoteInterpreterConfig _ _ _ _ _ c _) = c
 
 persistenceStrategyForConfig :: InterpreterConfig -> Maybe PersistenceStrategy
-persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _) = Just strat
+persistenceStrategyForConfig (LocalInterpreterConfig strat _ _ _ _ _) = Just strat
 persistenceStrategyForConfig RemoteInterpreterConfig{} = Nothing
                          
 errDie :: String -> IO ()                                                           

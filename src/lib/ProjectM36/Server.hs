@@ -15,16 +15,18 @@ import Network.RPC.Curryer.Server
 import Network.Socket
 import qualified StmContainers.Map as StmMap
 import Control.Concurrent.STM
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 
 type TestMode = Bool
 
 requestHandlers :: TestMode -> Maybe Timeout -> RequestHandlers ServerState
 requestHandlers testFlag ti =
   [
-    RequestHandler (\sState (Login dbName) -> do
+    RequestHandler (\sState (Login dbName roleName) -> do
                        addClientLogin dbName sState
                        conn <- getConn sState
-                       handleLogin conn (connectionSocketContext sState)),
+                       handleLogin conn (connectionSocketContext sState) roleName),
      RequestHandler (\sState Logout -> do
                         conn <- getConn sState                        
                         handleLogout ti conn),
@@ -215,7 +217,7 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext [])
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext "admin")
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)
@@ -225,8 +227,22 @@ launchServer daemonConfig mAddr = do
                 case perRequestTimeout daemonConfig of
                   0 -> Nothing
                   v -> Just v
+              connConfig = case tlsConfig daemonConfig of
+                             Nothing -> UnencryptedConnectionConfig
+                             Just (tlsConfig, clientAuth) -> let
+                               serverTlsConfig = ServerTLSConfig {
+                                 tlsCertData = ServerTLSCertInfo {
+                                     x509PublicFilePath = maybe (error "expected public key path argument") fst (serverX509PublicPrivateKeyPaths tlsConfig),
+                                     x509CertFilePath = serverX509CertificatePath tlsConfig,
+                                     x509PrivateFilePath = maybe (error "expected private key path argument") snd (serverX509PublicPrivateKeyPaths tlsConfig)
+                                         },
+                                 tlsServerHostName = serverTlsHostName tlsConfig,
+                                 tlsServerServiceName = TE.encodeUtf8 (T.pack (serverTlsServiceName tlsConfig))
+                                 }
+                               in
+                               EncryptedConnectionConfig serverTlsConfig clientAuth
           (sockSpec, sockAddr) <- resolveRemoteServerAddress (bindAddress daemonConfig)
           sState <- initialServerState (databaseName daemonConfig) conn
-          serve (requestHandlers (testMode daemonConfig) mTimeout) sState UnencryptedConnectionConfig sockSpec sockAddr mAddr
+          serve (requestHandlers (testMode daemonConfig) mTimeout) sState connConfig sockSpec sockAddr mAddr
 
 

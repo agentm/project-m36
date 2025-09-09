@@ -47,9 +47,9 @@ handleExecuteCurrentHead :: Maybe Timeout -> SessionId -> Connection -> IO (Eith
 handleExecuteCurrentHead ti sessionId conn =
   timeoutRelErr ti (currentHead sessionId conn)
   
-handleLogin :: Connection -> SocketContext -> IO Bool
-handleLogin conn sockCtx = do
-  addClientNode conn sockCtx
+handleLogin :: Connection -> SocketContext -> RoleName -> IO Bool
+handleLogin conn sockCtx roleName = do
+  addClientNode conn sockCtx roleName
   pure True
   
 handleExecuteTransactionGraphExpr :: Maybe Timeout -> SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())

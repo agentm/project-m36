@@ -11,6 +11,7 @@ module ProjectM36.Client
        Hostname,
        ServiceName,
        DatabaseName,
+       TlsConfig(..),
        ConnectionError(..),
        connectProjectM36,
        close,
@@ -118,7 +119,8 @@ module ProjectM36.Client
        defaultRemoteServerAddress,
        defaultServerHostname,
        Discon.CurrentHead(..),
-       superAdminRole
+       superAdminRole,
+       SRPC.ClientAuth(..)
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -198,8 +200,11 @@ import ProjectM36.SQL.Convert
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
 import qualified Data.Set as S
+import qualified ProjectM36.LoginRoles as LoginRoles
 import Streamly.Internal.Network.Socket (SockSpec(..))
+import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
+import qualified Data.Text.Encoding as TE
 
 type Hostname = String
 type Port = Word16
@@ -228,8 +233,8 @@ data RequestTimeoutException = RequestTimeoutException
 instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext [RoleId] |
-                      RemoteConnectionInfo DatabaseName RemoteServerAddress NotificationCallback
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext RoleName |
+                      RemoteConnectionInfo DatabaseName RemoteServerAddress (Maybe TlsConfig) NotificationCallback RoleName
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
@@ -265,9 +270,9 @@ defaultRemoteServerAddress :: RemoteServerAddress
 defaultRemoteServerAddress = RemoteServerHostAddress "127.0.0.1" defaultServerPort
 
 -- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
-defaultRemoteConnectionInfo :: ConnectionInfo
-defaultRemoteConnectionInfo =
-  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress emptyNotificationCallback
+defaultRemoteConnectionInfo :: RoleName -> ConnectionInfo
+defaultRemoteConnectionInfo roleName =
+  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress Nothing emptyNotificationCallback roleName
 
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
@@ -319,7 +324,7 @@ resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'. 
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleIds) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleName) = do
   freshId <- nextRandom
   tstamp <- getCurrentTime
   let freshGraph = bootstrapTransactionGraph tstamp freshId (DBC.toDatabaseContext bootstrapDatabaseContext)
@@ -332,22 +337,28 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         notifAsync <- startNotificationListener clientNodes notificationCallback
         maxCacheSize <- RelExprCache.defaultUpperBound
         cache <- RelExprCache.empty maxCacheSize
-        let conn = InProcessConnection InProcessConnectionConf {
-                                           ipPersistenceStrategy = strat, 
-                                           ipClientNodes = clientNodes, 
-                                           ipSessions = sessions, 
-                                           ipTransactionGraph = graphTvar, 
-                                           ipScriptSession = mScriptSession,
-                                           ipLocks = Nothing,
-                                           ipCallbackAsync = notifAsync,
-                                           ipRelExprCache = cache,
-                                           ipRoles = roleIds
-                                           }
-        pure (Right conn)
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleIds
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleIds
+        loginRoles <- LoginRoles.openNoPersistence
+        roleIds <- LoginRoles.roleIdsForRoleName roleName loginRoles
+        case roleIds of
+          [] -> pure (Left LoginError)
+          roleIds' -> do
+            let conn = InProcessConnection InProcessConnectionConf {
+                  ipPersistenceStrategy = strat, 
+                    ipClientNodes = clientNodes, 
+                    ipSessions = sessions, 
+                    ipTransactionGraph = graphTvar, 
+                    ipScriptSession = mScriptSession,
+                    ipLocks = Nothing,
+                    ipCallbackAsync = notifAsync,
+                    ipRelExprCache = cache,
+                    ipLoginRoles = loginRoles,
+                    ipRoleIds = roleIds'
+                  }
+            pure (Right conn)
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
         
-connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallback) = do
+connectProjectM36 (RemoteConnectionInfo dbName remoteAddress mTlsConfig notificationCallback roleName) = do
   (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
   let notificationHandlers =
         [CRPC.ClientAsyncRequestHandler $
@@ -355,11 +366,22 @@ connectProjectM36 (RemoteConnectionInfo dbName remoteAddress notificationCallbac
             forM_ (M.toList notifications') (uncurry notificationCallback)
         ]
       connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
-  eConn <- (Right <$> CRPC.connect notificationHandlers CRPC.UnencryptedConnectionConfig sockSpec sockAddr) `catch` connectExcHandler
+      connectionConfigFromTlsConfig Nothing = CRPC.UnencryptedConnectionConfig
+      connectionConfigFromTlsConfig (Just tlsConfig) =
+        let certInfo = CRPC.ClientTLSCertInfo {
+              CRPC.x509PublicPrivateFilePaths = serverX509PublicPrivateKeyPaths tlsConfig,
+              CRPC.x509CertFilePath = serverX509CertificatePath tlsConfig
+              } in
+        CRPC.EncryptedConnectionConfig (CRPC.ClientTLSConfig {
+                                           CRPC.tlsCertInfo = certInfo,
+                                           CRPC.tlsServerHostName = serverTlsHostName tlsConfig,
+                                           CRPC.tlsServerServiceName = TE.encodeUtf8 (T.pack (serverTlsServiceName tlsConfig))
+                                           })
+  eConn <- (Right <$> CRPC.connect notificationHandlers (connectionConfigFromTlsConfig mTlsConfig) sockSpec sockAddr) `catch` connectExcHandler
   case eConn of
     Left err -> pure (Left err)
     Right conn -> do
-      eRet <- CRPC.call conn (Login dbName)
+      eRet <- CRPC.call conn (Login dbName roleName)
       case eRet of
         Left err -> error (show err)
         Right False -> error "wtf"
@@ -375,11 +397,11 @@ convertRPCErrors err =
     SRPC.CodecError msg -> error $ "decoding message failed on server: " <> msg
     SRPC.ExceptionError msg -> error $ "server threw exception: " <> msg
 
-addClientNode :: Connection -> SRPC.SocketContext -> IO ()
-addClientNode (RemoteConnection _) _ = error "addClientNode called on remote connection"
-addClientNode (InProcessConnection conf) sockCtx = atomically (StmSet.insert clientInfo (ipClientNodes conf))
+addClientNode :: Connection -> SRPC.SocketContext -> RoleName -> IO ()
+addClientNode (RemoteConnection _) _ _ = error "addClientNode called on remote connection"
+addClientNode (InProcessConnection conf) sockCtx roleName = atomically (StmSet.insert clientInfo (ipClientNodes conf))
   where
-    clientInfo = RemoteClientInfo sockCtx
+    clientInfo = RemoteClientInfo sockCtx roleName
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -387,9 +409,9 @@ connectPersistentProjectM36 :: PersistenceStrategy ->
                                TransactionGraph ->
                                NotificationCallback ->
                                [GhcPkgPath] ->
-                               [RoleId] ->
+                               RoleName ->
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths roleIds = do
+connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths roleName = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Left err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -409,18 +431,24 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               notifAsync <- startNotificationListener clientNodes notificationCallback
               maxCacheSize <- RelExprCache.defaultUpperBound
               cache <- RelExprCache.empty maxCacheSize
-              let conn = InProcessConnection InProcessConnectionConf {
-                                             ipPersistenceStrategy = strat,
-                                             ipClientNodes = clientNodes,
-                                             ipSessions = sessions,
-                                             ipTransactionGraph = tvarGraph,
-                                             ipScriptSession = mScriptSession,
-                                             ipLocks = Just (lockFileH, lockMVar),
-                                             ipCallbackAsync = notifAsync,
-                                             ipRelExprCache = cache,
-                                             ipRoles = roleIds
-                                             }
-              pure (Right conn)
+              loginRoles <- LoginRoles.open (dbdir </> "loginroles.sqlite3")
+              roleIds <- LoginRoles.roleIdsForRoleName roleName loginRoles
+              case roleIds of
+                [] -> pure (Left LoginError)
+                _ -> do
+                  let conn = InProcessConnection InProcessConnectionConf {
+                        ipPersistenceStrategy = strat,
+                          ipClientNodes = clientNodes,
+                          ipSessions = sessions,
+                          ipTransactionGraph = tvarGraph,
+                          ipScriptSession = mScriptSession,
+                          ipLocks = Just (lockFileH, lockMVar),
+                          ipCallbackAsync = notifAsync,
+                          ipRelExprCache = cache,
+                          ipLoginRoles = loginRoles,
+                          ipRoleIds = roleIds
+                        }
+                  pure (Right conn)
 
 --startup local async process to handle notification callbacks
 startNotificationListener :: ClientNodes -> NotificationCallback -> IO (Async ())
@@ -600,7 +628,7 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
       case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
         Left err -> pure (Left err)
         Right acl' -> 
-          case applyACLRelationalExpr (ipRoles conf) (relvarsACL acl') rexpr of
+          case applyACLRelationalExpr (ipRoleIds conf) (relvarsACL acl') rexpr of
             Left err -> pure (Left err)
             Right () -> do
               qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
@@ -630,7 +658,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
               env = RE.mkDatabaseContextEvalEnv transId graph
               transId = Sess.parentId session
               runExpr = do
-                applyACLDatabaseContextExpr (ipRoles conf) expr''
+                applyACLDatabaseContextExpr (ipRoleIds conf) expr''
                 optimizeAndEvalDatabaseContextExpr True expr''
           case RE.runDatabaseContextEvalMonad ctx env runExpr of
             Left err -> pure (Left err)
@@ -682,7 +710,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
               Left err -> pure (Left err)
               Right acl' -> do
                 let alterTGACL = transGraphACL acl'
-                case applyACLAlterTransGraphExpr (ipRoles conf) alterTGACL Commit of
+                case applyACLAlterTransGraphExpr (ipRoleIds conf) alterTGACL Commit of
                   Left err -> pure (Left err)
                   Right () -> do
                     if Sess.parentId session == Trans.transactionId headTrans then do
@@ -715,7 +743,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           context = Sess.concreteDatabaseContext session
           runExpr = do
             --check perms
-            applyACLDatabaseContextIOExpr (ipRoles conf) expr
+            applyACLDatabaseContextIOExpr (ipRoleIds conf) expr
             optimizeAndEvalDatabaseContextIOExpr expr
       res <- RE.runDatabaseContextIOEvalMonad env context runExpr
       case res of
@@ -794,7 +822,7 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
           Left err -> pure (Left err)
           Right acl' -> do
             let alterTGACL = transGraphACL acl'            
-            case applyACLAlterTransGraphExpr (ipRoles conf) alterTGACL alterGraphExpr of
+            case applyACLAlterTransGraphExpr (ipRoleIds conf) alterTGACL alterGraphExpr of
               Left err -> pure (Left err)
               Right () -> do
 
@@ -823,7 +851,7 @@ executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr 
           Left err -> pure (Left err)
           Right acl' -> do
             let rvACL = relvarsACL acl'
-            case applyACLTransGraphRelationalExpr (ipRoles conf) rvACL tgraphExpr of
+            case applyACLTransGraphRelationalExpr (ipRoleIds conf) rvACL tgraphExpr of
               Left err -> pure (Left err)
               Right () ->
                 pure (Right graph)
@@ -851,7 +879,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           case RE.resolveDBC' graph context DBC.acl of
             Left err -> pure (Left err)
             Right acl' ->
-              case applyACLSchemaExpr (ipRoles conf) (schemaACL acl') schemaExpr of
+              case applyACLSchemaExpr (ipRoleIds conf) (schemaACL acl') schemaExpr of
                 Left err -> pure (Left err)
                 Right () ->
                   case Schema.evalSchemaExpr schemaExpr context transId graph subschemas' of
@@ -877,7 +905,8 @@ sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
 sendNotifications clients notifs =
   unless (M.null notifs) $ forM_ clients sender
  where
-  sender (RemoteClientInfo sock) = SRPC.sendMessage sock (NotificationMessage notifs)
+   --TODO check if role has access to relvars
+  sender (RemoteClientInfo sock _) = SRPC.sendMessage sock (NotificationMessage notifs)
   sender (InProcessClientInfo tvar) = putMVar tvar notifs
 
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation. Requires CommitTransactionPermission.
@@ -1380,18 +1409,28 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
   ipCallbackAsync :: Async (),
   ipRelExprCache :: RelExprCache, -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
-  ipRoles :: [RoleId] -- ^ the roles 
+  ipLoginRoles :: LoginRoles.LoginRolesDB, -- ^ roles allowed to connect to the database, access control is otherwise handled by ACLs in the database context
+  ipRoleIds :: [RoleId] -- ^ role ids for the user accessing the database
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks
-data ClientInfo = RemoteClientInfo SRPC.SocketContext |
+data ClientInfo = RemoteClientInfo SRPC.SocketContext RoleName |
                   InProcessClientInfo (MVar EvaluatedNotifications)
 
 instance Eq ClientInfo where
-  (RemoteClientInfo a) == (RemoteClientInfo b) = a == b
+  (RemoteClientInfo a roleNameA) == (RemoteClientInfo b roleNameB) = a == b && roleNameA == roleNameB
   (InProcessClientInfo a) == (InProcessClientInfo b) = a == b
   _ == _ = False
 
 instance Hashable ClientInfo where
-  hashWithSalt salt (RemoteClientInfo sockCtx) = hashWithSalt salt (show (SRPC.lockless (SRPC.lockingSocket sockCtx)))
+  hashWithSalt salt (RemoteClientInfo sockCtx roleName) = salt `hashWithSalt` show (SRPC.lockless (SRPC.lockingSocket sockCtx)) `hashWithSalt` roleName
   hashWithSalt salt (InProcessClientInfo _) = hashWithSalt salt (1::Int)
+
+data TlsConfig = TlsConfig
+  {
+    serverTlsHostName :: String,
+    serverTlsServiceName :: String,
+    serverX509PublicPrivateKeyPaths :: Maybe (FilePath, FilePath),
+    serverX509CertificatePath :: Maybe FilePath -- ^ Using Nothing indicates referencing the system certificate store.
+  }
+  deriving Show

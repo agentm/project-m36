@@ -7,7 +7,8 @@ data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    bindAddress :: RemoteServerAddress,
                                    ghcPkgPaths :: [String], -- used for AtomFunction dynamic compilation
                                    perRequestTimeout :: Int,
-                                   testMode :: Bool -- used exclusively for automated testing of the server, thus not accessible from the command line
+                                   testMode :: Bool, -- used exclusively for automated testing of the server, thus not accessible from the command line
+                                   tlsConfig :: Maybe (TlsConfig, ClientAuth)
                                    }
                     deriving (Show)
 
@@ -25,5 +26,7 @@ defaultServerConfig =
                  bindAddress = RemoteServerHostAddress "127.0.0.1" 6543,
                  ghcPkgPaths = [],
                  perRequestTimeout = 0,
-                 testMode = False
+                 testMode = False,
+                 tlsConfig = Nothing
                }
+

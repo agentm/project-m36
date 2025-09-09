@@ -91,7 +91,7 @@ Library
                   cryptohash-sha256,
                   text-manipulate >= 0.2.0.1 && < 0.4,
                   winery >= 1.4,
-                  curryer-rpc>=0.4.0,
+                  curryer-rpc>=0.5.0,
                   network,
                   async,
                   vector-instances,
@@ -103,7 +103,8 @@ Library
                   crypton,
                   streamly-core,
                   streamly,
-                  network-byte-order
+                  network-byte-order,
+                  sqlite-simple
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -131,6 +132,7 @@ Library
                      ProjectM36.AttributeNames,
                      ProjectM36.Tuple,
                      ProjectM36.TupleSet,
+                     ProjectM36.RelationVariablesMentioned,
                      ProjectM36.Function,
                      ProjectM36.Atom,
                      ProjectM36.AtomFunction,
@@ -237,7 +239,8 @@ Library
                      ProjectM36.SystemMemory,
                      ProjectM36.PinnedRelationalExpr,
                      ProjectM36.AccessControlList,
-                     ProjectM36.AccessControl
+                     ProjectM36.AccessControl,
+                     ProjectM36.LoginRoles
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -245,8 +248,6 @@ Library
     else
       --219-  too many exported symbols under Windows and GHC 8.4
       GHC-Options: -rdynamic -fexternal-interpreter
-      if impl(ghc <9.4)
-        GHC-Options: -eventlog
       C-sources: cbits/DirectoryFsync.c, cbits/darwin_statfs.c
       Build-Depends: unix
     if os(linux)
@@ -260,8 +261,8 @@ Library
 
 Executable tutd
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0
-    Build-Depends: base >=4.8,
+        Build-Depends: ghc >= 9.4
+    Build-Depends: base >=4.17,
                    ghc-paths,
                    project-m36,
                    containers,
@@ -331,8 +332,6 @@ Executable tutd
     GHC-Options: -Wall -threaded -rtsopts
     if !os(windows)
       GHC-Options: -rdynamic
-    if impl(ghc <9.4)
-      GHC-Options: -eventlog
     if flag(profiler)
       GHC-Prof-Options: -fprof-auto -rtsopts -threaded
     Hs-Source-Dirs: ./src/bin
@@ -341,7 +340,7 @@ Executable tutd
 
 Executable sqlegacy
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0
+        Build-Depends: ghc >= 9.4
     Build-Depends: base,
                    ghc-paths,
                    project-m36,
@@ -415,7 +414,7 @@ Executable sqlegacy
 
 Executable project-m36-server
     if flag(haskell-scripting)
-        Build-Depends: ghc >= 9.0
+        Build-Depends: ghc >= 9.4
     Build-Depends: base,
                    ghc-paths,
                    transformers,
@@ -477,7 +476,7 @@ Common commontest
     Default-Extensions: OverloadedStrings
     GHC-Options: -Wall -threaded -with-rtsopts=-N
     Hs-Source-Dirs: test, src/bin
-    Other-Modules: ProjectM36.Interpreter
+    Other-Modules: ProjectM36.Interpreter, ProjectM36.Cli
 
 Benchmark basic-benchmark
     Default-Language: Haskell2010
@@ -532,7 +531,7 @@ Test-Suite test-tutoriald
     import: commontest
     type: exitcode-stdio-1.0
     main-is: TutorialD/InterpreterTest.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer, ProjectM36.Interpreter
+    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer, ProjectM36.Interpreter, ProjectM36.Cli
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, stm-containers, list-t, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, scientific
 
 Test-Suite test-tutoriald-atomfunctionscript
@@ -702,7 +701,7 @@ Test-Suite test-websocket-server
     import: commontest
     type: exitcode-stdio-1.0
     main-is: Server/WebSocket.hs
-    Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer, ProjectM36.Interpreter
+    Other-Modules: TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.TransactionGraphOperator, ProjectM36.Client.Json, ProjectM36.Server.RemoteCallTypes.Json, ProjectM36.Server.WebSocket, TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.SchemaOperator, TutorialD.Printer, ProjectM36.Interpreter, ProjectM36.Cli
 
 Test-Suite test-isomorphic-schemas
     import: commontest
