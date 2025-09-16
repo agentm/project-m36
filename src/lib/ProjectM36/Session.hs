@@ -18,25 +18,25 @@ type SessionId = UUID
 --the persistence of a session is as long as the life of the database (not serialized to disk)
 -- sessions are not associated with connections and have separate lifetimes
 -- | Represents a pointer into the database's transaction graph which the 'DatabaseContextExpr's can then modify subsequently be committed to extend the transaction graph. The session contains staged (uncommitted) database changes as well as the means to switch between isomorphic schemas.
-data Session = Session DisconnectedTransaction SchemaName
+data Session = Session {
+  disconnectedTransaction :: DisconnectedTransaction,
+  schemaName :: SchemaName
+  }
 
 defaultSchemaName :: SchemaName
 defaultSchemaName = "main"
 
-disconnectedTransaction :: Session -> DisconnectedTransaction
-disconnectedTransaction (Session discon _) = discon
-
 isUpdated :: Session -> DirtyFlag
-isUpdated (Session discon _) = Discon.isUpdated discon
+isUpdated sess = Discon.isUpdated (disconnectedTransaction sess)
 
 concreteDatabaseContext :: Session -> DatabaseContext
-concreteDatabaseContext (Session discon _) = Discon.concreteDatabaseContext discon
+concreteDatabaseContext sess = Discon.concreteDatabaseContext (disconnectedTransaction sess)
 
 parentId :: Session -> TransactionId
-parentId (Session discon _) = Discon.parentId discon
+parentId sess = Discon.parentId (disconnectedTransaction sess)
 
 subschemas :: Session -> ValueMarker Subschemas
-subschemas (Session discon _) = Schema.subschemas (disconSchemas discon)
+subschemas sess = Schema.subschemas (disconSchemas (disconnectedTransaction sess))
 
 resolveSubschemas :: Session -> TransactionGraph -> Either RelationalError Subschemas
 resolveSubschemas session graph = do
@@ -49,16 +49,14 @@ resolveSubschemas session graph = do
   resolveSubschemas' (subschemas session)
 
 schemas :: Session -> Discon.TransactionRefSchemas
-schemas (Session discon _) = disconSchemas discon
+schemas sess = disconSchemas (disconnectedTransaction sess)
 
-schemaName :: Session -> SchemaName
-schemaName (Session _ s) = s
 
 setSchemaName :: SchemaName -> Session -> TransactionGraph -> Either RelationalError Session
 setSchemaName sname session graph = do
   sSchemas <- resolveSubschemas session graph
   if sname == defaultSchemaName || M.member sname sSchemas then
-    pure (Session (disconnectedTransaction session) sname)
+    pure (session { schemaName = sname })
   else
     Left (SubschemaNameNotInUseError sname)
 

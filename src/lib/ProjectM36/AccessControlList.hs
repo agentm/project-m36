@@ -24,6 +24,7 @@ data RoleAccess role' permission = RoleAccess
 
 type RoleId = UUID
 
+-- | Determine if the role can view or alter underlying relation variables.
 type RelVarAccessControlList = AccessControlList RoleId RelVarPermission
 type RelVarRoleAccess = RoleAccess RoleId RelVarPermission
 

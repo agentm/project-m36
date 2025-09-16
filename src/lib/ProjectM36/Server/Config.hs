@@ -1,5 +1,6 @@
 module ProjectM36.Server.Config where
 import ProjectM36.Client
+import Network.RPC.Curryer.Server
 
 data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    checkFS :: Bool,
@@ -8,7 +9,7 @@ data ServerConfig = ServerConfig { persistenceStrategy :: PersistenceStrategy,
                                    ghcPkgPaths :: [String], -- used for AtomFunction dynamic compilation
                                    perRequestTimeout :: Int,
                                    testMode :: Bool, -- used exclusively for automated testing of the server, thus not accessible from the command line
-                                   tlsConfig :: Maybe (TlsConfig, ClientAuth)
+                                   connConfig :: ServerConnectionConfig
                                    }
                     deriving (Show)
 
@@ -27,6 +28,18 @@ defaultServerConfig =
                  ghcPkgPaths = [],
                  perRequestTimeout = 0,
                  testMode = False,
-                 tlsConfig = Nothing
+                 -- default to strongest security
+                 connConfig = EncryptedConnectionConfig tlsConfig ClientAuthRequired
                }
+  where
+    tlsConfig =
+      ServerTLSConfig {
+      tlsCertInfo = ServerTLSCertInfo {
+          x509PublicFilePath = "server.cert.pem",
+          x509PrivateFilePath = "server.key.pem",
+          x509CertFilePath = Nothing
+          },
+      tlsServerHostName = "127.0.0.1",
+      tlsServerServiceName = ""
+                                }
 

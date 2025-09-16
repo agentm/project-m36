@@ -6,6 +6,7 @@ import ProjectM36.Server.EntryPoints
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
+import ProjectM36.LoginRoles
 
 import Control.Concurrent.MVar (MVar)
 import System.IO (stderr, hPutStrLn)
@@ -16,7 +17,6 @@ import Network.Socket
 import qualified StmContainers.Map as StmMap
 import Control.Concurrent.STM
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 
 type TestMode = Bool
 
@@ -26,7 +26,12 @@ requestHandlers testFlag ti =
     RequestHandler (\sState (Login dbName roleName) -> do
                        addClientLogin dbName sState
                        conn <- getConn sState
-                       handleLogin conn (connectionSocketContext sState) roleName),
+                       let roleNameFromMutualTLS = connectionRoleName sState
+                           roleName' = case roleNameFromMutualTLS of
+                                         Nothing -> roleName
+                                         Just rname -> T.pack rname
+                           clientId = connectionClientId sState
+                       handleLogin conn clientId (connectionSocketContext sState) roleName'),
      RequestHandler (\sState Logout -> do
                         conn <- getConn sState                        
                         handleLogout ti conn),
@@ -35,7 +40,7 @@ requestHandlers testFlag ti =
       conn <- getConn sState
       handleExecuteCurrentHead ti sessionId conn,
     RequestHandler (\sState (ExecuteRelationalExpr sessionId expr) -> do
-                       conn <- getConn sState                        
+                       conn <- getConn sState
                        handleExecuteRelationalExpr ti sessionId conn expr),
      RequestHandler (\sState (ExecuteDataFrameExpr sessionId expr) -> do
                         conn <- getConn sState
@@ -138,7 +143,18 @@ getConn connState = do
   mConn <- connectionForClient sock sState
   case mConn of
     Nothing -> error "failed to find socket in client map"
-    Just conn -> pure conn
+    Just conn@RemoteConnection{} -> pure conn
+    Just (InProcessConnection connInfo) -> do
+      -- add role info
+      let clientNodes = ipClientNodes connInfo
+          clientId = connectionClientId connState
+      mClientNode <- atomically $ StmMap.lookup clientId clientNodes
+      roleIds <- case mClientNode of
+                   Nothing -> pure []
+                   Just InProcessClientInfo{} -> pure []
+                   Just (RemoteClientInfo _ roleName) -> 
+                     roleIdsForRoleName roleName (ipLoginRoles connInfo)
+      pure (InProcessConnection (connInfo { ipRoleIds = roleIds }))
 
 testModeHandlers :: Maybe Timeout -> RequestHandlers ServerState
 testModeHandlers ti = [RequestHandler (\sState (TestTimeout sessionId) -> do
@@ -227,22 +243,8 @@ launchServer daemonConfig mAddr = do
                 case perRequestTimeout daemonConfig of
                   0 -> Nothing
                   v -> Just v
-              connConfig = case tlsConfig daemonConfig of
-                             Nothing -> UnencryptedConnectionConfig
-                             Just (tlsConfig, clientAuth) -> let
-                               serverTlsConfig = ServerTLSConfig {
-                                 tlsCertData = ServerTLSCertInfo {
-                                     x509PublicFilePath = maybe (error "expected public key path argument") fst (serverX509PublicPrivateKeyPaths tlsConfig),
-                                     x509CertFilePath = serverX509CertificatePath tlsConfig,
-                                     x509PrivateFilePath = maybe (error "expected private key path argument") snd (serverX509PublicPrivateKeyPaths tlsConfig)
-                                         },
-                                 tlsServerHostName = serverTlsHostName tlsConfig,
-                                 tlsServerServiceName = TE.encodeUtf8 (T.pack (serverTlsServiceName tlsConfig))
-                                 }
-                               in
-                               EncryptedConnectionConfig serverTlsConfig clientAuth
           (sockSpec, sockAddr) <- resolveRemoteServerAddress (bindAddress daemonConfig)
           sState <- initialServerState (databaseName daemonConfig) conn
-          serve (requestHandlers (testMode daemonConfig) mTimeout) sState connConfig sockSpec sockAddr mAddr
+          serve (requestHandlers (testMode daemonConfig) mTimeout) sState (connConfig daemonConfig) sockSpec sockAddr mAddr
 
 

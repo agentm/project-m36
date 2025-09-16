@@ -22,6 +22,7 @@ import System.Exit
 import Text.Megaparsec.Error
 import Data.Void (Void)
 import ProjectM36.Interpreter hiding (Parser)
+import Network.RPC.Curryer.Client
 
 type GhcPkgPath = String
 type TutorialDExec = String
@@ -31,7 +32,7 @@ type DirectExecute = String
 type ParserError = ParseErrorBundle T.Text Void
 
 data InterpreterConfig = LocalInterpreterConfig PersistenceStrategy HeadName (Maybe DirectExecute) [GhcPkgPath] CheckFS RoleName |
-                         RemoteInterpreterConfig RemoteServerAddress (Maybe C.TlsConfig) C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS RoleName
+                         RemoteInterpreterConfig RemoteServerAddress ClientConnectionConfig C.DatabaseName HeadName (Maybe TutorialDExec) CheckFS RoleName
 
 outputNotificationCallback :: C.NotificationCallback
 outputNotificationCallback notName evaldNot = hPutStrLn stderr $ "Notification received " ++ show notName ++ ":\n" ++ "\n" ++ prettyEvaluatedNotification evaldNot
@@ -66,8 +67,36 @@ reprLoop config historyFilePath reprLoopEvaluator promptText sessionId conn = do
 
 parseArgs :: Parser InterpreterConfig
 parseArgs = LocalInterpreterConfig <$> parsePersistenceStrategy <*> parseHeadName <*> parseDirectExecute <*> many parseGhcPkgPath <*> parseCheckFS <*> parseRoleName <|>
-            RemoteInterpreterConfig <$> parseServerAddress <*> optional (parseTlsConfig False) <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS <*> parseRoleName
+            RemoteInterpreterConfig <$> parseServerAddress <*> parseClientConnectionConfig <*> parseDatabaseName <*> parseHeadName <*> parseDirectExecute <*> parseCheckFS <*> parseRoleName
 
+parseClientConnectionConfig :: Parser ClientConnectionConfig
+parseClientConnectionConfig =
+  flag' UnencryptedConnectionConfig (long "disable-tls" <>
+                                       help "Disable encryption when connecting to the server.")
+  <|>
+  EncryptedConnectionConfig <$> parseClientTLSConfig
+
+parseClientTLSConfig :: Parser ClientTLSConfig
+parseClientTLSConfig =
+  ClientTLSConfig <$>
+    parseClientTLSCertInfo <*>
+    parseHostname "localhost" <*>
+    parseServiceName ""
+
+parseClientTLSCertInfo :: Parser ClientTLSCertInfo
+parseClientTLSCertInfo =
+  ClientTLSCertInfo <$>
+  (optional $ ((,) <$>
+              strOption (long "public-x509-key" <>
+                         metavar "KEY_PATH" <>
+                         help "Enables TLS with path to public key.") <*>
+              strOption (long "private-x509-key" <>
+                         metavar "KEY_PATH" <>
+                         help "Enables TLS with path to private key."))) <*>
+  optional (strOption (long "certificate-x509-path" <>
+                        metavar "CERT_PATH" <>
+                        help "Path to certificate for TLS. Elide to use system's certificate store."))
+    
 parseHeadName :: Parser HeadName               
 parseHeadName = option auto (long "head" <>
                              help "Start session at head name." <>
@@ -123,7 +152,7 @@ opts = info (parseArgs <**> helpOption) idm
 
 connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> C.ConnectionInfo
 connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _ roleName) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext roleName
-connectionInfoForConfig (RemoteInterpreterConfig remoteAddress mTlsConfig remoteDBName _ _ _ roleName) _ = C.RemoteConnectionInfo remoteDBName remoteAddress mTlsConfig outputNotificationCallback roleName
+connectionInfoForConfig (RemoteInterpreterConfig remoteAddress connConfig remoteDBName _ _ _ roleName) _ = C.RemoteConnectionInfo remoteDBName remoteAddress connConfig outputNotificationCallback roleName
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn _ _ _ _) = headn

@@ -120,7 +120,9 @@ module ProjectM36.Client
        defaultServerHostname,
        Discon.CurrentHead(..),
        superAdminRole,
-       SRPC.ClientAuth(..)
+       SRPC.ClientAuth(..),
+       ClientInfo(..),
+       InProcessConnectionConf(..)
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -164,6 +166,7 @@ import Control.Concurrent.STM
 import Control.Concurrent.Async
 
 import Data.UUID.V4 (nextRandom)
+import Data.UUID (nil)
 import Data.Word
 import Data.Hashable
 import Control.Concurrent.MVar
@@ -204,7 +207,9 @@ import qualified ProjectM36.LoginRoles as LoginRoles
 import Streamly.Internal.Network.Socket (SockSpec(..))
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
-import qualified Data.Text.Encoding as TE
+import qualified Network.Socket as Socket
+
+import Debug.Trace
 
 type Hostname = String
 type Port = Word16
@@ -234,7 +239,7 @@ instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
 data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext RoleName |
-                      RemoteConnectionInfo DatabaseName RemoteServerAddress (Maybe TlsConfig) NotificationCallback RoleName
+                      RemoteConnectionInfo DatabaseName RemoteServerAddress CRPC.ClientConnectionConfig NotificationCallback RoleName
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
 
@@ -272,7 +277,7 @@ defaultRemoteServerAddress = RemoteServerHostAddress "127.0.0.1" defaultServerPo
 -- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
 defaultRemoteConnectionInfo :: RoleName -> ConnectionInfo
 defaultRemoteConnectionInfo roleName =
-  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress Nothing emptyNotificationCallback roleName
+  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress CRPC.defaultClientConnectionConfig emptyNotificationCallback roleName
 
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"
@@ -331,13 +336,14 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
   case strat of
     NoPersistence -> do
         graphTvar <- newTVarIO freshGraph
-        clientNodes <- StmSet.newIO
+        clientNodes <- StmMap.newIO
         sessions <- StmMap.newIO
         mScriptSession <- createScriptSession ghcPkgPaths
         notifAsync <- startNotificationListener clientNodes notificationCallback
         maxCacheSize <- RelExprCache.defaultUpperBound
         cache <- RelExprCache.empty maxCacheSize
         loginRoles <- LoginRoles.openNoPersistence
+        traceShowM ("roleIdsForRoleName"::String, roleName)
         roleIds <- LoginRoles.roleIdsForRoleName roleName loginRoles
         case roleIds of
           [] -> pure (Left LoginError)
@@ -358,7 +364,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
         
-connectProjectM36 (RemoteConnectionInfo dbName remoteAddress mTlsConfig notificationCallback roleName) = do
+connectProjectM36 (RemoteConnectionInfo dbName remoteAddress connConfig notificationCallback roleName) = do
   (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
   let notificationHandlers =
         [CRPC.ClientAsyncRequestHandler $
@@ -366,18 +372,7 @@ connectProjectM36 (RemoteConnectionInfo dbName remoteAddress mTlsConfig notifica
             forM_ (M.toList notifications') (uncurry notificationCallback)
         ]
       connectExcHandler (e :: IOException) = pure $ Left (IOExceptionError e)
-      connectionConfigFromTlsConfig Nothing = CRPC.UnencryptedConnectionConfig
-      connectionConfigFromTlsConfig (Just tlsConfig) =
-        let certInfo = CRPC.ClientTLSCertInfo {
-              CRPC.x509PublicPrivateFilePaths = serverX509PublicPrivateKeyPaths tlsConfig,
-              CRPC.x509CertFilePath = serverX509CertificatePath tlsConfig
-              } in
-        CRPC.EncryptedConnectionConfig (CRPC.ClientTLSConfig {
-                                           CRPC.tlsCertInfo = certInfo,
-                                           CRPC.tlsServerHostName = serverTlsHostName tlsConfig,
-                                           CRPC.tlsServerServiceName = TE.encodeUtf8 (T.pack (serverTlsServiceName tlsConfig))
-                                           })
-  eConn <- (Right <$> CRPC.connect notificationHandlers (connectionConfigFromTlsConfig mTlsConfig) sockSpec sockAddr) `catch` connectExcHandler
+  eConn <- (Right <$> CRPC.connect notificationHandlers connConfig sockSpec sockAddr) `catch` connectExcHandler
   case eConn of
     Left err -> pure (Left err)
     Right conn -> do
@@ -397,11 +392,16 @@ convertRPCErrors err =
     SRPC.CodecError msg -> error $ "decoding message failed on server: " <> msg
     SRPC.ExceptionError msg -> error $ "server threw exception: " <> msg
 
-addClientNode :: Connection -> SRPC.SocketContext -> RoleName -> IO ()
-addClientNode (RemoteConnection _) _ _ = error "addClientNode called on remote connection"
-addClientNode (InProcessConnection conf) sockCtx roleName = atomically (StmSet.insert clientInfo (ipClientNodes conf))
-  where
-    clientInfo = RemoteClientInfo sockCtx roleName
+addClientNode :: Connection -> SRPC.ClientConnectionId -> SRPC.SocketContext -> RoleName -> IO ()
+addClientNode (RemoteConnection _) _ _ _ = error "addClientNode called on remote connection"
+addClientNode (InProcessConnection conf) clientId sockCtx roleName = do
+  roleIds <- LoginRoles.roleIdsForRoleName roleName (ipLoginRoles conf)
+  case roleIds of
+    [] -> do --reject the connection because the role name has zero available roles
+      SRPC.withLock (SRPC.lockingSocket sockCtx) $ \sock -> Socket.close sock
+    roleIds -> do
+      let clientInfo = RemoteClientInfo sockCtx roleName
+      atomically (StmMap.insert clientInfo clientId (ipClientNodes conf))
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -426,7 +426,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
             Right _ -> do
               tvarGraph <- newTVarIO graph'
               sessions <- StmMap.newIO
-              clientNodes <- StmSet.newIO
+              clientNodes <- StmMap.newIO
               lockMVar <- newMVar digest
               notifAsync <- startNotificationListener clientNodes notificationCallback
               maxCacheSize <- RelExprCache.defaultUpperBound
@@ -454,7 +454,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
 startNotificationListener :: ClientNodes -> NotificationCallback -> IO (Async ())
 startNotificationListener cNodes notificationCallback = do
   inProcessClientInfo@(InProcessClientInfo notifMVar) <- InProcessClientInfo <$> newEmptyMVar          
-  atomically $ StmSet.insert inProcessClientInfo cNodes 
+  atomically $ StmMap.insert inProcessClientInfo nil cNodes 
   async $ forever $ do
     notifs <- takeMVar notifMVar
     forM_ (M.toList notifs) $ uncurry notificationCallback
@@ -1251,7 +1251,8 @@ commitLock_ sessionId conf stmBlock = do
                   Right previousTrans ->
                     if not (Prelude.null (uncommittedTransactions tWriteInfo)) then do
                       (evaldNots, nodes) <- executeCommitExprSTM_ (newGraph tWriteInfo) (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                      nodesToNotify <- stmSetToList nodes
+                      clientNodeMap <- stmMapToList nodes
+                      let nodesToNotify = map snd clientNodeMap
                       pure $ Right (evaldNots, nodesToNotify, tWriteInfo)
                     else pure (Right (M.empty, [], tWriteInfo))
 
@@ -1397,7 +1398,7 @@ registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
             pure $ registeredQueriesAsRelationInSchema schema regQs
 registeredQueriesAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveRegisteredQueries sessionId)        
 
-type ClientNodes = StmSet.Set ClientInfo
+type ClientNodes = StmMap.Map SRPC.ClientConnectionId ClientInfo
 
 -- internal structure specific to in-process connections
 data InProcessConnectionConf = InProcessConnectionConf {
