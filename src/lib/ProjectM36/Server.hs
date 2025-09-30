@@ -6,7 +6,6 @@ import ProjectM36.Server.EntryPoints
 import ProjectM36.Server.RemoteCallTypes
 import ProjectM36.Server.Config (ServerConfig(..))
 import ProjectM36.FSType
-import ProjectM36.LoginRoles
 
 import Control.Concurrent.MVar (MVar)
 import System.IO (stderr, hPutStrLn)
@@ -144,17 +143,19 @@ getConn connState = do
   case mConn of
     Nothing -> error "failed to find socket in client map"
     Just conn@RemoteConnection{} -> pure conn
-    Just (InProcessConnection connInfo) -> do
+    Just conn@(InProcessConnection connInfo) -> do
       -- add role info
       let clientNodes = ipClientNodes connInfo
           clientId = connectionClientId connState
       mClientNode <- atomically $ StmMap.lookup clientId clientNodes
-      roleIds <- case mClientNode of
-                   Nothing -> pure []
-                   Just InProcessClientInfo{} -> pure []
-                   Just (RemoteClientInfo _ roleName) -> 
-                     roleIdsForRoleName roleName (ipLoginRoles connInfo)
-      pure (InProcessConnection (connInfo { ipRoleIds = roleIds }))
+      let mRoleName = case mClientNode of
+                        Nothing -> Nothing
+                        Just InProcessClientInfo{} -> Nothing
+                        Just (RemoteClientInfo _ roleName) -> Just roleName
+      case mRoleName of
+        Nothing -> pure conn
+        Just roleName -> 
+          pure (InProcessConnection (connInfo { ipRoleName = roleName }))
 
 testModeHandlers :: Maybe Timeout -> RequestHandlers ServerState
 testModeHandlers ti = [RequestHandler (\sState (TestTimeout sessionId) -> do

@@ -29,6 +29,8 @@ type DatabaseName = String
 
 type RoleName = Text
 
+type Permission = Text
+
 -- time-compat includes these instances but time-compat is a dependency that is problematic, so just copy the instances here
 instance Hashable Day where
     hashWithSalt salt (ModifiedJulianDay d) = hashWithSalt salt d

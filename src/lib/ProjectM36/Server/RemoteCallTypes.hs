@@ -6,8 +6,10 @@ import ProjectM36.TransactionGraph
 import ProjectM36.DataFrame
 import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.Session
+import ProjectM36.LoginRoles
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.Serialise.DataFrame ()
+import ProjectM36.Serialise.LoginRoles ()
 import ProjectM36.Serialise.IsomorphicSchema ()
 import ProjectM36.SQL.Select
 import ProjectM36.SQL.DBUpdate
@@ -128,3 +130,6 @@ data ConvertSQLQuery = ConvertSQLQuery SessionId Query
 
 data ConvertSQLUpdates = ConvertSQLUpdates SessionId [DBUpdate]
   RPCData(ConvertSQLUpdates)
+
+data ExecuteAlterLoginRolesExpr = ExecuteAlterLoginRolesExpr SessionId AlterLoginRolesExpr
+  RPCData(ExecuteAlterLoginRolesExpr)

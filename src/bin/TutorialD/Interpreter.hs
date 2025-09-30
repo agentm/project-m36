@@ -10,6 +10,7 @@ import TutorialD.Interpreter.DatabaseContextIOOperator
 import TutorialD.Interpreter.TransGraphRelationalOperator
 import TutorialD.Interpreter.SchemaOperator
 import TutorialD.Interpreter.RelationalExpr
+import TutorialD.Interpreter.LoginRolesOperator
 import TutorialD.Interpreter.Types
 
 import TutorialD.Interpreter.Import.CSV
@@ -24,6 +25,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Cli (MakePrompt)
 import ProjectM36.TransactionGraph
+import ProjectM36.LoginRoles
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 
@@ -55,7 +57,8 @@ data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        ImportBasicExampleOp ImportBasicExampleOperator |
                        RelVarExportOp RelVarDataExportOperator |
                        TransGraphRelationalOp TransGraphRelationalOperator |
-                       SchemaOp SchemaOperator
+                       SchemaOp SchemaOperator |
+                       LoginRolesOp AlterLoginRolesExpr
                        deriving (Show)
 
 interpreterParserP :: Parser ParsedOperation
@@ -76,7 +79,8 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
                          fmap DatabaseContextExprOp (databaseExprOpP <* eof) <|>
                          fmap ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
                          fmap TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
-                         fmap SchemaOp (schemaOperatorP <* eof)
+                         fmap SchemaOp (schemaOperatorP <* eof) <|>
+                         fmap LoginRolesOp (alterLoginRolesExprP <* eof)
 
 promptText :: MakePrompt
 promptText eCurrentHead eSchemaName = "TutorialD (" <> transInfo <> "): "
@@ -219,6 +223,8 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
     evalTutorialD sessionId conn safe (DatabaseContextExprOp dbcontextexpr)
   (TransGraphRelationalOp execOp) ->
     evalTransGraphRelationalOp sessionId conn execOp
+  (LoginRolesOp alterLoginRoleExpr) -> do
+    evalAlterLoginRolesExpr sessionId conn alterLoginRoleExpr    
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."
@@ -231,9 +237,6 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
       case eErr of
         Left err -> barf err
         Right () -> return QuietSuccessResult
-
-
-
 
 runTutorialD :: C.SessionId -> C.Connection -> Maybe PromptLength -> T.Text -> IO ()
 runTutorialD sessionId conn mPromptLength tutd =

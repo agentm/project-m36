@@ -122,7 +122,8 @@ module ProjectM36.Client
        superAdminRole,
        SRPC.ClientAuth(..),
        ClientInfo(..),
-       InProcessConnectionConf(..)
+       InProcessConnectionConf(..),
+       executeAlterLoginRolesExpr
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -172,13 +173,7 @@ import Data.Hashable
 import Control.Concurrent.MVar
 import Codec.Winery hiding (Schema, schema)
 import qualified Data.Map as M
-#if MIN_VERSION_stm_containers(1,0,0)
 import qualified StmContainers.Map as StmMap
-import qualified StmContainers.Set as StmSet
-#else
-import qualified STMContainers.Map as StmMap
-import qualified STMContainers.Set as StmSet
-#endif
 import qualified ProjectM36.Session as Sess
 import ProjectM36.Session
 import ProjectM36.ValueMarker
@@ -208,8 +203,6 @@ import Streamly.Internal.Network.Socket (SockSpec(..))
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
-
-import Debug.Trace
 
 type Hostname = String
 type Port = Word16
@@ -343,13 +336,8 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         maxCacheSize <- RelExprCache.defaultUpperBound
         cache <- RelExprCache.empty maxCacheSize
         loginRoles <- LoginRoles.openNoPersistence
-        traceShowM ("roleIdsForRoleName"::String, roleName)
-        roleIds <- LoginRoles.roleIdsForRoleName roleName loginRoles
-        case roleIds of
-          [] -> pure (Left LoginError)
-          roleIds' -> do
-            let conn = InProcessConnection InProcessConnectionConf {
-                  ipPersistenceStrategy = strat, 
+        let conn = InProcessConnection InProcessConnectionConf {
+                    ipPersistenceStrategy = strat, 
                     ipClientNodes = clientNodes, 
                     ipSessions = sessions, 
                     ipTransactionGraph = graphTvar, 
@@ -358,9 +346,9 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                     ipCallbackAsync = notifAsync,
                     ipRelExprCache = cache,
                     ipLoginRoles = loginRoles,
-                    ipRoleIds = roleIds'
+                    ipRoleName = roleName
                   }
-            pure (Right conn)
+        pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
     CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
         
@@ -395,13 +383,22 @@ convertRPCErrors err =
 addClientNode :: Connection -> SRPC.ClientConnectionId -> SRPC.SocketContext -> RoleName -> IO ()
 addClientNode (RemoteConnection _) _ _ _ = error "addClientNode called on remote connection"
 addClientNode (InProcessConnection conf) clientId sockCtx roleName = do
-  roleIds <- LoginRoles.roleIdsForRoleName roleName (ipLoginRoles conf)
-  case roleIds of
-    [] -> do --reject the connection because the role name has zero available roles
-      SRPC.withLock (SRPC.lockingSocket sockCtx) $ \sock -> Socket.close sock
-    roleIds -> do
-      let clientInfo = RemoteClientInfo sockCtx roleName
-      atomically (StmMap.insert clientInfo clientId (ipClientNodes conf))
+  let lrdb = ipLoginRoles conf
+      dropConn = SRPC.withLock (SRPC.lockingSocket sockCtx) $ \sock -> Socket.close sock
+  LoginRoles.withTransaction lrdb $ do
+    --check the role has login privilege
+    eMayLogin <- LoginRoles.roleNameMayLogin roleName lrdb
+    case eMayLogin of
+      Left{} -> dropConn
+      Right False -> dropConn
+      Right True -> do
+        -- collect roleids for rolename to pass to ACL validation functions
+        eRoleIds <- LoginRoles.roleIdsForRoleName roleName lrdb
+        case eRoleIds of
+          Left{} -> dropConn
+          Right _roleIds -> do
+            let clientInfo = RemoteClientInfo sockCtx roleName
+            atomically (StmMap.insert clientInfo clientId (ipClientNodes conf))
 
 connectPersistentProjectM36 :: PersistenceStrategy ->
                                DiskSync ->
@@ -432,12 +429,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               maxCacheSize <- RelExprCache.defaultUpperBound
               cache <- RelExprCache.empty maxCacheSize
               loginRoles <- LoginRoles.open (dbdir </> "loginroles.sqlite3")
-              roleIds <- LoginRoles.roleIdsForRoleName roleName loginRoles
-              case roleIds of
-                [] -> pure (Left LoginError)
-                _ -> do
-                  let conn = InProcessConnection InProcessConnectionConf {
-                        ipPersistenceStrategy = strat,
+              let conn = InProcessConnection InProcessConnectionConf {
+                          ipPersistenceStrategy = strat,
                           ipClientNodes = clientNodes,
                           ipSessions = sessions,
                           ipTransactionGraph = tvarGraph,
@@ -446,9 +439,9 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                           ipCallbackAsync = notifAsync,
                           ipRelExprCache = cache,
                           ipLoginRoles = loginRoles,
-                          ipRoleIds = roleIds
+                          ipRoleName = roleName
                         }
-                  pure (Right conn)
+              pure (Right conn)
 
 --startup local async process to handle notification callbacks
 startNotificationListener :: ClientNodes -> NotificationCallback -> IO (Async ())
@@ -627,8 +620,9 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
     Right (graph, reEnv, rexpr) -> do
       case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
         Left err -> pure (Left err)
-        Right acl' -> 
-          case applyACLRelationalExpr (ipRoleIds conf) (relvarsACL acl') rexpr of
+        Right acl' -> do
+          roleIds <- roleIdsForRoleName conf
+          case applyACLRelationalExpr roleIds (relvarsACL acl') rexpr of
             Left err -> pure (Left err)
             Right () -> do
               qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
@@ -640,7 +634,9 @@ executeRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall c
 
 -- | Execute a database context expression in the context of the session and connection. Database expressions modify the current session's disconnected transaction but cannot modify the transaction graph. Requires AccessRelVarsPermission. Requires ExecuteFunctionPermission if a function is executed.
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError ())
-executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither $ atomically $ do
+executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
+ roleIds <- roleIdsForRoleName conf
+ excEither $ atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId conf
   case eSession of
@@ -658,7 +654,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = excEither
               env = RE.mkDatabaseContextEvalEnv transId graph
               transId = Sess.parentId session
               runExpr = do
-                applyACLDatabaseContextExpr (ipRoleIds conf) expr''
+                applyACLDatabaseContextExpr roleIds expr''
                 optimizeAndEvalDatabaseContextExpr True expr''
           case RE.runDatabaseContextEvalMonad ctx env runExpr of
             Left err -> pure (Left err)
@@ -694,6 +690,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
   id2 <- nextRandom
   id3 <- nextRandom
   tstamp <- getCurrentTime
+  roleIds <- roleIdsForRoleName conf
   commitLock_ sessionId conf $ \graph -> do
     eSession <- sessionForSessionId sessionId sessions  
     case eSession of
@@ -710,7 +707,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
               Left err -> pure (Left err)
               Right acl' -> do
                 let alterTGACL = transGraphACL acl'
-                case applyACLAlterTransGraphExpr (ipRoleIds conf) alterTGACL Commit of
+                case applyACLAlterTransGraphExpr roleIds alterTGACL Commit of
                   Left err -> pure (Left err)
                   Right () -> do
                     if Sess.parentId session == Trans.transactionId headTrans then do
@@ -729,7 +726,9 @@ autoMergeToHead sessionId conn@(RemoteConnection _) strat headName' = remoteCall
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented. Requires ExecuteFunctionPermission.
 --this is almost completely identical to executeDatabaseContextExpr above
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
-executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEither $ do
+executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
+ roleIds <- roleIdsForRoleName conf
+ excEither $ do
   let sessions = ipSessions conf
       scriptSession = ipScriptSession conf
   eSession <- atomically $ sessionForSessionId sessionId sessions --potentially race condition due to interleaved IO?
@@ -743,7 +742,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = excEith
           context = Sess.concreteDatabaseContext session
           runExpr = do
             --check perms
-            applyACLDatabaseContextIOExpr (ipRoleIds conf) expr
+            applyACLDatabaseContextIOExpr roleIds expr
             optimizeAndEvalDatabaseContextIOExpr expr
       res <- RE.runDatabaseContextIOEvalMonad env context runExpr
       case res of
@@ -811,6 +810,7 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
   let sessions = ipSessions conf
   freshId <- nextRandom
   tstamp <- getCurrentTime
+  roleIds <- roleIdsForRoleName conf
   commitLock_ sessionId conf $ \updatedGraph -> do
     eSession <- sessionForSessionId sessionId sessions
     case eSession of
@@ -821,8 +821,8 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
         case RE.resolveDBC' updatedGraph dbctx DBC.acl of
           Left err -> pure (Left err)
           Right acl' -> do
-            let alterTGACL = transGraphACL acl'            
-            case applyACLAlterTransGraphExpr (ipRoleIds conf) alterTGACL alterGraphExpr of
+            let alterTGACL = transGraphACL acl'
+            case applyACLAlterTransGraphExpr roleIds alterTGACL alterGraphExpr of
               Left err -> pure (Left err)
               Right () -> do
 
@@ -839,6 +839,7 @@ executeAlterTransactionGraphExpr sessionId conn@RemoteConnection{} alterGraphExp
 -- | A trans-graph expression is a relational query executed against the entirety of a transaction graph. Requires AccessRelVarsPermission if the expression mentions a relation variable.
 executeTransGraphRelationalExpr :: SessionId -> Connection -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
 executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr = do
+  roleIds <- roleIdsForRoleName conf
   eGraph <- atomically $ do
     eSession <- sessionAndSchema sessionId conf    
     case eSession of
@@ -851,7 +852,7 @@ executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr 
           Left err -> pure (Left err)
           Right acl' -> do
             let rvACL = relvarsACL acl'
-            case applyACLTransGraphRelationalExpr (ipRoleIds conf) rvACL tgraphExpr of
+            case applyACLTransGraphRelationalExpr roleIds rvACL tgraphExpr of
               Left err -> pure (Left err)
               Right () ->
                 pure (Right graph)
@@ -864,7 +865,9 @@ executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr =
 
 -- | Schema expressions manipulate the isomorphic schemas for the current 'DatabaseContext'. Requires AlterSchemaPermission.
 executeSchemaExpr :: SessionId -> Connection -> Schema.SchemaExpr -> IO (Either RelationalError ())
-executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $ do
+executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = do
+ roleIds <- roleIdsForRoleName conf
+ atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId conf
   graph <- readTVar (ipTransactionGraph conf)
@@ -879,7 +882,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = atomically $
           case RE.resolveDBC' graph context DBC.acl of
             Left err -> pure (Left err)
             Right acl' ->
-              case applyACLSchemaExpr (ipRoleIds conf) (schemaACL acl') schemaExpr of
+              case applyACLSchemaExpr roleIds (schemaACL acl') schemaExpr of
                 Left err -> pure (Left err)
                 Right () ->
                   case Schema.evalSchemaExpr schemaExpr context transId graph subschemas' of
@@ -1040,6 +1043,13 @@ transactionGraphAsRelation sessionId (InProcessConnection conf) = do
         graphAsRelation (Sess.disconnectedTransaction session) <$> readTVar tvar
     
 transactionGraphAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
+
+-- | Alter roles (users) which can login to the database.
+executeAlterLoginRolesExpr :: SessionId -> Connection -> LoginRoles.AlterLoginRolesExpr -> IO (Either LoginRoles.LoginRoleError T.Text)
+executeAlterLoginRolesExpr _sessionId (InProcessConnection conf) expr = do
+  LoginRoles.executeAlterLoginRolesExpr (ipRoleName conf) (ipLoginRoles conf) expr
+executeAlterLoginRolesExpr sessionId conn@RemoteConnection{} expr = do
+  remoteCall conn (ExecuteAlterLoginRolesExpr sessionId expr)
 
 -- | Returns the names and types of the relation variables in the current 'Session'.
 relationVariablesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
@@ -1411,7 +1421,7 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipCallbackAsync :: Async (),
   ipRelExprCache :: RelExprCache, -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
   ipLoginRoles :: LoginRoles.LoginRolesDB, -- ^ roles allowed to connect to the database, access control is otherwise handled by ACLs in the database context
-  ipRoleIds :: [RoleId] -- ^ role ids for the user accessing the database
+  ipRoleName :: RoleName -- ^ role name for the user accessing the database
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks
@@ -1435,3 +1445,13 @@ data TlsConfig = TlsConfig
     serverX509CertificatePath :: Maybe FilePath -- ^ Using Nothing indicates referencing the system certificate store.
   }
   deriving Show
+
+roleIdsForRoleName :: InProcessConnectionConf -> IO [RoleId]
+roleIdsForRoleName conf = do
+  eRoles <- LoginRoles.roleIdsForRoleName (ipRoleName conf) (ipLoginRoles conf)
+  --ignore errors and expect ACL functions to handle empty role id list
+  case eRoles of
+    Left _err -> pure []
+    Right roleIds -> pure roleIds
+
+    

@@ -127,6 +127,7 @@ Library
                      ProjectM36.Base,
                      ProjectM36.Serialise.Base,
                      ProjectM36.Serialise.Error,
+                     ProjectM36.Serialise.LoginRoles,
                      ProjectM36.DataFrame,
                      ProjectM36.Attribute,
                      ProjectM36.AttributeNames,
@@ -324,6 +325,7 @@ Executable tutd
                    TutorialD.Interpreter.Types,
                    TutorialD.Interpreter.TransGraphRelationalOperator,
                    TutorialD.Interpreter.SchemaOperator,
+                   TutorialD.Interpreter.LoginRolesOperator,
                    TutorialD.Printer,
                    ProjectM36.Cli,
                    ProjectM36.Interpreter
@@ -781,3 +783,7 @@ Test-Suite test-accesscontrollist
     type: exitcode-stdio-1.0
     Main-Is: AccessControlList.hs
 
+Test-Suite test-loginroles
+    import: commontest
+    type: exitcode-stdio-1.0    
+    Main-Is: LoginRoles.hs

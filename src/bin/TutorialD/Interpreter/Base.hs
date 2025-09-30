@@ -72,6 +72,13 @@ identifier = do
 identifierP :: Parser Text
 identifierP = identifier <* spaceConsumer
 
+-- | Roles may include human names, so be generous in what we accept
+roleNameP :: Parser Text
+roleNameP = normalQuotedString <|> takeWhile1P (Just "non-whitespace character") (not . isSpace)
+
+permissionP :: Parser Text
+permissionP = normalQuotedString <|> takeWhile1P (Just "non-whitespace character") (not . isSpace)
+  
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do
   rest <- many (alphaNumChar <|> char '_' <|> char '#')
