@@ -92,7 +92,7 @@ notificationCallback conn notifName evaldNotif =
 
 --this creates a new database for each connection- perhaps not what we want (?)
 createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (Either ConnectionError Connection)
-createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionInfo dbname (RemoteServerHostAddress host port) (notificationCallback wsconn))
+createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionInfo dbname (RemoteServerHostAddress host port) UnencryptedConnectionConfig (notificationCallback wsconn))
 
 handleResponse :: WS.Connection -> Connection -> Response -> IO ()
 handleResponse conn dbconn resp =

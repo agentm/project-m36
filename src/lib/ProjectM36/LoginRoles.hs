@@ -1,8 +1,9 @@
 -- | Provides a simple database mapping login names to role IDs (UUIDs). Only role names which map to a role ID are allowed to log in.
 {-# LANGUAGE ScopedTypeVariables, TypeApplications, DeriveGeneric #-}
 module ProjectM36.LoginRoles where
+import ProjectM36.AccessControlList
 import qualified Database.SQLite.Simple as SQL
-import Data.UUID (UUID, fromString, toText, fromText)
+import Data.UUID (fromString, toText, fromText)
 import Data.UUID.V4 (nextRandom)
 import Data.Text (Text)
 import Data.Maybe
@@ -10,8 +11,6 @@ import GHC.Generics
 import ProjectM36.Base
 import qualified Data.Text as T
 import Control.Monad (forM_)
-
-type RoleId = UUID
 
 type LoginRolesDB = SQL.Connection
 
@@ -61,7 +60,6 @@ withTransaction = SQL.withTransaction
 
 setupDatabaseIfNecessary :: LoginRolesDB -> IO ()
 setupDatabaseIfNecessary db = do
-  adminRoleId <- nextRandom
   SQL.execute_ db "PRAGMA foreign_keys = ON;"
   SQL.withTransaction db $ do
     res <- SQL.query_ @(SQL.Only Int) db "SELECT 1 FROM sqlite_master WHERE type='table' AND name='login_role_name'"
@@ -115,8 +113,8 @@ permissionsForRoleName roleName db = do
   -- collect all roles for the role name
   -- then collect all the permissions for those roles  
   let q = "with recursive cte as (select NULL as roleid,roleid as memberof FROM login_role_name WHERE rolename=? union all select lrm.roleid,lrm.memberof FROM login_role_member as lrm JOIN cte AS c ON c.memberof = lrm.roleid) select permission from login_role_permission WHERE roleid IN (SELECT memberof FROM cte);"
-  perms <- SQL.query db q (SQL.Only roleName)
-  pure (Right (map SQL.fromOnly perms))
+  perms' <- SQL.query db q (SQL.Only roleName)
+  pure (Right (map SQL.fromOnly perms'))
   
 roleHasPermission :: RoleName -> Permission -> LoginRolesDB -> IO (Either LoginRoleError Bool)
 roleHasPermission roleName perm db = do
@@ -125,8 +123,8 @@ roleHasPermission roleName perm db = do
     Left err -> pure (Left err)
     Right _ -> do
       let q = "with recursive cte as (select NULL as roleid,roleid as memberof FROM login_role_name WHERE rolename=? union all select lrm.roleid,lrm.memberof FROM login_role_member as lrm JOIN cte AS c ON c.memberof = lrm.roleid),perms AS (select permission from login_role_permission WHERE roleid IN (SELECT memberof FROM cte)) SELECT 1 FROM perms WHERE permission = ?;"
-      perms <- SQL.query @_ @(SQL.Only Int) db q (roleName, perm)
-      pure $ case perms of
+      perms' <- SQL.query @_ @(SQL.Only Int) db q (roleName, perm)
+      pure $ case perms' of
         [SQL.Only 1] -> Right True
         _ -> Right False
 

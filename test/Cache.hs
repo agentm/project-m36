@@ -33,7 +33,7 @@ main = do
 
 testConnection :: NotificationCallback -> IO (SessionId, Connection)
 testConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] selfTestDatabaseContext [superAdminRole])
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] selfTestDatabaseContext adminRoleName)
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do

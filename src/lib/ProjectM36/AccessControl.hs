@@ -11,7 +11,6 @@ import ProjectM36.DatabaseContext.Types
 import ProjectM36.RelationVariablesMentioned
 import ProjectM36.IsomorphicSchema
 import Control.Monad.Except
-import Debug.Trace
 
 applyACLRelationalExpr :: Show a => [RoleId] -> RelVarAccessControlList -> RelationalExprBase a -> Either RelationalError ()
 applyACLRelationalExpr roleIds acl' expr = do
@@ -20,7 +19,6 @@ applyACLRelationalExpr roleIds acl' expr = do
           pure ()
           else
           Left (AccessDeniedError (SomeRelVarPermission perm))
-  traceShowM (expr, mentionsRelVar expr, roleIds)
   if mentionsRelVar expr then checkPerm AccessRelVarsPermission else pure ()
 
 applyACLAlterTransGraphExpr :: [RoleId] -> AlterTransGraphAccessControlList -> AlterTransactionGraphExpr -> Either RelationalError ()

@@ -714,7 +714,7 @@ Test-Suite test-atomable
     import: commontest
     type: exitcode-stdio-1.0
     main-is: Relation/Atomable.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer, ProjectM36.Cli
+    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer, ProjectM36.Cli, TutorialD.Interpreter.LoginRolesOperator
 
 Test-Suite test-multiprocess-access
     import: commontest
@@ -771,7 +771,7 @@ Test-Suite test-dataframe
     import: commontest
     type: exitcode-stdio-1.0
     Main-Is: DataFrame.hs
-    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr,  TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer, ProjectM36.Interpreter
+    Other-Modules: TutorialD.Interpreter, TutorialD.Interpreter.Base, TutorialD.Interpreter.DatabaseContextExpr,  TutorialD.Interpreter.DatabaseContextIOOperator, TutorialD.Interpreter.Export.Base, TutorialD.Interpreter.Export.CSV, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Interpreter.Import.CSV, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.InformationOperator, TutorialD.Interpreter.RODatabaseContextOperator, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.SchemaOperator, TutorialD.Interpreter.TestBase, TutorialD.Interpreter.TransGraphRelationalOperator, TutorialD.Interpreter.TransactionGraphOperator, TutorialD.Interpreter.Types, TutorialD.Printer, ProjectM36.Interpreter, TutorialD.Interpreter.LoginRolesOperator
 
 Test-Suite test-cache
    import: commontest

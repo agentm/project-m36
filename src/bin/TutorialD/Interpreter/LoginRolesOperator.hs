@@ -24,7 +24,7 @@ alterLoginRolesExprP =
       ShowRolesForRoleExpr <$> roleNameP
     addLoginRoleExprP = do
       colonOp ":addloginrole"
-      AddLoginRoleExpr <$> roleNameP
+      AddLoginRoleExpr <$> roleNameP <*> mayGrantP
     removeLoginRoleExprP = do
       colonOp ":removeloginrole"
       RemoveLoginRoleExpr <$> roleNameP

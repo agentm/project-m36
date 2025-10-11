@@ -119,7 +119,7 @@ module ProjectM36.Client
        defaultRemoteServerAddress,
        defaultServerHostname,
        Discon.CurrentHead(..),
-       superAdminRole,
+       LoginRoles.adminRoleName,
        SRPC.ClientAuth(..),
        ClientInfo(..),
        InProcessConnectionConf(..),
@@ -319,7 +319,7 @@ resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
       sockAddr = SockAddrUnix sockPath
   pure (sockSpec, sockAddr)
 
--- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'. 
+-- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'. Requires "login" permission to connect successfully.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
 connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleName) = do
@@ -336,6 +336,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         maxCacheSize <- RelExprCache.defaultUpperBound
         cache <- RelExprCache.empty maxCacheSize
         loginRoles <- LoginRoles.openNoPersistence
+        LoginRoles.setupDatabaseIfNecessary loginRoles
         let conn = InProcessConnection InProcessConnectionConf {
                     ipPersistenceStrategy = strat, 
                     ipClientNodes = clientNodes, 
@@ -452,7 +453,7 @@ startNotificationListener cNodes notificationCallback = do
     notifs <- takeMVar notifMVar
     forM_ (M.toList notifs) $ uncurry notificationCallback
 
--- | Create a new session at the transaction id and return the session's Id.
+-- | Create a new session at the transaction id and return the session's Id. 
 createSessionAtTransactionId :: Connection -> TransactionId -> IO (Either RelationalError SessionId)
 createSessionAtTransactionId conn@(InProcessConnection _) commitId = do
    newSessionId <- nextRandom

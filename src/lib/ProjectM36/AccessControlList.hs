@@ -145,25 +145,25 @@ instance Monoid DatabaseContextACL where
 basic :: DatabaseContextACL
 basic = DatabaseContextACL {
   relvarsACL = AccessControlList [RoleAccess {
-                                     role = superAdminRole,
+                                     role = adminRoleId,
                                      perms = allPermissions
                                      }],
   dbcFunctionsACL = AccessControlList [RoleAccess {
-                                          role = superAdminRole,
+                                          role = adminRoleId,
                                           perms = allPermissions
                                           }],
   transGraphACL = AccessControlList [RoleAccess {
-                                        role = superAdminRole,
+                                        role = adminRoleId,
                                         perms = allPermissions
                                         }],
   schemaACL = AccessControlList [RoleAccess {
-                                        role = superAdminRole,
+                                        role = adminRoleId,
                                         perms = allPermissions
                                         }]
   }
 
-superAdminRole :: RoleId
-superAdminRole = nil
+adminRoleId :: RoleId
+adminRoleId = nil
 
 -- used in access control error reporting
 data SomePermission = SomeRelVarPermission RelVarPermission |
