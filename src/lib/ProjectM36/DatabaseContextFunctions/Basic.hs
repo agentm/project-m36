@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 module ProjectM36.DatabaseContextFunctions.Basic where
 import ProjectM36.DatabaseContextFunction
 import ProjectM36.DatabaseContext.Types
@@ -17,7 +18,7 @@ basicDatabaseContextFunctions = HS.fromList [
            }
   ]
   where
-    defaultACL = AccessControlList (M.singleton adminRoleId (M.fromList (map (\p -> (p, True)) (S.toList allPermissions))))
+    defaultACL = AccessControlList (M.singleton adminRoleId (M.fromList (map (, True) (S.toList allPermissions))))
 
 --the precompiled functions are special because they cannot be serialized. Their names are therefore used in perpetuity so that the functions can be "serialized" (by name).
 precompiledDatabaseContextFunctions :: DatabaseContextFunctions

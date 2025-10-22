@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 module ProjectM36.PinnedRelationalExpr where
 import ProjectM36.Base
 

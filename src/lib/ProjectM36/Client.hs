@@ -280,8 +280,8 @@ defaultRemoteServerAddress = RemoteServerHostAddress "127.0.0.1" defaultServerPo
 
 -- | Create a connection configuration which connects to the localhost on the default server port and default server database name. The configured notification callback is set to ignore all events.
 defaultRemoteConnectionInfo :: RoleName -> ConnectionInfo
-defaultRemoteConnectionInfo roleName =
-  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress CRPC.defaultClientConnectionConfig emptyNotificationCallback roleName
+defaultRemoteConnectionInfo =
+  RemoteConnectionInfo defaultDatabaseName defaultRemoteServerAddress CRPC.defaultClientConnectionConfig emptyNotificationCallback
 
 defaultServerHostname :: Hostname
 defaultServerHostname = "localhost"

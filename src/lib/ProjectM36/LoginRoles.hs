@@ -232,7 +232,7 @@ allRoles db = do
   pure (map (\(rn, rid) -> (rn, fromMaybe (error "invalid uuid in login_role_name") (fromString rid))) res)
 
 close :: LoginRolesDB -> IO ()
-close db = SQL.close db
+close = SQL.close
 
 executeAlterLoginRolesExpr :: RoleName -> LoginRolesDB -> AlterLoginRolesExpr -> IO (Either LoginRoleError Text)
 executeAlterLoginRolesExpr currentRole db expr = do
@@ -251,9 +251,8 @@ executeAlterLoginRolesExpr currentRole db expr = do
             case eperm of
               Left err -> pure (Left err)
               Right True -> pure (Right True)
-              Right False -> do
-                res <- roleMayGrantRole currentRole other db
-                pure res
+              Right False ->
+                roleMayGrantRole currentRole other db
           RemoveRoleFromRoleExpr _target other ->
             roleMayGrantRole currentRole other db
           AddPermissionToRoleExpr{} -> hasPerm alterLoginRolesPerm

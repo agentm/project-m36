@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, RankNTypes #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, RankNTypes, TupleSections #-}
 module ProjectM36.AccessControlList where
 import qualified Data.Set as S
 import Data.UUID
@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Data.Default
 
-data AccessControlList role' permission =
+newtype AccessControlList role' permission =
     AccessControlList (M.Map role' (RoleAccess permission))
    deriving (Show, NFData, Generic, Read)
 
@@ -100,11 +100,11 @@ instance AllPermissions DBCFunctionPermission where
 
 hasAccess :: (Ord perm, Ord role', Eq role', Eq perm) => [role'] -> perm -> AccessControlList role' perm -> Bool
 hasAccess hasRoles checkPerm (AccessControlList acl) =
-  or (map (\role -> M.member checkPerm (fromMaybe mempty (M.lookup role acl))) hasRoles)
+  any (\role -> M.member checkPerm (fromMaybe mempty (M.lookup role acl))) hasRoles
 
 addAccess :: (Eq role', Ord role', Eq perm, Ord perm) => role' -> perm -> MayGrant -> AccessControlList role' perm -> AccessControlList role' perm
 addAccess targetRole newPerm mayGrant (AccessControlList ras) =
-  AccessControlList $ M.insertWith (M.union) targetRole (M.singleton newPerm mayGrant) ras
+  AccessControlList $ M.insertWith M.union targetRole (M.singleton newPerm mayGrant) ras
 
 removeAccess :: (Eq role', Ord role', Eq perm, Ord perm) => role' -> perm -> AccessControlList role' perm -> AccessControlList role' perm
 removeAccess targetRole targetPerm (AccessControlList acl) =
@@ -124,7 +124,7 @@ merge :: (Ord p, Eq r, Ord r) => AccessControlList r p -> AccessControlList r p 
 merge (AccessControlList acl1) (AccessControlList acl2) =
   normalize $ AccessControlList $ M.unionWith mergeFunc acl1 acl2
   where
-    mergeFunc ra1 ra2 = M.unionWith (||) ra1 ra2
+    mergeFunc = M.unionWith (||)
 
 data DatabaseContextACL =
   DatabaseContextACL {
@@ -174,7 +174,7 @@ basic = DatabaseContextACL {
   }
   where
     grantableL :: forall perm. Ord perm => S.Set perm -> RoleAccess perm
-    grantableL perms = M.fromList (map (\p -> (p, True)) (S.toList perms))
+    grantableL perms = M.fromList (map (, True) (S.toList perms))
 
 adminRoleId :: RoleId
 adminRoleId = nil

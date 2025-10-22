@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 module ProjectM36.AtomFunctions.SelfTest where
 import ProjectM36.Base
 import ProjectM36.AtomFunctionError
@@ -18,7 +17,7 @@ selfTestAtomFunctions = HS.fromList [
              \case
                atom:(IntegerAtom microseconds):_ ->
                  unsafePerformIO $ do
-                   traceShowM ("threadDelay"::String, (fromIntegral  microseconds)::Int)
+                   traceShowM ("threadDelay"::String, fromIntegral microseconds::Int)
                    threadDelay (fromIntegral microseconds)
                    pure (Right atom)
                _ -> Left AtomFunctionTypeMismatchError)

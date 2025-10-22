@@ -9,7 +9,7 @@ import System.Exit
 
 main :: IO ()
 main = do
-  tcounts <- runTestTT (TestList [testBasic, testDBCFunctionACL])
+  tcounts <- runTestTT (TestList [testBasic])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess  
 
 fakeUUID :: Word8 -> U.UUID

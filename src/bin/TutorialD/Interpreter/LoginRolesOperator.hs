@@ -2,6 +2,7 @@ module TutorialD.Interpreter.LoginRolesOperator where
 import ProjectM36.Client as C
 import ProjectM36.Interpreter
 import qualified Data.Text as T
+import Data.Functor
 
 import TutorialD.Interpreter.Base
 
@@ -17,7 +18,7 @@ alterLoginRolesExprP =
   removePermissionFromRoleExprP
   where
     mayGrantP = do
-      (reserved "maygrant" *> pure True) <|> pure False
+      (reserved "maygrant" $> True) <|> pure False
     showRolesForRoleExprP = do
       colonOp ":showloginrole" 
       ShowRolesForRoleExpr <$> roleNameP

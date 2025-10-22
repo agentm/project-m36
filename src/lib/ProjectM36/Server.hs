@@ -26,9 +26,7 @@ requestHandlers testFlag ti =
                        addClientLogin dbName sState
                        conn <- getConn sState
                        let roleNameFromMutualTLS = connectionRoleName sState
-                           roleName' = case roleNameFromMutualTLS of
-                                         Nothing -> roleName
-                                         Just rname -> T.pack rname
+                           roleName' = maybe roleName T.pack roleNameFromMutualTLS
                            clientId = connectionClientId sState
                        handleLogin conn clientId (connectionSocketContext sState) roleName'),
      RequestHandler (\sState Logout -> do

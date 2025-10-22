@@ -109,8 +109,8 @@ parseServerTLSCertInfo =
 -- TLS configuration for native project-m36 socket communication
 parseServerConnectionConfig :: Parser ServerConnectionConfig
 parseServerConnectionConfig =
-  (flag' UnencryptedConnectionConfig (long "disable-tls" <>
-                                    help "Disable encryption (not recommended in production).")) <|>
+  flag' UnencryptedConnectionConfig (long "disable-tls" <>
+                                    help "Disable encryption (not recommended in production).") <|>
   EncryptedConnectionConfig <$>
     parseServerTLSConfig <*>
     parseClientAuth
