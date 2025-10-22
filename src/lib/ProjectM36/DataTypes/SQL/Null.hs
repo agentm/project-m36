@@ -31,67 +31,79 @@ nullAtomFunctions = HS.fromList [
       funcType = [TypeVariableType "a",
                   TypeVariableType "b", -- either type could be SQLNullable or a NakedAtom
                   nullAtomType BoolAtomType],
-      funcBody = FunctionBuiltInBody sqlEquals
+      funcBody = FunctionBuiltInBody sqlEquals,
+      funcACL = ()
       },
     Function {
       funcName = "sql_and",
       funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
-      funcBody = FunctionBuiltInBody nullAnd
+      funcBody = FunctionBuiltInBody nullAnd,
+      funcACL = ()
       },
     Function {
       funcName = "sql_or",
       funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType], -- for a more advanced typechecker, this should be BoolAtomType or SQLNullable BoolAtomType
-      funcBody = FunctionBuiltInBody nullOr
+      funcBody = FunctionBuiltInBody nullOr,
+      funcACL = ()
              },
     Function {
       funcName = "sql_coalesce_bool", -- used in where clause so that NULLs are filtered out
       funcType = [TypeVariableType "a",
                   BoolAtomType],
-      funcBody = FunctionBuiltInBody coalesceBool
+      funcBody = FunctionBuiltInBody coalesceBool,
+      funcACL = ()
       },
     Function {
       funcName = "sql_add",
       funcType = [TypeVariableType "a", 
                   TypeVariableType "b",
                   nullAtomType IntegerAtomType],
-      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction IntegerAtomType (\a b -> IntegerAtom (a + b)))
+      funcBody = FunctionBuiltInBody (sqlIntegerBinaryFunction IntegerAtomType (\a b -> IntegerAtom (a + b))),
+      funcACL = ()
       },
     Function {
       funcName = "sql_abs",
       funcType = [TypeVariableType "a",
                   nullAtomType IntegerAtomType],
-      funcBody = FunctionBuiltInBody sqlAbs
+      funcBody = FunctionBuiltInBody sqlAbs,
+      funcACL = ()
       },
     Function {
       funcName = "sql_negate",
       funcType = [TypeVariableType "a",
                   nullAtomType IntegerAtomType],
-      funcBody = FunctionBuiltInBody (sqlIntegerUnaryFunction IntegerAtomType (\a -> IntegerAtom (- a)))
+      funcBody = FunctionBuiltInBody (sqlIntegerUnaryFunction IntegerAtomType (\a -> IntegerAtom (- a))),
+      funcACL = ()
       },
     Function {
       funcName = "sql_max",
       funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
-      funcBody = FunctionBuiltInBody sqlMax
+      funcBody = FunctionBuiltInBody sqlMax,
+      funcACL = ()
       },
     Function {
       funcName = "sql_min",
       funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
-      funcBody = FunctionBuiltInBody sqlMin
+      funcBody = FunctionBuiltInBody sqlMin,
+      funcACL = ()
       },
     Function {
       funcName = "sql_count",
       funcType = foldAtomFuncType (TypeVariableType "a") IntegerAtomType,
-      funcBody = FunctionBuiltInBody sqlCount
+      funcBody = FunctionBuiltInBody sqlCount,
+      funcACL = ()
       },
     Function {
       funcName = "sql_sum",
       funcType = foldAtomFuncType (TypeVariableType "a") (nullAtomType IntegerAtomType),
-      funcBody = FunctionBuiltInBody sqlSum
+      funcBody = FunctionBuiltInBody sqlSum,
+      funcACL = ()
       },
     Function {
       funcName = "sql_isnull",
       funcType = [TypeVariableType "a", BoolAtomType],
-      funcBody = FunctionBuiltInBody sqlIsNull
+      funcBody = FunctionBuiltInBody sqlIsNull,
+      funcACL = ()
       }
     ] <> sqlCompareFunctions
 
@@ -104,7 +116,8 @@ sqlCompareFunctions = HS.fromList $
       Function {
       funcName = sql_func,
         funcType = [TypeVariableType "a", TypeVariableType "b", nullAtomType BoolAtomType],
-        funcBody = FunctionBuiltInBody (sqlCompareFunc (opi, opt))
+        funcBody = FunctionBuiltInBody (sqlCompareFunc (opi, opt)),
+        funcACL = ()
       }
     boolNull = nullAtom BoolAtomType Nothing
     sqlCompareFunc :: (Integer -> Integer -> Bool, Text -> Text -> Bool) -> [Atom] -> Either AtomFunctionError Atom

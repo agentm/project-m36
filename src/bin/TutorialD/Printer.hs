@@ -7,6 +7,7 @@ module TutorialD.Printer where
 import ProjectM36.Base
 import ProjectM36.Attribute as A hiding (null)
 import ProjectM36.DataFrame
+import ProjectM36.AccessControlList
 import Prettyprinter
 import Prettyprinter.Render.Text
 import qualified Data.Set as S hiding (fromList)
@@ -242,8 +243,56 @@ instance Pretty DatabaseContextExpr where
         "registerquery" <+> pretty rQName <+> pretty relExpr
       RemoveRegisteredQuery rQName ->
         "unregisterquery" <+> pretty rQName
+      AlterACL expr' -> pretty expr'
       MultipleExpr dbcExprs ->
         group (encloseSep "" "" "; " (pretty <$> dbcExprs))
+
+prettyMayGrant :: MayGrant -> Doc ann
+prettyMayGrant True = "maygrant"
+prettyMayGrant False = "nogrant"
+
+instance Pretty SomePermission where
+  pretty perm =
+    case perm of
+      SomeRelVarPermission perm' -> pretty perm'
+      SomeFunctionPermission perm' -> pretty perm'
+      SomeAlterSchemaPermission perm' -> pretty perm'
+      SomeAlterTransGraphPermission perm' -> pretty perm'
+      SomeACLPermission perm' -> pretty perm'
+      SomeDBCFunctionPermission perm' -> pretty perm'
+
+instance Pretty RelVarPermission where
+  pretty AccessRelVarsPermission = "accessrelvars"
+
+instance Pretty FunctionPermission where
+  pretty ExecuteFunctionPermission = "executefunctions"
+  pretty ViewFunctionPermission = "viewfunctions"
+  pretty LoadFunctionPermission = "loadfunctions"
+
+instance Pretty AlterTransGraphPermission where
+  pretty CommitTransactionPermission = "committransaction"
+
+instance Pretty AlterSchemaPermission where
+  pretty AlterSchemaPermission = "alterschema"
+
+instance Pretty ACLPermission where
+  pretty ViewACLPermission = "viewacls"
+  pretty AlterACLPermission = "alteracls"
+
+instance Pretty DBCFunctionPermission where
+  pretty ViewDBCFunctionPermission = "viewfunction"
+  pretty ExecuteDBCFunctionPermission = "executefunction"
+  pretty AlterDBCFunctionPermission = "alterfunction"
+
+instance Pretty AlterDBCACLExpr where
+  pretty (GrantAccessExpr roleName somePerm mayGrant) =
+    "grant" <+> pretty roleName <+> pretty somePerm <+> prettyMayGrant mayGrant
+  pretty (RevokeAccessExpr roleName somePerm) =
+    "revoke" <+> pretty roleName <+> pretty somePerm
+  pretty (GrantDBCFunctionAccessExpr roleName funcName' perm mayGrant) =
+    "grant dbcfunction" <+> pretty roleName <+> pretty funcName' <+> pretty perm <+> prettyMayGrant mayGrant
+  pretty (RevokeDBCFunctionAccessExpr roleName funcName' perm) =
+    "revoke dbcfunction" <+> pretty roleName <+> pretty funcName' <+> pretty perm
 
 instance Pretty AttributeNameAtomExprMap where
   pretty m =

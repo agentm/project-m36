@@ -19,64 +19,82 @@ primitiveAtomFunctions = HS.fromList [
              funcType = [IntegerAtomType, IntegerAtomType, IntegerAtomType],
              funcBody = body (\case
                                  IntegerAtom i1:IntegerAtom i2:_ -> pure (IntegerAtom (i1 + i2))
-                                 _ -> Left AtomFunctionTypeMismatchError)},
+                                 _ -> Left AtomFunctionTypeMismatchError),
+             funcACL = ()},
     Function { funcName = "abs",
                funcType = [IntegerAtomType, IntegerAtomType],
                funcBody = body (\case
                                    IntegerAtom i:_ -> pure $ IntegerAtom (abs i)
                                    _ -> Left AtomFunctionTypeMismatchError
-                               )
+                               ),
+               funcACL = ()
              },
     Function { funcName = "id",
                funcType = [TypeVariableType "a", TypeVariableType "a"],
                funcBody = body (\case
                                    x:_ -> pure x
                                    _ -> Left AtomFunctionTypeMismatchError
-                               )},
+                               ),
+               funcACL = ()},    
     Function { funcName = "sum",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationFoldFunc relationSum
+               funcBody = body $ relationFoldFunc relationSum,
+               funcACL = ()               
              },
     Function { funcName = "count",
                funcType = [anyRelationAtomType,
                            IntegerAtomType],
-               funcBody = body $ relationAtomFunc relationCount
+               funcBody = body $ relationAtomFunc relationCount,
+               funcACL = ()               
              },
     Function { funcName = "max",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationFoldFunc relationMax 
+               funcBody = body $ relationFoldFunc relationMax,
+               funcACL = ()               
              },
     Function { funcName = "min",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationFoldFunc relationMin
+               funcBody = body $ relationFoldFunc relationMin,
+               funcACL = ()               
              },
     Function { funcName = "mean",
                funcType = foldAtomFuncType IntegerAtomType IntegerAtomType,
-               funcBody = body $ relationFoldFunc relationMean
+               funcBody = body $ relationFoldFunc relationMean,
+               funcACL = ()               
              },
     Function { funcName = "eq",
                funcType = [TypeVariableType "a", TypeVariableType "a", BoolAtomType],
                funcBody = body $ \case
                                          [i1,i2] -> pure (BoolAtom (i1 == i2))
-                                         _ -> Left AtomFunctionTypeMismatchError
+                                         _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "lt",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-               funcBody = body $ integerAtomFuncLessThan False},
+               funcBody = body $ integerAtomFuncLessThan False,
+               funcACL = ()
+             },
     Function { funcName = "lte",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-               funcBody = body $ integerAtomFuncLessThan True},
+               funcBody = body $ integerAtomFuncLessThan True,
+               funcACL = ()
+               },
     Function { funcName = "gte",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-               funcBody = body $ integerAtomFuncLessThan False >=> boolAtomNot},
+               funcBody = body $ integerAtomFuncLessThan False >=> boolAtomNot,
+               funcACL = ()
+             },
     Function { funcName = "gt",
                funcType = [IntegerAtomType, IntegerAtomType, BoolAtomType],
-               funcBody = body $ integerAtomFuncLessThan True >=> boolAtomNot},
+               funcBody = body $ integerAtomFuncLessThan True >=> boolAtomNot,
+               funcACL = ()
+             },
     Function { funcName = "not",
                funcType = [BoolAtomType, BoolAtomType],
                funcBody = body $ \case
                                          [b] -> boolAtomNot b
-                                         _ -> Left AtomFunctionTypeMismatchError
+                                         _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "int",
                funcType = [IntegerAtomType, IntAtomType],
@@ -87,13 +105,15 @@ primitiveAtomFunctions = HS.fromList [
                                     pure (IntAtom (fromIntegral v))
                                   else
                                     Left InvalidIntBoundError
-                                _ -> Left AtomFunctionTypeMismatchError
+                                _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "integer",
                funcType = [IntAtomType, IntegerAtomType],
                funcBody = body $ \case
                  [IntAtom v] -> Right $ IntegerAtom $ fromIntegral v
-                 _ -> Left AtomFunctionTypeMismatchError
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "uuid",
                funcType = [TextAtomType, UUIDAtomType],
@@ -103,27 +123,31 @@ primitiveAtomFunctions = HS.fromList [
                      case mUUID of
                        Just u -> pure $ UUIDAtom u
                        Nothing -> Left $ InvalidUUIDString v
-                 _ -> Left AtomFunctionTypeMismatchError
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "and",
                funcType = [BoolAtomType, BoolAtomType, BoolAtomType],
                funcBody = body $ \case
                  [BoolAtom b1, BoolAtom b2] ->
                    Right $ BoolAtom (b1 && b2)
-                 _ -> Left AtomFunctionTypeMismatchError
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "or",
                funcType = [BoolAtomType, BoolAtomType, BoolAtomType],
                funcBody = body $ \case
                  [BoolAtom b1, BoolAtom b2] ->
                    Right $ BoolAtom (b1 || b2)
-                 _ -> Left AtomFunctionTypeMismatchError                   
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              },
     Function { funcName = "increment",
                funcType = [IntegerAtomType, IntegerAtomType],
                funcBody = body $ \case
                  [IntegerAtom i] -> pure (IntegerAtom (i+1))
-                 _ -> Left AtomFunctionTypeMismatchError
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()               
              }
     
   ] <> scientificAtomFunctions
@@ -207,29 +231,35 @@ scientificAtomFunctions = HS.fromList [
                  case APT.parseOnly (APT.scientific <* APT.endOfInput) t of
                    Left err -> Left (AtomFunctionParseError err)
                    Right sci -> pure (ScientificAtom sci)
-               _ -> Left AtomFunctionTypeMismatchError
+               _ -> Left AtomFunctionTypeMismatchError,
+             funcACL = ()             
            },
   Function { funcName = "scientific",
              funcType = [IntegerAtomType, IntAtomType, ScientificAtomType],
              funcBody = body $ \case
                [IntegerAtom c,IntAtom e] -> pure (ScientificAtom $ scientific c e)
-               _ -> Left AtomFunctionTypeMismatchError
+               _ -> Left AtomFunctionTypeMismatchError,
+             funcACL = ()             
            },
   Function { funcName = "scientific_add",
              funcType = binaryFuncType,
-             funcBody = binaryFuncBody (+)
+             funcBody = binaryFuncBody (+),
+             funcACL = ()             
            },
   Function { funcName = "scientific_subtract",
              funcType = binaryFuncType,
-             funcBody = binaryFuncBody (-)
+             funcBody = binaryFuncBody (-),
+             funcACL = ()             
            },
   Function { funcName = "scientific_multiply",
              funcType = binaryFuncType,
-             funcBody = binaryFuncBody (*)
+             funcBody = binaryFuncBody (*),
+             funcACL = ()             
            },
   Function { funcName = "scientific_divide",
              funcType = binaryFuncType,
-             funcBody = binaryFuncBody (/)
+             funcBody = binaryFuncBody (/),
+             funcACL = ()
            }
   ]
   where body = FunctionBuiltInBody

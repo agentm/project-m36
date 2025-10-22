@@ -10,6 +10,7 @@ import ProjectM36.DatabaseContext.Types
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Data.Maybe (isJust)
+import Data.Default
 
 externalDatabaseContextFunction :: DatabaseContextFunctionBodyType -> DatabaseContextFunctionBody
 externalDatabaseContextFunction = FunctionBuiltInBody
@@ -18,7 +19,8 @@ emptyDatabaseContextFunction :: FunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = Function { 
   funcName = name,
   funcType = [],
-  funcBody = FunctionBuiltInBody (\_ ctx -> pure ctx)
+  funcBody = FunctionBuiltInBody (\_ ctx -> pure ctx),
+  funcACL = def
   }
 
 databaseContextFunctionForName :: FunctionName -> DatabaseContextFunctions -> Either RelationalError DatabaseContextFunction
@@ -26,9 +28,6 @@ databaseContextFunctionForName funcName' funcs =
   case HS.toList $ HS.filter (\f -> funcName f == funcName') funcs of
     [] -> Left $ NoSuchFunctionError funcName'
     x : _ -> Right x
-
-evalDatabaseContextFunction' :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError ctx
-evalDatabaseContextFunction' = error "unimplemented dbc func eval"
 
 evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 evalDatabaseContextFunction func args ctx =

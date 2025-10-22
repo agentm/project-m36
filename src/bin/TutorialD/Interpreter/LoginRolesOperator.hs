@@ -1,6 +1,5 @@
 module TutorialD.Interpreter.LoginRolesOperator where
 import ProjectM36.Client as C
-import ProjectM36.LoginRoles as LoginRoles
 import ProjectM36.Interpreter
 import qualified Data.Text as T
 

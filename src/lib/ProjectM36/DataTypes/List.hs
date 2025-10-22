@@ -41,7 +41,8 @@ listAtomFunctions = HS.fromList [
        \case
                (listAtom:_) ->
                  IntAtom . fromIntegral <$> listLength listAtom
-               _ -> Left AtomFunctionTypeMismatchError
+               _ -> Left AtomFunctionTypeMismatchError,
+     funcACL = ()
      },
   Function {
     funcName = "maybeHead",
@@ -49,7 +50,8 @@ listAtomFunctions = HS.fromList [
     funcBody = FunctionBuiltInBody $
                \case
                  (listAtom:_) -> listMaybeHead listAtom
-                 _ -> Left AtomFunctionTypeMismatchError
+                 _ -> Left AtomFunctionTypeMismatchError,
+    funcACL = ()
     }
   ]
                     

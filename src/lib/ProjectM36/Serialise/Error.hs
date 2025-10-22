@@ -2,7 +2,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Serialise.Error where
 import ProjectM36.Error
-import ProjectM36.AccessControlList
 import Codec.Winery
 import ProjectM36.Serialise.Base ()
 import ProjectM36.Serialise.AtomFunctionError ()
@@ -17,4 +16,4 @@ deriving via WineryVariant PersistenceError instance Serialise PersistenceError
 deriving via WineryVariant SchemaError instance Serialise SchemaError
 deriving via WineryVariant ImportError' instance Serialise ImportError'
 deriving via WineryVariant SQLError instance Serialise SQLError
-deriving via WineryVariant SomePermission instance Serialise SomePermission
+

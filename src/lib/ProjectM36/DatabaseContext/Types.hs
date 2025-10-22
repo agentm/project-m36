@@ -3,8 +3,8 @@ module ProjectM36.DatabaseContext.Types where
 import GHC.Generics
 import Control.DeepSeq (NFData)
 import ProjectM36.Base
-import ProjectM36.ValueMarker
 import ProjectM36.AccessControlList
+import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContextFunctionError
 import qualified Data.HashSet as HS
 import Data.Functor.Identity
@@ -45,6 +45,6 @@ data TransactionIdMarker a = TransactionIdMarker TransactionId a
 type DatabaseContextFunctionBodyType = [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
 type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
 
-type DatabaseContextFunction = Function DatabaseContextFunctionBodyType
+type DatabaseContextFunction = Function DatabaseContextFunctionBodyType DBCFunctionAccessControlList
 type DatabaseContextFunctionBody = FunctionBody DatabaseContextFunctionBodyType
 

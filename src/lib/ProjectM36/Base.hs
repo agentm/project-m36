@@ -3,6 +3,7 @@
 
 module ProjectM36.Base where
 import ProjectM36.AtomFunctionError
+import ProjectM36.AccessControlList
 import Data.Functor.Foldable.TH
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -348,14 +349,18 @@ type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
 --used for returning information about individual expressions
 type DatabaseContextExprName = StringType
 
-type DatabaseContextExpr = DatabaseContextExprBase ()
+type DatabaseContextExpr = DatabaseContextExprBase () RoleName
+
+type DatabaseContextExpr' = DatabaseContextExprBase () RoleId
 
 instance Hashable DatabaseContextExpr 
 
-type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker
+type GraphRefDatabaseContextExpr = DatabaseContextExprBase GraphRefTransactionMarker RoleName
+
+type GraphRefDatabaseContextExpr' = DatabaseContextExprBase GraphRefTransactionMarker RoleId
 
 -- | Database context expressions modify the database context.
-data DatabaseContextExprBase a = 
+data DatabaseContextExprBase a r = 
   NoOperation |
   Define RelVarName [AttributeExprBase a] |
   Undefine RelVarName | --forget existence of relvar X
@@ -382,9 +387,11 @@ data DatabaseContextExprBase a =
 
   AddRegisteredQuery RegisteredQueryName RelationalExpr |
   RemoveRegisteredQuery RegisteredQueryName |
+
+  AlterACL (AlterDBCACLExprBase r) |
   
-  MultipleExpr [DatabaseContextExprBase a]
-  deriving (Show, Read, Eq, Generic, NFData)
+  MultipleExpr [DatabaseContextExprBase a r]
+  deriving (Show, Eq, Generic, NFData)
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
@@ -540,17 +547,18 @@ type FunctionName = StringType
 type FunctionBodyScript = StringType
 
 -- | Represents stored, user-created or built-in functions which can operates of types such as Atoms or DatabaseContexts.
-data Function a = Function {
+data Function a acl = Function {
   funcName :: FunctionName,
   funcType :: [AtomType],
-  funcBody :: FunctionBody a
+  funcBody :: FunctionBody a,
+  funcACL :: acl
   }
   deriving (Generic, NFData)
 
-instance Eq (Function a) where                           
+instance Eq (Function a acl) where                           
   f1 == f2 = funcName f1 == funcName f2
 
-instance Hashable (Function a) where
+instance Hashable (Function a acl) where
   hashWithSalt salt func = salt `hashWithSalt` funcName func `hashWithSalt` funcType func `hashWithSalt` hashfuncbody 
    where
     hashfuncbody =
@@ -570,7 +578,7 @@ instance NFData a => NFData (FunctionBody a) where
   rnf (FunctionBuiltInBody _) = rnf ()
   rnf (FunctionObjectLoadedBody fp mod' entryf _) = rnf (fp, mod', entryf)
 
-type AtomFunction = Function AtomFunctionBodyType
+type AtomFunction = Function AtomFunctionBodyType ()
 type AtomFunctionBody = FunctionBody AtomFunctionBodyType
 
 attrTypeVars :: Attribute -> S.Set TypeVarName
@@ -620,7 +628,20 @@ atomTypeVars (TypeVariableType nam) = S.singleton nam
 
 unimplemented :: HasCallStack => a
 unimplemented = error "unimplemented"
+
+data AlterDBCACLExprBase r =
+  GrantAccessExpr r SomePermission MayGrant |
+  RevokeAccessExpr r SomePermission |
+  GrantDBCFunctionAccessExpr r FunctionName DBCFunctionPermission MayGrant | -- refactor to support other function types; for example, an AtomFunction could contain sensitive business logic which only some users can run
+  RevokeDBCFunctionAccessExpr r FunctionName DBCFunctionPermission
+  deriving (Show, Generic, Eq, NFData, Hashable)
+
+type AlterDBCACLExpr = AlterDBCACLExprBase RoleName
+
+-- | Variant of ACL expression with RoleName resolved to RoleId.
+type AlterDBCACLRoleIdExpr = AlterDBCACLExprBase RoleId
            
 makeBaseFunctor ''RelationalExprBase
-
+makeBaseFunctor ''DatabaseContextExprBase
+makeBaseFunctor ''AlterDBCACLExprBase
 

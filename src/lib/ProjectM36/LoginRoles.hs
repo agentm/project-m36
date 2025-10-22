@@ -14,8 +14,6 @@ import Control.Monad (forM_)
 
 type LoginRolesDB = SQL.Connection
 
-type MayGrant = Bool
-
 type MayLogin = Bool
 
 -- | Used by console programs to change this database of roles which are allowed to login.

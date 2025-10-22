@@ -104,10 +104,10 @@ processRelationalExprInSchema schema relExprIn = do
   validateRelationalExprInSchema schema relExprIn
   foldM processRelExpr relExprIn (isomorphs schema)
 
-validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError ()
+validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr' -> Either RelationalError ()
 validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema)
 
-processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
+processDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr' -> Either RelationalError DatabaseContextExpr'
 processDatabaseContextExprInSchema schema@(Schema morphs) dbExpr = do
   let relExprMogrifier = processRelationalExprInSchema schema
   --validate that all mentioned relvars are in the valid set
@@ -196,7 +196,7 @@ spam2 :: Either RelationalError RelationalExpr
 spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePredicate "emp")) (RelationVariable "boss" ())
 -}
 
-databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr -> Either RelationalError DatabaseContextExpr
+databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr' -> Either RelationalError DatabaseContextExpr'
 databaseContextExprMorph iso'@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFunc expr = case expr of
   Assign rv relExpr | rv == rvIn -> do
     ex <- relExprFunc relExpr

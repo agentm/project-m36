@@ -72,8 +72,8 @@ instance Optimize RelationalExpr GraphRefRelationalExpr where
         ctx = re_context env
     runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
-instance Optimize DatabaseContextExpr GraphRefDatabaseContextExpr where
-  type OptimizeEnv DatabaseContextExpr GraphRefDatabaseContextExpr = GraphRefSOptDatabaseContextExprEnv
+instance Optimize DatabaseContextExpr' GraphRefDatabaseContextExpr' where
+  type OptimizeEnv DatabaseContextExpr' GraphRefDatabaseContextExpr' = GraphRefSOptDatabaseContextExprEnv
   optimize env expr = do
     let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
         graph = odce_graph env
@@ -162,12 +162,12 @@ askTransId = asks odce_transId
 askMaybeContext :: GraphRefSOptRelationalExprM (Maybe DatabaseContext)
 askMaybeContext = asks ore_mcontext
 
-optimizeDatabaseContextExpr :: DatabaseContextExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr
+optimizeDatabaseContextExpr :: DatabaseContextExpr' -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr'
 optimizeDatabaseContextExpr expr = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
   optimizeGraphRefDatabaseContextExpr gfExpr
   
-optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr' -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
@@ -375,8 +375,10 @@ optimizeGraphRefRelationalExpr e@(Extend _ _) = pure e
 
 optimizeGraphRefRelationalExpr e@(With _ _) = pure e  
 
--- database context expr
-optimizeGraphRefDatabaseContextExpr :: GraphRefDatabaseContextExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr
+-- database context expr, we can only optimize with fully-resolved RoleIds to be able to enforce security which could otherwise be used to leak schema details
+optimizeGraphRefDatabaseContextExpr ::
+  GraphRefDatabaseContextExpr' ->
+  GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr'
 optimizeGraphRefDatabaseContextExpr x@NoOperation = pure x
 optimizeGraphRefDatabaseContextExpr x@(Define _ _) = pure x
 
@@ -420,6 +422,7 @@ optimizeGraphRefDatabaseContextExpr c@(RemoveDatabaseContextFunction _) = pure c
 optimizeGraphRefDatabaseContextExpr c@(ExecuteDatabaseContextFunction _ _) = pure c
 optimizeGraphRefDatabaseContextExpr c@AddRegisteredQuery{} = pure c
 optimizeGraphRefDatabaseContextExpr c@RemoveRegisteredQuery{} = pure c
+optimizeGraphRefDatabaseContextExpr c@AlterACL{} = pure c
 --optimization: from pgsql lists- check for join condition referencing foreign key- if join projection project away the referenced table, then it does not need to be scanned
 
 --applyStaticDatabaseOptimization (MultipleExpr exprs) = pure $ Right $ MultipleExpr exprs
@@ -435,7 +438,7 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
         pure $ ctx { relationVariables = emptyRvs' }
       dbcEnv = mkDatabaseContextEvalEnv parentId graph
       folder (ctx, expracc) expr = do
-        --optimize the expr and run it against empty relvars to add it to the context
+        --optimize the expr and run it against empty relvars to add it to the context, otherwise some relvars could be missing in subsequent optimizations
         case runGraphRefSOptDatabaseContextExprM parentId ctx graph (optimizeGraphRefDatabaseContextExpr expr) of
           Left err -> throwError err
           Right optExpr ->

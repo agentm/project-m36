@@ -46,7 +46,8 @@ nonEmptyListAtomFunctions = HS.fromList [
        \case
          (nonEmptyListAtom:_) ->
            IntAtom . fromIntegral <$> nonEmptyListLength nonEmptyListAtom
-         _ -> Left AtomFunctionTypeMismatchError
+         _ -> Left AtomFunctionTypeMismatchError,
+     funcACL = ()
      },
   Function {
     funcName = "nonEmptyListHead",
@@ -54,6 +55,7 @@ nonEmptyListAtomFunctions = HS.fromList [
     funcBody = FunctionBuiltInBody $
       \case
         (nonEmptyListAtom:_) -> nonEmptyListHead nonEmptyListAtom
-        _ -> Left AtomFunctionTypeMismatchError
+        _ -> Left AtomFunctionTypeMismatchError,
+    funcACL = ()
     }
   ]

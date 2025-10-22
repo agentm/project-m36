@@ -22,7 +22,8 @@ maybeAtomFunctions = HS.fromList [
      funcBody = FunctionBuiltInBody $
        \case
                ConstructedAtom dConsName _ _:_ -> pure $ BoolAtom (dConsName /= "Nothing")
-               _ -> Left AtomFunctionTypeMismatchError
+               _ -> Left AtomFunctionTypeMismatchError,
+     funcACL = ()
      },
   Function {
      funcName = "fromMaybe",
@@ -30,7 +31,8 @@ maybeAtomFunctions = HS.fromList [
      funcBody = FunctionBuiltInBody $
        \case
          (defaultAtom:ConstructedAtom dConsName _ (atomVal:_):_) -> if atomTypeForAtom defaultAtom /= atomTypeForAtom atomVal then Left AtomFunctionTypeMismatchError else if dConsName == "Nothing" then pure defaultAtom else pure atomVal
-         _ ->Left AtomFunctionTypeMismatchError         
+         _ -> Left AtomFunctionTypeMismatchError,
+     funcACL = ()
      }
   ]
 

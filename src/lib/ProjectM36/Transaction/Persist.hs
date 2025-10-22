@@ -34,6 +34,7 @@ import Control.Concurrent.Async
 import GHC.Generics
 import qualified Data.Text.Encoding as TE
 import qualified Data.Set as S
+import Data.Default
 
 
 #if defined(__APPLE__) || defined(linux_HOST_OS)
@@ -346,7 +347,7 @@ readRelVars transDir = do
     pure (rvname, rvExpr)
   pure (simpleRelVars rvindex <> M.fromList complexRvAssocs)
 
-writeFuncs :: Traversable t => DiskSync -> FilePath -> t (Function a) -> IO ()
+writeFuncs :: Traversable t => DiskSync -> FilePath -> t (Function a acl) -> IO ()
 writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
   funcs' <- forM funcs $ \fun -> do
     case funcBody fun of
@@ -358,7 +359,7 @@ writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
   --write additional data for object-loaded functions (which are not built-in or scripted)
   let functionData f =
           (funcType f, funcName f, functionScript f, objInfo f)
-      objInfo :: Function a -> Maybe ObjectFileInfo
+      objInfo :: Function a acl -> Maybe ObjectFileInfo
       objInfo f =
         case funcBody f of
           FunctionObjectLoadedBody objPath modName entryFunc _ ->
@@ -367,7 +368,7 @@ writeFuncs sync funcWritePath funcs = traceBlock "write functions" $ do
           FunctionBuiltInBody{} -> Nothing
   writeSerialiseSync sync funcWritePath (fmap functionData (toList funcs'))
 
-readFuncs :: FilePath -> FilePath -> HS.HashSet (Function a) -> Maybe ScriptSession -> IO (HS.HashSet (Function a))
+readFuncs :: Default acl => FilePath -> FilePath -> HS.HashSet (Function a acl) -> Maybe ScriptSession -> IO (HS.HashSet (Function a acl))
 readFuncs transDir funcPath precompiledFunctions mScriptSession = do
   funcsList <- readDeserialise funcPath
   --we always return the pre-compiled functions
@@ -381,7 +382,7 @@ newtype ObjectFileInfo = ObjectFileInfo { _unFileInfo :: (FilePath, String, Stri
  deriving (Show, Serialise)
 -- deriving Serialise via WineryVariant ObjectFileInfo
 
-loadFunc :: FilePath -> HS.HashSet (Function a) -> Maybe ScriptSession -> FunctionName -> [AtomType] -> Maybe FunctionBodyScript -> Maybe ObjectFileInfo -> IO (Function a)
+loadFunc :: Default acl => FilePath -> HS.HashSet (Function a acl) -> Maybe ScriptSession -> FunctionName -> [AtomType] -> Maybe FunctionBodyScript -> Maybe ObjectFileInfo -> IO (Function a acl)
 loadFunc objFilesDir precompiledFuncs _mScriptSession funcName' _funcType mFuncScript mObjInfo = do
   case mObjInfo of
     --load from shared or static object library
@@ -416,7 +417,8 @@ loadFunc objFilesDir precompiledFuncs _mScriptSession funcName' _funcType mFuncS
                 Left err -> throwIO err
                 Right compiledScript -> pure Function { funcName = funcName',
                                                         funcType = _funcType,
-                                                        funcBody = FunctionScriptBody _funcScript compiledScript }
+                                                        funcBody = FunctionScriptBody _funcScript compiledScript,
+                                                        funcACL = def}
 #else
          error "Haskell scripting is disabled"
 #endif                                    
@@ -450,7 +452,8 @@ readAtomFunc transDir funcName' mScriptSession precompiledFuncs = do
             Left err -> throwIO err
             Right compiledScript -> pure Function { funcName = funcName',
                                                     funcType = funcType',
-                                                    funcBody = FunctionScriptBody funcScript compiledScript }
+                                                    funcBody = FunctionScriptBody funcScript compiledScript,
+                                                    funcACL = def }
 #endif
 
 writeIncDeps :: DiskSync -> FilePath -> M.Map IncDepName InclusionDependency -> IO ()  

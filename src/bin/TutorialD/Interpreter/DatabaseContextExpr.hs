@@ -4,7 +4,9 @@ import ProjectM36.Base
 import ProjectM36.Interpreter
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
+import ProjectM36.AccessControlList
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.DatabaseContextExpr
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
@@ -20,6 +22,7 @@ import ProjectM36.FunctionalDependency
 import Data.Monoid
 #endif
 import Data.Functor
+import qualified Data.UUID as UUID
 
 --parsers which create "database expressions" which modify the database context (such as relvar assignment)
 databaseContextExprP :: Parser DatabaseContextExpr
@@ -42,6 +45,7 @@ databaseContextExprP = choice [insertP,
                                removeDatabaseContextFunctionP,
                                addRegisteredQueryP,
                                removeRegisteredQueryP,
+                               AlterACL <$> alterACLP,
                                nothingP]
             
 nothingP :: Parser DatabaseContextExpr            
@@ -195,6 +199,44 @@ removeRegisteredQueryP = do
   reserved "unregisterquery"
   RemoveRegisteredQuery <$> quotedString
 
+-- grant perm rolename maygrant
+alterACLP :: Parser AlterDBCACLExpr
+alterACLP = do
+  let grantP = do
+        reserved "grant"
+        GrantAccessExpr <$> roleNameP <*> somePermissionP  <*> mayGrantP
+      mayGrantP = (reserved "maygrant" $> True) <|> (reserved "nogrant" $> False)
+      revokeP = do
+        reserved "revoke"
+        RevokeAccessExpr <$> roleNameP <*> somePermissionP
+      grantDBCFuncP = do
+        reserved "grant"
+        reserved "dbcfunction"
+        GrantDBCFunctionAccessExpr <$> roleNameP <*> functionNameP <*> dbcFunctionPermP <*> mayGrantP
+      revokeDBCFuncP = do
+        reserved "revoke"
+        reserved "dbcfunction"
+        RevokeDBCFunctionAccessExpr <$> roleNameP <*> functionNameP <*> dbcFunctionPermP
+  grantDBCFuncP <|> revokeDBCFuncP <|>        
+    grantP <|> revokeP
+
+dbcFunctionPermP :: Parser DBCFunctionPermission
+dbcFunctionPermP = (reserved "viewfunction" $> ViewDBCFunctionPermission) <|>
+                   (reserved "executefunction" $> ExecuteDBCFunctionPermission) <|>
+                   (reserved "alterfunction" $> AlterDBCFunctionPermission)
+
+somePermissionP :: Parser SomePermission
+somePermissionP =
+  (reserved "accessrelvars" $> SomeRelVarPermission AccessRelVarsPermission) <|>
+
+  (reserved "executefunctions" $> SomeFunctionPermission ExecuteFunctionPermission) <|>
+  (reserved "viewfunctions" $> SomeFunctionPermission ViewFunctionPermission) <|>
+  (reserved "loadfunctions" $> SomeFunctionPermission LoadFunctionPermission) <|>
+
+  (reserved "alterschema" $> SomeAlterSchemaPermission AlterSchemaPermission) <|>
+
+  (reserved "committransaction" $> SomeAlterTransGraphPermission CommitTransactionPermission)
+
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"
@@ -214,13 +256,19 @@ evalDatabaseContextExpr useOptimizer context expr = do
         (Left err, _) -> Left err
 -}
 
+-- | Used exclusively by tests, bypasses role-based access control.
 interpretDatabaseContextExpr :: DatabaseContext -> TransactionId -> TransactionGraph -> T.Text -> Either RelationalError DatabaseContext
 interpretDatabaseContextExpr context transId graph tutdstring =
   case parse databaseExprOpP "" tutdstring of
     Left err -> Left $ PM36E.ParseError (T.pack (show err))
     Right parsed -> do
-      let env = RE.mkDatabaseContextEvalEnv transId graph
-      RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed)
+      let roleNameResolver _roleName = pure UUID.nil
+      case resolveRoleIds roleNameResolver parsed of
+        Left err -> Left err
+        Right parsed' -> do
+          let env = RE.mkDatabaseContextEvalEnv transId graph
+      
+          RE.dbc_context <$> RE.runDatabaseContextEvalMonad context env (optimizeAndEvalDatabaseContextExpr True parsed')
 
 {-
 --no optimization

@@ -30,7 +30,8 @@ emptyAtomFunction name = Function { funcName = name,
                                     funcBody = FunctionBuiltInBody $
                                                \case
                                                  x:_ -> pure x
-                                                 _ -> Left AtomFunctionTypeMismatchError
+                                                 _ -> Left AtomFunctionTypeMismatchError,
+                                    funcACL = ()
                                   }
                                           
                                           
@@ -38,7 +39,8 @@ emptyAtomFunction name = Function { funcName = name,
 compiledAtomFunction :: FunctionName -> [AtomType] -> AtomFunctionBodyType -> AtomFunction
 compiledAtomFunction name aType body = Function { funcName = name,
                                                   funcType = aType,
-                                                  funcBody = FunctionBuiltInBody body }
+                                                  funcBody = FunctionBuiltInBody body,
+                                                  funcACL = () }
 
 --the atom function really should offer some way to return an error
 evalAtomFunction :: AtomFunction -> [Atom] -> Either AtomFunctionError Atom

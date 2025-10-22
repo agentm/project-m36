@@ -79,7 +79,7 @@ safeInterpreterParserP = fmap RODatabaseContextOp (roDatabaseContextOperatorP <*
                          fmap DatabaseContextExprOp (databaseExprOpP <* eof) <|>
                          fmap ImportBasicExampleOp (importBasicExampleOperatorP <* eof) <|>
                          fmap TransGraphRelationalOp (transGraphRelationalOpP <* eof) <|>
-                         fmap SchemaOp (schemaOperatorP <* eof) <|>
+                         fmap SchemaOp (schemaOperatorP <* eof) <|> 
                          fmap LoginRolesOp (alterLoginRolesExprP <* eof)
 
 promptText :: MakePrompt
@@ -224,7 +224,7 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   (TransGraphRelationalOp execOp) ->
     evalTransGraphRelationalOp sessionId conn execOp
   (LoginRolesOp alterLoginRoleExpr) -> do
-    evalAlterLoginRolesExpr sessionId conn alterLoginRoleExpr    
+    evalAlterLoginRolesExpr sessionId conn alterLoginRoleExpr
   where
     needsSafe = safe == SafeEvaluation
     unsafeError = pure $ DisplayErrorResult "File I/O operation prohibited."

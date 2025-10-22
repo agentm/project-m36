@@ -52,6 +52,7 @@ import Control.Monad.Trans.Except (except)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
+import ProjectM36.AccessControlList as ACL
 import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
@@ -272,7 +273,7 @@ deleteRelVar relVarName = do
       Right _ ->
         putStateContext newContext
 
-evalGraphRefDatabaseContextExpr :: GraphRefDatabaseContextExpr -> DatabaseContextEvalMonad ()
+evalGraphRefDatabaseContextExpr :: GraphRefDatabaseContextExpr' -> DatabaseContextEvalMonad ()
 evalGraphRefDatabaseContextExpr NoOperation = pure ()
   
 evalGraphRefDatabaseContextExpr (Define relVarName attrExprs) = do
@@ -508,7 +509,7 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomAr
                 else if not (null typeErrors) then
                      dbErr (someErrors typeErrors)
                    else
-                     case evalDatabaseContextFunction' func (rights eAtomArgs) context of
+                     case evalDatabaseContextFunction func (rights eAtomArgs) context of
                        Left err -> dbErr err
                        Right newContext -> putStateContext newContext
 
@@ -530,6 +531,8 @@ evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
   case M.lookup regName regQueries of
     Nothing -> dbErr (RegisteredQueryNameNotInUseError regName)
     Just _ -> putStateContext (context { registeredQueries = ValueMarker $ M.delete regName regQueries})
+evalGraphRefDatabaseContextExpr (AlterACL alterACLExpr) = do
+  evalAlterDBCACLRoleIdExpr alterACLExpr
   
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
@@ -601,7 +604,8 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName' funcType' script) =
                     newContext = currentContext { atomFunctions = updatedFuncs }
                     newAtomFunc = Function { funcName = funcName',
                                              funcType = funcAtomType,
-                                             funcBody = FunctionScriptBody script compiledFunc }
+                                             funcBody = FunctionScriptBody script compiledFunc,
+                                             funcACL = () }
                -- check if the name is already in use
                 if HS.member funcName' (HS.map funcName atomFuncs) then
                   Left (FunctionNameInUseError funcName')
@@ -642,7 +646,8 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType
                   newDBCFunc = Function {
                     funcName = funcName',
                     funcType = funcAtomType,
-                    funcBody = FunctionScriptBody script compiledFunc
+                    funcBody = FunctionScriptBody script compiledFunc,
+                    funcACL = ACL.empty
                     }
                 -- check if the name is already in use
               if HS.member funcName' (HS.map funcName dbcFuncs) then
@@ -1795,3 +1800,64 @@ toResolvedDatabaseContext ctx graph = do
            registeredQueries = Identity regQs,
            acl = Identity acls
            })
+    
+-- | RoleIds is resolved from the RoleName presented in the DatabaseContextExpr.
+evalAlterDBCACLRoleIdExpr :: AlterDBCACLRoleIdExpr -> DatabaseContextEvalMonad ()
+evalAlterDBCACLRoleIdExpr expr = do
+    acl' <- resolveDBC acl
+    ctx <- getStateContext
+    case expr of
+      GrantAccessExpr roleId somePerm mgrant -> do
+        let newAcl =
+              case somePerm of
+                SomeRelVarPermission perm ->
+                  acl' { relvarsACL = addAccess roleId perm mgrant (relvarsACL acl') }
+                SomeFunctionPermission perm ->
+                  acl' { dbcFunctionsACL = addAccess roleId perm mgrant (dbcFunctionsACL acl') }
+                SomeAlterSchemaPermission perm ->
+                  acl' { schemaACL = addAccess roleId perm mgrant (schemaACL acl') }
+                SomeAlterTransGraphPermission perm ->
+                  acl' { transGraphACL = addAccess roleId perm mgrant (transGraphACL acl') }
+                SomeACLPermission perm ->
+                  acl' { aclACL = addAccess roleId perm mgrant (aclACL acl') }
+                SomeDBCFunctionPermission{} -> acl'
+        putStateContext (ctx {
+                            acl = ValueMarker newAcl
+                            })
+      RevokeAccessExpr roleId somePerm -> do
+        let newAcl =
+              case somePerm of
+                SomeRelVarPermission perm ->
+                  acl' { relvarsACL = removeAccess roleId perm (relvarsACL acl') }
+                SomeFunctionPermission perm ->
+                    acl' { dbcFunctionsACL = removeAccess roleId perm (dbcFunctionsACL acl') }
+                SomeAlterSchemaPermission perm ->
+                  acl' { schemaACL = removeAccess roleId perm (schemaACL acl') }
+                SomeAlterTransGraphPermission perm ->
+                  acl' { transGraphACL = removeAccess roleId perm (transGraphACL acl') }
+                SomeACLPermission perm ->
+                  acl' { aclACL = removeAccess roleId perm (aclACL acl') }
+                SomeDBCFunctionPermission{} -> acl'                  
+        putStateContext (ctx {
+                            acl = ValueMarker newAcl
+                            })                            
+      GrantDBCFunctionAccessExpr roleId funcName' perm mgrant -> do
+        dbcFuncs <- resolveDBC dbcFunctions
+        case functionForName funcName' dbcFuncs of
+          Left err -> dbErr err
+          Right func -> do
+            let newCtx = ctx { dbcFunctions = ValueMarker (HS.insert newFunc (HS.delete func dbcFuncs)) }
+                newFunc = func { funcACL = addAccess roleId perm mgrant (funcACL func) }
+            putStateContext newCtx
+      RevokeDBCFunctionAccessExpr roleId funcName' perm -> do
+        dbcFuncs <- resolveDBC dbcFunctions
+        case functionForName funcName' dbcFuncs of
+          Left err -> dbErr err
+          Right func -> do
+              let newCtx = ctx { dbcFunctions = ValueMarker (HS.insert newFunc dbcFuncs) }          
+                  newFunc = func { funcACL = removeAccess roleId perm (funcACL func) }
+              putStateContext newCtx
+
+
+        
+        

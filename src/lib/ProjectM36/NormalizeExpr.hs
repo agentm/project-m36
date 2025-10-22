@@ -57,7 +57,7 @@ processAttributeNames (UnionAttributeNames attrNamesA attrNamesB) = UnionAttribu
 processAttributeNames (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
 processAttributeNames (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> processRelationalExpr expr
 
-processDatabaseContextExpr :: DatabaseContextExpr -> ProcessExprM GraphRefDatabaseContextExpr
+processDatabaseContextExpr :: DatabaseContextExprBase () r -> ProcessExprM (DatabaseContextExprBase GraphRefTransactionMarker r)
 processDatabaseContextExpr expr =
   case expr of
     NoOperation -> pure NoOperation
@@ -80,6 +80,7 @@ processDatabaseContextExpr expr =
     ExecuteDatabaseContextFunction funcName' atomExprs -> ExecuteDatabaseContextFunction funcName' <$> mapM processAtomExpr atomExprs
     AddRegisteredQuery n q -> pure (AddRegisteredQuery n q)
     RemoveRegisteredQuery n -> pure (RemoveRegisteredQuery n)
+    AlterACL e -> pure (AlterACL e)
     MultipleExpr exprs -> MultipleExpr <$> mapM processDatabaseContextExpr exprs
 
 processDatabaseContextIOExpr :: DatabaseContextIOExpr -> ProcessExprM GraphRefDatabaseContextIOExpr

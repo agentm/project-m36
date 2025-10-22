@@ -123,7 +123,13 @@ module ProjectM36.Client
        SRPC.ClientAuth(..),
        ClientInfo(..),
        InProcessConnectionConf(..),
-       executeAlterLoginRolesExpr
+       executeAlterLoginRolesExpr,
+       setRoleName,
+       LoginRoles.AlterLoginRolesExpr(..),
+       SomePermission(..),
+       FunctionPermission(..),
+       DBCFunctionPermission(..),       
+       AlterDBCACLExprBase(..)
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -182,7 +188,8 @@ import ProjectM36.Sessions
 import ProjectM36.AccessControlList
 import ProjectM36.HashSecurely (SecureHash)
 import ProjectM36.RegisteredQuery
-import ProjectM36.Cache.RelationalExprCache as RelExprCache
+import qualified ProjectM36.Cache.RelationalExprCache as RelExprCache
+import ProjectM36.Cache.RelationalExprCache (RelExprCache)
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
 import System.IO
@@ -197,12 +204,16 @@ import ProjectM36.SQL.DBUpdate as SQL
 import ProjectM36.SQL.Convert
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
+import ProjectM36.DatabaseContextExpr
 import qualified Data.Set as S
 import qualified ProjectM36.LoginRoles as LoginRoles
 import Streamly.Internal.Network.Socket (SockSpec(..))
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
+import Data.Tuple (swap)
+
+import Debug.Trace
 
 type Hostname = String
 type Port = Word16
@@ -637,16 +648,18 @@ executeRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall c
 executeDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError ())
 executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
  roleIds <- roleIdsForRoleName conf
+ roles <- LoginRoles.allRoles (ipLoginRoles conf)
  excEither $ atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId conf
   case eSession of
     Left err -> pure (Left err)
     Right (session, schema) -> do
-      let expr' = if schemaName session == defaultSchemaName then
-                    Right expr
-                  else
-                    Schema.processDatabaseContextExprInSchema schema expr
+      let expr' = if schemaName session == defaultSchemaName then do
+                    resolveRoleIds roleNameResolver expr
+                  else 
+                    resolveRoleIds roleNameResolver expr >>= Schema.processDatabaseContextExprInSchema schema
+          roleNameResolver nam = lookup nam roles
       case expr' of 
         Left err -> pure (Left err)
         Right expr'' -> do
@@ -660,7 +673,8 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
           case RE.runDatabaseContextEvalMonad ctx env runExpr of
             Left err -> pure (Left err)
             Right newState ->
-              if not (DBC.isUpdated (RE.dbc_context newState)) then --nothing dirtied, nothing to do
+              if not (DBC.isUpdated (RE.dbc_context newState)) then do --nothing dirtied, nothing to do
+                traceShowM ("ALL CLEAN"::String)
                 pure (Right ())
               else do
                 case resolveSubschemas session graph of
@@ -993,6 +1007,7 @@ typeConstructorMapping sessionId conn@(RemoteConnection _) = remoteCall conn (Re
 -- | Return an optimized database expression which is logically equivalent to the input database expression. This function can be used to determine which expression will actually be evaluated.
 planForDatabaseContextExpr :: SessionId -> Connection -> DatabaseContextExpr -> IO (Either RelationalError GraphRefDatabaseContextExpr)  
 planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
+  roles <- LoginRoles.allRoles (ipLoginRoles conf)
   atomically $ do
     graph <- readTVar (ipTransactionGraph conf)    
     eSession <- sessionAndSchema sessionId conf
@@ -1003,7 +1018,18 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
           let ctx = Sess.concreteDatabaseContext session
               transId = Sess.parentId session
               gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr dbExpr)
-          pure $ runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+              roleNameResolver nam = lookup nam roles
+              roleIdResolver roleId = lookup roleId (map swap roles)
+          case resolveRoleIds roleNameResolver gfExpr of
+            Left err -> pure (Left err)
+            Right gfExpr' -> do
+              case runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeGraphRefDatabaseContextExpr gfExpr') of
+                Left err -> pure (Left err)
+                Right optExpr -> 
+              -- convert roleIds back roleNames to avoid leaking role ids to the client
+                  case resolveRoleNames roleIdResolver optExpr of
+                    Left err -> pure (Left err)
+                    Right optExpr' -> pure (Right optExpr')
         else -- don't show any optimization because the current optimization infrastructure relies on access to the base context- this probably underscores the need for each schema to have its own DatabaseContext, even if it is generated on-the-fly-}
           pure (Left NonConcreteSchemaPlanError)
 
@@ -1455,4 +1481,9 @@ roleIdsForRoleName conf = do
     Left _err -> pure []
     Right roleIds -> pure roleIds
 
-    
+-- | Useful for in-process connections to change the role related to access control. Remote connections authenticate via TLS, so require new connections to change roles.
+setRoleName :: RoleName -> Connection -> Connection
+setRoleName newRoleName (InProcessConnection conf) =
+  InProcessConnection (conf { ipRoleName = newRoleName })
+setRoleName _ RemoteConnection{} = error "setRoleName can only be used with in-process connections"
+  

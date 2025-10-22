@@ -13,13 +13,15 @@ dayAtomFunctions = HS.fromList [
                  funcBody = compiledAtomFunctionBody $
                             \case
                               IntegerAtom year:IntegerAtom month:IntegerAtom day:_ -> pure $ DayAtom (fromGregorian (fromIntegral year) (fromIntegral month) (fromIntegral day))
-                              _ -> Left AtomFunctionTypeMismatchError
+                              _ -> Left AtomFunctionTypeMismatchError,
+                 funcACL = ()
                  },
   Function { funcName = "dayEarlierThan",
                  funcType = [DayAtomType, DayAtomType, BoolAtomType],
                  funcBody = compiledAtomFunctionBody $
                             \case
                               ConstructedAtom _ _ (IntAtom dayA:_):ConstructedAtom _ _ (IntAtom dayB:_):_ -> pure (BoolAtom (dayA < dayB))
-                              _ -> Left AtomFunctionTypeMismatchError
+                              _ -> Left AtomFunctionTypeMismatchError,
+                funcACL = ()
                }
   ]

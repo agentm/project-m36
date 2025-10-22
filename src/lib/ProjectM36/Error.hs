@@ -121,6 +121,9 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      
                      | SQLConversionError SQLError
 
+                     | NoSuchRoleNameError RoleName
+                     | NoSuchRoleIdError -- don't leak role ids
+
                      | MultipleErrors [RelationalError]
                        deriving (Show,Eq,Generic,Typeable, NFData) 
 

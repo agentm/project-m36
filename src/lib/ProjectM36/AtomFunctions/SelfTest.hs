@@ -22,6 +22,7 @@ selfTestAtomFunctions = HS.fromList [
                    threadDelay (fromIntegral microseconds)
                    pure (Right atom)
                _ -> Left AtomFunctionTypeMismatchError)
+           , funcACL = ()
            },
     Function { funcName = "test_bcrypt", -- pass a value through but calculate something expensive, not for actual encryption use since it uses a fixed seed
                funcType = [IntegerAtomType, TextAtomType, TypeVariableType "a", TypeVariableType "a"],
@@ -30,6 +31,7 @@ selfTestAtomFunctions = HS.fromList [
                    (IntegerAtom costVal):(TextAtom plaintextPassword):atom:_ ->
                      let hashed = bcrypt (fromIntegral costVal) (TE.encodeUtf8 "1234567890123456") (TE.encodeUtf8 plaintextPassword) in
                        Right (ByteStringAtom hashed `seq` atom)
-                   _ -> Left AtomFunctionTypeMismatchError)                     
+                   _ -> Left AtomFunctionTypeMismatchError)
+             , funcACL = ()
              }
   ]

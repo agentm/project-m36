@@ -42,7 +42,7 @@ deriving via WineryVariant DataConstructorDefArg instance Serialise DataConstruc
 deriving via WineryVariant GraphRefTransactionMarker instance Serialise GraphRefTransactionMarker
 deriving via WineryVariant SchemaIsomorph instance Serialise SchemaIsomorph
 deriving via WineryVariant InclusionDependency instance Serialise InclusionDependency
-deriving via WineryVariant (DatabaseContextExprBase a) instance Serialise a => Serialise (DatabaseContextExprBase a)
+deriving via WineryVariant (DatabaseContextExprBase a r) instance (Serialise a, Serialise r) => Serialise (DatabaseContextExprBase a r)
 deriving via WineryVariant (DatabaseContextIOExprBase a) instance Serialise a => Serialise (DatabaseContextIOExprBase a)
 deriving via WineryVariant (RestrictionPredicateExprBase a) instance Serialise a => Serialise (RestrictionPredicateExprBase a)
 deriving via WineryVariant TransactionInfo instance Serialise TransactionInfo
@@ -60,20 +60,26 @@ deriving via WineryVariant CurrentHead instance Serialise CurrentHead
 -- ACL
 deriving via WineryRecord DatabaseContextACL instance Serialise DatabaseContextACL
 deriving via WineryRecord RelVarAccessControlList instance Serialise RelVarAccessControlList
-deriving via WineryRecord RelVarRoleAccess instance Serialise RelVarRoleAccess
 deriving via WineryVariant RelVarPermission instance Serialise RelVarPermission
 
 deriving via WineryRecord FunctionAccessControlList instance Serialise FunctionAccessControlList
-deriving via WineryRecord FunctionRoleAccess instance Serialise FunctionRoleAccess
 deriving via WineryVariant FunctionPermission instance Serialise FunctionPermission
+
+deriving via WineryVariant ACLAccessControlList instance Serialise ACLAccessControlList
+deriving via WineryVariant ACLPermission instance Serialise ACLPermission
 
 deriving via WineryRecord AlterTransGraphAccessControlList instance Serialise AlterTransGraphAccessControlList
 deriving via WineryVariant AlterTransGraphPermission instance Serialise AlterTransGraphPermission
-deriving via WineryRecord AlterTransGraphRoleAccess instance Serialise AlterTransGraphRoleAccess
 
 deriving via WineryRecord SchemaAccessControlList instance Serialise SchemaAccessControlList
 deriving via WineryVariant AlterSchemaPermission instance Serialise AlterSchemaPermission
-deriving via WineryRecord SchemaRoleAccess instance Serialise SchemaRoleAccess
+
+deriving via WineryRecord DBCFunctionAccessControlList instance Serialise DBCFunctionAccessControlList
+deriving via WineryVariant DBCFunctionPermission instance Serialise DBCFunctionPermission
+
+deriving via WineryVariant (AlterDBCACLExprBase r) instance Serialise r => Serialise (AlterDBCACLExprBase r)
+
+deriving via WineryVariant SomePermission instance Serialise SomePermission
 
 fromWordsTup :: (Word32, Word32, Word32, Word32) -> TransactionId
 fromWordsTup (a,b,c,d) = fromWords a b c d

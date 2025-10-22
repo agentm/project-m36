@@ -15,7 +15,8 @@ bytestringAtomFunctions = HS.fromList [
                TextAtom textIn:_ -> case B64.decode (TE.encodeUtf8 textIn) of
                    Left err -> Left (AtomFunctionBytesDecodingError err)
                    Right bs -> pure (ByteStringAtom bs)
-               _ -> Left AtomFunctionTypeMismatchError
+               _ -> Left AtomFunctionTypeMismatchError,
+             funcACL = ()
                }
   ]
        

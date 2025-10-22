@@ -15,7 +15,7 @@ function (FunctionBuiltInBody f) = f
 function (FunctionObjectLoadedBody _ _ _ f) = f
 
 -- | Return the text-based Haskell script, if applicable.
-functionScript :: Function a -> Maybe FunctionBodyScript
+functionScript :: Function a acl -> Maybe FunctionBodyScript
 functionScript func = case funcBody func of
   FunctionScriptBody script _ -> Just script
   _ -> Nothing
@@ -27,11 +27,11 @@ processObjectLoadedFunctionBody modName fentry objPath body =
   where
     f = function body
 
-processObjectLoadedFunctions :: Functor f => ObjectModuleName -> ObjectFileEntryFunctionName -> FilePath -> f (Function a) -> f (Function a)
+processObjectLoadedFunctions :: Functor f => ObjectModuleName -> ObjectFileEntryFunctionName -> FilePath -> f (Function a acl) -> f (Function a acl)
 processObjectLoadedFunctions modName entryName path =
   fmap (\f -> f { funcBody = processObjectLoadedFunctionBody modName entryName path (funcBody f) } )
 
-loadFunctions :: ModName -> FuncName -> Maybe FilePath -> FilePath -> IO (Either LoadSymbolError [Function a])
+loadFunctions :: ModName -> FuncName -> Maybe FilePath -> FilePath -> IO (Either LoadSymbolError [Function a acl])
 #ifdef PM36_HASKELL_SCRIPTING
 loadFunctions modName funcName' mModDir objPath =
   case mModDir of
@@ -51,7 +51,7 @@ loadFunctions modName funcName' mModDir objPath =
 loadFunctions _ _ _ _ = pure (Left LoadSymbolError)
 #endif
 
-functionForName :: FunctionName -> HS.HashSet (Function a) -> Either RelationalError (Function a)
+functionForName :: FunctionName -> HS.HashSet (Function a acl) -> Either RelationalError (Function a acl)
 functionForName funcName' funcSet =
   case HS.toList $ HS.filter (\f -> funcName f == funcName') funcSet of
     [] -> Left $ NoSuchFunctionError funcName'

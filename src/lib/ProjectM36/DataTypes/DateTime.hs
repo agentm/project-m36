@@ -12,7 +12,8 @@ dateTimeAtomFunctions = HS.fromList [ Function {
                                      funcBody = compiledAtomFunctionBody $
                                        \case
                                          IntegerAtom epoch:_ -> pure (DateTimeAtom (posixSecondsToUTCTime (realToFrac epoch)))
-                                         _ -> Left AtomFunctionTypeMismatchError
+                                         _ -> Left AtomFunctionTypeMismatchError,
+                                     funcACL = ()
                                      }]
 
                                                  

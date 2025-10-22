@@ -104,7 +104,8 @@ Library
                   streamly-core,
                   streamly,
                   network-byte-order,
-                  sqlite-simple
+                  sqlite-simple,
+                  data-default
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -787,3 +788,30 @@ Test-Suite test-loginroles
     import: commontest
     type: exitcode-stdio-1.0    
     Main-Is: LoginRoles.hs
+
+Test-Suite test-accesscontrol
+    import: commontest
+    type: exitcode-stdio-1.0    
+    Main-Is: AccessControl.hs
+    Other-Modules:
+        TutorialD.Interpreter
+        TutorialD.Interpreter.Base
+        TutorialD.Interpreter.DatabaseContextExpr
+        TutorialD.Interpreter.DatabaseContextIOOperator
+        TutorialD.Interpreter.Export.Base
+        TutorialD.Interpreter.Export.CSV
+        TutorialD.Interpreter.Import.Base
+        TutorialD.Interpreter.Import.BasicExamples
+        TutorialD.Interpreter.Import.CSV
+        TutorialD.Interpreter.Import.TutorialD
+        TutorialD.Interpreter.InformationOperator
+        TutorialD.Interpreter.LoginRolesOperator
+        TutorialD.Interpreter.RODatabaseContextOperator
+        TutorialD.Interpreter.RelationalExpr
+        TutorialD.Interpreter.SchemaOperator
+        TutorialD.Interpreter.TestBase
+        TutorialD.Interpreter.TransGraphRelationalOperator
+        TutorialD.Interpreter.TransactionGraphOperator
+        TutorialD.Interpreter.Types
+        TutorialD.Printer
+ 

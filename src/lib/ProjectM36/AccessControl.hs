@@ -10,6 +10,7 @@ import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.RelationVariablesMentioned
 import ProjectM36.IsomorphicSchema
+import ProjectM36.Function
 import Control.Monad.Except
 
 applyACLRelationalExpr :: Show a => [RoleId] -> RelVarAccessControlList -> RelationalExprBase a -> Either RelationalError ()
@@ -37,21 +38,35 @@ applyACLDatabaseContextIOExpr roleIds _expr = do
      else
      throwError (AccessDeniedError (SomeFunctionPermission LoadFunctionPermission))
 
-applyACLDatabaseContextExpr :: [RoleId] -> DatabaseContextExpr -> DatabaseContextEvalMonad ()
+applyACLDatabaseContextExpr :: [RoleId] -> DatabaseContextExpr' -> DatabaseContextEvalMonad ()
 applyACLDatabaseContextExpr roleIds expr = do
   dbcAcl <- resolveDBC acl
+  dbcFuncs <- resolveDBC dbcFunctions
   let checkRVPerm perm acl' =
         if hasAccess roleIds perm acl' then
           pure ()
         else
           dbErr (AccessDeniedError (SomeRelVarPermission perm))
-      checkFuncPerm perm acl' =
+{-      checkFuncPerm perm acl' =
         if hasAccess roleIds perm acl' then
           pure ()
         else
-          dbErr (AccessDeniedError (SomeFunctionPermission perm))
+          dbErr (AccessDeniedError (SomeFunctionPermission perm))-}
+      checkACLPerm perm acl' =
+          if hasAccess roleIds perm acl' then
+            pure ()
+          else
+            dbErr (AccessDeniedError (SomeACLPermission perm))
+      checkDBCFuncPerm fname perm = do
+        case functionForName fname dbcFuncs of
+          Left err -> dbErr err
+          Right func ->
+            if hasAccess roleIds perm (funcACL func) then
+              pure ()
+            else
+              dbErr (AccessDeniedError (SomeDBCFunctionPermission perm))
       rvAcl = relvarsACL dbcAcl
-      dbcFuncAcl = dbcFunctionsACL dbcAcl
+      aclAcl = aclACL dbcAcl
   case expr of
     NoOperation -> pure ()
     Define{} ->
@@ -80,14 +95,16 @@ applyACLDatabaseContextExpr roleIds expr = do
       checkRVPerm AccessRelVarsPermission rvAcl
     RemoveAtomFunction{} ->
       checkRVPerm AccessRelVarsPermission rvAcl
-    RemoveDatabaseContextFunction{} ->
-      checkRVPerm AccessRelVarsPermission rvAcl
-    ExecuteDatabaseContextFunction{} ->
-      checkFuncPerm ExecuteFunctionPermission dbcFuncAcl
+    RemoveDatabaseContextFunction fname -> -- check individual function perms
+      checkDBCFuncPerm fname AlterDBCFunctionPermission 
+    ExecuteDatabaseContextFunction fname _args -> -- check individual function perms
+      checkDBCFuncPerm fname ExecuteDBCFunctionPermission       
     AddRegisteredQuery{} ->
       checkRVPerm AccessRelVarsPermission rvAcl
     RemoveRegisteredQuery{} ->
       checkRVPerm AccessRelVarsPermission rvAcl
+    AlterACL{} ->
+      checkACLPerm AlterACLPermission aclAcl
     MultipleExpr exprs ->
       mapM_ (applyACLDatabaseContextExpr roleIds) exprs
 
@@ -107,3 +124,4 @@ applyACLSchemaExpr roleIds acl' _expr =
     pure ()
     else
     Left (AccessDeniedError (SomeAlterSchemaPermission AlterSchemaPermission))
+

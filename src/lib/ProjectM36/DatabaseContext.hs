@@ -35,7 +35,9 @@ isUpdated ctx = or [VM.valueIsUpdated (inclusionDependencies ctx),
                      VM.valueIsUpdated (dbcFunctions ctx),
                      VM.valueIsUpdated (notifications ctx),
                      VM.valueIsUpdated (typeConstructorMapping ctx),
-                     VM.valueIsUpdated (registeredQueries ctx)]
+                     VM.valueIsUpdated (registeredQueries ctx),
+                     VM.valueIsUpdated (acl ctx)
+                   ]
 
 someDatabaseContextExprs :: [DatabaseContextExpr] -> DatabaseContextExpr
 someDatabaseContextExprs [s] = s
