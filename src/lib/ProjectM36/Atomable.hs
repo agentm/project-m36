@@ -21,7 +21,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.UUID
 
 -- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
-class (Eq a, Show a) => Atomable a where
+class Atomable a where
   toAtom :: a -> Atom
   default toAtom :: (Generic a, AtomableG (Rep a)) => a -> Atom
   toAtom v = toAtomG (from v) (toAtomTypeG (from v))
