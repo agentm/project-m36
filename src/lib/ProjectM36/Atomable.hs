@@ -12,18 +12,16 @@ import GHC.Generics
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import Control.DeepSeq (NFData)
 import Control.Applicative
 import Data.Time.Calendar
 import Data.ByteString (ByteString)
 import Data.Time.Clock
 import Data.Proxy
 import qualified Data.List.NonEmpty as NE
-import Codec.Winery
 import Data.UUID
 
 -- | All database values ("atoms") adhere to the 'Atomable' typeclass. This class is derivable allowing new datatypes to be easily marshaling between Haskell values and database values.
-class (Eq a, NFData a, Serialise a, Show a) => Atomable a where
+class (Eq a, Show a) => Atomable a where
   toAtom :: a -> Atom
   default toAtom :: (Generic a, AtomableG (Rep a)) => a -> Atom
   toAtom v = toAtomG (from v) (toAtomTypeG (from v))
