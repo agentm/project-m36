@@ -675,6 +675,14 @@ Executable Example-CustomTupleable
     Main-Is: examples/CustomTupleable.hs
     GHC-Options: -Wall -threaded
 
+Executable Example-Hospital
+    Default-Language: Haskell2010
+    Default-Extensions: OverloadedStrings
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
+    Main-Is: examples/Hospital.hs
+    GHC-Options: -Wall -threaded
+               
+
 Executable Example-DerivingCustomTupleable
     if impl(ghc>=8.6)
       Buildable: True

@@ -1,63 +1,68 @@
-{-# LANGUAGE DeriveAnyClass,DeriveGeneric #-}
-module Hospital where
-
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric, StandaloneDeriving, DerivingVia, TypeApplications #-}
 import ProjectM36.Client
-import ProjectM36.Atom
 import Data.Typeable
 import ProjectM36.Relation
-import Data.Binary
-import Control.DeepSeq
-import Data.Text
 import GHC.Generics
-import Data.Hashable
 import ProjectM36.Tuple
 
+-- define a custom data type to use in both the client and database
 data AgeType = PreciseAge Int |
                ForgotToAsk |
                RefusedToDisclose |
                NotApplicable |
                ApproximateAge Int Int
-             deriving (Eq,Show,Read,Hashable,Binary,Typeable,NFData,Generic)
-                      
+               deriving (Eq, Show, Generic)
+
+-- define an automatically-derived Atomable instance
 instance Atomable AgeType
 
-failFastMaybe :: (Show a) => Maybe a -> IO ()
-failFastMaybe (Just err) = error (show err)
-failFastMaybe Nothing = return ()
-
-failFastEither :: Show a => Either a b -> IO b
-failFastEither (Left err) = error (show err)
-failFastEither (Right val) = return val
+failFast :: Show a => IO (Either a b) -> IO b
+failFast m = do
+  ret <- m
+  case ret of
+    Left err -> error (show err)
+    Right val -> pure val
 
 ageAtomType :: AtomType
-ageAtomType = atomTypeForProxy (Proxy :: Proxy AgeType)
+ageAtomType = toAtomType (Proxy :: Proxy AgeType)
                
-runExample :: IO ()
-runExample = do
-  let bob_relation_attrs = attributesFromList [Attribute "name" stringAtomType,
+main :: IO ()
+main = do
+  let bob_relation_attrs = attributesFromList [Attribute "name" TextAtomType,
                                                Attribute "age" ageAtomType]
       relvar_name = "hospital_patient"
       age_value_in = ApproximateAge 30 40 
-      bob_relation_err = mkRelationFromList 
+      mk_bob_relation = mkRelationFromList 
                      bob_relation_attrs 
-                     [[Atom ("Bob"::Text), Atom age_value_in]]
+                     [[TextAtom "Bob",
+                       toAtom age_value_in]]
 
-  connerr <- connectProjectM36 (InProcessConnectionInfo NoPersistence)
-  conn <- failFastEither connerr
-  bob_relation <- failFastEither bob_relation_err
-  merr <- executeDatabaseContextExpr conn (Assign relvar_name (ExistingRelation bob_relation))
-  failFastMaybe merr
-  result_err <- executeRelationalExpr conn (RelationVariable relvar_name)
-  result <- failFastEither result_err
+  -- create the database
+  conn <- failFast $ connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin")
+
+  -- create the session at the head of master branch
+  sessionId <- failFast $ createSessionAtHead conn "master"
+
+  -- create the data type in the database
+  failFast $ executeDatabaseContextExpr sessionId conn (toAddTypeExpr (Proxy :: Proxy AgeType))
+  
+  -- create the patient data in a relation
+  bob_relation <- failFast (pure mk_bob_relation)
+
+  -- save the data to the database
+  failFast $ executeDatabaseContextExpr sessionId conn (Assign relvar_name (ExistingRelation bob_relation))
+
+  -- retrieve the data from the database
+  result <- failFast $ executeRelationalExpr sessionId conn (RelationVariable relvar_name ())
+
+  -- print the data
   case singletonTuple result of
     Nothing -> error "not a singleton relation!"
     Just tuple -> do
-      (Atom age_value_out) <- failFastEither $ atomForAttributeName "age" tuple
-      print age_value_in
-      print age_value_out
-      case cast age_value_out of
-        Nothing -> error "wrong datatype"
-        Just age_value_out' -> 
-          print (age_value_in == age_value_out')
+      case atomForAttributeName "age" tuple of
+        Left err -> error (show err)
+        Right age_value_out -> do
+          print age_value_in
+          print (fromAtom @AgeType age_value_out)
       
             
