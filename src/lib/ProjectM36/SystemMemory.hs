@@ -56,7 +56,7 @@ getTotalMemory = do
           readMaybe :: String -> Maybe Integer
           readMaybe s = case reads s of
             [(val, "")] -> Just val
-          _           -> Nothing
+            _           -> Nothing
 #elif defined(linux_HOST_OS)      
       contents <- readFile "/proc/meminfo"
       let totalRAMLine = filter (isPrefixOf "MemTotal:") (lines contents)
