@@ -328,5 +328,8 @@ instance FromJSON AlterSchemaPermission
 instance ToJSON FunctionPermission
 instance FromJSON FunctionPermission
 
-instance ToJSON SomePermission
-instance FromJSON SomePermission
+instance ToJSON DBCFunctionPermission
+instance FromJSON DBCFunctionPermission
+
+instance ToJSON ACLPermission
+instance FromJSON ACLPermission

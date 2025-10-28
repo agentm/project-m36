@@ -21,6 +21,7 @@ import Control.Exception
 import System.IO.Temp
 import System.FilePath
 import Control.Monad (void)
+import Network.RPC.Curryer.Client (ClientConnectionConfig(..))
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
@@ -44,7 +45,7 @@ testList sessionId conn notificationTestMVar = TestList $ serverTests ++ session
       testRelationVariableSummary,
       testNotification notificationTestMVar
       ] 
-    serverTests = [] --[testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
+    serverTests = [testRequestTimeout, testFileDescriptorCount, testClientConnectFail]
 
 main :: IO ()
 main = do
@@ -66,7 +67,7 @@ testDatabaseName = "test"
 
 testConnection :: Port -> MVar () -> IO (Either ConnectionError (SessionId, Connection))
 testConnection serverPort mvar = do
-  let connInfo = RemoteConnectionInfo testDatabaseName (RemoteServerHostAddress "127.0.0.1" serverPort) (testNotificationCallback mvar)
+  let connInfo = RemoteConnectionInfo testDatabaseName (RemoteServerHostAddress "127.0.0.1" serverPort) UnencryptedConnectionConfig (testNotificationCallback mvar) "admin"
   eConn <- connectProjectM36 connInfo
   case eConn of 
     Left err -> pure $ Left err
@@ -241,7 +242,7 @@ testFileDescriptorCount = TestCase (pure ())
 
 testClientConnectFail :: Test
 testClientConnectFail = TestCase $ do
-  let connInfo = RemoteConnectionInfo "nonexistentdb" (RemoteServerHostAddress "127.0.0.1" 7777) emptyNotificationCallback
+  let connInfo = RemoteConnectionInfo "nonexistentdb" (RemoteServerHostAddress "127.0.0.1" 7777) UnencryptedConnectionConfig emptyNotificationCallback "admin"
   eConn <- connectProjectM36 connInfo
   case eConn of
     Left (IOExceptionError _) -> pure ()

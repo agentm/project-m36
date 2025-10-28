@@ -5,11 +5,12 @@ import ProjectM36.Client
 import ProjectM36.TupleSet
 import ProjectM36.Relation.Show.Term
 import Data.Text.IO as TIO
+import Network.RPC.Curryer.Client (ClientConnectionConfig(..))
 
 main :: IO ()
 main = do
   -- 1. create a ConnectionInfo
-  let connInfo = RemoteConnectionInfo "mytestdb" defaultRemoteServerAddress emptyNotificationCallback
+  let connInfo = RemoteConnectionInfo "mytestdb" defaultRemoteServerAddress UnencryptedConnectionConfig emptyNotificationCallback "admin"
   -- 2. connected to the remote database
   eConn <- connectProjectM36 connInfo
   case eConn of

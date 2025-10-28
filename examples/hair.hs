@@ -16,7 +16,7 @@ data Hair = Bald | Brown | Blond | OtherColor Text
 main :: IO ()
 main = do
  --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin"
       eCheck v = do
         x <- v
         case x of 

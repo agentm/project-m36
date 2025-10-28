@@ -479,7 +479,7 @@ testTransactionGraphOps = TestCase $ do
 --  assertEqual "SELECT * FROM test"  (Right (Select {distinctness = Nothing, projectionClause = [(Identifier (QualifiedProjectionName [Asterisk]),Nothing)], tableExpr = Just (TableExpr {fromClause = [SimpleTableRef (QualifiedName ["test"])], whereClause = Nothing, groupByClause = [], havingClause = Nothing, orderByClause = [], limitClause = Nothing, offsetClause = Nothing})})) (p "SELECT * FROM test")
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] sqlDatabaseContext [superAdminRole])
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] sqlDatabaseContext adminRoleName)
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do

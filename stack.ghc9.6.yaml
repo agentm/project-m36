@@ -1,0 +1,50 @@
+resolver: lts-22.44
+packages:
+  - "."
+
+extra-deps:
+  - curryer-rpc-0.5.0
+  - streamly-0.10.1
+  - streamly-core-0.2.2
+  - streamly-bytestring-0.2.2
+  - fast-builder-0.1.4.0
+  - rset-1.0.0
+  - winery-1.5
+  - barbies-th-0.1.11
+  - base16-bytestring-1.0.2.0 
+  - unicode-data-0.2.0
+  - stm-containers-1.2.1.1
+  - stm-hamt-1.2.1.1
+  - crypton-x509-1.7.7
+  - crypton-x509-system-1.6.7
+  - crypton-x509-store-1.6.11
+  - crypton-x509-validation-1.6.14
+  - crypton-connection-0.4.5
+  - crypton-1.0.4
+  - ech-config-0.0.1
+  - hpke-0.0.0
+  - tls-2.1.12
+  - zlib-0.7.1.1
+  - linux-xattr-0.1.1.0
+  - crypto-token-0.1.2
+  - tls-session-manager-0.0.8
+  - auto-update-0.2.6
+  - http-client-tls-0.3.6.4
+  - warp-3.4.9
+  - warp-tls-3.4.13
+  - wai-3.2.4
+  - crypton-socks-0.6.2
+  - http2-5.3.10
+  - http-semantics-0.3.0
+  - network-control-0.1.7
+  - time-manager-0.2.3
+  - scotty-0.22
+
+flags:
+  project-m36:
+    stack: true
+allow-newer: true
+allow-newer-deps:
+  - unicode-data
+  - aeson
+  - linux-xattr

@@ -365,7 +365,7 @@ insertSampleData (DB sid conn) = do
 dbConnection :: IO DBConnection
 dbConnection = do
   --  connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext []
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin"
   --  The code below persists the data in a DB with the name "base". \\
 --  let connInfo = InProcessConnectionInfo (CrashSafePersistence "base") emptyNotificationCallback [] \\
   --  In addition minimal persistence is available. \\

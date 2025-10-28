@@ -25,6 +25,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.UUID as UUID
 import GHC.Generics
 import qualified Data.Text.Encoding as TE
+import qualified Network.RPC.Curryer.Client as CRPC
 
 #if MIN_VERSION_megaparsec(7,0,0)
 import Data.List.NonEmpty as NE
@@ -92,7 +93,7 @@ notificationCallback conn notifName evaldNotif =
 
 --this creates a new database for each connection- perhaps not what we want (?)
 createConnection :: WS.Connection -> DatabaseName -> Port -> Hostname -> IO (Either ConnectionError Connection)
-createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionInfo dbname (RemoteServerHostAddress host port) UnencryptedConnectionConfig (notificationCallback wsconn))
+createConnection wsconn dbname port host = connectProjectM36 (RemoteConnectionInfo dbname (RemoteServerHostAddress host port) CRPC.UnencryptedConnectionConfig (notificationCallback wsconn) "admin")  -- should use TLS auth
 
 handleResponse :: WS.Connection -> Connection -> Response -> IO ()
 handleResponse conn dbconn resp =
