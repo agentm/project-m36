@@ -35,14 +35,10 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         ghc_version:
-          - 9.2
-          - 9.4
-#          - 9.6
-#          - 9.8
-#          - 9.10
+          - 9.6
         include:
           - os: macos-latest
-            ghc_version: 9.2
+            ghc_version: 9.6
     env:
       STACK_YAML: stack.ghc${{ matrix.ghc_version }}.yaml
     steps:
