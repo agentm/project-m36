@@ -626,6 +626,7 @@ benchmark ondiskclient
         TutorialD.Interpreter.TransGraphRelationalOperator,
         TutorialD.Interpreter.TransactionGraphOperator,
         TutorialD.Interpreter.Types,
+        TutorialD.Interpreter.LoginRolesOperator,
         TutorialD.Printer
 
 Test-Suite test-server

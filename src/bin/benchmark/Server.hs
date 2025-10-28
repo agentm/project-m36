@@ -23,7 +23,7 @@ handleError eErr = case eErr of
 --test local connection speeds of inserts, updates, and deletes to look for space leaks, etc.
 main :: IO ()
 main = do
-  conn <- handleIOError $ connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext)
+  conn <- handleIOError $ connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext adminRoleName)
   sess <- handleIOError $ createSessionAtHead conn "master"
   _ <- handleIOError $ executeDatabaseContextExpr sess conn (toDefineExpr (Proxy :: Proxy User) "user")
 
