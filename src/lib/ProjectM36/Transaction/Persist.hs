@@ -33,11 +33,7 @@ import Codec.Winery
 import Control.Concurrent.Async
 import GHC.Generics
 import qualified Data.Set as S
-#ifdef USE_LINUX_XATTRS
-import qualified Data.Text.Encoding as TE
-#endif
 import Data.Default
-
 
 #if defined(__APPLE__) || defined(linux_HOST_OS)
 #define USE_LINUX_XATTRS 1
@@ -45,6 +41,7 @@ import Data.Default
 
 #ifdef USE_LINUX_XATTRS
 import System.Linux.XAttr
+import qualified Data.Text.Encoding as TE
 #endif
 
 #ifdef PM36_HASKELL_SCRIPTING
@@ -274,11 +271,14 @@ writeRelVars sync transDir relvars = do
     let writeSimple = do
           writeSerialiseSync sync simpleInfoPath simpleFileInfo
         writeComplex = do
-          forConcurrently_ (M.toList writeRvMapExprs) $ \(_rvname, (rvnum,rvExpr)) -> do
+          forConcurrently_ (M.toList writeRvMapExprs) $ \rvInfo -> do
             let rvpath = relvarsPath </> show rvnum
+                rvExpr = snd (snd rvInfo)
+                rvnum = fst (snd rvInfo)
             writeSerialiseSync sync rvpath rvExpr
 -- Project:M36 does not read these extended attributes, but they might be useful for debugging or database restoration            
 #ifdef USE_LINUX_XATTRS
+            let rvname = fst rvInfo
             createUserXAttr rvpath xattrName (TE.encodeUtf8 rvname)
 #endif            
     concurrently_ writeSimple writeComplex
