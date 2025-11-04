@@ -307,8 +307,7 @@ Executable tutd
                    modern-uri,
                    http-types,
                    recursion-schemes,
-                   data-default < 0.8
-                   --data-default 0.8.0.0 breaks http-tls-client
+                   data-default
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,

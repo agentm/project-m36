@@ -1,16 +1,4 @@
 {
-    "curryer": {
-        "branch": "master",
-        "description": "Fast Haskell RPC",
-        "homepage": null,
-        "owner": "agentm",
-        "repo": "curryer",
-        "rev": "74ecaac619ad1165a4517d5c0f4e530493bda130",
-        "sha256": "1izdvzj00k0y76ixm7dfgvq2fzphb8h4nzqgwkl3p0bg0806rsn1",
-        "type": "tarball",
-        "url": "https://github.com/agentm/curryer/archive/74ecaac619ad1165a4517d5c0f4e530493bda130.tar.gz",
-        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
     "niv": {
         "branch": "master",
         "description": "Easy dependency management for Nix projects",
@@ -29,10 +17,10 @@
         "homepage": "",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "9fafaa30660e204bb27a35b3c608f03609705a5d",
-        "sha256": "sha256:0ijw5yvglmh1kicxdailn0hvv2lbwbwgs9p9dshnxv0pvgvqi433",
+        "rev": "c23273d0f119221264f9ad27e509820e7545c7f9",
+        "sha256": "sha256:1663x6cl1wr9sp9g6bvxvh4alipa5jnm9yjmd26j4v2k142w1knd",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/9fafaa30660e204bb27a35b3c608f03609705a5d.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/c23273d0f119221264f9ad27e509820e7545c7f9.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
