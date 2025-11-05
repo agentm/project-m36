@@ -279,6 +279,7 @@ Executable tutd
                    vector,
                    text,
                    time,
+                   process,
                    bytestring,
                    stm,
                    deepseq,
