@@ -6,3 +6,4 @@ import Codec.Winery hiding (Schema)
 
 deriving via WineryVariant AlterLoginRolesExpr instance Serialise AlterLoginRolesExpr
 deriving via WineryVariant LoginRoleError instance Serialise LoginRoleError
+deriving via WineryVariant SuccessResult instance Serialise SuccessResult

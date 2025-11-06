@@ -25,7 +25,7 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.Cli (MakePrompt)
 import ProjectM36.TransactionGraph
-import ProjectM36.LoginRoles
+import ProjectM36.LoginRoles (AlterLoginRolesExpr)
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
 

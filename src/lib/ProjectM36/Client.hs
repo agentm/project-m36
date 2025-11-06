@@ -129,7 +129,8 @@ module ProjectM36.Client
        SomePermission(..),
        FunctionPermission(..),
        DBCFunctionPermission(..),       
-       AlterDBCACLExprBase(..)
+       AlterDBCACLExprBase(..),
+       RoleName
        ) where
 import ProjectM36.Base
 import ProjectM36.Serialise.Error ()
@@ -1072,7 +1073,7 @@ transactionGraphAsRelation sessionId (InProcessConnection conf) = do
 transactionGraphAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveTransactionGraph sessionId) 
 
 -- | Alter roles (users) which can login to the database.
-executeAlterLoginRolesExpr :: SessionId -> Connection -> LoginRoles.AlterLoginRolesExpr -> IO (Either LoginRoles.LoginRoleError T.Text)
+executeAlterLoginRolesExpr :: SessionId -> Connection -> LoginRoles.AlterLoginRolesExpr -> IO (Either LoginRoles.LoginRoleError LoginRoles.SuccessResult)
 executeAlterLoginRolesExpr _sessionId (InProcessConnection conf) expr = do
   LoginRoles.executeAlterLoginRolesExpr (ipRoleName conf) (ipLoginRoles conf) expr
 executeAlterLoginRolesExpr sessionId conn@RemoteConnection{} expr = do

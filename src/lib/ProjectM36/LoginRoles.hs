@@ -234,9 +234,13 @@ allRoles db = do
 close :: LoginRolesDB -> IO ()
 close = SQL.close
 
-executeAlterLoginRolesExpr :: RoleName -> LoginRolesDB -> AlterLoginRolesExpr -> IO (Either LoginRoleError Text)
+data SuccessResult = QuietSuccessResult |
+                     InfoResult T.Text
+                   deriving (Eq, Show, Generic)
+
+executeAlterLoginRolesExpr :: RoleName -> LoginRolesDB -> AlterLoginRolesExpr -> IO (Either LoginRoleError SuccessResult)
 executeAlterLoginRolesExpr currentRole db expr = do
-  let ok = pure (Right "ok")
+  let ok = pure (Right QuietSuccessResult)
       checkPerm expr' =
         case expr' of
           ShowRolesForRoleExpr roleName ->
@@ -274,7 +278,7 @@ executeAlterLoginRolesExpr currentRole db expr = do
               Left err ->
                 pure (Left err)
               Right roles ->
-                pure (Right (T.intercalate "\n" (map (\(r,g) -> r <> if g then ":maygrant" else "") roles)))
+                pure (Right (InfoResult (T.intercalate "\n" (map (\(r,g) -> r <> if g then ":maygrant" else "") roles))))
           AddLoginRoleExpr roleName maylogin -> do
             newRoleId <- nextRandom
             result <- addRoleName roleName newRoleId maylogin db
@@ -283,7 +287,7 @@ executeAlterLoginRolesExpr currentRole db expr = do
               Right () -> ok
           ShowAllRolesExpr -> do
             roleInfos <- allRoles db
-            pure (Right (T.intercalate "\n" (map (\(roleName, roleId) -> T.pack (show roleId) <> ":" <> roleName) roleInfos)))
+            pure (Right (InfoResult (T.intercalate "\n" (map (\(roleName, roleId) -> T.pack (show roleId) <> ":" <> roleName) roleInfos))))
           RemoveLoginRoleExpr roleName -> do
             result <- removeRole roleName db
             case result of

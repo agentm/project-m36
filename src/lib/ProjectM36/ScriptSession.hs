@@ -244,6 +244,7 @@ initScriptSession ghcPkgPaths = do
           "ProjectM36.Base",
           "ProjectM36.Relation",
           "ProjectM36.DatabaseContext",
+          "ProjectM36.DatabaseContext.Types",
           "ProjectM36.AtomFunctionError",
           "ProjectM36.DatabaseContextFunctionError",
           "ProjectM36.DatabaseContextFunctionUtils",

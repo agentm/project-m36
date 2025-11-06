@@ -7,6 +7,8 @@ import ProjectM36.DatabaseContextExpr
 import Test.HUnit
 import Data.Text
 
+import Debug.Trace
+
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
   dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] basicDatabaseContext adminRoleName)
@@ -29,7 +31,7 @@ executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
       result <- evalTutorialD sessionId conn UnsafeEvaluation parsed
       case result of
         QuitResult -> assertFailure "quit?"
-        DisplayResult _ -> assertFailure "display?"
+        DisplayResult x -> assertFailure ("display: " <> show x)
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
@@ -46,7 +48,7 @@ expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
       result <- evalTutorialD sessionId conn UnsafeEvaluation parsed      
       case result of
         QuitResult -> assertFailure "quit?"
-        DisplayResult _ -> assertFailure "display?"
+        DisplayResult x -> traceShow ("expecterr"::String, x) $ assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"

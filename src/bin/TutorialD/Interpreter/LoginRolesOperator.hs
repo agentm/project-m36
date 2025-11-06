@@ -1,5 +1,6 @@
 module TutorialD.Interpreter.LoginRolesOperator where
 import ProjectM36.Client as C
+import qualified ProjectM36.LoginRoles as LoginRoles
 import ProjectM36.Interpreter
 import qualified Data.Text as T
 import Data.Functor
@@ -18,7 +19,7 @@ alterLoginRolesExprP =
   removePermissionFromRoleExprP
   where
     mayGrantP = do
-      (reserved "maygrant" $> True) <|> pure False
+      (reserved "maygrant" $> True) <|> (reserved "nogrant" $> False)
     showRolesForRoleExprP = do
       colonOp ":showloginrole" 
       ShowRolesForRoleExpr <$> roleNameP
@@ -49,4 +50,5 @@ evalAlterLoginRolesExpr sessionId conn expr = do
   result <- C.executeAlterLoginRolesExpr sessionId conn expr
   case result of
     Left err -> pure (DisplayErrorResult (T.pack (show err)))
-    Right msg -> pure (DisplayResult msg)
+    Right LoginRoles.QuietSuccessResult -> pure QuietSuccessResult
+    Right (LoginRoles.InfoResult info) -> pure (DisplayResult info)

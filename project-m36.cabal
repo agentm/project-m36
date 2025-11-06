@@ -308,7 +308,7 @@ Executable tutd
                    modern-uri,
                    http-types,
                    recursion-schemes,
-                   data-default
+                   data-default 
     Other-Modules: TutorialD.Interpreter,
                    TutorialD.Interpreter.Base,
                    TutorialD.Interpreter.DatabaseContextExpr,

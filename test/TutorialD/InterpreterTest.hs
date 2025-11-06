@@ -100,7 +100,8 @@ main = do
       testIfThenExpr,
       testSubrelationAttributeAtomExpr,
       testComplexTypeVarResolution,
-      testNotifications
+      testNotifications,
+      testDBCFunctionAccessControl
       ]
 
 simpleRelTests :: Test
@@ -934,4 +935,17 @@ testComplexTypeVarResolution = TestCase $ do
  
   assertEqual "type var resolution y" expectedY resY
 
-
+testDBCFunctionAccessControl :: Test
+testDBCFunctionAccessControl = TestCase $ do
+  (session, conn) <- dateExamplesConnection emptyNotificationCallback
+  -- add a non-privileged role
+  let user1 = "user1"
+  executeTutorialD session conn (":addloginrole " <> user1 <> " nogrant")
+  let user1conn = setRoleName user1 conn  
+  -- check that the non-privileged role cannot run the dbc function
+  expectTutorialDErr session user1conn ("AccessDeniedError" `T.isInfixOf`) "execute deleteAll()"
+  -- grant permission to a dbc function to the role
+  executeTutorialD session conn $ "grant dbcfunction " <> user1 <> " deleteAll executefunction nogrant"  
+  -- check that the non-privileged role can run the dbc function
+  executeTutorialD session user1conn "execute deleteAll()"
+  
