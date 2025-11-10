@@ -4,7 +4,7 @@ import ProjectM36.Base
 import Data.Time.Clock.POSIX
 import Data.Time.Clock
 import Data.Int
-import qualified StmContainers.Map as M
+import qualified StmContainers.Map as STMMap
 import Control.Concurrent.STM
 import GHC.Conc (unsafeIOToSTM)
 import System.Random
@@ -14,7 +14,10 @@ import ProjectM36.SystemMemory
 import ProjectM36.RelExprSize (ByteCount)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
+import ListT
+import Data.List (sortBy)
 import Debug.Trace
+
 
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
 
@@ -33,7 +36,7 @@ Project:M36 passes all results to the cache, which decides if it is worth cachin
 data RelExprCache = RelExprCache {
   upperBound :: TVar ByteCount,
   currentSize :: TVar ByteCount,
-  cacheMap :: M.Map PinnedRelationalExpr RelExprCacheInfo
+  cacheMap :: STMMap.Map PinnedRelationalExpr RelExprCacheInfo
   }
 
 -- | Use all available RAM. In the future, some sort of memory heuristics engine could juggle how much memory is allocated to caching vs. processing.
@@ -46,7 +49,7 @@ empty :: ByteCount -> IO RelExprCache
 empty upper = do
   maxSize <- newTVarIO upper
   curSize <- newTVarIO 0
-  newMap <- M.newIO
+  newMap <- STMMap.newIO
   pure $ RelExprCache {
     upperBound = maxSize,
     currentSize = curSize,
@@ -75,17 +78,32 @@ data SortOrder = AscSortOrder | DescSortOrder
 data RelExprCacheInfo =
   RelExprCacheInfo { calculatedInTime :: !NominalDiffTime, -- ^ the duration of time it took to compute the relational expression without this cache entry. This can be used to determine if using the cache is worthwhile.
                      result :: RelationRepresentation, -- ^ the cached relational expr (in memory)
-                     createTime :: !UTCTime, -- ^ 
-                     lastRequestTime :: !(Maybe UTCTime),
+                     createTime :: !UTCTime, -- ^  when this entry was added to the cache
+                     lastRequestTime :: !(Maybe UTCTime), -- when this entry was last used
                      size :: !ByteCount
                    }
+
+-- identify the least-recently-used entries whose size sum to the target size or more.
+leastRecentlyUsedEntries :: ByteCount -> RelExprCache -> STM [PinnedRelationalExpr]
+leastRecentlyUsedEntries targetSize cache = do
+  cacheMapAssoc <- toList $ STMMap.listT (cacheMap cache)
+  let lrusorted = sortBy lrusort cacheMapAssoc
+      lrusort (_, cacheInfoA) (_,cacheInfoB) =
+        lastRequestTime cacheInfoB `compare` lastRequestTime cacheInfoA -- lru should be at the front of the list
+      keysToRemove = snd $ foldr sumToTargetSize (0,[]) lrusorted
+      sumToTargetSize (k,cacheInfo) acc@(bytesAcc, keysAcc) = 
+        if bytesAcc >= targetSize then
+          acc
+          else
+          (size cacheInfo + bytesAcc, k : keysAcc)
+  pure keysToRemove
 
 -- | Delete the least-important cache items until the target size for this cache is reached.
 purgeToSize :: RelExprCache -> ByteCount -> STM ()
 purgeToSize = undefined
 
 lookup :: PinnedRelationalExpr -> RelExprCache -> STM (Maybe RelExprCacheInfo)
-lookup key cache = M.lookup key (cacheMap cache)
+lookup key cache = STMMap.lookup key (cacheMap cache)
 
 type HitCount = Int64
 type Probability = Double
@@ -95,9 +113,23 @@ type Probability = Double
 --trimCache = do
   --attribute probability to all cache entries based on cache size, time to compute the entry, last request time
 
-  
+-- | A simple LRU-based cache where the upper-bound is the available memory.
+executeLRUStrategy :: ByteCount -> -- ^ size of new, potential cache entry
+                      NominalDiffTime -> -- ^ time it took to calculate this cache entry
+                      RelExprCache ->
+                      STM (Probability, [PinnedRelationalExpr]) -- ^ return the probability that the cache should retain this entry and, if so, which entries to purge to make room for it
+executeLRUStrategy entrySize _calcTime cache = do
+    upperBound' <- readTVar (upperBound cache)
+    currentSize' <- readTVar (currentSize cache)
+    if entrySize + currentSize' < upperBound' then
+      pure (1.0, [])
+      else do
+      -- evict entries were least-recently used
+      entriesToEvict <- leastRecentlyUsedEntries entrySize cache
+      pure (1.0, entriesToEvict)
+
+{-  
 probOfRetention :: ByteCount -> -- ^ size of cache entry
-                  ByteCount -> -- ^ upper memory bound requested
                   NominalDiffTime -> -- ^ last request time for entry
                   HitCount -> -- ^ number of times this entry has been requested
                   NominalDiffTime -> -- ^ time it took to calculate this cache entry
@@ -116,12 +148,13 @@ probOfRetention entrySize upperBound' sinceLastReqTime hitCount calcTime =
       nSinceLastReqTime = normalDist 2.5 (realToFrac sinceLastReqTime) 10
       nHitCount = 1 - normalDist 2.5 (realToFrac hitCount) 30
       nCalcTime = 1 - normalDist 2.5 (realToFrac calcTime) 10
-
+-}
 e' :: Double
 e' = 2.71828182845904523536028747135266249775724709369995
 
 normalDist :: Double -> Double -> Double -> Double
 normalDist t x s = (t / sqrt (2 * pi)) * e' ** (-0.5 * (x / s) ** 2)  -- map to normal distribution which could be ML-trained later
+
 
 probabilityDensity :: Double -> Double
 probabilityDensity z = numerator / denominator
@@ -148,20 +181,24 @@ add rgen expr exprResult calcTime _isRegisteredQuery cache = do
                                         createTime = now,
                                         lastRequestTime = Nothing,
                                         size = RE.size exprResult + RE.size expr}
-  mCacheInfo <- M.lookup expr (cacheMap cache) --opt: replace with `focus`
+  mCacheInfo <- STMMap.lookup expr (cacheMap cache) --opt: replace with `focus`
   case mCacheInfo of
         Nothing -> do
           -- calculate new entry size
           let keySize = RE.size expr
               valSize = RE.size exprResult
-          upperBound' <- readTVar (upperBound cache)
-          -- calculate probability of immediate ejection
-          let probRetain = probOfRetention (keySize + valSize) upperBound' 0 0 calcTime
-              (rand, rgen') = uniformR (0.0, 1.0) rgen
-          traceShowM ("probRetain"::String, probRetain, "rand"::String, rand, probRetain >= rand)
-          when (probRetain >= rand) $ M.insert newCacheInfo expr (cacheMap cache)
+          -- calculate probability of retention and, if retaining, which entries to evict
+          (probRetain, entriesToEvict) <- executeLRUStrategy (keySize + valSize) calcTime cache
+          let (rand, rgen') = uniformR (0.0, 1.0) rgen
+          --traceShowM ("probRetain"::String, probRetain, "rand"::String, rand, probRetain >= rand)
+          when (probRetain >= rand) $ do
+            forM_ entriesToEvict $ \key ->
+              STMMap.delete key (cacheMap cache)
+            --traceShowM ("adding to cache"::String, expr)
+            STMMap.insert newCacheInfo expr (cacheMap cache)
           pure rgen'
-        Just _ -> -- then entry is already cached, nothing to do
+        Just _ -> do -- then entry is already cached, nothing to do
+          --traceShowM ("key already cached"::String)
           pure rgen
 
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE StandaloneDeriving, DerivingVia, TypeApplications, ScopedTypeVariables, FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving, DerivingVia, ScopedTypeVariables, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Serialise.LoginRoles where
 import ProjectM36.LoginRoles

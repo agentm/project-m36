@@ -17,7 +17,7 @@ selfTestAtomFunctions = HS.fromList [
              \case
                atom:(IntegerAtom microseconds):_ ->
                  unsafePerformIO $ do
-                   traceShowM ("threadDelay"::String, fromIntegral microseconds::Int)
+                   traceShowM ("test_expensive threadDelay"::String, fromIntegral microseconds::Int)
                    threadDelay (fromIntegral microseconds)
                    pure (Right atom)
                _ -> Left AtomFunctionTypeMismatchError)

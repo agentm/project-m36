@@ -1,6 +1,6 @@
 module TutorialD.Interpreter.TestBase where
 import ProjectM36.Client
-import ProjectM36.Interpreter
+import ProjectM36.Interpreter as I
 import TutorialD.Interpreter
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContextExpr
@@ -37,7 +37,7 @@ executeTutorialD sessionId conn tutd = case parseTutorialD tutd of
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
         DisplayErrorResult err -> assertFailure (show tutd ++ ": " ++ show err)        
-        QuietSuccessResult -> pure ()
+        I.QuietSuccessResult -> pure ()
         DisplayRelationalErrorResult err -> assertFailure ("DisplayRelationalErrorResult: " <> show err)
         DisplayHintWith _ _ -> pure ()
         
@@ -54,7 +54,7 @@ expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
         DisplayErrorResult err -> assertBool (unpack tutd ++ " match error on: " ++ unpack err) (matchFunc err)
-        QuietSuccessResult -> pure ()
+        I.QuietSuccessResult -> pure ()
         DisplayRelationalErrorResult err -> assertFailure ("DisplayRelationalErrorResult: " <> show err)
         DisplayHintWith{} -> pure ()
 
@@ -71,7 +71,7 @@ expectTutorialDRelationalError sessionId conn matchErr tutd = case parseTutorial
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerrorresult?"
         DisplayErrorResult err -> assertFailure (unpack err)
-        QuietSuccessResult -> assertFailure "quietsuccess?"
+        I.QuietSuccessResult -> assertFailure "quietsuccess?"
         DisplayRelationalErrorResult err -> assertEqual "relational error" matchErr err
         DisplayHintWith{} -> assertFailure "displayhintwith?"
 

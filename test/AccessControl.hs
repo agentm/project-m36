@@ -14,7 +14,7 @@ testDBCFunctionACL = TestCase $ do
   -- add a less-privileged role
   let user1 = "user1"
   res <- executeAlterLoginRolesExpr sessionId conn (AddLoginRoleExpr user1 False)
-  assertEqual "add role" (Right "ok") res
+  assertEqual "add role" (Right QuietSuccessResult) res
   let user1conn = setRoleName user1 conn
   -- test that the role does *not* have access to a dbc function
   res' <- executeDatabaseContextExpr sessionId user1conn (ExecuteDatabaseContextFunction "deleteAll" [])

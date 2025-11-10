@@ -111,13 +111,11 @@ applyACLDatabaseContextExpr roleIds expr = do
 
 applyACLTransGraphRelationalExpr :: [RoleId] -> RelVarAccessControlList -> TransGraphRelationalExpr -> Either RelationalError ()
 applyACLTransGraphRelationalExpr roleIds acl' expr =
-  if mentionsRelVar expr then
+  when (mentionsRelVar expr) $
     if hasAccess roleIds AccessRelVarsPermission acl' then
       pure ()
       else
       Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission))
-  else
-    pure ()
 
 applyACLSchemaExpr :: [RoleId] -> SchemaAccessControlList -> SchemaExpr -> Either RelationalError ()
 applyACLSchemaExpr roleIds acl' _expr =

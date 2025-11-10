@@ -1,7 +1,7 @@
 module TutorialD.Interpreter.LoginRolesOperator where
 import ProjectM36.Client as C
 import qualified ProjectM36.LoginRoles as LoginRoles
-import ProjectM36.Interpreter
+import ProjectM36.Interpreter as I
 import qualified Data.Text as T
 import Data.Functor
 
@@ -50,5 +50,5 @@ evalAlterLoginRolesExpr sessionId conn expr = do
   result <- C.executeAlterLoginRolesExpr sessionId conn expr
   case result of
     Left err -> pure (DisplayErrorResult (T.pack (show err)))
-    Right LoginRoles.QuietSuccessResult -> pure QuietSuccessResult
+    Right LoginRoles.QuietSuccessResult -> pure I.QuietSuccessResult
     Right (LoginRoles.InfoResult info) -> pure (DisplayResult info)

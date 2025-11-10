@@ -83,18 +83,20 @@ testExpensiveExpr = TestCase $ do
   result <- executeTransGraphRelationalExpr session conn expensiveExpr
   
   assertEqual "first expensive run" expensiveResult result
-  after <- getCurrentTime
-  print $ diffUTCTime after before
-  assertBool "first expensive time" (diffUTCTime after before > 1.0)
+  after <- getCurrentTime  
+  let firstDiff = diffUTCTime after before
+--  print $ firstDiff
+  assertBool "first expensive time" (firstDiff > 1.0)
 
   -- run the expensive expression again but we expect that it should be cached
   before' <- getCurrentTime
   result' <- executeTransGraphRelationalExpr session conn expensiveExpr
   
-  assertEqual "second expensive run" expensiveResult result
+  assertEqual "second expensive run" expensiveResult result'
   after' <- getCurrentTime
-  print $ diffUTCTime after' before'
-  assertBool "first expensive time" (diffUTCTime after before < 1.0)  
+  let secondDiff = diffUTCTime after' before'
+--  print secondDiff
+  assertBool ("second expensive time, actual: " <> show secondDiff) (secondDiff < 1.0)  
   
            
   

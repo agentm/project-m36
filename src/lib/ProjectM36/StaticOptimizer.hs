@@ -114,7 +114,7 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
     Left err -> pure (Left err)
     Right plan -> do
       startExecTime <- getCurrentTime
-      exec <- executePlanWithCache plan mempty cache -- try/catch to handle exceptions
+      exec <- executePlanWithCache plan mempty gfEnv cache -- try/catch to handle exceptions
       case exec of
         Left err -> pure (Left err)
         Right resultStream -> do
@@ -124,8 +124,10 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
           endExecTime <- getCurrentTime
           let execDiffTime = endExecTime `diffUTCTime` startExecTime
           --add to the cache- we cannot add uncommitted data to the cache since uncommitted data does not have a unique key (transaction id) (should uncommitted data be able to be cached with a transaction id that has not been committed?)
-              mCacheKey = toPinnedRelationalExpr gfExpr
-              cacheValue = PinnedExpressionRep (ExistingRelation relationResult') -- ideally, we would cache the expensive parts of the plan, not just the top-level result
+              mCacheKey :: Maybe (RelationalExprBase TransactionId)
+              mCacheKey = originalRelExpr plan >>= toPinnedRelationalExpr
+              cacheValue = UnsortedTupleSetRep (attributes relationResult') (tupleSet relationResult')
+              --cacheValue = PinnedExpressionRep (ExistingRelation relationResult') -- ideally, we would cache the expensive parts of the plan, not just the top-level result
           case mCacheKey of
             Nothing -> pure (Right relationResult')
             Just cacheKey -> do

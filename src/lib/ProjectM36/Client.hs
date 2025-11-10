@@ -126,6 +126,7 @@ module ProjectM36.Client
        executeAlterLoginRolesExpr,
        setRoleName,
        LoginRoles.AlterLoginRolesExpr(..),
+       LoginRoles.SuccessResult(..),
        SomePermission(..),
        FunctionPermission(..),
        DBCFunctionPermission(..),       
@@ -213,8 +214,6 @@ import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
 import Data.Tuple (swap)
-
-import Debug.Trace
 
 type Hostname = String
 type Port = Word16
@@ -675,7 +674,6 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
             Left err -> pure (Left err)
             Right newState ->
               if not (DBC.isUpdated (RE.dbc_context newState)) then do --nothing dirtied, nothing to do
-                traceShowM ("ALL CLEAN"::String)
                 pure (Right ())
               else do
                 case resolveSubschemas session graph of

@@ -86,13 +86,13 @@ parseClientTLSConfig =
 parseClientTLSCertInfo :: Parser ClientTLSCertInfo
 parseClientTLSCertInfo =
   ClientTLSCertInfo <$>
-  (optional ((,) <$>
+  optional ((,) <$>
               strOption (long "public-x509-key" <>
                          metavar "KEY_PATH" <>
                          help "Enables TLS with path to public key.") <*>
               strOption (long "private-x509-key" <>
                          metavar "KEY_PATH" <>
-                         help "Enables TLS with path to private key."))) <*>
+                         help "Enables TLS with path to private key.")) <*>
   optional (strOption (long "certificate-x509-path" <>
                         metavar "CERT_PATH" <>
                         help "Path to certificate for TLS. Elide to use system's certificate store."))

@@ -34,4 +34,7 @@ toPinnedRelationalExpr = mapM mapper
     mapper UncommittedContextMarker = Nothing
     mapper (TransactionMarker tid) = Just tid
   
-    
+toGraphRefRelationalExpr :: PinnedRelationalExpr -> GraphRefRelationalExpr
+toGraphRefRelationalExpr = fmap mapper
+  where
+    mapper = TransactionMarker
