@@ -5,11 +5,11 @@ import ProjectM36.Attribute
 import ProjectM36.Session
 import ProjectM36.Client
 import ProjectM36.Relation
---import ProjectM36.RelExprCache
+import ProjectM36.Cache.RelationalExprCache
 import ProjectM36.Cache.Tuple
 import Test.HUnit
 import System.Exit
---import Control.Concurrent.STM
+import Control.Concurrent.STM
 import Data.UUID.V4
 import qualified Streamly.Data.Stream.Prelude as S
 import qualified Data.Vector as V
@@ -74,6 +74,13 @@ testExpensiveExpr :: Test
 testExpensiveExpr = TestCase $ do
   -- run expensive query twice, the second time the result should be cached since the cache is large enough and nothing else should be in the cache.
   (session, conn) <- testConnection emptyNotificationCallback
+  cache <- case conn of
+             RemoteConnection{} -> assertFailure "unexpected remote connection"
+             InProcessConnection conf -> pure (ipRelExprCache conf)
+
+  currentSize' <- readTVarIO (currentSize cache)
+  assertEqual "cache size zero" 0 currentSize'
+  
   Right headTransId <- headTransactionId session conn
   let expensiveExpr = MakeRelationFromExprs Nothing (TupleExprs tmarker [TupleExpr (M.singleton "expensive" (FunctionAtomExpr "test_expensive" [NakedAtomExpr (TextAtom "test"),
                                                                                                                                                 NakedAtomExpr (IntegerAtom 1000000)] tmarker))])
@@ -97,8 +104,9 @@ testExpensiveExpr = TestCase $ do
   let secondDiff = diffUTCTime after' before'
 --  print secondDiff
   assertBool ("second expensive time, actual: " <> show secondDiff) (secondDiff < 1.0)  
-  
-           
+
+  currentSize'' <- readTVarIO (currentSize cache)
+  assertEqual "primed cache size" 80 currentSize''
   
 testStackedExpensiveQuery :: Test
 testStackedExpensiveQuery = TestCase $ do

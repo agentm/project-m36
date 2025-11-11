@@ -22,7 +22,7 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.Client
 import ProjectM36.HashSecurely
-import ProjectM36.Interpreter
+import ProjectM36.Interpreter as I
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.AttributeNames as AN
 import qualified ProjectM36.Session as Sess
@@ -257,7 +257,7 @@ transactionGraphAddCommitTest = TestCase $ do
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"
         DisplayParseErrorResult _ _ -> assertFailure "displayparseerror?"
         DisplayErrorResult err -> assertFailure (show err)   
-        QuietSuccessResult -> do
+        I.QuietSuccessResult -> do
           commit sessionId dbconn >>= eitherFail
           eX <- executeRelationalExpr sessionId dbconn (RelationVariable "x" ())
           assertEqual "ensure x was added" (Right suppliersRel) eX

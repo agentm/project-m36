@@ -16,7 +16,6 @@ import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import ListT
 import Data.List (sortBy)
-import Debug.Trace
 
 
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
@@ -196,6 +195,8 @@ add rgen expr exprResult calcTime _isRegisteredQuery cache = do
               STMMap.delete key (cacheMap cache)
             --traceShowM ("adding to cache"::String, expr)
             STMMap.insert newCacheInfo expr (cacheMap cache)
+            currentSize' <- readTVar (currentSize cache)
+            writeTVar (currentSize cache) (keySize + valSize + currentSize')
           pure rgen'
         Just _ -> do -- then entry is already cached, nothing to do
           --traceShowM ("key already cached"::String)
