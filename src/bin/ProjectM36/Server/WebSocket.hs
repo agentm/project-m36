@@ -16,7 +16,7 @@ import ProjectM36.Relation.Show.HTML
 import Data.Aeson
 import ProjectM36.Base
 import TutorialD.Interpreter
-import ProjectM36.Interpreter (ConsoleResult(..), SafeEvaluationFlag(..))
+import ProjectM36.Interpreter as I (ConsoleResult(..), SafeEvaluationFlag(..)) 
 import ProjectM36.Client
 import Control.Exception
 import Text.Megaparsec.Error
@@ -132,7 +132,7 @@ makeResponse reqId presentation consoleResult =
     DisplayParseErrorResult _ err -> 
       let err' = ParseError $ T.pack (parseErrorPretty . NE.head . bundleErrors $ err) in
         RelationalErrorResponse reqId err'
-    QuietSuccessResult ->
+    I.QuietSuccessResult ->
       SuccessResponse reqId
     DisplayRelationResult rel ->
       RelationResponse reqId rel presentation
