@@ -148,6 +148,13 @@ primitiveAtomFunctions = HS.fromList [
                  [IntegerAtom i] -> pure (IntegerAtom (i+1))
                  _ -> Left AtomFunctionTypeMismatchError,
                funcACL = ()               
+             },
+    Function { funcName = "text_length",
+               funcType = [TextAtomType, IntegerAtomType],
+               funcBody = body $ \case
+                 [TextAtom t] -> pure (IntegerAtom (toInteger (T.length t)))
+                 _ -> Left AtomFunctionTypeMismatchError,
+               funcACL = ()
              }
     
   ] <> scientificAtomFunctions

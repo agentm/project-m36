@@ -63,6 +63,8 @@ import Control.Exception
 import GHC.Paths
 #endif
 
+import Debug.Trace
+
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -902,7 +904,7 @@ extendGraphRefTupleExpressionProcessor attrsIn (AttributeExtendTupleExpr newAttr
           newAndOldAttrs = A.addAttributes attrsIn newAttrs
       env <- ask
       pure (newAndOldAttrs, \tupIn (ContextTuples tupsIn) -> do
-               let gfEnv = foldl' (flip mergeTuplesIntoGraphRefRelationalExprEnv) env tupsIn 
+               let gfEnv = foldl' (flip mergeTuplesIntoGraphRefRelationalExprEnv) env tupsIn
                atom <- runGraphRefRelationalExprM gfEnv (evalGraphRefAtomExpr tupIn atomExpr)
                Right (tupleAtomExtend newAttrName atom tupIn)
                )
@@ -922,6 +924,7 @@ evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
 evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
 -- first argumentr is starting value, second argument is relationatom
 evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
+  traceShowM ("evalGraphRefAtomExpr"::String, funcName')
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
   graph <- gfGraph
   context <- gfDatabaseContextForMarker tid
@@ -1301,7 +1304,7 @@ transactionForId tid graph
         [] -> Left $ NoSuchTransactionError tid
         x : _ -> Right x
 
-typeForGraphRefRelationalExpr ::GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
+typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
 typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs TS.empty
 typeForGraphRefRelationalExpr (ExistingRelation rel) = pure (emptyRelationWithAttrs (attributes rel))
 typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
@@ -1310,10 +1313,7 @@ typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
                 attrs <- mapM evalGraphRefAttributeExpr attrExprs
                 pure (Just (attributesFromList attrs))
               Nothing -> pure Nothing
-  tuples <- evalGraphRefTupleExprs mAttrs tupleExprs
-  let retAttrs = case tuples of
-                (tup:_) -> tupleAttributes tup
-                [] -> fromMaybe A.emptyAttributes mAttrs
+  retAttrs <- typeForGraphRefTupleExprs mAttrs tupleExprs
   pure $ emptyRelationWithAttrs retAttrs
   
 typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
@@ -1858,6 +1858,34 @@ evalAlterDBCACLRoleIdExpr expr = do
                   newFunc = func { funcACL = removeAccess roleId perm (funcACL func) }
               putStateContext newCtx
 
+typeForGraphRefTupleExprs :: Maybe Attributes -> GraphRefTupleExprs -> GraphRefRelationalExprM Attributes
+typeForGraphRefTupleExprs _ (TupleExprs _ []) = pure A.emptyAttributes
+typeForGraphRefTupleExprs mAttrs (TupleExprs _ tupExprs) = do
+  let folder acc tupExpr = do
+        nextAttrs <- typeForGraphRefTupleExpr mAttrs tupExpr
+        case acc of
+          [] -> pure [nextAttrs]
+          (prevAttrs:_) -> do
+            let attrsDiff = A.attributesDifference nextAttrs prevAttrs
+            if attrsDiff == A.emptyAttributes then
+              pure (nextAttrs:acc)
+            else
+              throwError (TupleAttributeTypeMismatchError attrsDiff)
+  attrsList <- foldM folder [] tupExprs
+  pure (head attrsList)
+  
 
-        
+typeForGraphRefTupleExpr :: Maybe Attributes -> GraphRefTupleExpr -> GraphRefRelationalExprM Attributes
+typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
+  let attrs = fromMaybe A.emptyAttributes mAttrHints
+      resolveOneAtomType (attrName, atomExpr) = do
+        let eExpectedAtomType = A.atomTypeForAttributeName attrName attrs
+        unresolvedType <- typeForGraphRefAtomExpr attrs atomExpr
+        resolvedType <- case eExpectedAtomType of
+                         Left _ -> pure unresolvedType
+                         Right typeHint ->
+                           lift $ except $ resolveAtomType typeHint unresolvedType
+        pure (Attribute attrName resolvedType)
+  attrList <- mapM resolveOneAtomType (M.toList tupMap)
+  pure (A.attributesFromList attrList)
         

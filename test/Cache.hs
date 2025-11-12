@@ -19,9 +19,10 @@ import qualified Data.Text as T
 import System.FilePath
 import qualified Data.Map as M
 import Data.Time.Clock
+import qualified Data.Set as Set
 
 testList :: Test
-testList = TestList [--testInMemoryCache,
+testList = TestList [
                      testTupleCacheRoundtripv000,
                      testExpensiveExpr]
 
@@ -82,14 +83,20 @@ testExpensiveExpr = TestCase $ do
   assertEqual "cache size zero" 0 currentSize'
   
   Right headTransId <- headTransactionId session conn
-  let expensiveExpr = MakeRelationFromExprs Nothing (TupleExprs tmarker [TupleExpr (M.singleton "expensive" (FunctionAtomExpr "test_expensive" [NakedAtomExpr (TextAtom "test"),
-                                                                                                                                                NakedAtomExpr (IntegerAtom 1000000)] tmarker))])
+  let expensiveExpr = MakeRelationFromExprs Nothing
+                      (TupleExprs tmarker
+                       [TupleExpr (M.fromList [("expensive",
+                                                FunctionAtomExpr "test_expensive"
+                                                  [NakedAtomExpr (TextAtom "test"),
+                                                   NakedAtomExpr (IntegerAtom 1000000)] tmarker)
+                                              ])
+                       ])
       tmarker = TransactionIdLookup headTransId
       expensiveResult = mkRelationFromList (attributesFromList [Attribute "expensive" TextAtomType]) [[TextAtom "test"]]
   before <- getCurrentTime
-  result <- executeTransGraphRelationalExpr session conn expensiveExpr
+  result1 <- executeTransGraphRelationalExpr session conn expensiveExpr
   
-  assertEqual "first expensive run" expensiveResult result
+  assertEqual "first expensive run" expensiveResult result1
   after <- getCurrentTime  
   let firstDiff = diffUTCTime after before
 --  print $ firstDiff
@@ -107,10 +114,19 @@ testExpensiveExpr = TestCase $ do
 
   currentSize'' <- readTVarIO (currentSize cache)
   assertEqual "primed cache size" 80 currentSize''
-  
-testStackedExpensiveQuery :: Test
-testStackedExpensiveQuery = TestCase $ do
-  -- run expensive query, then run expensive query + projection, result should be faster than first query execution
-  undefined
 
-                                                        
+  putStrLn "ext_expensive"
+  -- project on the expensive attribute to check that the composed expression can still be serviced by the cache
+  let expensiveExpr2 = Project (AttributeNames (Set.singleton "ext_expensive")) $ Extend (AttributeExtendTupleExpr "ext_expensive" (FunctionAtomExpr "text_length" [AttributeAtomExpr "expensive"] tmarker)) expensiveExpr
+      expensiveResult2 = mkRelationFromList (attributesFromList [Attribute "ext_expensive" IntegerAtomType]) [[IntegerAtom 4]]
+  before'' <- getCurrentTime
+
+  result'' <- executeTransGraphRelationalExpr session conn expensiveExpr2
+
+  assertEqual "extended expensive (cached)" expensiveResult2 result''
+
+  after'' <- getCurrentTime
+
+  let expensive2Diff = diffUTCTime after'' before''
+  assertBool ("stacked expensive time, actual: " <> show expensive2Diff) (expensive2Diff < 1.0)    
+
