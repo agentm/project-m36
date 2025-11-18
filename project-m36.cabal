@@ -105,7 +105,8 @@ Library
                   streamly,
                   network-byte-order,
                   sqlite-simple,
-                  data-default
+                  data-default,
+                  process
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
