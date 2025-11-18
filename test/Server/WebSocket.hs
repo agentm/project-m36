@@ -6,6 +6,7 @@ import ProjectM36.Server.WebSocket
 import ProjectM36.Server.Config
 import ProjectM36.Server
 import ProjectM36.Client
+import qualified Network.RPC.Curryer.Server as S
 
 import Network.Socket
 import Control.Exception
@@ -27,7 +28,9 @@ launchTestServer = do
   addressMVar <- newEmptyMVar
   let config = defaultServerConfig { databaseName = testDatabaseName, 
                                      bindAddress = RemoteServerHostAddress "127.0.0.1" 0,
-                                     checkFS = False}
+                                     checkFS = False,
+                                     connConfig = S.UnencryptedConnectionConfig
+                                     }
       testDatabaseName = "test"
   -- start normal server
   void $ forkIO (void $ launchServer config (Just addressMVar))

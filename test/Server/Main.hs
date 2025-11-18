@@ -22,6 +22,7 @@ import System.IO.Temp
 import System.FilePath
 import Control.Monad (void)
 import Network.RPC.Curryer.Client (ClientConnectionConfig(..))
+import qualified Network.RPC.Curryer.Server as S
 #if defined(linux_HOST_OS)
 import System.Directory
 #endif
@@ -58,10 +59,6 @@ main = do
       tcounts <- runTestTT (testList session testConn notificationTestMVar)
       if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
-{-main = do
-    tcounts <- runTestTT (TestList [testRequestTimeout])
-    if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess-}
-                                                                     
 testDatabaseName :: DatabaseName
 testDatabaseName = "test"
 
@@ -88,7 +85,8 @@ launchTestServer ti = do
                                          perRequestTimeout = ti,
                                          testMode = True,
                                          bindAddress = RemoteServerHostAddress "127.0.0.1" 0,
-                                         checkFS = False --not stricly needed for these tests
+                                         checkFS = False, --not strictly needed for these tests
+                                         connConfig = S.UnencryptedConnectionConfig
                                        }
     
       void $ launchServer config (Just addressMVar)
