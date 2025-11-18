@@ -562,7 +562,7 @@ testIntervalAtom = TestCase $ do
   executeTutorialD sessionId dbconn "x:=relation{tuple{n 1, a interval(3,4,False,False), b interval(4,5,False,False)}, tuple{n 2,a interval(3,4,True,True), b interval(4,5,True,True)}}"
   --test failed interval creation
   let err1 = "AtomFunctionUserError InvalidIntervalOrderingError"
-      err2 = "AtomFunctionUserError (AtomTypeDoesNotSupportIntervalError \"Text\")"
+      err2 = "RelationTypeMismatchError"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err1) "z:=relation{tuple{a interval(4,3,False,False)}}"
   expectTutorialDErr sessionId dbconn (T.isPrefixOf err2) "z:=relation{tuple{a interval(\"s\",\"t\",False,False)}}"  
 
@@ -747,8 +747,8 @@ testRelationDeclarationMismatch = TestCase $ do
 testInvalidTuples :: Test
 testInvalidTuples = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{b 2}}"
-  expectTutorialDErr sessionId dbconn (T.isPrefixOf "AttributeNamesMismatchError") ":showexpr relation{tuple{a 1},tuple{a 2, b 3}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "TupleAttributeTypeMismatchError") ":showexpr relation{tuple{a 1},tuple{b 2}}"
+  expectTutorialDErr sessionId dbconn (T.isPrefixOf "TupleAttributeTypeMismatchError") ":showexpr relation{tuple{a 1},tuple{a 2, b 3}}"
 --  expectTutorialDErr sessionId dbconn (T.isPrefixOf "ParseErrorBundle") ":showexpr relation{tuple{a 2, a 3}}" --parse failure can't be validated with this function
 
 testSelfReferencingUncommittedContext :: Test
@@ -826,7 +826,7 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "3aNi/azK9QNSXQQQ0QOuGcqAPlRh0d7zX0bNwjowPDA=" (B64.encode (_unSecureHash hash1))
+  assertEqual "static hash check" "Aoyq+ARAHMyXGYkLewesLxkIEEgBtpAEaYtzPOpIXo4=" (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn
