@@ -51,9 +51,9 @@ getTotalMemory = do
       result <- catch (readProcess "sysctl" ["-n", "hw.memsize"] "") handleError
       return $ readMaybe result
         where
-          handleError :: SomeException -> IO (Maybe ByteCount)
+          handleError :: SomeException -> IO (Maybe Int64)
           handleError _ = return Nothing
-          readMaybe :: String -> Maybe Integer
+          readMaybe :: String -> Maybe Int64
           readMaybe s = case reads s of
             [(val, "")] -> Just val
             _           -> Nothing
