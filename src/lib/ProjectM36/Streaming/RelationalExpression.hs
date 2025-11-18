@@ -15,8 +15,6 @@ import ProjectM36.WithNameExpr
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Stream.Prelude as Stream
---import qualified Streamly.Internal.Data.Stream as Stream
-import Streamly.Internal.Control.Concurrent (MonadAsync)
 import qualified Streamly.Internal.Data.Stream as SD
 import qualified Streamly.Data.StreamK as StreamK
 import Prettyprinter
@@ -51,44 +49,44 @@ newtype PlanNodeExecutionInfo = PlanNodeExecutionInfo { duration :: DiffTime }
 --this will become more useful once we have multiple join strategies, etc.
 -- a: transaction marker
 -- t: collected execution information as the graph is evaluated
-data RelExprExecPlanBase a t =
+data RelExprExecPlanBase marker execInfo =
   -- | Read relvar expr from transaction graph to generate tuple stream.
   -- Instead of locking cache entries during plans so that the entry is not ejected before the plan can run (race condition), the plan can point to a cache entry, but if the entry no longer exists, then the plan must provide an alternative solution.
 
 --  ReadExprFromTransGraph RelVarName a |
   -- | Read tuples from a tuple set cache.
-  StreamTuplesFromCacheFilePlan Attributes FilePath t |
-  -- | Read tuples from memory.
-  ReadTuplesFromMemoryPlan Attributes RelationTupleSet t |
+--  StreamTuplesFromCacheFilePlan Attributes FilePath execInfo (RelationalExprBase marker) |
+  -- | Read tuples from memory. -- TODO: do we need this even if we have caching?
+--  ReadTuplesFromMemoryPlan Attributes RelationTupleSet execInfo |
   -- | Alternative plans in case of failure. For example, the first node in the list may be to read from a cache file but the cache has since deleted the entry, so we proceed with an alternative. This is not a node to use for otherwise fatal errors.
 --  AlternativePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
   -- RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
-                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase a) (RelExprExecPlanBase a t) t (RelationalExprBase a) | -- include compiled mode for stream execution and ADT version for planning printer
-                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase a) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       RelationValuedAttributeStreamPlan Attribute t (RelationalExprBase a) | 
+                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) | -- include compiled mode for stream execution and ADT version for planning printer
+                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       RelationValuedAttributeStreamPlan Attribute execInfo (RelationalExprBase marker) | 
                        
-                       UnionTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
-                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       DifferenceTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       EqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
-                       NotEqualTupleStreamsPlan (RelExprExecPlanBase a t) (RelExprExecPlanBase a t) t (RelationalExprBase a) |
+                       UnionTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
+                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       DifferenceTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       EqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       NotEqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
                        
-                       MakeStaticRelationPlan Attributes RelationTupleSet t |
+                       MakeStaticRelationPlan Attributes RelationTupleSet execInfo |
                        -- TODO: ideally, the planner would create a new structure which extracts all necessary context so that we don't need to pass the entire transaction graph to execute MakeRelationFromExprsPlan
-                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase a]) (TupleExprsBase a) t |
-                       ExistingRelationPlan Relation t |
-                       UniqueifyTupleStreamPlan (RelExprExecPlanBase a t) t -- ^ handy uniqueifier for cases when we know the sub-plan could include duplicates
+                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase marker]) (TupleExprsBase marker) execInfo |
+                       ExistingRelationPlan Relation execInfo |
+                       UniqueifyTupleStreamPlan (RelExprExecPlanBase marker execInfo) execInfo -- ^ handy uniqueifier for cases when we know the sub-plan could include duplicates
 
 -- | Get the original relational expression linked to the node. It can be used to generate the cache key, if relevant.
 originalRelExpr :: RelExprExecPlanBase a t -> Maybe (RelationalExprBase a)
-originalRelExpr StreamTuplesFromCacheFilePlan{} = Nothing
-originalRelExpr ReadTuplesFromMemoryPlan{} = Nothing
+--originalRelExpr StreamTuplesFromCacheFilePlan{} = Nothing
+--originalRelExpr ReadTuplesFromMemoryPlan{} = Nothing
 originalRelExpr (RestrictTupleStreamPlan _ _ _ _ e) = Just e
 originalRelExpr (ProjectTupleStreamPlan _ _ _ e) = Just e
 originalRelExpr (RenameTupleStreamPlan _ _ _ e) = Just e
@@ -118,10 +116,10 @@ horizontalLine = "\x2502"
 instance (Pretty t, Pretty a, Show a) => Pretty (RelExprExecPlanBase a t) where
   pretty expr =
     case expr of
-      StreamTuplesFromCacheFilePlan attrs path t ->
+{-      StreamTuplesFromCacheFilePlan attrs path t ->
         prettyNode "StreamTuplesFromCacheFilePlan" [pretty attrs, pretty path] [] t
       ReadTuplesFromMemoryPlan attrs _tupSet t ->
-        prettyNode "ReadTuplesFromMemoryPlan" [pretty attrs, "<tuples elided"] [] t
+        prettyNode "ReadTuplesFromMemoryPlan" [pretty attrs, "<tuples elided"] [] t-}
       RestrictTupleStreamPlan _ predExpr expr' t _origExpr ->
         prettyNode "RestrictTupleStreamPlan" [pretty predExpr] [pretty expr'] t
       ProjectTupleStreamPlan attrs expr' t _ ->
@@ -286,208 +284,270 @@ streamRelationMap newAttrs fun (StreamRelation _ tupSIn) =
         liftIO $ evaluate (force tup')
 
 --parFilter 
-  
+
+type CacheKeyBlackList = HS.HashSet PinnedRelationalExpr
 --until we can stream results to disk or socket, we return a lazy-list-based Relation
 -- | Build a tuple stream from an execution plan to enable parallel execution.
-executePlan :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> GraphRefRelationalExprEnv -> Either RelationalError (StreamRelation m)
-executePlan (ReadTuplesFromMemoryPlan attrs tupSet ()) _ _ =
+executePlan :: GraphRefRelExprExecPlan -> ContextTuples -> GraphRefRelationalExprEnv -> CacheKeyBlackList -> RelExprCache -> IO (Either RelationalError (StreamRelation IO))
+{-executePlan (ReadTuplesFromMemoryPlan attrs tupSet ()) _ _ _cache =
   pure $ StreamRelation attrs (Stream.fromList (asList tupSet))
-executePlan (StreamTuplesFromCacheFilePlan{}) _ _ =
+executePlan (StreamTuplesFromCacheFilePlan{}) _ _ _cache =
   --todo: enable streaming tuples from file
   undefined
-executePlan (RenameTupleStreamPlan attrsAssoc expr () _) ctx gfEnv = do
-  relS <- executePlan expr ctx gfEnv
-  let newAttrs = renameAttributes' attrsAssoc (sRelAttributes relS)
-  --potential optimization- lookup attrs in advance to rename the correct vector index
-  pure $ streamRelationMap newAttrs (pure . tupleRenameAttributes attrsAssoc) relS
-executePlan (RestrictTupleStreamPlan restrictionFilter _predExpr expr () _origExpr) ctx gfEnv = do
-  (StreamRelation attrs tupS) <- executePlan expr ctx gfEnv
-  let tupS' = Stream.filterM filt tupS
-      -- since we are building up a stream data structure, we can represent in-stream failure using exceptions- we won't be able to execute the stream here to extract errors
-      filt t =
-        pure $ case restrictionFilter t ctx of
-        Left err -> throw err -- this will blow up in a separate thread but streamly should shuttle it to the caller (I hope)
-        Right !t' -> t'
-  pure $ StreamRelation attrs tupS'
-executePlan (ProjectTupleStreamPlan attrs expr () _) ctx gfEnv = do
-  (StreamRelation _ tupS) <- executePlan expr ctx gfEnv
-  let tupS' = fmap projector tupS
-      --optimize by projecting on vector indexes instead
-      projector t = case tupleProject attrs t of
-                      Left err -> throw err
-                      Right t' -> t'
-  pure $ StreamRelation attrs tupS'
-executePlan (UnionTupleStreamsPlan exprA exprB () _) ctx gfEnv = do
-  --ideally, the streams would have pre-ordered tuples and we could zip them together right away- if we have an ordered representation, we can drop the sorting here
-  -- glue two streams together, then uniqueify
-  (StreamRelation attrsA tupSa) <- executePlan exprA ctx gfEnv
-  (StreamRelation _ tupSb) <- executePlan exprB ctx gfEnv
-  let tupS' = Stream.parList id [tupSa, tupSb]
-  pure (StreamRelation attrsA tupS')
-executePlan (EqualTupleStreamsPlan exprA exprB () _) ctx gfEnv = do
-  (StreamRelation _ tupSa) <- executePlan exprA ctx gfEnv
-  (StreamRelation _ tupSb) <- executePlan exprB ctx gfEnv
-  let hsA = tuplesHashSet tupSa
-      hscmp = tuplesHashSet (Stream.parList id [tupSa, tupSb])
-      tupS' = SD.unCross $ do
-        tA <- liftIO hsA
-        tcmp <- liftIO hscmp
-        SD.mkCross $ Stream.fromList $ 
-          [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
-  pure (StreamRelation mempty tupS')
-executePlan (RelationValuedAttributeStreamPlan relAttr () _) ctx _ = do
-  case contextTupleAtomForAttributeName ctx (A.attributeName relAttr) of
-    Left err -> Left err
-    Right relAtom@(RelationAtom{}) -> do
-      let newTup = RelationTuple (A.singleton relAttr) (V.singleton relAtom)
-          tupS = Stream.fromList [newTup]
-      pure (StreamRelation (A.singleton relAttr) tupS)
-    Right _ -> Left (AttributeIsNotRelationValuedError (A.attributeName relAttr))
-executePlan (NotEqualTupleStreamsPlan exprA exprB () orig) ctx gfEnv = do
-  (StreamRelation _ tupS) <- executePlan (EqualTupleStreamsPlan exprA exprB () orig) ctx gfEnv
-  let tupS' = SD.unCross $ do
-        el <- liftIO $ SD.head tupS
-        SD.mkCross $ Stream.fromList $ case el of
-                            Nothing -> [RelationTuple mempty mempty]
-                            Just _ -> []
-  pure (StreamRelation mempty tupS')
-executePlan (MakeStaticRelationPlan attrs tupSet ()) _ _ = do
-  pure (StreamRelation attrs (Stream.fromList (asList tupSet)))
-executePlan (MakeRelationFromExprsPlan mAttrExprs tupExprs _) _ctx gfEnv = do
-  let expr = MakeRelationFromExprs mAttrExprs tupExprs
-  rel <- runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr expr)
-  pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
-executePlan (ExistingRelationPlan rel ()) _ _ = do
-  pure (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel))))
-executePlan (ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr () _) ctx gfEnv = do
-  relS <- executePlan expr ctx gfEnv
-  let extender tup =
-        case extendProcessor tup ctx of
-          Left err -> throw err
-          Right t' -> pure t'
-  pure (streamRelationMap newAttrs extender relS)
-executePlan (NaiveJoinTupleStreamsPlan exprA exprB () _) ctx gfEnv = do
-  --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
-  (StreamRelation attrsA tupSa) <- executePlan exprA ctx gfEnv
-  (StreamRelation attrsB tupSb) <- executePlan exprB ctx gfEnv
-  attrsOut <- joinAttributes attrsA attrsB
-  let tupS' = SD.unCross $ do
-        bTupleList <- liftIO $ Stream.toList tupSb        
-        let tupleJoiner :: RelationTuple -> [RelationTuple]
-            tupleJoiner tupleFromA =
-              concatMap (\tupleFromB ->
-                           case singleTupleJoin attrsOut tupleFromA tupleFromB of
-                             Left err -> throw err
-                             Right Nothing -> []
-                             Right (Just joinedTuple) -> [joinedTuple]
-                        ) bTupleList
-        SD.mkCross $ Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
-  pure (StreamRelation attrsOut tupS')
-executePlan (DifferenceTupleStreamsPlan exprA exprB () _) ctx gfEnv = do
-  (StreamRelation attrsA tupSa) <- executePlan exprA ctx gfEnv
-  (StreamRelation _ tupSb) <- executePlan exprB ctx gfEnv
-  let tupS' = SD.unCross $ do
-        bTupleList <- liftIO $ Stream.toList tupSb        
-        SD.mkCross $ Stream.filter (`notElem` bTupleList) tupSa
-  pure (StreamRelation attrsA tupS')
-executePlan (GroupTupleStreamPlan groupAttrs newAttrName expr () orig) ctx gfEnv = do
-  --naive implementation scans for image relation for each grouped value
-  (StreamRelation attrsIn tupS) <- executePlan expr ctx gfEnv
-  let nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (A.attributeNameSet attrsIn)
-      groupAttrNames = A.attributeNameSet groupAttrs
-  nonGroupProjectionAttributes <- projectionAttributesForNames nonGroupAttrNames attrsIn
-  groupProjectionAttributes <- projectionAttributesForNames groupAttrNames attrsIn
-  (StreamRelation _ nonGroupProjectionTupS) <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ctx gfEnv
-  let outAttrs = addAttribute newAttr nonGroupProjectionAttributes
-      matchAttrs = V.fromList $ S.toList $ attributeNameSet nonGroupProjectionAttributes
-      newAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
-      tupS' = SD.unCross $ do
-        origTupList <- liftIO $ Stream.toList tupS
-        -- find matching tuples from list
-        let singleTupleGroupMatcher tup =
-              let matchingTuples =
-                    filter (\groupTup ->
-                              atomsForAttributeNames matchAttrs tup == atomsForAttributeNames matchAttrs groupTup) origTupList
-                  newtups = RelationTupleSet $ map (ehandler . tupleProject groupProjectionAttributes) matchingTuples 
-                  ehandler (Left err) = throw err
-                  ehandler (Right t) = t
-                  groupedRel = Relation groupProjectionAttributes newtups
-              in
-              tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
-        SD.mkCross $ fmap singleTupleGroupMatcher nonGroupProjectionTupS
-  pure (StreamRelation outAttrs tupS')
-executePlan (UngroupTupleStreamPlan groupAttrName expr () _) ctx gfEnv = do
-  (StreamRelation attrsIn tupS) <- executePlan expr ctx gfEnv
-  subRelAttrs <- case atomTypeForAttributeName groupAttrName attrsIn of
-    Right (RelationAtomType attrs) -> pure attrs
-    _ -> Left (AttributeIsNotRelationValuedError groupAttrName)
-  let outAttrs = attrsIn <> subRelAttrs
-      ungroup' tup =
-        --unwrap subrelation
-        let subrel = case atomForAttributeName groupAttrName tup of
-              Left err -> throw err
-              Right (RelationAtom r) -> r
-              Right _ -> throw (AttributeIsNotRelationValuedError groupAttrName) --typechecker should ensure that this never happens
-            flattenedTuples = map (tupleExtend tup) (asList (tupleSet subrel))
-        in
-        Stream.fromList flattenedTuples
-  pure (StreamRelation outAttrs (Stream.concatMap ungroup' tupS))
-executePlan (UniqueifyTupleStreamPlan e ()) ctx gfEnv = do
-  (StreamRelation attrs tupS) <- executePlan e ctx gfEnv
-  let tupS' = SD.unCross $ do
-        uniqTups <- liftIO $ tuplesHashSet tupS
-        SD.mkCross $ StreamK.toStream (StreamK.fromFoldable uniqTups)
-  pure (StreamRelation attrs tupS')
-{-executePlan (AlternativePlan first remainder ()) ctx = do
-  -- catch cache miss exception- the cache entry may have been deleted
-  let initOptions = first : NE.init remainder
-      lastOption = NE.last remainder -- if the last option throws an exception, just bubble it up
-      --convert to streamly
-      runOptions :: (MonadIO m, MonadAsync m) => [GraphRefRelExprExecPlan] -> GraphRefRelExprExecPlan -> StreamRelation m
-      runOptions (fstStream:remStream) finalStream =
-        Stream.handle (\(_e :: CacheMissException) -> runOptions remStream finalStream) fstStream -- we may have other alternative-triggering exceptions in the future
-      runOptions [] finalStream = finalStream
-  initStreams <- mapM ((flip executePlan) ctx) initOptions
-  finalStream <- executePlan lastOption ctx
-  pure $ runOptions initStreams finalStream
 -}
-
-executePlanWithCache :: (MonadIO m, MonadAsync m) => GraphRefRelExprExecPlan -> ContextTuples -> GraphRefRelationalExprEnv -> RelExprCache -> m (Either RelationalError (StreamRelation m))
-executePlanWithCache = executePlanWithCache' HS.empty
-
-executePlanWithCache' :: (MonadIO m, MonadAsync m) => HS.HashSet PinnedRelationalExpr -> GraphRefRelExprExecPlan -> ContextTuples -> GraphRefRelationalExprEnv -> RelExprCache -> m (Either RelationalError (StreamRelation m))
-executePlanWithCache' cacheKeyBlackList origPlan ctxTuples gfEnv cache = do
-  let uncachedExec = pure $ executePlan origPlan ctxTuples gfEnv
---  traceShowM ("origPlan"::String, renderPretty origPlan)
-  case originalRelExpr origPlan of
-    Nothing -> uncachedExec
-    Just origRelExpr -> do
-      case toPinnedRelationalExpr origRelExpr of -- check that we can generate a key for the cache
-        Nothing -> uncachedExec
-        Just key -> do
-          mCachedVal <- if key `HS.member` cacheKeyBlackList then -- the blacklist prevents infinite recursion into the cache
-                          pure Nothing
-                        else do
-                          liftIO $ atomically $ RECache.lookup key cache
-          case mCachedVal of -- check if the key is in the cache
-            Just cacheInfo ->
-              case result cacheInfo of
-                PinnedExpressionRep pinnedRelExpr -> do
-                  -- plan and execute alternative, cached expression which is equivalent to the results of the origPlan
-                  let eNewPlan = planGraphRefRelationalExpr (toGraphRefRelationalExpr pinnedRelExpr) (freshGraphRefRelationalExprEnv Nothing emptyTransactionGraph)
-                  case eNewPlan of
+executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do  
+  -- check if plan is available in cache
+  let checkCacheOr noCacheExec =
+        case originalRelExpr plan of
+          Nothing -> noCacheExec
+          Just origRelExpr ->
+            case toPinnedRelationalExpr origRelExpr of
+              Nothing ->  -- no cache key available for plan
+                noCacheExec
+              Just cacheKey -> do
+                mCachedVal <-
+                  if cacheKey `HS.member` cacheKeyBlackList then -- the blacklist prevents infinite recursion into the cache
+                    pure Nothing
+                  else do
+                    liftIO $ atomically $ RECache.lookup cacheKey cache
+                case mCachedVal of -- check if the key is in the cache
+                  Nothing -> noCacheExec
+                  Just cacheInfo ->
+                    case result cacheInfo of
+                      PinnedExpressionRep pinnedRelExpr -> do
+                        -- plan and execute alternative, cached expression which is equivalent to the results of the origPlan
+                        let eNewPlan = planGraphRefRelationalExpr (toGraphRefRelationalExpr pinnedRelExpr) (freshGraphRefRelationalExprEnv Nothing emptyTransactionGraph)
+                        case eNewPlan of
+                          Left err -> pure (Left err)
+                          Right newPlan -> do
+                            executePlan newPlan ctxTuples gfEnv (HS.insert cacheKey cacheKeyBlackList) cache --prevent infinite loop using key blacklist
+                      UnsortedTupleSetRep attrs tupSet -> do
+                        pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
+                      SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep unimplemented"
+  case plan of
+    RenameTupleStreamPlan attrsAssoc expr () _rexpr -> do
+      checkCacheOr $ do
+        eRelS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+        case eRelS of
+          Left err -> pure (Left err)
+          Right relS -> do
+            let newAttrs = renameAttributes' attrsAssoc (sRelAttributes relS)
+            --potential optimization- lookup attrs in advance to rename the correct vector index
+            pure (Right (streamRelationMap newAttrs (pure . tupleRenameAttributes attrsAssoc) relS))
+            
+    RestrictTupleStreamPlan restrictionFilter _predExpr expr () _origExpr ->
+      checkCacheOr $ do
+        eStream <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+        case eStream of
+          Left err -> pure (Left err)
+          Right (StreamRelation attrs tupS) -> do
+            let tupS' = Stream.filterM filt tupS
+      -- since we are building up a stream data structure, we can represent in-stream failure using exceptions- we won't be able to execute the stream here to extract errors
+                filt t =
+                  pure $ case restrictionFilter t ctxTuples of
+                           Left err -> throw err -- this will blow up in a separate thread but streamly should shuttle it to the caller (I hope)
+                           Right !t' -> t'
+            pure (Right (StreamRelation attrs tupS'))
+    ProjectTupleStreamPlan attrs expr () _ -> do
+      checkCacheOr $ do
+        eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+        case eS of
+          Left err -> pure (Left err)
+          Right (StreamRelation _ tupS) -> do
+            let tupS' = fmap projector tupS
+            --optimize by projecting on vector indexes instead
+                projector t = case tupleProject attrs t of
+                                Left err -> throw err
+                                Right t' -> t'
+            pure (Right (StreamRelation attrs tupS'))
+    UnionTupleStreamsPlan exprA exprB () _ -> do
+      checkCacheOr $ do
+        --ideally, the streams would have pre-ordered tuples and we could zip them together right away- if we have an ordered representation, we can drop the sorting here
+  -- glue two streams together, then uniqueify
+        ePlanA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
+        ePlanB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
+        case ePlanA of
+          Left err -> pure (Left err)
+          Right (StreamRelation attrsA tupSa) ->
+            case ePlanB of
+              Left err -> pure (Left err)
+              Right (StreamRelation _ tupSb) -> do
+                let tupS' = Stream.parList id [tupSa, tupSb]
+                pure (Right (StreamRelation attrsA tupS'))
+    EqualTupleStreamsPlan exprA exprB () _ -> do
+      checkCacheOr $ do
+        ePlanA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
+        ePlanB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
+        case ePlanA of
+          Left err -> pure (Left err)
+          Right (StreamRelation _ tupSa) ->
+            case ePlanB of
+              Left err -> pure (Left err)
+              Right (StreamRelation _ tupSb) -> do
+                let hsA = tuplesHashSet tupSa
+                    hscmp = tuplesHashSet (Stream.parList id [tupSa, tupSb])
+                    tupS' = SD.unCross $ do
+                      tA <- liftIO hsA
+                      tcmp <- liftIO hscmp
+                      SD.mkCross $ Stream.fromList $ 
+                        [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
+                pure (Right (StreamRelation mempty tupS'))
+    RelationValuedAttributeStreamPlan relAttr () _ -> checkCacheOr $ do
+      case contextTupleAtomForAttributeName ctxTuples (A.attributeName relAttr) of
+        Left err -> pure (Left err)
+        Right relAtom@(RelationAtom{}) -> do
+          let newTup = RelationTuple (A.singleton relAttr) (V.singleton relAtom)
+              tupS = Stream.fromList [newTup]
+          pure (Right (StreamRelation (A.singleton relAttr) tupS))
+        Right _ -> pure (Left (AttributeIsNotRelationValuedError (A.attributeName relAttr)))
+    NotEqualTupleStreamsPlan exprA exprB () orig -> checkCacheOr $ do
+      eS <- executePlan (EqualTupleStreamsPlan exprA exprB () orig) ctxTuples gfEnv cacheKeyBlackList cache
+      case eS of
+        Left err -> pure (Left err)
+        Right (StreamRelation _ tupS) -> do
+          let tupS' = SD.unCross $ do
+                el <- liftIO $ SD.head tupS
+                SD.mkCross $ Stream.fromList $ case el of
+                                                 Nothing -> [RelationTuple mempty mempty]
+                                                 Just _ -> []
+          pure (Right (StreamRelation mempty tupS'))
+    MakeStaticRelationPlan attrs tupSet () -> checkCacheOr $ do
+      pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
+    MakeRelationFromExprsPlan mAttrExprs tupExprs _ -> checkCacheOr $ do
+      let expr = MakeRelationFromExprs mAttrExprs tupExprs
+      case runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr expr) of
+        Left err -> pure (Left err)
+        Right rel ->
+          pure (Right (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel)))))
+    ExistingRelationPlan rel () -> do
+      pure (Right (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel)))))
+    ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr () _ -> checkCacheOr $ do
+      eRelS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+      case eRelS of
+        Left err -> pure (Left err)
+        Right relS -> do
+          let extender tup =
+                case extendProcessor tup ctxTuples of
+                  Left err -> throw err
+                  Right t' -> pure t'
+          pure (Right (streamRelationMap newAttrs extender relS))
+    NaiveJoinTupleStreamsPlan exprA exprB () _ -> checkCacheOr $ do
+      --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
+      eSA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
+      eSB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
+      case eSA of
+        Left err -> pure (Left err)
+        Right (StreamRelation attrsA tupSa) ->
+          case eSB of
+            Left err -> pure (Left err)
+            Right (StreamRelation attrsB tupSb) -> do
+              case joinAttributes attrsA attrsB of
+                Left err -> pure (Left err)
+                Right attrsOut -> do
+                  let tupS' = SD.unCross $ do
+                        bTupleList <- liftIO $ Stream.toList tupSb        
+                        let tupleJoiner :: RelationTuple -> [RelationTuple]
+                            tupleJoiner tupleFromA =
+                              concatMap (\tupleFromB ->
+                                        case singleTupleJoin attrsOut tupleFromA tupleFromB of
+                                          Left err -> throw err
+                                          Right Nothing -> []
+                                          Right (Just joinedTuple) -> [joinedTuple]
+                                    ) bTupleList
+                        SD.mkCross $ Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
+                  pure (Right (StreamRelation attrsOut tupS'))
+                  
+    DifferenceTupleStreamsPlan exprA exprB () _ -> checkCacheOr $ do
+      eSA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
+      eSB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
+      case eSA of
+        Left err -> pure (Left err)
+        Right (StreamRelation attrsA tupSa) ->
+          case eSB of
+            Left err -> pure (Left err)
+            Right (StreamRelation _ tupSb) -> do
+              let tupS' = SD.unCross $ do
+                    bTupleList <- liftIO $ Stream.toList tupSb        
+                    SD.mkCross $ Stream.filter (`notElem` bTupleList) tupSa
+              pure (Right (StreamRelation attrsA tupS'))
+    GroupTupleStreamPlan groupAttrs newAttrName expr () orig -> checkCacheOr $ do
+      --naive implementation scans for image relation for each grouped value
+      eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+      case eS of
+        Left err -> pure (Left err)
+        Right (StreamRelation attrsIn tupS) -> do
+          let nonGroupAttrNames = nonMatchingAttributeNameSet groupAttrNames (A.attributeNameSet attrsIn)
+              groupAttrNames = A.attributeNameSet groupAttrs
+          case projectionAttributesForNames nonGroupAttrNames attrsIn of
+            Left err -> pure (Left err)
+            Right nonGroupProjectionAttributes -> do
+              case projectionAttributesForNames groupAttrNames attrsIn of
+                Left err -> pure (Left err)
+                Right groupProjectionAttributes -> do
+                  eGroupS <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ctxTuples gfEnv cacheKeyBlackList cache
+                  case eGroupS of
                     Left err -> pure (Left err)
-                    Right newPlan -> do
-                      executePlanWithCache' (HS.insert key cacheKeyBlackList) newPlan ctxTuples gfEnv cache --prevent infinite loop using key blacklist
-                UnsortedTupleSetRep attrs tupSet -> do
-                  pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
-                SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep"
-            Nothing ->
-              uncachedExec
-              -- pipe result to cache or maybe pipe just the expensive parts to the cache. but then we need to track which parts of the pipeline are actually expensive
-              -- we know this entry is not in the cache, so we want to add it, but we don't want to add the plan, but the mostly evaluated expression, which we don't have here.
+                    Right (StreamRelation _ nonGroupProjectionTupS) -> do
+                      let outAttrs = addAttribute newAttr nonGroupProjectionAttributes
+                          matchAttrs = V.fromList $ S.toList $ attributeNameSet nonGroupProjectionAttributes
+                          newAttr = Attribute newAttrName (RelationAtomType groupProjectionAttributes)
+                          tupS' = SD.unCross $ do
+                            origTupList <- liftIO $ Stream.toList tupS
+                            -- find matching tuples from list
+                            let singleTupleGroupMatcher tup =
+                                  let matchingTuples =
+                                        filter (\groupTup ->
+                                              atomsForAttributeNames matchAttrs tup == atomsForAttributeNames matchAttrs groupTup) origTupList
+                                      newtups = RelationTupleSet $ map (ehandler . tupleProject groupProjectionAttributes) matchingTuples 
+                                      ehandler (Left err) = throw err
+                                      ehandler (Right t) = t
+                                      groupedRel = Relation groupProjectionAttributes newtups
+                                  in
+                                    tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
+                            SD.mkCross $ fmap singleTupleGroupMatcher nonGroupProjectionTupS
+                      pure (Right (StreamRelation outAttrs tupS'))
+    UngroupTupleStreamPlan groupAttrName expr () _ -> checkCacheOr $ do
+      eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
+      case eS of
+        Left err -> pure (Left err)
+        Right (StreamRelation attrsIn tupS) -> do
+          case atomTypeForAttributeName groupAttrName attrsIn of
+            Right (RelationAtomType subRelAttrs) -> do
+              let outAttrs = attrsIn <> subRelAttrs
+                  ungroup' tup =
+                    --unwrap subrelation
+                    let subrel = case atomForAttributeName groupAttrName tup of
+                          Left err -> throw err
+                          Right (RelationAtom r) -> r
+                          Right _ -> throw (AttributeIsNotRelationValuedError groupAttrName) --typechecker should ensure that this never happens
+                        flattenedTuples = map (tupleExtend tup) (asList (tupleSet subrel))
+                    in
+                      Stream.fromList flattenedTuples
+              pure (Right (StreamRelation outAttrs (Stream.concatMap ungroup' tupS)))
+            _ -> pure (Left (AttributeIsNotRelationValuedError groupAttrName))
+    UniqueifyTupleStreamPlan e () -> checkCacheOr $ do
+      eS <- executePlan e ctxTuples gfEnv cacheKeyBlackList cache
+      case eS of
+        Left err -> pure (Left err)
+        Right (StreamRelation attrs tupS) -> do
+          let tupS' = SD.unCross $ do
+                uniqTups <- liftIO $ tuplesHashSet tupS
+                SD.mkCross $ StreamK.toStream (StreamK.fromFoldable uniqTups)
+          pure (Right (StreamRelation attrs tupS'))
+{-    AlternativePlan first remainder () -> do
+      -- catch cache miss exception- the cache entry may have been deleted
+      let initOptions = first : NE.init remainder
+          lastOption = NE.last remainder -- if the last option throws an exception, just bubble it up
+      --convert to streamly
+          runOptions :: (MonadIO m, MonadAsync m) => [GraphRefRelExprExecPlan] -> GraphRefRelExprExecPlan -> StreamRelation m
+          runOptions (fstStream:remStream) finalStream =
+            Stream.handle (\(_e :: CacheMissException) -> runOptions remStream finalStream) fstStream -- we may have other alternative-triggering exceptions in the future
+          runOptions [] finalStream = finalStream
+      initStreams <- mapM ((flip executePlan) ctx) initOptions
+      finalStream <- executePlan lastOption ctx
+      pure $ runOptions initStreams finalStream
+  -}                         
 
-      
 relationTrue :: (MonadIO m, Stream.MonadAsync m) => StreamRelation m
 relationTrue = StreamRelation mempty (Stream.fromList [RelationTuple mempty mempty])
 

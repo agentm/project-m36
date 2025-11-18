@@ -114,7 +114,7 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
     Left err -> pure (Left err)
     Right plan -> do
       startExecTime <- getCurrentTime
-      exec <- executePlanWithCache plan mempty gfEnv cache -- try/catch to handle exceptions
+      exec <- executePlan plan mempty gfEnv mempty cache -- try/catch to handle exceptions
       case exec of
         Left err -> pure (Left err)
         Right resultStream -> do

@@ -63,8 +63,6 @@ import Control.Exception
 import GHC.Paths
 #endif
 
-import Debug.Trace
-
 data DatabaseContextExprDetails = CountUpdatedTuples
 
 databaseContextExprDetailsFunc :: DatabaseContextExprDetails -> ResultAccumFunc
@@ -327,7 +325,7 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
               if newExprType == expectedType then do
                 lift $ except $ validateAttributes tConsMapping (attributes newExprType)
                 setRelVar relVarName hintedExpr 
-              else
+              else do
                 dbErr (RelationTypeMismatchError (attributes expectedType) (attributes newExprType))
 
 evalGraphRefDatabaseContextExpr (Insert relVarName relExpr) = do
@@ -924,7 +922,6 @@ evalGraphRefAtomExpr tupIn (AttributeAtomExpr attrName) =
 evalGraphRefAtomExpr _ (NakedAtomExpr atom) = pure atom
 -- first argumentr is starting value, second argument is relationatom
 evalGraphRefAtomExpr tupIn (FunctionAtomExpr funcName' arguments tid) = do
-  traceShowM ("evalGraphRefAtomExpr"::String, funcName')
   argTypes <- mapM (typeForGraphRefAtomExpr (tupleAttributes tupIn)) arguments
   graph <- gfGraph
   context <- gfDatabaseContextForMarker tid
@@ -1314,7 +1311,14 @@ typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
                 pure (Just (attributesFromList attrs))
               Nothing -> pure Nothing
   retAttrs <- typeForGraphRefTupleExprs mAttrs tupleExprs
-  pure $ emptyRelationWithAttrs retAttrs
+  case mAttrs of
+    Nothing ->
+      pure $ emptyRelationWithAttrs retAttrs
+    Just attrs ->
+      case A.reorderAttributes attrs retAttrs of
+        Left err -> throwError err
+        Right retAttrs' -> 
+          pure $ emptyRelationWithAttrs retAttrs'
   
 typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
   ctx <- gfDatabaseContextForMarker tid
@@ -1859,7 +1863,8 @@ evalAlterDBCACLRoleIdExpr expr = do
               putStateContext newCtx
 
 typeForGraphRefTupleExprs :: Maybe Attributes -> GraphRefTupleExprs -> GraphRefRelationalExprM Attributes
-typeForGraphRefTupleExprs _ (TupleExprs _ []) = pure A.emptyAttributes
+typeForGraphRefTupleExprs Nothing (TupleExprs _ []) = pure A.emptyAttributes
+typeForGraphRefTupleExprs (Just attrs) (TupleExprs _ []) = pure attrs
 typeForGraphRefTupleExprs mAttrs (TupleExprs _ tupExprs) = do
   let folder acc tupExpr = do
         nextAttrs <- typeForGraphRefTupleExpr mAttrs tupExpr

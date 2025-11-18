@@ -299,3 +299,14 @@ intersection attrsA attrsB = Attributes {
   where
     hset = HS.intersection (attributesSet attrsA) (attributesSet attrsB)
     vec = HS.foldr (flip V.snoc) mempty hset
+
+-- | reorder the attributes according to the order of the attributes input. Useful during typechecking because the incoming attributes may be unresolved.
+reorderAttributes :: Attributes -> Attributes -> Either RelationalError Attributes
+reorderAttributes attrsOrder attrs =
+  if attributesAndOrderEqual attrsOrder attrs then
+    pure attrs
+    else do
+    Attributes <$> V.mapM mapper (attributesVec attrsOrder)
+  where
+    mapper attrOrder = do
+      attributeForName (attributeName attrOrder) attrs
