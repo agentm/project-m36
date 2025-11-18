@@ -184,15 +184,15 @@ assertIOEither x = do
 -- test that the transaction graph sizes on disk are within expected bounds
 -- create an empty database, check its size, add a commit, check the difference in size
 testTransactionDirectorySizeGrowth :: Test
-testTransactionDirectorySizeGrowth = TestCase $
+testTransactionDirectorySizeGrowth = TestCase $ do
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
     Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext adminRoleName)
     Right sessionId <- C.createSessionAtHead db "master"
 
     originalDBSize <- getDirectorySize tempdir
-    let expectedOriginalSize = 2057
+    let expectedOriginalSize = 40960 {- sqlite3 loginroles.db -} + 1415
     
-    assertBool ("graph with one transaction size: " <> show originalDBSize) (originalDBSize <= expectedOriginalSize)
+    assertBool ("graph with one transaction size- expected: " <> show expectedOriginalSize <> ", actual: " <> show originalDBSize) (originalDBSize <= expectedOriginalSize)
 
     Right () <- C.executeDatabaseContextExpr sessionId db (Assign "x" (RelationVariable "true" ()))
     Right () <- C.commit sessionId db
