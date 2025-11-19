@@ -17,7 +17,6 @@ import Data.Maybe (fromMaybe)
 import ListT
 import Data.List (sortBy)
 
-
 --caching for uncommitted transactions may be a useful, future extension, but cannot be supported here since they are not (yet) uniquely identified
 
 {- both the key and value of this cache are relational expressions, allowing for maximum flexibility
@@ -127,40 +126,6 @@ executeLRUStrategy entrySize _calcTime cache = do
       entriesToEvict <- leastRecentlyUsedEntries entrySize cache
       pure (1.0, entriesToEvict)
 
-{-  
-probOfRetention :: ByteCount -> -- ^ size of cache entry
-                  NominalDiffTime -> -- ^ last request time for entry
-                  HitCount -> -- ^ number of times this entry has been requested
-                  NominalDiffTime -> -- ^ time it took to calculate this cache entry
-                  Probability
-probOfRetention entrySize upperBound' sinceLastReqTime hitCount calcTime =
-    --instead of dealing with multivariate normal distributions, we average the distributions' probabilities- yes, this is dumb and arbitrary, but it's a start
-  traceShow ("probOfRetention"::String,
-             nEntrySize,
-             nSinceLastReqTime,
-             nHitCount,
-             nCalcTime)
-             (nEntrySize + nSinceLastReqTime + nHitCount + nCalcTime) / 4.0
-  where
-      --normalize the input values    
-      nEntrySize = fromIntegral $ min entrySize upperBound' `div` upperBound' -- larger cache entries are more highly valued      
-      nSinceLastReqTime = normalDist 2.5 (realToFrac sinceLastReqTime) 10
-      nHitCount = 1 - normalDist 2.5 (realToFrac hitCount) 30
-      nCalcTime = 1 - normalDist 2.5 (realToFrac calcTime) 10
--}
-e' :: Double
-e' = 2.71828182845904523536028747135266249775724709369995
-
-normalDist :: Double -> Double -> Double -> Double
-normalDist t x s = (t / sqrt (2 * pi)) * e' ** (-0.5 * (x / s) ** 2)  -- map to normal distribution which could be ML-trained later
-
-
-probabilityDensity :: Double -> Double
-probabilityDensity z = numerator / denominator
-  where
-    numerator = e' ** (-(z ** 2) / 2)
-    denominator = sqrt (2 * pi)
-
 type IsRegisteredQuery = Bool
 
 --allow the cache to decide if this result or one of it constituents should be cached
@@ -191,12 +156,18 @@ add rgen expr exprResult calcTime _isRegisteredQuery cache = do
           let (rand, rgen') = uniformR (0.0, 1.0) rgen
           --traceShowM ("probRetain"::String, probRetain, "rand"::String, rand, probRetain >= rand)
           when (probRetain >= rand) $ do
-            forM_ entriesToEvict $ \key ->
+            forM_ entriesToEvict $ \key -> do
+              mval <- STMMap.lookup key (cacheMap cache)
+              let delSize = case mval of
+                    Nothing -> 0
+                    Just val -> size val
+              currentSize' <- readTVar (currentSize cache)                    
               STMMap.delete key (cacheMap cache)
+              writeTVar (currentSize cache) (currentSize' - delSize)
             --traceShowM ("adding to cache"::String, expr)
             STMMap.insert newCacheInfo expr (cacheMap cache)
-            currentSize' <- readTVar (currentSize cache)
-            writeTVar (currentSize cache) (keySize + valSize + currentSize')
+            currentSize'' <- readTVar (currentSize cache)             
+            writeTVar (currentSize cache) (keySize + valSize + currentSize'')
           pure rgen'
         Just _ -> do -- then entry is already cached, nothing to do
           --traceShowM ("key already cached"::String)
