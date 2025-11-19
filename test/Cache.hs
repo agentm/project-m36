@@ -167,3 +167,11 @@ testCacheEviction = TestCase $ do
   -- check cache size to ensure that previous entry was evicted
   currentSize'' <- readTVarIO (currentSize cache)
   assertBool ("expensive2 cache size: " <> show currentSize'') (currentSize'' < maxCacheSize)  
+
+  -- check that the correct entry was evicted
+  before <- getCurrentTime
+  _result2 <- executeTransGraphRelationalExpr session conn (expensiveExpr "expensive2")
+  after <- getCurrentTime
+
+  assertBool "expensive2 was not cached" (diffUTCTime after before < 1.0)
+  
