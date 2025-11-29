@@ -228,7 +228,7 @@ somePermissionP =
 
   (reserved "executefunctions" $> SomeFunctionPermission ExecuteFunctionPermission) <|>
   (reserved "viewfunctions" $> SomeFunctionPermission ViewFunctionPermission) <|>
-  (reserved "loadfunctions" $> SomeFunctionPermission LoadFunctionPermission) <|>
+  (reserved "alterfunctions" $> SomeFunctionPermission AlterFunctionPermission) <|>
 
   (reserved "alterschema" $> SomeAlterSchemaPermission AlterSchemaPermission) <|>
 

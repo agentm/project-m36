@@ -59,11 +59,11 @@ instance AllPermissions RelVarPermission where
 data FunctionPermission =
   ExecuteFunctionPermission -- ^ allow the role to execute the function
   | ViewFunctionPermission -- ^ allow the role to see that the function exists
-  | LoadFunctionPermission -- ^ allow the role to load functions from outside the database
+  | AlterFunctionPermission -- ^ allow the role to load functions from outside the database or replace existing functions
   deriving (Eq, Show, Ord, Generic, NFData, Hashable)
 
 instance AllPermissions FunctionPermission where
-  allPermissions = S.fromList [ExecuteFunctionPermission, ViewFunctionPermission, LoadFunctionPermission]
+  allPermissions = S.fromList [ExecuteFunctionPermission, ViewFunctionPermission, AlterFunctionPermission]
 
 data AlterTransGraphPermission =
   CommitTransactionPermission -- ^ allow the role to commit a transaction to the graph

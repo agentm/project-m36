@@ -267,7 +267,7 @@ instance Pretty RelVarPermission where
 instance Pretty FunctionPermission where
   pretty ExecuteFunctionPermission = "executefunctions"
   pretty ViewFunctionPermission = "viewfunctions"
-  pretty LoadFunctionPermission = "loadfunctions"
+  pretty AlterFunctionPermission = "alterfunctions"
 
 instance Pretty AlterTransGraphPermission where
   pretty CommitTransactionPermission = "committransaction"
