@@ -9,23 +9,27 @@ import TutorialD.Interpreter.Base
 
 alterLoginRolesExprP :: Parser AlterLoginRolesExpr
 alterLoginRolesExprP =
-  showAllRolesExprP <|>  
+  showAllRolesExprP <|>
+  alterRoleNameExprP <|>
+  alterRoleMayLoginExprP <|>
   showRolesForRoleExprP <|>
+  addLoginRoleToRoleExprP <|>  
   addLoginRoleExprP <|>
   removeLoginRoleExprP <|>
-  addLoginRoleToRoleExprP <|>
   removeLoginRoleFromRoleExprP <|>
   addPermissionToRoleExprP <|>
   removePermissionFromRoleExprP
   where
     mayGrantP = do
       (reserved "maygrant" $> True) <|> (reserved "nogrant" $> False)
+    mayLoginP = do
+      (reserved "maylogin" $> True) <|> (reserved "maynotlogin" $> False)
     showRolesForRoleExprP = do
       colonOp ":showloginrole" 
       ShowRolesForRoleExpr <$> roleNameP
     addLoginRoleExprP = do
       colonOp ":addloginrole"
-      AddLoginRoleExpr <$> roleNameP <*> mayGrantP
+      AddLoginRoleExpr <$> roleNameP <*> mayLoginP
     removeLoginRoleExprP = do
       colonOp ":removeloginrole"
       RemoveLoginRoleExpr <$> roleNameP
@@ -44,6 +48,12 @@ alterLoginRolesExprP =
     removePermissionFromRoleExprP = do
       colonOp ":removepermissionfromloginrole"
       RemovePermissionFromRoleExpr <$> roleNameP <*> permissionP
+    alterRoleNameExprP = do
+      colonOp ":alterrolename"
+      AlterLoginRoleExpr <$> roleNameP <*> (Just <$> roleNameP) <*> pure Nothing
+    alterRoleMayLoginExprP = do
+      colonOp ":alterrolemaylogin"
+      AlterLoginRoleExpr <$> roleNameP <*> pure Nothing <*> (Just <$> mayLoginP)
 
 evalAlterLoginRolesExpr :: SessionId -> Connection -> AlterLoginRolesExpr -> IO ConsoleResult
 evalAlterLoginRolesExpr sessionId conn expr = do

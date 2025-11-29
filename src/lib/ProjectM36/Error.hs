@@ -92,6 +92,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | NotificationValidationError NotificationName NotificationExpression RelationalError
                      | ImportError ImportError'
                      | ExportError T.Text
+                     | SystemError String
                      | UnhandledExceptionError String
                      | MergeTransactionError MergeError
                      | ScriptError ScriptCompilationError

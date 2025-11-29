@@ -145,28 +145,29 @@ testCacheEviction = TestCase $ do
                        [TupleExpr (M.fromList [(attr,
                                                 FunctionAtomExpr "test_expensive"
                                                   [NakedAtomExpr (TextAtom "test"),
-                                                   NakedAtomExpr (IntegerAtom 1000000)] tmarker)
+                                                   NakedAtomExpr (IntegerAtom 100000)] tmarker)
                                               ])
                        ])
   
   cache <- case conn of
              RemoteConnection{} -> assertFailure "unexpected remote connection"
              InProcessConnection conf -> pure (ipRelExprCache conf)
-  atomically $ writeTVar (upperBound cache) maxCacheSize
   
   -- add something to the cache
   _result1 <- executeTransGraphRelationalExpr session conn (expensiveExpr "expensive1")
   
   -- check size
   currentSize' <- readTVarIO (currentSize cache)
-  assertBool "expensive1 cache size" (currentSize' > 0)
+  assertBool ("expensive1 cache size: " <> show currentSize') (currentSize' > 0)
+
+  atomically $ writeTVar (upperBound cache) maxCacheSize
 
   -- add an item to go over the max cache size
   _result2 <- executeTransGraphRelationalExpr session conn (expensiveExpr "expensive2")  
 
   -- check cache size to ensure that previous entry was evicted
   currentSize'' <- readTVarIO (currentSize cache)
-  assertBool ("expensive2 cache size: " <> show currentSize'') (currentSize'' < maxCacheSize)  
+  assertBool ("expensive2 cache size: " <> show currentSize'' <> " maxCacheSize: " <> show maxCacheSize) (currentSize'' < maxCacheSize)  -- fails because maxCacheSize is now ignored in preference to totalMem
 
   -- check that the correct entry was evicted
   before <- getCurrentTime

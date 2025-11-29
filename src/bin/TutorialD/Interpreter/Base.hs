@@ -77,7 +77,7 @@ roleNameP :: Parser Text
 roleNameP = normalQuotedString <|> takeWhile1P (Just "non-whitespace character") (not . isSpace) <* spaceConsumer
 
 permissionP :: Parser Text
-permissionP = normalQuotedString <|> takeWhile1P (Just "non-whitespace character") (not . isSpace)
+permissionP = normalQuotedString <|> takeWhile1P (Just "non-whitespace character") (not . isSpace) <* spaceConsumer
   
 identifierRemainder :: Char -> Parser Text
 identifierRemainder c = do

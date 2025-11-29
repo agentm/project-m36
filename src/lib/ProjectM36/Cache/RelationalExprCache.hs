@@ -13,7 +13,6 @@ import qualified ProjectM36.RelExprSize as RE
 import ProjectM36.SystemMemory
 import ProjectM36.RelExprSize (ByteCount)
 import qualified Data.List.NonEmpty as NE
-import Data.Maybe (fromMaybe)
 import ListT
 import Data.List (sortBy)
 
@@ -24,10 +23,9 @@ import Data.List (sortBy)
 * if a key is a partial match of a large rel expr, then it can be used
 * if a value is something other than a set of tuples, it can allow for a natural compression
 
-the cache behaves probabalistically in that there is a non-zero chance for any cache item to be removed. As the cache increases in size, the chance of an item to be removed is increased.
-
 Project:M36 passes all results to the cache, which decides if it is worth caching based on the time it took to calculate the result and how large the result is (if it won't blow out the cache maximum level).
 
+In the future, the cache can be populated by predicting which queries are likely to be issued.
 -}
 
 
@@ -40,8 +38,10 @@ data RelExprCache = RelExprCache {
 -- | Use all available RAM. In the future, some sort of memory heuristics engine could juggle how much memory is allocated to caching vs. processing.
 defaultUpperBound :: IO ByteCount
 defaultUpperBound = do
-  mem <- getTotalMemory
-  pure (fromMaybe 0 mem)
+  mem <- getMemoryStats
+  case mem of
+    Left _err -> pure 0
+    Right (_,totalMem) -> pure totalMem
 
 empty :: ByteCount -> IO RelExprCache
 empty upper = do
@@ -111,20 +111,27 @@ type Probability = Double
 --trimCache = do
   --attribute probability to all cache entries based on cache size, time to compute the entry, last request time
 
+type MemoryPressure = Double
+
 -- | A simple LRU-based cache where the upper-bound is the available memory.
 executeLRUStrategy :: ByteCount -> -- ^ size of new, potential cache entry
                       NominalDiffTime -> -- ^ time it took to calculate this cache entry
                       RelExprCache ->
+                      FreeMemBytes ->
                       STM (Probability, [PinnedRelationalExpr]) -- ^ return the probability that the cache should retain this entry and, if so, which entries to purge to make room for it
-executeLRUStrategy entrySize _calcTime cache = do
+executeLRUStrategy entrySize _calcTime cache freeMem = do
     upperBound' <- readTVar (upperBound cache)
     currentSize' <- readTVar (currentSize cache)
+    let proposedFreeMem = freeMem - entrySize
+        prob = normalizedLogProb 1.0 (fromIntegral proposedFreeMem) (fromIntegral upperBound')
+        --prob = logisticProb (fromIntegral proposedFreeMem) (fromIntegral upperBound')
+--    traceShowM ("cache prob"::String, proposedFreeMem, upperBound', prob)
     if entrySize + currentSize' < upperBound' then
-      pure (1.0, [])
+      pure (prob, []) -- should we probabilistically remove cache entries before the cache is full?
       else do
       -- evict entries were least-recently used
       entriesToEvict <- leastRecentlyUsedEntries entrySize cache
-      pure (1.0, entriesToEvict)
+      pure (prob, entriesToEvict)
 
 type IsRegisteredQuery = Bool
 
@@ -135,11 +142,12 @@ add :: RandomGen g
     -> RelationRepresentation
     -> NominalDiffTime -- ^ time it took to calculate this value
     -> IsRegisteredQuery -- ^ Used to determine if the result to cache may potentially be used to evaluate a registered query, which should increase the result's likelihood of being cached.
+    -> MemoryStats
     -> RelExprCache
     -> STM g
-add rgen expr exprResult calcTime _isRegisteredQuery cache = do
+add rgen expr exprResult calcTime _isRegisteredQuery memStats cache = do
   -- if the time to calculate is less than a certain threshold, don't bother caching it
-  now <- unsafeIOToSTM getCurrentTime  
+  now <- unsafeIOToSTM getCurrentTime
   let newCacheInfo = RelExprCacheInfo { calculatedInTime = calcTime,
                                         result = exprResult,
                                         createTime = now,
@@ -152,7 +160,8 @@ add rgen expr exprResult calcTime _isRegisteredQuery cache = do
           let keySize = RE.size expr
               valSize = RE.size exprResult
           -- calculate probability of retention and, if retaining, which entries to evict
-          (probRetain, entriesToEvict) <- executeLRUStrategy (keySize + valSize) calcTime cache
+          upperBound' <- readTVar (upperBound cache)          
+          (probRetain, entriesToEvict) <- executeLRUStrategy (keySize + valSize) calcTime cache (min (fst memStats) upperBound')
           let (rand, rgen') = uniformR (0.0, 1.0) rgen
           --traceShowM ("probRetain"::String, probRetain, "rand"::String, rand, probRetain >= rand)
           when (probRetain >= rand) $ do
@@ -173,4 +182,23 @@ add rgen expr exprResult calcTime _isRegisteredQuery cache = do
           --traceShowM ("key already cached"::String)
           pure rgen
 
+-- p(m) = log(1 + α*m) / log(1 + α*Mmax)
+normalizedLogProb :: Double -> Double -> Double -> Double
+normalizedLogProb alpha m mmax
+  | m <= 0    = 0
+  | m >= mmax = 1
+  | otherwise = log (1 + alpha * m) / log (1 + alpha * mmax)
 
+logistic :: Double -> Double -> Double -> Double
+logistic k m x0 =
+  1.0 / (1.0 + (euler ** ((-k) * (m - x0))))
+
+stdlogistic :: Double -> Double
+stdlogistic m =
+  logistic 1.0 m 0.0
+
+logisticProb :: Double -> Double -> Double
+logisticProb freeMem memMax = logistic 1.0 freeMem (memMax / 2.0)
+
+euler :: Double
+euler = 2.718281828459045        

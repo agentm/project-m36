@@ -131,6 +131,7 @@ module ProjectM36.Client
        FunctionPermission(..),
        DBCFunctionPermission(..),       
        AlterDBCACLExprBase(..),
+       RelVarPermission(..),
        RoleName
        ) where
 import ProjectM36.Base
@@ -213,7 +214,6 @@ import Streamly.Internal.Network.Socket (SockSpec(..))
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
-import Data.Tuple (swap)
 
 type Hostname = String
 type Port = Word16
@@ -659,7 +659,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
                     resolveRoleIds roleNameResolver expr
                   else 
                     resolveRoleIds roleNameResolver expr >>= Schema.processDatabaseContextExprInSchema schema
-          roleNameResolver nam = lookup nam roles
+          roleNameResolver nam = fst <$> lookup nam roles
       case expr' of 
         Left err -> pure (Left err)
         Right expr'' -> do
@@ -1017,8 +1017,8 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
           let ctx = Sess.concreteDatabaseContext session
               transId = Sess.parentId session
               gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr dbExpr)
-              roleNameResolver nam = lookup nam roles
-              roleIdResolver roleId = lookup roleId (map swap roles)
+              roleNameResolver nam = fst <$> lookup nam roles
+              roleIdResolver roleId = lookup roleId (map (\(a,(b,_c)) -> (b,a)) roles)
           case resolveRoleIds roleNameResolver gfExpr of
             Left err -> pure (Left err)
             Right gfExpr' -> do
@@ -1121,8 +1121,10 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
         
 atomFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
 
+-- | Return a relation representing all database context functions. Requires ViewDBCFunctionPermission.
 databaseContextFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
+  roleIds <- roleIdsForRoleName conf
   atomically $ do
     eSession <- sessionAndSchema sessionId conf
     case eSession of
@@ -1130,10 +1132,17 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
       Right (session, _) -> do
         graph <- readTVar (ipTransactionGraph conf)
         let context = concreteDatabaseContext session
-        case RE.resolveDBC' graph context DBC.dbcFunctions of
+            reEnv = RE.mkRelationalExprEnv context graph   
+        case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
           Left err -> pure (Left err)
-          Right dbcFuncs ->
-            pure (DCF.databaseContextFunctionsAsRelation dbcFuncs)
+          Right acl' -> do
+            if hasAccess roleIds AccessRelVarsPermission (relvarsACL acl') then
+                case RE.resolveDBC' graph context DBC.dbcFunctions of
+                  Left err -> pure (Left err)
+                  Right dbcFuncs ->
+                    pure (DCF.databaseContextFunctionsAsRelation dbcFuncs)
+            else
+               pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
 

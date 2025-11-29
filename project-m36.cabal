@@ -106,7 +106,8 @@ Library
                   network-byte-order,
                   sqlite-simple,
                   data-default,
-                  process
+                  process,
+                  system-linux-proc
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -243,7 +244,8 @@ Library
                      ProjectM36.PinnedRelationalExpr,
                      ProjectM36.AccessControlList,
                      ProjectM36.AccessControl,
-                     ProjectM36.LoginRoles
+                     ProjectM36.LoginRoles,
+                     ProjectM36.PrettyBytes
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12

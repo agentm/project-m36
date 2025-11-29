@@ -10,7 +10,7 @@ import Data.Maybe
 import GHC.Generics
 import ProjectM36.Base
 import qualified Data.Text as T
-import Control.Monad (forM_)
+import Control.Monad (forM_, void)
 
 type LoginRolesDB = SQL.Connection
 
@@ -20,6 +20,7 @@ type MayLogin = Bool
 data AlterLoginRolesExpr = ShowRolesForRoleExpr RoleName | -- ^ show roles available to the given role
                            AddLoginRoleExpr RoleName MayLogin | -- ^ add a login role, requires admin role
                            RemoveLoginRoleExpr RoleName | -- ^ remove a login role, requires admin role
+                           AlterLoginRoleExpr RoleName (Maybe RoleName) (Maybe MayLogin) | -- ^ alter an existing role's name or login right
                            AddRoleToRoleExpr RoleName RoleName MayGrant | -- ^ add a role to an existing role
                            RemoveRoleFromRoleExpr RoleName RoleName | -- ^ remove a role from an existing role
                            AddPermissionToRoleExpr RoleName Permission MayGrant |
@@ -136,6 +137,23 @@ addRoleName roleName newRoleId maylogin db = do
     else
     pure (Left (RoleNameAlreadyExistsError roleName))
 
+-- Change and existing role's name or login ability.
+alterRoleName :: RoleName -> Maybe RoleName -> Maybe MayLogin -> LoginRolesDB -> IO (Either LoginRoleError ())
+alterRoleName origRoleName mNewRoleName mMayLogin db = do
+  eTargetId <- roleIdForRoleName origRoleName db
+  case eTargetId of
+      Left err -> pure (Left err)
+      Right targetId -> do
+        case mNewRoleName of
+          Nothing -> pure ()
+          Just newRoleName -> 
+            void $ SQL.execute db "UPDATE login_role_name SET rolename=? WHERE roleid=?" (newRoleName, toText targetId)
+        case mMayLogin of
+          Nothing -> pure ()
+          Just mayLogin ->
+            void $ SQL.execute db "UPDATE login_role_name SET maylogin=? WHERE roleid=?" (mayLogin, toText targetId)
+        pure (Right ())
+
 -- | Grant role access to other role.
 addRoleToRoleName :: RoleName -> RoleName -> MayGrant -> LoginRolesDB -> IO (Either LoginRoleError ())
 addRoleToRoleName roleNameTarget addToRoleName mayGrant db = do
@@ -226,10 +244,13 @@ removeRole rolename db = do
     else
     pure (Left (NoSuchRoleNameError rolename))
 
-allRoles :: LoginRolesDB -> IO [(RoleName, RoleId)]
+allRoles :: LoginRolesDB -> IO [(RoleName, (RoleId, MayLogin))]
 allRoles db = do
-  res <- SQL.query_ db "SELECT rolename,roleid from login_role_name"
-  pure (map (\(rn, rid) -> (rn, fromMaybe (error "invalid uuid in login_role_name") (fromString rid))) res)
+  res <- SQL.query_ db "SELECT rolename,roleid, maylogin from login_role_name"
+  pure (map (\(rn, rid, maylogin) ->
+               (rn,
+                (fromMaybe (error "invalid uuid in login_role_name") (fromString rid),
+                maylogin))) res)
 
 close :: LoginRolesDB -> IO ()
 close = SQL.close
@@ -257,6 +278,8 @@ executeAlterLoginRolesExpr currentRole db expr = do
               Right True -> pure (Right True)
               Right False ->
                 roleMayGrantRole currentRole other db
+          AlterLoginRoleExpr _target _mNewName _mMayLogin -> 
+            hasPerm alterLoginRolesPerm
           RemoveRoleFromRoleExpr _target other ->
             roleMayGrantRole currentRole other db
           AddPermissionToRoleExpr{} -> hasPerm alterLoginRolesPerm
@@ -287,7 +310,7 @@ executeAlterLoginRolesExpr currentRole db expr = do
               Right () -> ok
           ShowAllRolesExpr -> do
             roleInfos <- allRoles db
-            pure (Right (InfoResult (T.intercalate "\n" (map (\(roleName, roleId) -> T.pack (show roleId) <> ":" <> roleName) roleInfos))))
+            pure (Right (InfoResult (T.intercalate "\n" (map (\(roleName, (roleId, maylogin)) -> T.pack (show roleId) <> ":" <> roleName <> ":" <> if maylogin then "maylogin" else "maynotlogin") roleInfos))))
           RemoveLoginRoleExpr roleName -> do
             result <- removeRole roleName db
             case result of
@@ -296,6 +319,11 @@ executeAlterLoginRolesExpr currentRole db expr = do
           AddRoleToRoleExpr targetRole otherRole mayGrant -> do
             -- who can do this? the current user granting his permission or alter_login_roles perm
             res <- addRoleToRoleName targetRole otherRole mayGrant db
+            case res of
+              Left err -> pure (Left err)
+              Right () -> ok
+          AlterLoginRoleExpr targetRole mNewRoleName mMayLogin -> do
+            res <- alterRoleName targetRole mNewRoleName mMayLogin db
             case res of
               Left err -> pure (Left err)
               Right () -> ok

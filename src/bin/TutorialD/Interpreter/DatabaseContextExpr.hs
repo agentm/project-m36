@@ -210,14 +210,11 @@ alterACLP = do
         reserved "revoke"
         RevokeAccessExpr <$> roleNameP <*> somePermissionP
       grantDBCFuncP = do
-        reserved "grant"
-        reserved "dbcfunction"
         GrantDBCFunctionAccessExpr <$> roleNameP <*> functionNameP <*> dbcFunctionPermP <*> mayGrantP
       revokeDBCFuncP = do
-        reserved "revoke"
-        reserved "dbcfunction"
         RevokeDBCFunctionAccessExpr <$> roleNameP <*> functionNameP <*> dbcFunctionPermP
-  grantDBCFuncP <|> revokeDBCFuncP <|>        
+  (try (reserved "grant" >> reserved "dbcfunction") >> grantDBCFuncP) <|>
+    (try (reserved "revoke" >> reserved "dbcfunction") >> revokeDBCFuncP) <|>        
     grantP <|> revokeP
 
 dbcFunctionPermP :: Parser DBCFunctionPermission
@@ -235,6 +232,8 @@ somePermissionP =
 
   (reserved "alterschema" $> SomeAlterSchemaPermission AlterSchemaPermission) <|>
 
+  (reserved "alteracl" $> SomeACLPermission AlterACLPermission) <|>
+  (reserved "viewacl" $> SomeACLPermission ViewACLPermission) <|>
   (reserved "committransaction" $> SomeAlterTransGraphPermission CommitTransactionPermission)
 
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr

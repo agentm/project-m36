@@ -6,9 +6,14 @@ import Data.Int (Int64)
 #if defined(darwin_HOST_OS)  
 import System.Process (readProcess)
 import Control.Exception (catch, SomeException)
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 #endif
 #if defined(linux_HOST_OS)
-import Data.List (isPrefixOf)
+import System.Linux.Proc.MemInfo
+import System.Linux.Proc.Errors
+import qualified Data.Text as T
 #endif 
 
 #if defined(mingw32_HOST_OS)
@@ -37,37 +42,76 @@ data MEMORYSTATUSEX = MEMORYSTATUSEX
 foreign import ccall "GlobalMemoryStatusEx" c_GlobalMemoryStatusEx :: Ptr MEMORYSTATUSEX -> IO ()
 #endif
 
+type FreeMemBytes = Int64
+type TotalMemBytes = Int64
+type MemoryStats = (FreeMemBytes, TotalMemBytes)
+
 -- | Get total physical memory in a platform-specific way.
-getTotalMemory :: IO (Maybe Int64)
-getTotalMemory = do
+getMemoryStats :: IO (Either String MemoryStats)
+getMemoryStats = do
 #if defined(mingw32_HOST_OS)
     allocaBytes (sizeOf (undefined :: MEMORYSTATUSEX)) $ \ptr -> do
         let memStatus = MEMORYSTATUSEX { dwLength = fromIntegral (sizeOf (undefined :: MEMORYSTATUSEX)), .. }
         poke ptr memStatus
         c_GlobalMemoryStatusEx ptr
         memStatus' <- peek ptr
-        return $ Just (fromIntegral (ullTotalPhys memStatus'))
+        return $ Right (fromIntegral (ullAvailPhys memStatus'), fromIntegral (ullTotalPhys memStatus'))
 #elif defined(darwin_HOST_OS)
-      result <- catch (readProcess "sysctl" ["-n", "hw.memsize"] "") handleError
-      return $ readMaybe result
-        where
-          handleError :: SomeException -> IO String
-          handleError _ = pure ""
-          readMaybe :: String -> Maybe Int64
-          readMaybe s = case reads s of
-            [(val, "")] -> Just val
-            _           -> Nothing
-#elif defined(linux_HOST_OS)      
-      contents <- readFile "/proc/meminfo"
-      let totalRAMLine = filter (isPrefixOf "MemTotal:") (lines contents)
-      case totalRAMLine of
-        (line:_) -> return $ parseTotalRAM line
-        []       -> return Nothing
-  where
-    parseTotalRAM :: String -> Maybe Int64
-    parseTotalRAM line = 
-          let wordsInLine = words line
-          in if length wordsInLine > 1
-          then Just (1024 * read (wordsInLine !! 1) :: Int64)  -- The second word is the total RAM in kB
-       else Nothing
+  eres <- try (readProcess "memory_pressure" [] "") :: IO (Either IOException String)
+  case eres of
+    Left err -> pure (Left (displayException err))
+    Right memPressureText -> do
+      let parseMemPressure = do
+           _ <- manyTill anySingle (try (string "The system has "))
+           totalMemBytes <- L.decimal
+           _ <- manyTill anySingle (try (string "Pages free:"))
+           space1
+           -- parse integer pages
+           freePages <- L.decimal
+           _ <- char '%'
+           pure (freePages * 4096, totalMemBytes) -- 4096 default page size on macOS
+      case parse parseMemPressure "" memPressureText of
+        Left err -> pure (Left (errorBundlePretty err))
+        Right memvals -> pure (Just memvals)
+#elif defined(linux_HOST_OS)
+  eMemInfo <- readProcMemInfo
+  pure $ case eMemInfo of
+    Left err -> Left (T.unpack (renderProcError err))
+    Right memInfo -> Right (fromIntegral (memFree memInfo), fromIntegral (memTotal memInfo))
 #endif
+
+-- | Estimate the memory pressure as a number between 0 and 1 which is a ratio of free to actively used memory.
+getMemoryPressure :: IO (Maybe Double)
+getMemoryPressure = do
+#if defined(mingw32_HOST_OS)
+  allocaBytes (sizeOf (undefined :: MEMORYSTATUSEX)) $ \ptr -> do
+    let memStatus = MEMORYSTATUSEX { dwLength = fromIntegral (sizeOf (undefined :: MEMORYSTATUSEX)), .. }
+    poke ptr memStatus
+    c_GlobalMemoryStatusEx ptr
+    memStatus' <- peek ptr
+    return $ Just (fromIntegral (ullAvailPhys memStatus') / fromIntegral (ullTotalPhys memStatus'))
+#elif defined(darwin_HOST_OS)
+  eres <- try (readProcess "memory_pressure" [] "") :: IO (Either IOException String)
+  case eres of
+    Left err -> pure Nothing
+    Right memPressureText -> do
+      let parseMemPressure = do
+           _ <- manyTill anySingle (try (string "System-wide memory free percentage"))
+           space1
+           _ <- char ':'
+           space1
+           -- parse integer percentage
+           n <- L.decimal
+           _ <- char '%'
+           pure n
+      case parseMaybe parseMemPressure memPressureText of
+        Nothing -> pure Nothing
+        Just percentage -> pure (Just (percentage / 100.0))
+#elif defined(linux_HOST_OS)
+  eMemInfo <- readProcMemInfo
+  pure $ case eMemInfo of
+    Left _err -> Nothing
+    Right memInfo -> Just (fromIntegral (memFree memInfo))
+#endif
+
+-- on linux, /proc/pressure/(memory/cpu/io) track metrics for determining if useful work is being delayed due to pressure on those subsystems- however we want to prevent getting to this state at all, so it's not that useful

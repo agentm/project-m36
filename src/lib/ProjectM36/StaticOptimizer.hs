@@ -5,6 +5,7 @@ import ProjectM36.Base
 import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Relation
 import ProjectM36.Cache.RelationalExprCache as RelExprCache
+import ProjectM36.SystemMemory
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.RelationalExpression
 import ProjectM36.PinnedRelationalExpr
@@ -132,8 +133,13 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
             Nothing -> pure (Right relationResult')
             Just cacheKey -> do
               rando <- initStdGen
-              void $ atomically $ RelExprCache.add rando cacheKey cacheValue execDiffTime False cache
-              pure (Right relationResult')
+              eMemStats <- getMemoryStats -- consider running mem stats less often if it's a bottleneck
+              case eMemStats of
+                Left err -> pure (Left (SystemError err))
+                Right memStats -> do
+                  void $ atomically $
+                    RelExprCache.add rando cacheKey cacheValue execDiffTime False memStats cache 
+                  pure (Right relationResult')
   
 
 optimizeRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError GraphRefRelationalExpr

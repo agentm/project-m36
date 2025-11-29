@@ -1,11 +1,15 @@
 import TutorialD.Interpreter.TestBase
 import ProjectM36.Client
+import ProjectM36.Relation
 import Test.HUnit
 import System.Exit
+import Data.Either (isRight)
 
 main :: IO ()
 main = do
-  tcounts <- runTestTT (TestList [testDBCFunctionACL])
+  tcounts <- runTestTT (TestList [testDBCFunctionACL,
+                                 testRelVarAccess,
+                                 testFunctionAccess])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
 
 testDBCFunctionACL :: Test
@@ -29,3 +33,55 @@ testDBCFunctionACL = TestCase $ do
   -- successfully execute the dbc function
   res'''' <- executeDatabaseContextExpr sessionId user1conn (ExecuteDatabaseContextFunction "deleteAll" [])
   assertEqual "success calling deleteAll" (Right ()) res''''
+
+testRelVarAccess :: Test
+testRelVarAccess = TestCase $ do
+  (sessionId, conn) <- dateExamplesConnection emptyNotificationCallback
+  -- add a less-privileged role
+  let user1 = "user1"
+  res <- executeAlterLoginRolesExpr sessionId conn (AddLoginRoleExpr user1 False)
+  assertEqual "add role" (Right QuietSuccessResult) res
+  let user1conn = setRoleName user1 conn
+
+  -- check that the user cannot view the relvars
+  res' <- executeRelationalExpr sessionId user1conn (RelationVariable "x" ())
+
+  assertEqual "reject relvar access" (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission))) res'
+
+  -- grant relvars access
+  res'' <- executeDatabaseContextExpr sessionId conn (AlterACL (GrantAccessExpr user1 (SomeRelVarPermission AccessRelVarsPermission) False))
+
+  assertEqual "grant rv access" (Right ()) res''
+
+  -- check that the user can view the relvars
+  res''' <- executeRelationalExpr sessionId user1conn (RelationVariable "true" ())
+
+  assertEqual "accept relvar access" (Right relationTrue) res'''
+  
+testFunctionAccess :: Test
+testFunctionAccess = TestCase $ do
+  (sessionId, conn) <- dateExamplesConnection emptyNotificationCallback
+  -- add a less-privileged role
+  let user1 = "user1"
+  res <- executeAlterLoginRolesExpr sessionId conn (AddLoginRoleExpr user1 False)
+  assertEqual "add role" (Right QuietSuccessResult) res
+  let user1conn = setRoleName user1 conn
+
+  -- check that function view access is denied
+  res' <- databaseContextFunctionsAsRelation sessionId user1conn 
+  assertEqual "rejected dbc function view" (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission))) res'
+  
+  -- grant function view
+  res'' <- executeDatabaseContextExpr sessionId conn (AlterACL (GrantAccessExpr user1 (SomeRelVarPermission AccessRelVarsPermission) False))
+  assertEqual "grant relvars access" (Right ()) res''
+
+  -- check that function view works
+  res''' <- databaseContextFunctionsAsRelation sessionId user1conn 
+  assertBool "rejected dbc function view" (isRight res''')
+  
+
+  -- check that function execute is denied
+
+  -- grant function execute
+
+  -- check that function view works
