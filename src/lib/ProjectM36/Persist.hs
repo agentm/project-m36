@@ -159,6 +159,6 @@ printFdCount =
 fdCount :: IO Int
 fdCount = do
   fds <- getDirectoryContents FDDIR
-  pure ((length fds) - 2)
+  pure (length fds - 2)
 --not supported on non-linux
 #endif

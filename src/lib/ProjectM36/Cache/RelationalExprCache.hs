@@ -167,9 +167,7 @@ add rgen expr exprResult calcTime _isRegisteredQuery memStats cache = do
           when (probRetain >= rand) $ do
             forM_ entriesToEvict $ \key -> do
               mval <- STMMap.lookup key (cacheMap cache)
-              let delSize = case mval of
-                    Nothing -> 0
-                    Just val -> size val
+              let delSize = maybe 0 size mval
               currentSize' <- readTVar (currentSize cache)                    
               STMMap.delete key (cacheMap cache)
               writeTVar (currentSize cache) (currentSize' - delSize)
@@ -187,7 +185,7 @@ normalizedLogProb :: Double -> Double -> Double -> Double
 normalizedLogProb alpha m mmax
   | m <= 0    = 0
   | m >= mmax = 1
-  | otherwise = log (1 + alpha * m) / log (1 + alpha * mmax)
+  | otherwise = logBase (1 + alpha * mmax) (1 + alpha * m) 
 
 logistic :: Double -> Double -> Double -> Double
 logistic k m x0 =

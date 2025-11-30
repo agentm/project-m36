@@ -112,6 +112,8 @@ getMemoryPressure = do
   pure $ case eMemInfo of
     Left _err -> Nothing
     Right memInfo -> Just (fromIntegral (memFree memInfo))
+#else
+#error Failed to determine matching OS.
 #endif
 
 -- on linux, /proc/pressure/(memory/cpu/io) track metrics for determining if useful work is being delayed due to pressure on those subsystems- however we want to prevent getting to this state at all, so it's not that useful

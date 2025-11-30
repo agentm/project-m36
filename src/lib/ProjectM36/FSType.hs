@@ -67,22 +67,15 @@ import Foreign.C.Error
 import Foreign.C.String
 import Foreign.C.Types
 
-#include "MachDeps.h"
 --Linux cannot report journaling, so we just check the filesystem type as a proxy
 type CStatFS = ()
 foreign import ccall unsafe "sys/vfs.h statfs" 
   c_statfs :: CString -> Ptr CStatFS -> IO CInt
-  
-#if WORD_SIZE_IN_BITS == 64
+
+-- warning: hardcoded to 64-bit statfs
 type CFSType = Word64
 sizeofStructStatFS :: Int
 sizeofStructStatFS = 120
-#else
-#error 32-bit not supported due to sizeof struct statfs missing
-type CFSType = Word32
-sizeofStructStatFS :: Int
-sizeofStructStatFS = undefined
-#endif
 
 fsTypeSupportsJournaling :: FilePath -> IO Bool
 fsTypeSupportsJournaling path = do
@@ -97,6 +90,8 @@ fsTypeSupportsJournaling path = do
                          0x58465342, --XFS
                          0x3153464a --JFS
                          ]
-      pure (elem cfstype journaledFS)
+      pure (cfstype `elem` journaledFS)
+#else
+#error Failed to match OS.
 #endif
 

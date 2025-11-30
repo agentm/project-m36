@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric, StandaloneDeriving, DerivingVia, TypeApplications #-}
+{-# LANGUAGE DeriveGeneric, DerivingVia, TypeApplications #-}
 import ProjectM36.Client
 import Data.Typeable
 import ProjectM36.Relation

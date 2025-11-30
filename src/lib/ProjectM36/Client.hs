@@ -918,11 +918,12 @@ commit :: SessionId -> Connection -> IO (Either RelationalError ())
 commit sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr sessionId conn Commit 
 commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Commit)
 
+-- | Sends notifications to client who have registered notifications. Only sends notifications to roles which have the AccessRelVarsPermission.
 sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
 sendNotifications clients notifs =
   unless (M.null notifs) $ forM_ clients sender
  where
-   --TODO check if role has access to relvars
+   --check if role has access to relvars based on the context- make sure that roles which have had permission in the past but have had it revoked no longer get notifications- find a solution to send notifications for changes in DBC function results.
   sender (RemoteClientInfo sock _) = SRPC.sendMessage sock (NotificationMessage notifs)
   sender (InProcessClientInfo tvar) = putMVar tvar notifs
 
@@ -944,9 +945,23 @@ readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransaction
 
 -- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types. If relvars are mentioned, requires AccessRelVarsPermission. If functions are mentioned, requires ViewFunctionPermission.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-typeForRelationalExpr sessionId conn@(InProcessConnection _) relExpr =
--- TODO  applyACLRelationalExpr 
-  atomically $ typeForRelationalExprSTM sessionId conn relExpr
+typeForRelationalExpr sessionId conn@(InProcessConnection conf) relExpr = do
+  roleIds <- roleIdsForRoleName conf
+  atomically $ do
+    eSession <- sessionAndSchema sessionId conf
+    case eSession of
+      Left err -> pure $ Left err
+      Right (session, _schema) -> do
+        graph <- readTVar (ipTransactionGraph conf)
+        let dbctx = Sess.concreteDatabaseContext session
+            reEnv = RE.mkRelationalExprEnv dbctx graph
+        case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
+          Left err -> pure (Left err)
+          Right acl' -> do
+            case applyACLRelationalExpr roleIds (relvarsACL acl') relExpr of
+              Left err -> pure (Left err)
+              Right () ->
+                typeForRelationalExprSTM sessionId conn relExpr
 typeForRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr sessionId relExpr)
     
 typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
