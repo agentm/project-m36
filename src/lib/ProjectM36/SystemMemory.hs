@@ -5,7 +5,7 @@ module ProjectM36.SystemMemory where
 import Data.Int (Int64)
 #if defined(darwin_HOST_OS)  
 import System.Process (readProcess)
-import Control.Exception (catch, SomeException)
+import Control.Exception (catch, SomeException, IOException(..))
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
