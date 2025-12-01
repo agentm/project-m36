@@ -5,10 +5,11 @@ module ProjectM36.SystemMemory where
 import Data.Int (Int64)
 #if defined(darwin_HOST_OS)  
 import System.Process (readProcess)
-import Control.Exception (catch, SomeException, IOException(..), displayException)
+import qualified Control.Exception as Exc
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import Data.Void
 #endif
 #if defined(linux_HOST_OS)
 import System.Linux.Proc.MemInfo
@@ -57,11 +58,12 @@ getMemoryStats = do
         memStatus' <- peek ptr
         return $ Right (fromIntegral (ullAvailPhys memStatus'), fromIntegral (ullTotalPhys memStatus'))
 #elif defined(darwin_HOST_OS)
-  eres <- try (readProcess "memory_pressure" [] "") :: IO (Either IOException String)
+  eres <- Exc.try (readProcess "memory_pressure" [] "") :: IO (Either IOError String)
   case eres of
-    Left err -> pure (Left (displayException err))
+    Left err -> pure (Left (Exc.displayException err))
     Right memPressureText -> do
-      let parseMemPressure = do
+      let parseMemPressure :: Parsec Void String MemoryStats
+          parseMemPressure = do
            _ <- manyTill anySingle (try (string "The system has "))
            totalMemBytes <- L.decimal
            _ <- manyTill anySingle (try (string "Pages free:"))
@@ -72,7 +74,7 @@ getMemoryStats = do
            pure (freePages * 4096, totalMemBytes) -- 4096 default page size on macOS
       case parse parseMemPressure "" memPressureText of
         Left err -> pure (Left (errorBundlePretty err))
-        Right memvals -> pure (Just memvals)
+        Right memvals -> pure (Right memvals)
 #elif defined(linux_HOST_OS)
   eMemInfo <- readProcMemInfo
   pure $ case eMemInfo of
@@ -91,11 +93,12 @@ getMemoryPressure = do
     memStatus' <- peek ptr
     return $ Just (fromIntegral (ullAvailPhys memStatus') / fromIntegral (ullTotalPhys memStatus'))
 #elif defined(darwin_HOST_OS)
-  eres <- try (readProcess "memory_pressure" [] "") :: IO (Either IOException String)
+  eres <- Exc.try (readProcess "memory_pressure" [] "") :: IO (Either IOError String)
   case eres of
-    Left err -> pure Nothing
+    Left _err -> pure Nothing
     Right memPressureText -> do
-      let parseMemPressure = do
+      let parseMemPressure :: Parsec Void String Double
+          parseMemPressure = do
            _ <- manyTill anySingle (try (string "System-wide memory free percentage"))
            space1
            _ <- char ':'
