@@ -107,7 +107,8 @@ Library
                   sqlite-simple,
                   data-default,
                   process,
-                  system-linux-proc
+                  system-linux-proc,
+                  megaparsec 
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
