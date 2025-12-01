@@ -97,10 +97,11 @@ testRelationalExpr :: SessionId -> Connection -> Test
 testRelationalExpr sessionId conn = TestCase $ do
   relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
-  
-eitherFail :: (Show e) => Either e a -> IO ()
+
+#define eitherFail (\x -> case x of { Left err -> assertFailure (show err); Right _ -> pure () })
+{-eitherFail :: (Show e) => Either e a -> IO ()
 eitherFail (Left err) = assertFailure (show err)
-eitherFail (Right _) = pure ()
+eitherFail (Right _) = pure ()-}
   
 -- test adding an removing a schema against true/false relations  
 testSchemaExpr :: SessionId -> Connection -> Test

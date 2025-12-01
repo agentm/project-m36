@@ -148,10 +148,7 @@ import ProjectM36.Key
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
-#if MIN_VERSION_base(4,16,0)
-import Control.Monad (forever, forM, forM_, unless, void)
-#endif
---import Control.Monad.State
+import Control.Monad (forever, forM, forM_, unless, void, when)
 import qualified ProjectM36.RelationalExpression as RE
 import qualified ProjectM36.TransactionGraph as Graph
 import ProjectM36.TransactionGraph as TG
@@ -919,12 +916,18 @@ commit sessionId conn@(InProcessConnection _) = executeAlterTransactionGraphExpr
 commit sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteAlterTransactionGraphExpr sessionId Commit)
 
 -- | Sends notifications to client who have registered notifications. Only sends notifications to roles which have the AccessRelVarsPermission.
-sendNotifications :: [ClientInfo] -> EvaluatedNotifications -> IO ()
-sendNotifications clients notifs =
+sendNotifications :: InProcessConnectionConf -> RelVarAccessControlList -> [ClientInfo] -> EvaluatedNotifications -> IO ()
+sendNotifications conf acl' clients notifs =
   unless (M.null notifs) $ forM_ clients sender
  where
    --check if role has access to relvars based on the context- make sure that roles which have had permission in the past but have had it revoked no longer get notifications- find a solution to send notifications for changes in DBC function results.
-  sender (RemoteClientInfo sock _) = SRPC.sendMessage sock (NotificationMessage notifs)
+  sender (RemoteClientInfo sock roleName) = do
+    eRoles <- LoginRoles.roleIdsForRoleName roleName (ipLoginRoles conf)
+    case eRoles of
+      Left _err -> pure ()
+      Right roleIds ->
+        when (hasAccess roleIds AccessRelVarsPermission acl') $
+          SRPC.sendMessage sock (NotificationMessage notifs)
   sender (InProcessClientInfo tvar) = putMVar tvar notifs
 
 -- | Discard any changes made in the current 'Session' and 'DatabaseContext'. This resets the disconnected transaction to reference the original database context of the parent transaction and is a very cheap operation. Requires CommitTransactionPermission.
@@ -1305,24 +1308,29 @@ commitLock_ sessionId conf stmBlock = do
               Right (discon, tWriteInfo) -> do
                 writeTVar graphTvar (newGraph tWriteInfo)
                 let newSession = Session discon (Sess.schemaName session)
-                StmMap.insert newSession sessionId sessions
-                case RE.transactionForId (Sess.parentId session) oldGraph of
-                  Left err -> pure $ Left err
-                  Right previousTrans ->
-                    if not (Prelude.null (uncommittedTransactions tWriteInfo)) then do
-                      (evaldNots, nodes) <- executeCommitExprSTM_ (newGraph tWriteInfo) (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
-                      clientNodeMap <- stmMapToList nodes
-                      let nodesToNotify = map snd clientNodeMap
-                      pure $ Right (evaldNots, nodesToNotify, tWriteInfo)
-                    else pure (Right (M.empty, [], tWriteInfo))
+                    dbctx = Discon.concreteDatabaseContext discon
+                case RE.resolveDBC' (newGraph tWriteInfo) dbctx DBC.acl of
+                  Left err -> pure (Left err)
+                  Right acl' -> do
+                    let rvacl = relvarsACL acl'
+                    StmMap.insert newSession sessionId sessions
+                    case RE.transactionForId (Sess.parentId session) oldGraph of
+                      Left err -> pure $ Left err
+                      Right previousTrans ->
+                        if not (Prelude.null (uncommittedTransactions tWriteInfo)) then do
+                          (evaldNots, nodes) <- executeCommitExprSTM_ (newGraph tWriteInfo) (Trans.concreteDatabaseContext previousTrans) (Sess.concreteDatabaseContext session) clientNodes
+                          clientNodeMap <- stmMapToList nodes
+                          let nodesToNotify = map snd clientNodeMap
+                          pure $ Right (evaldNots, nodesToNotify, tWriteInfo, rvacl)
+                        else pure (Right (M.empty, [], tWriteInfo, rvacl))
 
       --handle notification firing                
   case manip of 
     Left err -> pure (Left err)
-    Right (notsToFire, nodesToNotify, tWriteInfo) -> do
+    Right (notsToFire, nodesToNotify, tWriteInfo, acl') -> do
       --update filesystem database, if necessary
       processTransactionGraphPersistence strat tWriteInfo
-      sendNotifications nodesToNotify notsToFire
+      sendNotifications conf acl' nodesToNotify notsToFire
       pure (Right ())
 
 -- | Runs an IO monad, commits the result when the monad returns no errors, otherwise, rolls back the changes and the error.
