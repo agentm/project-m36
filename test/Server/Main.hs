@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, LambdaCase #-}
 {-
 test client/server interaction
 -}
@@ -98,7 +98,7 @@ testRelationalExpr sessionId conn = TestCase $ do
   relResult <- executeRelationalExpr sessionId conn (RelationVariable "true" ())
   assertEqual "invalid relation result" (Right relationTrue) relResult
 
-#define eitherFail (\x -> case x of { Left err -> assertFailure (show err); Right _ -> pure () })
+#define eitherFail (\case { Left err -> assertFailure (show err); Right _ -> pure () })
 {-eitherFail :: (Show e) => Either e a -> IO ()
 eitherFail (Left err) = assertFailure (show err)
 eitherFail (Right _) = pure ()-}
