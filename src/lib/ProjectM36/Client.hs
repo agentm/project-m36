@@ -156,13 +156,14 @@ import qualified ProjectM36.Transaction.Types as Trans
 import ProjectM36.IsomorphicSchema.Types hiding (subschemas, concreteDatabaseContext)
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
-import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr)
+import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr, process, TransGraphEvalEnv(..))
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
 import ProjectM36.DDLType
 import ProjectM36.NormalizeExpr
 import ProjectM36.Notifications
 import ProjectM36.Server.RemoteCallTypes
+import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Streaming.RelationalExpression (planGraphRefRelationalExpr, renderPretty)
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import ProjectM36.Relation (typesAsRelation)
@@ -211,6 +212,7 @@ import Streamly.Internal.Network.Socket (SockSpec(..))
 import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
+import qualified Data.HashSet as HS
 
 type Hostname = String
 type Port = Word16
@@ -501,6 +503,7 @@ createSessionAtHead conn@(InProcessConnection conf) headn = do
 createSessionAtHead conn@(RemoteConnection _) headn = remoteCall conn (CreateSessionAtHead headn)
 
 -- | Discards a session, eliminating any uncommitted changes present in the session.
+-- TODO: should sessions only be closed by the role which opened it? Yes. Otherwise we risk DoS attacks.
 closeSession :: SessionId -> Connection -> IO ()
 closeSession sessionId (InProcessConnection conf) = 
     atomically $ StmMap.delete sessionId (ipSessions conf)
@@ -791,11 +794,7 @@ executeCommitExprSTM_ graph oldContext newContext nodes = do
                                                  reportNewRelation = evalInContext (reportNewExpr notif) newContext}
   pure (evaldNots, nodes)
   
--- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators cannot modify the transaction graph state. Requires no specific permission.
-
--- OPTIMIZATION OPPORTUNITY: no locks are required to write new transaction data, only to update the transaction graph id file
--- if writing data is re-entrant, we may be able to use unsafeIOtoSTM
--- perhaps keep hash of data file instead of checking if our head was updated on every write
+-- | Execute a transaction graph expression in the context of the session and connection. Transaction graph operators cannot modify the transaction graph state. Does not require any permission.
 executeTransactionGraphExpr :: SessionId -> Connection -> TransactionGraphExpr -> IO (Either RelationalError ())
 executeTransactionGraphExpr sessionId (InProcessConnection conf) graphExpr = excEither $ do
   let sessions = ipSessions conf
@@ -863,13 +862,25 @@ executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr 
           Left err -> pure (Left err)
           Right acl' -> do
             let rvACL = relvarsACL acl'
-            case applyACLTransGraphRelationalExpr roleIds rvACL tgraphExpr of
+            case TGRE.process (TransGraphEvalEnv graph) tgraphExpr of
               Left err -> pure (Left err)
-              Right () ->
-                pure (Right graph)
+              Right gfExpr -> do
+                -- security check- get rvs mentioned at any transaction ids
+                let rvMentionedMarkers = decomposeGraphRefTransactionMarkers gfExpr
+                    -- collect acls from those transactions
+                    lookupACL UncommittedContextMarker = do
+                      applyACLRelationalExpr roleIds rvACL (RelationVariable "true" ())
+                    lookupACL (TransactionMarker tid) = do
+                      trans <- TG.lookupTransaction graph (TransactionIdLookup tid)
+                      let dbctx' = Trans.concreteDatabaseContext trans
+                      rvacl <- relvarsACL <$> RE.resolveDBC' graph dbctx' DBC.acl
+                      applyACLRelationalExpr roleIds rvacl (RelationVariable "true" ())
+                case forM_ rvMentionedMarkers (\(marker, _rvname) -> lookupACL marker) of
+                  Left err -> pure (Left err)
+                  Right () -> pure (Right graph)
   case eGraph of
     Left err -> pure (Left err)
-    Right graph ->
+    Right graph -> 
       optimizeAndEvalTransGraphRelationalExprWithCache graph tgraphExpr (ipRelExprCache conf)
   
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
@@ -948,7 +959,7 @@ readGraphTransactionIdDigest (CrashSafePersistence dbdir) = readGraphTransaction
 
 -- | Return a relation whose type would match that of the relational expression if it were executed. This is useful for checking types and validating a relational expression's types. If relvars are mentioned, requires AccessRelVarsPermission. If functions are mentioned, requires ViewFunctionPermission.
 typeForRelationalExpr :: SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
-typeForRelationalExpr sessionId conn@(InProcessConnection conf) relExpr = do
+typeForRelationalExpr sessionId (InProcessConnection conf) relExpr = do
   roleIds <- roleIdsForRoleName conf
   atomically $ do
     eSession <- sessionAndSchema sessionId conf
@@ -964,11 +975,11 @@ typeForRelationalExpr sessionId conn@(InProcessConnection conf) relExpr = do
             case applyACLRelationalExpr roleIds (relvarsACL acl') relExpr of
               Left err -> pure (Left err)
               Right () ->
-                typeForRelationalExprSTM sessionId conn relExpr
+                typeForRelationalExprSTM sessionId conf relExpr
 typeForRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteTypeForRelationalExpr sessionId relExpr)
     
-typeForRelationalExprSTM :: SessionId -> Connection -> RelationalExpr -> STM (Either RelationalError Relation)    
-typeForRelationalExprSTM sessionId (InProcessConnection conf) relExpr = do
+typeForRelationalExprSTM :: SessionId -> InProcessConnectionConf -> RelationalExpr -> STM (Either RelationalError Relation)    
+typeForRelationalExprSTM sessionId conf relExpr = do
   eSession <- sessionAndSchema sessionId conf
   case eSession of
     Left err -> pure $ Left err
@@ -982,10 +993,8 @@ typeForRelationalExprSTM sessionId (InProcessConnection conf) relExpr = do
         Right relExpr' -> do
           graph <- readTVar (ipTransactionGraph conf)          
           let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
-          pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr relExpr') 
-    
-typeForRelationalExprSTM _ _ _ = error "typeForRelationalExprSTM called on non-local connection"
-
+          pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr relExpr')
+          
 -- | Return a 'Map' of the database's constraints at the context of the session and connection.
 inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError InclusionDependencies)
 inclusionDependencies sessionId (InProcessConnection conf) = do
@@ -1139,7 +1148,7 @@ atomFunctionsAsRelation sessionId (InProcessConnection conf) = do
         
 atomFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveAtomFunctionSummary sessionId)        
 
--- | Return a relation representing all database context functions. Requires ViewDBCFunctionPermission.
+-- | Return a relation representing all database context functions. Requires ViewFunctionPermission and ViewDBCFunctionPermission per function.
 databaseContextFunctionsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
   roleIds <- roleIdsForRoleName conf
@@ -1154,18 +1163,23 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
         case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
           Left err -> pure (Left err)
           Right acl' -> do
-            if hasAccess roleIds AccessRelVarsPermission (relvarsACL acl') then
+            if hasAccess roleIds ViewFunctionPermission (dbcFunctionsACL acl') then
                 case RE.resolveDBC' graph context DBC.dbcFunctions of
                   Left err -> pure (Left err)
-                  Right dbcFuncs ->
-                    pure (DCF.databaseContextFunctionsAsRelation dbcFuncs)
+                  Right dbcFuncs -> do
+                    -- filter out dbcFuncs to which this user does not have ViewDBCFunctionPermission
+                    let dbcFuncsFiltered = HS.filter dbcFuncFilter dbcFuncs
+                        dbcFuncFilter f = hasAccess roleIds ViewDBCFunctionPermission (funcACL f)
+                    pure (DCF.databaseContextFunctionsAsRelation dbcFuncsFiltered)
             else
                pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
 
+-- | Show notifications in a relation format. Requires RelVarsAccessPermission.
 notificationsAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 notificationsAsRelation sessionId (InProcessConnection conf) = do
+  roleIds <- roleIdsForRoleName conf    
   atomically $ do
     eSession <- sessionAndSchema sessionId conf
     case eSession of
@@ -1176,7 +1190,14 @@ notificationsAsRelation sessionId (InProcessConnection conf) = do
         case RE.resolveDBC' graph context DBC.notifications of
           Left err -> pure (Left err)
           Right notifs ->
-            pure (Schema.notificationsAsRelationInSchema notifs schema)
+            case relvarsACL <$> RE.resolveDBC' graph context DBC.acl of
+              Left err -> pure (Left err)
+              Right rvacl' ->
+                if hasAccess roleIds AccessRelVarsPermission rvacl' then
+                  pure (Schema.notificationsAsRelationInSchema notifs schema)
+                else
+                  pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))                  
+
 notificationsAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveNotificationsAsRelation sessionId)
 
 -- | Returns the transaction id for the connection's disconnected transaction committed parent transaction.  
@@ -1205,7 +1226,7 @@ currentHead sessionId (InProcessConnection conf) = do
   atomically (currentHeadSTM_ sessionId sessions)
 currentHead sessionId conn@(RemoteConnection _) = remoteCall conn (ExecuteHeadName sessionId)
 
--- | Returns a listing of all available atom types.
+-- | Returns a listing of all available atom types. Requires no specific permission.
 atomTypesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 atomTypesAsRelation sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
@@ -1357,6 +1378,7 @@ withTransaction sessionId conn io successFunc = bracketOnError (pure ()) (const 
                   else -- no updates executed, so don't create a commit
                   pure (Right val)
 
+-- | Execute an expression which returns a dataframe. Requires permissions to run the underlying relational expression.
 executeDataFrameExpr :: SessionId -> Connection -> DF.DataFrameExpr -> IO (Either RelationalError DF.DataFrame)
 executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
   eRel <- executeRelationalExpr sessionId conn (DF.convertExpr dfExpr)
@@ -1384,7 +1406,8 @@ executeDataFrameExpr sessionId conn@(InProcessConnection _) dfExpr = do
                   dFrame'' = maybe dFrame' (`DF.take'` dFrame') (DF.limit dfExpr)
               pure (Right dFrame'')
 executeDataFrameExpr sessionId conn@(RemoteConnection _) dfExpr = remoteCall conn (ExecuteDataFrameExpr sessionId dfExpr)
-        
+
+-- | Run a check on the transaction graph to validate all merkle hashes. Requires no specific permission.
 validateMerkleHashes :: SessionId -> Connection -> IO (Either RelationalError ())
 validateMerkleHashes sessionId (InProcessConnection conf) = do
   let sessions = ipSessions conf
@@ -1399,9 +1422,10 @@ validateMerkleHashes sessionId (InProcessConnection conf) = do
           Right () -> pure (Right ())
 validateMerkleHashes sessionId conn@RemoteConnection{} = remoteCall conn (ExecuteValidateMerkleHashes sessionId)
 
--- | Calculate a hash on the DDL of the current database context (not the graph). This is useful for validating on the client that the database schema meets the client's expectation. Any DDL change will change this hash. This hash does not change based on the current isomorphic schema being examined. This function is not affected by the current schema (since they are all isomorphic anyway, they should return the same hash).
+-- | Calculate a hash on the DDL of the current database context (not the graph). This is useful for validating on the client that the database schema meets the client's expectation. Any DDL change will change this hash. This hash does not change based on the current isomorphic schema being examined. This function is not affected by the current schema (since they are all isomorphic anyway, they should return the same hash). Requires AccessRelVarsPermission.
 getDDLHash :: SessionId -> Connection -> IO (Either RelationalError SecureHash)
 getDDLHash sessionId (InProcessConnection conf) = do
+  roleIds <- roleIdsForRoleName conf      
   let sessions = ipSessions conf
   atomically $ do
     eSession <- sessionForSessionId sessionId sessions
@@ -1410,7 +1434,13 @@ getDDLHash sessionId (InProcessConnection conf) = do
       Right session -> do
         let ctx = Sess.concreteDatabaseContext session
         graph <- readTVar (ipTransactionGraph conf)
-        pure (ddlHash ctx graph)
+        case RE.resolveDBC' graph ctx DBC.acl of
+          Left err -> pure (Left err)
+          Right acl' -> 
+            if hasAccess roleIds AccessRelVarsPermission (relvarsACL acl') then
+              pure (ddlHash ctx graph)
+            else
+               pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))              
 getDDLHash sessionId conn@RemoteConnection{} = remoteCall conn (GetDDLHash sessionId)
 
 -- | Convert a SQL Query expression into a DataFrameExpr. Because the conversion process requires substantial database metadata access (such as retrieving types for various subexpressions), we cannot process SQL client-side. However, the underlying DBMS is completely unaware that the resultant DataFrameExpr has come from SQL.
@@ -1451,8 +1481,10 @@ convertSQLDBUpdates sessionId (InProcessConnection conf) updates = do
           Right updateExpr -> pure (Right updateExpr)
 convertSQLDBUpdates sessionId conn@RemoteConnection{} ups = remoteCall conn (ConvertSQLUpdates sessionId ups)   
 
+-- | Registered queries are queries must always typecheck. Return a relation of them. Requires AccessRelVarsPermission.
 registeredQueriesAsRelation :: SessionId -> Connection -> IO (Either RelationalError Relation)
 registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
+  roleIds <- roleIdsForRoleName conf  
   atomically $ do
     eSession <- sessionAndSchema sessionId conf
     case eSession of
@@ -1460,10 +1492,16 @@ registeredQueriesAsRelation sessionId (InProcessConnection conf) = do
       Right (session, schema) -> do
         graph <- readTVar (ipTransactionGraph conf)        
         let context = Sess.concreteDatabaseContext session
-        case RE.resolveDBC' graph context DBC.registeredQueries of
+        case RE.resolveDBC' graph context DBC.acl of
           Left err -> pure (Left err)
-          Right regQs ->
-            pure $ registeredQueriesAsRelationInSchema schema regQs
+          Right acl' -> 
+            if hasAccess roleIds AccessRelVarsPermission (relvarsACL acl') then
+              case RE.resolveDBC' graph context DBC.registeredQueries of
+                Left err -> pure (Left err)
+                Right regQs ->
+                  pure $ registeredQueriesAsRelationInSchema schema regQs
+            else
+               pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))                            
 registeredQueriesAsRelation sessionId conn@RemoteConnection{} = remoteCall conn (RetrieveRegisteredQueries sessionId)        
 
 type ClientNodes = StmMap.Map SRPC.ClientConnectionId ClientInfo

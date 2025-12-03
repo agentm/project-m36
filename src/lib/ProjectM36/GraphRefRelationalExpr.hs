@@ -2,6 +2,7 @@ module ProjectM36.GraphRefRelationalExpr where
 --evaluate relational expressions across the entire transaction graph to support cross-transaction referencing
 import ProjectM36.Base
 import qualified Data.Set as S
+import qualified Data.Functor.Foldable as Fold
 
 data SingularTransactionRef = SingularTransactionRef GraphRefTransactionMarker |
                               MultipleTransactionsRef |
@@ -40,3 +41,11 @@ inSameTransaction exprA exprB = case (stA, stB) of
 
 singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMarker) -> SingularTransactionRef
 singularTransactions = foldMap singularTransaction
+
+-- | Decompose a GraphRefRelationalExpr into its constituent references to relvars at transactionIds. Useful for determining which relvars in the transaction graph the expression references; for example, for security checks.
+decomposeGraphRefTransactionMarkers :: GraphRefRelationalExpr -> S.Set (GraphRefTransactionMarker, RelVarName)
+decomposeGraphRefTransactionMarkers = Fold.cata decomp
+  where
+    decomp :: RelationalExprBaseF GraphRefTransactionMarker (S.Set (GraphRefTransactionMarker, RelVarName)) -> S.Set (GraphRefTransactionMarker, RelVarName)
+    decomp (RelationVariableF rvname marker) = S.singleton (marker, rvname)
+    decomp other = foldr S.union mempty other

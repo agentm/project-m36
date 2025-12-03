@@ -4,7 +4,6 @@ module ProjectM36.AccessControl where
 import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AccessControlList
-import ProjectM36.TransGraphRelationalExpression
 import ProjectM36.TransactionGraph
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
@@ -12,7 +11,7 @@ import ProjectM36.RelationVariablesMentioned
 import ProjectM36.IsomorphicSchema
 import ProjectM36.Function
 import Control.Monad.Except
-import Control.Monad (when)
+import Control.Monad (when, forM_)
 
 applyACLRelationalExpr :: Show a => [RoleId] -> RelVarAccessControlList -> RelationalExprBase a -> Either RelationalError ()
 applyACLRelationalExpr roleIds acl' expr = do
@@ -118,7 +117,7 @@ applyACLDatabaseContextExpr roleIds expr = do
       checkACLPerm AlterACLPermission aclAcl
     MultipleExpr exprs ->
       mapM_ (applyACLDatabaseContextExpr roleIds) exprs
-
+{-
 applyACLTransGraphRelationalExpr :: [RoleId] -> RelVarAccessControlList -> TransGraphRelationalExpr -> Either RelationalError ()
 applyACLTransGraphRelationalExpr roleIds acl' expr =
   when (mentionsRelVar expr) $
@@ -126,7 +125,13 @@ applyACLTransGraphRelationalExpr roleIds acl' expr =
       pure ()
       else
       Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission))
+-}
 
+-- | Validate that any reference to a relvar within a transaction has AccessRelVarsPermission at that transactionId. Pass relevant access control lists extracted from the original expression which reference relvars at specific transaction ids.
+applyACLGraphRefRelationalExpr :: [RoleId] -> [RelVarAccessControlList] -> Either RelationalError ()
+applyACLGraphRefRelationalExpr roleIds transACLs =
+  forM_ transACLs $ \acl' -> applyACLRelationalExpr roleIds acl' (RelationVariable "true" ())
+    
 applyACLSchemaExpr :: [RoleId] -> SchemaAccessControlList -> SchemaExpr -> Either RelationalError ()
 applyACLSchemaExpr roleIds acl' _expr =
   if hasAccess roleIds AlterSchemaPermission acl' then
