@@ -7,7 +7,10 @@ import ProjectM36.Client
 import ProjectM36.Relation
 import ProjectM36.Cache.RelationalExprCache
 import ProjectM36.Cache.Tuple
+import ProjectM36.SystemMemory
+
 import Test.HUnit
+import Text.Megaparsec
 import System.Exit
 import Control.Concurrent.STM
 import Data.UUID.V4
@@ -25,7 +28,8 @@ testList :: Test
 testList = TestList [
                      testTupleCacheRoundtripv000,
                      testExpensiveExpr,
-                     testCacheEviction
+                     testCacheEviction,
+                     testMemoryPressureParsers
                      ]
 
 main :: IO ()
@@ -175,4 +179,19 @@ testCacheEviction = TestCase $ do
   after <- getCurrentTime
 
   assertBool "expensive2 was not cached" (diffUTCTime after before < 1.0)
+  
+testMemoryPressureParsers :: Test
+testMemoryPressureParsers = TestCase $ do
+  let memPressureText = "The system has 17179869184 (4194304 pages with a page size of 4096).\n\nStats: \nPages free: 21520 \nPages purgeable: 35807 \nPages purged: 1955197 \n\nSwap I/O:\nSwapins: 3271498 \nSwapouts: 3621839 \n\nPage Q counts:\nPages active: 1384067 \nPages inactive: 1355579 \nPages speculative: 31236 \nPages throttled: 0 \nPages wired down: 785131 \n\nCompressor Stats:\nPages used by compressor: 616157 \nPages decompressed: 16701642 \nPages compressed: 26508007 \n\nFile I/O:\nPageins: 31529331 \nPageouts: 166002 \n\nSystem-wide memory free percentage: 66%"
+  let res = parse parseMemoryPressureFreeMem "" memPressureText
+  case res of
+    Left err -> putStrLn (errorBundlePretty err)
+    Right _ -> pure ()
+  assertEqual "parse free mem memory_pressure" (Right (21520 * 4096, 17179869184)) res
+
+  let res' = parse parseMemoryPressureValue "" memPressureText
+  case res' of
+    Left err -> putStrLn (errorBundlePretty err)
+    Right _ -> pure ()
+  assertEqual "parse memory_pressure percentage" (Right 66) res'
   

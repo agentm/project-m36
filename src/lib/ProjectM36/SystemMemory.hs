@@ -15,8 +15,34 @@ import Data.Void
 import System.Linux.Proc.MemInfo
 import System.Linux.Proc.Errors
 import qualified Data.Text as T
-#endif 
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
+import Data.Void
+#endif
 
+-- keep the parsers separate and compiling on all platforms so that we can test the parsers without waiting on macos CI runs
+-- | Parse memory_pressure output to extract free pages and total memory.
+parseMemoryPressureFreeMem :: Parsec Void String MemoryStats
+parseMemoryPressureFreeMem = do
+  _ <- manyTill anySingle (try (string "The system has "))
+  totalMemBytes <- L.decimal
+  _ <- manyTill anySingle (try (string "Pages free:"))
+  space1
+  -- parse integer pages
+  freePages <- L.decimal
+  pure (freePages * 4096, totalMemBytes) -- 4096 default page size on macOS
+
+-- | Parse memory_pressure output to extract memory pressure percentage.
+parseMemoryPressureValue :: Parsec Void String Double
+parseMemoryPressureValue = do
+  _ <- manyTill anySingle (try (string "System-wide memory free percentage:"))
+  space1
+  -- parse integer percentage
+  n <- L.decimal
+  _ <- char '%'
+  pure n
+  
 #if defined(mingw32_HOST_OS)
 import Foreign
 import Foreign.C.Types
@@ -62,17 +88,7 @@ getMemoryStats = do
   case eres of
     Left err -> pure (Left (Exc.displayException err))
     Right memPressureText -> do
-      let parseMemPressure :: Parsec Void String MemoryStats
-          parseMemPressure = do
-           _ <- manyTill anySingle (try (string "The system has "))
-           totalMemBytes <- L.decimal
-           _ <- manyTill anySingle (try (string "Pages free:"))
-           space1
-           -- parse integer pages
-           freePages <- L.decimal
-           _ <- char '%'
-           pure (freePages * 4096, totalMemBytes) -- 4096 default page size on macOS
-      case parse parseMemPressure "" memPressureText of
+      case parse parseMemoryPressureFreeMem "" memPressureText of
         Left err -> pure (Left (errorBundlePretty err))
         Right memvals -> pure (Right memvals)
 #elif defined(linux_HOST_OS)
@@ -97,17 +113,7 @@ getMemoryPressure = do
   case eres of
     Left _err -> pure Nothing
     Right memPressureText -> do
-      let parseMemPressure :: Parsec Void String Double
-          parseMemPressure = do
-           _ <- manyTill anySingle (try (string "System-wide memory free percentage"))
-           space1
-           _ <- char ':'
-           space1
-           -- parse integer percentage
-           n <- L.decimal
-           _ <- char '%'
-           pure n
-      case parseMaybe parseMemPressure memPressureText of
+      case parseMaybe parseMemoryPressureValue memPressureText of
         Nothing -> pure Nothing
         Just percentage -> pure (Just (percentage / 100.0))
 #elif defined(linux_HOST_OS)
@@ -120,3 +126,4 @@ getMemoryPressure = do
 #endif
 
 -- on linux, /proc/pressure/(memory/cpu/io) track metrics for determining if useful work is being delayed due to pressure on those subsystems- however we want to prevent getting to this state at all, so it's not that useful
+
