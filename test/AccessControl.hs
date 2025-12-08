@@ -1,9 +1,9 @@
 import TutorialD.Interpreter.TestBase
 import ProjectM36.Client
 import ProjectM36.Relation
+import qualified ProjectM36.Attribute as A
 import Test.HUnit
 import System.Exit
-import Data.Either (isRight)
 
 main :: IO ()
 main = do
@@ -78,15 +78,15 @@ testFunctionAccess = TestCase $ do
 
   -- check that function view access is denied
   res' <- databaseContextFunctionsAsRelation sessionId user1conn 
-  assertEqual "rejected dbc function view" (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission))) res'
+  assertEqual "rejected dbc function view" (Left (AccessDeniedError (SomeFunctionPermission ViewFunctionPermission))) res'
   
   -- grant function view
-  res'' <- executeDatabaseContextExpr sessionId conn (AlterACL (GrantAccessExpr user1 (SomeRelVarPermission AccessRelVarsPermission) False))
-  assertEqual "grant relvars access" (Right ()) res''
+  res'' <- executeDatabaseContextExpr sessionId conn (AlterACL (GrantAccessExpr user1 (SomeFunctionPermission ViewFunctionPermission) False))
+  assertEqual "grant function access" (Right ()) res''
 
   -- check that function view works
   res''' <- databaseContextFunctionsAsRelation sessionId user1conn 
-  assertBool "rejected dbc function view" (isRight res''')
+  assertEqual "dbc function view" (mkRelationFromList (A.attributesFromList [Attribute "name" TextAtomType, Attribute "arguments" TextAtomType]) []) res'''
 
   -- check that function execute is denied
   res'''' <- executeDatabaseContextExpr sessionId user1conn (ExecuteDatabaseContextFunction "deleteAll" [])

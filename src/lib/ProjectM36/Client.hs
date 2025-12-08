@@ -1159,11 +1159,12 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
       Right (session, _) -> do
         graph <- readTVar (ipTransactionGraph conf)
         let context = concreteDatabaseContext session
-            reEnv = RE.mkRelationalExprEnv context graph   
+            reEnv = RE.mkRelationalExprEnv context graph
+            requiredPerm = ViewFunctionPermission
         case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
           Left err -> pure (Left err)
           Right acl' -> do
-            if hasAccess roleIds ViewFunctionPermission (dbcFunctionsACL acl') then
+            if hasAccess roleIds requiredPerm (dbcFunctionsACL acl') then
                 case RE.resolveDBC' graph context DBC.dbcFunctions of
                   Left err -> pure (Left err)
                   Right dbcFuncs -> do
@@ -1172,7 +1173,7 @@ databaseContextFunctionsAsRelation sessionId (InProcessConnection conf) = do
                         dbcFuncFilter f = hasAccess roleIds ViewDBCFunctionPermission (funcACL f)
                     pure (DCF.databaseContextFunctionsAsRelation dbcFuncsFiltered)
             else
-               pure (Left (AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)))
+               pure (Left (AccessDeniedError (SomeFunctionPermission requiredPerm)))
 
 databaseContextFunctionsAsRelation sessionId conn@(RemoteConnection _) = remoteCall conn (RetrieveDatabaseContextFunctionSummary sessionId)
 
