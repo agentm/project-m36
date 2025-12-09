@@ -12,6 +12,7 @@ import ProjectM36.Tupleable
 import Data.Time.Calendar
 import Data.Proxy
 import Data.Maybe
+import System.Random
 
 data WeatherReading =
   WeatherReading
@@ -42,7 +43,8 @@ main :: IO ()
 main = do
   let parser = info (parseOptions <**> helper) (fullDesc <> progDesc "Read or write data for heap profiling.")
   opts <- execParser parser
-  let connInfo = InProcessConnectionInfo (MinimalPersistence (datadir opts)) emptyNotificationCallback [] basicDatabaseContext adminRoleName
+  rando <- initStdGen
+  let connInfo = InProcessConnectionInfo (MinimalPersistence (datadir opts)) emptyNotificationCallback [] basicDatabaseContext rando adminRoleName
       eCheck v = do
         x <- v
         case x of 
