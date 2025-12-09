@@ -28,6 +28,7 @@ import ProjectM36.Relation
 import ProjectM36.Transaction.Persist
 import ProjectM36.DatabaseContext.Types
 import Control.Monad (forM)
+import System.Random
 
 main :: IO ()           
 main = do 
@@ -89,8 +90,9 @@ testMerkleHashValidation :: Test
 testMerkleHashValidation = TestCase $
   -- add a commit and validate the hashes successfully
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
+  rando <- initStdGen
   let dbdir = tempdir </> "dbdir"
-      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext adminRoleName
+      connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext rando adminRoleName
   conn <- assertIOEither $ connectProjectM36 connInfo
   sess <- assertIOEither $ createSessionAtHead conn "master"
   Right _ <- executeDatabaseContextExpr sess conn (Assign "x" (ExistingRelation relationTrue))
@@ -186,7 +188,8 @@ assertIOEither x = do
 testTransactionDirectorySizeGrowth :: Test
 testTransactionDirectorySizeGrowth = TestCase $ do
   withSystemTempDirectory "m36testdb" $ \tempdir -> do
-    Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext adminRoleName)
+    rando <- initStdGen
+    Right db <- C.connectProjectM36 (InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext rando adminRoleName)
     Right sessionId <- C.createSessionAtHead db "master"
 
     originalDBSize <- getDirectorySize tempdir

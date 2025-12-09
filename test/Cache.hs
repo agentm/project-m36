@@ -23,6 +23,7 @@ import System.FilePath
 import qualified Data.Map as M
 import Data.Time.Clock
 import qualified Data.Set as Set
+import System.Random
 
 testList :: Test
 testList = TestList [
@@ -40,7 +41,7 @@ main = do
 
 testConnection :: NotificationCallback -> IO (SessionId, Connection)
 testConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] selfTestDatabaseContext adminRoleName)
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] selfTestDatabaseContext (mkStdGen 36) adminRoleName)
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do

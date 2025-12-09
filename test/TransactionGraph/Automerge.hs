@@ -8,6 +8,7 @@ import System.Exit
 import System.IO.Temp
 import System.FilePath
 import Control.Exception.Base
+import System.Random
 
 {-# ANN module ("HLint: ignore Reduce duplication" :: String) #-}
 main :: IO ()           
@@ -79,7 +80,8 @@ testAutomergeFailure = TestCase $ do
 testAutomergeReconnect :: Test
 testAutomergeReconnect = TestCase $ withSystemTempDirectory "m36testdb" $ \tempdir -> do
   let repro = do
-          conn <- unsafeLeftCrash =<< connectProjectM36 (InProcessConnectionInfo (CrashSafePersistence (tempdir </> "test.db")) emptyNotificationCallback [] basicDatabaseContext adminRoleName)
+          rando <- initStdGen
+          conn <- unsafeLeftCrash =<< connectProjectM36 (InProcessConnectionInfo (CrashSafePersistence (tempdir </> "test.db")) emptyNotificationCallback [] basicDatabaseContext rando adminRoleName)
           sess <- unsafeLeftCrash =<< createSessionAtHead conn "master"
           autoMergeToHead sess conn UnionMergeStrategy "master"
         -- commit sess conn

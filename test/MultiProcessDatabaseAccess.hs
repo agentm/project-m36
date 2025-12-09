@@ -5,6 +5,7 @@ import ProjectM36.Client
 import System.IO.Temp
 import System.Exit
 import System.FilePath
+import System.Random
 
 main :: IO ()
 main = do
@@ -24,7 +25,8 @@ testList = TestList [testMultipleProcessAccess]
 testMultipleProcessAccess :: Test
 testMultipleProcessAccess = TestCase $ 
   withSystemTempDirectory "pm36" $ \tmpdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext adminRoleName
+    rando <- initStdGen
+    let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir) emptyNotificationCallback [] basicDatabaseContext rando adminRoleName
         master = "master"
         dudExpr = Assign "x" (RelationVariable "true" ())
         dbdir = tmpdir </> "db"

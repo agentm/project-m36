@@ -12,6 +12,7 @@ import qualified Data.Text as T
 import Data.Time.Calendar
 import Data.Proxy
 import Codec.Winery
+import System.Random (initStdGen)
 
 --create various database value (atom) types
 type Price = Double
@@ -39,7 +40,8 @@ data SpeedBand = VeryFastBand | FastBand | MediumBand | SlowBand
 main :: IO ()
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin"
+  rando <- initStdGen
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext rando "admin"
       check x = case x of 
         Left err -> error (show err)
         Right x' -> x'

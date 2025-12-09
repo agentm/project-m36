@@ -6,12 +6,11 @@ import ProjectM36.DateExamples
 import ProjectM36.DatabaseContextExpr
 import Test.HUnit
 import Data.Text
-
-import Debug.Trace
+import System.Random (mkStdGen)
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)
 dateExamplesConnection callback = do
-  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] basicDatabaseContext adminRoleName)
+  dbconn <- connectProjectM36 (InProcessConnectionInfo NoPersistence callback [] basicDatabaseContext (mkStdGen 36) adminRoleName)
   case dbconn of 
     Left err -> error (show err)
     Right conn -> do
@@ -48,7 +47,7 @@ expectTutorialDErr sessionId conn matchFunc tutd = case parseTutorialD tutd of
       result <- evalTutorialD sessionId conn UnsafeEvaluation parsed      
       case result of
         QuitResult -> assertFailure "quit?"
-        DisplayResult x -> traceShow ("expecterr"::String, x) $ assertFailure "display?"
+        DisplayResult _ -> assertFailure "display?"
         DisplayIOResult _ -> assertFailure "displayIO?"
         DisplayRelationResult _ -> assertFailure "displayrelation?"
         DisplayDataFrameResult _ -> assertFailure "displaydataframe?"

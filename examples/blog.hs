@@ -16,9 +16,6 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import Control.DeepSeq
 import Data.Proxy
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
 import Data.List
 import Control.Monad (when, forM_)
 import Codec.Winery
@@ -30,6 +27,7 @@ import Text.Blaze.Html.Renderer.Text
 --import Control.Monad.IO.Class (liftIO)
 import Network.HTTP.Types.Status
 import Data.Time.Format.ISO8601
+import System.Random
 
 --define your data types
 data Blog = Blog {
@@ -76,7 +74,8 @@ handleIOErrors m = do
 main :: IO ()                       
 main = do
   --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin"
+  rando <- initStdGen
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext rando "admin"
   conn <- handleIOError $ connectProjectM36 connInfo
   
   sessionId <- handleIOError $ createSessionAtHead conn "master"

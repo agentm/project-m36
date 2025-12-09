@@ -7,10 +7,8 @@ import TutorialD.Interpreter
 import ProjectM36.Interpreter hiding (Parser)
 import TutorialD.Interpreter.Base hiding (option)
 import qualified Data.Text as T
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
 import Control.Monad
+import System.Random
 
 data HandlesArgs = HandlesArgs {
   openCloseCount :: Int,
@@ -49,7 +47,8 @@ main = do
 
 runOpenClose :: T.Text -> T.Text -> Int -> FilePath -> IO ()
 runOpenClose tutdSetup' tutdIterate' tCount dbdir' = do
-  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback [] basicDatabaseContext "admin"
+  rando <- initStdGen
+  let connInfo = InProcessConnectionInfo (MinimalPersistence dbdir') emptyNotificationCallback [] basicDatabaseContext rando "admin"
   eConn <- connectProjectM36 connInfo 
   case eConn of
     Left err -> error (show err)

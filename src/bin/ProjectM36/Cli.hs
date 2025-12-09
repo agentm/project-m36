@@ -23,6 +23,7 @@ import Text.Megaparsec.Error
 import Data.Void (Void)
 import ProjectM36.Interpreter hiding (Parser)
 import Network.RPC.Curryer.Client
+import System.Random (StdGen, initStdGen)
 
 type GhcPkgPath = String
 type TutorialDExec = String
@@ -118,7 +119,8 @@ mainLoop :: IO () -> HistoryFilePath -> ReprLoopEvaluator -> MakePrompt -> ExecU
 mainLoop printWelcome historyFilePath reprLoopEvaluator promptText execUserInput defaultDBContext = do
   setLocaleIfNecessary
   interpreterConfig <- execParser opts
-  let connInfo = connectionInfoForConfig interpreterConfig defaultDBContext
+  rando <- initStdGen
+  let connInfo = connectionInfoForConfig interpreterConfig defaultDBContext rando
   fscheck <- checkFSType (checkFSForConfig interpreterConfig) (fromMaybe NoPersistence (persistenceStrategyForConfig interpreterConfig))
   if not fscheck then
     errDie checkFSErrorMsg
@@ -150,9 +152,9 @@ setLocaleIfNecessary = do
 opts :: ParserInfo InterpreterConfig            
 opts = info (parseArgs <**> helpOption) idm
 
-connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> C.ConnectionInfo
-connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _ roleName) defaultDBContext = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext roleName
-connectionInfoForConfig (RemoteInterpreterConfig remoteAddress connConfig remoteDBName _ _ _ roleName) _ = C.RemoteConnectionInfo remoteDBName remoteAddress connConfig outputNotificationCallback roleName
+connectionInfoForConfig :: InterpreterConfig -> ResolvedDatabaseContext -> StdGen -> C.ConnectionInfo
+connectionInfoForConfig (LocalInterpreterConfig pStrategy _ _ ghcPkgPaths _ roleName) defaultDBContext rando = C.InProcessConnectionInfo pStrategy outputNotificationCallback ghcPkgPaths defaultDBContext rando roleName
+connectionInfoForConfig (RemoteInterpreterConfig remoteAddress connConfig remoteDBName _ _ _ roleName) _ _ = C.RemoteConnectionInfo remoteDBName remoteAddress connConfig outputNotificationCallback roleName
 
 headNameForConfig :: InterpreterConfig -> HeadName
 headNameForConfig (LocalInterpreterConfig _ headn _ _ _ _) = headn

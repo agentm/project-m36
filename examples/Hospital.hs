@@ -4,6 +4,7 @@ import Data.Typeable
 import ProjectM36.Relation
 import GHC.Generics
 import ProjectM36.Tuple
+import System.Random (initStdGen)
 
 -- define a custom data type to use in both the client and database
 data AgeType = PreciseAge Int |
@@ -37,8 +38,9 @@ main = do
                      [[TextAtom "Bob",
                        toAtom age_value_in]]
 
+  rando <- initStdGen
   -- create the database
-  conn <- failFast $ connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin")
+  conn <- failFast $ connectProjectM36 (InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext rando "admin")
 
   -- create the session at the head of master branch
   sessionId <- failFast $ createSessionAtHead conn "master"

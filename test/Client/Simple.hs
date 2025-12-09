@@ -10,6 +10,7 @@ import System.FilePath
 import ProjectM36.TupleSet as TS
 import ProjectM36.Attribute
 import qualified Data.Map as M
+import System.Random
 
 main :: IO ()           
 main = do 
@@ -29,7 +30,8 @@ assertEither x = do
 testSimpleCommitSuccess :: Test
 testSimpleCommitSuccess = TestCase $
   withSystemTempDirectory "m36tempdb" $ \tempdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext C.adminRoleName
+    rando <- initStdGen
+    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext rando C.adminRoleName
         relExpr = Union (RelationVariable "x" ()) (RelationVariable "y" ())
     
     dbconn <- assertEither (simpleConnectProjectM36 connInfo)
@@ -52,7 +54,8 @@ testSimpleCommitFailure :: Test
 testSimpleCommitFailure = TestCase $ do
   let failAttrs = attributesFromList [Attribute "fail" IntAtomType]
   err <- withSystemTempDirectory "m36tempdb" $ \tempdir -> do
-    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext C.adminRoleName
+    rando <- initStdGen
+    let connInfo = InProcessConnectionInfo (MinimalPersistence (tempdir </> "db")) emptyNotificationCallback [] basicDatabaseContext rando C.adminRoleName
     dbconn <- assertEither (simpleConnectProjectM36 connInfo)
     withTransaction dbconn $ do
       execute $ Assign "x" (ExistingRelation relationTrue)
@@ -64,7 +67,8 @@ testSimpleCommitFailure = TestCase $ do
 -- #176 default merge couldn't handle Update  
 testSimpleUpdate :: Test
 testSimpleUpdate = TestCase $ do
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext C.adminRoleName
+  rando <- initStdGen
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext rando C.adminRoleName
   dbconn <- assertEither (simpleConnectProjectM36 connInfo)
   Right dateExprs <- pure dateExamplesDatabaseContextExpr
   assertEither $ withTransaction dbconn $ 

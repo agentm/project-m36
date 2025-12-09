@@ -8,6 +8,7 @@ import qualified Data.Map as M
 import qualified Data.Text.IO as TIO
 import Data.Proxy
 import Codec.Winery
+import System.Random
 
 data Hair = Bald | Brown | Blond | OtherColor Text
    deriving (Generic, Show, Eq, NFData, Atomable)
@@ -16,7 +17,9 @@ data Hair = Bald | Brown | Blond | OtherColor Text
 main :: IO ()
 main = do
  --connect to the database
-  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext "admin"
+  rando <- initStdGen
+
+  let connInfo = InProcessConnectionInfo NoPersistence emptyNotificationCallback [] basicDatabaseContext rando "admin"
       eCheck v = do
         x <- v
         case x of 

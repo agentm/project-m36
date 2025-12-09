@@ -213,6 +213,7 @@ import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
 import qualified Data.HashSet as HS
+import System.Random (StdGen, initStdGen)
 
 type Hostname = String
 type Port = Word16
@@ -241,7 +242,7 @@ data RequestTimeoutException = RequestTimeoutException
 instance Exception RequestTimeoutException
 
 -- | Construct a 'ConnectionInfo' to describe how to make the 'Connection'. The database can be run within the current process or running remotely via RPC.
-data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext RoleName |
+data ConnectionInfo = InProcessConnectionInfo PersistenceStrategy NotificationCallback [GhcPkgPath] DBC.ResolvedDatabaseContext StdGen RoleName |
                       RemoteConnectionInfo DatabaseName RemoteServerAddress CRPC.ClientConnectionConfig NotificationCallback RoleName
                       
 type EvaluatedNotifications = M.Map NotificationName EvaluatedNotification
@@ -332,7 +333,7 @@ resolveRemoteServerAddress (RemoteServerUnixDomainSocketAddress sockPath) = do
 -- | To create a 'Connection' to a remote or local database, create a 'ConnectionInfo' and call 'connectProjectM36'. Requires "login" permission to connect successfully.
 connectProjectM36 :: ConnectionInfo -> IO (Either ConnectionError Connection)
 --create a new in-memory database/transaction graph
-connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext roleName) = do
+connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPaths bootstrapDatabaseContext rando roleName) = do
   freshId <- nextRandom
   tstamp <- getCurrentTime
   let freshGraph = bootstrapTransactionGraph tstamp freshId (DBC.toDatabaseContext bootstrapDatabaseContext)
@@ -357,11 +358,12 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                     ipCallbackAsync = notifAsync,
                     ipRelExprCache = cache,
                     ipLoginRoles = loginRoles,
-                    ipRoleName = roleName
+                    ipRoleName = roleName,
+                    ipRandomGen = rando
                   }
         pure (Right conn)
-    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
-    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths roleName
+    MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths rando roleName
+    CrashSafePersistence dbdir -> connectPersistentProjectM36 strat FsyncDiskSync dbdir freshGraph notificationCallback ghcPkgPaths rando roleName
         
 connectProjectM36 (RemoteConnectionInfo dbName remoteAddress connConfig notificationCallback roleName) = do
   (sockSpec, sockAddr) <- resolveRemoteServerAddress remoteAddress
@@ -417,9 +419,10 @@ connectPersistentProjectM36 :: PersistenceStrategy ->
                                TransactionGraph ->
                                NotificationCallback ->
                                [GhcPkgPath] ->
+                               StdGen ->
                                RoleName ->
                                IO (Either ConnectionError Connection)      
-connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths roleName = do
+connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghcPkgPaths rando roleName = do
   err <- setupDatabaseDir sync dbdir freshGraph 
   case err of
     Left err' -> return $ Left (SetupDatabaseDirectoryError err')
@@ -450,7 +453,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                           ipCallbackAsync = notifAsync,
                           ipRelExprCache = cache,
                           ipLoginRoles = loginRoles,
-                          ipRoleName = roleName
+                          ipRoleName = roleName,
+                          ipRandomGen = rando
                         }
               pure (Right conn)
 
@@ -881,7 +885,7 @@ executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr 
   case eGraph of
     Left err -> pure (Left err)
     Right graph -> 
-      optimizeAndEvalTransGraphRelationalExprWithCache graph tgraphExpr (ipRelExprCache conf)
+      optimizeAndEvalTransGraphRelationalExprWithCache (ipRandomGen conf) graph tgraphExpr (ipRelExprCache conf)
   
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
@@ -1518,7 +1522,8 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipCallbackAsync :: Async (),
   ipRelExprCache :: RelExprCache, -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
   ipLoginRoles :: LoginRoles.LoginRolesDB, -- ^ roles allowed to connect to the database, access control is otherwise handled by ACLs in the database context
-  ipRoleName :: RoleName -- ^ role name for the user accessing the database
+  ipRoleName :: RoleName, -- ^ role name for the user accessing the database
+  ipRandomGen :: StdGen -- ^ random number generator
   }
 
 -- clients may connect associate one socket/mvar with the server to register for change callbacks

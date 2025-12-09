@@ -106,11 +106,11 @@ optimizeAndEvalRelationalExpr' env expr cache = do
       case runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right optGfExpr -> 
-          evalGraphRefRelationalExprWithCache gfEnv optGfExpr cache
+          evalGraphRefRelationalExprWithCache (mkStdGen64 36) gfEnv optGfExpr cache
           
 -- | For internal use- expression argument should pass through static optimizer beforehand.
-evalGraphRefRelationalExprWithCache :: GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
-evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
+evalGraphRefRelationalExprWithCache :: RandomGen r => r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
+evalGraphRefRelationalExprWithCache rando gfEnv gfExpr cache =
   case planGraphRefRelationalExpr gfExpr gfEnv of
     Left err -> pure (Left err)
     Right plan -> do
@@ -132,7 +132,6 @@ evalGraphRefRelationalExprWithCache gfEnv gfExpr cache =
           case mCacheKey of
             Nothing -> pure (Right relationResult')
             Just cacheKey -> do
-              rando <- initStdGen
               eMemStats <- getMemoryStats -- consider running mem stats less often if it's a bottleneck
               case eMemStats of
                 Left err -> pure (Left (SystemError err))
@@ -197,8 +196,8 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
-optimizeAndEvalTransGraphRelationalExprWithCache :: TransactionGraph -> TransGraphRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
-optimizeAndEvalTransGraphRelationalExprWithCache graph tgExpr cache = do
+optimizeAndEvalTransGraphRelationalExprWithCache :: RandomGen r => r -> TransactionGraph -> TransGraphRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
+optimizeAndEvalTransGraphRelationalExprWithCache rando graph tgExpr cache = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
       res = do
         gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
@@ -206,7 +205,7 @@ optimizeAndEvalTransGraphRelationalExprWithCache graph tgExpr cache = do
   case res of
     Left err -> pure (Left err)
     Right optExpr ->
-      evalGraphRefRelationalExprWithCache gfEnv optExpr cache
+      evalGraphRefRelationalExprWithCache rando gfEnv optExpr cache
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
 optimizeAndEvalDatabaseContextIOExpr expr = do

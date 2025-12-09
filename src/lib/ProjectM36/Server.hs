@@ -16,6 +16,7 @@ import Network.Socket
 import qualified StmContainers.Map as StmMap
 import Control.Concurrent.STM
 import qualified Data.Text as T
+import System.Random (initStdGen)
 
 type TestMode = Bool
 
@@ -232,7 +233,8 @@ launchServer daemonConfig mAddr = do
     hPutStrLn stderr checkFSErrorMsg
     pure False
     else do
-      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext "admin")
+      rando <- initStdGen
+      econn <- connectProjectM36 (InProcessConnectionInfo (persistenceStrategy daemonConfig) loggingNotificationCallback (ghcPkgPaths daemonConfig) basicDatabaseContext rando "admin")
       case econn of 
         Left err -> do      
           hPutStrLn stderr ("Failed to create database connection: " ++ show err)
