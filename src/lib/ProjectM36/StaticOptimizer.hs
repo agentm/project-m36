@@ -106,7 +106,7 @@ optimizeAndEvalRelationalExpr' env expr cache = do
       case runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right optGfExpr -> 
-          evalGraphRefRelationalExprWithCache (mkStdGen64 36) gfEnv optGfExpr cache
+          evalGraphRefRelationalExprWithCache (mkStdGen 36) gfEnv optGfExpr cache
           
 -- | For internal use- expression argument should pass through static optimizer beforehand.
 evalGraphRefRelationalExprWithCache :: RandomGen r => r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)

@@ -213,7 +213,7 @@ import System.FilePath ((</>))
 import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
 import qualified Data.HashSet as HS
-import System.Random (StdGen, initStdGen)
+import System.Random (StdGen)
 
 type Hostname = String
 type Port = Word16
