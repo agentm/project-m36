@@ -17,8 +17,9 @@ basicDatabaseContextFunctions = HS.fromList [
              funcACL = defaultACL
            }
   ]
-  where
-    defaultACL = AccessControlList (M.singleton adminRoleId (M.fromList (map (, True) (S.toList allPermissions))))
+
+defaultACL :: DBCFunctionAccessControlList
+defaultACL = AccessControlList (M.singleton adminRoleId (M.fromList (map (, True) (S.toList allPermissions))))
 
 --the precompiled functions are special because they cannot be serialized. Their names are therefore used in perpetuity so that the functions can be "serialized" (by name).
 precompiledDatabaseContextFunctions :: DatabaseContextFunctions

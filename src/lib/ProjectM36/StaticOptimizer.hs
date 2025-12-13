@@ -207,7 +207,7 @@ optimizeAndEvalTransGraphRelationalExprWithCache rando graph tgExpr cache = do
     Right optExpr ->
       evalGraphRefRelationalExprWithCache rando gfEnv optExpr cache
 
-optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
+optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 optimizeAndEvalDatabaseContextIOExpr expr = do
   transId <- asks dbcio_transId
   ctx <- getDBCIOContext
@@ -215,7 +215,7 @@ optimizeAndEvalDatabaseContextIOExpr expr = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
       eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
-    Left err -> pure (Left err)
+    Left err -> throwError err
     Right optExpr ->
       evalGraphRefDatabaseContextIOExpr optExpr
 

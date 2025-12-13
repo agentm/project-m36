@@ -538,12 +538,13 @@ data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
   { dbcio_transId :: TransactionId,
     dbcio_graph :: TransactionGraph,
     dbcio_mScriptSession :: Maybe ScriptSession,
+    dbcio_roleId :: RoleId,
     dbcio_mModulesDirectory :: Maybe FilePath -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
   }
 
 type DatabaseContextIOEvalMonad a = RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState (ExceptT RelationalError IO) a
 
-runDatabaseContextIOEvalMonad :: DatabaseContextIOEvalEnv -> DatabaseContext -> DatabaseContextIOEvalMonad (Either RelationalError ()) -> IO (Either RelationalError DatabaseContextEvalState)
+runDatabaseContextIOEvalMonad :: DatabaseContextIOEvalEnv -> DatabaseContext -> DatabaseContextIOEvalMonad () -> IO (Either RelationalError DatabaseContextEvalState)
 runDatabaseContextIOEvalMonad env ctx m = do
   res <- runExceptT $ runRWST m env freshState
   case res of
@@ -552,17 +553,16 @@ runDatabaseContextIOEvalMonad env ctx m = do
   where
     freshState = mkDatabaseContextEvalState ctx
 
-requireScriptSession :: DatabaseContextIOEvalMonad (Either RelationalError ScriptSession)
+requireScriptSession :: DatabaseContextIOEvalMonad ScriptSession
 requireScriptSession = do
   env <- RWS.ask
   case dbcio_mScriptSession env of
-    Nothing -> pure $ Left $ ScriptError ScriptCompilationDisabledError
-    Just ss -> pure (Right ss)
+    Nothing -> throwError (ScriptError ScriptCompilationDisabledError)
+    Just ss -> pure ss
 
-putDBCIOContext :: DatabaseContext -> DatabaseContextIOEvalMonad (Either RelationalError ())
+putDBCIOContext :: DatabaseContext -> DatabaseContextIOEvalMonad ()
 putDBCIOContext ctx = do
   RWS.modify (\dbstate -> dbstate { dbc_context = ctx})
-  pure (Right ())
 
 getDBCIOContext :: DatabaseContextIOEvalMonad DatabaseContext
 getDBCIOContext = dbc_context <$> RWS.get
@@ -573,8 +573,7 @@ getDBCIORelationalExprEnv = do
   graph <- dbcio_graph <$> RWS.ask
   pure (mkRelationalExprEnv context graph)
 
--- why doesn't this use ExceptT???
-evalGraphRefDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> DatabaseContextIOEvalMonad (Either RelationalError ())
+evalGraphRefDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 #if !defined(PM36_HASKELL_SCRIPTING)
 evalGraphRefDatabaseContextIOExpr AddAtomFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
 evalGraphRefDatabaseContextIOExpr AddDatabaseContextFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
@@ -582,14 +581,11 @@ evalGraphRefDatabaseContextIOExpr LoadAtomFunctions{} = pure (Left (ScriptError 
 evalGraphRefDatabaseContextIOExpr LoadDatabaseContextFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
 #else
 evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName' funcType' script) = do
-  eScriptSession <- requireScriptSession
+  scriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
   atomFuncs <- resolveIODBC atomFunctions
   tConsMap <- resolveIODBC typeConstructorMapping
-  case eScriptSession of
-    Left err -> pure (Left err)
-    Right scriptSession -> do
-      res <- liftIO $ try $ runGhc (Just libdir) $ do
+  res <- liftIO $ try $ runGhc (Just libdir) $ do
         setSession (hscEnv scriptSession)
         case extractAtomFunctionType funcType' of
           Left err -> pure (Left err)
@@ -611,25 +607,23 @@ evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName' funcType' script) =
                   Left (FunctionNameInUseError funcName')
                   else 
                   Right newContext
-      case res of
-        Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
+  case res of
+        Left (exc :: SomeException) -> throwError (ScriptError (OtherScriptCompilationError (show exc)))
         Right eContext -> case eContext of
-          Left err -> pure (Left err)
+          Left err -> throwError err
           Right context' -> putDBCIOContext context'
 evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType' script) = do
-  eScriptSession <- requireScriptSession
+  scriptSession <- requireScriptSession
   currentContext <- getDBCIOContext
-  case eScriptSession of
-    Left err -> pure (Left err)
-    Right scriptSession -> do
-      --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
-      let last2Args = reverse (take 2 (reverse funcType'))
-          atomArgs = take (length funcType' - 2) funcType'
-          dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "DatabaseContextFunctionError" [], ADTypeConstructor "DatabaseContext" []]
-          expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
-          actualType = show funcType'
-      if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
-        pure (Left (ScriptError (TypeCheckCompilationError expectedType actualType)))
+  myRoleId <- dbcio_roleId <$> RWS.ask
+  --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
+  let last2Args = reverse (take 2 (reverse funcType'))
+      atomArgs = take (length funcType' - 2) funcType'
+      dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "DatabaseContextFunctionError" [], ADTypeConstructor "DatabaseContext" []]
+      expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
+      actualType = show funcType'
+  if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
+        throwError (ScriptError (TypeCheckCompilationError expectedType actualType))
         else do
         tConsMap <- resolveIODBC typeConstructorMapping
         dbcFuncs <- resolveIODBC dbcFunctions
@@ -647,17 +641,17 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType
                     funcName = funcName',
                     funcType = funcAtomType,
                     funcBody = FunctionScriptBody script compiledFunc,
-                    funcACL = ACL.empty
+                    funcACL = allPermissionsForRoleId myRoleId
                     }
                 -- check if the name is already in use
               if HS.member funcName' (HS.map funcName dbcFuncs) then
-                Left (FunctionNameInUseError funcName')
+                throwError (FunctionNameInUseError funcName')
                 else 
-                Right newContext
+                pure newContext
         case res of
-          Left (exc :: SomeException) -> pure $ Left (ScriptError (OtherScriptCompilationError (show exc)))
+          Left (exc :: SomeException) -> throwError (ScriptError (OtherScriptCompilationError (show exc)))
           Right eContext -> case eContext of
-            Left err -> pure (Left err)
+            Left err -> throwError err
             Right context' -> putDBCIOContext context'
 evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modPath) = do
 
@@ -669,8 +663,8 @@ evalGraphRefDatabaseContextIOExpr (LoadAtomFunctions modName entrypointName modP
       sEntrypointName = T.unpack entrypointName
   eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
-    Left LoadSymbolError -> pure (Left LoadFunctionError)
-    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
+    Left LoadSymbolError -> throwError LoadFunctionError
+    Left SecurityLoadSymbolError -> throwError SecurityLoadFunctionError
     Right atomFunctionListFunc -> do
       let newContext = currentContext { atomFunctions = mergedFuncs }
           processedAtomFunctions = processObjectLoadedFunctions sModName sEntrypointName modPath atomFunctionListFunc
@@ -684,8 +678,8 @@ evalGraphRefDatabaseContextIOExpr (LoadDatabaseContextFunctions modName entrypoi
   mModDir <- dbcio_mModulesDirectory <$> ask      
   eLoadFunc <- liftIO $ loadFunctions sModName sEntrypointName mModDir modPath
   case eLoadFunc of
-    Left LoadSymbolError -> pure (Left LoadFunctionError)
-    Left SecurityLoadSymbolError -> pure (Left SecurityLoadFunctionError)
+    Left LoadSymbolError -> throwError LoadFunctionError
+    Left SecurityLoadSymbolError -> throwError SecurityLoadFunctionError
     Right dbcListFunc -> let newContext = currentContext { dbcFunctions = mergedFuncs }
                              mergedFuncs = ValueMarker $ HS.union dbcFuncs (HS.fromList processedDBCFuncs)
                              processedDBCFuncs = processObjectLoadedFunctions sModName sEntrypointName modPath dbcListFunc
@@ -700,31 +694,31 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
       evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env)
       graph = dbcio_graph env
   case runDatabaseContextEvalMonad currentContext evalEnv (evalGraphRefDatabaseContextExpr gfExpr) of
-    Left err -> pure (Left err)
+    Left err -> throwError err
     Right dbstate -> do
          --Assign
            let context' = dbc_context dbstate      
            case resolveDBC' graph context' relationVariables of
-             Left err -> pure (Left err)
+             Left err -> throwError err
              Right relVars -> do
                let existingRelVar = M.lookup relVarName relVars
                case existingRelVar of
-                 Nothing -> pure $ Left (RelVarNotDefinedError relVarName)
+                 Nothing -> throwError (RelVarNotDefinedError relVarName)
                  Just existingRel -> do
                   let gfEnv = freshGraphRefRelationalExprEnv (Just currentContext) graph
                   case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr existingRel) of
-                    Left err -> pure (Left err)
+                    Left err -> throwError err
                     Right relType -> do
                       case resolveDBC' graph context' typeConstructorMapping of
-                        Left err -> pure (Left err)
+                        Left err -> throwError err
                         Right tcMap -> do
                           let expectedAttributes = attributes relType
                           eitherRel <- liftIO $ generate $ runReaderT (arbitraryRelation expectedAttributes range) tcMap
                           case eitherRel of
-                            Left err -> pure $ Left err
+                            Left err -> throwError err
                             Right rel ->
                               case runDatabaseContextEvalMonad currentContext evalEnv (setRelVar relVarName (ExistingRelation rel)) of
-                                Left err -> pure (Left err)
+                                Left err -> throwError err
                                 Right dbstate' -> putDBCIOContext (dbc_context dbstate')
 
 -- | run verification of all constraints

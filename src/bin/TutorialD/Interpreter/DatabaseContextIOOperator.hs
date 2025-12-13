@@ -2,9 +2,18 @@
 module TutorialD.Interpreter.DatabaseContextIOOperator where
 import ProjectM36.Base
 import ProjectM36.Interpreter
+import ProjectM36.Error
 import TutorialD.Interpreter.Base
 import TutorialD.Interpreter.Types
-import Data.Text
+import Data.Text as T
+import qualified Data.Text.IO as TIO
+import Control.Exception (IOException, handle, displayException)
+
+data DatabaseContextIOOperator =
+  DatabaseContextIOOp DatabaseContextIOExpr |
+  LoadAtomFunctionFromFileOp FunctionName [TypeConstructor] FilePath |
+  LoadDatabaseContextFunctionFromFileOp FunctionName [TypeConstructor] FilePath
+  deriving (Show, Eq)
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
 addAtomFunctionExprP = dbioexprP "addatomfunction" AddAtomFunction
@@ -32,13 +41,19 @@ dbioexprP res adt = do
 atomTypeSignatureP :: Parser [TypeConstructor]
 atomTypeSignatureP = sepBy typeConstructorP arrow
 
-dbContextIOExprP :: Parser DatabaseContextIOExpr
-dbContextIOExprP = addAtomFunctionExprP <|> 
+databaseContextIOExprP :: Parser DatabaseContextIOExpr
+databaseContextIOExprP = addAtomFunctionExprP <|> 
                    addDatabaseContextFunctionExprP <|> 
                    loadAtomFunctionsP <|>
                    loadDatabaseContextFunctionsP <|>
                    createArbitraryRelationP
 
+databaseContextIOOperatorP :: Parser DatabaseContextIOOperator
+databaseContextIOOperatorP = 
+  (DatabaseContextIOOp <$> databaseContextIOExprP) <|>
+  (reserved "loadatomfunctionfromfile" >> (LoadAtomFunctionFromFileOp <$> quotedString <*> atomTypeSignatureP <*> quotedFilePath)) <|>
+  (reserved "loaddatabasecontextfunctionfromfile" >> (LoadDatabaseContextFunctionFromFileOp <$> quotedString <*> atomTypeSignatureP <*> quotedFilePath))
+  
 loadAtomFunctionsP :: Parser DatabaseContextIOExpr
 loadAtomFunctionsP = do
   reserved "loadatomfunctions"
@@ -49,3 +64,23 @@ loadDatabaseContextFunctionsP = do
   reserved "loaddatabasecontextfunctions"
   LoadDatabaseContextFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
                                              
+interpretDatabaseContextIOOperator :: DatabaseContextIOOperator -> IO (Either RelationalError DatabaseContextIOExpr)
+interpretDatabaseContextIOOperator expr = do
+  let loadFromFile typ functionName functionArgs functionFilePath = do
+        let handler :: IOException -> IO (Either RelationalError Text)
+            handler e = pure (Left (ImportError (ImportFileError (T.pack (displayException e)))))
+        eFuncBody <- handle handler (Right <$> TIO.readFile functionFilePath)
+        case eFuncBody of
+          Left err -> pure (Left err)
+          Right functionBody ->
+            pure (Right (typ functionName functionArgs functionBody))
+        
+  case expr of
+    DatabaseContextIOOp expr' ->
+      pure (Right expr')
+    LoadAtomFunctionFromFileOp functionName functionArgs functionFilePath ->
+      loadFromFile AddAtomFunction functionName functionArgs functionFilePath
+    LoadDatabaseContextFunctionFromFileOp functionName functionArgs functionFilePath ->
+      loadFromFile AddDatabaseContextFunction functionName functionArgs functionFilePath
+
+

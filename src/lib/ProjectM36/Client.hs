@@ -88,7 +88,6 @@ module ProjectM36.Client
        inclusionDependencyForKey,
        databaseContextExprForUniqueKey,
        databaseContextExprForForeignKey,
-       createScriptedAtomFunction,
        ProjectM36.Client.validateMerkleHashes,
        AttributeExprBase(..),
        TypeConstructorBase(..),
@@ -746,6 +745,7 @@ autoMergeToHead sessionId conn@(RemoteConnection _) strat headName' = remoteCall
 executeDatabaseContextIOExpr :: SessionId -> Connection -> DatabaseContextIOExpr -> IO (Either RelationalError ())
 executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
  roleIds <- roleIdsForRoleName conf
+ myRoleId <- primaryRoleIdForRoleName conf
  excEither $ do
   let sessions = ipSessions conf
       scriptSession = ipScriptSession conf
@@ -754,7 +754,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
     Left err -> pure (Left err)
     Right session -> do
       graph <- readTVarIO (ipTransactionGraph conf)
-      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession objFilesPath
+      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession myRoleId objFilesPath
           objFilesPath = objectFilesPath <$> persistenceDirectory (ipPersistenceStrategy conf)
           transId = Sess.parentId session
           context = Sess.concreteDatabaseContext session
@@ -1555,6 +1555,13 @@ roleIdsForRoleName conf = do
   case eRoles of
     Left _err -> pure []
     Right roleIds -> pure roleIds
+
+primaryRoleIdForRoleName :: InProcessConnectionConf -> IO RoleId
+primaryRoleIdForRoleName conf = do
+  eRoleId <- LoginRoles.roleIdForRoleName (ipRoleName conf) (ipLoginRoles conf)
+  case eRoleId of
+    Left _err -> error ("role id for role name \"" <> T.unpack (ipRoleName conf) <> "\" no longer exists")
+    Right roleId -> pure roleId
 
 -- | Useful for in-process connections to change the role related to access control. Remote connections authenticate via TLS, so require new connections to change roles.
 setRoleName :: RoleName -> Connection -> Connection

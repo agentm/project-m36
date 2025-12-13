@@ -67,12 +67,12 @@ isScriptedAtomFunction func = case funcBody func of
   _ -> False
   
 -- | Create a 'DatabaseContextIOExpr' which can be used to load a new atom function written in Haskell and loaded at runtime.
-createScriptedAtomFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr
+{-createScriptedAtomFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr
 createScriptedAtomFunction funcName' argsType retType = AddAtomFunction funcName' (
   argsType ++ [ADTypeConstructor "Either" [
                 ADTypeConstructor "AtomFunctionError" [],                     
                 retType]])
-
+-}
 {-
 loadAtomFunctions :: ModName -> FuncName -> Maybe FilePath -> FilePath -> IO (Either LoadSymbolError [AtomFunction])
 #ifdef PM36_HASKELL_SCRIPTING

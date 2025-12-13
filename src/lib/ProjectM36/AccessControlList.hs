@@ -11,7 +11,7 @@ import Data.Default
 
 newtype AccessControlList role' permission =
     AccessControlList (M.Map role' (RoleAccess permission))
-   deriving (Show, NFData, Generic, Read)
+   deriving (Show, NFData, Generic, Read, Eq)
 
 instance Ord r => Default (AccessControlList r p) where
   def = AccessControlList mempty
@@ -119,6 +119,9 @@ normalize (AccessControlList acl) = AccessControlList $ M.filter (not . M.null) 
 
 empty :: Ord r => AccessControlList r p
 empty = AccessControlList mempty
+
+allPermissionsForRoleId :: (AllPermissions p, Ord p) => r -> AccessControlList r p
+allPermissionsForRoleId roleid = AccessControlList (M.singleton roleid (M.fromList (map (,True) (S.toList allPermissions))))
 
 merge :: (Ord p, Eq r, Ord r) => AccessControlList r p -> AccessControlList r p -> AccessControlList r p
 merge (AccessControlList acl1) (AccessControlList acl2) =

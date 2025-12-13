@@ -46,8 +46,9 @@ databaseContextFunctionReturnType tCons = ADTypeConstructor "Either" [
   ADTypeConstructor "DatabaseContextFunctionError" [],
   tCons]
                                           
-createScriptedDatabaseContextFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr
+{-createScriptedDatabaseContextFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr
 createScriptedDatabaseContextFunction funcName' argsIn retArg = AddDatabaseContextFunction funcName' (argsIn ++ [databaseContextFunctionReturnType retArg])
+-}
 
 databaseContextFunctionsAsRelation :: DatabaseContextFunctions -> Either RelationalError Relation
 databaseContextFunctionsAsRelation dbcFuncs = mkRelationFromList attrs tups

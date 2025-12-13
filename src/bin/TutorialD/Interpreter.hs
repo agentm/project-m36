@@ -46,7 +46,7 @@ graph ops are read-write operations which change the transaction graph
 -}
 data ParsedOperation = RODatabaseContextOp RODatabaseContextOperator |
                        DatabaseContextExprOp DatabaseContextExpr |
-                       DatabaseContextIOExprOp DatabaseContextIOExpr |
+                       DatabaseContextIOExprOp DatabaseContextIOOperator |
                        InfoOp InformationOperator |
                        GraphOp TransactionGraphExpr |
                        AlterGraphOp AlterTransactionGraphExpr |
@@ -66,7 +66,7 @@ interpreterParserP = safeInterpreterParserP <|>
                      fmap ImportRelVarOp (importCSVP <* eof) <|>
                      fmap ImportDBContextOp (tutdImportP <* eof) <|>
                      fmap RelVarExportOp (exportCSVP <* eof) <|>
-                     fmap DatabaseContextIOExprOp (dbContextIOExprP <* eof)
+                     fmap DatabaseContextIOExprOp (databaseContextIOOperatorP <* eof)
 
 -- the safe interpreter never reads or writes the file system
 safeInterpreterParserP :: Parser ParsedOperation
@@ -125,8 +125,12 @@ evalTutorialDInteractive sessionId conn safe interactive expr = case expr of
   (DatabaseContextIOExprOp execOp) ->
     if needsSafe then
       unsafeError
-      else
-      eHandler $ C.executeDatabaseContextIOExpr sessionId conn execOp
+      else do
+      eIOExpr <- interpretDatabaseContextIOOperator execOp
+      case eIOExpr of
+        Left err -> pure (DisplayRelationalErrorResult err)
+        Right ioexpr ->
+          eHandler $ C.executeDatabaseContextIOExpr sessionId conn ioexpr
   (GraphOp execOp) -> do
     eHandler $ C.executeTransactionGraphExpr sessionId conn execOp
   (AlterGraphOp execOp) -> do

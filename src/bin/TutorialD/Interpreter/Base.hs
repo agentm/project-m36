@@ -172,6 +172,9 @@ normalQuotedString = quote *> (T.pack <$> manyTill Lex.charLiteral quote)
 quotedString :: Parser Text
 quotedString = try tripleQuotedString <|> normalQuotedString
 
+quotedFilePath :: Parser FilePath
+quotedFilePath = T.unpack <$> quotedString
+
 quoted :: Parser a -> Parser a
 quoted = between quote quote
 
