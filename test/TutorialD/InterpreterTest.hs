@@ -7,7 +7,7 @@ import ProjectM36.Relation as R
 import ProjectM36.Tuple
 import ProjectM36.TupleSet as TS
 import ProjectM36.Error
-import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Types hiding (DatabaseContextFunctionUtils(..))
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.RelationalExpression

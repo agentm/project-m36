@@ -26,7 +26,7 @@ import Data.Time.Calendar
 import ProjectM36.Client as C
 import ProjectM36.Relation
 import ProjectM36.Transaction.Persist
-import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Types hiding (DatabaseContextFunctionUtils(..))
 import Control.Monad (forM)
 import System.Random
 

@@ -54,10 +54,21 @@ data GraphRefSOptDatabaseContextExprEnv =
   {
     odce_graph :: TransactionGraph,
     odce_context :: DatabaseContext, --not optional for DatabaseContextExpr evaluation
-    odce_transId :: TransactionId -- parent if context is committed- needed because MultipleExpr optimization requires running the DatabaseContextExprs (with empty relvars)
+    odce_transId :: TransactionId, -- parent if context is committed- needed because MultipleExpr optimization requires running the DatabaseContextExprs (with empty relvars)
+    odce_dbcfuncutils :: DatabaseContextFunctionUtils
     }
 
+data GraphRefSOptDatabaseContextIOExprEnv =
+  GraphRefSOptDatabaseContextIOExprEnv
+  {
+    odcioe_graph :: TransactionGraph,
+    odcioe_context :: DatabaseContext, --not optional for DatabaseContextExpr evaluation
+    odcioe_transId :: TransactionId -- parent if context is committed- needed bec
+  }
+  
 type GraphRefSOptDatabaseContextExprM a = ReaderT GraphRefSOptDatabaseContextExprEnv (ExceptT RelationalError Identity) a
+
+type GraphRefSOptDatabaseContextIOExprM a = ReaderT GraphRefSOptDatabaseContextIOExprEnv (ExceptT RelationalError Identity) a
 
 class Optimize expr optExpr where
   type OptimizeEnv expr optExpr
@@ -80,7 +91,8 @@ instance Optimize DatabaseContextExpr' GraphRefDatabaseContextExpr' where
         graph = odce_graph env
         transId = odce_transId env
         ctx = odce_context env
-    runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+        dbcfuncutils = odce_dbcfuncutils env
+    runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
 -- | Apply pure optimizations.
 optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
@@ -179,9 +191,10 @@ optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
+  dbcfuncutils <- asks dce_dbcfuncutils
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
       eOptExpr = if runOpt then
-                   runGraphRefSOptDatabaseContextExprM transId context graph (optimizeGraphRefDatabaseContextExpr gfExpr)
+                   runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
                    else
                    pure gfExpr
   case eOptExpr of
@@ -213,7 +226,7 @@ optimizeAndEvalDatabaseContextIOExpr expr = do
   ctx <- getDBCIOContext
   graph <- asks dbcio_graph
   let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
-      eOptExpr = runGraphRefSOptDatabaseContextExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
+      eOptExpr = runGraphRefSOptDatabaseContextIOExprM transId ctx graph (optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
     Left err -> throwError err
     Right optExpr ->
@@ -241,16 +254,33 @@ runGraphRefSOptDatabaseContextExprM ::
   TransactionId ->
   DatabaseContext ->
   TransactionGraph ->
+  DatabaseContextFunctionUtils ->
   GraphRefSOptDatabaseContextExprM a ->
   Either RelationalError a
-runGraphRefSOptDatabaseContextExprM tid ctx graph m =
+runGraphRefSOptDatabaseContextExprM tid ctx graph dbcfuncutils m =
   runIdentity (runExceptT (runReaderT m env))
   where
     env = GraphRefSOptDatabaseContextExprEnv {
       odce_graph = graph,
       odce_context = ctx,
-      odce_transId = tid
+      odce_transId = tid,
+      odce_dbcfuncutils = dbcfuncutils
       }
+
+runGraphRefSOptDatabaseContextIOExprM ::
+  TransactionId ->
+  DatabaseContext ->
+  TransactionGraph ->
+  GraphRefSOptDatabaseContextIOExprM a ->
+  Either RelationalError a
+runGraphRefSOptDatabaseContextIOExprM tid ctx graph m =
+  runIdentity (runExceptT (runReaderT m env))
+  where
+    env = GraphRefSOptDatabaseContextIOExprEnv {
+      odcioe_graph = graph,
+      odcioe_context = ctx,
+      odcioe_transId = tid
+        }
 
 optimizeGraphRefRelationalExpr' ::
   Maybe DatabaseContext ->
@@ -439,14 +469,15 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   context <- askContext
   graph <- askGraph
   parentId <- askTransId
+  dbcfuncutils <- asks odce_dbcfuncutils
   
   let emptyRvs ctx = do
         emptyRvs' <- mkEmptyRelVars' graph (relationVariables ctx)
         pure $ ctx { relationVariables = emptyRvs' }
-      dbcEnv = mkDatabaseContextEvalEnv parentId graph
+      dbcEnv = mkDatabaseContextEvalEnv parentId graph dbcfuncutils
       folder (ctx, expracc) expr = do
         --optimize the expr and run it against empty relvars to add it to the context, otherwise some relvars could be missing in subsequent optimizations
-        case runGraphRefSOptDatabaseContextExprM parentId ctx graph (optimizeGraphRefDatabaseContextExpr expr) of
+        case runGraphRefSOptDatabaseContextExprM parentId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr expr) of
           Left err -> throwError err
           Right optExpr ->
             case runDatabaseContextEvalMonad ctx dbcEnv (evalGraphRefDatabaseContextExpr optExpr) of
@@ -714,7 +745,7 @@ applyUnusedRenameCleanup expr = Fold.para folder expr
     folder e = traceShow ("para2", Fold.embed $ fst <$> e) $ Fold.embed $ fst <$> e
 -}    
 -- no optimizations available  
-optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextIOExpr
+optimizeDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> GraphRefSOptDatabaseContextIOExprM GraphRefDatabaseContextIOExpr
 optimizeDatabaseContextIOExpr = pure
 
 

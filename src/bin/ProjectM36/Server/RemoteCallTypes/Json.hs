@@ -6,9 +6,9 @@ import ProjectM36.AtomFunctionError
 import ProjectM36.Base
 import ProjectM36.DataFrame
 import ProjectM36.IsomorphicSchema.Types
-import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.DataTypes.Primitive
+import ProjectM36.DatabaseContext.Fields
 import ProjectM36.Error
 import ProjectM36.AccessControlList
 import ProjectM36.IsomorphicSchema

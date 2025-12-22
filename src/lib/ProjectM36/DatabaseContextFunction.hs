@@ -19,7 +19,7 @@ emptyDatabaseContextFunction :: FunctionName -> DatabaseContextFunction
 emptyDatabaseContextFunction name = Function { 
   funcName = name,
   funcType = [],
-  funcBody = FunctionBuiltInBody (\_ ctx -> pure ctx),
+  funcBody = FunctionBuiltInBody (\_ _ ctx -> pure ctx),
   funcACL = def
   }
 
@@ -29,9 +29,9 @@ databaseContextFunctionForName funcName' funcs =
     [] -> Left $ NoSuchFunctionError funcName'
     x : _ -> Right x
 
-evalDatabaseContextFunction :: DatabaseContextFunction -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
-evalDatabaseContextFunction func args ctx =
-  case f args ctx of
+evalDatabaseContextFunction :: DatabaseContextFunction -> DatabaseContextFunctionUtils -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
+evalDatabaseContextFunction func utils args ctx =
+  case f utils args ctx of
     Left err -> Left (DatabaseContextFunctionUserError err)
     Right c -> pure c
   where

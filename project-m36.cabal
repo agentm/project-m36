@@ -196,6 +196,7 @@ Library
                      ProjectM36.DataTypes.SQL.Null,
                      ProjectM36.SQLDatabaseContext,                     
                      ProjectM36.DatabaseContext.Basic,
+                     ProjectM36.DatabaseContext.Fields,                     
                      ProjectM36.DatabaseContextExpr,                     
                      ProjectM36.MiscUtils,
                      ProjectM36.Notifications,

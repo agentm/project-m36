@@ -16,6 +16,7 @@ import qualified ProjectM36.DatabaseContext.Basic as DBC
 import ProjectM36.RelationalExpression
 import ProjectM36.StaticOptimizer
 import ProjectM36.Transaction.Types
+import ProjectM36.DatabaseContext.Fields
 
 import qualified Data.ByteString.Lazy as BS
 import System.Exit
@@ -140,7 +141,7 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   
 -- add another relvar to branchB
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
-  let env = mkDatabaseContextEvalEnv (transactionId branchBTrans) graph
+  let env = mkDatabaseContextEvalEnv (transactionId branchBTrans) graph dudFunctionUtils
       branchBContext = concreteDatabaseContext branchBTrans
   updatedBranchBContext <- case runDatabaseContextEvalMonad branchBContext env (optimizeAndEvalDatabaseContextExpr True (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) of
     Left err -> assertFailure (show err) >> undefined
@@ -161,6 +162,12 @@ testSubGraphToFirstAncestorMoreTransactions = TestCase $ do
   --verify that the subgraph includes both the heads and the common ancestor
   let expectedTransSet = S.fromList (map fakeUUID [[1],[3],[4]])
   assertBool "validate transactions in subgraph" (S.isProperSubsetOf expectedTransSet (S.map transactionId (transactionsForGraph subgraph)))
+
+dudFunctionUtils :: DatabaseContextFunctionUtils
+dudFunctionUtils = DatabaseContextFunctionUtils {
+  executeDatabaseContextExpr = error "test executeDatabaseContextExpr",
+  executeRelationalExpr = error "test executeRelationalExpr"
+  }
   
 testSelectedBranchMerge :: Test
 testSelectedBranchMerge = TestCase $ do
@@ -169,7 +176,7 @@ testSelectedBranchMerge = TestCase $ do
   
   -- add a relvar "branchBOnlyRelvar" to branchB only
   branchBTrans <- assertMaybe (transactionForHead "branchB" graph) "failed to get branchB head"
-  let env = mkDatabaseContextEvalEnv (transactionId branchBTrans) graph
+  let env = mkDatabaseContextEvalEnv (transactionId branchBTrans) graph dudFunctionUtils
       branchBContext = concreteDatabaseContext branchBTrans  
   updatedBranchBContext <- case runDatabaseContextEvalMonad branchBContext env (optimizeAndEvalDatabaseContextExpr True (Assign "branchBOnlyRelvar" (ExistingRelation relationTrue))) of
     Left err -> assertFailure (show err) >> undefined

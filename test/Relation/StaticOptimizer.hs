@@ -4,7 +4,8 @@ import ProjectM36.TransactionGraph
 import ProjectM36.DateExamples
 import ProjectM36.TupleSet as TS
 import ProjectM36.StaticOptimizer
-import ProjectM36.DatabaseContext as DBC
+import qualified ProjectM36.DatabaseContext as DBC
+import ProjectM36.DatabaseContext.Types
 import System.Exit
 import Test.HUnit
 import qualified Data.Set as S
@@ -40,8 +41,14 @@ testOptimizeDatabaseContextExpr = TestCase $ do
                        Assign "z" (Restrict TruePredicate (relvar "s"))])
         ]
   forM_ testInfos $ \(name, expectedExpr, unoptExpr) -> do
-    let optExpr = runGraphRefSOptDatabaseContextExprM transId (toDatabaseContext dateExamples) graph (optimizeDatabaseContextExpr unoptExpr)
+    let optExpr = runGraphRefSOptDatabaseContextExprM transId (DBC.toDatabaseContext dateExamples) graph dudFunctionUtils (optimizeDatabaseContextExpr unoptExpr)
     assertEqual name expectedExpr optExpr
+
+dudFunctionUtils :: DatabaseContextFunctionUtils
+dudFunctionUtils = DatabaseContextFunctionUtils {
+  executeDatabaseContextExpr = error "test executeDatabaseContextExpr",
+  executeRelationalExpr = error "test executeRelationalExpr"
+  }
 
 testTransitiveOptimization :: Test
 testTransitiveOptimization = TestCase $ do
@@ -69,7 +76,7 @@ testOptimizeRelationalExpr = TestCase $ do
          Join (relvarId "s") (relvarId "s"))
         ]
   forM_ relationOptTests $ \(name, expr, unoptExpr) -> do
-    let optExpr = runGraphRefSOptRelationalExprM (Just (toDatabaseContext dateExamples)) graph (optimizeGraphRefRelationalExpr unoptExpr)
+    let optExpr = runGraphRefSOptRelationalExprM (Just (DBC.toDatabaseContext dateExamples)) graph (optimizeGraphRefRelationalExpr unoptExpr)
     assertEqual name expr optExpr
 
 testImpossiblePredicates :: Test  
@@ -81,7 +88,7 @@ testImpossiblePredicates = TestCase $ do
       tautFalse2 = Restrict (NotPredicate TruePredicate) rel
       emptyRel = MakeStaticRelation (attributes suppliersRel) TS.empty
       rel = RelationVariable "s" UncommittedContextMarker
-      optRelExpr = optimizeGraphRefRelationalExpr' (Just (toDatabaseContext dateExamples)) graph
+      optRelExpr = optimizeGraphRefRelationalExpr' (Just (DBC.toDatabaseContext dateExamples)) graph
   assertEqual "remove tautology where true" (Right rel) (optRelExpr tautTrue)
   assertEqual "remove tautology where true2" (Right rel) (optRelExpr tautTrue2)
   assertEqual "remove tautology where false" (Right emptyRel) (optRelExpr tautFalse)
@@ -91,7 +98,7 @@ testJoinElimination :: Test
 testJoinElimination = TestCase $ do
   (graph, _) <- freshTransactionGraph' dateExamples
   let marker = UncommittedContextMarker
-      optJoinExpr expr = runGraphRefSOptRelationalExprM (Just (toDatabaseContext dateExamples)) graph (applyStaticJoinElimination expr)
+      optJoinExpr expr = runGraphRefSOptRelationalExprM (Just (DBC.toDatabaseContext dateExamples)) graph (applyStaticJoinElimination expr)
       relvar rv = RelationVariable rv marker
 
   -- (s join sp){s#,qty,p#} == sp

@@ -22,6 +22,7 @@ import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
 import ProjectM36.HashSecurely
 import ProjectM36.ReferencedTransactionIds
+import ProjectM36.DatabaseContext.Fields
 
 import Codec.Winery
 #if MIN_VERSION_base(4,18,0)

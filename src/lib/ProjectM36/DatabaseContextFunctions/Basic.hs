@@ -13,7 +13,7 @@ basicDatabaseContextFunctions :: DatabaseContextFunctions
 basicDatabaseContextFunctions = HS.fromList [
   Function { funcName = "deleteAll",
              funcType = [],
-             funcBody = FunctionBuiltInBody (\_ ctx -> pure $ ctx { relationVariables = emptyValue }),
+             funcBody = FunctionBuiltInBody (\_utils _ ctx -> pure $ ctx { relationVariables = emptyValue }),
              funcACL = defaultACL
            }
   ]

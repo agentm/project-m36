@@ -106,7 +106,11 @@ testIsoRestrict = TestCase $ do
   let schemaBInsertExpr = Insert "employee" (ExistingRelation bobRel)
   schemaBInsertExpr' <- assertEither (processDatabaseContextExprInSchema (Schema isomorphsAtoB) schemaBInsertExpr)
   let evalDBCExpr expr' = runDatabaseContextEvalMonad baseContext dbcenv (optimizeAndEvalDatabaseContextExpr False expr')
-      dbcenv = mkDatabaseContextEvalEnv transId graph
+      dbcenv = mkDatabaseContextEvalEnv transId graph dbcfuncutils
+      dbcfuncutils = DatabaseContextFunctionUtils {
+        executeDatabaseContextExpr = error "test dbc expr",
+        executeRelationalExpr = error "test relexpr"
+        }
   --execute the expression against the schema and compare against the base context
   dbcState <- assertEither $ evalDBCExpr schemaBInsertExpr'
   let postInsertContext = dbc_context dbcState

@@ -349,8 +349,8 @@ createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) = le
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
-evalSchemaExpr :: SchemaExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
-evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
+evalSchemaExpr :: SchemaExpr -> DatabaseContext -> TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> Subschemas -> Either RelationalError (Subschemas, DatabaseContext)
+evalSchemaExpr (AddSubschema sname morphs) context transId graph dbcfuncutils sschemas =
   if M.member sname sschemas then
     Left (SubschemaNameInUseError sname)
     else do
@@ -362,12 +362,12 @@ evalSchemaExpr (AddSubschema sname morphs) context transId graph sschemas =
             newSchema = Schema morphs
             moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
             incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
-            dbenv = mkDatabaseContextEvalEnv transId graph
+            dbenv = mkDatabaseContextEvalEnv transId graph dbcfuncutils
         dbstate <- runDatabaseContextEvalMonad context dbenv (evalGraphRefDatabaseContextExpr incDepExprs)
         pure (newSchemas, dbc_context dbstate)
 --need to propagate dirty flag here
 
-evalSchemaExpr (RemoveSubschema sname) context _ _ sschemas = if M.member sname sschemas then
+evalSchemaExpr (RemoveSubschema sname) context _ _ _ sschemas = if M.member sname sschemas then
                                            pure (M.delete sname sschemas, context)
                                          else
                                            Left (SubschemaNameNotInUseError sname)

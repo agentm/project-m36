@@ -8,6 +8,7 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.AccessControlList
+import ProjectM36.DatabaseContext.Fields
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 import Control.Monad.Except

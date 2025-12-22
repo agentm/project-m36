@@ -7,13 +7,13 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.StaticOptimizer
 
-executeDatabaseContextExpr :: DatabaseContextExpr' -> TransactionId -> TransactionGraph -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
-executeDatabaseContextExpr expr transId graph context' =
+executeDatabaseContextExpr :: DatabaseContextExpr' -> TransactionId -> TransactionGraph -> DatabaseContext -> DatabaseContextFunctionUtils -> Either DatabaseContextFunctionError DatabaseContext
+executeDatabaseContextExpr expr transId graph context' dbcFuncUtils =
   case run of
     Right st -> pure (dbc_context st)
     Left err -> error (show err)
   where
-    env = mkDatabaseContextEvalEnv transId graph
+    env = mkDatabaseContextEvalEnv transId graph dbcFuncUtils
     run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr True expr)
   
 executeRelationalExpr :: RelationalExpr -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation

@@ -5,7 +5,7 @@ import ProjectM36.SQL.Select
 import TutorialD.Interpreter.RODatabaseContextOperator
 import TutorialD.Interpreter.DatabaseContextExpr
 import ProjectM36.RelationalExpression
-import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Types hiding (DatabaseContextFunctionUtils(..))
 import SQL.Interpreter.DBUpdate
 import SQL.Interpreter.CreateTable
 import SQL.Interpreter.Base (semi)

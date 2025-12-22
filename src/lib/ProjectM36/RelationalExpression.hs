@@ -159,10 +159,11 @@ data DatabaseContextEvalState = DatabaseContextEvalState {
 
 data DatabaseContextEvalEnv = DatabaseContextEvalEnv
   { dce_transId :: TransactionId,
-    dce_graph :: TransactionGraph
+    dce_graph :: TransactionGraph,
+    dce_dbcfuncutils :: DatabaseContextFunctionUtils
   }
 
-mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextEvalEnv
+mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> DatabaseContextEvalEnv
 mkDatabaseContextEvalEnv = DatabaseContextEvalEnv
 
 type DatabaseContextEvalMonad a = RWST DatabaseContextEvalEnv () DatabaseContextEvalState (ExceptT RelationalError Identity) a
@@ -480,6 +481,7 @@ evalGraphRefDatabaseContextExpr (RemoveDatabaseContextFunction funcName') = do
 evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomArgExprs) = do
   context <- getStateContext
   graph <- dbcGraph
+  dbcfuncutils <- dce_dbcfuncutils <$> RWS.ask
   funcs <- resolveDBC dbcFunctions
   --resolve atom arguments
   let eAtomTypes = mapM (runGraphRefRelationalExprM gfEnv . typeForGraphRefAtomExpr emptyAttributes) atomArgExprs
@@ -509,7 +511,7 @@ evalGraphRefDatabaseContextExpr (ExecuteDatabaseContextFunction funcName' atomAr
                 else if not (null typeErrors) then
                      dbErr (someErrors typeErrors)
                    else
-                     case evalDatabaseContextFunction func (rights eAtomArgs) context of
+                     case evalDatabaseContextFunction func dbcfuncutils (rights eAtomArgs) context of
                        Left err -> dbErr err
                        Right newContext -> putStateContext newContext
 
@@ -539,7 +541,8 @@ data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
     dbcio_graph :: TransactionGraph,
     dbcio_mScriptSession :: Maybe ScriptSession,
     dbcio_roleId :: RoleId,
-    dbcio_mModulesDirectory :: Maybe FilePath -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
+    dbcio_mModulesDirectory :: Maybe FilePath, -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
+    dbcio_dbcfunctionUtils :: DatabaseContextFunctionUtils
   }
 
 type DatabaseContextIOEvalMonad a = RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState (ExceptT RelationalError IO) a
@@ -691,7 +694,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
   env <- RWS.ask
   --create graph ref expr
   let gfExpr = Define relVarName attrExprs
-      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env)
+      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env) (dbcio_dbcfunctionUtils env)
       graph = dbcio_graph env
   case runDatabaseContextEvalMonad currentContext evalEnv (evalGraphRefDatabaseContextExpr gfExpr) of
     Left err -> throwError err
