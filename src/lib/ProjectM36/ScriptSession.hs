@@ -122,12 +122,13 @@ initScriptSession ghcPkgPaths = do
 
     sandboxPkgPaths <- liftIO $ concat <$> mapM glob [
       --"./dist-newstyle/packagedb/ghc-" ++ ghcVersion, --rely on cabal 3's ghc.environment install: "cabal install --lib project-m36"
+      homeDir </> ".local/state/cabal/store/ghc-" ++ ghcVersion ++ "/package.db"      
       ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d",
       ".stack-work/install/*/*/" ++ ghcVersion ++ "/pkgdb",
       ".stack-work/install/*/pkgdb/", --windows stack build
       "C:/sr/snapshots/b201cfe6/pkgdb", --windows stack build- ideally, we could run `stack path --snapshot-pkg-db, but this is sufficient to pass CI
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb"
-      --homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
+--      homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
 #if MIN_VERSION_ghc(9,0,0)
     let pkgConf = PkgDbPath
@@ -242,12 +243,11 @@ initScriptSession ghcPkgPaths = do
           "Data.Time.Calendar",
           "Control.Monad.State",
           "ProjectM36.Base",
+          "ProjectM36.Error",
           "ProjectM36.Relation",
           "ProjectM36.DatabaseContext",
           "ProjectM36.DatabaseContext.Types",
           "ProjectM36.AtomFunctionError",
-          "ProjectM36.DatabaseContextFunctionError",
-          "ProjectM36.DatabaseContextFunctionUtils",
           "ProjectM36.RelationalExpression"]
         qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl modn (Just qualNam)) [
           ("Data.Text", "T")
