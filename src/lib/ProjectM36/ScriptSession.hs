@@ -122,7 +122,7 @@ initScriptSession ghcPkgPaths = do
 
     sandboxPkgPaths <- liftIO $ concat <$> mapM glob [
       --"./dist-newstyle/packagedb/ghc-" ++ ghcVersion, --rely on cabal 3's ghc.environment install: "cabal install --lib project-m36"
-      homeDir </> ".local/state/cabal/store/ghc-" ++ ghcVersion ++ "/package.db"      
+      homeDir </> ".local/state/cabal/store/ghc-" ++ ghcVersion ++ "/package.db",
       ".cabal-sandbox/*ghc-" ++ ghcVersion ++ "-packages.conf.d",
       ".stack-work/install/*/*/" ++ ghcVersion ++ "/pkgdb",
       ".stack-work/install/*/pkgdb/", --windows stack build

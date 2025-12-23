@@ -1,0 +1,68 @@
+employee := relation {
+  employeeid Int,
+  departmentid Int,
+  bossid Maybe Int,
+  name Text,
+  salary Int}{
+  tuple {
+    employeeid 1,
+    departmentid 1,
+    bossid Nothing,
+    name "Bossman",
+    salary 1000000},
+  tuple {
+    employeeid 2,
+    departmentid 1,
+    bossid Just 1,
+    name "Peon 1",
+    salary 100},
+  tuple {
+    employeeid 3,
+    departmentid 3,
+    bossid Just 1,
+    name "Peon 2",
+    salary 200},
+  tuple {
+    employeeid 4,
+    departmentid 3,
+    bossid Just 1,
+    name "Peon 3",
+    salary 20000000}
+}; 
+department := relation {
+  departmentid Int,
+  name Text};
+
+insert department relation {
+  tuple {
+    departmentid 1,
+    name "Accounting"},
+  tuple {
+    departmentid 2,
+    name "Empty"},
+  tuple {
+    departmentid 3,
+    name "Engineering"}
+};
+
+--bosses := :showexpr ((employee{bossid,employeeid,name} group ({employeeid,name} as boss)) where isJust(@bossid)) {bossid}
+
+--List employees (names) who have a bigger salary than their boss
+q1 := (((((employee{employeeid, name, salary} rename {employeeid as ibossid}) rename {name as bossname}) rename {salary as bosssalary}):{bossid:=Just @ibossid}){all but ibossid} join employee) where gt(@salary,@bosssalary);
+
+-- List employees who have the biggest salary in their departments
+--q2 := broken max()
+
+--list departments that have less than 3 people in it
+-- lte has caret, but count doesn't (and no option to add one)
+q3 := (employee{employeeid, departmentid} group ({all but departmentid} as dept)) where lte(count(@dept), 3);
+
+-- List all departments along with the number of people there (tricky - people often do an "inner join" leaving out empty departments)
+-- extend with original attrs broken
+q4 := department : {emps:=(employee rename {departmentid as deptid}) where deptid=@departmentid};
+
+-- List employees that don't have a boss in the same department
+--q5 :=
+
+-- List all departments along with the total salary there
+--q6 :=
