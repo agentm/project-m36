@@ -5,6 +5,7 @@ import ProjectM36.DataTypes.Primitive
 import ProjectM36.Tupleable
 import ProjectM36.Relation
 import ProjectM36.Error
+import ProjectM36.AtomFunction
 import Data.Either
 import GHC.Generics
 import Control.DeepSeq

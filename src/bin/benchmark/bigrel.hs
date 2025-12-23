@@ -26,9 +26,7 @@ import Control.DeepSeq
 import Data.Text hiding (map)
 import Data.Time.Clock
 import Data.UUID.V4
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
+import qualified ProjectM36.DatabaseContextFunctionUtils as Util
 
 
 {-
@@ -71,7 +69,7 @@ matrixRun (BigrelArgs attributeCount tupleCount tutd) =
                    tid <- nextRandom
                    let setx = Assign "x" (ExistingRelation (force rel))
                        graph = bootstrapTransactionGraph now tid (toDatabaseContext dateExamples)
-                       env = mkDatabaseContextEvalEnv tid graph
+                       env = mkDatabaseContextEvalEnv tid graph Util.dud
                        eNewState = runDatabaseContextEvalMonad (toDatabaseContext dateExamples) env (optimizeAndEvalDatabaseContextExpr True setx)
                        --plan = interpretRODatabaseContextOp context $ ":showplan " ++ tutd
                    --displayOpResult plan
