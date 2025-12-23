@@ -32,7 +32,7 @@ databaseContextFunctionForName funcName' funcs =
 evalDatabaseContextFunction :: DatabaseContextFunction -> DatabaseContextFunctionUtils -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 evalDatabaseContextFunction func utils args ctx =
   case f utils args ctx of
-    Left err -> Left (DatabaseContextFunctionUserError err)
+    Left err -> Left err
     Right c -> pure c
   where
    f = function (funcBody func)
@@ -43,7 +43,7 @@ isScriptedDatabaseContextFunction func = isJust (functionScript func)
   
 databaseContextFunctionReturnType :: TypeConstructor -> TypeConstructor
 databaseContextFunctionReturnType tCons = ADTypeConstructor "Either" [
-  ADTypeConstructor "DatabaseContextFunctionError" [],
+  ADTypeConstructor "RelationalError" [],
   tCons]
                                           
 {-createScriptedDatabaseContextFunction :: FunctionName -> [TypeConstructor] -> TypeConstructor -> FunctionBodyScript -> DatabaseContextIOExpr

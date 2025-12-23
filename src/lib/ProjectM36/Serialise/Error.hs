@@ -5,7 +5,6 @@ import ProjectM36.Error
 import Codec.Winery
 import ProjectM36.Serialise.Base ()
 import ProjectM36.Serialise.AtomFunctionError ()
-import ProjectM36.Serialise.DatabaseContextFunctionError ()
 import ProjectM36.DatabaseContext.Fields
 
 deriving via WineryVariant RelationalError instance Serialise RelationalError

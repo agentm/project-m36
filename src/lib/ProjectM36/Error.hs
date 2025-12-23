@@ -2,7 +2,6 @@
 module ProjectM36.Error where
 import ProjectM36.Base
 import ProjectM36.MerkleHash
-import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.AtomFunctionError
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.DatabaseContext.Fields (DatabaseContextField)
@@ -98,7 +97,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | ScriptError ScriptCompilationError
                      | LoadFunctionError
                      | SecurityLoadFunctionError
-                     | DatabaseContextFunctionUserError DatabaseContextFunctionError
+                     | DatabaseContextFunctionUserError String
                      | DatabaseLoadError PersistenceError
                        
                      | SubschemaNameInUseError SchemaName

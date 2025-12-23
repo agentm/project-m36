@@ -13,7 +13,7 @@ In order to use compile functions at runtime in Project:M36, be sure to build yo
 The Haskell type of all database context functions is:
 
 ```haskell
-[Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+DatabaseContextFunctionUtils -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 ```
 
 That is, the function takes an array of ```Atom```s which represent the function's arguments and a context and returns an updated context or an error. Notice that this operation is idempotent ("pure" in Haskell parlance).
@@ -26,14 +26,14 @@ Database context functions are committed alongside the transaction. Thus, previo
 
 Remember that database context functions don't need to worry about locks or other synchronization. The database context is completely isolated from other ongoing transactions.
 
-Returning a ```DatabaseContextFunctionError``` from the function ensures that any changes made by the function are discarded.
+Returning a ```RelationalError``` from the function ensures that any changes made by the function are discarded.
 
 ## TutorialD Demonstration
 
 Use ```adddatabasecontextfunction``` to compile and name a new database context function:
 
 ```
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext """(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight (executeRelationalExpr (RelationVariable "person" ()) ctx) then executeDatabaseContextExpr (Insert "person" newrel) ctx else executeDatabaseContextExpr (Assign "person" newrel) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"""   
+adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either RelationalError DatabaseContext """(\utils (age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in if isRight ((executeRelationalExpr utils) (RelationVariable "person" ()) ctx) then (executeDatabaseContextExpr utils) (Insert "person" newrel) ctx else (executeDatabaseContextExpr utils) (Assign "person" newrel) ctx) :: DatabaseContextFunctionBodyType"""   
 ```
 
 This function is quite dense, so let's examine its components.
@@ -41,7 +41,7 @@ This function is quite dense, so let's examine its components.
 The first components are:
 
 ```
-adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+adddatabasecontextfunction "addperson" Int -> Text -> DatabaseContext -> Either RelationalError DatabaseContext
 ```
 
 which defines a function "addperson" which takes three arguments (an Int value, a Text value, and a DatabaseContext) and returns a DatabaseContext. All database context functions take as a final argument a database context and must return a database context.
@@ -49,11 +49,11 @@ which defines a function "addperson" which takes three arguments (an Int value, 
 The meat of the function is obviously the Haskell, so let's lay it out:
 
 ```haskell
-(\(age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in
-  if isRight (executeRelationalExpr (RelationVariable "person" ()) ctx) then
-     executeDatabaseContextExpr (Insert "person" newrel) ctx
+(\utils (age:name:_) ctx -> let newrel = MakeRelationFromExprs Nothing [TupleExpr (fromList [("name", NakedAtomExpr name),("age", NakedAtomExpr age)])] in
+  if isRight ((executeRelationalExpr utils) (RelationVariable "person" ()) ctx) then
+     (executeDatabaseContextExpr utils) (Insert "person" newrel) ctx
   else
-    executeDatabaseContextExpr (Assign "person" newrel) ctx)) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+    (executeDatabaseContextExpr utils) (Assign "person" newrel) ctx)) :: DatabaseContextFunctionBodyType
 ```
 
 Line 1 sets up a new relation created from the function's arguments. In this case, we create a relation to represent a new person in our database.
@@ -123,7 +123,6 @@ module DynamicDatabaseContextFunctions where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DatabaseContextFunction
-import ProjectM36.DatabaseContextFunctionError
 import qualified ProjectM36.Attribute as A
 
 import qualified Data.Map as M

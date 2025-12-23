@@ -1,13 +1,12 @@
 module ProjectM36.DatabaseContextFunctionUtils where
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
-import ProjectM36.DatabaseContextFunctionError
 import ProjectM36.Error
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.StaticOptimizer
 
-executeDatabaseContextExpr :: DatabaseContextExpr' -> TransactionId -> TransactionGraph -> DatabaseContext -> DatabaseContextFunctionUtils -> Either DatabaseContextFunctionError DatabaseContext
+executeDatabaseContextExpr :: DatabaseContextExpr' -> TransactionId -> TransactionGraph -> DatabaseContext -> DatabaseContextFunctionUtils -> Either RelationalError DatabaseContext
 executeDatabaseContextExpr expr transId graph context' dbcFuncUtils =
   case run of
     Right st -> pure (dbc_context st)

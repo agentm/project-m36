@@ -6,7 +6,6 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.AccessControlList
 import ProjectM36.ValueMarker
-import ProjectM36.DatabaseContextFunctionError
 import qualified Data.HashSet as HS
 import Data.Functor.Identity
 
@@ -40,7 +39,7 @@ data DatabaseContextFunctionUtils =
   executeRelationalExpr :: DatabaseContext -> RelationalExpr -> Either RelationalError Relation
                                }
 
-type DatabaseContextFunctionBodyType = DatabaseContextFunctionUtils -> [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext
+type DatabaseContextFunctionBodyType = DatabaseContextFunctionUtils -> [Atom] -> DatabaseContext -> Either RelationalError DatabaseContext
 type DatabaseContextFunctions = HS.HashSet DatabaseContextFunction
 
 type DatabaseContextFunction = Function DatabaseContextFunctionBodyType DBCFunctionAccessControlList

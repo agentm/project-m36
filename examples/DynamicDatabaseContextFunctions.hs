@@ -5,7 +5,6 @@ module DynamicDatabaseContextFunctions where
 import ProjectM36.Base
 import ProjectM36.Relation
 import ProjectM36.DatabaseContextFunction
-import ProjectM36.DatabaseContextFunctionError
 import qualified ProjectM36.Attribute as A
 
 import qualified Data.Map as M

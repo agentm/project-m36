@@ -67,7 +67,7 @@ Database context expressions take the current database context as input and alte
 |`notify steve_change person where name="Steve" true (person where name="Steve"){address}`|Notify the current connection with an asynchronous event if any committed tuples matching `person where name="Steve"` with `true` for the pre-change state and `person where name="Steve"){address}` for the post-change state- these states will be sent along with the notification|
 |`data Hair = Bald | Brown | Blond | OtherColor Text`|Create a new algebraic data type for use with values inside tuples|
 |`undata Hair`|Delete the `Hair` custom type|
-|`loaddatabasecontextfunctionfromfile "myfunction" Integer -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext "/path/to/myfunction"` | Load a database context function from a file on disk.|
+|`loaddatabasecontextfunctionfromfile "myfunction" Integer -> DatabaseContext -> Either RelationalError DatabaseContext "/path/to/myfunction"` | Load a database context function from a file on disk.|
 
 
 Relation variable and attribute names must begin with a lowercase letter unless quoted with backticks.

@@ -24,7 +24,7 @@ main = do
 testBasicDBCFunction :: Test
 testBasicDBCFunction = TestCase $ do  
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext  \"\"\"(\\[] ctx -> executeDatabaseContextExpr (Assign \"true2\" (ExistingRelation relationTrue)) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"addTrue2\" DatabaseContext -> Either RelationalError DatabaseContext  \"\"\"(\\util [] ctx -> (executeDatabaseContextExpr util) ctx (Assign \"true2\" (ExistingRelation relationTrue))) :: DatabaseContextFunctionBodyType\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute addTrue2()"
   {-
@@ -35,15 +35,15 @@ testBasicDBCFunction = TestCase $ do
 testErrorDBCFunction :: Test
 testErrorDBCFunction = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback  
-  let addfunc = "adddatabasecontextfunction \"retErr\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\[] ctx -> Left (DatabaseContextFunctionUserError \"err\")) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"retErr\" DatabaseContext -> Either RelationalError DatabaseContext \"\"\"(\\util [] ctx -> Left (DatabaseContextFunctionUserError \"err\")) :: DatabaseContextFunctionBodyType\"\"\""
   executeTutorialD sess conn addfunc
-  expectTutorialDErr sess conn (T.isPrefixOf "DatabaseContextFunctionUserError (DatabaseContextFunctionUserError \"err\")") "execute retErr()"
+  expectTutorialDErr sess conn (T.isPrefixOf "DatabaseContextFunctionUserError \"err\"") "execute retErr()"
   
 testExceptionDBCFunction :: Test
 testExceptionDBCFunction = TestCase $ do
   -- throw an error, make sure it is caught- it might not be caught, for example, if the function is not forced
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"bomb\" DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\[] _ -> error \"boom\") :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"bomb\" DatabaseContext -> Either RelationalError DatabaseContext \"\"\"(\\util [] _ -> error \"boom\") :: DatabaseContextFunctionBodyType\"\"\""
   executeTutorialD sess conn addfunc
   expectTutorialDErr sess conn ("UnhandledExceptionError" `T.isPrefixOf`) "execute bomb()"
   
@@ -52,7 +52,7 @@ testDBCFunctionWithAtomArguments :: Test
 testDBCFunctionWithAtomArguments = TestCase $ do
   --test function with creation of a relvar with some arguments
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
-  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Integer -> Text -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext \"\"\"(\\(age:name:_) ctx -> executeDatabaseContextExpr (Assign \"person\" (MakeRelationFromExprs Nothing [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])])) ctx) :: [Atom] -> DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext\"\"\""
+  let addfunc = "adddatabasecontextfunction \"multiArgFunc\" Integer -> Text -> DatabaseContext -> Either RelationalError DatabaseContext \"\"\"(\\util (age:name:_) ctx -> (executeDatabaseContextExpr util) ctx (Assign \"person\" (MakeRelationFromExprs Nothing (TupleExprs () [TupleExpr (fromList [(\"name\", NakedAtomExpr name), (\"age\", NakedAtomExpr age)])])))) :: DatabaseContextFunctionBodyType\"\"\""
   executeTutorialD sess conn addfunc
   executeTutorialD sess conn "execute multiArgFunc(30,\"Steve\")"
   result <- executeRelationalExpr sess conn (RelationVariable "person" ())

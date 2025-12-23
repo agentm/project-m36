@@ -622,8 +622,8 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType
   --validate that the function signature is of the form x -> y -> ... -> DatabaseContext -> DatabaseContext
   let last2Args = reverse (take 2 (reverse funcType'))
       atomArgs = take (length funcType' - 2) funcType'
-      dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "DatabaseContextFunctionError" [], ADTypeConstructor "DatabaseContext" []]
-      expectedType = "DatabaseContext -> Either DatabaseContextFunctionError DatabaseContext"
+      dbContextTypeCons = ADTypeConstructor "Either" [ADTypeConstructor "RelationalError" [], ADTypeConstructor "DatabaseContext" []]
+      expectedType = "DatabaseContext -> Either RelationalError DatabaseContext"
       actualType = show funcType'
   if last2Args /= [ADTypeConstructor "DatabaseContext" [], dbContextTypeCons] then 
         throwError (ScriptError (TypeCheckCompilationError expectedType actualType))
