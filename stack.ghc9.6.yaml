@@ -43,6 +43,7 @@ extra-deps:
 flags:
   project-m36:
     stack: true
+    haskell-scripting: false
 allow-newer: true
 allow-newer-deps:
   - unicode-data

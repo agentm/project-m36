@@ -578,10 +578,10 @@ getDBCIORelationalExprEnv = do
 
 evalGraphRefDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 #if !defined(PM36_HASKELL_SCRIPTING)
-evalGraphRefDatabaseContextIOExpr AddAtomFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
-evalGraphRefDatabaseContextIOExpr AddDatabaseContextFunction{} = pure (Left (ScriptError ScriptCompilationDisabledError))
-evalGraphRefDatabaseContextIOExpr LoadAtomFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
-evalGraphRefDatabaseContextIOExpr LoadDatabaseContextFunctions{} = pure (Left (ScriptError ScriptCompilationDisabledError))
+evalGraphRefDatabaseContextIOExpr AddAtomFunction{} = throwError (ScriptError ScriptCompilationDisabledError)
+evalGraphRefDatabaseContextIOExpr AddDatabaseContextFunction{} = throwError (ScriptError ScriptCompilationDisabledError)
+evalGraphRefDatabaseContextIOExpr LoadAtomFunctions{} = throwError (ScriptError ScriptCompilationDisabledError)
+evalGraphRefDatabaseContextIOExpr LoadDatabaseContextFunctions{} = throwError (ScriptError ScriptCompilationDisabledError)
 #else
 evalGraphRefDatabaseContextIOExpr (AddAtomFunction funcName' funcType' script) = do
   scriptSession <- requireScriptSession
