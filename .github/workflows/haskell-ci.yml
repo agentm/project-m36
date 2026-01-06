@@ -160,6 +160,10 @@ jobs:
       - name: list package db
         run: |
           ls -R ~/.cabal/store/$HCNAME/incoming
+        env:
+          HCKIND: ${{ matrix.compilerKind }}
+          HCNAME: ${{ matrix.compiler }}
+          HCVER: ${{ matrix.compilerVersion }}
       - name: tests
         run: |
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
