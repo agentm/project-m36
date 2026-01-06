@@ -129,7 +129,7 @@ initScriptSession ghcPkgPaths = do
       "C:/sr/snapshots/b201cfe6/pkgdb", --windows stack build- ideally, we could run `stack path --snapshot-pkg-db, but this is sufficient to pass CI
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb",
       --github CI path
-      homeDir </> (".cabal/store/ghc-" ++ ghcVersion) </> "incoming"
+      homeDir </> (".cabal/store/ghc-" ++ ghcVersion) </> "package.db"
 --      homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
 #if MIN_VERSION_ghc(9,0,0)
