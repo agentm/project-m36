@@ -157,6 +157,9 @@ jobs:
       - name: install lib:project-m36
         run: |
           $CABAL v2-install $ARG_COMPILER --lib lib:project-m36
+      - name: list package db
+        run: |
+          ls -R /github/home/.cabal/store/$HCNAME/incoming/new-*/github/home/.cabal/store/
       - name: tests
         run: |
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
