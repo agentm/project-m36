@@ -59,6 +59,7 @@ module ProjectM36.Client
        RelationalExprBase(..),
        DatabaseContextExprBase(..),
        DatabaseContextExpr,
+       ExtendTupleExprBase(..),
        DatabaseContextIOExprBase(..),
        DatabaseContextIOExpr,
        Attribute(..),

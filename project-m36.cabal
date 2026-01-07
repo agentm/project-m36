@@ -1,6 +1,6 @@
 Cabal-Version: 2.2
 Name: project-m36
-Version: 1.1.1
+Version: 1.2.0
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
@@ -690,14 +690,17 @@ Executable Example-Hospital
                
 
 Executable Example-DerivingCustomTupleable
-    if impl(ghc>=8.6)
-      Buildable: True
-    else
-      Buildable: False
     Default-Language: Haskell2010
     Build-Depends: base, text, deepseq, project-m36, winery
     Main-Is: examples/DerivingCustomTupleable.hs
     GHC-Options: -Wall -threaded
+
+Executable Example-Zoo
+    Default-Language: Haskell2010
+    Build-Depends: base, text, deepseq, project-m36, winery, random, time
+    Main-Is: examples/zoo.hs
+    GHC-Options: -Wall -threaded
+         
 
 Test-Suite test-scripts
     import: commontest

@@ -130,7 +130,6 @@ initScriptSession ghcPkgPaths = do
       homeDir </> ".stack/snapshots/*/*/" ++ ghcVersion ++ "/pkgdb",
       --github CI path
       homeDir </> (".cabal/store/ghc-" ++ ghcVersion) </> "package.db"
---      homeDir </> ".cabal/store/ghc-" ++ ghcVersion ++ "/package.db"
       ]
 #if MIN_VERSION_ghc(9,0,0)
     let pkgConf = PkgDbPath

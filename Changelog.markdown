@@ -1,6 +1,6 @@
-# Future (v1.2.0)
+# 2026-01-06 (v1.2.0)
 
-* add LRU result caching layer 
+* add LRU result caching layer
 * add parallel execution engine based on [streamly 0.9.0](https://github.com/composewell/streamly)
 * reduce copying of database context fields in persistence layer by enabling references to previous transactions
 * require GHC 9.4+

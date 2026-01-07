@@ -82,6 +82,8 @@ Project:M36 supports multiple frontends which target different audiences.
 
 ### Advanced Features
 
+1. [Role-Based Access Control](docs/role-based_access_control.markdown)
+1. [Authentication](docs/authentication.markdown)
 1. [Transaction Graph Operators](docs/transaction_graph_operators.markdown)
 1. [ProjectM36.Client Library](docs/projectm36_client_library.markdown)
 1. [Data Frames for Sorting](docs/dataframes.markdown)
