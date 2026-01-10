@@ -746,14 +746,14 @@ data BigOComplexity =
   deriving (Show, Eq, Ord)
 
 bigOTimes :: BigOComplexity -> BigOComplexity -> BigOComplexity
-bigOTimes a b = max a b
+bigOTimes = max
 
 -- compose inclusive O(_) from plan nodes
 bigOTimes' :: [RelExprExecPlanBase marker ComplexityMetric] -> BigOComplexity -> ComplexityMetric
 bigOTimes' plans currNodeComplexity = ComplexityMetric inc currNodeComplexity
   where
     inc =
-      foldr bigOTimes currNodeComplexity (map getBigOComplexity plans)
+      foldr (bigOTimes . getBigOComplexity) currNodeComplexity plans
 
 instance Pretty BigOComplexity where
   pretty ConstantInTuples = "O(c)"
