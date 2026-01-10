@@ -40,15 +40,15 @@ instance Exception CacheMissException
 
 type RelExprExecPlan = RelExprExecPlanBase () ()
 
-type GraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransactionMarker ()
+type GraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransactionMarker ComplexityMetric
 
 type PostExecutionGraphRefRelExprExecPlan = RelExprExecPlanBase GraphRefTransactionMarker PlanNodeExecutionInfo
 
 newtype PlanNodeExecutionInfo = PlanNodeExecutionInfo { duration :: DiffTime }
   
 --this will become more useful once we have multiple join strategies, etc.
--- a: transaction marker
--- t: collected execution information as the graph is evaluated
+-- marker: transaction marker
+-- execInfo: useful info collect before or after execution of the graph
 data RelExprExecPlanBase marker execInfo =
   -- | Read relvar expr from transaction graph to generate tuple stream.
   -- Instead of locking cache entries during plans so that the entry is not ejected before the plan can run (race condition), the plan can point to a cache entry, but if the entry no longer exists, then the plan must provide an alternative solution.
@@ -191,7 +191,7 @@ planGraphRefRelationalExpr orig@(RelationValuedAttribute relAttrName) gfEnv = do
   case A.attributeForName relAttrName (envAttributes gfEnv) of
     Left err -> throw err
     Right relAttr -> 
-      pure (RelationValuedAttributeStreamPlan relAttr () orig)
+      pure (RelationValuedAttributeStreamPlan relAttr (ComplexityMetric LinearInTuples LinearInTuples) orig)
   
 planGraphRefRelationalExpr orig@(Project attrNames expr) gfEnv = do
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
@@ -201,59 +201,87 @@ planGraphRefRelationalExpr orig@(Project attrNames expr) gfEnv = do
     Right attrs' -> do
       subExpr <- planGraphRefRelationalExpr expr gfEnv
       --if we know that the projection attributes represent a key, then we don't need to run the uniquification
-      pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr () orig) ())
+      pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr (ComplexityMetric LinearInTuples LinearInTuples) orig)
+            (ComplexityMetric
+             (inclusiveComplexity (getExecInfo subExpr) `bigOTimes` QuadraticInTuples)
+             QuadraticInTuples))
   
 planGraphRefRelationalExpr orig@(Union exprA exprB) state = do  
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (UnionTupleStreamsPlan planA planB () orig)
+  pure (UnionTupleStreamsPlan planA planB
+        (ComplexityMetric
+         (getBigOComplexity planA
+          `bigOTimes`
+          getBigOComplexity planB
+           `bigOTimes`
+           LinearInTuples)
+         LinearInTuples) orig)
   
 planGraphRefRelationalExpr orig@(Join exprA exprB) state = do  
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (NaiveJoinTupleStreamsPlan planA planB () orig)
+  pure (NaiveJoinTupleStreamsPlan planA planB
+        (bigOTimes' [planA, planB] QuadraticInTuples) orig)
   
 planGraphRefRelationalExpr orig@(Difference exprA exprB) state = do
   planA <- planGraphRefRelationalExpr exprA state
   planB <- planGraphRefRelationalExpr exprB state
-  pure (DifferenceTupleStreamsPlan planA planB () orig)
+  let bigO = bigOTimes' [planA, planB] QuadraticInTuples
+  pure (DifferenceTupleStreamsPlan planA planB bigO orig)
 
-planGraphRefRelationalExpr (MakeStaticRelation attributeSet tupSet) _ = pure (MakeStaticRelationPlan attributeSet tupSet ())
+planGraphRefRelationalExpr (MakeStaticRelation attributeSet tupSet) _ = pure (MakeStaticRelationPlan attributeSet tupSet (ComplexityMetric LinearInTuples LinearInTuples))
 
 -- MakeRelationFromExprs could include expensive atom functions
 planGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupExprs) _gfEnv =
-  pure (MakeRelationFromExprsPlan mAttrExprs tupExprs ())
+  pure (MakeRelationFromExprsPlan mAttrExprs tupExprs (ComplexityMetric LinearInTuples LinearInTuples)) -- linear because we must validate all the tuples
   
-planGraphRefRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelationPlan rel ())  
+planGraphRefRelationalExpr (ExistingRelation rel) _ = pure (ExistingRelationPlan rel (ComplexityMetric ConstantInTuples ConstantInTuples))
 
-planGraphRefRelationalExpr orig@(Rename renameAssoc relExpr) state = 
-  RenameTupleStreamPlan renameAssoc <$> planGraphRefRelationalExpr relExpr state <*> pure () <*> pure orig
+planGraphRefRelationalExpr orig@(Rename renameAssoc relExpr) state = do
+  subPlan <- planGraphRefRelationalExpr relExpr state
+  let bigO = bigOTimes' [subPlan] LinearInTuples
+  pure (RenameTupleStreamPlan renameAssoc subPlan bigO orig)
   
 planGraphRefRelationalExpr orig@(Group groupAttrNames newAttrName relExpr) gfEnv = do
   groupAttrs <- runGraphRefRelationalExprM gfEnv $ do
     groupTypes <- typeForGraphRefRelationalExpr (Project groupAttrNames relExpr)
     pure (attributes groupTypes)
-  GroupTupleStreamPlan groupAttrs newAttrName <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure orig
+  subPlan <- planGraphRefRelationalExpr relExpr gfEnv
+  let bigO = bigOTimes' [subPlan] QuadraticInTuples
+  pure (GroupTupleStreamPlan groupAttrs newAttrName subPlan bigO orig)
   
-planGraphRefRelationalExpr orig@(Ungroup attrName relExpr) state = 
-  UngroupTupleStreamPlan attrName <$> planGraphRefRelationalExpr relExpr state <*> pure () <*> pure orig
+planGraphRefRelationalExpr orig@(Ungroup attrName relExpr) state = do
+  subPlan <- planGraphRefRelationalExpr relExpr state
+  let bigO = bigOTimes' [subPlan] LinearInTuples
+  pure (UngroupTupleStreamPlan attrName subPlan bigO orig)
   
 planGraphRefRelationalExpr origExpr@(Restrict predExpr relExpr) gfEnv = do
   rfilt <- runGraphRefRelationalExprM gfEnv $ do
     exprT <- typeForGraphRefRelationalExpr relExpr    
     predicateRestrictionFilter (attributes exprT) predExpr
-  RestrictTupleStreamPlan rfilt predExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure origExpr
+  subPlan <- planGraphRefRelationalExpr relExpr gfEnv
+  let bigO = bigOTimes' [subPlan] LinearInTuples
+  pure (RestrictTupleStreamPlan rfilt predExpr subPlan bigO origExpr)
   
-planGraphRefRelationalExpr orig@(Equals relExprA relExprB) state =   
-  EqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure () <*> pure orig
+planGraphRefRelationalExpr orig@(Equals relExprA relExprB) state = do
+  planA <- planGraphRefRelationalExpr relExprA state
+  planB <- planGraphRefRelationalExpr relExprB state  
+  let bigO = bigOTimes' [planA, planB] QuadraticInTuples
+  pure (EqualTupleStreamsPlan planA planB bigO orig)
   
-planGraphRefRelationalExpr orig@(NotEquals relExprA relExprB) state =
-  NotEqualTupleStreamsPlan <$> planGraphRefRelationalExpr relExprA state <*> planGraphRefRelationalExpr relExprB state <*> pure () <*> pure orig
+planGraphRefRelationalExpr orig@(NotEquals relExprA relExprB) state = do
+  planA <- planGraphRefRelationalExpr relExprA state
+  planB <- planGraphRefRelationalExpr relExprB state  
+  let bigO = bigOTimes' [planA, planB] QuadraticInTuples  
+  pure (NotEqualTupleStreamsPlan planA planB bigO orig)
   
 planGraphRefRelationalExpr orig@(Extend extendTupleExpr relExpr) gfEnv = do
   subExprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr)
   extendProc <- runGraphRefRelationalExprM gfEnv (extendGraphRefTupleExpressionProcessor (attributes subExprT) extendTupleExpr)
-  ExtendTupleStreamPlan extendProc extendTupleExpr <$> planGraphRefRelationalExpr relExpr gfEnv <*> pure () <*> pure orig
+  subPlan <- planGraphRefRelationalExpr relExpr gfEnv
+  let bigO = bigOTimes' [subPlan] LinearInTuples
+  pure (ExtendTupleStreamPlan extendProc extendTupleExpr subPlan bigO orig)
 
 planGraphRefRelationalExpr (With macros expr) gfEnv = 
   --TODO: determine if macros should be expanded or executed separately- perhaps calculate how many times a macro appears and it's calculation and size cost to determine if it should be precalculated.
@@ -325,7 +353,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                         pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
                       SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep unimplemented"
   case plan of
-    RenameTupleStreamPlan attrsAssoc expr () _rexpr -> do
+    RenameTupleStreamPlan attrsAssoc expr _bigo _rexpr -> do
       checkCacheOr $ do
         eRelS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
         case eRelS of
@@ -335,7 +363,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
             --potential optimization- lookup attrs in advance to rename the correct vector index
             pure (Right (streamRelationMap newAttrs (pure . tupleRenameAttributes attrsAssoc) relS))
             
-    RestrictTupleStreamPlan restrictionFilter _predExpr expr () _origExpr ->
+    RestrictTupleStreamPlan restrictionFilter _predExpr expr _bigo _origExpr ->
       checkCacheOr $ do
         eStream <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
         case eStream of
@@ -348,7 +376,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                            Left err -> throw err -- this will blow up in a separate thread but streamly should shuttle it to the caller (I hope)
                            Right !t' -> t'
             pure (Right (StreamRelation attrs tupS'))
-    ProjectTupleStreamPlan attrs expr () _ -> do
+    ProjectTupleStreamPlan attrs expr _bigo _ -> do
       checkCacheOr $ do
         eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
         case eS of
@@ -360,7 +388,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                                 Left err -> throw err
                                 Right t' -> t'
             pure (Right (StreamRelation attrs tupS'))
-    UnionTupleStreamsPlan exprA exprB () _ -> do
+    UnionTupleStreamsPlan exprA exprB _bigo _ -> do
       checkCacheOr $ do
         --ideally, the streams would have pre-ordered tuples and we could zip them together right away- if we have an ordered representation, we can drop the sorting here
   -- glue two streams together, then uniqueify
@@ -374,7 +402,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
               Right (StreamRelation _ tupSb) -> do
                 let tupS' = Stream.parList id [tupSa, tupSb]
                 pure (Right (StreamRelation attrsA tupS'))
-    EqualTupleStreamsPlan exprA exprB () _ -> do
+    EqualTupleStreamsPlan exprA exprB _bigo _ -> do
       checkCacheOr $ do
         ePlanA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
         ePlanB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
@@ -392,7 +420,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                       SD.mkCross $ Stream.fromList $ 
                         [RelationTuple mempty mempty | HS.size tA == HS.size tcmp]
                 pure (Right (StreamRelation mempty tupS'))
-    RelationValuedAttributeStreamPlan relAttr () _ -> checkCacheOr $ do
+    RelationValuedAttributeStreamPlan relAttr _bigo _ -> checkCacheOr $ do
       case contextTupleAtomForAttributeName ctxTuples (A.attributeName relAttr) of
         Left err -> pure (Left err)
         Right relAtom@(RelationAtom{}) -> do
@@ -400,8 +428,8 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
               tupS = Stream.fromList [newTup]
           pure (Right (StreamRelation (A.singleton relAttr) tupS))
         Right _ -> pure (Left (AttributeIsNotRelationValuedError (A.attributeName relAttr)))
-    NotEqualTupleStreamsPlan exprA exprB () orig -> checkCacheOr $ do
-      eS <- executePlan (EqualTupleStreamsPlan exprA exprB () orig) ctxTuples gfEnv cacheKeyBlackList cache
+    NotEqualTupleStreamsPlan exprA exprB bigo orig -> checkCacheOr $ do
+      eS <- executePlan (EqualTupleStreamsPlan exprA exprB bigo orig) ctxTuples gfEnv cacheKeyBlackList cache
       case eS of
         Left err -> pure (Left err)
         Right (StreamRelation _ tupS) -> do
@@ -411,7 +439,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                                                  Nothing -> [RelationTuple mempty mempty]
                                                  Just _ -> []
           pure (Right (StreamRelation mempty tupS'))
-    MakeStaticRelationPlan attrs tupSet () -> checkCacheOr $ do
+    MakeStaticRelationPlan attrs tupSet _bigo -> checkCacheOr $ do
       pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
     MakeRelationFromExprsPlan mAttrExprs tupExprs _ -> checkCacheOr $ do
       let expr = MakeRelationFromExprs mAttrExprs tupExprs
@@ -419,9 +447,9 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
         Left err -> pure (Left err)
         Right rel ->
           pure (Right (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel)))))
-    ExistingRelationPlan rel () -> do
+    ExistingRelationPlan rel _bigo -> do
       pure (Right (StreamRelation (attributes rel) (Stream.fromList (asList (tupleSet rel)))))
-    ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr () _ -> checkCacheOr $ do
+    ExtendTupleStreamPlan (newAttrs, extendProcessor) _extendExpr expr _bigo _ -> checkCacheOr $ do
       eRelS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
       case eRelS of
         Left err -> pure (Left err)
@@ -431,7 +459,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                   Left err -> throw err
                   Right t' -> pure t'
           pure (Right (streamRelationMap newAttrs extender relS))
-    NaiveJoinTupleStreamsPlan exprA exprB () _ -> checkCacheOr $ do
+    NaiveJoinTupleStreamsPlan exprA exprB _bigo _ -> checkCacheOr $ do
       --naive join by scanning both exprB into a list for repeated O(n^2) scans which is fine for "small" tables
       eSA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
       eSB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
@@ -457,7 +485,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                         SD.mkCross $ Stream.concatMap (Stream.fromList . tupleJoiner) tupSa
                   pure (Right (StreamRelation attrsOut tupS'))
                   
-    DifferenceTupleStreamsPlan exprA exprB () _ -> checkCacheOr $ do
+    DifferenceTupleStreamsPlan exprA exprB _bigo _ -> checkCacheOr $ do
       eSA <- executePlan exprA ctxTuples gfEnv cacheKeyBlackList cache
       eSB <- executePlan exprB ctxTuples gfEnv cacheKeyBlackList cache
       case eSA of
@@ -470,7 +498,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                     bTupleList <- liftIO $ Stream.toList tupSb        
                     SD.mkCross $ Stream.filter (`notElem` bTupleList) tupSa
               pure (Right (StreamRelation attrsA tupS'))
-    GroupTupleStreamPlan groupAttrs newAttrName expr () orig -> checkCacheOr $ do
+    GroupTupleStreamPlan groupAttrs newAttrName expr bigO orig -> checkCacheOr $ do
       --naive implementation scans for image relation for each grouped value
       eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
       case eS of
@@ -484,7 +512,8 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
               case projectionAttributesForNames groupAttrNames attrsIn of
                 Left err -> pure (Left err)
                 Right groupProjectionAttributes -> do
-                  eGroupS <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ctxTuples gfEnv cacheKeyBlackList cache
+                  let bigO' = ComplexityMetric (bigOTimes (inclusiveComplexity bigO) LinearInTuples) LinearInTuples
+                  eGroupS <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr bigO' orig) ctxTuples gfEnv cacheKeyBlackList cache
                   case eGroupS of
                     Left err -> pure (Left err)
                     Right (StreamRelation _ nonGroupProjectionTupS) -> do
@@ -506,7 +535,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                                     tupleExtend tup (RelationTuple (A.singleton newAttr) (V.singleton (RelationAtom groupedRel)))
                             SD.mkCross $ fmap singleTupleGroupMatcher nonGroupProjectionTupS
                       pure (Right (StreamRelation outAttrs tupS'))
-    UngroupTupleStreamPlan groupAttrName expr () _ -> checkCacheOr $ do
+    UngroupTupleStreamPlan groupAttrName expr _bigo _ -> checkCacheOr $ do
       eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
       case eS of
         Left err -> pure (Left err)
@@ -525,7 +554,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                       Stream.fromList flattenedTuples
               pure (Right (StreamRelation outAttrs (Stream.concatMap ungroup' tupS)))
             _ -> pure (Left (AttributeIsNotRelationValuedError groupAttrName))
-    UniqueifyTupleStreamPlan e () -> checkCacheOr $ do
+    UniqueifyTupleStreamPlan e _bigo -> checkCacheOr $ do
       eS <- executePlan e ctxTuples gfEnv cacheKeyBlackList cache
       case eS of
         Left err -> pure (Left err)
@@ -707,3 +736,62 @@ instance Pretty GraphRefTransactionMarker where
 
 renderPretty :: (Show a, Pretty t, Pretty a) => RelExprExecPlanBase a t -> T.Text
 renderPretty = renderStrict . layoutPretty defaultLayoutOptions . pretty
+
+-- | When planning, track the Big-O complexity of the plan node which must compose with child nodes.
+data BigOComplexity =
+  ConstantInTuples | -- a fixed cost
+  LogarithmicInTuples |  
+  LinearInTuples | -- complexity linear to the number of tuples
+  QuadraticInTuples
+  deriving (Show, Eq, Ord)
+
+bigOTimes :: BigOComplexity -> BigOComplexity -> BigOComplexity
+bigOTimes a b = max a b
+
+-- compose inclusive O(_) from plan nodes
+bigOTimes' :: [RelExprExecPlanBase marker ComplexityMetric] -> BigOComplexity -> ComplexityMetric
+bigOTimes' plans currNodeComplexity = ComplexityMetric inc currNodeComplexity
+  where
+    inc =
+      foldr bigOTimes currNodeComplexity (map getBigOComplexity plans)
+
+instance Pretty BigOComplexity where
+  pretty ConstantInTuples = "O(c)"
+  pretty LinearInTuples = "O(t)"
+  pretty QuadraticInTuples = "O(t²)"
+  pretty LogarithmicInTuples = "O(log(t))"
+
+data ComplexityMetric =
+  ComplexityMetric
+  { inclusiveComplexity :: BigOComplexity,
+    exclusiveComplexity :: BigOComplexity
+  }
+  deriving (Show, Eq)
+
+instance Pretty ComplexityMetric where
+  pretty metric = "inclusive:" <+> pretty (inclusiveComplexity metric) <+> "exclusive:" <+> pretty (exclusiveComplexity metric)
+
+getExecInfo :: RelExprExecPlanBase marker execInfo -> execInfo
+getExecInfo expr =
+  case expr of
+    RestrictTupleStreamPlan _ _ _ e _ -> e
+    ProjectTupleStreamPlan _ _ e _ -> e
+    RenameTupleStreamPlan _ _ e _ -> e
+    GroupTupleStreamPlan _ _ _ e _ -> e
+    UngroupTupleStreamPlan _ _ e _ -> e
+    ExtendTupleStreamPlan _ _ _ e _ -> e
+    RelationValuedAttributeStreamPlan _ e _ -> e
+    UnionTupleStreamsPlan _ _ e _ -> e
+    NaiveJoinTupleStreamsPlan _ _ e _ -> e
+    DifferenceTupleStreamsPlan _ _ e _ -> e
+    EqualTupleStreamsPlan _ _ e _ -> e
+    NotEqualTupleStreamsPlan _ _ e _ -> e
+    MakeStaticRelationPlan _ _ e -> e
+    MakeRelationFromExprsPlan _ _ e -> e
+    ExistingRelationPlan _ e -> e
+    UniqueifyTupleStreamPlan _ e -> e
+
+getBigOComplexity :: RelExprExecPlanBase marker ComplexityMetric -> BigOComplexity
+getBigOComplexity =
+  inclusiveComplexity . getExecInfo
+
