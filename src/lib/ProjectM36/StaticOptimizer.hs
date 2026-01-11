@@ -364,7 +364,10 @@ optimizeGraphRefRelationalExpr (Join exprA exprB) = do
                            pure optExprA
                          else
                            pure (Join optExprA optExprB)
-                           
+optimizeGraphRefRelationalExpr (JoinUsingForeignKey exprA exprB fkName) = do
+  optExprA <- optimizeGraphRefRelationalExpr exprA
+  optExprB <- optimizeGraphRefRelationalExpr exprB
+  pure (JoinUsingForeignKey optExprA optExprB fkName)
 optimizeGraphRefRelationalExpr (Difference exprA exprB) = do
   graph <- askGraph
   context <- askMaybeContext
@@ -649,6 +652,8 @@ applyStaticRestrictionCollapse expr =
       Union (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)    
     Join sub1 sub2 ->
       Join (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2)
+    JoinUsingForeignKey sub1 sub2 fkName ->
+      JoinUsingForeignKey (applyStaticRestrictionCollapse sub1) (applyStaticRestrictionCollapse sub2) fkName
     Rename attrs sub -> 
       Rename attrs (applyStaticRestrictionCollapse sub)
     Difference sub1 sub2 -> 
@@ -707,6 +712,8 @@ applyStaticRestrictionPushdown expr = case expr of
     Union (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
   Join sub1 sub2 ->
     Join (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2)
+  JoinUsingForeignKey sub1 sub2 fkName ->
+    JoinUsingForeignKey (applyStaticRestrictionPushdown sub1) (applyStaticRestrictionPushdown sub2) fkName
   Rename attrs sub ->
     Rename attrs (applyStaticRestrictionPushdown sub)
   Difference sub1 sub2 -> 

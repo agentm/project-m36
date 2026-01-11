@@ -1,5 +1,6 @@
 module ProjectM36.Key where
 import ProjectM36.Base
+import ProjectM36.Error
 import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -46,7 +47,11 @@ databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvNam
 databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
 databaseContextExprForForeignKey fkName infoA infoB =
   AddInclusionDependency fkName (inclusionDependencyForForeignKey infoA infoB)
-  
+
+-- generates:
+-- InclusionDependency (Project (AttributeNames (fromList ["colA"])) (RelationVariable "a" ())) (Project (AttributeNames (fromList ["colA"])) (RelationVariable "b" ()))
+-- generates when attribute names differ
+-- InclusionDependency (Rename (fromList [("colA","colB")]) (Project (AttributeNames (fromList ["colA"])) (RelationVariable "a" ()))) (Project (AttributeNames (fromList ["colB"])) (RelationVariable "b" ()))
 inclusionDependencyForForeignKey :: (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> InclusionDependency
 inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
   InclusionDependency (
@@ -67,6 +72,15 @@ isForeignKeyFor incDep infoA infoB = incDep == checkIncDep
   where
     checkIncDep = inclusionDependencyForForeignKey infoA infoB
 
-
+extractForeignKeyInfo ::
+  IncDepName ->
+  InclusionDependency ->
+  Either RelationalError (RelationalExpr, RelationalExpr)
+-- if the column names are identical
+extractForeignKeyInfo _ (InclusionDependency (Project (AttributeNames exprAAttrNames) exprA) (Project (AttributeNames exprBAttrNames) exprB)) | exprAAttrNames == exprBAttrNames = pure (exprA, exprB)
+-- if the column names are different, invert rename
+extractForeignKeyInfo _ (InclusionDependency (Rename renameSet (Project (AttributeNames _attrNamesA) exprA)) (Project (AttributeNames _attrNamesB) exprB)) =
+  pure (Rename renameSet exprA, exprB)
+extractForeignKeyInfo incDepName _ = Left (InclusionDependencyNotAForeignKeyError incDepName)
 
 

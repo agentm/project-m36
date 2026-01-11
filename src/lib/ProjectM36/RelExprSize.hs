@@ -33,6 +33,7 @@ instance Size (RelationalExprBase a) where
       Project _ expr' -> size expr'
       Union exprA exprB -> size exprA + size exprB
       Join exprA exprB -> size exprA + size exprB
+      JoinUsingForeignKey exprA exprB _fkName -> size exprA + size exprB
       Rename _ expr' -> size expr'
       Difference exprA exprB -> size exprA + size exprB
       Group _ _ expr' -> size expr'

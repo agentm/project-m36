@@ -33,6 +33,7 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | InclusionDependencyCheckError IncDepName (Maybe RelationalError)
                      | InclusionDependencyNameInUseError IncDepName
                      | InclusionDependencyNameNotInUseError IncDepName
+                     | InclusionDependencyNotAForeignKeyError IncDepName
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
                      | NoCommonTransactionAncestorError TransactionId TransactionId

@@ -103,7 +103,7 @@ data IncDepOp = SubsetOp | EqualityOp
 
 addConstraintP :: Parser DatabaseContextExpr
 addConstraintP = do
-  reservedOp "constraint" <|> reservedOp "foreign key"
+  reservedOp "constraint" <|> (reservedOp "foreign" >> reservedOp "key")
   constraintName <- identifierP
   subset <- relExprP
   op <- (reservedOp "in" $> SubsetOp) <|> (reservedOp "equals" $> EqualityOp)

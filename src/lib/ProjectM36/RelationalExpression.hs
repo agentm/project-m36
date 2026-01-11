@@ -23,6 +23,7 @@ import ProjectM36.Arbitrary
 import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
+import ProjectM36.Key
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
@@ -1244,6 +1245,20 @@ evalGraphRefRelationalExpr (Join exprA exprB) = do
   relA <- evalGraphRefRelationalExpr exprA
   relB <- evalGraphRefRelationalExpr exprB
   lift $ except $ join relA relB
+evalGraphRefRelationalExpr (JoinUsingForeignKey exprA exprB fkName) = do
+  ctx <- gfDatabaseContextForMarker UncommittedContextMarker
+  graph <- gfGraph  
+  incDeps <- lift $ except $ resolveDBC' graph ctx inclusionDependencies
+  case M.lookup fkName incDeps of
+    Nothing -> throwError (InclusionDependencyNameInUseError fkName)
+    Just incDep -> do
+      (exprA', exprB') <- lift $ except $ extractForeignKeyInfo fkName incDep
+      gfExprA' = runProcessM UncommitedContextMarker (processRelationalExpr exprA'
+      if relationalExprContained exprA (processRelationalExpr exprA') &&
+         relationalExprContained exprB (processRelationalExpr exprB') then
+        evalGraphRefRelationalExpr (Join exprA' exprB')
+        else
+        throwError (InclusionDependencyNameInUseError fkName)
 evalGraphRefRelationalExpr (Rename attrsSet expr) = do
   rel <- evalGraphRefRelationalExpr expr
   lift $ except $ renameMany attrsSet rel
@@ -1890,4 +1905,28 @@ typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
         pure (Attribute attrName resolvedType)
   attrList <- mapM resolveOneAtomType (M.toList tupMap)
   pure (A.attributesFromList attrList)
-        
+
+-- | Returns True iff the relational expression is contained wholy within another.
+relationalExprContained :: GraphRefRelationalExpr -> GraphRefRelationalExpr -> Bool
+relationalExprContained needle haystack =
+  if needle == haystack then
+    True
+  else
+    case haystack of
+      MakeRelationFromExprs{} -> False
+      MakeStaticRelation{} -> False
+      ExistingRelation{} -> False
+      RelationValuedAttribute{} -> False
+      Project _ expr -> relationalExprContained needle expr
+      Union exprA exprB -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      Join exprA exprB -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      JoinUsingForeignKey exprA exprB _depName -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      Rename _ expr -> relationalExprContained needle expr
+      Difference exprA exprB -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      Group _ _ expr -> relationalExprContained needle expr
+      Ungroup _ expr -> relationalExprContained needle expr
+      Restrict _ expr -> relationalExprContained needle expr
+      Equals exprA exprB -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      NotEquals exprA exprB -> relationalExprContained needle exprA || relationalExprContained needle exprB
+      Extend _ expr -> relationalExprContained needle expr
+      With _ expr -> relationalExprContained needle expr

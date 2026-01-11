@@ -37,6 +37,8 @@ substituteWithNameMacros macros (Union exprA exprB) =
   Union (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Join exprA exprB) =
   Join (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
+substituteWithNameMacros macros (JoinUsingForeignKey exprA exprB fkName) =
+  JoinUsingForeignKey (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB) fkName
 substituteWithNameMacros macros (Rename attrs expr) =
   Rename attrs (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Difference exprA exprB) =

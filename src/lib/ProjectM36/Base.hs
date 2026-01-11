@@ -235,6 +235,8 @@ data RelationalExprBase a =
   Union (RelationalExprBase a) (RelationalExprBase a) |
   --- | Create a join of two relational expressions. The join occurs on attributes which are identical. If the expressions have no overlapping attributes, the join becomes a cross-product of both tuple sets.
   Join (RelationalExprBase a) (RelationalExprBase a)  |
+  --- | Create a join of two relational expressions based on a foreign key name. The foreign key must reference both relational expressions or an error is returned.
+  JoinUsingForeignKey (RelationalExprBase a) (RelationalExprBase a) IncDepName |
   --- | Rename an attribute (first argument) to another (second argument).
   Rename RenameAssocs (RelationalExprBase a) | -- should the rename be a Map?
   --- | Return a relation containing all tuples of the first argument which do not appear in the second argument (minus).

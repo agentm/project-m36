@@ -41,6 +41,7 @@ instance RelationVariablesMentioned (RelationalExprBase a) where
       Project _ exprA -> relVarsMentioned exprA
       Union exprA exprB -> relVarsMentioned exprA <> relVarsMentioned exprB
       Join exprA exprB -> relVarsMentioned exprA <> relVarsMentioned exprB
+      JoinUsingForeignKey exprA exprB _fkName -> relVarsMentioned exprA <> relVarsMentioned exprB      
       Rename _ exprA -> relVarsMentioned exprA
       Difference exprA exprB -> relVarsMentioned exprA <> relVarsMentioned exprB
       Group _ _ exprA -> relVarsMentioned exprA

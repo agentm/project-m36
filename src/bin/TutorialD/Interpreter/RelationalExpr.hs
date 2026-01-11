@@ -125,6 +125,13 @@ semijoinP = do
   pure (\exprA exprB ->
          Project (RelationalExprAttributeNames exprA) (Join exprA exprB))
 
+-- join using foreign key <name>
+joinUsingP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
+joinUsingP = do
+  reservedOp "join" >> reservedOp "using" >> reservedOp "foreign" >> reservedOp "key"
+  fkName <- identifierP
+  pure (\exprA exprB -> JoinUsingForeignKey exprA exprB fkName)
+
 antijoinP :: RelationalMarkerExpr a => Parser (RelationalExprBase a -> RelationalExprBase a -> RelationalExprBase a)
 antijoinP = do
   reservedOp "not matching" <|> reservedOp "antijoin"
@@ -139,6 +146,7 @@ relOperators = [
   [Postfix whereClauseP],
   [Postfix groupP],
   [Postfix ungroupP],
+  [InfixL joinUsingP],
   [InfixL (reservedOp "join" >> return Join)],
   [InfixL semijoinP],
   [InfixL antijoinP],

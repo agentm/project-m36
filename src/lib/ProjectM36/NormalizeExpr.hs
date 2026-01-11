@@ -30,6 +30,7 @@ processRelationalExpr (RelationVariable rv ()) = RelationVariable rv <$> askMark
 processRelationalExpr (Project attrNames expr) = Project <$> processAttributeNames attrNames <*> processRelationalExpr expr
 processRelationalExpr (Union exprA exprB) = Union <$> processRelationalExpr exprA <*> processRelationalExpr exprB
 processRelationalExpr (Join exprA exprB) = Join <$> processRelationalExpr exprA <*> processRelationalExpr exprB
+processRelationalExpr (JoinUsingForeignKey exprA exprB fkName) = JoinUsingForeignKey <$> processRelationalExpr exprA <*> processRelationalExpr exprB <*> pure fkName
 processRelationalExpr (Rename attrs expr) =
   Rename attrs <$> processRelationalExpr expr
 processRelationalExpr (Difference exprA exprB) = Difference <$> processRelationalExpr exprA <*> processRelationalExpr exprB
