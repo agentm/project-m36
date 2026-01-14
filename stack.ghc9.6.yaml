@@ -3,7 +3,7 @@ packages:
   - "."
 
 extra-deps:
-  - curryer-rpc-0.5.0
+  - curryer-rpc-0.5.1
   - streamly-0.10.1
   - streamly-core-0.2.2
   - streamly-bytestring-0.2.2
