@@ -101,7 +101,8 @@ main = do
       testSubrelationAttributeAtomExpr,
       testComplexTypeVarResolution,
       testNotifications,
-      testDBCFunctionAccessControl
+      testDBCFunctionAccessControl,
+      testAttributeTypeHintsFromExistingRelVar
       ]
 
 simpleRelTests :: Test
@@ -950,3 +951,11 @@ testDBCFunctionAccessControl = TestCase $ do
   -- check that the non-privileged role can run the dbc function
   executeTutorialD session user1conn "execute deleteAll()"
   
+testAttributeTypeHintsFromExistingRelVar :: Test
+testAttributeTypeHintsFromExistingRelVar = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  -- validate that declaring a relvar and then changing its type fails
+  executeTutorialD session dbconn "x:=relation{a Integer}"
+  let err1 = "RelationTypeMismatchError"
+  expectTutorialDErr session dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 3, b 4}}"
+

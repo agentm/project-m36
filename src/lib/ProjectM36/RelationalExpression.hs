@@ -318,14 +318,13 @@ evalGraphRefDatabaseContextExpr (Assign relVarName expr) = do
         Left err -> dbErr err
         Right expectedType -> do
       -- if we are targeting an existing rv, we can morph a MakeRelationFromExprs datum to fill in missing type variables'
-          let hintedExpr = addTargetTypeHints (attributes expectedType) expr
-              eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr hintedExpr)
+          let eNewExprType = runGraphRefRelationalExprM reEnv (typeForGraphRefRelationalExpr' (Just (attributes expectedType)) expr)
           case eNewExprType of
             Left err -> dbErr err
             Right newExprType -> do
               if newExprType == expectedType then do
                 lift $ except $ validateAttributes tConsMapping (attributes newExprType)
-                setRelVar relVarName hintedExpr 
+                setRelVar relVarName expr
               else do
                 dbErr (RelationTypeMismatchError (attributes expectedType) (attributes newExprType))
 
@@ -1299,14 +1298,20 @@ transactionForId tid graph
         x : _ -> Right x
 
 typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
-typeForGraphRefRelationalExpr (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs TS.empty
-typeForGraphRefRelationalExpr (ExistingRelation rel) = pure (emptyRelationWithAttrs (attributes rel))
-typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
-  mAttrs <- case mAttrExprs of
-              Just attrExprs -> do
-                attrs <- mapM evalGraphRefAttributeExpr attrExprs
-                pure (Just (attributesFromList attrs))
-              Nothing -> pure Nothing
+typeForGraphRefRelationalExpr = typeForGraphRefRelationalExpr' Nothing
+
+typeForGraphRefRelationalExpr' :: Maybe Attributes -> GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
+typeForGraphRefRelationalExpr' _thints (MakeStaticRelation attrs _) = lift $ except $ mkRelation attrs TS.empty
+typeForGraphRefRelationalExpr' _thints (ExistingRelation rel) = pure (emptyRelationWithAttrs (attributes rel))
+typeForGraphRefRelationalExpr' mAttributeTypeHints (MakeRelationFromExprs mAttrExprs tupleExprs) = do
+  mAttrs <- case mAttributeTypeHints of
+              Nothing ->
+                case mAttrExprs of
+                  Just attrExprs -> do
+                    attrs <- mapM evalGraphRefAttributeExpr attrExprs
+                    pure (Just (attributesFromList attrs))
+                  Nothing -> pure Nothing
+              Just attrTypeHints -> pure (Just attrTypeHints)
   retAttrs <- typeForGraphRefTupleExprs mAttrs tupleExprs
   case mAttrs of
     Nothing ->
@@ -1317,7 +1322,7 @@ typeForGraphRefRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
         Right retAttrs' -> 
           pure $ emptyRelationWithAttrs retAttrs'
   
-typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
+typeForGraphRefRelationalExpr' _th (RelationVariable rvName tid) = do
   ctx <- gfDatabaseContextForMarker tid
   graph <- gfGraph
   case resolveDBC' graph ctx relationVariables of
@@ -1327,7 +1332,7 @@ typeForGraphRefRelationalExpr (RelationVariable rvName tid) = do
         Nothing -> throwError (RelVarNotDefinedError rvName)
         Just rvExpr -> 
           typeForGraphRefRelationalExpr rvExpr
-typeForGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
+typeForGraphRefRelationalExpr' _th (RelationValuedAttribute attrName) = do
   env <- askEnv
   case gre_extra env of
     Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName)) -- or can this be an attribute at the top-level?
@@ -1343,46 +1348,46 @@ typeForGraphRefRelationalExpr (RelationValuedAttribute attrName) = do
           case typ of
             RelationAtomType relAttrs -> pure $ emptyRelationWithAttrs relAttrs
             other -> throwError (AtomTypeMismatchError (RelationAtomType A.emptyAttributes) other)
-typeForGraphRefRelationalExpr (Project attrNames expr) = do
+typeForGraphRefRelationalExpr' _th (Project attrNames expr) = do
   exprType' <- typeForGraphRefRelationalExpr expr
   projectionAttrs <- evalGraphRefAttributeNames attrNames expr
   lift $ except $ project projectionAttrs exprType'
-typeForGraphRefRelationalExpr (Union exprA exprB) = do
+typeForGraphRefRelationalExpr' _th (Union exprA exprB) = do
   exprA' <- typeForGraphRefRelationalExpr exprA
   exprB' <- typeForGraphRefRelationalExpr exprB
   lift $ except $ union exprA' exprB'
-typeForGraphRefRelationalExpr (Join exprA exprB) = do
+typeForGraphRefRelationalExpr' _th (Join exprA exprB) = do
   exprA' <- typeForGraphRefRelationalExpr exprA
   exprB' <- typeForGraphRefRelationalExpr exprB
   lift $ except $ join exprA' exprB'
-typeForGraphRefRelationalExpr (Rename attrs expr) = do
+typeForGraphRefRelationalExpr' _th (Rename attrs expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
   lift $ except $ renameMany attrs expr'
-typeForGraphRefRelationalExpr (Difference exprA exprB) = do  
+typeForGraphRefRelationalExpr' _th (Difference exprA exprB) = do  
   exprA' <- typeForGraphRefRelationalExpr exprA
   exprB' <- typeForGraphRefRelationalExpr exprB
   lift $ except $ difference exprA' exprB'
-typeForGraphRefRelationalExpr (Group groupNames attrName expr) = do
-  expr' <- typeForGraphRefRelationalExpr expr
+typeForGraphRefRelationalExpr' mHints (Group groupNames attrName expr) = do
+  expr' <- typeForGraphRefRelationalExpr' mHints expr
   groupNames' <- evalGraphRefAttributeNames groupNames expr
   lift $ except $ group groupNames' attrName expr'
-typeForGraphRefRelationalExpr (Ungroup groupAttrName expr) = do
+typeForGraphRefRelationalExpr' _th (Ungroup groupAttrName expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
   lift $ except $ ungroup groupAttrName expr'
-typeForGraphRefRelationalExpr (Restrict pred' expr) = do
+typeForGraphRefRelationalExpr' _th (Restrict pred' expr) = do
   expr' <- typeForGraphRefRelationalExpr expr
   let mergedAttrsEnv = mergeAttributesIntoGraphRefRelationalExprEnv (attributes expr')
   R.local mergedAttrsEnv (typeForGraphRefRestrictionPredicateExpr pred')
   filt <- predicateRestrictionFilter (attributes expr') pred'
   lift $ except $ restrict filt expr'
-typeForGraphRefRelationalExpr Equals{} = 
+typeForGraphRefRelationalExpr' _th Equals{} = 
   pure relationFalse
-typeForGraphRefRelationalExpr NotEquals{} = 
+typeForGraphRefRelationalExpr' _th NotEquals{} = 
   pure relationFalse
-typeForGraphRefRelationalExpr (Extend extendTupleExpr expr) = do
+typeForGraphRefRelationalExpr' _th (Extend extendTupleExpr expr) = do
   rel <- typeForGraphRefRelationalExpr expr
   evalGraphRefRelationalExpr (Extend extendTupleExpr (ExistingRelation rel))
-typeForGraphRefRelationalExpr expr@(With withs _) = do
+typeForGraphRefRelationalExpr' _th expr@(With withs _) = do
   let expr' = substituteWithNameMacros [] expr
       checkMacroName (WithNameExpr macroName tid) = do
         ctx <- gfDatabaseContextForMarker tid
@@ -1686,42 +1691,6 @@ firstAtomForAttributeName attrName tuples = do
   case foldr folder Nothing tuples of
     Nothing -> throwError (NoSuchAttributeNamesError (S.singleton attrName))
     Just match -> pure match
-
--- | Optionally add type hints to resolve type variables. For example, if we are inserting into a known relvar, then we have its concrete type.    
-addTargetTypeHints :: Attributes -> GraphRefRelationalExpr -> GraphRefRelationalExpr
-addTargetTypeHints targetAttrs expr =
-  case expr of
-    MakeRelationFromExprs Nothing tupExprs ->
-      MakeRelationFromExprs (Just targetAttrExprs) tupExprs
-    Project attrs e ->
-      Project attrs (hint e)
-    Union a b ->
-      Union (hint a) (hint b)
-    Join a b ->
-      Join (hint a) (hint b)
-    Rename rens e ->
-      let renamedAttrs = A.renameAttributes' (S.map swap rens) targetAttrs in
-      Rename rens (addTargetTypeHints renamedAttrs e)
-    Difference a b ->
-      Difference (hint a) (hint b)
-    Group attrs gname e ->
-      Group attrs gname (hint e)
-    Ungroup gname e ->
-      Ungroup gname (hint e)
-    Restrict restriction e ->
-      Restrict restriction (hint e)
-    Equals a b ->
-      Equals (hint a) (hint b)
-    NotEquals a b ->
-      NotEquals (hint a) (hint b)
-    Extend tupExprs e ->
-      Extend tupExprs (hint e)
-    With withs e ->
-      With withs (hint e)
-    _ -> expr
-  where
-    targetAttrExprs = map NakedAttributeExpr (A.toList targetAttrs)
-    hint = addTargetTypeHints targetAttrs
 
 resolveDBC :: (DatabaseContext -> ValueMarker a) -> DatabaseContextEvalMonad a
 resolveDBC f = do
