@@ -1,3 +1,8 @@
+# 2026-01-15 (v1.2.1)
+
+* fix critical type resolution error in MakeRelationFromExprs
+* upgrade to crypton 1.8.0 and friends
+
 # 2026-01-06 (v1.2.0)
 
 * add LRU result caching layer
