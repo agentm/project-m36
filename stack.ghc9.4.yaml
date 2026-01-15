@@ -1,4 +1,4 @@
-resolver: lts-21.0
+resolver: lts-21.25
 packages:
   - "."
 
@@ -15,12 +15,38 @@ extra-deps:
   - unicode-data-0.2.0
   - stm-containers-1.2
   - stm-hamt-1.2.0.7
-  - scotty-0.22
+  - scotty-0.30
   - wai-extra-3.1.14
   - wai-3.2.4
-  - crypton-1.0.0
+  - crypton-1.0.4
+  - crypton-socks-0.6.2
+  - crypton-asn1-encoding-0.10.0
+  - crypton-asn1-parse-0.10.0
+  - crypton-asn1-types-0.4.1
+  - crypton-x509-1.8.0
+  - crypton-x509-system-1.8.0
+  - crypton-x509-store-1.8.0
+  - crypton-x509-validation-1.8.0
+  - crypton-connection-0.4.5
+  - crypton-pem-0.3.0
   - linux-xattr-0.1.1.0
-
+  - tls-2.2.0
+  - tls-session-manager-0.0.8
+  - crypto-token-0.1.2
+  - auto-update-0.2.6
+  - time-hourglass-0.3.0
+  - ech-config-0.0.1
+  - hpke-0.0.0
+  - system-linux-proc-0.1.1.1
+  - zlib-0.7.1.1
+  - warp-3.4.12
+  - warp-tls-3.4.13
+  - http2-5.4.0
+  - http-semantics-0.4.0
+  - network-control-0.1.7
+  - time-manager-0.3.0
+  - http-client-tls-0.3.6.4
+  
 flags:
   project-m36:
     stack: true

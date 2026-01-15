@@ -36,7 +36,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
 import Data.Maybe
-import Data.Tuple (swap)
 import Data.Either
 import Data.List (foldl')
 import Data.Char (isUpper)
