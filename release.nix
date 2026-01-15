@@ -31,7 +31,13 @@ let
       crypton-x509-validation = self.callHackageDirect {
                   pkg = "crypton-x509-validation";
 	          ver = "1.8.0";
-                  sha256 = "sha256-i/KEYFBJHwEegsH5LsTrfHulljC50xnVd9xqOXsXRvw="; } {};
+                  sha256 = "sha256-CyRqTUOcUzzVlQfTd3yylwDVtOaumBbBg9hMyvtcu7c="; } {};
+
+      crypton-x509-store = self.callHackageDirect {
+       	          pkg = "crypton-x509-store";
+		  ver = "1.8.0";
+		  sha256 = "sha256-U6DH5Ke3JXAzZuqxLM6mPKDxqj4HTf5kjoBXaerLOcc=";
+      } {};
 		  
       crypton-x509-system = self.callHackageDirect {
         	      pkg = "crypton-x509-system";
@@ -56,7 +62,13 @@ let
       crypton-pem = self.callHackageDirect {
       		           pkg = "crypton-pem";
 			   ver = "0.3.0";
-                           sha256 = "sha256-RBQdPqN/UJw+9FU/HAh5wR5S69WOfllnWAs/mpegbK8="; } {};			   			   
+                           sha256 = "sha256-RBQdPqN/UJw+9FU/HAh5wR5S69WOfllnWAs/mpegbK8="; } {};
+
+      crypton-connection = doJailbreak (self.callHackageDirect {
+      			   pkg = "crypton-connection";
+			   ver = "0.4.5";
+			   sha256 = "sha256-jMlB4MhiH320pJzKvp5JQTOX1Q/yMH9LiX6TyWzJvtA=";
+      } {});
       
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
@@ -214,6 +226,12 @@ let
 	   ver = "3.1.14";
            sha256 = "sha256-wMI9eTituRbMvYvbcA9pgIwFxkbdL1+2Xw78lghfWaU=";
 	   } {};
+
+      warp-tls = doJailbreak (self.callHackageDirect {
+      	       pkg = "warp-tls";
+	       ver = "3.4.13";
+               sha256 = "sha256-Uo+kbz9aT4Sz5JLV3HxIyY+ZK35+zkJLJghcGJpH1VM=";	       
+      } {});
 
       winery = self.callHackageDirect {
            pkg = "winery";
