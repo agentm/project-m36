@@ -199,8 +199,8 @@ let
       
       scotty = doJailbreak (self.callHackageDirect {
       	     pkg = "scotty";
-	     ver = "0.22";
-             sha256 = "sha256-DY4lKmAmqGTrzKq93Mft9bu9Qc0QcsEVpKzgoWcBL2I=";
+	     ver = "0.30";
+             sha256 = "sha256-UhKV67fpqx7ECbsrrG5kk08S1uIhnCb3g8O0OcIUP30=";
 	     } {});
 
       tasty-quickcheck = doJailbreak (self.callHackageDirect {
