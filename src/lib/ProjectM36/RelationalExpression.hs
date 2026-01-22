@@ -56,11 +56,28 @@ import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
+import qualified Data.Text.IO as TIO
+import System.IO.Temp
+import System.IO (hClose)
+import System.FilePath
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
+import GHC.Unit.State (emptyUnitState)
+import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
+import GHC.Unit.Finder.Types (FindResult(..))
+import GHC.Unit.Finder (findImportedModule)
+import GHC.Types.Name.Occurrence (mkVarOcc, mkTcOcc)
+import GHC.Iface.Env (lookupOrig)
+import GHC.Types.Name (getOccString)
+import GHC.Core.Type (mkTyConApp)
+import GHC.Builtin.Types (unitTyCon, unitTy)
+import GHC.Core.TyCo.Compare (eqType)
 #endif
+
+import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -721,6 +738,12 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
                               case runDatabaseContextEvalMonad currentContext evalEnv (setRelVar relVarName (ExistingRelation rel)) of
                                 Left err -> throwError err
                                 Right dbstate' -> putDBCIOContext (dbc_context dbstate')
+evalGraphRefDatabaseContextIOExpr (LoadModuleWithFunctions moduleBody) = do
+  scriptSession <- requireScriptSession
+  importModuleFromPath scriptSession moduleBody 
+  -- copy the module source in the db directory -- ideally this would be written into the transaction directory, but at this point, it does not yet exist
+  -- load the module using GHC
+  -- run the entrypoint function to get names of functions to convert to Atom and DBC functions
 
 -- | run verification of all constraints
 -- needs DatabaseContext to create dummy Transaction
@@ -1858,4 +1881,86 @@ typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
         pure (Attribute attrName resolvedType)
   attrList <- mapM resolveOneAtomType (M.toList tupMap)
   pure (A.attributesFromList attrList)
-        
+
+importModuleFromPath :: ScriptSession -> ModuleBody -> DatabaseContextIOEvalMonad ()
+importModuleFromPath scriptSession moduleSource = do
+  --TODO replace all error calls
+  --currentContext <- getDBCIOContext
+  --tConsMap <- resolveIODBC typeConstructorMapping
+  res <- liftIO $ try $ do
+    withSystemTempFile "pm36module" $ \tempModulePath tempModuleHandle -> do
+      hClose tempModuleHandle
+      TIO.writeFile tempModulePath moduleSource
+      runGhc (Just libdir) $ do
+    -- GHC needs to see the module on disk, so we write it to a temporary location
+        setSession (hscEnv scriptSession)
+        let target = Target {
+              targetId = TargetFile tempModulePath Nothing,
+              targetAllowObjCode = False,
+              targetUnitId = getHomeUnitId scriptSession,
+              targetContents = Nothing
+            }
+        setTargets [target]
+        loadSuccess <- load LoadAllTargets
+        case loadSuccess of
+          Failed -> pure (Left (ScriptError ModuleLoadError))
+          Succeeded -> do
+            liftIO $ putStrLn "loaded"
+            dflags <- getSessionDynFlags
+            modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
+            liftIO $ case modRes of
+              Found modLoc mod -> do
+                let packageLoc = takeDirectory (takeDirectory (takeDirectory (ml_dyn_obj_file modLoc)))
+                putStrLn packageLoc
+              NoPackage{} -> error "no package"
+              FoundMultiple{} -> error "multiple matches"
+              NotFound{} -> error "not found"
+            modGraph <- depanal [] False
+            case mgModSummaries modGraph of
+              [] -> pure (Left (ScriptError ModuleLoadError))
+              (modSummary:_) -> do
+                let entrypointS = modNameS <> "." <> pm36FuncName
+                    modName = (ms_mod_name modSummary)
+                    modNameS = moduleNameString modName
+                    pm36FuncName = "projectM36Functions"
+                    occName = mkVarOcc pm36FuncName
+                    occExpectedType = mkTcOcc "EntryPoints"
+                --integerName NE.:| _ <- parseName "GHC.Integer.Type.Integer"
+                liftIO $ putStrLn "findModule"
+                userModule <- findModule modName Nothing
+                liftIO $ putStrLn "lookupOrig"
+                (msgs, Just (entrypointFunc, entryPointsMonadName)) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
+                  pm36Name <- lookupOrig userModule occName
+                  entryPointsName <- lookupOrig userModule occExpectedType
+                  pure (pm36Name, entryPointsName)
+                monadTy <- lookupName entryPointsMonadName
+                let entryPointsTyCon = case monadTy of
+                                         Just (ATyCon tc) -> mkTyConApp tc [unitTy]
+                                         Just (AId tc) -> error "entry points tycon"
+                tyThing <- lookupName entrypointFunc
+                case tyThing of
+                      Just (ATyCon _iCon) -> error "wrong tycon"
+                      Just (ACoAxiom _) -> error "wrong coaxium"
+                      --run the entrypoints monad
+                      Just (AnId aid)
+                        | getOccString aid == pm36FuncName ->
+                            -- typecheck entrypoint function
+                            if idType aid `eqType` entryPointsTyCon then
+                              error "type matched!"
+                              else
+                              error "type mismatch" -- call entrypoint
+                            
+                      Just AConLike{} -> error "type constructor"
+                      Nothing -> pure (Left (ScriptError ModuleLoadError))
+  case res of
+      Left exc -> throwError exc
+      Right _val -> traceShowM ("got val"::String)
+                
+
+{-            entrypoint <- dynCompileExpr entrypointName
+            let entryPoint = unsafeCoerce entrypoint
+            traceShowM("here"::String)-}
+    
+  -- load source
+  -- look for entrypoint function and run it to get functions to import
+  -- process each function, examining its arguments and converting them to Atom types for atom functions

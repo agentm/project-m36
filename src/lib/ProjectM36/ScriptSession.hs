@@ -26,11 +26,12 @@ import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,
 import Data.List.NonEmpty(NonEmpty(..))
 #else
 #endif
-#if MIN_VERSION_ghc(9,6,0)
-#else
-#endif
+
 #if MIN_VERSION_ghc(9,6,0)
 import GHC.Core.TyCo.Compare (eqType)
+import GHC.Unit.Types (UnitId)
+import GHC.Driver.Env (hsc_home_unit)
+import GHC.Unit.Home (homeUnitId)
 #elif MIN_VERSION_ghc(9,0,0)
 import GHC.Core.Type (eqType)
 #else
@@ -46,6 +47,8 @@ import GHC.Utils.Panic (handleGhcException)
 import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
 import GHC.Types.SourceText (SourceText(NoSourceText))
 import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Utils.Outputable (ppr)
+import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
 import GHC.Core.TyCo.Ppr (pprType)
 import GHC.Utils.Encoding (zEncodeString)
 import GHC.Unit.State (emptyUnitState)
@@ -255,8 +258,13 @@ initScriptSession ghcPkgPaths = do
           ]
     setContext (unqualifiedModules ++ qualifiedModules)
     env <- getSession
+{-    case mgLookupModule (mkModuleName "ProjectM36") moduleInfos of
+       Nothing -> error "failed to load project-m36 module"
+       Just moduleInfo ->
+  -}        
     atomFuncType <- mkTypeForName "AtomFunctionBodyType"
     dbcFuncType <- mkTypeForName "DatabaseContextFunctionBodyType"
+
     pure (Right (ScriptSession env atomFuncType dbcFuncType))
 
 addImport :: String -> Ghc ()
@@ -377,4 +385,8 @@ prefixUnderscore =
       ("darwin",_) -> "_"
       ("cygwin",_) -> "_"
       _ -> ""
+
+getHomeUnitId :: ScriptSession -> UnitId
+getHomeUnitId sSession =
+  homeUnitId (hsc_home_unit (hscEnv sSession))
 #endif

@@ -402,8 +402,11 @@ data DatabaseContextIOExprBase a =
   LoadAtomFunctions ObjModuleName ObjFunctionName FilePath |
   AddDatabaseContextFunction FunctionName [TypeConstructor] FunctionBodyScript |
   LoadDatabaseContextFunctions ObjModuleName ObjFunctionName FilePath |
+  LoadModuleWithFunctions ModuleBody |
   CreateArbitraryRelation RelVarName [AttributeExprBase a] Range
                            deriving (Show, Eq, Generic)
+
+type ModuleBody = StringType
 
 type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase GraphRefTransactionMarker
 
@@ -545,6 +548,7 @@ data MergeStrategy =
 
 type FunctionName = StringType
 type FunctionBodyScript = StringType
+type ModuleBodyScript = StringType
 
 -- | Represents stored, user-created or built-in functions which can operates of types such as Atoms or DatabaseContexts.
 data Function a acl = Function {

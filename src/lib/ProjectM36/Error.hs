@@ -155,7 +155,8 @@ instance NFData MergeError where rnf = genericRnf
 data ScriptCompilationError = TypeCheckCompilationError String String | --expected, got
                               SyntaxErrorCompilationError String |
                               ScriptCompilationDisabledError |
-                              OtherScriptCompilationError String
+                              OtherScriptCompilationError String |
+                              ModuleLoadError
                             deriving (Show, Eq, Generic, Typeable, NFData)
                                      
 instance Exception ScriptCompilationError

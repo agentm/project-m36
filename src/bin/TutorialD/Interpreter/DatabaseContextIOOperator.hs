@@ -12,7 +12,8 @@ import Control.Exception (IOException, handle, displayException)
 data DatabaseContextIOOperator =
   DatabaseContextIOOp DatabaseContextIOExpr |
   LoadAtomFunctionFromFileOp FunctionName [TypeConstructor] FilePath |
-  LoadDatabaseContextFunctionFromFileOp FunctionName [TypeConstructor] FilePath
+  LoadDatabaseContextFunctionFromFileOp FunctionName [TypeConstructor] FilePath |
+  LoadModuleFromFileOp FilePath
   deriving (Show, Eq)
 
 addAtomFunctionExprP :: Parser DatabaseContextIOExpr
@@ -52,7 +53,8 @@ databaseContextIOOperatorP :: Parser DatabaseContextIOOperator
 databaseContextIOOperatorP = 
   (DatabaseContextIOOp <$> databaseContextIOExprP) <|>
   (reserved "loadatomfunctionfromfile" >> (LoadAtomFunctionFromFileOp <$> quotedString <*> atomTypeSignatureP <*> quotedFilePath)) <|>
-  (reserved "loaddatabasecontextfunctionfromfile" >> (LoadDatabaseContextFunctionFromFileOp <$> quotedString <*> atomTypeSignatureP <*> quotedFilePath))
+  (reserved "loaddatabasecontextfunctionfromfile" >> (LoadDatabaseContextFunctionFromFileOp <$> quotedString <*> atomTypeSignatureP <*> quotedFilePath)) <|>
+  loadModuleFromFileP
   
 loadAtomFunctionsP :: Parser DatabaseContextIOExpr
 loadAtomFunctionsP = do
@@ -63,17 +65,22 @@ loadDatabaseContextFunctionsP :: Parser DatabaseContextIOExpr
 loadDatabaseContextFunctionsP = do
   reserved "loaddatabasecontextfunctions"
   LoadDatabaseContextFunctions <$> quotedString <*> quotedString <*> fmap unpack quotedString
+
+loadModuleFromFileP :: Parser DatabaseContextIOOperator
+loadModuleFromFileP = do
+  reserved "loadmodulefromfile"
+  LoadModuleFromFileOp <$> quotedFilePath
                                              
 interpretDatabaseContextIOOperator :: DatabaseContextIOOperator -> IO (Either RelationalError DatabaseContextIOExpr)
 interpretDatabaseContextIOOperator expr = do
   let loadFromFile typ functionName functionArgs functionFilePath = do
-        let handler :: IOException -> IO (Either RelationalError Text)
-            handler e = pure (Left (ImportError (ImportFileError (T.pack (displayException e)))))
-        eFuncBody <- handle handler (Right <$> TIO.readFile functionFilePath)
+        eFuncBody <- handle ioExcHandler (Right <$> TIO.readFile functionFilePath)
         case eFuncBody of
           Left err -> pure (Left err)
           Right functionBody ->
             pure (Right (typ functionName functionArgs functionBody))
+      ioExcHandler :: IOException -> IO (Either RelationalError Text)
+      ioExcHandler e = pure (Left (ImportError (ImportFileError (T.pack (displayException e)))))
         
   case expr of
     DatabaseContextIOOp expr' ->
@@ -82,5 +89,12 @@ interpretDatabaseContextIOOperator expr = do
       loadFromFile AddAtomFunction functionName functionArgs functionFilePath
     LoadDatabaseContextFunctionFromFileOp functionName functionArgs functionFilePath ->
       loadFromFile AddDatabaseContextFunction functionName functionArgs functionFilePath
+    -- pass module contents via Text so that remote client can upload a module, duh
+    LoadModuleFromFileOp modPath -> do
+      eModBody <- handle ioExcHandler (Right <$> TIO.readFile modPath)
+      case eModBody of
+        Left err -> pure (Left err)
+        Right modBody ->
+          pure (Right (LoadModuleWithFunctions modBody))
 
 

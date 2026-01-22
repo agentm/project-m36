@@ -92,6 +92,7 @@ processDatabaseContextIOExpr (AddDatabaseContextFunction mod' fun path) =
   pure (AddDatabaseContextFunction mod' fun path)
 processDatabaseContextIOExpr (LoadDatabaseContextFunctions mod' fun path) =
   pure (LoadDatabaseContextFunctions mod' fun path)
+processDatabaseContextIOExpr (LoadModuleWithFunctions modPath) = pure (LoadModuleWithFunctions modPath)
 processDatabaseContextIOExpr (CreateArbitraryRelation rvName attrExprs range) =
   CreateArbitraryRelation rvName <$> mapM processAttributeExpr attrExprs <*> pure range
   

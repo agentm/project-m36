@@ -245,7 +245,8 @@ Library
                      ProjectM36.AccessControlList,
                      ProjectM36.AccessControl,
                      ProjectM36.LoginRoles,
-                     ProjectM36.PrettyBytes
+                     ProjectM36.PrettyBytes,
+                     ProjectM36.Module
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
