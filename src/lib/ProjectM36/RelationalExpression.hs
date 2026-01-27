@@ -76,7 +76,9 @@ import GHC.Types.Name (getOccString)
 import GHC.Core.Type (mkTyConApp)
 import GHC.Builtin.Types (unitTyCon, unitTy)
 import GHC.Core.TyCo.Compare (eqType)
+--import GhcMonad  (runStmt)
 import Data.Dynamic
+import Unsafe.Coerce
 #endif
 
 import Debug.Trace
@@ -1931,6 +1933,8 @@ importModuleFromPath scriptSession moduleSource = do
                     occName = mkVarOcc pm36FuncName
                     occExpectedType = mkTcOcc "EntryPoints"
                 --integerName NE.:| _ <- parseName "GHC.Integer.Type.Integer"
+                setContext [IIModule modName]
+                
                 liftIO $ putStrLn "findModule"
                 userModule <- findModule modName Nothing
                 moduleModule <- findModule modModName Nothing
@@ -1957,10 +1961,18 @@ importModuleFromPath scriptSession moduleSource = do
                             if idType aid `eqType` entryPointsTyCon then do
                               -- call entrypoint
                               traceShowM ("type matched!"::String, pm36FuncName)
-                              modResult <- dynCompileExpr pm36FuncName
+{-                              result <- execStmt pm36FuncName execOptions
+                              case result of
+                                ExecComplete (Left e) _ -> error "execStmt fail"
+                                ExecComplete (Right names) _ -> error "execStmt success"
+                                ExecBreak res _ -> error "execStmt break"-}
+{-                              modResult <- dynCompileExpr pm36FuncName
                               case (fromDynamic modResult) :: Maybe (EntryPoints ()) of
                                 Nothing -> error "fromDynamic fail"
-                                Just res -> liftIO $ print (runEntryPoints res)
+                                Just res -> liftIO $ print (runEntryPoints res)-}
+                              result <- compileExpr pm36FuncName
+                              liftIO $ print $ result
+                              liftIO $ print $ runEntryPoints (unsafeCoerce result)
                               error "all done!"
                               else
                               error "type mismatch" 
