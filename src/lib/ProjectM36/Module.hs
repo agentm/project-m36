@@ -13,6 +13,9 @@ declareDatabaseContextFunction nam = tell [DeclareDatabaseContextFunction nam]
 
 type EntryPoints = Writer [DeclareFunction]
 
+runEntryPoints :: EntryPoints () -> [DeclareFunction]
+runEntryPoints e = execWriter e
+
 data DeclareFunction = DeclareAtomFunction FunctionName |
                        DeclareDatabaseContextFunction FunctionName
-  
+  deriving (Show)  

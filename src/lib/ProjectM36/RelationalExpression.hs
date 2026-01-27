@@ -10,6 +10,7 @@ import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
 import qualified Data.UUID as U
 import ProjectM36.Error
+import ProjectM36.Module
 import ProjectM36.AtomType
 import ProjectM36.Attribute (emptyAttributes, attributesFromList)
 import ProjectM36.ScriptSession
@@ -75,6 +76,7 @@ import GHC.Types.Name (getOccString)
 import GHC.Core.Type (mkTyConApp)
 import GHC.Builtin.Types (unitTyCon, unitTy)
 import GHC.Core.TyCo.Compare (eqType)
+import Data.Dynamic
 #endif
 
 import Debug.Trace
@@ -1894,10 +1896,11 @@ importModuleFromPath scriptSession moduleSource = do
       runGhc (Just libdir) $ do
     -- GHC needs to see the module on disk, so we write it to a temporary location
         setSession (hscEnv scriptSession)
+        dflags <- getSessionDynFlags        
         let target = Target {
               targetId = TargetFile tempModulePath Nothing,
               targetAllowObjCode = False,
-              targetUnitId = getHomeUnitId scriptSession,
+              targetUnitId = homeUnitId_ dflags,
               targetContents = Nothing
             }
         setTargets [target]
@@ -1921,6 +1924,8 @@ importModuleFromPath scriptSession moduleSource = do
               (modSummary:_) -> do
                 let entrypointS = modNameS <> "." <> pm36FuncName
                     modName = (ms_mod_name modSummary)
+                    modModS = "ProjectM36.Module"
+                    modModName = mkModuleName modModS 
                     modNameS = moduleNameString modName
                     pm36FuncName = "projectM36Functions"
                     occName = mkVarOcc pm36FuncName
@@ -1928,15 +1933,19 @@ importModuleFromPath scriptSession moduleSource = do
                 --integerName NE.:| _ <- parseName "GHC.Integer.Type.Integer"
                 liftIO $ putStrLn "findModule"
                 userModule <- findModule modName Nothing
+                moduleModule <- findModule modModName Nothing
                 liftIO $ putStrLn "lookupOrig"
                 (msgs, Just (entrypointFunc, entryPointsMonadName)) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
                   pm36Name <- lookupOrig userModule occName
-                  entryPointsName <- lookupOrig userModule occExpectedType
+                  entryPointsName <- lookupOrig moduleModule occExpectedType
                   pure (pm36Name, entryPointsName)
                 monadTy <- lookupName entryPointsMonadName
                 let entryPointsTyCon = case monadTy of
                                          Just (ATyCon tc) -> mkTyConApp tc [unitTy]
-                                         Just (AId tc) -> error "entry points tycon"
+                                         Just (AnId tc) -> error "entry points anid"
+                                         Just (AConLike clike) -> error "entry points clike"
+                                         Just (ACoAxiom cax) -> error "entry points cax"
+                                         Nothing -> error "entry points nothing"
                 tyThing <- lookupName entrypointFunc
                 case tyThing of
                       Just (ATyCon _iCon) -> error "wrong tycon"
@@ -1945,11 +1954,17 @@ importModuleFromPath scriptSession moduleSource = do
                       Just (AnId aid)
                         | getOccString aid == pm36FuncName ->
                             -- typecheck entrypoint function
-                            if idType aid `eqType` entryPointsTyCon then
-                              error "type matched!"
+                            if idType aid `eqType` entryPointsTyCon then do
+                              -- call entrypoint
+                              traceShowM ("type matched!"::String, pm36FuncName)
+                              modResult <- dynCompileExpr pm36FuncName
+                              case (fromDynamic modResult) :: Maybe (EntryPoints ()) of
+                                Nothing -> error "fromDynamic fail"
+                                Just res -> liftIO $ print (runEntryPoints res)
+                              error "all done!"
                               else
-                              error "type mismatch" -- call entrypoint
-                            
+                              error "type mismatch" 
+                      Just AnId{} -> error "anid fail"      
                       Just AConLike{} -> error "type constructor"
                       Nothing -> pure (Left (ScriptError ModuleLoadError))
   case res of
