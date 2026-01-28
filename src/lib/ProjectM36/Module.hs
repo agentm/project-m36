@@ -16,6 +16,9 @@ type EntryPoints = Writer [DeclareFunction]
 runEntryPoints :: EntryPoints () -> [DeclareFunction]
 runEntryPoints e = execWriter e
 
-data DeclareFunction = DeclareAtomFunction FunctionName |
-                       DeclareDatabaseContextFunction FunctionName
-  deriving (Show)  
+data DeclareFunctionBase a = DeclareAtomFunction a |
+                             DeclareDatabaseContextFunction a
+  deriving (Show)
+
+type DeclareFunction = DeclareFunctionBase FunctionName
+

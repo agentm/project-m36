@@ -76,9 +76,12 @@ import GHC.Types.Name (getOccString)
 import GHC.Core.Type (mkTyConApp)
 import GHC.Builtin.Types (unitTyCon, unitTy)
 import GHC.Core.TyCo.Compare (eqType)
---import GhcMonad  (runStmt)
 import Data.Dynamic
 import Unsafe.Coerce
+import Control.Monad (forM)
+import GHC.Utils.Outputable (ppr)
+import GHC.Types.Name (nameOccName)
+import GHC.Types.Name (occNameString)
 #endif
 
 import Debug.Trace
@@ -1935,10 +1938,8 @@ importModuleFromPath scriptSession moduleSource = do
                 --integerName NE.:| _ <- parseName "GHC.Integer.Type.Integer"
                 setContext [IIModule modName]
                 
-                liftIO $ putStrLn "findModule"
                 userModule <- findModule modName Nothing
                 moduleModule <- findModule modModName Nothing
-                liftIO $ putStrLn "lookupOrig"
                 (msgs, Just (entrypointFunc, entryPointsMonadName)) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
                   pm36Name <- lookupOrig userModule occName
                   entryPointsName <- lookupOrig moduleModule occExpectedType
@@ -1971,9 +1972,34 @@ importModuleFromPath scriptSession moduleSource = do
                                 Nothing -> error "fromDynamic fail"
                                 Just res -> liftIO $ print (runEntryPoints res)-}
                               result <- compileExpr pm36FuncName
-                              liftIO $ print $ result
-                              liftIO $ print $ runEntryPoints (unsafeCoerce result)
-                              error "all done!"
+                              let funcDeclarations = runEntryPoints (unsafeCoerce result)
+                              forM_ funcDeclarations $ \funcDecl -> do
+                                  case funcDecl of
+                                    DeclareAtomFunction funcS -> do
+                                      --extract type from function in script
+                                      fType <- exprType TM_Default (T.unpack funcS)
+                                      let atomFuncType = convertGhcTypeToFunctionType fType
+                                      liftIO $ print atomFuncType
+                                      liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
+{-                              
+                              (msgs, Just declareFuncs) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
+                                forM funcDeclarations $ \funcDecl -> do
+
+                                  case funcDecl of
+                                    DeclareAtomFunction funcS -> do
+                                      --extract type from function in script
+                                      DeclareAtomFunction <$> lookupOrig userModule (mkVarOcc (T.unpack funcS))
+                              --setContext [IIModule modName]  --reset context after compileExpr
+                              forM declareFuncs $ \decFunc -> do
+                                case decFunc of
+                                  DeclareAtomFunction fName -> do
+                                    traceShowM ("resolved"::String, occNameString (nameOccName fName))
+                                    tyFunc <- lookupName fName
+                                    case tyFunc of
+                                      Just (ATyCon tc) -> liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr tc)
+                                      Just (AnId aid) -> error "aid"
+                                      Nothing -> error "no match for func name"-}
+                              error "nice"
                               else
                               error "type mismatch" 
                       Just AnId{} -> error "anid fail"      
@@ -1991,3 +2017,5 @@ importModuleFromPath scriptSession moduleSource = do
   -- load source
   -- look for entrypoint function and run it to get functions to import
   -- process each function, examining its arguments and converting them to Atom types for atom functions
+
+type DeclareFunctionGhcName = DeclareFunctionBase Name

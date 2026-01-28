@@ -6,7 +6,9 @@ module ProjectM36.ScriptSession where
 
 #ifdef PM36_HASKELL_SCRIPTING
 import ProjectM36.Error
+import ProjectM36.Base
 import GHC
+import GHC.Core.TyCo.Rep
 import Control.Exception
 import Control.Monad
 import System.IO.Error
@@ -389,4 +391,18 @@ prefixUnderscore =
 getHomeUnitId :: ScriptSession -> UnitId
 getHomeUnitId sSession =
   homeUnitId (hsc_home_unit (hscEnv sSession))
+
+data TypeConversionError = E
+  deriving Show
+
+convertGhcTypeToFunctionType :: Type -> Either TypeConversionError [TypeConstructor]
+convertGhcTypeToFunctionType typ =
+  case typ of
+    TyConApp integerTyCon args -> do
+      args' <- mapM convertGhcTypeToFunctionType args
+      pure (PrimitiveTypeConstructor "Integer" IntegerAtomType:concat args')
+    fun@FunTy{} -> do
+      arg <- convertGhcTypeToFunctionType (ft_arg fun)
+      rest <- convertGhcTypeToFunctionType (ft_res fun)
+      pure (arg <> rest)
 #endif
