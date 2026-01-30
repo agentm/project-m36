@@ -82,9 +82,13 @@ import Panic (handleGhcException)
 import DynFlags (projectVersion, PkgConfRef(PkgConfFile), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming), PackageDBFlag(PackageDB))
 #endif
 
+import Debug.Trace
+
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
 import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, lookupSymbol, loadDLL, loadObj)
+import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon)
+import qualified Data.Map as M
 #endif
 -- endif for SCRIPTING FLAG
 
@@ -184,8 +188,36 @@ initScriptSession ghcPkgPaths = do
         packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
   --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
     _ <- setSessionDynFlags dflags'
-    let safeImportDecl :: String -> Maybe String -> ImportDecl (GhcPass 'Parsed)
-        safeImportDecl fullModuleName _mQualifiedName = ImportDecl {
+    let unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl modn Nothing) [
+          "Prelude",
+          "Data.Map",
+          "Data.Either",
+          "Data.Time.Calendar",
+--          "Data.Scientific",
+          "Control.Monad.State",
+          "ProjectM36.Base",
+          "ProjectM36.Error",
+          "ProjectM36.Relation",
+          "ProjectM36.DatabaseContext",
+          "ProjectM36.DatabaseContext.Types",
+          "ProjectM36.AtomFunctionError",
+          "ProjectM36.RelationalExpression"]
+        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl modn (Just qualNam)) [
+          ("Data.Text", "T")
+          ]
+    setContext (unqualifiedModules ++ qualifiedModules)
+    env <- getSession
+{-    case mgLookupModule (mkModuleName "ProjectM36") moduleInfos of
+       Nothing -> error "failed to load project-m36 module"
+       Just moduleInfo ->
+  -}        
+    atomFuncType <- mkTypeForName "AtomFunctionBodyType"
+    dbcFuncType <- mkTypeForName "DatabaseContextFunctionBodyType"
+
+    pure (Right (ScriptSession env atomFuncType dbcFuncType))
+
+safeImportDecl :: String -> Maybe String -> ImportDecl (GhcPass 'Parsed)
+safeImportDecl fullModuleName _mQualifiedName = ImportDecl {
 #if MIN_VERSION_ghc(9,6,0)
 #else
           ideclSourceSrc = NoSourceText,
@@ -242,32 +274,7 @@ initScriptSession ghcPkgPaths = do
 #endif
           ideclSafe      = True
           }
-        unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl modn Nothing) [
-          "Prelude",
-          "Data.Map",
-          "Data.Either",
-          "Data.Time.Calendar",
-          "Control.Monad.State",
-          "ProjectM36.Base",
-          "ProjectM36.Error",
-          "ProjectM36.Relation",
-          "ProjectM36.DatabaseContext",
-          "ProjectM36.DatabaseContext.Types",
-          "ProjectM36.AtomFunctionError",
-          "ProjectM36.RelationalExpression"]
-        qualifiedModules = map (\(modn, qualNam) -> IIDecl $ safeImportDecl modn (Just qualNam)) [
-          ("Data.Text", "T")
-          ]
-    setContext (unqualifiedModules ++ qualifiedModules)
-    env <- getSession
-{-    case mgLookupModule (mkModuleName "ProjectM36") moduleInfos of
-       Nothing -> error "failed to load project-m36 module"
-       Just moduleInfo ->
-  -}        
-    atomFuncType <- mkTypeForName "AtomFunctionBodyType"
-    dbcFuncType <- mkTypeForName "DatabaseContextFunctionBodyType"
 
-    pure (Right (ScriptSession env atomFuncType dbcFuncType))
 
 addImport :: String -> Ghc ()
 addImport moduleNam = do
@@ -392,17 +399,46 @@ getHomeUnitId :: ScriptSession -> UnitId
 getHomeUnitId sSession =
   homeUnitId (hsc_home_unit (hscEnv sSession))
 
-data TypeConversionError = E
+data TypeConversionError = UnsupportedTypeConversionError String
   deriving Show
 
-convertGhcTypeToFunctionType :: Type -> Either TypeConversionError [TypeConstructor]
-convertGhcTypeToFunctionType typ =
+mkTypeConversions :: GhcMonad m => m [(Type, AtomType)]
+mkTypeConversions = do
+  let extTypes = [("Integer", IntegerAtomType),
+                  ("Int", IntAtomType),
+                  ("Double", DoubleAtomType),
+--                  ("Scientific", ScientificAtomType), -- found in multiple modules?
+--                  ("Text", TextAtomType), -- not in scope
+--                   ("Day", DayAtomType),
+--                   ("DateTime", DateTimeAtomType),
+--                   ("ByteString", ByteStringAtomType),
+                   ("Bool", BoolAtomType)
+--                   ("UUID", UUIDAtomType)
+                 ]
+  forM extTypes $ \(nam, typ) -> do
+    -- extract type from bottom value
+    ghcType <- exprType TM_Default ("undefined :: " <> nam)
+    pure (ghcType, typ)
+
+                                
+convertGhcTypeToFunctionType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [TypeConstructor]
+convertGhcTypeToFunctionType dflags tyConv typ =
   case typ of
-    TyConApp integerTyCon args -> do
-      args' <- mapM convertGhcTypeToFunctionType args
+    TyConApp tycon args -> do
+      args' <- mapM (convertGhcTypeToFunctionType dflags tyConv) args
       pure (PrimitiveTypeConstructor "Integer" IntegerAtomType:concat args')
     fun@FunTy{} -> do
-      arg <- convertGhcTypeToFunctionType (ft_arg fun)
-      rest <- convertGhcTypeToFunctionType (ft_res fun)
+      arg <- convertGhcTypeToFunctionType dflags tyConv (ft_arg fun)
+      rest <- convertGhcTypeToFunctionType dflags tyConv (ft_res fun)
       pure (arg <> rest)
+  where
+    showType typ = showSDocForUser dflags emptyUnitState alwaysQualify (ppr typ)
+    convType typ = convType' tyConv typ
+    convType' [] _ = Left (UnsupportedTypeConversionError (showType typ))
+    convType' (match:rest) typ =
+      if fst match `eqType` traceShow (snd match) typ then
+        Right (snd match)
+        else
+        convType' rest typ
+
 #endif

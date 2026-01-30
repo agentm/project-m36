@@ -7,6 +7,7 @@ import Data.Text
 data AtomFunctionError = AtomFunctionUserError String |
                          AtomFunctionTypeMismatchError |
                          AtomFunctionParseError String |
+                         AtomFunctionMissingReturnTypeError |
                          InvalidIntervalOrderingError |
                          InvalidIntervalBoundariesError |
                          AtomFunctionAttributeNameNotFoundError Text |

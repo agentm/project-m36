@@ -1,10 +1,13 @@
 -- | Module for functionality common between the various Function types (AtomFunction, DatabaseContextFunction).
+{-# LANGUAGE TypeApplications #-}
 module ProjectM36.Function where
 import ProjectM36.Base
 import ProjectM36.Error
---import ProjectM36.Serialise.Base ()
+import ProjectM36.AtomFunctionError (AtomFunctionError(AtomFunctionMissingReturnTypeError))
 import ProjectM36.ScriptSession
 import qualified Data.HashSet as HS
+import Data.List (intercalate)
+import qualified Data.Text as T
 
 -- for merkle hash                       
 
@@ -56,3 +59,26 @@ functionForName funcName' funcSet =
   case HS.toList $ HS.filter (\f -> funcName f == funcName') funcSet of
     [] -> Left $ NoSuchFunctionError funcName'
     x : _ -> Right x
+
+{-
+  \[IntegerAtom val1, IntegerAtom val2] -> 
+     Right $ IntegerAtom $ apply_discount val1 val2
+-}
+wrapAtomFunction :: [TypeConstructor] -> FunctionName -> Either RelationalError String
+wrapAtomFunction tConss@(_:_) funcName' = pure $
+  -- we have to make a string-based, dynamic wrapper since we need to get a consistent function type out of the code
+  -- there's no value in having an AtomFunction with no return type, so there must be a list with at least one value
+        "\\[" <>
+        intercalate "," (map (\(i,c) -> convType c <> " val" <> show @Int i) (zip [1 ..] (init tConss))) <>
+        "] -> Right $ " <> 
+        convType (last tConss) <>
+        " $ " <>
+        T.unpack funcName' <>
+        " " <>
+        intercalate " " (map (\i -> "val" <> show i) [1 .. length tConss - 1])
+  where
+      convType tCons =
+        case tCons of
+          PrimitiveTypeConstructor tyName _ ->
+            T.unpack tyName <> "Atom"
+wrapAtomFunction [] _ = Left (AtomFunctionUserError AtomFunctionMissingReturnTypeError)

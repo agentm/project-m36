@@ -1935,8 +1935,13 @@ importModuleFromPath scriptSession moduleSource = do
                     pm36FuncName = "projectM36Functions"
                     occName = mkVarOcc pm36FuncName
                     occExpectedType = mkTcOcc "EntryPoints"
-                --integerName NE.:| _ <- parseName "GHC.Integer.Type.Integer"
-                setContext [IIModule modName]
+                setContext [IIModule modName,
+                            IIDecl $ safeImportDecl "ProjectM36.Base" Nothing
+--                            IIDecl $ safeImportDecl "Data.Scientific" (Just "Scientific"),
+--                            IIModule (mkModuleName "Data.Time.Calendar")
+--                            IIDecl $ safeImportDecl "Data.Time.Calendar" (Just "Day"),
+--                            IIDecl $ safeImportDecl "Data.Text" (Just "Text")
+                           ]
                 
                 userModule <- findModule modName Nothing
                 moduleModule <- findModule modModName Nothing
@@ -1961,44 +1966,32 @@ importModuleFromPath scriptSession moduleSource = do
                             -- typecheck entrypoint function
                             if idType aid `eqType` entryPointsTyCon then do
                               -- call entrypoint
-                              traceShowM ("type matched!"::String, pm36FuncName)
-{-                              result <- execStmt pm36FuncName execOptions
-                              case result of
-                                ExecComplete (Left e) _ -> error "execStmt fail"
-                                ExecComplete (Right names) _ -> error "execStmt success"
-                                ExecBreak res _ -> error "execStmt break"-}
-{-                              modResult <- dynCompileExpr pm36FuncName
-                              case (fromDynamic modResult) :: Maybe (EntryPoints ()) of
-                                Nothing -> error "fromDynamic fail"
-                                Just res -> liftIO $ print (runEntryPoints res)-}
+                              traceShowM ("compiling entrypoint"::String, pm36FuncName)
                               result <- compileExpr pm36FuncName
                               let funcDeclarations = runEntryPoints (unsafeCoerce result)
+                              tyConv <- mkTypeConversions                              
                               forM_ funcDeclarations $ \funcDecl -> do
                                   case funcDecl of
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)
-                                      let atomFuncType = convertGhcTypeToFunctionType fType
-                                      liftIO $ print atomFuncType
+                                      let eAtomFuncType = convertGhcTypeToFunctionType dflags tyConv fType 
+                                      liftIO $ print eAtomFuncType
                                       liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
-{-                              
-                              (msgs, Just declareFuncs) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
-                                forM funcDeclarations $ \funcDecl -> do
-
-                                  case funcDecl of
-                                    DeclareAtomFunction funcS -> do
-                                      --extract type from function in script
-                                      DeclareAtomFunction <$> lookupOrig userModule (mkVarOcc (T.unpack funcS))
-                              --setContext [IIModule modName]  --reset context after compileExpr
-                              forM declareFuncs $ \decFunc -> do
-                                case decFunc of
-                                  DeclareAtomFunction fName -> do
-                                    traceShowM ("resolved"::String, occNameString (nameOccName fName))
-                                    tyFunc <- lookupName fName
-                                    case tyFunc of
-                                      Just (ATyCon tc) -> liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr tc)
-                                      Just (AnId aid) -> error "aid"
-                                      Nothing -> error "no match for func name"-}
+                                      case eAtomFuncType of
+                                        Left err -> error (show err)
+                                        Right atomFuncType -> do
+                                          let eInterpretedFunc = wrapAtomFunction atomFuncType funcS
+                                          liftIO $ print eInterpretedFunc
+                                          traceShowM ("compiling AtomFunction"::String)
+                                          case eInterpretedFunc of
+                                            Left err -> error (show err)
+                                            Right interpretedFunc -> do
+                                              traceShowM ("executing AtomFunction")
+                                              atomFunc :: AtomFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
+                                              let execd = atomFunc [IntegerAtom 10, IntegerAtom 20]
+                                              liftIO $ print execd
+                                      --let newContext = currentContext { atom
                               error "nice"
                               else
                               error "type mismatch" 
