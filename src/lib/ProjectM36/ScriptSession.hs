@@ -421,15 +421,15 @@ mkTypeConversions = do
     pure (ghcType, typ)
 
                                 
-convertGhcTypeToFunctionType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [TypeConstructor]
-convertGhcTypeToFunctionType dflags tyConv typ =
+convertGhcTypeToFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [AtomType]
+convertGhcTypeToFunctionAtomType dflags tyConv typ =
   case typ of
     TyConApp tycon args -> do
-      args' <- mapM (convertGhcTypeToFunctionType dflags tyConv) args
-      pure (PrimitiveTypeConstructor "Integer" IntegerAtomType:concat args')
+      args' <- mapM (convertGhcTypeToFunctionAtomType dflags tyConv) args
+      pure (IntegerAtomType:concat args')
     fun@FunTy{} -> do
-      arg <- convertGhcTypeToFunctionType dflags tyConv (ft_arg fun)
-      rest <- convertGhcTypeToFunctionType dflags tyConv (ft_res fun)
+      arg <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_arg fun)
+      rest <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_res fun)
       pure (arg <> rest)
   where
     showType typ = showSDocForUser dflags emptyUnitState alwaysQualify (ppr typ)

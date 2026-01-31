@@ -41,6 +41,7 @@ import Data.Either
 import Data.List (foldl')
 import Data.Char (isUpper)
 import Data.Time
+import Data.Default
 import qualified Data.List.NonEmpty as NE
 import Data.Functor.Identity
 import qualified Data.Text as T
@@ -1970,12 +1971,12 @@ importModuleFromPath scriptSession moduleSource = do
                               result <- compileExpr pm36FuncName
                               let funcDeclarations = runEntryPoints (unsafeCoerce result)
                               tyConv <- mkTypeConversions                              
-                              forM_ funcDeclarations $ \funcDecl -> do
+                              mkFunctions <- forM funcDeclarations $ \funcDecl -> do
                                   case funcDecl of
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)
-                                      let eAtomFuncType = convertGhcTypeToFunctionType dflags tyConv fType 
+                                      let eAtomFuncType = convertGhcTypeToFunctionAtomType dflags tyConv fType 
                                       liftIO $ print eAtomFuncType
                                       liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
                                       case eAtomFuncType of
@@ -1987,28 +1988,38 @@ importModuleFromPath scriptSession moduleSource = do
                                           case eInterpretedFunc of
                                             Left err -> error (show err)
                                             Right interpretedFunc -> do
-                                              traceShowM ("executing AtomFunction")
                                               atomFunc :: AtomFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
-                                              let execd = atomFunc [IntegerAtom 10, IntegerAtom 20]
-                                              liftIO $ print execd
-                                      --let newContext = currentContext { atom
-                              error "nice"
+                                              --todo - return atom functions and dbc functions out of Ghc monad to add them to the context
+                                              let newAtomFunc = Function { funcName = funcS,
+                                                                           funcType = atomFuncType,
+                                                                           funcBody = FunctionScriptBody (T.pack interpretedFunc) atomFunc,
+                                                                           funcACL = def }
+                                              --let execd = atomFunc [IntegerAtom 10, IntegerAtom 20]
+                                              --liftIO $ print execd
+
+                                              pure (MkAtomFunction newAtomFunc)
+                              pure (Right mkFunctions)
                               else
                               error "type mismatch" 
                       Just AnId{} -> error "anid fail"      
                       Just AConLike{} -> error "type constructor"
-                      Nothing -> pure (Left (ScriptError ModuleLoadError))
+                      Nothing -> error "gonk" --pure (Left (ScriptError ModuleLoadError))
   case res of
       Left exc -> throwError exc
-      Right _val -> traceShowM ("got val"::String)
-                
+      Right eMkFunctions ->
+        case eMkFunctions of
+          Left err -> throwError err
+          Right mkFunctions -> do
+            ctx <- getDBCIOContext
+            atomFuncs <- resolveIODBC atomFunctions
+            dbcFuncs <- resolveIODBC dbcFunctions
+            let foldMkFunction ctx' (MkAtomFunction atomFunc) =
+                  ctx' { atomFunctions = ValueMarker $ HS.insert atomFunc atomFuncs }
+                foldMkFunction ctx' (MkDatabaseContextFunction dbcFunc) =
+                  ctx' { dbcFunctions = ValueMarker $ HS.insert dbcFunc dbcFuncs }
+                ctx' = foldl' foldMkFunction ctx mkFunctions
 
-{-            entrypoint <- dynCompileExpr entrypointName
-            let entryPoint = unsafeCoerce entrypoint
-            traceShowM("here"::String)-}
-    
-  -- load source
-  -- look for entrypoint function and run it to get functions to import
-  -- process each function, examining its arguments and converting them to Atom types for atom functions
+            putDBCIOContext ctx'
 
-type DeclareFunctionGhcName = DeclareFunctionBase Name
+data MkFunction = MkAtomFunction AtomFunction |
+                  MkDatabaseContextFunction DatabaseContextFunction 

@@ -64,21 +64,21 @@ functionForName funcName' funcSet =
   \[IntegerAtom val1, IntegerAtom val2] -> 
      Right $ IntegerAtom $ apply_discount val1 val2
 -}
-wrapAtomFunction :: [TypeConstructor] -> FunctionName -> Either RelationalError String
-wrapAtomFunction tConss@(_:_) funcName' = pure $
+wrapAtomFunction :: [AtomType] -> FunctionName -> Either RelationalError String
+wrapAtomFunction aType@(_:_) funcName' = pure $
   -- we have to make a string-based, dynamic wrapper since we need to get a consistent function type out of the code
   -- there's no value in having an AtomFunction with no return type, so there must be a list with at least one value
         "\\[" <>
-        intercalate "," (map (\(i,c) -> convType c <> " val" <> show @Int i) (zip [1 ..] (init tConss))) <>
+        intercalate "," (map (\(i,c) -> convType c <> " val" <> show @Int i) (zip [1 ..] (init aType))) <>
         "] -> Right $ " <> 
-        convType (last tConss) <>
+        convType (last aType) <>
         " $ " <>
         T.unpack funcName' <>
         " " <>
-        intercalate " " (map (\i -> "val" <> show i) [1 .. length tConss - 1])
+        intercalate " " (map (\i -> "val" <> show i) [1 .. length aType - 1])
   where
-      convType tCons =
-        case tCons of
-          PrimitiveTypeConstructor tyName _ ->
-            T.unpack tyName <> "Atom"
+      convType typ =
+        case typ of
+          IntegerAtomType -> "IntegerAtom"
+
 wrapAtomFunction [] _ = Left (AtomFunctionUserError AtomFunctionMissingReturnTypeError)
