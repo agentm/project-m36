@@ -441,4 +441,27 @@ convertGhcTypeToFunctionAtomType dflags tyConv typ =
         else
         convType' rest typ
 
+-- | Last argument should be `DatabaseContextFunctionMonad ()`
+convertGhcTypeToDatabaseContextFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Type -> Either TypeConversionError [AtomType]
+convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType typ =
+  case typ of
+    TyConApp tycon args |
+      typ `eqType` dbcFuncMonadType -> pure []
+    TyConApp tycon args -> do
+      args' <- mapM (convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType) args
+      pure (IntegerAtomType:concat args')
+    fun@FunTy{} -> do
+      arg <- convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType (ft_arg fun)
+      rest <- convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType (ft_res fun)
+      pure (arg <> rest)
+  where
+    showType typ = showSDocForUser dflags emptyUnitState alwaysQualify (ppr typ)
+    convType typ = convType' tyConv typ
+    convType' [] _ = Left (UnsupportedTypeConversionError (showType typ))
+    convType' (match:rest) typ =
+      if fst match `eqType` traceShow (snd match) typ then
+        Right (snd match)
+        else
+        convType' rest typ
+
 #endif

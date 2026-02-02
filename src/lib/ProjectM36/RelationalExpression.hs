@@ -68,21 +68,17 @@ import Control.Exception
 import GHC.Paths
 import GHC.Unit.State (emptyUnitState)
 import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
 import GHC.Unit.Finder.Types (FindResult(..))
 import GHC.Unit.Finder (findImportedModule)
 import GHC.Types.Name.Occurrence (mkVarOcc, mkTcOcc)
 import GHC.Iface.Env (lookupOrig)
 import GHC.Types.Name (getOccString)
 import GHC.Core.Type (mkTyConApp)
-import GHC.Builtin.Types (unitTyCon, unitTy)
+import GHC.Builtin.Types (unitTy)
 import GHC.Core.TyCo.Compare (eqType)
-import Data.Dynamic
 import Unsafe.Coerce
 import Control.Monad (forM)
 import GHC.Utils.Outputable (ppr)
-import GHC.Types.Name (nameOccName)
-import GHC.Types.Name (occNameString)
 #endif
 
 import Debug.Trace
@@ -1915,10 +1911,9 @@ importModuleFromPath scriptSession moduleSource = do
           Failed -> pure (Left (ScriptError ModuleLoadError))
           Succeeded -> do
             liftIO $ putStrLn "loaded"
-            dflags <- getSessionDynFlags
             modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
             liftIO $ case modRes of
-              Found modLoc mod -> do
+              Found modLoc _mod -> do
                 let packageLoc = takeDirectory (takeDirectory (takeDirectory (ml_dyn_obj_file modLoc)))
                 putStrLn packageLoc
               NoPackage{} -> error "no package"
@@ -1928,11 +1923,9 @@ importModuleFromPath scriptSession moduleSource = do
             case mgModSummaries modGraph of
               [] -> pure (Left (ScriptError ModuleLoadError))
               (modSummary:_) -> do
-                let entrypointS = modNameS <> "." <> pm36FuncName
-                    modName = (ms_mod_name modSummary)
+                let modName = ms_mod_name modSummary
                     modModS = "ProjectM36.Module"
                     modModName = mkModuleName modModS 
-                    modNameS = moduleNameString modName
                     pm36FuncName = "projectM36Functions"
                     occName = mkVarOcc pm36FuncName
                     occExpectedType = mkTcOcc "EntryPoints"
@@ -1946,16 +1939,16 @@ importModuleFromPath scriptSession moduleSource = do
                 
                 userModule <- findModule modName Nothing
                 moduleModule <- findModule modModName Nothing
-                (msgs, Just (entrypointFunc, entryPointsMonadName)) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
+                (_msgs, Just (entrypointFunc, entryPointsMonadName)) <- liftIO $ runTcInteractive (hscEnv scriptSession) $ do
                   pm36Name <- lookupOrig userModule occName
                   entryPointsName <- lookupOrig moduleModule occExpectedType
                   pure (pm36Name, entryPointsName)
                 monadTy <- lookupName entryPointsMonadName
                 let entryPointsTyCon = case monadTy of
                                          Just (ATyCon tc) -> mkTyConApp tc [unitTy]
-                                         Just (AnId tc) -> error "entry points anid"
-                                         Just (AConLike clike) -> error "entry points clike"
-                                         Just (ACoAxiom cax) -> error "entry points cax"
+                                         Just (AnId _tc) -> error "entry points anid"
+                                         Just (AConLike _clike) -> error "entry points clike"
+                                         Just (ACoAxiom _cax) -> error "entry points cax"
                                          Nothing -> error "entry points nothing"
                 tyThing <- lookupName entrypointFunc
                 case tyThing of
@@ -1973,6 +1966,18 @@ importModuleFromPath scriptSession moduleSource = do
                               tyConv <- mkTypeConversions                              
                               mkFunctions <- forM funcDeclarations $ \funcDecl -> do
                                   case funcDecl of
+                                    DeclareDatabaseContextFunction funcS -> do
+                                      fType <- exprType TM_Default (T.unpack funcS)
+                                      dbcFuncMonadType <- exprType TM_Default "undefined :: DatabaseContextFunctionMonad ()"                                      
+                                      -- extract arguments for dbc function
+                                      let eAtomFuncType = convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType fType
+                                      liftIO $ print eAtomFuncType
+                                      case eAtomFuncType of
+                                        Left err -> error (show err)
+                                        Right atomFuncType -> do
+                                          liftIO $ putStrLn $ wrapDatabaseContextFunction atomFuncType funcS
+                                          error "dbcontext function nice"
+                                      
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)
@@ -2013,10 +2018,10 @@ importModuleFromPath scriptSession moduleSource = do
             ctx <- getDBCIOContext
             atomFuncs <- resolveIODBC atomFunctions
             dbcFuncs <- resolveIODBC dbcFunctions
-            let foldMkFunction ctx' (MkAtomFunction atomFunc) =
-                  ctx' { atomFunctions = ValueMarker $ HS.insert atomFunc atomFuncs }
-                foldMkFunction ctx' (MkDatabaseContextFunction dbcFunc) =
-                  ctx' { dbcFunctions = ValueMarker $ HS.insert dbcFunc dbcFuncs }
+            let foldMkFunction ctx'' (MkAtomFunction atomFunc) =
+                  ctx'' { atomFunctions = ValueMarker $ HS.insert atomFunc atomFuncs }
+                foldMkFunction ctx'' (MkDatabaseContextFunction dbcFunc) =
+                  ctx'' { dbcFunctions = ValueMarker $ HS.insert dbcFunc dbcFuncs }
                 ctx' = foldl' foldMkFunction ctx mkFunctions
 
             putDBCIOContext ctx'
