@@ -1974,10 +1974,15 @@ importModuleFromPath scriptSession moduleSource = do
                                       liftIO $ print eAtomFuncType
                                       case eAtomFuncType of
                                         Left err -> error (show err)
-                                        Right atomFuncType -> do
-                                          liftIO $ putStrLn $ wrapDatabaseContextFunction atomFuncType funcS
-                                          error "dbcontext function nice"
-                                      
+                                        Right dbcFuncType -> do
+                                          let interpretedFunc = wrapDatabaseContextFunction dbcFuncType funcS
+                                          liftIO $ putStrLn $ interpretedFunc
+                                          dbcFunc :: DatabaseContextFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
+                                          let newDBCFunc = Function { funcName = funcS,
+                                                                            funcType = dbcFuncType,
+                                                                            funcBody = FunctionScriptBody (T.pack interpretedFunc) dbcFunc,
+                                                                            funcACL = def }
+                                          pure (MkDatabaseContextFunction newDBCFunc)
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)

@@ -91,10 +91,10 @@ wrapAtomArguments atomArgs =
 wrapDatabaseContextFunction :: [AtomType] -> FunctionName -> String
 wrapDatabaseContextFunction aType funcName' =
   "\\dbcfuncutils [" <>
-  wrapAtomArguments aType <>
+  wrapAtomArguments (aType <> [TypeVariableType "databaseContextFunctionMonad"]) <> -- last type is throwaway
   "] dbContext -> " <>
-  "let env = DatabaseContextFunctionMonad dbcfuncutils in\n" <>
+  "let env = DatabaseContextFunctionMonadEnv dbcfuncutils in\n" <>
   "runDatabaseContextFunctionMonad env dbContext $ do\n" <>
   "  " <> T.unpack funcName' <> " " <>
-  intercalate " " (map (\i -> "val" <> show i) [1 .. length aType - 1])
+  intercalate " " (map (\i -> "val" <> show i) [1 .. length aType])
   

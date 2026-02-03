@@ -583,6 +583,25 @@ Test-Suite test-tutoriald-import-tutoriald
     main-is: TutorialD/Interpreter/Import/ImportTest.hs
     Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer
 
+Test-Suite test-tutoriald-import-module
+    import: commontest
+    type: exitcode-stdio-1.0
+    main-is: TutorialD/Interpreter/Module.hs
+    if flag(haskell-scripting)
+        CPP-Options: -DPM36_HASKELL_SCRIPTING
+    Other-Modules: TutorialD.Interpreter.Base, TutorialD.Interpreter.Import.Base, TutorialD.Interpreter.Import.TutorialD, TutorialD.Interpreter.RelationalExpr, TutorialD.Interpreter.Types, TutorialD.Interpreter.DatabaseContextExpr, TutorialD.Interpreter.Import.BasicExamples, TutorialD.Printer,         TutorialD.Interpreter,
+        TutorialD.Interpreter.DatabaseContextIOOperator,
+        TutorialD.Interpreter.Export.Base,
+        TutorialD.Interpreter.Export.CSV,
+        TutorialD.Interpreter.Import.CSV,
+        TutorialD.Interpreter.InformationOperator,
+        TutorialD.Interpreter.LoginRolesOperator,
+        TutorialD.Interpreter.RODatabaseContextOperator,
+        TutorialD.Interpreter.SchemaOperator,
+        TutorialD.Interpreter.TestBase,
+        TutorialD.Interpreter.TransGraphRelationalOperator,
+        TutorialD.Interpreter.TransactionGraphOperator
+
 Test-Suite test-relation-export-csv
     import: commontest
     type: exitcode-stdio-1.0
@@ -834,4 +853,3 @@ Test-Suite test-accesscontrol
         TutorialD.Interpreter.TransactionGraphOperator
         TutorialD.Interpreter.Types
         TutorialD.Printer
- 
