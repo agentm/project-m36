@@ -79,10 +79,26 @@ wrapAtomFunction aType@(_:_) funcName' =
     intercalate " " (map (\i -> "val" <> show i) [1 .. length aType - 1])
 wrapAtomFunction [] _ = Left (AtomFunctionUserError AtomFunctionMissingReturnTypeError)
 
+-- | convert an AtomType into its constituent String value for use in constructing the Haskell scripting utility wrapper.
 convType :: AtomType -> String
 convType typ =
   case typ of
     IntegerAtomType -> "IntegerAtom"
+    IntAtomType -> "IntAtom"
+    ScientificAtomType -> "ScientificAtom"
+    DoubleAtomType -> "DoubleAtom"
+    TextAtomType -> "TextAtom"
+    DayAtomType -> "DayAtom"
+    DateTimeAtomType -> "DateTimeAtom"
+    ByteStringAtomType -> "ByteStringAtom"
+    BoolAtomType -> "BoolAtom"
+    UUIDAtomType -> "UUIDAtom"
+    RelationAtomType _ -> "RelationAtom" 
+    SubrelationFoldAtomType _ -> "SubrelationFoldAtom" -- probably won't work
+    ConstructedAtomType _ _ -> "ConstructedAtom" -- needs more work to render full atom metadata
+    RelationalExprAtomType -> "RelationalExprAtom"
+    TypeVariableType _ -> "" -- nonsense
+    
 
 wrapAtomArguments :: [AtomType] -> String
 wrapAtomArguments atomArgs =

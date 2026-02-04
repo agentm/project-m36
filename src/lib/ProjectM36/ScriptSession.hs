@@ -87,8 +87,9 @@ import Debug.Trace
 import GHC.Exts (addrToAny#)
 import GHC.Ptr (Ptr(..))
 import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, lookupSymbol, loadDLL, loadObj)
-import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon)
+import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon, eqTyCon)
 import qualified Data.Map as M
+import Data.List (find)
 #endif
 -- endif for SCRIPTING FLAG
 
@@ -424,9 +425,11 @@ mkTypeConversions = do
 convertGhcTypeToFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [AtomType]
 convertGhcTypeToFunctionAtomType dflags tyConv typ =
   case typ of
-    TyConApp tycon args -> do
-      args' <- mapM (convertGhcTypeToFunctionAtomType dflags tyConv) args
-      pure (IntegerAtomType:concat args')
+    TyConApp tycon args ->
+      case find (\(k,v) -> k `eqType` typ) tyConv of
+        Nothing -> Left (UnsupportedTypeConversionError "gonk")
+        Just (_,match) -> 
+          pure [match]
     fun@FunTy{} -> do
       arg <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_arg fun)
       rest <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_res fun)
