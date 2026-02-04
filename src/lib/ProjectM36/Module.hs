@@ -2,6 +2,7 @@
 module ProjectM36.Module where
 import ProjectM36.Base
 import ProjectM36.Error
+import ProjectM36.AccessControlList
 import ProjectM36.DatabaseContext.Types as DBCT
 import Control.Monad.Trans.Writer
 import Control.Monad.RWS.Strict (RWST, get, put, ask, runRWST)
@@ -13,8 +14,8 @@ data ProcessFunction = RegisterAtomFunction String
 declareAtomFunction :: FunctionName -> EntryPoints ()
 declareAtomFunction nam = tell [DeclareAtomFunction nam]
 
-declareDatabaseContextFunction :: FunctionName -> EntryPoints ()
-declareDatabaseContextFunction nam = tell [DeclareDatabaseContextFunction nam]
+declareDatabaseContextFunction :: FunctionName -> DBCFunctionAccessControlList -> EntryPoints ()
+declareDatabaseContextFunction nam acl' = tell [DeclareDatabaseContextFunction nam acl']
 
 type EntryPoints = Writer [DeclareFunction]
 
@@ -22,7 +23,7 @@ runEntryPoints :: EntryPoints () -> [DeclareFunction]
 runEntryPoints e = execWriter e
 
 data DeclareFunctionBase a = DeclareAtomFunction a |
-                             DeclareDatabaseContextFunction a
+                             DeclareDatabaseContextFunction a DBCFunctionAccessControlList
   deriving (Show)
 
 type DeclareFunction = DeclareFunctionBase FunctionName

@@ -3,6 +3,7 @@
 import System.Exit
 import Test.HUnit
 #ifdef PM36_HASKELL_SCRIPTING
+import Data.Time.Calendar
 import TutorialD.Interpreter.TestBase
 import ProjectM36.Client
 import qualified ProjectM36.Attribute as A
@@ -13,8 +14,7 @@ main :: IO ()
 main = do
   tcounts <- runTestTT (TestList [
 #ifdef PM36_HASKELL_SCRIPTING
-    testImportModule,
-    testImportTypes
+    testImportModule
 #endif                                  
     ])
   if errors tcounts + failures tcounts > 0 then exitFailure else exitSuccess
@@ -26,12 +26,21 @@ testImportModule = TestCase $ do
   (sess, conn) <- dateExamplesConnection emptyNotificationCallback
   let importmodule = "loadmodulefromfile \"test/TutorialD/Interpreter/TestModule.hs\""
   executeTutorialD sess conn importmodule
+  -- install relvar
+  executeTutorialD sess conn "ticket_sales:=relation{ticketId Integer, visitorAge Integer, basePrice Integer, visitDate Day}"
   --execute the atom function in the module
   executeTutorialD sess conn "x:=relation{tuple{a apply_discount(8,20)}}"
   eres <- executeRelationalExpr sess conn (RelationVariable "x" ())
   let expectedres = mkRelationFromList (A.attributesFromList [Attribute "a" IntegerAtomType]) [[IntegerAtom 10]]
   assertEqual "x apply_discount" expectedres eres
-  --execute the dbc function in the module
 
--- test a variety of types in the module import process  
+  --execute the dbc function in the module
+  executeTutorialD sess conn "execute add_sale(1,8,20)"
+  let salesAttrs = A.attributesFromList [Attribute "ticketId" IntegerAtomType,
+                                         Attribute "visitorAge" IntegerAtomType,
+                                         Attribute "basePrice" IntegerAtomType,
+                                         Attribute "visitDate" DayAtomType]
+  let expectedres' = mkRelationFromList salesAttrs [[IntegerAtom 1, IntegerAtom 8, IntegerAtom 10, DayAtom (fromGregorian 2025 10 03)]]
+  eres' <- executeRelationalExpr sess conn (RelationVariable "ticket_sales" ())
+  assertEqual "ticket_sales add_sales" expectedres' eres'
 #endif

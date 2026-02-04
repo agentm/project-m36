@@ -1966,7 +1966,7 @@ importModuleFromPath scriptSession moduleSource = do
                               tyConv <- mkTypeConversions                              
                               mkFunctions <- forM funcDeclarations $ \funcDecl -> do
                                   case funcDecl of
-                                    DeclareDatabaseContextFunction funcS -> do
+                                    DeclareDatabaseContextFunction funcS acl' -> do
                                       fType <- exprType TM_Default (T.unpack funcS)
                                       dbcFuncMonadType <- exprType TM_Default "undefined :: DatabaseContextFunctionMonad ()"                                      
                                       -- extract arguments for dbc function
@@ -1981,7 +1981,7 @@ importModuleFromPath scriptSession moduleSource = do
                                           let newDBCFunc = Function { funcName = funcS,
                                                                             funcType = dbcFuncType,
                                                                             funcBody = FunctionScriptBody (T.pack interpretedFunc) dbcFunc,
-                                                                            funcACL = def }
+                                                                            funcACL = acl' }
                                           pure (MkDatabaseContextFunction newDBCFunc)
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
