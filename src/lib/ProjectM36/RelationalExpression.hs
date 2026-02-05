@@ -10,7 +10,6 @@ import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
 import qualified Data.UUID as U
 import ProjectM36.Error
-import ProjectM36.Module
 import ProjectM36.AtomType
 import ProjectM36.Attribute (emptyAttributes, attributesFromList)
 import ProjectM36.ScriptSession
@@ -41,7 +40,6 @@ import Data.Either
 import Data.List (foldl')
 import Data.Char (isUpper)
 import Data.Time
-import Data.Default
 import qualified Data.List.NonEmpty as NE
 import Data.Functor.Identity
 import qualified Data.Text as T
@@ -58,10 +56,12 @@ import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
-import qualified Data.Text.IO as TIO
+#ifdef PM36_HASKELL_SCRIPTING
 import System.IO.Temp
 import System.IO (hClose)
-#ifdef PM36_HASKELL_SCRIPTING
+import qualified Data.Text.IO as TIO
+import Data.Default
+import ProjectM36.Module
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
@@ -1884,6 +1884,9 @@ typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
   pure (A.attributesFromList attrList)
 
 importModuleFromPath :: ScriptSession -> ModuleBody -> DatabaseContextIOEvalMonad ()
+#if !defined(PM36_HASKELL_SCRIPTING)
+importModuleFromPath _scriptSession _moduleSource = throwError (ScriptError ScriptCompilationDisabledError)
+#else
 importModuleFromPath scriptSession moduleSource = do
   res <- liftIO $ try $ do
     withSystemTempFile "pm36module" $ \tempModulePath tempModuleHandle -> do
@@ -2019,6 +2022,7 @@ importModuleFromPath scriptSession moduleSource = do
                            }
 
             putDBCIOContext ctx'
+#endif
 
 data MkFunction = MkAtomFunction AtomFunction |
                   MkDatabaseContextFunction DatabaseContextFunction 

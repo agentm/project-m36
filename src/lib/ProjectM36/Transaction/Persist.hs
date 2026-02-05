@@ -16,7 +16,6 @@ import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import ProjectM36.DatabaseContextFunctions.Basic
-import ProjectM36.AtomFunction
 import ProjectM36.Persist (DiskSync, renameSync, writeSerialiseSync, readDeserialise)
 import ProjectM36.Function
 import ProjectM36.AccessControlList
@@ -48,6 +47,7 @@ import qualified Data.Text.Encoding as TE
 import GHC
 import Control.Exception
 import GHC.Paths
+import ProjectM36.AtomFunction
 #endif
 
 xattrName :: String
