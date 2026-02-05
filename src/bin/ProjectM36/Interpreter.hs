@@ -6,7 +6,6 @@ import ProjectM36.Error
 import ProjectM36.DataFrame
 import Text.Megaparsec
 import Data.Void
-import Data.Text
 import GHC.Generics
 import qualified Data.Text.IO as TIO
 import qualified Data.Text as T
@@ -16,8 +15,8 @@ import Control.Monad.Random
 import ProjectM36.Relation.Show.Term
 import ProjectM36.Relation
 
-type Parser = Parsec Void Text
-type ParserError = ParseErrorBundle Text Void
+type Parser = Parsec Void T.Text
+type ParserError = ParseErrorBundle T.Text Void
 type PromptLength = Int
 
 data SafeEvaluationFlag = SafeEvaluation | UnsafeEvaluation deriving (Eq)
@@ -27,7 +26,7 @@ data ConsoleResult = QuitResult |
                      DisplayIOResult (IO ()) |
                      DisplayRelationResult Relation |
                      DisplayDataFrameResult DataFrame |
-                     DisplayHintWith Text ConsoleResult |
+                     DisplayHintWith T.Text ConsoleResult |
                      DisplayErrorResult StringType |
                      DisplayRelationalErrorResult RelationalError |
                      DisplayParseErrorResult (Maybe PromptLength) ParserError | -- PromptLength refers to length of prompt text

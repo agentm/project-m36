@@ -342,10 +342,17 @@ loadFunction loadMode modName funcName' objPath = do
       loadObj objPath
       loadFuncForSymbol
     LoadDLLFile -> do
+#if MIN_VERSION_ghc(9,10,0)
+      eErr <- loadDLL objPath
+      case eErr of
+        Left _err -> pure (Left LoadSymbolError)
+        Right _ptr -> loadFuncForSymbol
+#else
       mErr <- loadDLL objPath
       case mErr of
         Just _ -> pure (Left LoadSymbolError)
         Nothing -> loadFuncForSymbol
+#endif
 
 prefixUnderscore :: String
 prefixUnderscore =
