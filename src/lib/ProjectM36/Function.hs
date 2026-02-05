@@ -76,7 +76,7 @@ wrapAtomFunction aType@(_:_) funcName' =
     " $ " <>
     T.unpack funcName' <>
     " " <>
-    intercalate " " (map (\i -> "val" <> show i) [1 .. length aType - 1])
+    unwords (map (\i -> "val" <> show i) [1 .. length aType - 1])
 wrapAtomFunction [] _ = Left (AtomFunctionUserError AtomFunctionMissingReturnTypeError)
 
 -- | convert an AtomType into its constituent String value for use in constructing the Haskell scripting utility wrapper.
@@ -102,7 +102,7 @@ convType typ =
 
 wrapAtomArguments :: [AtomType] -> String
 wrapAtomArguments atomArgs =
-  intercalate "," (map (\(i,c) -> convType c <> " val" <> show @Int i) (zip [1 ..] (init atomArgs)))
+  intercalate "," (zipWith (\i c -> convType c <> " val" <> show @Int i) [1 ..] (init atomArgs))
 
 wrapDatabaseContextFunction :: [AtomType] -> FunctionName -> String
 wrapDatabaseContextFunction aType funcName' =
@@ -112,5 +112,5 @@ wrapDatabaseContextFunction aType funcName' =
   "let env = DatabaseContextFunctionMonadEnv dbcfuncutils in\n" <>
   "runDatabaseContextFunctionMonad env dbContext $ do\n" <>
   "  " <> T.unpack funcName' <> " " <>
-  intercalate " " (map (\i -> "val" <> show i) [1 .. length aType])
+  unwords (map (\i -> "val" <> show i) [1 .. length aType])
   

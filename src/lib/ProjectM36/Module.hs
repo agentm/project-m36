@@ -9,8 +9,6 @@ import Control.Monad.RWS.Strict (RWST, get, put, ask, runRWST)
 import Control.Monad.Except (ExceptT, throwError, runExceptT)
 import Data.Functor.Identity
 
-data ProcessFunction = RegisterAtomFunction String
-
 declareAtomFunction :: FunctionName -> EntryPoints ()
 declareAtomFunction nam = tell [DeclareAtomFunction nam]
 
@@ -20,7 +18,7 @@ declareDatabaseContextFunction nam acl' = tell [DeclareDatabaseContextFunction n
 type EntryPoints = Writer [DeclareFunction]
 
 runEntryPoints :: EntryPoints () -> [DeclareFunction]
-runEntryPoints e = execWriter e
+runEntryPoints = execWriter
 
 data DeclareFunctionBase a = DeclareAtomFunction a |
                              DeclareDatabaseContextFunction a DBCFunctionAccessControlList
@@ -30,7 +28,7 @@ type DeclareFunction = DeclareFunctionBase FunctionName
 
 type DatabaseContextFunctionMonad a = RWST DatabaseContextFunctionMonadEnv () DatabaseContext (ExceptT RelationalError Identity) a
 
-data DatabaseContextFunctionMonadEnv =
+newtype DatabaseContextFunctionMonadEnv =
   DatabaseContextFunctionMonadEnv
   {
     utils :: DatabaseContextFunctionUtils
@@ -40,7 +38,7 @@ executeRelationalExpr :: RelationalExpr -> DatabaseContextFunctionMonad Relation
 executeRelationalExpr expr = do
   env <- ask
   ctx <- get
-  case (DBCT.executeRelationalExpr (utils env)) ctx expr of
+  case DBCT.executeRelationalExpr (utils env) ctx expr of
     Left err -> throwError err
     Right rel -> pure rel
 
@@ -48,7 +46,7 @@ executeDatabaseContextExpr :: DatabaseContextExpr -> DatabaseContextFunctionMona
 executeDatabaseContextExpr expr = do
   env <- ask
   ctx <- get
-  case (DBCT.executeDatabaseContextExpr (utils env)) ctx expr of
+  case DBCT.executeDatabaseContextExpr (utils env) ctx expr of
     Left err -> throwError err
     Right ctx' ->
       put ctx'

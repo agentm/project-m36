@@ -29,18 +29,18 @@ testImportModule = TestCase $ do
   -- install relvar
   executeTutorialD sess conn "ticket_sales:=relation{ticketId Integer, visitorAge Integer, basePrice Integer, visitDate Day}"
   --execute the atom function in the module
-  executeTutorialD sess conn "x:=relation{tuple{a apply_discount(8,20)}}"
+  executeTutorialD sess conn "x:=relation{tuple{a applyDiscount(8,20)}}"
   eres <- executeRelationalExpr sess conn (RelationVariable "x" ())
   let expectedres = mkRelationFromList (A.attributesFromList [Attribute "a" IntegerAtomType]) [[IntegerAtom 10]]
-  assertEqual "x apply_discount" expectedres eres
+  assertEqual "x applyDiscount" expectedres eres
 
   --execute the dbc function in the module
-  executeTutorialD sess conn "execute add_sale(1,8,20,fromGregorian(2025, 10, 3))"
+  executeTutorialD sess conn "execute addSale(1,8,20,fromGregorian(2025, 10, 3))"
   let salesAttrs = A.attributesFromList [Attribute "ticketId" IntegerAtomType,
                                          Attribute "visitorAge" IntegerAtomType,
                                          Attribute "basePrice" IntegerAtomType,
                                          Attribute "visitDate" DayAtomType]
   let expectedres' = mkRelationFromList salesAttrs [[IntegerAtom 1, IntegerAtom 8, IntegerAtom 10, DayAtom (fromGregorian 2025 10 03)]]
   eres' <- executeRelationalExpr sess conn (RelationVariable "ticket_sales" ())
-  assertEqual "ticket_sales add_sales" expectedres' eres'
+  assertEqual "ticket_sales addSale" expectedres' eres'
 #endif

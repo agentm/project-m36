@@ -3,7 +3,6 @@ module TestModule where
 import ProjectM36.Module
 import ProjectM36.AccessControlList
 import ProjectM36.Base
-import Data.Time.Calendar
 import qualified Data.Map as M
 import Data.Text (Text)
 import Data.Time.Calendar (Day)
@@ -16,22 +15,22 @@ import Data.Scientific (Scientific)
 projectM36Functions :: EntryPoints ()
 projectM36Functions = do
   declareAtomFunction "multiTypesAtomFunc"  
-  declareAtomFunction "apply_discount" 
-  declareDatabaseContextFunction "add_sale" (allPermissionsForRoleId adminRoleId)
+  declareAtomFunction "applyDiscount" 
+  declareDatabaseContextFunction "addSale" (allPermissionsForRoleId adminRoleId)
   declareDatabaseContextFunction "multiTypesDBCFunc" (allPermissionsForRoleId adminRoleId)  
 
-apply_discount :: Integer -> Integer -> Integer
-apply_discount age price =
+applyDiscount :: Integer -> Integer -> Integer
+applyDiscount age price =
   if age <= 10 then
     price `div` 2
     else
     price
 
-add_sale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
-add_sale ticketId age price purchaseDay = do
+addSale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
+addSale ticketId age price purchaseDay = do
   let tuples = [TupleExpr (M.fromList [("ticketId", i ticketId),
                                        ("visitorAge", i age),
-                                       ("basePrice", FunctionAtomExpr "apply_discount" [i age, i price] ()),
+                                       ("basePrice", FunctionAtomExpr "applyDiscount" [i age, i price] ()),
                                        ("visitDate", NakedAtomExpr (DayAtom purchaseDay))])]
       i = NakedAtomExpr . IntegerAtom
   executeDatabaseContextExpr (Insert "ticket_sales" (MakeRelationFromExprs Nothing (TupleExprs () tuples)))
