@@ -35,7 +35,7 @@ testImportModule = TestCase $ do
   assertEqual "x apply_discount" expectedres eres
 
   --execute the dbc function in the module
-  executeTutorialD sess conn "execute add_sale(1,8,20)"
+  executeTutorialD sess conn "execute add_sale(1,8,20,fromGregorian(2025, 10, 3))"
   let salesAttrs = A.attributesFromList [Attribute "ticketId" IntegerAtomType,
                                          Attribute "visitorAge" IntegerAtomType,
                                          Attribute "basePrice" IntegerAtomType,

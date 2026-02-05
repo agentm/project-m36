@@ -61,15 +61,14 @@ import Control.Applicative
 import qualified Data.Text.IO as TIO
 import System.IO.Temp
 import System.IO (hClose)
-import System.FilePath
 #ifdef PM36_HASKELL_SCRIPTING
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
-import GHC.Unit.State (emptyUnitState)
-import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Unit.Finder.Types (FindResult(..))
-import GHC.Unit.Finder (findImportedModule)
+--import GHC.Unit.State (emptyUnitState)
+--import GHC.Driver.Ppr (showSDocForUser)
+--import GHC.Unit.Finder.Types (FindResult(..))
+--import GHC.Unit.Finder (findImportedModule)
 import GHC.Types.Name.Occurrence (mkVarOcc, mkTcOcc)
 import GHC.Iface.Env (lookupOrig)
 import GHC.Types.Name (getOccString)
@@ -78,10 +77,8 @@ import GHC.Builtin.Types (unitTy)
 import GHC.Core.TyCo.Compare (eqType)
 import Unsafe.Coerce
 import Control.Monad (forM)
-import GHC.Utils.Outputable (ppr)
+--import GHC.Utils.Outputable (ppr)
 #endif
-
-import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -1888,9 +1885,6 @@ typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
 
 importModuleFromPath :: ScriptSession -> ModuleBody -> DatabaseContextIOEvalMonad ()
 importModuleFromPath scriptSession moduleSource = do
-  --TODO replace all error calls
-  --currentContext <- getDBCIOContext
-  --tConsMap <- resolveIODBC typeConstructorMapping
   res <- liftIO $ try $ do
     withSystemTempFile "pm36module" $ \tempModulePath tempModuleHandle -> do
       hClose tempModuleHandle
@@ -1910,15 +1904,14 @@ importModuleFromPath scriptSession moduleSource = do
         case loadSuccess of
           Failed -> pure (Left (ScriptError ModuleLoadError))
           Succeeded -> do
-            liftIO $ putStrLn "loaded"
-            modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
+            {-modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
             liftIO $ case modRes of
               Found modLoc _mod -> do
                 let packageLoc = takeDirectory (takeDirectory (takeDirectory (ml_dyn_obj_file modLoc)))
                 putStrLn packageLoc
               NoPackage{} -> error "no package"
               FoundMultiple{} -> error "multiple matches"
-              NotFound{} -> error "not found"
+              NotFound{} -> error "not found"-}
             modGraph <- depanal [] False
             case mgModSummaries modGraph of
               [] -> pure (Left (ScriptError ModuleLoadError))
@@ -1940,23 +1933,23 @@ importModuleFromPath scriptSession moduleSource = do
                   entryPointsName <- lookupOrig moduleModule occExpectedType
                   pure (pm36Name, entryPointsName)
                 monadTy <- lookupName entryPointsMonadName
-                let entryPointsTyCon = case monadTy of
-                                         Just (ATyCon tc) -> mkTyConApp tc [unitTy]
-                                         Just (AnId _tc) -> error "entry points anid"
-                                         Just (AConLike _clike) -> error "entry points clike"
-                                         Just (ACoAxiom _cax) -> error "entry points cax"
-                                         Nothing -> error "entry points nothing"
+                let unexpectedEP s = throw (ScriptError (OtherScriptCompilationError ("expected " <> pm36FuncName <> " signature: " <> s)))
+                entryPointsTyCon <- case monadTy of
+                                         Just (ATyCon tc) -> pure $ mkTyConApp tc [unitTy]
+                                         Just (AnId _tc) -> unexpectedEP "AnId"
+                                         Just (AConLike _clike) -> unexpectedEP "AConLike"
+                                         Just (ACoAxiom _cax) -> unexpectedEP "ACoAxiom"
+                                         Nothing -> unexpectedEP "missing"
                 tyThing <- lookupName entrypointFunc
                 case tyThing of
-                      Just (ATyCon _iCon) -> error "wrong tycon"
-                      Just (ACoAxiom _) -> error "wrong coaxium"
+                      Just (ATyCon _iCon) -> unexpectedEP "ATyCon"
+                      Just (ACoAxiom _) -> unexpectedEP "ACoAxoim"
                       --run the entrypoints monad
                       Just (AnId aid)
                         | getOccString aid == pm36FuncName ->
                             -- typecheck entrypoint function
                             if idType aid `eqType` entryPointsTyCon then do
                               -- call entrypoint
-                              traceShowM ("compiling entrypoint"::String, pm36FuncName)
                               result <- compileExpr pm36FuncName
                               let funcDeclarations = runEntryPoints (unsafeCoerce result)
                               tyConv <- mkTypeConversions                              
@@ -1967,12 +1960,10 @@ importModuleFromPath scriptSession moduleSource = do
                                       dbcFuncMonadType <- exprType TM_Default "undefined :: DatabaseContextFunctionMonad ()"                                      
                                       -- extract arguments for dbc function
                                       let eAtomFuncType = convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType fType
-                                      liftIO $ print eAtomFuncType
                                       case eAtomFuncType of
-                                        Left err -> error (show err)
+                                        Left err -> throw (OtherScriptCompilationError (show err))
                                         Right dbcFuncType -> do
                                           let interpretedFunc = wrapDatabaseContextFunction dbcFuncType funcS
-                                          liftIO $ putStrLn $ interpretedFunc
                                           dbcFunc :: DatabaseContextFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
                                           let newDBCFunc = Function { funcName = funcS,
                                                                             funcType = dbcFuncType,
@@ -1983,14 +1974,13 @@ importModuleFromPath scriptSession moduleSource = do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)
                                       let eAtomFuncType = convertGhcTypeToFunctionAtomType dflags tyConv fType 
-                                      liftIO $ print eAtomFuncType
-                                      liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
+                                      --liftIO $ print eAtomFuncType
+                                      --liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
                                       case eAtomFuncType of
                                         Left err -> error (show err)
                                         Right atomFuncType -> do
                                           let eInterpretedFunc = wrapAtomFunction atomFuncType funcS
-                                          liftIO $ print eInterpretedFunc
-                                          traceShowM ("compiling AtomFunction"::String)
+                                          --liftIO $ print eInterpretedFunc
                                           case eInterpretedFunc of
                                             Left err -> error (show err)
                                             Right interpretedFunc -> do
@@ -2006,10 +1996,10 @@ importModuleFromPath scriptSession moduleSource = do
                                               pure (MkAtomFunction newAtomFunc)
                               pure (Right mkFunctions)
                               else
-                              error "type mismatch" 
-                      Just AnId{} -> error "anid fail"      
-                      Just AConLike{} -> error "type constructor"
-                      Nothing -> error "gonk" --pure (Left (ScriptError ModuleLoadError))
+                              unexpectedEP "type mismatch"
+                      Just AnId{} -> unexpectedEP "AnId"
+                      Just AConLike{} -> unexpectedEP "AConLike"
+                      Nothing -> unexpectedEP "Nothing"
   case res of
       Left exc -> throwError exc
       Right eMkFunctions ->
@@ -2019,11 +2009,14 @@ importModuleFromPath scriptSession moduleSource = do
             ctx <- getDBCIOContext
             atomFuncs <- resolveIODBC atomFunctions
             dbcFuncs <- resolveIODBC dbcFunctions
-            let foldMkFunction ctx'' (MkAtomFunction atomFunc) =
-                  ctx'' { atomFunctions = ValueMarker $ HS.insert atomFunc atomFuncs }
-                foldMkFunction ctx'' (MkDatabaseContextFunction dbcFunc) =
-                  ctx'' { dbcFunctions = ValueMarker $ HS.insert dbcFunc dbcFuncs }
-                ctx' = foldl' foldMkFunction ctx mkFunctions
+            let foldMkFunction (atomFuncHS, dbcFuncHS) (MkAtomFunction atomFunc) =
+                  (HS.insert atomFunc atomFuncHS, dbcFuncHS)
+                foldMkFunction (atomFuncHS, dbcFuncHS) (MkDatabaseContextFunction dbcFunc) =
+                  (atomFuncHS, HS.insert dbcFunc dbcFuncHS)
+                (newAtomFuncs, newDBCFuncs) = foldl' foldMkFunction (mempty, mempty) mkFunctions
+                ctx' = ctx { dbcFunctions = ValueMarker $ HS.union newDBCFuncs dbcFuncs,
+                             atomFunctions = ValueMarker $ HS.union newAtomFuncs atomFuncs
+                           }
 
             putDBCIOContext ctx'
 

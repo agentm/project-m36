@@ -25,73 +25,32 @@ import System.Environment
 
 import Unsafe.Coerce
 import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,ImplicitPrelude,ScopedTypeVariables))
-#if MIN_VERSION_ghc(9,6,0)
+-- GHC 9.4+
 import Data.List.NonEmpty(NonEmpty(..))
-#else
-#endif
+import GHC.Utils.Panic (handleGhcException)
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Types.SourceText (SourceText(NoSourceText))
+import GHC.Driver.Ppr (showSDocForUser)
+import GHC.Utils.Outputable (ppr, Outputable)
+--import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
+import GHC.Core.TyCo.Ppr (pprType)
+import GHC.Utils.Encoding (zEncodeString)
+import GHC.Unit.State (emptyUnitState)
+import GHC.Types.PkgQual (RawPkgQual(NoRawPkgQual))
+import GHC.Exts (addrToAny#)
+import GHC.Ptr (Ptr(..))
+import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, lookupSymbol, loadDLL, loadObj)
+--import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon, eqTyCon)
+--import qualified Data.Map as M
+import Data.List (find)
+import qualified Control.Monad.Catch as CMC
 
 #if MIN_VERSION_ghc(9,6,0)
 import GHC.Core.TyCo.Compare (eqType)
 import GHC.Unit.Types (UnitId)
 import GHC.Driver.Env (hsc_home_unit)
 import GHC.Unit.Home (homeUnitId)
-#elif MIN_VERSION_ghc(9,0,0)
-import GHC.Core.Type (eqType)
-#else
-import Type (eqType)
 #endif
-#if MIN_VERSION_ghc(9,6,0)
-#elif MIN_VERSION_ghc(9,0,0)
-import GHC.Unit.Types (IsBootInterface(NotBoot))
-#else
-#endif
-#if MIN_VERSION_ghc(9,4,0)
-import GHC.Utils.Panic (handleGhcException)
-import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
-import GHC.Types.SourceText (SourceText(NoSourceText))
-import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Utils.Outputable (ppr)
-import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
-import GHC.Core.TyCo.Ppr (pprType)
-import GHC.Utils.Encoding (zEncodeString)
-import GHC.Unit.State (emptyUnitState)
-import GHC.Types.PkgQual (RawPkgQual(NoRawPkgQual))
-#elif MIN_VERSION_ghc(9,2,0)
--- GHC 9.2.2
-import GHC.Utils.Panic (handleGhcException)
-import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
-import GHC.Types.SourceText (SourceText(NoSourceText))
-import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Types.TyThing.Ppr (pprTypeForUser)
-import GHC.Utils.Encoding (zEncodeString)
-import GHC.Unit.State (emptyUnitState)
-#elif MIN_VERSION_ghc(9,0,0)
--- GHC 9.0.0
-import GHC.Utils.Panic (handleGhcException)
-import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
-import GHC.Types.Basic (SourceText(NoSourceText))
-import GHC.Utils.Outputable (showSDocForUser)
-import GHC.Utils.Encoding (zEncodeString)
-import GHC.Core.Ppr.TyThing (pprTypeForUser)
-#else
--- GHC 8.10.7
-import BasicTypes (SourceText(NoSourceText))
-import Outputable (showSDocForUser)
-import PprTyThing (pprTypeForUser)
-import Encoding (zEncodeString)
-import Panic (handleGhcException)
-import DynFlags (projectVersion, PkgConfRef(PkgConfFile), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming), PackageDBFlag(PackageDB))
-#endif
-
-import Debug.Trace
-
-import GHC.Exts (addrToAny#)
-import GHC.Ptr (Ptr(..))
-import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, lookupSymbol, loadDLL, loadObj)
-import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon, eqTyCon)
-import qualified Data.Map as M
-import Data.List (find)
-import qualified Control.Monad.Catch as CMC
 #endif
 -- endif for SCRIPTING FLAG
 
@@ -314,9 +273,9 @@ mkTypeForName name = do
         Just _ -> error ("failed to find type synonym " ++ name)
 
 compileScript :: Type -> Text -> Ghc (Either ScriptCompilationError a)
-compileScript funcType script = do
+compileScript funcType' script = do
   let sScript = unpack script
-  mErr <- typeCheckScript funcType script
+  mErr <- typeCheckScript funcType' script
   case mErr of
     Just err -> pure (Left err)
     Nothing ->
@@ -329,12 +288,12 @@ typeCheckScript :: Type -> Text -> Ghc (Maybe ScriptCompilationError)
 typeCheckScript expectedType inp = do
   dflags <- getSessionDynFlags
   --catch exception for SyntaxError
-  funcType <- GHC.exprType TM_Inst (unpack inp)
+  funcType' <- GHC.exprType TM_Inst (unpack inp)
   --liftIO $ putStrLn $ showType dflags expectedType ++ ":::" ++ showType dflags funcType
-  if eqType funcType expectedType then
+  if eqType funcType' expectedType then
     pure Nothing
     else
-    pure (Just (TypeCheckCompilationError (showType dflags expectedType) (showType dflags funcType)))
+    pure (Just (TypeCheckCompilationError (showType dflags expectedType) (showType dflags funcType')))
 
 mangleSymbol :: Maybe String -> String -> String -> String
 mangleSymbol pkg module' valsym =
@@ -355,20 +314,20 @@ data ObjectLoadMode = LoadObjectFile | -- ^ load .o files only
 type ModuleDirectory = FilePath
 
 loadFunctionFromDirectory :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> FilePath -> IO (Either LoadSymbolError a)
-loadFunctionFromDirectory mode modName funcName modDir objPath =
+loadFunctionFromDirectory mode modName funcName' modDir objPath =
   if takeFileName objPath /= objPath then
     pure (Left SecurityLoadSymbolError)
   else
     let fullObjPath = modDir </> objPath in
-      loadFunction mode modName funcName fullObjPath
+      loadFunction mode modName funcName' fullObjPath
 
 
 loadFunction :: ObjectLoadMode -> ModName -> FuncName -> FilePath -> IO (Either LoadSymbolError a)
-loadFunction loadMode modName funcName objPath = do
+loadFunction loadMode modName funcName' objPath = do
   initObjLinker RetainCAFs
   let loadFuncForSymbol = do    
         _ <- resolveObjs
-        ptr <- lookupSymbol (mangleSymbol Nothing modName funcName)
+        ptr <- lookupSymbol (mangleSymbol Nothing modName funcName')
         case ptr of
           Nothing -> pure (Left LoadSymbolError)
           Just (Ptr addr) -> case addrToAny# addr of
@@ -376,9 +335,9 @@ loadFunction loadMode modName funcName objPath = do
   case loadMode of
     LoadAutoObjectFile ->
       if takeExtension objPath == ".o" then
-          loadFunction LoadObjectFile modName funcName objPath
+          loadFunction LoadObjectFile modName funcName' objPath
         else
-          loadFunction LoadDLLFile modName funcName objPath
+          loadFunction LoadDLLFile modName funcName' objPath
     LoadObjectFile -> do
       loadObj objPath
       loadFuncForSymbol
@@ -420,7 +379,7 @@ mkTypeConversions = do
                  ]
   res <- forM extTypes $ \(nam, typ) -> do
     -- extract type from bottom value
-    ghcType <- (Just <$> exprType TM_Default ("undefined :: " <> nam)) `CMC.catch` (\(a :: SomeException) -> pure Nothing)
+    ghcType <- (Just <$> exprType TM_Default ("undefined :: " <> nam)) `CMC.catch` (\(_ :: SomeException) -> pure Nothing)
     pure (ghcType, typ)
   let mapFilter (Nothing, _) = Nothing
       mapFilter (Just t, at) = Just (t, at)
@@ -429,47 +388,38 @@ mkTypeConversions = do
 convertGhcTypeToFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [AtomType]
 convertGhcTypeToFunctionAtomType dflags tyConv typ =
   case typ of
-    TyConApp tycon args -> do
-      let tyconShow = showSDocForUser dflags emptyUnitState alwaysQualify (ppr tycon)
-      case find (\(k,v) -> k `eqType` typ) tyConv of
-        Nothing -> Left (UnsupportedTypeConversionError tyconShow)
-        Just (_,match) -> 
-          pure [match]
+    TyConApp _tycon _args -> do
+      aType <- findTypeConv dflags typ tyConv
+      pure [aType]
     fun@FunTy{} -> do
       arg <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_arg fun)
       rest <- convertGhcTypeToFunctionAtomType dflags tyConv (ft_res fun)
       pure (arg <> rest)
-  where
-    showType typ = showSDocForUser dflags emptyUnitState alwaysQualify (ppr typ)
-    convType typ = convType' tyConv typ
-    convType' [] _ = Left (UnsupportedTypeConversionError (showType typ))
-    convType' (match:rest) typ =
-      if fst match `eqType` traceShow (snd match) typ then
-        Right (snd match)
-        else
-        convType' rest typ
+    other -> Left (UnsupportedTypeConversionError (pprShow other dflags))
+
+    
+pprShow :: Outputable a => a -> DynFlags -> String
+pprShow x dflags = showSDocForUser dflags emptyUnitState alwaysQualify (ppr x)
+
+findTypeConv :: DynFlags -> Type -> [(Type, AtomType)] -> Either TypeConversionError AtomType
+findTypeConv dflags typ tyConv =
+  case find (\(k,_v) -> k `eqType` typ) tyConv of
+    Nothing -> Left (UnsupportedTypeConversionError (pprShow typ dflags))
+    Just (_,match') -> 
+      pure match'
 
 -- | Last argument should be `DatabaseContextFunctionMonad ()`
 convertGhcTypeToDatabaseContextFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Type -> Either TypeConversionError [AtomType]
 convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType typ =
   case typ of
-    TyConApp tycon args |
+    TyConApp{} |
       typ `eqType` dbcFuncMonadType -> pure []
-    TyConApp tycon args -> do
-      args' <- mapM (convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType) args
-      pure (IntegerAtomType:concat args')
+    TyConApp{} -> do
+      aType <- findTypeConv dflags typ tyConv
+      pure [aType]
     fun@FunTy{} -> do
       arg <- convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType (ft_arg fun)
       rest <- convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType (ft_res fun)
       pure (arg <> rest)
-  where
-    showType typ = showSDocForUser dflags emptyUnitState alwaysQualify (ppr typ)
-    convType typ = convType' tyConv typ
-    convType' [] _ = Left (UnsupportedTypeConversionError (showType typ))
-    convType' (match:rest) typ =
-      if fst match `eqType` traceShow (snd match) typ then
-        Right (snd match)
-        else
-        convType' rest typ
-
+    other -> Left (UnsupportedTypeConversionError (pprShow other dflags))
 #endif

@@ -1,5 +1,5 @@
 -- imported by the Haskell interpreter for the Module.hs test
-module TestFuncs (projectM36Functions, apply_discount) where
+module TestModule where
 import ProjectM36.Module
 import ProjectM36.AccessControlList
 import ProjectM36.Base
@@ -15,9 +15,10 @@ import Data.Scientific (Scientific)
 
 projectM36Functions :: EntryPoints ()
 projectM36Functions = do
-  declareAtomFunction "multiTypes"  
+  declareAtomFunction "multiTypesAtomFunc"  
   declareAtomFunction "apply_discount" 
   declareDatabaseContextFunction "add_sale" (allPermissionsForRoleId adminRoleId)
+  declareDatabaseContextFunction "multiTypesDBCFunc" (allPermissionsForRoleId adminRoleId)  
 
 apply_discount :: Integer -> Integer -> Integer
 apply_discount age price =
@@ -26,16 +27,17 @@ apply_discount age price =
     else
     price
 
-add_sale :: Integer -> Integer -> Integer -> {- Day -> -} DatabaseContextFunctionMonad ()
-add_sale ticketId age price {- purchaseDay -} = do
+add_sale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
+add_sale ticketId age price purchaseDay = do
   let tuples = [TupleExpr (M.fromList [("ticketId", i ticketId),
                                        ("visitorAge", i age),
                                        ("basePrice", FunctionAtomExpr "apply_discount" [i age, i price] ()),
-                                       ("visitDate", NakedAtomExpr (DayAtom (fromGregorian 2025 10 03)))])]
+                                       ("visitDate", NakedAtomExpr (DayAtom purchaseDay))])]
       i = NakedAtomExpr . IntegerAtom
   executeDatabaseContextExpr (Insert "ticket_sales" (MakeRelationFromExprs Nothing (TupleExprs () tuples)))
-                                                                                -- | A throwaway atom function just to test that we can use various types.
-multiTypes ::
+
+-- | A throwaway atom function just to test that we can use various types.
+multiTypesAtomFunc ::
   Scientific ->
   UTCTime ->
   ByteString ->
@@ -46,4 +48,17 @@ multiTypes ::
   Int ->
   Double ->
   Integer
-multiTypes a b c d e f g h i = 3
+multiTypesAtomFunc a b c d e f g h i = 3
+
+multiTypesDBCFunc ::
+    Scientific ->
+  UTCTime ->
+  ByteString ->
+  UUID ->
+  Day ->
+  Text ->
+  Bool ->
+  Int ->
+  Double ->
+  DatabaseContextFunctionMonad ()
+multiTypesDBCFunc a b c d e f g h i = pure ()
