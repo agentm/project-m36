@@ -1,6 +1,7 @@
 {-# LANGUAGE UnboxedTuples, KindSignatures, DataKinds #-}
 #ifdef PM36_HASKELL_SCRIPTING
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 #endif
 module ProjectM36.ScriptSession where
 
@@ -90,6 +91,7 @@ import GHCi.ObjLink (initObjLinker, ShouldRetainCAFs(RetainCAFs), resolveObjs, l
 import GHC.Builtin.Types (integerTyCon, intTyCon, doubleTyCon, eqTyCon)
 import qualified Data.Map as M
 import Data.List (find)
+import qualified Control.Monad.Catch as CMC
 #endif
 -- endif for SCRIPTING FLAG
 
@@ -408,26 +410,29 @@ mkTypeConversions = do
   let extTypes = [("Integer", IntegerAtomType),
                   ("Int", IntAtomType),
                   ("Double", DoubleAtomType),
---                  ("Scientific", ScientificAtomType), -- found in multiple modules?
---                  ("Text", TextAtomType), -- not in scope
---                   ("Day", DayAtomType),
---                   ("DateTime", DateTimeAtomType),
---                   ("ByteString", ByteStringAtomType),
-                   ("Bool", BoolAtomType)
---                   ("UUID", UUIDAtomType)
+                  ("Scientific", ScientificAtomType), -- found in multiple modules?
+                  ("Text", TextAtomType),
+                  ("Day", DayAtomType),
+                  ("UTCTime", DateTimeAtomType),
+                  ("ByteString", ByteStringAtomType),
+                  ("Bool", BoolAtomType),
+                  ("UUID", UUIDAtomType)
                  ]
-  forM extTypes $ \(nam, typ) -> do
+  res <- forM extTypes $ \(nam, typ) -> do
     -- extract type from bottom value
-    ghcType <- exprType TM_Default ("undefined :: " <> nam)
+    ghcType <- (Just <$> exprType TM_Default ("undefined :: " <> nam)) `CMC.catch` (\(a :: SomeException) -> pure Nothing)
     pure (ghcType, typ)
-
+  let mapFilter (Nothing, _) = Nothing
+      mapFilter (Just t, at) = Just (t, at)
+  pure (mapMaybe mapFilter res)
                                 
 convertGhcTypeToFunctionAtomType :: DynFlags -> [(Type, AtomType)] -> Type -> Either TypeConversionError [AtomType]
 convertGhcTypeToFunctionAtomType dflags tyConv typ =
   case typ of
-    TyConApp tycon args ->
+    TyConApp tycon args -> do
+      let tyconShow = showSDocForUser dflags emptyUnitState alwaysQualify (ppr tycon)
       case find (\(k,v) -> k `eqType` typ) tyConv of
-        Nothing -> Left (UnsupportedTypeConversionError "gonk")
+        Nothing -> Left (UnsupportedTypeConversionError tyconShow)
         Just (_,match) -> 
           pure [match]
     fun@FunTy{} -> do

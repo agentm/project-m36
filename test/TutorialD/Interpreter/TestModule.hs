@@ -5,9 +5,17 @@ import ProjectM36.AccessControlList
 import ProjectM36.Base
 import Data.Time.Calendar
 import qualified Data.Map as M
+import Data.Text (Text)
+import Data.Time.Calendar (Day)
+import Data.Time.Clock (UTCTime)
+import Data.ByteString (ByteString)
+import Data.UUID (UUID)
+import Data.Scientific (Scientific)
+
 
 projectM36Functions :: EntryPoints ()
 projectM36Functions = do
+  declareAtomFunction "multiTypes"  
   declareAtomFunction "apply_discount" 
   declareDatabaseContextFunction "add_sale" (allPermissionsForRoleId adminRoleId)
 
@@ -26,4 +34,16 @@ add_sale ticketId age price {- purchaseDay -} = do
                                        ("visitDate", NakedAtomExpr (DayAtom (fromGregorian 2025 10 03)))])]
       i = NakedAtomExpr . IntegerAtom
   executeDatabaseContextExpr (Insert "ticket_sales" (MakeRelationFromExprs Nothing (TupleExprs () tuples)))
-                                                                                                                          
+                                                                                -- | A throwaway atom function just to test that we can use various types.
+multiTypes ::
+  Scientific ->
+  UTCTime ->
+  ByteString ->
+  UUID ->
+  Day ->
+  Text ->
+  Bool ->
+  Int ->
+  Double ->
+  Integer
+multiTypes a b c d e f g h i = 3

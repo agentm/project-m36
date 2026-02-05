@@ -1931,10 +1931,6 @@ importModuleFromPath scriptSession moduleSource = do
                     occExpectedType = mkTcOcc "EntryPoints"
                 setContext [IIModule modName,
                             IIDecl $ safeImportDecl "ProjectM36.Base" Nothing
---                            IIDecl $ safeImportDecl "Data.Scientific" (Just "Scientific"),
---                            IIModule (mkModuleName "Data.Time.Calendar")
---                            IIDecl $ safeImportDecl "Data.Time.Calendar" (Just "Day"),
---                            IIDecl $ safeImportDecl "Data.Text" (Just "Text")
                            ]
                 
                 userModule <- findModule modName Nothing
