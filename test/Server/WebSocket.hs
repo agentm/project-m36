@@ -13,7 +13,7 @@ import Control.Exception
 import Control.Concurrent
 import System.Exit
 import Data.Typeable
-import Data.Text hiding (map)
+import Data.Text (Text)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as BS
 import ProjectM36.Relation

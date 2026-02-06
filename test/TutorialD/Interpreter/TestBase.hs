@@ -5,7 +5,7 @@ import TutorialD.Interpreter
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContextExpr
 import Test.HUnit
-import Data.Text
+import Data.Text (Text, unpack)
 import System.Random (mkStdGen)
 
 dateExamplesConnection :: NotificationCallback -> IO (SessionId, Connection)

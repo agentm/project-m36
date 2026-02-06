@@ -9,7 +9,7 @@ import GHC.Generics
 import ProjectM36.Relation
 import ProjectM36.Base
 import Data.Time.Calendar (fromGregorian)
-import Data.Text
+import Data.Text (Text)
 import qualified Data.Map as M
 import Data.Proxy
 import Codec.Winery
