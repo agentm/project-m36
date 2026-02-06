@@ -342,7 +342,7 @@ loadFunction loadMode modName funcName' objPath = do
       loadObj objPath
       loadFuncForSymbol
     LoadDLLFile -> do
-#if MIN_VERSION_ghc(9,10,0)
+#if MIN_VERSION_ghc(9,10,2)
       eErr <- loadDLL objPath
       case eErr of
         Left _err -> pure (Left LoadSymbolError)
