@@ -2,7 +2,7 @@
 import ProjectM36.Client
 import ProjectM36.Relation.Show.Term
 import GHC.Generics
-import Data.Text
+import Data.Text (Text)
 import Control.DeepSeq
 import qualified Data.Map as M
 import qualified Data.Text.IO as TIO

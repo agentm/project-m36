@@ -23,7 +23,7 @@ import Options.Applicative
 import qualified Data.Text.IO as TIO
 import System.IO
 import Control.DeepSeq
-import Data.Text hiding (map)
+import Data.Text (Text, pack)
 import Data.Time.Clock
 import Data.UUID.V4
 import qualified ProjectM36.DatabaseContextFunctionUtils as Util
