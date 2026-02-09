@@ -1,3 +1,7 @@
+# 2026-02-09 (v1.2.3)
+
+* add support for importing whole Haskell modules for easier application logic programming
+	
 # 2026-01-15 (v1.2.1)
 
 * fix critical type resolution error in MakeRelationFromExprs
