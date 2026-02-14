@@ -8,6 +8,7 @@ import Data.Hashable
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Data.Default
+import Control.Monad (foldM)
 
 newtype AccessControlList role' permission =
     AccessControlList (M.Map role' (RoleAccess permission))
@@ -120,8 +121,11 @@ normalize (AccessControlList acl) = AccessControlList $ M.filter (not . M.null) 
 empty :: Ord r => AccessControlList r p
 empty = AccessControlList mempty
 
-allPermissionsForRoleId :: (AllPermissions p, Ord p) => r -> AccessControlList r p
-allPermissionsForRoleId roleid = AccessControlList (M.singleton roleid (M.fromList (map (,True) (S.toList allPermissions))))
+allPermissionsForRole :: (AllPermissions p, Ord p) => r -> AccessControlList r p
+allPermissionsForRole roleid = AccessControlList (M.singleton roleid (M.fromList (map (,True) (S.toList allPermissions))))
+
+permissionForRole :: Ord p => p -> r -> AccessControlList r p
+permissionForRole perm roleid = AccessControlList (M.singleton roleid (M.singleton perm False))
 
 merge :: (Ord p, Eq r, Ord r) => AccessControlList r p -> AccessControlList r p -> AccessControlList r p
 merge (AccessControlList acl1) (AccessControlList acl2) =
@@ -191,4 +195,20 @@ data SomePermission = SomeRelVarPermission RelVarPermission |
                       SomeDBCFunctionPermission DBCFunctionPermission
                     deriving (Show, NFData, Generic, Eq, Hashable)
 
+-- | Resolve the first parameter in the AccessContrList, typically a role name resolving to a role id.
+resolve :: Ord r2 => (r1 -> IO (Maybe r2)) -> AccessControlList r1 a -> IO (Either r1 (AccessControlList r2 a))
+resolve resolver (AccessControlList aclIn) = do
+  let folder (Right acc) (r, v) = do
+        eR2 <- resolver r
+        case eR2 of
+          Nothing -> pure (Left r)
+          Just r2 -> pure (Right ((r2,v):acc))
+      folder (Left acc) _ = pure (Left acc)
+  eres <- foldM folder (Right []) (M.toList aclIn)
+  case eres of
+    Left errR -> pure (Left errR)
+    Right res ->
+      pure (Right (AccessControlList (M.fromList res)))
+
+        
 

@@ -28,10 +28,11 @@ import GHC.LanguageExtensions (Extension(OverloadedStrings,ExtendedDefaultRules,
 -- GHC 9.4+
 import Data.List.NonEmpty(NonEmpty(..))
 import GHC.Utils.Panic (handleGhcException)
-import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming))
+import GHC.Driver.Session (projectVersion, PackageDBFlag(PackageDB), PkgDbRef(PkgDbPath), TrustFlag(TrustPackage), gopt_set, xopt_set, PackageFlag(ExposePackage), PackageArg(PackageArg), ModRenaming(ModRenaming), runCmdLineP, setFlagsFromEnvFile)
+import GHC.Driver.CmdLine (runEwM)
 import GHC.Types.SourceText (SourceText(NoSourceText))
 import GHC.Driver.Ppr (showSDocForUser)
-import GHC.Utils.Outputable (ppr, Outputable)
+import GHC.Utils.Outputable (Outputable, ppr)
 --import GHC.Unit.Module.Graph (showModMsg, mgModSummaries')
 import GHC.Core.TyCo.Ppr (pprType)
 import GHC.Utils.Encoding (zEncodeString)
@@ -148,8 +149,10 @@ initScriptSession ghcPkgPaths = do
                              "project-m36",
                              "bytestring"]
         packages = map (\m -> ExposePackage ("-package " ++ m) (PackageArg m) (ModRenaming True [])) required_packages
-  --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
-    _ <- setSessionDynFlags dflags'
+    --liftIO $ traceShowM (showSDoc dflags' (ppr packages))
+    -- load GHC environment file, if specific in environment variables
+    dflags'' <- loadGhcEnvFile dflags'
+    _ <- setSessionDynFlags dflags''
     let unqualifiedModules = map (\modn -> IIDecl $ safeImportDecl modn Nothing) [
           "Prelude",
           "Data.Map",
@@ -429,4 +432,15 @@ convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType t
       rest <- convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType (ft_res fun)
       pure (arg <> rest)
     other -> Left (UnsupportedTypeConversionError (pprShow other dflags))
+
+loadGhcEnvFile :: GhcMonad m => DynFlags -> m DynFlags
+loadGhcEnvFile dflags = do
+  mEnvPath <- liftIO $ lookupEnv "GHC_ENVIRONMENT"
+--  traceShowM ("GHC_ENVIRONMENT"::String, mEnvPath)
+  case mEnvPath of
+    Nothing -> pure dflags
+    Just envPath -> do
+      content <- liftIO $ readFile envPath
+      let (_, dflags') = runCmdLineP (runEwM (setFlagsFromEnvFile envPath content)) dflags
+      pure dflags'
 #endif

@@ -16,8 +16,8 @@ projectM36Functions :: EntryPoints ()
 projectM36Functions = do
   declareAtomFunction "multiTypesAtomFunc"  
   declareAtomFunction "applyDiscount" 
-  declareDatabaseContextFunction "addSale" (allPermissionsForRoleId adminRoleId)
-  declareDatabaseContextFunction "multiTypesDBCFunc" (allPermissionsForRoleId adminRoleId)  
+  declareDatabaseContextFunction "addSale" (allPermissionsForRole "admin")
+  declareDatabaseContextFunction "multiTypesDBCFunc" (allPermissionsForRole "admin")  
 
 applyDiscount :: Integer -> Integer -> Integer
 applyDiscount age price =

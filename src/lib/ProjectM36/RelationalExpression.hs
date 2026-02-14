@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
@@ -51,7 +52,7 @@ import Control.Monad.Trans.Except (except)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
-import ProjectM36.AccessControlList as ACL
+import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, allPermissionsForRole, addAccess, removeAccess)
 import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
@@ -65,8 +66,10 @@ import ProjectM36.Module
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
+--import System.FilePath
 --import GHC.Unit.State (emptyUnitState)
 --import GHC.Driver.Ppr (showSDocForUser)
+--import GHC.Utils.Outputable (ppr)
 --import GHC.Unit.Finder.Types (FindResult(..))
 --import GHC.Unit.Finder (findImportedModule)
 import GHC.Types.Name.Occurrence (mkVarOcc, mkTcOcc)
@@ -77,7 +80,7 @@ import GHC.Builtin.Types (unitTy)
 import GHC.Core.TyCo.Compare (eqType)
 import Unsafe.Coerce
 import Control.Monad (forM)
---import GHC.Utils.Outputable (ppr)
+
 #endif
 
 data DatabaseContextExprDetails = CountUpdatedTuples
@@ -557,6 +560,7 @@ data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
     dbcio_graph :: TransactionGraph,
     dbcio_mScriptSession :: Maybe ScriptSession,
     dbcio_roleId :: RoleId,
+    resolveRoleNameACL :: forall x. AccessControlList RoleName x -> IO (Either RelationalError (AccessControlList RoleId x)),
     dbcio_mModulesDirectory :: Maybe FilePath, -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
     dbcio_dbcfunctionUtils :: DatabaseContextFunctionUtils
   }
@@ -660,7 +664,7 @@ evalGraphRefDatabaseContextIOExpr (AddDatabaseContextFunction funcName' funcType
                     funcName = funcName',
                     funcType = funcAtomType,
                     funcBody = FunctionScriptBody script compiledFunc,
-                    funcACL = allPermissionsForRoleId myRoleId
+                    funcACL = allPermissionsForRole myRoleId
                     }
                 -- check if the name is already in use
               if HS.member funcName' (HS.map funcName dbcFuncs) then
@@ -1888,6 +1892,7 @@ importModuleFromPath :: ScriptSession -> ModuleBody -> DatabaseContextIOEvalMona
 importModuleFromPath _scriptSession _moduleSource = throwError (ScriptError ScriptCompilationDisabledError)
 #else
 importModuleFromPath scriptSession moduleSource = do
+  resolveRoleNameACLF <- resolveRoleNameACL <$> ask
   res <- liftIO $ try $ do
     withSystemTempFile "pm36module" $ \tempModulePath tempModuleHandle -> do
       hClose tempModuleHandle
@@ -1895,7 +1900,7 @@ importModuleFromPath scriptSession moduleSource = do
       runGhc (Just libdir) $ do
     -- GHC needs to see the module on disk, so we write it to a temporary location
         setSession (hscEnv scriptSession)
-        dflags <- getSessionDynFlags        
+        dflags <- getSessionDynFlags
         let target = Target {
               targetId = TargetFile tempModulePath Nothing,
               targetAllowObjCode = False,
@@ -1907,7 +1912,7 @@ importModuleFromPath scriptSession moduleSource = do
         case loadSuccess of
           Failed -> pure (Left (ScriptError ModuleLoadError))
           Succeeded -> do
-            {-modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
+{-            modRes <- liftIO $ findImportedModule (hscEnv scriptSession) (mkModuleName "ProjectM36.Base") NoPkgQual
             liftIO $ case modRes of
               Found modLoc _mod -> do
                 let packageLoc = takeDirectory (takeDirectory (takeDirectory (ml_dyn_obj_file modLoc)))
@@ -1958,21 +1963,26 @@ importModuleFromPath scriptSession moduleSource = do
                               tyConv <- mkTypeConversions                              
                               mkFunctions <- forM funcDeclarations $ \funcDecl -> do
                                   case funcDecl of
-                                    DeclareDatabaseContextFunction funcS acl' -> do
-                                      fType <- exprType TM_Default (T.unpack funcS)
-                                      dbcFuncMonadType <- exprType TM_Default "undefined :: DatabaseContextFunctionMonad ()"                                      
-                                      -- extract arguments for dbc function
-                                      let eAtomFuncType = convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType fType
-                                      case eAtomFuncType of
-                                        Left err -> throw (OtherScriptCompilationError (show err))
-                                        Right dbcFuncType -> do
-                                          let interpretedFunc = wrapDatabaseContextFunction dbcFuncType funcS
-                                          dbcFunc :: DatabaseContextFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
-                                          let newDBCFunc = Function { funcName = funcS,
-                                                                            funcType = dbcFuncType,
-                                                                            funcBody = FunctionScriptBody (T.pack interpretedFunc) dbcFunc,
-                                                                            funcACL = acl' }
-                                          pure (MkDatabaseContextFunction newDBCFunc)
+                                    DeclareDatabaseContextFunction funcS roleNameACL -> do
+                                      --resolve role name ACL into role-id-based ACL                                      
+                                      eACL <- liftIO $ resolveRoleNameACLF roleNameACL
+                                      case eACL of
+                                        Left err -> throw err
+                                        Right acl' -> do
+                                          fType <- exprType TM_Default (T.unpack funcS)
+                                          dbcFuncMonadType <- exprType TM_Default "undefined :: DatabaseContextFunctionMonad ()"                                      
+                                          -- extract arguments for dbc function
+                                          let eAtomFuncType = convertGhcTypeToDatabaseContextFunctionAtomType dflags tyConv dbcFuncMonadType fType
+                                          case eAtomFuncType of
+                                            Left err -> throw (OtherScriptCompilationError (show err))
+                                            Right dbcFuncType -> do
+                                              let interpretedFunc = wrapDatabaseContextFunction dbcFuncType funcS
+                                              dbcFunc :: DatabaseContextFunctionBodyType <- unsafeCoerce <$> compileExpr interpretedFunc
+                                              let newDBCFunc = Function { funcName = funcS,
+                                                                          funcType = dbcFuncType,
+                                                                          funcBody = FunctionScriptBody (T.pack interpretedFunc) dbcFunc,
+                                                                          funcACL = acl' }
+                                              pure (MkDatabaseContextFunction newDBCFunc)
                                     DeclareAtomFunction funcS -> do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)

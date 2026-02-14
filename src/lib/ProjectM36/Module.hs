@@ -9,10 +9,13 @@ import Control.Monad.RWS.Strict (RWST, get, put, ask, runRWST)
 import Control.Monad.Except (ExceptT, throwError, runExceptT)
 import Data.Functor.Identity
 
+-- | Variant of ACLs which use roles to be later resolved to role ids used by user-facing ProjectM36.Module.
+type DBCFunctionRoleNameAccessControlList = AccessControlList RoleName DBCFunctionPermission
+
 declareAtomFunction :: FunctionName -> EntryPoints ()
 declareAtomFunction nam = tell [DeclareAtomFunction nam]
 
-declareDatabaseContextFunction :: FunctionName -> DBCFunctionAccessControlList -> EntryPoints ()
+declareDatabaseContextFunction :: FunctionName -> DBCFunctionRoleNameAccessControlList -> EntryPoints ()
 declareDatabaseContextFunction nam acl' = tell [DeclareDatabaseContextFunction nam acl']
 
 type EntryPoints = Writer [DeclareFunction]
@@ -21,7 +24,7 @@ runEntryPoints :: EntryPoints () -> [DeclareFunction]
 runEntryPoints = execWriter
 
 data DeclareFunctionBase a = DeclareAtomFunction a |
-                             DeclareDatabaseContextFunction a DBCFunctionAccessControlList
+                             DeclareDatabaseContextFunction a DBCFunctionRoleNameAccessControlList
   deriving (Show)
 
 type DeclareFunction = DeclareFunctionBase FunctionName

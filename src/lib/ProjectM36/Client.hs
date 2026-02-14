@@ -186,7 +186,7 @@ import ProjectM36.Session
 import ProjectM36.ValueMarker
 import ProjectM36.AccessControl
 import ProjectM36.Sessions
-import ProjectM36.AccessControlList
+import ProjectM36.AccessControlList as ACL
 import ProjectM36.HashSecurely (SecureHash)
 import ProjectM36.RegisteredQuery
 import qualified ProjectM36.Cache.RelationalExprCache as RelExprCache
@@ -769,7 +769,18 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
     Left err -> pure (Left err)
     Right session -> do
       graph <- readTVarIO (ipTransactionGraph conf)
-      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession myRoleId objFilesPath dbcFuncUtils
+      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession myRoleId resolveRoleNameACL objFilesPath dbcFuncUtils
+          resolveRoleNameACL :: forall a. AccessControlList RoleName a -> IO (Either RelationalError (AccessControlList RoleId a))
+          resolveRoleNameACL acl' = do
+            eRes <- ACL.resolve (\r -> do
+                            eRid <- LoginRoles.roleIdForRoleName r (ipLoginRoles conf)
+                            pure $ case eRid of
+                              Left _err -> Nothing
+                              Right rid -> Just rid
+                        ) acl'
+            case eRes of
+              Left badR -> pure (Left (NoSuchRoleNameError badR))
+              Right res -> pure (Right res)
           dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils
           roleNameResolver nam = fst <$> lookup nam roles      
           dbcFuncUtils = DBC.DatabaseContextFunctionUtils {
