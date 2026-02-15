@@ -1987,7 +1987,7 @@ importModuleFromPath scriptSession moduleSource = do
                                       --extract type from function in script
                                       fType <- exprType TM_Default (T.unpack funcS)
                                       let eAtomFuncType = convertGhcTypeToFunctionAtomType dflags tyConv fType 
-                                      --liftIO $ print eAtomFuncType
+                                      liftIO $ print eAtomFuncType
                                       --liftIO $ putStrLn $ showSDocForUser dflags emptyUnitState alwaysQualify (ppr fType)
                                       case eAtomFuncType of
                                         Left err -> error (show err)
@@ -2022,13 +2022,14 @@ importModuleFromPath scriptSession moduleSource = do
             ctx <- getDBCIOContext
             atomFuncs <- resolveIODBC atomFunctions
             dbcFuncs <- resolveIODBC dbcFunctions
+            -- must must delete the function from the hashset in order to replace it
             let foldMkFunction (atomFuncHS, dbcFuncHS) (MkAtomFunction atomFunc) =
-                  (HS.insert atomFunc atomFuncHS, dbcFuncHS)
+                  (HS.insert atomFunc (HS.delete atomFunc atomFuncHS), dbcFuncHS)
                 foldMkFunction (atomFuncHS, dbcFuncHS) (MkDatabaseContextFunction dbcFunc) =
-                  (atomFuncHS, HS.insert dbcFunc dbcFuncHS)
-                (newAtomFuncs, newDBCFuncs) = foldl' foldMkFunction (mempty, mempty) mkFunctions
-                ctx' = ctx { dbcFunctions = ValueMarker $ HS.union newDBCFuncs dbcFuncs,
-                             atomFunctions = ValueMarker $ HS.union newAtomFuncs atomFuncs
+                  (atomFuncHS, HS.insert dbcFunc (HS.delete dbcFunc dbcFuncHS))
+                (newAtomFuncs, newDBCFuncs) = foldl' foldMkFunction (atomFuncs, dbcFuncs) mkFunctions
+                ctx' = ctx { dbcFunctions = ValueMarker newDBCFuncs,
+                             atomFunctions = ValueMarker newAtomFuncs 
                            }
 
             putDBCIOContext ctx'
