@@ -131,7 +131,10 @@ requestHandlers testFlag ti =
                         handleRetrieveNotificationsAsRelation ti sessionId conn),
      RequestHandler (\sState (ExecuteAlterTransactionGraphExpr sessionId expr) -> do
                         conn <- getConn sState
-                        handleExecuteAlterTransactionGraphExpr ti sessionId conn expr)
+                        handleExecuteAlterTransactionGraphExpr ti sessionId conn expr),
+     RequestHandler (\sState (ExecuteAlterLoginRolesExpr sessionId expr) -> do
+                        conn <- getConn sState
+                        handleExecuteAlterLoginRolesExpr ti sessionId conn expr)
      ] ++ if testFlag then testModeHandlers ti else []
 
 getConn :: ConnectionState ServerState -> IO Connection

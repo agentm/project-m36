@@ -5,6 +5,7 @@ import ProjectM36.IsomorphicSchema
 import ProjectM36.HashSecurely
 import ProjectM36.SQL.Select
 import ProjectM36.SQL.DBUpdate
+import ProjectM36.LoginRoles
 import ProjectM36.Client as C
 import Data.Map
 import Control.Concurrent (threadDelay)
@@ -19,13 +20,12 @@ timeoutOrDie mMicros act =
     Just micros ->
       timeout (fromIntegral micros) act
 
-timeoutRelErr :: Maybe Timeout -> IO (Either RelationalError a) -> IO (Either RelationalError a)
+timeoutRelErr :: Maybe Timeout -> IO (Either e a) -> IO (Either e a)
 timeoutRelErr mMicros act = do
   ret <- timeoutOrDie mMicros act
   case ret of
     Nothing -> throw TimeoutException
     Just v -> pure v
-                                      
 
 handleExecuteRelationalExpr :: Maybe Timeout -> SessionId -> Connection -> RelationalExpr -> IO (Either RelationalError Relation)
 handleExecuteRelationalExpr ti sessionId conn expr = 
@@ -176,3 +176,7 @@ handleConvertSQLUpdates ti sessionId conn ups = timeoutRelErr ti (C.convertSQLDB
 handleRetrieveNotificationsAsRelation :: Maybe Timeout -> SessionId -> Connection -> IO (Either RelationalError Relation)
 handleRetrieveNotificationsAsRelation ti sessionId conn =
   timeoutRelErr ti (C.notificationsAsRelation sessionId conn)
+
+handleExecuteAlterLoginRolesExpr :: Maybe Timeout -> SessionId -> Connection -> AlterLoginRolesExpr -> IO (Either LoginRoleError SuccessResult)
+handleExecuteAlterLoginRolesExpr ti session conn expr =
+  timeoutRelErr ti (C.executeAlterLoginRolesExpr session conn expr)
