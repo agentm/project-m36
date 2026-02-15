@@ -717,7 +717,7 @@ Executable Example-DerivingCustomTupleable
 
 Executable Example-Zoo
     Default-Language: Haskell2010
-    Build-Depends: base, text, deepseq, project-m36, winery, random, time
+    Build-Depends: base, text, deepseq, project-m36, winery, random, time, containers
     Main-Is: examples/zoo.hs
     GHC-Options: -Wall -threaded
          

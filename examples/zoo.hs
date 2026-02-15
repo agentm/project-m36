@@ -1,4 +1,6 @@
-module Zoo where
+{-# LANGUAGE OverloadedStrings #-}
+-- | A variant of the zoo module example to test compilation.
+--module Zoo where
 import ProjectM36.Module
 import ProjectM36.AccessControlList
 import Data.Time.Calendar
@@ -25,4 +27,7 @@ addSale ticketId age price purchaseDay = do
 projectM36Functions :: EntryPoints ()
 projectM36Functions = do
   declareAtomFunction "apply_discount"
-  declareDatabaseContextFunction "addSale" (AccessControlList (M.singleton "ticket_seller" (M.singleton ExecuteDBCFunctionPermission False)))
+  declareDatabaseContextFunction "addSale" (permissionForRole ExecuteDBCFunctionPermission "ticket_seller" <> allPermissionsForRole "admin")
+
+main :: IO ()
+main = pure ()
