@@ -102,7 +102,8 @@ main = do
       testComplexTypeVarResolution,
       testNotifications,
       testDBCFunctionAccessControl,
-      testAttributeTypeHintsFromExistingRelVar
+      testAttributeTypeHintsFromExistingRelVar,
+      testGroup
       ]
 
 simpleRelTests :: Test
@@ -959,3 +960,31 @@ testAttributeTypeHintsFromExistingRelVar = TestCase $ do
   let err1 = "RelationTypeMismatchError"
   expectTutorialDErr session dbconn (T.isPrefixOf err1) "x:=relation{tuple{a 3, b 4}}"
 
+-- ensure that non-group attributes are not duplicates after the projection
+testGroup :: Test
+testGroup = TestCase $ do
+  (session, dbconn) <- dateExamplesConnection emptyNotificationCallback
+  executeTutorialD session dbconn "x := s group ({sname,status,s#} as rel)"
+  result <- executeRelationalExpr session dbconn (RelationVariable "x" ())
+  
+  let expected = mkRelationFromList attrs
+                 [[t "Paris",
+                    mkSubRel [[t "S2", t "Jones", i 10],
+                              [t "S3", t "Blake", i 30]]],
+                   [t "London",
+                     mkSubRel [[t "S4", t "Clark", i 20],
+                               [t "S1", t "Smith", i 20]]],
+                   [t "Athens",
+                     mkSubRel [[t "S5", t "Adams", i 30]]]
+                 ]
+      attrs = A.attributesFromList [Attribute "city" TextAtomType,
+                                    Attribute "rel" (RelationAtomType subAttrs)]
+      subAttrs = A.attributesFromList [Attribute "s#" TextAtomType,
+                                       Attribute "sname" TextAtomType,
+                                       Attribute "status" IntegerAtomType]
+      t = TextAtom
+      i = IntegerAtom
+      mkSubRel atoms = case mkRelationFromList subAttrs atoms of
+                         Left err -> error $ "bad mkSubRel " <> show err
+                         Right rel -> RelationAtom rel
+  assertEqual "group operator" expected result
