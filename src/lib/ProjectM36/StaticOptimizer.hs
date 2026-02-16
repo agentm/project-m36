@@ -205,8 +205,9 @@ optimizeAndEvalDatabaseContextExpr runOpt expr = do
 optimizeAndEvalTransGraphRelationalExpr :: TransactionGraph -> TransGraphRelationalExpr -> Either RelationalError Relation
 optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
-  optExpr <- runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
+  _ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+  optExpr <- runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 optimizeAndEvalTransGraphRelationalExprWithCache :: RandomGen r => r -> TransactionGraph -> TransGraphRelationalExpr -> RelExprCache -> IO (Either RelationalError Relation)
@@ -214,6 +215,7 @@ optimizeAndEvalTransGraphRelationalExprWithCache rando graph tgExpr cache = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
       res = do
         gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
+        typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
         runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   case res of
     Left err -> pure (Left err)
