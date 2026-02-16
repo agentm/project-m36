@@ -1,3 +1,7 @@
+# 2026-02-16 (v1.2.4)
+
+* fix bug resulting in duplicate rows after group operator application
+
 # 2026-02-09 (v1.2.3)
 
 * add support for importing whole Haskell modules for easier application logic programming
