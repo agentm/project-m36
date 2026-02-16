@@ -215,7 +215,7 @@ optimizeAndEvalTransGraphRelationalExprWithCache rando graph tgExpr cache = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
       res = do
         gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
-        typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+        _typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
         runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   case res of
     Left err -> pure (Left err)
