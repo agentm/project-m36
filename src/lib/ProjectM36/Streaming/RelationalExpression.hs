@@ -484,7 +484,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
               case projectionAttributesForNames groupAttrNames attrsIn of
                 Left err -> pure (Left err)
                 Right groupProjectionAttributes -> do
-                  eGroupS <- executePlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ctxTuples gfEnv cacheKeyBlackList cache
+                  eGroupS <- executePlan (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan nonGroupProjectionAttributes expr () orig) ()) ctxTuples gfEnv cacheKeyBlackList cache
                   case eGroupS of
                     Left err -> pure (Left err)
                     Right (StreamRelation _ nonGroupProjectionTupS) -> do
