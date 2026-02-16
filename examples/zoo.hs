@@ -7,18 +7,37 @@ import Data.Time.Calendar
 import ProjectM36.Base
 import qualified Data.Map as M
 
-apply_discount :: Integer -> Integer -> Integer
-apply_discount age price =
+{- Setup
+:addloginrole ticket_seller maylogin
+ticket_sales := relation{ticketId Integer, visitorAge Integer, price Integer, visitDate Day}
+-}
+
+{-
+applyDiscount :: Integer -> Integer -> Integer
+applyDiscount age price =
   if age <= 10 then
     price `div` 2
     else
     price
+-}
+
+applyDiscount :: Integer -> Integer -> Day -> Integer
+applyDiscount age price day =
+  if age <= 10 && not isNewYearsDay then
+    price `div` 2
+    else
+    price
+ where
+  isNewYearsDay =
+    case toGregorian day of
+      (_, m, d) -> m == 1 && d == 1
+
 
 addSale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
 addSale ticketId age price purchaseDay = do
   let tuples = [TupleExpr (M.fromList [("ticketId", i ticketId),
                                        ("visitorAge", i age),
-                                       ("basePrice", FunctionAtomExpr "applyDiscount" [i age, i price] ()),
+                                       ("price", FunctionAtomExpr "applyDiscount" [i age, i price] ()),
                                        ("visitDate", NakedAtomExpr (DayAtom purchaseDay))])]
       i = NakedAtomExpr . IntegerAtom
   executeDatabaseContextExpr (Insert "ticket_sales" (MakeRelationFromExprs Nothing (TupleExprs () tuples)))
@@ -26,8 +45,8 @@ addSale ticketId age price purchaseDay = do
 
 projectM36Functions :: EntryPoints ()
 projectM36Functions = do
-  declareAtomFunction "apply_discount"
-  declareDatabaseContextFunction "addSale" (permissionForRole ExecuteDBCFunctionPermission "ticket_seller" <> allPermissionsForRole "admin")
+  declareAtomFunction "applyDiscount"
+--  declareDatabaseContextFunction "addSale" (permissionForRole ExecuteDBCFunctionPermission "ticket_seller" <> allPermissionsForRole "admin")
 
 main :: IO ()
 main = pure ()
