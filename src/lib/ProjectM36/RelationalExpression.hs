@@ -2024,9 +2024,9 @@ importModuleFromPath scriptSession moduleSource = do
             dbcFuncs <- resolveIODBC dbcFunctions
             -- must must delete the function from the hashset in order to replace it
             let foldMkFunction (atomFuncHS, dbcFuncHS) (MkAtomFunction atomFunc) =
-                  (HS.insert atomFunc (HS.delete atomFunc atomFuncHS), dbcFuncHS)
+                  (addOrReplaceFunction atomFunc atomFuncHS, dbcFuncHS)
                 foldMkFunction (atomFuncHS, dbcFuncHS) (MkDatabaseContextFunction dbcFunc) =
-                  (atomFuncHS, HS.insert dbcFunc (HS.delete dbcFunc dbcFuncHS))
+                  (atomFuncHS, addOrReplaceFunction dbcFunc dbcFuncHS)
                 (newAtomFuncs, newDBCFuncs) = foldl' foldMkFunction (atomFuncs, dbcFuncs) mkFunctions
                 ctx' = ctx { dbcFunctions = ValueMarker newDBCFuncs,
                              atomFunctions = ValueMarker newAtomFuncs 

@@ -113,4 +113,18 @@ wrapDatabaseContextFunction aType funcName' =
   "runDatabaseContextFunctionMonad env dbContext $ do\n" <>
   "  " <> T.unpack funcName' <> " " <>
   unwords (map (\i -> "val" <> show i) [1 .. length aType])
-  
+
+findFunctionByName :: FunctionName -> HS.HashSet (Function a acl) -> Maybe (Function a acl)
+findFunctionByName fname funcs =
+  case HS.toList (HS.filter (\f -> funcName f == fname) funcs) of
+    [match] -> Just match
+    _ -> Nothing -- returns nothing on multiple matches, too!
+
+addOrReplaceFunction :: Function a acl -> HS.HashSet (Function a acl) -> HS.HashSet (Function a acl)
+addOrReplaceFunction addFunc funcs =
+  case findFunctionByName (funcName addFunc) funcs of
+    Nothing -> -- no match, so just insert
+      HS.insert addFunc funcs
+    Just funcToReplace ->
+      HS.insert addFunc (HS.delete funcToReplace funcs)
+      
