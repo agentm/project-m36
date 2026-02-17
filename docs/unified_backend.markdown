@@ -304,11 +304,11 @@ However, the integration with server-side functions is not smooth. Consider, for
 1. install the function using `CREATE FUNCTION add_sale(age INTEGER, price INTEGER) RETURNS INTEGER AS $$ return price//2 if age <= 10 else price $$ LEAKPROOF IMMUTABLE STRICT LANGUAGE plpython3u;`
 1. issue a SQL query via python `db.execute("SELECT add_sale(%s,%s)",(8,20))` to prevent SQL injections
 
-Installing the function definitely does not look like python, so it's largely inaccessible to python developers? What do "leakproof", "immutable", and "strict" mean and why are they necessary here? (Left as an exercise to a reader.) Project:M36 loads Haskell code directly with minimal databases-specific knowledge required.
+Installing the function definitely does not look like python, so it's largely inaccessible to python developers. What do "leakproof", "immutable", and "strict" mean and why are they necessary here? (The answers are left as an exercise to the reader.) Project:M36 loads Haskell code directly with minimal database-specific knowledge required.
 
 Next, consider how this function is executed with psycopg.
 
-1. python must convert your python integers (int) to strings to construct the SQL via bound parameters
+1. python must convert your python integers (int) to strings to construct the SQL `SELECT` via bound parameters
 2. postgresql parses the query and converts the postgresql INTEGERs (which are not the same as python ints) back to python integers to pass as arguments to the python `add_sale` function
 3. the python function calculates its result and return a python integer which has to be converted back to an SQL INTEGER
 4. the result set is returned via the postgresql binary protocol
@@ -329,7 +329,7 @@ TutorialD (master/main): :showexpr relation{tuple{price 20, category Free "promo
 └────────────────────────┴──────────────┘
 ```
 
-Trying to recreate algebraic data types in SQL is painful if even possible.
+Trying to recreate algebraic data types in SQL is painful, if at all possible.
 
 PostgreSQL is not architecturely equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at-at-time. That's where various PostgreSQL proxies with their own quirks try to fill-the-gap.
 
@@ -348,6 +348,8 @@ With the unified programming environment, we no longer have to deal with SQL's h
 
 ## Conclusion
 
-Project:M36 is an implementation of a Haskell-oriented application server including role-based access control, database-side server functions to define user-facing APIs, and querying of past states. By re-evaluating what an application server can be, we've integrated native Haskell code with permissions and a relational algebra engine for retaining and querying state even as the application evolves. Along the way, we've tossed SQL and its quirks in order to provide a consistent and surprise-free programmable interface.
+Project:M36 is an implementation of a Haskell-oriented application server including role-based access control, database-side server functions to define user-facing APIs, and querying of past states. By re-evaluating what an application server can be, we've integrated native Haskell code with permissions and a relational algebra engine for retaining and querying state even as the application evolves, thereby solving the forced choice problem!
+
+Along the way, we've tossed SQL and its quirks in order to provide a consistent and surprise-free programmable interface.
 
 Project:M36 includes many features not mentioned in this post. Learn more or join [the project](https://github.com/agentm/project-m36)!
