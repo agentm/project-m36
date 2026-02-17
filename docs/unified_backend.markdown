@@ -12,11 +12,11 @@ That unease you felt when implementing something in Python and wondering if it s
 * team dynamics: the developer is more familiar with programming in one layer over another
 * misunderstanding: the developer doesn't know that said business logic could be implemented in either layer
 * access: the logic requires access to a resource only available from a specific layer; for example, access to a web service or database data
-* limitations: the logic cannot be implemented in the database layer due to implementation details
+* limitations: the logic cannot be implemented in the database layer due to how the database was implemented
 * data locality: the logic must be implemented in the database in order to exercise optimizations specific to the query (but see also *pre-optimization*)
-* ORMs: common ORMs promise to be able to bridge the gap between application and database, but they have sharp edges or limitations. These ORMs don't help to make the layer decision.
+* ORMs: common ORMs promise to be able to bridge the gap between application and database, but they have sharp edges or limitations. These ORMs don't help to make the layer decision, but rather obscure it.
 
-You are not delusional: this forced choice is not only *arbitrary*, but *unnecessary*- the app layer/database layer split is not an inherent component of software architecture but, rather, a historical quirk.
+You are not delusional: this forced choice is not only *arbitrary*, but *unnecessary*- the app layer/database layer split is not an inherent component of software architecture but, instead, a historical quirk.
 
 ### Problems with Placing Business Logic
 
@@ -34,7 +34,11 @@ data Ticket = Ticket
 and a corresponding PostgreSQL table:
 
 ```sql
-CREATE TABLE ticket_sales(id SERIAL PRIMARY KEY, visitor_age INTEGER NOT NULL, ticket_price INTEGER NOT NULL, visit_date DATE NOT NULL);
+CREATE TABLE ticket_sales(
+ id SERIAL PRIMARY KEY, 
+ visitor_age INTEGER NOT NULL, 
+ ticket_price INTEGER NOT NULL, 
+ visit_date DATE NOT NULL);
 ```
 
 Now that we have the setup out of the way, let's add some business logic operating on the ticket sales. Here'a a Haskell function to implement a discount:
@@ -52,7 +56,7 @@ So how do we figure out where to place this function in the codebase? Consider i
 
 * information on which tickets received the children's discount is not recorded in the database.
 * if this discount code changes- for example, to make it seasonal- then the older ticket data in the database is not modified. This is correct since the ticket was already sold, so the existing sales data in the database should *not* be affected.
-* if we wish to calculate all past discounts- for example, to make a chart of discounts over time- the database cannot provide it because is not recording discount amounts (should it?). 
+* if we wish to calculate all past discounts- for example, to make a chart of discounts over time- the database cannot provide it because the discount amounts were not recorded (should they be?). 
 
 The client cannot provide the discount used at a previous point in time unless the client retains all previous discount functions. This implies that we would need to somehow version all the discount functions and know when to apply each function based on the customer's age and also when the ticket was purchased.
 
@@ -76,12 +80,15 @@ Ok, no problem, you think- you can add a "discount_price" column to the "ticket_
 Luckily you thought about these complications in advance and you decided to put the discount function into the database as an SQL function.
 
 ```SQL
-CREATE FUNCTION apply_discount(age INTEGER, price INTEGER) RETURNS INTEGER IMMUTABLE AS $$ SELECT CASE WHEN age <= 10 THEN price / 2 ELSE price END; $$ LANGUAGE SQL;
+CREATE FUNCTION apply_discount(age INTEGER, price INTEGER) RETURNS INTEGER IMMUTABLE AS $$
+ SELECT CASE WHEN age <= 10 THEN price / 2 ELSE price END; 
+$$ LANGUAGE SQL;
 
-INSERT INTO ticket_sales(visitor_age, price, visit_day) VALUES (20, apply_discount(20, 25), now());
+INSERT INTO ticket_sales(visitor_age, price, visit_day) 
+VALUES (20, apply_discount(20, 25), now());
 ```
 
-But that doesn't really solve the multiple discount function problem- perhaps you can record which version or function name of the discount function was applied for each row, but that requires a lot of error-prone, but essential, bookkeeping. The advantage of having the implementation in the database is that we can write queries to answer critical business questions such as "how much discount was applied?" But now we have to integrate the function into the database- it's not the same function and it's not written in Haskell (or a language of our choice).
+But that doesn't really solve the multiple discount function problem- perhaps you can record which version or function name of the discount function was applied for each row, but that requires a lot of error-prone, but essential, bookkeeping. The advantage of having the implementation in the database is that we can write queries to answer critical business questions such as "how much discount was applied?" The problem becomes that we now have to integrate the function into the database- it's not the same function as our Haskell function (or any other application layer language), so can we be certain it behaves identically?
 
 With this simple zoo ticket example, we hit immediate limitations on what current application and database products provide. Let's examine an architecture without these limitations.
 
@@ -101,7 +108,9 @@ Let's take a closer look.
 
 With the relational model component unified with other application components, the developer benefits from a single programming language and environment. All data types are unified across business logic and queries. Here's an example using Project:M36 which implements an API to manage zoo ticket sales.
 
-First, we start the Project:M36 database server because we'll be trying out multiple users. We'll be disabling TLS connection encryption for this example. This command does not return because it is running the database. You can kill it, as usual, with Control-C.
+First, we start the Project:M36 database server because we'll be connecting to the database with multiple users. We'll be disabling TLS connection encryption for this example just to keep authentication simple, but rest assured that Project:M36 does support encrypted authentication. 
+
+The following command does not return because it is running the database. You can kill it, as usual, with Control-C.
 
 ```
 project-m36-server --disable-tls --database zoo
@@ -110,19 +119,22 @@ project-m36-server --disable-tls --database zoo
 Then, as a database administrator in another console, we setup the necessary schema and role through the `tutd` database console:
 
 ```
+tutd --disable-tls --database zoo #assumes admin role
 TutorialD (master/main): :addloginrole ticket_seller maylogin
 TutorialD (master/main): grant ticket_seller executefunctions nogrant
 TutorialD (master/main): grant ticket_seller committransaction nogrant
 TutorialD (master/main): ticket_sales := relation{ticketId Integer, visitorAge Integer, price Integer, visitDate Day}
 ```
 
-We create a `ticket_seller` login role and, in the second and third expressions, grant that role the permission to run functions and commit transactions. These functions will become our user-facing API.
+We create a `ticket_seller` login role and, in the second and third expressions, grant that role the permission to run functions and commit transactions while, with `nogrant` prevent the role from granting the role to others. We allow `ticket_seller` access to execute functions because these functions will become our user-facing API.
 
-The fourth expression defines a `ticket_sales` relation variable (similar to a table in SQL) with `ticketId`, `visitorAge`, `price`, and `visitDate` attributes.
+The fourth expression defines a `ticket_sales` relation variable (similar to a table in SQL) with `ticketId`, `visitorAge`, `price`, and `visitDate` attributes. `ticket_seller` will *not* be granted access to this relation variable since `ticket_seller`'s job is to sell tickets in this example.
+
+This completes the role, relation variable, and permissions setup.
 
 Next, we create a Haskell module to define the API and permissions and save it to `zoo.hs` locally.
 
-```
+```haskell
 module Zoo where
 import ProjectM36.Module
 import ProjectM36.AccessControlList
@@ -155,7 +167,7 @@ projectM36Functions = do
 
 We implement a standard Haskell function `apply_discount` and then, in the `projectM36Functions`, we instruct Project:M36 to use it as an "atom function"- a function which works on database values. 
 
-Next, we implement an `addSale` function which is `DatabaseContextFunction`. Obviously, this function includes some database-specific function calls to manipulate the underlying database transaction, specifically to insert a row into the `ticket_sales` relation variable.
+Next, we implement an `addSale` function which is a `DatabaseContextFunction`. Obviously, this function includes some database-specific function calls to manipulate the underlying database transaction, specifically to insert a row into the `ticket_sales` relation variable.
 
 Finally, we load the Haskell module into our database:
 
@@ -164,7 +176,7 @@ TutorialD (master/main): loadmodulefromfile "zoo.hs"
 TutorialD (master/main): :commit
 ```
 
-The `loadmodulefromfile` copies the `zoo.hs` Haskell module to the database, parses it, compiles it to Haskell bytecode, and installs the functions we declared in the module. Once the transaction is committed, the module and its functions are immutable.
+The `loadmodulefromfile` command copies the `zoo.hs` Haskell module to the database, parses it, compiles it to Haskell bytecode, and installs the functions we declared in the `projectM36Functions` function. Once the transaction is committed, the module and its functions are permanent and immutable.
 
 We can use these functions immediately:
 
@@ -186,15 +198,16 @@ tutd --database zoo --disable-tls --login-role ticket_seller
 TutorialD (master/main): :showexpr ticket_sales
 ERR: AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)
 ```
+Note that the `ticket_seller` cannot access the `ticket_sales` relation variable.
 
-The `ticket_seller` can try to insert some malicious ticket data:
+Can `ticket_seller` insert some malicious ticket data?
 
 ```
 TutorialD (master/main): insert ticket_sales relation{tuple{ticketId "456", visitorAge "-1", price "-20", visitDate fromGregorian(2000,10,10)}}
 ERR: AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)
 ```
 
-The ticket seller has neither read nor write access to the relation variable behind the `addSale` function. This is intentional so that a seller cannot modify data after a sale is made. But, we can run the `addSale` function since the `admin` role granted permission to `ticket_seller` to execute the function and commit the change.
+No. The ticket seller has neither read nor write access to the relation variable behind the `addSale` function. This is intentional so that a seller cannot modify data after a sale is made. But, we can run the `addSale` function since the `admin` role granted permission to `ticket_seller` to execute the function and commit the change.
 
 ```
 TutorialD (master/main): execute addSale(124, 15, 20, fromGregorian(2024,10,5))
@@ -209,9 +222,9 @@ Thus, we have defined a complete, albeit intentionally simple, API, including ro
 
 Don't forget that functions are immutable in Project:M36. This is different from run-of-the-mill SQL databases which overwrite their function definitions and only allow access to the "current" state/transaction. 
 
-Let's update our discount function to grant the 50% discount to children 10 years or younger *except* on New Year's Day. We'll update our Zoo module to change the applyDiscount function
+Let's update our discount function to grant the 50% discount to children 10 years or younger *except* on New Year's Day. We'll update our Zoo module to change the applyDiscount function.
 
-```
+```haskell
 module Zoo where
 import ProjectM36.Module
 import ProjectM36.AccessControlList
@@ -253,7 +266,7 @@ TutorialD (master/main): loadmodulefromfile "examples/zoo.hs"
 TutorialD (master/main): :commit
 ```
 
-Despite having loaded two functions with the same names, the previous functions are still available. We can access them using trans-graph relational expressions which tag our commands with time-travel markers similar to traversing past patches in git.
+Despite having loaded two functions with the same names, the previous functions are still available. We can access them using trans-graph relational expressions which tag our commands with past-state markers similar to traversing past patches in git source control.
 
 ```
 TutorialD (master/main): :showtransgraphexpr relation{tuple{day "New Year's Day", price applyDiscount(8,20,fromGregorian(2025,1,1)@master)@master}}@master union relation{tuple{day "normal day", price applyDiscount(8,20)@master^}}@master
@@ -265,7 +278,7 @@ TutorialD (master/main): :showtransgraphexpr relation{tuple{day "New Year's Day"
 └────────────────┴──────────────┘
 ```
 
-Note that `applyDiscount(8,20,fromGregorian(2025,1,1)@master)@master` is applied to the version of `applyDiscount` we most recently committed to the `master` branch while the "normal day" version is the first version of the function we loaded which elided the `Day` argument. 
+Note that `applyDiscount(8,20,fromGregorian(2025,1,1)@master)@master` is applied to the version of `applyDiscount` we most recently committed to the `master` branch while the original version is executed using `applyDiscount(8,20)@master^` (note the caret) which elided the `Day` argument.
 
 With this time-travel-like feature, we can answer business hypotheticals such as: 
 
@@ -273,17 +286,6 @@ With this time-travel-like feature, we can answer business hypotheticals such as
 * Why did we calculate such a discount on a specific date?
 
 This is only possible because we are able to recreate past states for query use.
-
-
-### Goodbye SQL
-
-With the unified programming environment, we no longer have to deal with SQL's historical baggage and quirks such as:
-
-* language boundary mismatch: SQL doesn't mix well with any application layer language, including data types which don't mesh, differing capitalization and naming schemes, and lack of debuggability- Project:M36 data types are Haskell data types.
-* SQL injection: a programmer footgun and persistent threat to any application composing SQL strings- Project:M36 uses a Haskell algebraic data type as RPC, not strings
-* SQL limitations: Project:M36 is a mathematically-consistent implementation of the relational algebra, eschewing all the historical baggage of SQL
-* lack of transformation capability: given a string of SQL, how can one reliably replace a table in the "FROM" clause? (Answer: without an SQL parser, it's impossible.) Project:M36 uses algebraic data types to represent the relational algebra operations which the database client can reliably transform using standard Haskell.
-* NULL: which other programming language uses (ternary logic)[https://github.com/agentm/project-m36/blob/master/docs/on_null.markdown]? Project:M36 uses Haskell data types to reliably model real-world data.
 
 ### A Secure API By Design
 
@@ -333,8 +335,19 @@ PostgreSQL is not architecturely equipped to be an application server because of
 
 Finally, SQL offers zero facilities for running the states of past functions. SQL functions are simply replaced and past states are garbage collected. Audit tracking has to be bolted on. But, as we saw with the simple zoo example, comparing current state to past states is a common request which any database should be able to service.
 
+### Goodbye SQL
+
+With the unified programming environment, we no longer have to deal with SQL's historical baggage and quirks such as:
+
+* language boundary mismatch: SQL doesn't mix well with any application layer language, including data types which don't mesh, differing capitalization and naming schemes, and lack of debuggability- Project:M36 data types are Haskell data types.
+* SQL injection: a programmer footgun and persistent threat to any application composing SQL strings- Project:M36 uses a Haskell algebraic data type as RPC, not strings.
+* SQL limitations: Project:M36 is a mathematically-consistent implementation of the relational algebra, eschewing all the historical baggage of SQL such as poor-man's custom data types.
+* lack of transformation capability: given a string of SQL, how can one reliably replace a table in the "FROM" clause? (Answer: without an SQL parser, it's impossible to accomplish safely.) Project:M36 uses algebraic data types to represent the relational algebra operations which the database client can reliably transform using standard Haskell.
+* NULL: which other programming language uses [ternary logic](https://github.com/agentm/project-m36/blob/master/docs/on_null.markdown)? Project:M36 uses Haskell data types to reliably model real-world data.
+* security anomalies in row-level security: rows appearing or disappearing based on your role cause join anomalies and business confusion. Project:M36 forces developers to define an API for user-level access without access to the underlying relation variables (tables).
+
 ## Conclusion
 
-Project:M36 is an implementation of a Haskell-oriented application server including role-based access control, database-side server functions to define user-facing APIs, and querying of past states. By re-evaluating what an application server can be, we've integrated native Haskell code with permissions and a relational algebra engine for retaining state. Along the way, we've tossed SQL and its quirks in order to provide a consistent and surprise-free programmable interface.
+Project:M36 is an implementation of a Haskell-oriented application server including role-based access control, database-side server functions to define user-facing APIs, and querying of past states. By re-evaluating what an application server can be, we've integrated native Haskell code with permissions and a relational algebra engine for retaining and querying state even as the application evolves. Along the way, we've tossed SQL and its quirks in order to provide a consistent and surprise-free programmable interface.
 
-Project:M36 includes many features not mentioned in this post. Learn more or join (the project)[https://github.com/agentm/project-m36]!
+Project:M36 includes many features not mentioned in this post. Learn more or join [the project](https://github.com/agentm/project-m36)!
