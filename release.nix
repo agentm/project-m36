@@ -245,7 +245,7 @@ let
          sha256 = "sha256-l35drTPGKwpip77/3BwDr7Eo0Arjfp34Cc3oRGyf+po=";
       } {});
 
-      project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-f-haskell-scripting" { mkDerivation = args: self.mkDerivation (args // {
+      project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-fhaskell-scripting" { mkDerivation = args: self.mkDerivation (args // {
       		    			doCheck = true;
 					});
   }));
