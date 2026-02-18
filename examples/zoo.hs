@@ -12,16 +12,18 @@ import qualified Data.Map as M
 ticket_sales := relation{ticketId Integer, visitorAge Integer, price Integer, visitDate Day}
 -}
 
-{-
-applyDiscount :: Integer -> Integer -> Integer
+type Age = Integer
+type Price = Integer
+
+applyDiscount :: Age -> Price -> Price
 applyDiscount age price =
   if age <= 10 then
     price `div` 2
     else
     price
--}
 
-applyDiscount :: Integer -> Integer -> Day -> Integer
+{-
+applyDiscount :: Age -> Price -> Day -> Integer
 applyDiscount age price day =
   if age <= 10 && not isNewYearsDay then
     price `div` 2
@@ -31,7 +33,7 @@ applyDiscount age price day =
   isNewYearsDay =
     case toGregorian day of
       (_, m, d) -> m == 1 && d == 1
-
+-}
 
 addSale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
 addSale ticketId age price purchaseDay = do

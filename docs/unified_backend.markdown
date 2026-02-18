@@ -142,7 +142,11 @@ import Data.Time.Calendar
 import ProjectM36.Base
 import qualified Data.Map as M
 
-applyDiscount :: Integer -> Integer -> Integer
+-- type alias Age and Price as Integers
+type Age = Integer
+type Price = Integer
+
+applyDiscount :: Age -> Price -> Price
 applyDiscount age price =
   if age <= 10 then
     price `div` 2
@@ -232,7 +236,10 @@ import Data.Time.Calendar
 import ProjectM36.Base
 import qualified Data.Map as M
 
-applyDiscount :: Integer -> Integer -> Day -> Integer
+type Age = Integer
+type Price = Integer
+
+applyDiscount :: Age -> Price -> Day -> Price
 applyDiscount age price day =
   if age <= 10 && not isNewYearsDay then
     price `div` 2
@@ -310,7 +317,7 @@ Next, consider how this function is executed with psycopg.
 
 1. python must convert your python integers (int) to strings to construct the SQL `SELECT` via bound parameters
 2. postgresql parses the query and converts the postgresql INTEGERs (which are not the same as python ints) back to python integers to pass as arguments to the python `add_sale` function
-3. the python function calculates its result and return a python integer which has to be converted back to an SQL INTEGER
+3. postgresql loads its own python interpreter with the `add_sale` python function to calculate its result and return a python integer which has to be converted back to an SQL INTEGER
 4. the result set is returned via the postgresql binary protocol
 5. the result set is converted from the binary protocol to a postgresql INTEGER
 6. the postgresql INTEGER is converted to a python int
@@ -333,7 +340,7 @@ Trying to recreate algebraic data types in SQL is painful, if at all possible.
 
 PostgreSQL is not architecturely equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at-at-time. That's where various PostgreSQL proxies with their own quirks try to fill-the-gap.
 
-Finally, SQL offers zero facilities for running the states of past functions. SQL functions are simply replaced and past states are garbage collected. Audit tracking has to be bolted on. But, as we saw with the simple zoo example, comparing current state to past states is a common request which any database should be able to service.
+Finally, SQL offers zero facilities for running the states of past functions. SQL functions are simply replaced and past states are garbage collected. SQL functions operate on the "current" state of the database regardless of when it was added to the database. Audit tracking has to be bolted on. But, as we saw with the simple zoo example, comparing current state to past states is a common request which any database should be able to service.
 
 ### Goodbye SQL
 
