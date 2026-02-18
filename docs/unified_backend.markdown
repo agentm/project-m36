@@ -45,8 +45,8 @@ Now that we have the setup out of the way, let's add some business logic operati
 
 ```haskell
 -- | Apply a 50% discount for kids under 10 years old. Arguments: age, base price
-apply_discount :: Integer -> Integer -> Integer
-apply_discount age base_price =
+applyDiscount :: Integer -> Integer -> Integer
+applyDiscount age base_price =
   if age < 10 then base_price `div` 2 else base_price
 ```
 
@@ -63,14 +63,14 @@ The client cannot provide the discount used at a previous point in time unless t
 If we wish to achieve this in the application layer, then we end up with something messy like:
 
 ```haskell
-apply_discount_v1 :: Integer -> Integer -> Integer
-apply_discount_v1 age price = ...
+applyDiscount_v1 :: Integer -> Integer -> Integer
+applyDiscount_v1 age price = ...
 
-apply_discount_v2 :: Integer -> Integer -> Integer
-apply_discount_v2 age price = ...
+applyDiscount_v2 :: Integer -> Integer -> Integer
+applyDiscount_v2 age price = ...
 
-apply_discount :: Day -> Integer -> Integer -> Integer
-apply_discount day age price = if day <= fromGregorian 2025 10 30 then apply_discount_v1 age price else apply_discount_v2 age price
+applyDiscount :: Day -> Integer -> Integer -> Integer
+applyDiscount day age price = if day <= fromGregorian 2025 10 30 then applyDiscount_v1 age price else applyDiscount_v2 age price
 ```
 
 If the discount code function has a bug, it cannot be ever fixed, because that could change historically-calculated discounts which have been attached to sold tickets!
@@ -169,7 +169,7 @@ projectM36Functions = do
   declareDatabaseContextFunction "addSale" (permissionForRole ExecuteDBCFunctionPermission "ticket_seller" <> allPermissionsForRole "admin")
 ```
 
-We implement a standard Haskell function `apply_discount` and then, in the `projectM36Functions`, we instruct Project:M36 to use it as an "atom function"- a function which works on database values. 
+We implement a standard Haskell function `applyDiscount` and then, in the `projectM36Functions`, we instruct Project:M36 to use it as an "atom function"- a function which works on database values. 
 
 Next, we implement an `addSale` function which is a `DatabaseContextFunction`. Obviously, this function includes some database-specific function calls to manipulate the underlying database transaction, specifically to insert a row into the `ticket_sales` relation variable.
 
