@@ -153,7 +153,7 @@ applyDiscount age price =
     else
     price
 
-addSale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
+addSale :: Integer -> Age -> Price -> Day -> DatabaseContextFunctionMonad ()
 addSale ticketId age price purchaseDay = do
   let tuples = [TupleExpr (M.fromList [("ticketId", i ticketId),
                                        ("visitorAge", i age),
@@ -250,7 +250,7 @@ applyDiscount age price day =
     case toGregorian day of
       (_, m, d) -> m == 1 && d == 1
 
-addSale :: Integer -> Integer -> Integer -> Day -> DatabaseContextFunctionMonad ()
+addSale :: Integer -> Age -> Price -> Day -> DatabaseContextFunctionMonad ()
 addSale ticketId age price purchaseDay = do
   let tuples = [TupleExpr (M.fromList [("ticketId", i ticketId),
                                        ("visitorAge", i age),
