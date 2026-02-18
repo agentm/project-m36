@@ -317,10 +317,11 @@ Next, consider how this function is executed with psycopg.
 
 1. python must convert your python integers (int) to strings to construct the SQL `SELECT` via bound parameters
 2. postgresql parses the query and converts the postgresql INTEGERs (which are not the same as python ints) back to python integers to pass as arguments to the python `add_sale` function
-3. postgresql loads its own python interpreter with the `add_sale` python function to calculate its result and return a python integer which has to be converted back to an SQL INTEGER
-4. the result set is returned via the postgresql binary protocol
-5. the result set is converted from the binary protocol to a postgresql INTEGER
-6. the postgresql INTEGER is converted to a python int
+3. postgresql loads its own python interpreter and converts the SQL argument INTEGERS to python ints
+4. the postgresql python interpreter (which is probably not the same python version as the application layer is running) runs the `add_sale` function and returns a python integer which has to be converted back to an SQL INTEGER
+5. the result set is returned via the postgresql binary protocol
+6. the result set is converted from the binary protocol to a postgresql INTEGER
+7. the postgresql INTEGER is converted to a python int
 
 So, amongst all these conversions, are you sure that all the conversions are sound? Are None (python)/NULL (SQL) values handled properly at every step? What are the maximum and minimum bounds of python ints compared to SQL INTEGER? Are you sure? What about if the types get more complicated, such as with SQL NUMERIC?
 
