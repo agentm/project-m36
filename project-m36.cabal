@@ -31,6 +31,11 @@ Flag stack
     Manual: True
     Default: False
 
+Flag build-examples
+     Description: build example executables
+     Manual: True
+     Default: True
+
 Flag haskell-scripting
      Description: enables Haskell scripting which links against GHC as a library
      Manual: True
@@ -459,7 +464,8 @@ Executable project-m36-server
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
 
-Executable bigrel
+Benchmark bigrel
+    Type: exitcode-stdio-1.0          
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, curryer-rpc
@@ -659,68 +665,68 @@ Test-Suite test-server
     type: exitcode-stdio-1.0
     main-is: Server/Main.hs
 
-Executable Example-SimpleClient
+if flag(build-examples)
+ Executable Example-SimpleClient
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, ghc, ghc-paths, project-m36, random, MonadRandom, curryer-rpc
     Main-Is: examples/SimpleClient.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-OutOfTheTarpit
+ Executable Example-OutOfTheTarpit
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery, random
     Main-Is: examples/out_of_the_tarpit.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-Blog
+ Executable Example-Blog
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, scotty >= 0.30, blaze-html, http-types, winery, random
     Main-Is: examples/blog.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-Hair
+ Executable Example-Hair
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery, random
     Main-Is: examples/hair.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-Plantfarm
+ Executable Example-Plantfarm
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends:  aeson, barbies, base, containers, deepseq, hashable, project-m36, random, scotty >= 0.22, text, winery, exceptions
     Main-Is: examples/Plantfarm.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-CustomTupleable
+ Executable Example-CustomTupleable
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery
     Main-Is: examples/CustomTupleable.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-Hospital
+ Executable Example-Hospital
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, transformers, stm-containers, list-t, aeson, path-pieces, either, conduit, http-api-data, template-haskell, ghc, ghc-paths, project-m36, winery, random
     Main-Is: examples/Hospital.hs
     GHC-Options: -Wall -threaded
-               
 
-Executable Example-DerivingCustomTupleable
+ Executable Example-DerivingCustomTupleable
     Default-Language: Haskell2010
     Build-Depends: base, text, deepseq, project-m36, winery
     Main-Is: examples/DerivingCustomTupleable.hs
     GHC-Options: -Wall -threaded
 
-Executable Example-Zoo
+ Executable Example-Zoo
     Default-Language: Haskell2010
     Build-Depends: base, text, deepseq, project-m36, winery, random, time, containers
     Main-Is: examples/zoo.hs
     GHC-Options: -Wall -threaded
-         
+
 
 Test-Suite test-scripts
     import: commontest
@@ -776,7 +782,8 @@ Test-Suite test-client-simple
     type: exitcode-stdio-1.0
 
 -- test for file handle leaks
-Executable handles
+Benchmark handles
+    Type: exitcode-stdio-1.0          
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
     Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics,parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, prettyprinter, modern-uri, http-types, http-conduit, base16-bytestring, cryptohash-sha256, curryer-rpc
