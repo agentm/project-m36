@@ -4,10 +4,13 @@
 }:
 let
   doJailbreak = pkgs.haskell.lib.doJailbreak;
+  ghc = pkgs.haskell.packages.${compiler}.ghc;
   needsCocoa = drv:
     if pkgs.stdenv.isDarwin
     then drv.overrideDerivation (old:
-      { buildInputs = [ pkgs.darwin.apple_sdk.frameworks.Cocoa ] ++ old.buildInputs; }
+      { buildInputs = [ pkgs.darwin.apple_sdk.frameworks.Cocoa ] ++ old.buildInputs;
+        propagatedBuildInputs = [ haskellPackages.${compiler} ];
+      }
     )
     else drv;
 
@@ -16,6 +19,7 @@ let
     	      mkDerivation = args: super.mkDerivation (args // {
               		   doCheck = false;
             	      });
+
       asn1-types = self.callHackageDirect {
         	      pkg = "asn1-types";
 		      ver = "0.3.4";
@@ -42,7 +46,7 @@ let
       crypton-x509-system = self.callHackageDirect {
         	      pkg = "crypton-x509-system";
 		      ver = "1.8.0";
-                      sha256 = "sha256-y/xeY8CES/KuBRKsoT0Ldjh0EdWTRNGCldU6nYQi/Ug="; } {};
+                      sha256 = "sha256-uUNhwQnTPuVd1feZLUZJYKHIk/5v6t7nHpf1jqrMGTQ="; } {};
 		      
       crypton-x509 = self.callHackageDirect {
         	      pkg = "crypton-x509";
@@ -247,6 +251,9 @@ let
 
       project-m36 = ((self.callCabal2nixWithOptions "project-m36" ./. "-fhaskell-scripting" { mkDerivation = args: self.mkDerivation (args // {
       		    			doCheck = true;
+					doHaddock = false;
+					enableExecutableProfiling = false;
+					enableLibraryProfiling = false;
 					});
   }));
     };
@@ -254,16 +261,15 @@ let
 in
 {
   project = haskellPackages.project-m36;
+  haskellDeps = haskellPackages;
 
   shell = haskellPackages.shellFor {
     packages = p: [
       p.project-m36
     ];
     buildInputs = [
-      haskellPackages.ghcid
-      haskellPackages.hlint
-      pkgs.docker
+      ghc
     ];
-    withHoogle = true;
+    withHoogle = false;
   };
 }

@@ -34,7 +34,7 @@ Flag stack
 Flag build-examples
      Description: build example executables
      Manual: True
-     Default: True
+     Default: False
 
 Flag haskell-scripting
      Description: enables Haskell scripting which links against GHC as a library
