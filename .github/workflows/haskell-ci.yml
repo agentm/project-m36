@@ -151,6 +151,7 @@ jobs:
           $CABAL v2-build $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --write-ghc-environment-files=always
       - name: install lib:project-m36
         run: |
+          rm -rf ~/.cabal/store/${HCVER}/project-m36-*
           $CABAL v2-install $ARG_COMPILER --lib lib:project-m36
       - name: list package db
         run: |
