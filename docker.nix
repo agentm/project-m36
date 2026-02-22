@@ -34,6 +34,7 @@ pkgs.dockerTools.buildImage {
     pkgs.glibc
 #    pkgs.glibcLocales
   ];
+#  extraCommands = "rm -rf nix/store/*-doc/"; #remove 1 GB of worthless docs
   config = {
     Env = [
 #      "LC_ALL=en_US.UTF-8"

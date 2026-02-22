@@ -18,6 +18,7 @@ let
     overrides = self: super: {
     	      mkDerivation = args: super.mkDerivation (args // {
               		   doCheck = false;
+			   doHaddock = false; #causes long builds
             	      });
 
       asn1-types = self.callHackageDirect {
