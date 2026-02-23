@@ -1,3 +1,7 @@
+# 2026-02-22 (v1.2.5)
+
+* include GHC in docker image so that users can use the new Haskell module functionality
+
 # 2026-02-16 (v1.2.4)
 
 * fix bug resulting in duplicate rows after group operator application
