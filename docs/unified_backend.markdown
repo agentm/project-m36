@@ -113,13 +113,14 @@ First, we start the Project:M36 database server because we'll be connecting to t
 The following command does not return because it is running the database. You can kill it, as usual, with Control-C.
 
 ```
-project-m36-server --disable-tls --database zoo
+docker pull projectm36/project-m36
+docker run -it -p 6543:6543 projectm36/project-m36 project-m36-server --database zoo --disable-tls
 ```
 
 Then, as a database administrator in another console, we setup the necessary schema and role through the `tutd` database console:
 
 ```
-tutd --disable-tls --database zoo #assumes admin role
+docker run -it --network host projectm36/project-m36 tutd --disable-tls --database zoo #assumes admin role
 TutorialD (master/main): :addloginrole ticket_seller maylogin
 TutorialD (master/main): grant ticket_seller executefunctions nogrant
 TutorialD (master/main): grant ticket_seller committransaction nogrant
@@ -176,7 +177,7 @@ Next, we implement an `addSale` function which is a `DatabaseContextFunction`. O
 Finally, we load the Haskell module into our database:
 
 ```
-TutorialD (master/main): loadmodulefromfile "zoo.hs"
+TutorialD (master/main): loadmodulefromfile "/haskell_modules/zoo.hs"
 TutorialD (master/main): :commit
 ```
 
@@ -198,7 +199,7 @@ TutorialD (master/main): :commit
 However, our goal is to use `addSale` as a security-conscious API. So let's exercise that. We'll restart our `tutd` client to connect as the `ticket_seller` role.
 
 ```
-tutd --database zoo --disable-tls --login-role ticket_seller
+docker run -it --network host -v $HOME/haskell_modules/:/haskell_modules projectm36/project-m36 tutd --disable-tls --database zoo --login-role ticket_seller
 TutorialD (master/main): :showexpr ticket_sales
 ERR: AccessDeniedError (SomeRelVarPermission AccessRelVarsPermission)
 ```
@@ -266,9 +267,10 @@ projectM36Functions = do
   declareDatabaseContextFunction "addSale" (permissionForRole ExecuteDBCFunctionPermission "ticket_seller" <> allPermissionsForRole "admin")
 ```
 
-We need to reload the module to load the new functions:
+We need to reload the module to load the new functions using the admin account:
 
 ```
+docker run -it --network host -v $HOME/haskell_modules/:/haskell_modules projectm36/project-m36 tutd --disable-tls --database zoo
 TutorialD (master/main): loadmodulefromfile "examples/zoo.hs"
 TutorialD (master/main): :commit
 ```
@@ -339,7 +341,7 @@ TutorialD (master/main): :showexpr relation{tuple{price 20, category Free "promo
 
 Trying to recreate algebraic data types in SQL is painful, if at all possible.
 
-PostgreSQL is not architecturely equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at-at-time. That's where various PostgreSQL proxies with their own quirks try to fill-the-gap.
+PostgreSQL is not architecturally equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at-at-time. That's where various PostgreSQL proxies with their own quirks try to fill-the-gap.
 
 Finally, SQL offers zero facilities for running the states of past functions. SQL functions are simply replaced and past states are garbage collected. SQL functions operate on the "current" state of the database regardless of when it was added to the database. Audit tracking has to be bolted on. But, as we saw with the simple zoo example, comparing current state to past states is a common request which any database should be able to service.
 
