@@ -44,5 +44,6 @@ pkgs.dockerTools.buildImage {
     ];
     ExposedPorts = { "6543/tcp" = { }; "8000/tcp" = { }; };
     Cmd = [ "/bin/sh" "-c" "export PATH=$PATH:${projectBin}:${ghcBin} && exec tutd" ];
+    Volumes = { "/tmp" = { }; };
   };
 }
