@@ -25,9 +25,7 @@ import ProjectM36.ReferencedTransactionIds
 import ProjectM36.DatabaseContext.Fields
 
 import Codec.Winery
-#if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM, forM, unless, when)
-#endif
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.Vector as V
@@ -39,9 +37,6 @@ import Data.Time.Clock
 import qualified Data.Text as T
 import GHC.Generics
 import Data.Either (lefts, rights, isRight)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
 import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4

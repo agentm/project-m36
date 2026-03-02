@@ -1,3 +1,7 @@
+# 2026-03-01 (v1.2.6)
+
+* add support for inlining TutorialD expressions in Haskell using Quasiquoters
+
 # 2026-02-22 (v1.2.5)
 
 * include GHC in docker image so that users can use the new Haskell module functionality

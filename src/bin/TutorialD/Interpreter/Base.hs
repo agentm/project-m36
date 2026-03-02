@@ -1,47 +1,27 @@
-{-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Base (
   module TutorialD.Interpreter.Base,
   module Text.Megaparsec,
-#if MIN_VERSION_megaparsec(6,0,0)
   module Text.Megaparsec.Char,
   module Control.Applicative
-#else
-  module Text.Megaparsec.Text
-#endif
  )
   where
 import ProjectM36.Base
 import ProjectM36.AtomType
 import ProjectM36.Attribute as A
 import ProjectM36.Interpreter
-
-#if MIN_VERSION_megaparsec(6,0,0)
 import Text.Megaparsec.Char 
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec
 import Control.Applicative hiding (many, some)
-#else
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as Lex
-#endif
 
 import Data.Text hiding (count)
 import qualified Data.Text as T
 import qualified Data.List as L
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
 import qualified Data.UUID as U
 import Control.Monad.Random
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Char
-
-#if !MIN_VERSION_megaparsec(7,0,0)
-anySingle :: Parsec Void Text (Token Text)
-anySingle = anyChar
-#endif
-
 
 type ParseStr = Text
 
@@ -85,11 +65,7 @@ identifierRemainder c = do
   pure (pack (c:rest))
 
 symbol :: ParseStr -> Parser Text
-#if MIN_VERSION_megaparsec(6,0,0)
-symbol sym = Lex.symbol spaceConsumer sym
-#else
-symbol sym = pack <$> Lex.symbol spaceConsumer sym
-#endif
+symbol = Lex.symbol spaceConsumer
 
 comma :: Parser Text
 comma = symbol ","
@@ -116,18 +92,10 @@ nline :: Parser Text
 nline = (T.singleton <$> newline) <|> crlf
 
 integer :: Parser Integer
-#if MIN_VERSION_megaparsec(6,0,0)
 integer = Lex.signed (pure ()) Lex.decimal <* spaceConsumer
-#else
-integer = Lex.signed (pure ()) Lex.integer <* spaceConsumer
-#endif
 
 natural :: Parser Integer
-#if MIN_VERSION_megaparsec(6,0,0)
 natural = Lex.decimal <* spaceConsumer
-#else
-natural = Lex.integer <* spaceConsumer
-#endif
 
 float :: Parser Double
 float = Lex.float <* spaceConsumer
