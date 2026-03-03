@@ -52,7 +52,10 @@ import Control.Monad.Trans.Except (except)
 import ProjectM36.NormalizeExpr
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
-import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, allPermissionsForRole, addAccess, removeAccess)
+import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, addAccess, removeAccess)
+#if defined(PM36_HASKELL_SCRIPTING)
+import ProjectM36.AccessControlList (allPermissionsForRole)
+#endif
 import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold

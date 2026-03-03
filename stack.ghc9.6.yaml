@@ -43,7 +43,8 @@ extra-deps:
   - time-manager-0.2.3
   - scotty-0.30
   - time-hourglass-0.3.0
-  - tls-2.2.0  
+  - tls-2.2.0
+  - th-lift-instances-0.1.20
 
 flags:
   project-m36:

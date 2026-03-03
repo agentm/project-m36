@@ -1,7 +1,7 @@
 -- | Implements client-side TutorialD templating for use in Haskell code including parameterized replacement.
 
 -- if I want users to use tutoriald from client libraries then it needs to be bundled in the project-m36 library OR I need to make a separate client library (less appealing)
-{-# LANGUAGE FlexibleInstances, TypeApplications, StandaloneDeriving, DeriveLift #-}
+{-# LANGUAGE FlexibleInstances, TypeApplications, StandaloneDeriving, DeriveLift, CPP, TemplateHaskell #-}
 module TutorialD.Interpreter.Template where
 import TutorialD.Interpreter.RelationalExpr
 import TutorialD.Interpreter.DatabaseContextExpr
@@ -20,6 +20,12 @@ import ProjectM36.AccessControlList
 import Instances.TH.Lift ()
 import qualified Data.Vector as V
 import qualified Data.Map as M
+-- older time modules do not include Lift instance
+#if !MIN_VERSION_time(1,14,0)
+import Data.Time.Calendar (Day, fromGregorian, toGregorian, toModifiedJulianDay)
+import Data.Time.Clock (UTCTime(..), diffTimeToPicoseconds, addUTCTime, secondsToDiffTime, DiffTime, NominalDiffTime, secondsToNominalDiffTime)
+import Data.Fixed (Pico)
+#endif
 
 relationalExpr :: QuasiQuoter
 relationalExpr =
@@ -77,6 +83,58 @@ deriving instance Lift Attribute
 deriving instance Lift Atom
 deriving instance Lift RelationTuple
 deriving instance Lift AtomType
+
+#if !MIN_VERSION_time(1,14,0)
+instance Lift Day where
+    lift day = let (year, month, dayOfMonth) = toGregorian day
+                in [| fromGregorian year month dayOfMonth |]
+    liftTyped day = let (year, month, dayOfMonth) = toGregorian day
+                in [|| fromGregorian year month dayOfMonth ||]
+          
+instance Lift UTCTime where
+    lift utcTime =
+        let seconds = utcTimeToPOSIXSeconds utcTime
+            (year, month, day) = toGregorian (utctDay utcTime)
+            -- Directly assign picoseconds as an Integer
+            picoseconds = diffTimeToPicoseconds (utctDayTime utcTime)
+        in [| fromGregPosix (year, month, day, seconds, picoseconds) |]
+
+    liftTyped utcTime =
+        let seconds = utcTimeToPOSIXSeconds utcTime
+            (year, month, day) = toGregorian (utctDay utcTime)
+            picoseconds = diffTimeToPicoseconds (utctDayTime utcTime)
+        in [|| fromGregPosix (year, month, day, seconds, picoseconds) ||]
+
+utcTimeToPOSIXSeconds :: UTCTime -> Rational
+utcTimeToPOSIXSeconds (UTCTime day diffTime) =
+    let base = fromIntegral (toModifiedJulianDay day) * 86400 -- seconds in MJD
+        seconds = base + realToFrac diffTime
+    in seconds
+
+fromGregPosix :: (Integer, Int, Int, Rational, Integer) -> UTCTime
+fromGregPosix (year, month, day, seconds, picoseconds) =
+    let dayStart = UTCTime (fromGregorian year month day) 0
+        -- Convert seconds to NominalDiffTime directly
+        totalDiffTime =
+            secondsToNominalDiffTime (realToFrac seconds) + picosecondsToNominalDiffTime picoseconds
+    in addUTCTime totalDiffTime dayStart    
+
+picosecondsToDiffTime :: Integer -> DiffTime
+picosecondsToDiffTime picoseconds =
+    let inSeconds = fromIntegral picoseconds `div` 1000000000000 -- since 1 second = 10^12 picoseconds
+    in secondsToDiffTime inSeconds
+
+picosecondsToNominalDiffTime :: Integer -> NominalDiffTime
+picosecondsToNominalDiffTime ps = 
+    let seconds = fromIntegral ps / 1000000000000.0  -- Convert picoseconds to seconds
+    in secondsToNominalDiffTime seconds    
+
+nominalDiffTimeToDiffTime :: NominalDiffTime -> DiffTime
+nominalDiffTimeToDiffTime ndt =
+    let totalPicoseconds = round (ndt * 1e12)  -- converting seconds to picoseconds
+    in picosecondsToDiffTime totalPicoseconds   -- Convert picoseconds to DiffTime
+
+#endif
 
 deriving instance (Lift a, Lift r) => Lift (DatabaseContextExprBase a r)
 deriving instance Lift r => Lift (AlterDBCACLExprBase r)
