@@ -658,14 +658,16 @@ benchmark bench
     import: commontest
     build-depends: criterion
     type: exitcode-stdio-1.0
+    HS-Source-Dirs: ./src/bin    
     main-is: benchmark/Relation.hs
 
 benchmark ondiskclient
     import: commontest
     type: exitcode-stdio-1.0
-    main-is: ./src/bin/benchmark/OnDiskClient.hs
+    main-is: benchmark/OnDiskClient.hs
     GHC-Prof-Options: -fprof-auto -rtsopts -threaded -Wall
     GHC-Options: -rtsopts -Wall -threaded -finfo-table-map -fdistinct-constructor-tables
+    HS-Source-Dirs: ./src/bin
     if impl(ghc <9.4)
       GHC-Options: -eventlog
 

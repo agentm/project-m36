@@ -25,7 +25,12 @@ main = do
         replaceTextAtom "$1" "London" [relationalExpr|s where city="$1"|]
 
   _res <- failFast $ executeRelationalExpr sessionId conn london_suppliers
-      
+
+  let notlondon =
+        case london_suppliers of
+          Restrict yeslondon@(AttributeEqualityPredicate "city" "London") relExpr ->
+            Restrict (NotPredicate yeslondon) relExpr
+
 
   let insert_adelaide = [databaseContextExpr|insert s relation{tuple{city "adelaide", s# "S6", sname "Jacobs", status 10}}|]
       insert_adelaide' = replaceTextAtom "Jacobs" "Jacks" insert_adelaide

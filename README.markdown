@@ -100,6 +100,7 @@ Project:M36 supports multiple frontends which target different audiences.
 1. [Merkle Transaction Hashes](docs/merkle_transaction_graph.markdown)
 1. [Handling DDL Changes](docs/Handling_DDL_Changes.markdown)
 1. [Importing a Haskell Module](docs/import_haskell_module.markdown)
+1. [TutorialD Inline with Haskell](docs/inline_tutoriald.markdown)
 
 ### Integrations
 
