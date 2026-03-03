@@ -518,13 +518,7 @@ Benchmark bigrel
     Type: exitcode-stdio-1.0          
     Default-Language: Haskell2010
     Default-Extensions: OverloadedStrings
-    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, random, MonadRandom, semigroups, parser-combinators, curryer-rpc
-    Other-Modules: TutorialD.Interpreter.Base,
-                   TutorialD.Interpreter.DatabaseContextExpr,
-                   TutorialD.Interpreter.RelationalExpr,
-                   TutorialD.Interpreter.Types,
-                   ProjectM36.Interpreter,
-                   ProjectM36.Cli
+    Build-Depends: base, HUnit, Cabal, containers, hashable, unordered-containers, mtl, vector, time, bytestring, uuid, stm, deepseq, deepseq-generics, parallel, cassava, attoparsec, gnuplot, directory, temporary, haskeline, megaparsec, text, base64-bytestring, data-interval, filepath, optparse-applicative, stm-containers, list-t, ghc, ghc-paths, transformers, project-m36, project-m36-tutoriald, random, MonadRandom, semigroups, parser-combinators, curryer-rpc
     main-is: benchmark/bigrel.hs
     GHC-Options: -Wall -threaded -rtsopts -with-rtsopts=-N
     HS-Source-Dirs: ./src/bin
