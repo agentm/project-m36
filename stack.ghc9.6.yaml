@@ -45,6 +45,7 @@ extra-deps:
   - time-hourglass-0.3.0
   - tls-2.2.0
   - th-lift-instances-0.1.20
+  - time-compat-1.9.9
 
 flags:
   project-m36:
