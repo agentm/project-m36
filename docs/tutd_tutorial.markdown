@@ -381,10 +381,10 @@ Supported atom functions include:
 |add(Integer,Integer)|Return the sum of two integers.|
 |eq(Integer,Integer)|Return True if two integers are equal.|
 |not(Bool)|Invert a boolean expression.|
-|lt(Integer,Integer)|Returns boolean true atom if he first argument is less than the second argument.|
-|lte(Integer,Integer)|Returns boolean true atom if he first argument is less than or equal to the second argument.|
-|gt(Integer,Integer)|Returns boolean true atom if he first argument is greater than the second argument.|
-|gte(Integer,Integer)|Returns boolean true atom if he first argument is greater than or equal to the second argument.|
+|lt(Integer,Integer)|Returns boolean true atom if the first argument is less than the second argument.|
+|lte(Integer,Integer)|Returns boolean true atom if the first argument is less than or equal to the second argument.|
+|gt(Integer,Integer)|Returns boolean true atom if the first argument is greater than the second argument.|
+|gte(Integer,Integer)|Returns boolean true atom if the first argument is greater than or equal to the second argument.|
 
 #### Group
 
