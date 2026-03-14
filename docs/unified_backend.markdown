@@ -341,7 +341,7 @@ TutorialD (master/main): :showexpr relation{tuple{price 20, category Free "promo
 
 Trying to recreate algebraic data types in SQL is painful, if at all possible.
 
-PostgreSQL is not architecturally equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at-a-time. That's where various PostgreSQL proxies with their own quirks try to fill-the-gap.
+PostgreSQL is not architecturally equipped to be an application server because of its historical implementation baggage. By being reliant on a fork-on-connection architecture, PostgreSQL cannot service more than a few thousand connections at a time. That's where various PostgreSQL proxies with their own quirks try to fill the gap.
 
 Finally, SQL offers zero facilities for running the states of past functions. SQL functions are simply replaced and past states are garbage collected. SQL functions operate on the "current" state of the database regardless of when it was added to the database. Audit tracking has to be bolted on. But, as we saw with the simple zoo example, comparing current state to past states is a common request which any database should be able to service.
 
