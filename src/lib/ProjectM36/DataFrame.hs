@@ -62,6 +62,18 @@ instance Eq DataFrame where
 data DataFrameTuple = DataFrameTuple Attributes (V.Vector Atom)
   deriving (Eq, Show, Generic, Hashable)
 
+-- | Returns the number of rows in the dataframe.
+cardinality :: DataFrame -> Int
+cardinality = length . tuples
+
+
+-- | Extract a "column" of values. Uses `V.unsafeIndex`, so validate the index beforehand.
+valuesForIndex :: Int -> DataFrame -> [Atom]
+valuesForIndex index df = map extract (tuples df)
+  where
+    extract (DataFrameTuple _attrs atomVec) =
+      V.unsafeIndex atomVec index
+
 sortDataFrameBy :: [AttributeOrder] -> DataFrame -> Either RelationalError DataFrame
 sortDataFrameBy attrOrders frame = do
   attrs <- mapM (\(AttributeOrder nam _) -> A.attributeForName nam (attributes frame)) attrOrders 
@@ -172,9 +184,9 @@ dataFrameAsHTML df
                 tablefooter <> 
                 "</table>"
   where
-    cardinality = T.pack (show (length (tuples df)))
+    cardinalityT = T.pack (show (cardinality df))
     style = "<style>.pm36dataframe {empty-cells: show;} .pm36dataframe tbody td, .pm36relation th { border: 1px solid black;}</style>"
-    tablefooter = "<tfoot><tr><td colspan=\"100%\">" <> cardinality <> " tuples</td></tr></tfoot>"
+    tablefooter = "<tfoot><tr><td colspan=\"100%\">" <> cardinalityT <> " tuples</td></tr></tfoot>"
     tablestart = "<table class=\"pm36dataframe\"\">"
 
 tuplesAsHTML :: [DataFrameTuple] -> T.Text

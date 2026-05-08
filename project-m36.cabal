@@ -114,7 +114,9 @@ Library
                   process,
                   system-linux-proc,
                   megaparsec,
-                  haskeline
+                  haskeline,
+                  dataframe,
+                  parquet-haskell
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -170,6 +172,7 @@ Library
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
+                     ProjectM36.Relation.Parse.Parquet,                     
                      ProjectM36.IsomorphicSchema,
                      ProjectM36.InclusionDependency,
                      ProjectM36.MerkleHash,
