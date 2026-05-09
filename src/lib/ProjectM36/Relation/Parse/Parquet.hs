@@ -1,9 +1,18 @@
-{-# LANGUAGE TypeApplications, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications, FlexibleContexts, ScopedTypeVariables, DataKinds #-}
 module ProjectM36.Relation.Parse.Parquet where
-import DataFrame.IO.Parquet
-import DataFrame.Internal.DataFrame (getColumn, dataframeDimensions)
-import DataFrame.Internal.Column (Column(..), columnTypeString)
+import qualified Conduit as C
+import qualified Data.Conduit.List as CL
+import Control.Monad.Reader (runReaderT, MonadReader)
+import Data.Foldable (traverse_)
+import Parquet.Reader
+import Parquet.ParquetObject
+import qualified Parquet.Pinch as PP
+import qualified Parquet.Types as PT
 
+import Control.Monad.Logger (MonadLogger, runNoLoggingT, runStdoutLoggingT)
+
+import Control.Lens ((^.))
+import Control.Monad.Except
 import qualified Data.Map as M
 import Control.Exception
 import Data.Either (lefts, rights)
@@ -22,12 +31,42 @@ data ParquetImportError =
   DataFrameColumnNotFoundError AttributeName |
   DataFrameIOError IOException |
   MultipleParquetErrors [ParquetImportError]
-  
+
+--runT :: IO ()
+--runT = runStdoutLoggingT . C.runResourceT . runExceptT
+
+parquetAsTuples ::
+  forall m.
+  ( C.MonadResource m,
+    C.MonadIO m,
+    C.MonadThrow m,
+    MonadLogger m,
+    MonadError Text m,
+    MonadFail m
+  ) =>
+  Attributes ->
+  TypeConstructorMapping ->
+  FilePath ->
+  m [Atom]
+parquetAsTuples attrs tConsMap parquetPath = do
+  metadata <- readMetadata (localParquetFile parquetPath)
+  let --convertToAtoms :: ParquetValue -> m Atom
+      convertToAtoms v = pure $ IntAtom 1
+  (`runReaderT` metadata)
+    $ C.runConduit
+    $ traverse_
+      (sourceRowGroup (localParquetFile parquetPath))
+      (metadata ^. PP.pinchField @"row_groups")
+      C..| CL.mapM convertToAtoms
+    C..| CL.consume
+
+
 -- use CoW to place the parquet file in the db directory, then we can read from it indefinitely
 -- add an incrementing row id to keep each row unique in the relational sense
 -- in the future, this should likely be reimplemented using streamly, but dataframe does not support incremental reading, so we use the parquet->dataframe->relation path for now
-parquetAsRelation :: Attributes -> TypeConstructorMapping -> [FilePath] -> IO (Either ParquetImportError Relation)
-parquetAsRelation attrs tConsMap parquetPaths = do
+{-
+parquetAsRelation' :: Attributes -> TypeConstructorMapping -> [FilePath] -> IO (Either ParquetImportError Relation)
+parquetAsRelation' attrs tConsMap parquetPaths = do
   let parquetReadOptions = defaultParquetReadOptions { selectedColumns = Just attrsProjection }
       attrsProjection = attributeNamesList attrs
       attrsTypes = atomTypesList attrs
@@ -77,3 +116,4 @@ typeCheckColumn col expectedAtomType = do
   case M.lookup parquetColumnType simpleConversionMap of
     Nothing -> Left $ ColumnTypeMismatchError expectedAtomType (T.pack parquetColumnType)
     Just typ -> pure typ
+-}

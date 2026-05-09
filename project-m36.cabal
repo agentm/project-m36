@@ -116,7 +116,9 @@ Library
                   megaparsec,
                   haskeline,
                   dataframe,
-                  parquet-haskell
+                  parquet-haskell,
+                  lens,
+                  monad-logger
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
