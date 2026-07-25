@@ -125,10 +125,13 @@ build b sortedList = --input list should be de-duplicated to reduce b-tree size,
       let writelevel path items = do
             let (roots, childSlices) = treeSlicer b items
                 childSliceSizes = map V.length childSlices
+                firstSliceSize = case childSliceSizes of
+                                   [] -> 0
+                                   (first:_) -> first
                 almostEqualSized = foldr (\x acc ->
                                             case acc of
                                               Nothing -> Nothing
-                                              Just acc' -> if abs (acc' - x) > 2 then Nothing else Just x) (Just (head childSliceSizes)) childSliceSizes
+                                              Just acc' -> if abs (acc' - x) > 2 then Nothing else Just x) (Just firstSliceSize) childSliceSizes
             --first lay out all root-k values, then, k+1, etc.
             --space needed for each k level is (b-1) * b^k elements
             --traceShowM ("vsize" :: String, V.length items, "k" :: String, (k:: Int), "ksize" :: String, ksize, "roots" :: String, roots, "childSizes" :: String , map V.length childSlices, "childVecs" :: String, childSlices, "path" :: String, path)

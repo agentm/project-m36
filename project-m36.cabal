@@ -115,10 +115,7 @@ Library
                   system-linux-proc,
                   megaparsec,
                   haskeline,
-                  dataframe,
-                  parquet-haskell,
-                  lens,
-                  monad-logger
+                  psqueues
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -168,13 +165,13 @@ Library
                      ProjectM36.AtomFunctionBody,
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
+                     ProjectM36.Optimizer,
                      ProjectM36.StaticOptimizer,
                      ProjectM36.Relation.Show.Term,
                      ProjectM36.WCWidth,
                      ProjectM36.Relation.Show.CSV,
                      ProjectM36.Relation.Show.Gnuplot,
                      ProjectM36.Relation.Parse.CSV,
-                     ProjectM36.Relation.Parse.Parquet,                     
                      ProjectM36.IsomorphicSchema,
                      ProjectM36.InclusionDependency,
                      ProjectM36.MerkleHash,

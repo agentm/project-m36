@@ -236,6 +236,7 @@ somePermissionP =
   (reserved "viewacl" $> SomeACLPermission ViewACLPermission) <|>
   (reserved "committransaction" $> SomeAlterTransGraphPermission CommitTransactionPermission)
 
+-- refactor to allow relational expr to operate on result of function if function returns a relation
 executeDatabaseContextFunctionP :: Parser DatabaseContextExpr
 executeDatabaseContextFunctionP = do
   reserved "execute"

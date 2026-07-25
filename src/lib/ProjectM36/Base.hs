@@ -254,13 +254,11 @@ data RelationalExprBase a =
   With (WithNamesAssocsBase a) (RelationalExprBase a)
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable RelationalExpr
+instance Hashable a => Hashable (RelationalExprBase a)
 
 -- | Used for fixed relational expressions (useful for caching).
 type PinnedRelationalExpr = RelationalExprBase TransactionId
 
-instance Hashable PinnedRelationalExpr
-    
 type TransactionId = UUID
 
 type WithNamesAssocs = WithNamesAssocsBase ()
@@ -328,7 +326,7 @@ type RelationVariables = M.Map RelVarName GraphRefRelationalExpr
 
 data GraphRefTransactionMarker = TransactionMarker TransactionId |
                                  UncommittedContextMarker
-                                 deriving (Eq, Show, Generic, NFData, Ord)
+                                 deriving (Eq, Show, Generic, NFData, Ord, Hashable)
   
 -- a fundamental relational expr to which other relational expressions compile
 type GraphRefRelationalExpr = RelationalExprBase GraphRefTransactionMarker
@@ -414,9 +412,7 @@ type DatabaseContextIOExpr = DatabaseContextIOExprBase ()
 
 type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
 
-instance Hashable RestrictionPredicateExpr
-
-instance Hashable (RestrictionPredicateExprBase TransactionId)
+instance Hashable a => Hashable (RestrictionPredicateExprBase a)
 
 type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase GraphRefTransactionMarker
 
@@ -437,9 +433,7 @@ type TransactionDiffExpr = DatabaseContextExpr
 
 type AtomExpr = AtomExprBase ()
 
-instance Hashable AtomExpr
-
-instance Hashable (AtomExprBase TransactionId)
+instance Hashable a => Hashable (AtomExprBase a)
 
 type GraphRefAtomExpr = AtomExprBase GraphRefTransactionMarker
 
@@ -462,9 +456,7 @@ data ExtendTupleExprBase a = AttributeExtendTupleExpr AttributeName (AtomExprBas
 
 type ExtendTupleExpr = ExtendTupleExprBase ()
 
-instance Hashable ExtendTupleExpr
-
-instance Hashable (ExtendTupleExprBase TransactionId)
+instance Hashable a => Hashable (ExtendTupleExprBase a)
   
 type GraphRefExtendTupleExpr = ExtendTupleExprBase GraphRefTransactionMarker
 
@@ -489,9 +481,7 @@ data AttributeNamesBase a = AttributeNames (S.Set AttributeName) |
 
 type AttributeNames = AttributeNamesBase ()
 
-instance Hashable AttributeNames
-
-instance Hashable (AttributeNamesBase TransactionId)
+instance Hashable a => Hashable (AttributeNamesBase a)
 
 type GraphRefAttributeNames = AttributeNamesBase GraphRefTransactionMarker
 
@@ -518,9 +508,7 @@ data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructo
 newtype TupleExprBase a = TupleExpr (M.Map AttributeName (AtomExprBase a))
                  deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable TupleExpr
-
-instance Hashable (TupleExprBase TransactionId)
+instance Hashable a => Hashable (TupleExprBase a)
 
 type TupleExpr = TupleExprBase ()
 
@@ -529,9 +517,7 @@ type GraphRefTupleExpr = TupleExprBase GraphRefTransactionMarker
 data TupleExprsBase a = TupleExprs a [TupleExprBase a]
   deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable)
 
-instance Hashable TupleExprs
-
-instance Hashable (TupleExprsBase TransactionId)
+instance Hashable a => Hashable (TupleExprsBase a)
 
 type GraphRefTupleExprs = TupleExprsBase GraphRefTransactionMarker
 

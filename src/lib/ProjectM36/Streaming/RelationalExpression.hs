@@ -49,6 +49,7 @@ newtype PlanNodeExecutionInfo = PlanNodeExecutionInfo { duration :: DiffTime }
 --this will become more useful once we have multiple join strategies, etc.
 -- a: transaction marker
 -- t: collected execution information as the graph is evaluated
+-- add read from parquet or CSV file which could be added to the db dir via CoW after validation
 data RelExprExecPlanBase marker execInfo =
   -- | Read relvar expr from transaction graph to generate tuple stream.
   -- Instead of locking cache entries during plans so that the entry is not ejected before the plan can run (race condition), the plan can point to a cache entry, but if the entry no longer exists, then the plan must provide an alternative solution.

@@ -28,11 +28,12 @@ Project:M36 passes all results to the cache, which decides if it is worth cachin
 In the future, the cache can be populated by predicting which queries are likely to be issued.
 -}
 
+type RelExprCacheMap = STMMap.Map PinnedRelationalExpr RelExprCacheInfo
 
 data RelExprCache = RelExprCache {
   upperBound :: TVar ByteCount,
   currentSize :: TVar ByteCount,
-  cacheMap :: STMMap.Map PinnedRelationalExpr RelExprCacheInfo
+  cacheMap :: RelExprCacheMap
   }
 
 -- | Use all available RAM. In the future, some sort of memory heuristics engine could juggle how much memory is allocated to caching vs. processing.

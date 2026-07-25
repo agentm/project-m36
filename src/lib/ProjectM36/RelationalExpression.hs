@@ -38,7 +38,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Either
-import Data.List (foldl')
+--import Data.List (foldl')
 import Data.Char (isUpper)
 import Data.Time
 import qualified Data.List.NonEmpty as NE
@@ -1873,8 +1873,9 @@ typeForGraphRefTupleExprs mAttrs (TupleExprs _ tupExprs) = do
             else
               throwError (TupleAttributeTypeMismatchError attrsDiff)
   attrsList <- foldM folder [] tupExprs
-  pure (head attrsList)
-  
+  pure $ case attrsList of
+           [] -> emptyAttributes
+           (l:_) -> l
 
 typeForGraphRefTupleExpr :: Maybe Attributes -> GraphRefTupleExpr -> GraphRefRelationalExprM Attributes
 typeForGraphRefTupleExpr mAttrHints (TupleExpr tupMap) = do
