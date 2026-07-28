@@ -1,6 +1,6 @@
 Cabal-Version: 3.0
 Name: project-m36
-Version: 1.2.6
+Version: 1.2.7
 License: MIT
 --note that this license specification is erroneous and only labeled MIT to appease hackage which does not recognize public domain packages in cabal >2.2- Project:M36 is dedicated to the public domain
 Build-Type: Simple
@@ -95,19 +95,18 @@ Library
                   Glob,
                   cryptohash-sha256,
                   text-manipulate >= 0.2.0.1 && < 0.4,
-                  winery >= 1.4,
-                  curryer-rpc>=0.5.1,
+                  winery >= 1.5,
+                  curryer-rpc>=0.5.2,
                   network,
                   async,
                   vector-instances,
                   recursion-schemes,
-                  streamly == 0.10.1,
+                  streamly == 0.11.1,
                   convertible,
                   fast-builder,
                   scientific,
                   crypton,
                   streamly-core,
-                  streamly,
                   network-byte-order,
                   sqlite-simple,
                   data-default,

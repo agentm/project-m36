@@ -1,3 +1,7 @@
+# ? (v1.2.7)
+
+* upgrade to streamly 0.11.1 along with curryer-rpc	
+	
 # 2026-03-01 (v1.2.6)
 
 * add support for inlining TutorialD expressions in Haskell using Quasiquoters
