@@ -76,8 +76,8 @@ let
       
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.5.1";
-		      sha256 = "sha256-4a6iNNTvMwox4RzdeLue2tyysEXosu9aNWCXCQLNyWc="; } {};
+		      ver = "0.5.2";
+		      sha256 = "sha256-t0hjNe+SQSPXVolU/9dbSkBo0pEd58sI/BfF4h31eQw="; } {};
 
       ech-config = self.callHackageDirect {
       		    pkg = "ech-config";
@@ -151,13 +151,13 @@ let
 
       streamly = doJailbreak (self.callHackageDirect {
                    pkg = "streamly";
-		   ver = "0.10.1";
+		   ver = "0.11.1";
 		   sha256 = "sha256-9tWZ/8YteD9ljhEmj8oYKIAyFcbQflX0D20j/NTe3qM="; } {});
 
       streamly-core = self.callHackageDirect {
       		    pkg = "streamly-core";
-		    ver = "0.2.2";
-  		    sha256 = "sha256-Ggo5ius3dp/TJFfrZSk31A6gSZHA6kLMtxFKe9MIvqQ="; } {};
+		    ver = "0.3.1";
+  		    sha256 = "sha256-k9h+I74GNsluf55hJFDZiLwEO2x9moFvtCarCeCpaa4="; } {};
 		    
       streamly-bytestring = self.callHackageDirect {
                     pkg = "streamly-bytestring";
