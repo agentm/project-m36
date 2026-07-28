@@ -3,10 +3,10 @@ packages:
   - "."
 
 extra-deps:
-  - curryer-rpc-0.5.1
-  - streamly-0.10.1
-  - streamly-core-0.2.2
-  - streamly-bytestring-0.2.2
+  - curryer-rpc-0.5.2
+  - streamly-0.11.1
+  - streamly-core-0.3.1
+  - streamly-bytestring-0.2.3
   - fast-builder-0.1.4.0
   - rset-1.0.0
   - winery-1.5
