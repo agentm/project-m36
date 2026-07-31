@@ -43,6 +43,7 @@ jobs:
       STACK_YAML: stack.ghc${{ matrix.ghc_version }}.yaml
     steps:
       - uses: actions/checkout@v4
+      - uses: haskell/ghcup-setup@v1
       - name: Cache
         uses: actions/cache@v4
         with:
@@ -58,12 +59,6 @@ jobs:
       - name: Install ghcup dependencies
         run: sudo apt-get install build-essential curl libffi-dev libffi8ubuntu1 libgmp-dev libgmp10 libncurses-dev libncurses6 libtinfo6
         if: runner.os == 'Linux'
-      - name: Setup GHCUp
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
-          echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
-          ls -al $HOME/.ghcup/bin
-          echo $GITHUB_PATH
       - name: Install GHC
         run: ghcup install ghc ${{ matrix.ghc_version }}
       - name: Install Stack

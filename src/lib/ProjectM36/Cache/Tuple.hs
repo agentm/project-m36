@@ -159,7 +159,7 @@ readTupleStream h = SD.unCross $ do
           Right tuples' -> do
 --            print ("readTupleBlock", tuples')
             pure $ SP.fromList tuples'
-  SD.mkCross $ SP.concatMapM readTupleBlock (SP.fromList (V.toList (blockSizes tupleCacheInfo)))
+  SD.Nested $ SP.concatMapM readTupleBlock (SP.fromList (V.toList (blockSizes tupleCacheInfo)))
   
 deserialiseOnly' :: forall s. Serialise s => BS.ByteString -> Either WineryException s
 deserialiseOnly' bytes = do

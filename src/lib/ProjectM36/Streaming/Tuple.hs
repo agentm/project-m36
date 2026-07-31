@@ -139,7 +139,7 @@ group' groupAttrs newAttrName attrs tupsIn = SD.unCross $ do
   groupedMap <- lift $ S.foldr groupFolder HM.empty tupsIn
   case HM.foldrWithKey tupleGenerator (Right []) groupedMap of
     Left err -> throwM err
-    Right tuples -> SD.mkCross (SP.fromList tuples)
+    Right tuples -> SD.Nested (SP.fromList tuples)
         
 attributesForRelval :: AttributeName -> Attributes -> Either RelationalError Attributes
 attributesForRelval relvalAttrName attrs = do

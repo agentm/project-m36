@@ -76,8 +76,8 @@ let
       
       curryer-rpc = self.callHackageDirect {
                       pkg = "curryer-rpc";
-		      ver = "0.5.1";
-		      sha256 = "sha256-4a6iNNTvMwox4RzdeLue2tyysEXosu9aNWCXCQLNyWc="; } {};
+		      ver = "0.5.2";
+		      sha256 = "sha256-t0hjNe+SQSPXVolU/9dbSkBo0pEd58sI/BfF4h31eQw="; } {};
 
       ech-config = self.callHackageDirect {
       		    pkg = "ech-config";
@@ -151,18 +151,18 @@ let
 
       streamly = doJailbreak (self.callHackageDirect {
                    pkg = "streamly";
-		   ver = "0.10.1";
-		   sha256 = "sha256-9tWZ/8YteD9ljhEmj8oYKIAyFcbQflX0D20j/NTe3qM="; } {});
+		   ver = "0.11.1";
+		   sha256 = "sha256-4h1MwaN7eXMvzXKyjggIjjR3BlsGzl4vfCO7VBGGvrc="; } {});
 
       streamly-core = self.callHackageDirect {
       		    pkg = "streamly-core";
-		    ver = "0.2.2";
-  		    sha256 = "sha256-Ggo5ius3dp/TJFfrZSk31A6gSZHA6kLMtxFKe9MIvqQ="; } {};
-		    
-      streamly-bytestring = self.callHackageDirect {
+		    ver = "0.3.1";
+  		    sha256 = "sha256-k9h+I74GNsluf55hJFDZiLwEO2x9moFvtCarCeCpaa4="; } {};
+#	jailbreak because 0.2.3	used a revision	to update module bounds, but nix won't	pick up	the revision		    
+      streamly-bytestring = doJailbreak (self.callHackageDirect {
                     pkg = "streamly-bytestring";
 		    ver = "0.2.3";
-  		    sha256 = "sha256-ZBV7RO6ibwNKA8S/zr2r31YTQYk4vrP5d7dieTC71hY="; } {};
+  		    sha256 = "sha256-ZBV7RO6ibwNKA8S/zr2r31YTQYk4vrP5d7dieTC71hY="; } {});
 
       text-iso8601 = doJailbreak super.text-iso8601;
       time-compat = doJailbreak super.time-compat;
