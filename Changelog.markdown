@@ -1,6 +1,6 @@
 # ? (v1.2.7)
 
-* upgrade to streamly 0.11.1 along with curryer-rpc	
+* upgrade to streamly 0.11.1 along with curryer-rpc 0.5.2
 	
 # 2026-03-01 (v1.2.6)
 
