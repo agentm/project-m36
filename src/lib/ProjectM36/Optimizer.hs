@@ -1,74 +1,128 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Tracks hotspots in the database usage and suggests database reorganization and caching optimizations. The first half of this optimizer tracks hotspots in the database by analyzing which data is most heavily accessed (read/written). The second half of the module uses this statistical data to suggest how to rearrange the database to better serve the hotspots. This can include planning and\/or running queries to determine if the suggestions are useful.
 module ProjectM36.Optimizer where
+import qualified ProjectM36.StaticOptimizer as StaticOpt
+import qualified ProjectM36.CostBasedOptimizer as CostBasedOpt
+import ProjectM36.Cache.RelationalExprCache as RelExprCache
+import ProjectM36.RelationalExpression
 import ProjectM36.Base
-import ProjectM36.Cache.RelationalExprCache
-import qualified Data.HashPSQ as Q
-import Data.Time.Clock (NominalDiffTime)
-import Data.Hashable
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransGraphRelationalExpression as TGRE
+import ProjectM36.Error
+import ProjectM36.NormalizeExpr
+import ProjectM36.Streaming.RelationalExpression
+import ProjectM36.PinnedRelationalExpr
+import ProjectM36.Relation
+import ProjectM36.SystemMemory
+
 import Control.Monad.STM
+import System.Random
+import Data.Time.Clock
+import Control.Exception
+import Control.DeepSeq
+import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.Except
 
--- | Stores hashes of relational algebra snippets from real queries alongwith their costs. This allows us to capture high-level requests resulting in low-level results (time cost). The optimizer then suggests to the cache what and how to improve. In the future, we could track IO and CPU cost, but streamly does not make that easy now.
+-- | Context needed to run optimizer.
+data OptimizerEnv r =
+  OptimizerEnv {
+   optCache :: RelExprCache,
+   optStats :: CostBasedOpt.OptimizerStats,
+   optRandomGen :: r
+   }
+  
+-- apply static optimizer first, then cost-based optimizer, finally execute the optimized query
+optimizeAndEvalRelationalExpr :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> RelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalRelationalExpr optEnv relExprEnv expr = do
+  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+      graph = re_graph relExprEnv
+      ctx = re_context relExprEnv
+      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
+  --first, type check
+  case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
+    Left err -> pure (Left err)
+    Right _ -> do
+      -- then, apply static optimizations
+      case StaticOpt.runGraphRefSOptRelationalExprM (Just ctx) (re_graph relExprEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
+        Left err -> pure (Left err)
+        Right staticOptGfExpr -> do
+          -- next, apply cost-based optimizations
+          (optGfExpr, _suggestions) <- atomically $ CostBasedOpt.optimizeGraphRefRelationalExpr (optCache optEnv) (optStats optEnv) staticOptGfExpr
+          -- note suggestions for background experiments
+          evalGraphRefRelationalExprWithCache optEnv gfEnv optGfExpr
 
-type Cost = NominalDiffTime
+  
+-- | For internal use- expression argument should pass through static optimizer beforehand.
+evalGraphRefRelationalExprWithCache :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> IO (Either RelationalError Relation)
+evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
+  case planGraphRefRelationalExpr gfExpr gfEnv of
+    Left err -> pure (Left err)
+    Right plan -> do
+      startExecTime <- getCurrentTime
+      exec <- executePlan plan mempty gfEnv mempty (optCache optEnv) -- try/catch to handle exceptions
+      case exec of
+        Left err -> pure (Left err)
+        Right resultStream -> do
+          --convert tuple stream into relation- we could push the results to the socket directly without materializing the entire relation
+          relationResult <- streamRelationAsRelation resultStream
+          relationResult' <- evaluate (force relationResult)
+          endExecTime <- getCurrentTime
+          let execDiffTime = endExecTime `diffUTCTime` startExecTime
+          --add to the cache- we cannot add uncommitted data to the cache since uncommitted data does not have a unique key (transaction id) (should uncommitted data be able to be cached with a transaction id that has not been committed?)
+              mCacheKey :: Maybe (RelationalExprBase TransactionId)
+              mCacheKey = originalRelExpr plan >>= toPinnedRelationalExpr
+              cacheValue = UnsortedTupleSetRep (attributes relationResult') (tupleSet relationResult')
+              --cacheValue = PinnedExpressionRep (ExistingRelation relationResult') -- ideally, we would cache the expensive parts of the plan, not just the top-level result
+          case mCacheKey of
+            Nothing -> pure (Right relationResult')
+            Just cacheKey -> do
+              eMemStats <- getMemoryStats -- consider running mem stats less often if it's a bottleneck
+              case eMemStats of
+                Left err -> pure (Left (SystemError err))
+                Right memStats -> do
+                  void $ atomically $
+                    let rando = optRandomGen optEnv in
+                    RelExprCache.add rando cacheKey cacheValue execDiffTime False memStats (optCache optEnv)
+                  pure (Right relationResult')
 
-newtype OrdGraphRefRelationalExpr = OrdGraphRefRelationalExpr { _gfExpr :: GraphRefRelationalExpr }
- deriving (Eq, Hashable, Show)
+-- | Optimization can be disabled due to missing context in isomorphic transformations.
+optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr' -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr runOpt expr = do
+  graph <- asks dce_graph
+  transId <- asks dce_transId
+  context <- getStateContext
+  dbcfuncutils <- asks dce_dbcfuncutils
+  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
+      eOptExpr = if runOpt then
+                   StaticOpt.runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr)
+                   else
+                   pure gfExpr
+  case eOptExpr of
+    Left err -> throwError err
+    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
-instance Ord OrdGraphRefRelationalExpr where
-  compare a b = show a `compare` show b -- this will only be called rarely on a hash collision, so this cheap implementation should be good enough for now
+optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
+optimizeAndEvalDatabaseContextIOExpr expr = do
+  transId <- asks dbcio_transId
+  ctx <- getDBCIOContext
+  graph <- asks dbcio_graph
+  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
+      eOptExpr = StaticOpt.runGraphRefSOptDatabaseContextIOExprM transId ctx graph (StaticOpt.optimizeDatabaseContextIOExpr gfExpr)
+  case eOptExpr of
+    Left err -> throwError err
+    Right optExpr ->
+      evalGraphRefDatabaseContextIOExpr optExpr
 
-{-
-data QItem = QItem GraphRefRelationalExpr Cost
- deriving (Eq)
+optimizeAndEvalTransGraphRelationalExprWithCache :: RandomGen r => OptimizerEnv r -> TransactionGraph -> TransGraphRelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalTransGraphRelationalExprWithCache optEnv graph tgExpr = do
+  let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
+      res = do
+        gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
+        _typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+        StaticOpt.runGraphRefSOptRelationalExprM Nothing graph (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr)
+  case res of
+    Left err -> pure (Left err)
+    Right optExpr ->
+      evalGraphRefRelationalExprWithCache optEnv gfEnv optExpr
 
-instance Ord QItem where
-  compare (QItem _ a) (QItem _ b) = a `compare` b
--}
-
--- The maximum size of the queue should be guided by the amount of time it takes to insert a new value. If the value is too high relative to the rest of the query planner, then reduce the max size.
-data OptimizerStats = OptimizerStats {
-  queue :: Q.HashPSQ OrdGraphRefRelationalExpr Cost (),
-  maxSize :: Int
-  }
-
-mostExpensiveItem :: OptimizerStats -> Maybe GraphRefRelationalExpr
-mostExpensiveItem stats =
-  case Q.findMin (queue stats) of
-    Nothing -> Nothing
-    Just (k, _p, ()) -> Just (_gfExpr k)
-
-recordCost :: OptimizerStats -> Cost -> GraphRefRelationalExpr -> OptimizerStats
-recordCost stats currentCost gfExpr =
-  stats { queue = truncateQ $ Q.insert (OrdGraphRefRelationalExpr gfExpr) (negate currentCost) () (queue stats)
-        }
-  where
-    truncateQ q = if Q.size q > maxSize stats then
-      Q.fromList $ take (maxSize stats) (Q.toList q)
-      else
-      q
-
-
--- should this examine the existing relexprcache state?
-suggestOptimization :: RelExprCache -> OptimizerStats -> STM [ReorgSuggestion]
-suggestOptimization _cache stats =
-  case mostExpensiveItem stats of
-    Nothing -> pure [] 
-    Just expr ->
-      case expr of
-        Project{} -> pure [AddBtreeSuggestion expr]
-        _ -> pure []
-
--- | Create the suggested optimization and test that the cost is reduced.
---runExperiment :: ReorgSuggestion -> GraphRefRelationalExpr -> Cost -> IO Cost
---runExperiment suggestion gfExpr unoptimizedCost = postOptCost
--- the relational expression can be used as a reason for creating the suggested btree representation
-data ReorgSuggestion = AddBtreeSuggestion GraphRefRelationalExpr | 
-                       RemoveBtreeSuggestion GraphRefRelationalExpr 
-
--- PDF: f(x) = (alpha * xm^alpha) / x^(alpha+1)   for x >= xm
-paretoProbabilityDistributionF :: Double -> Double -> Double -> Double
-paretoProbabilityDistributionF xm alpha x
-  | xm <= 0 || alpha <= 0 = error "xm and alpha must be > 0"
-  | x < xm                = 0.0
-  | otherwise             = (alpha * xm ** alpha) / (x ** (alpha + 1))

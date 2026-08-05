@@ -166,6 +166,7 @@ Library
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.Optimizer,
                      ProjectM36.StaticOptimizer,
+                     ProjectM36.CostBasedOptimizer,
                      ProjectM36.Relation.Show.Term,
                      ProjectM36.WCWidth,
                      ProjectM36.Relation.Show.CSV,

@@ -143,7 +143,9 @@ import qualified ProjectM36.DatabaseContext as DBC
 import ProjectM36.DatabaseContext.Types (DatabaseContext, notifications)
 import ProjectM36.Atomable
 import ProjectM36.AtomFunction as AF
-import ProjectM36.StaticOptimizer
+import qualified ProjectM36.Optimizer as Opt
+import qualified ProjectM36.CostBasedOptimizer as CostBasedOpt
+import qualified ProjectM36.StaticOptimizer as StaticOpt
 import ProjectM36.Key
 import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
@@ -348,6 +350,7 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
         cache <- RelExprCache.empty maxCacheSize
         loginRoles <- LoginRoles.openNoPersistence
         LoginRoles.setupDatabaseIfNecessary loginRoles
+        let costStats = CostBasedOpt.emptyStats
         let conn = InProcessConnection InProcessConnectionConf {
                     ipPersistenceStrategy = strat, 
                     ipClientNodes = clientNodes, 
@@ -359,7 +362,8 @@ connectProjectM36 (InProcessConnectionInfo strat notificationCallback ghcPkgPath
                     ipRelExprCache = cache,
                     ipLoginRoles = loginRoles,
                     ipRoleName = roleName,
-                    ipRandomGen = rando
+                    ipRandomGen = rando,
+                    ipCostStats = costStats
                   }
         pure (Right conn)
     MinimalPersistence dbdir -> connectPersistentProjectM36 strat NoDiskSync dbdir freshGraph notificationCallback ghcPkgPaths rando roleName
@@ -384,6 +388,13 @@ connectProjectM36 (RemoteConnectionInfo dbName remoteAddress connConfig notifica
         Right True ->
       --TODO handle connection errors!
           pure (Right (RemoteConnection (RemoteConnectionConf conn)))
+
+mkOptEnv :: InProcessConnectionConf -> Opt.OptimizerEnv StdGen
+mkOptEnv conf =
+  Opt.OptimizerEnv { Opt.optCache = ipRelExprCache conf,
+                     Opt.optStats = ipCostStats conf,
+                     Opt.optRandomGen = ipRandomGen conf
+                   }
 
 --convert RPC errors into exceptions
 convertRPCErrors :: SRPC.ConnectionError -> IO a
@@ -443,6 +454,7 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
               maxCacheSize <- RelExprCache.defaultUpperBound
               cache <- RelExprCache.empty maxCacheSize
               loginRoles <- LoginRoles.open (dbdir </> "loginroles.sqlite3")
+              let costStats = CostBasedOpt.emptyStats              
               let conn = InProcessConnection InProcessConnectionConf {
                           ipPersistenceStrategy = strat,
                           ipClientNodes = clientNodes,
@@ -454,7 +466,8 @@ connectPersistentProjectM36 strat sync dbdir freshGraph notificationCallback ghc
                           ipRelExprCache = cache,
                           ipLoginRoles = loginRoles,
                           ipRoleName = roleName,
-                          ipRandomGen = rando
+                          ipRandomGen = rando,
+                          ipCostStats = costStats
                         }
               pure (Right conn)
 
@@ -641,7 +654,7 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
           case applyACLRelationalExpr roleIds (relvarsACL acl') rexpr of
             Left err -> pure (Left err)
             Right () -> do
-              qres <- optimizeAndEvalRelationalExpr' reEnv rexpr (ipRelExprCache conf)
+              qres <- Opt.optimizeAndEvalRelationalExpr (mkOptEnv conf) reEnv rexpr
               case qres of
                 Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
                 Left err -> pure (Left err)
@@ -674,19 +687,19 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
                     case resolveRoleIds roleNameResolver dbexpr' of
                       Left err -> Left err
                       Right dbexpr'' ->
-                        case RE.runDatabaseContextEvalMonad ctx' env (optimizeAndEvalDatabaseContextExpr True dbexpr'') of
+                        case RE.runDatabaseContextEvalMonad ctx' env (Opt.optimizeAndEvalDatabaseContextExpr True dbexpr'') of
                           Left err -> Left err
                           Right reState -> pure (RE.dbc_context reState)
                       ,
                 DBC.executeRelationalExpr = \ctx' relExpr ->
                           let reEnv = RE.mkRelationalExprEnv ctx' graph in 
-                          optimizeAndEvalRelationalExpr reEnv relExpr
+                          StaticOpt.optimizeAndEvalRelationalExpr reEnv relExpr
                       }
               env = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils
               transId = Sess.parentId session
               runExpr = do
                 applyACLDatabaseContextExpr roleIds expr''
-                optimizeAndEvalDatabaseContextExpr True expr''
+                Opt.optimizeAndEvalDatabaseContextExpr True expr''
           case RE.runDatabaseContextEvalMonad ctx env runExpr of
             Left err -> pure (Left err)
             Right newState ->
@@ -788,13 +801,13 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
                     case resolveRoleIds roleNameResolver expr' of
                       Left err -> Left err
                       Right expr'' ->
-                        case RE.runDatabaseContextEvalMonad ctx' dbcEnv (optimizeAndEvalDatabaseContextExpr True expr'') of
+                        case RE.runDatabaseContextEvalMonad ctx' dbcEnv (Opt.optimizeAndEvalDatabaseContextExpr True expr'') of
                           Left err -> Left err
                           Right reState -> pure (RE.dbc_context reState)
                       ,
             DBC.executeRelationalExpr = \ctx' relExpr ->
                           let reEnv = RE.mkRelationalExprEnv ctx' graph in 
-                          optimizeAndEvalRelationalExpr reEnv relExpr
+                          StaticOpt.optimizeAndEvalRelationalExpr reEnv relExpr
             }
           objFilesPath = objectFilesPath <$> persistenceDirectory (ipPersistenceStrategy conf)
           transId = Sess.parentId session
@@ -802,7 +815,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
           runExpr = do
             --check perms
             applyACLDatabaseContextIOExpr roleIds expr
-            optimizeAndEvalDatabaseContextIOExpr expr
+            Opt.optimizeAndEvalDatabaseContextIOExpr expr
       res <- RE.runDatabaseContextIOEvalMonad env context runExpr
       case res of
         Left err -> pure (Left err)
@@ -832,7 +845,7 @@ executeCommitExprSTM_ graph oldContext newContext nodes = do
             Right nots' -> pure nots'
   let fireNots = notificationChanges nots graph oldContext newContext
       evaldNots = M.map mkEvaldNot fireNots
-      evalInContext expr ctx = optimizeAndEvalRelationalExpr (RE.mkRelationalExprEnv ctx graph) expr
+      evalInContext expr ctx = StaticOpt.optimizeAndEvalRelationalExpr (RE.mkRelationalExprEnv ctx graph) expr
  
       mkEvaldNot notif = EvaluatedNotification { notification = notif, 
                                                  reportOldRelation = evalInContext (reportOldExpr notif) oldContext,
@@ -925,8 +938,9 @@ executeTransGraphRelationalExpr sessionId (InProcessConnection conf) tgraphExpr 
                   Right () -> pure (Right graph)
   case eGraph of
     Left err -> pure (Left err)
-    Right graph -> 
-      optimizeAndEvalTransGraphRelationalExprWithCache (ipRandomGen conf) graph tgraphExpr (ipRelExprCache conf)
+    Right graph -> do
+      let optEnv = mkOptEnv conf
+      Opt.optimizeAndEvalTransGraphRelationalExprWithCache optEnv graph tgraphExpr
   
 executeTransGraphRelationalExpr sessionId conn@(RemoteConnection _) tgraphExpr = remoteCall conn (ExecuteTransGraphRelationalExpr sessionId tgraphExpr)  
 
@@ -961,14 +975,14 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = do
                               case resolveRoleIds roleNameResolver dbexpr of
                                 Left err -> Left err
                                 Right expr'' ->
-                                  case RE.runDatabaseContextEvalMonad ctx' dbcEnv (optimizeAndEvalDatabaseContextExpr True expr'') of
+                                  case RE.runDatabaseContextEvalMonad ctx' dbcEnv (Opt.optimizeAndEvalDatabaseContextExpr True expr'') of
                                     Left err -> Left err
                                     Right reState -> pure (RE.dbc_context reState)
                               ,
                         DBC.executeRelationalExpr =
                         \ctx' relExpr ->
                           let reEnv = RE.mkRelationalExprEnv ctx' graph in 
-                          optimizeAndEvalRelationalExpr reEnv relExpr
+                          StaticOpt.optimizeAndEvalRelationalExpr reEnv relExpr
                         }
                   case Schema.evalSchemaExpr schemaExpr context transId graph dbcFunctionUtils subschemas' of
                     Left err -> pure (Left err)
@@ -1116,7 +1130,7 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
                     DBC.executeDatabaseContextExpr = undefined,
                     DBC.executeRelationalExpr = undefined
                     }
-              case runGraphRefSOptDatabaseContextExprM transId ctx graph dbcFuncUtils (optimizeGraphRefDatabaseContextExpr gfExpr') of
+              case StaticOpt.runGraphRefSOptDatabaseContextExprM transId ctx graph dbcFuncUtils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr') of
                 Left err -> pure (Left err)
                 Right optExpr -> 
               -- convert roleIds back roleNames to avoid leaking role ids to the client
@@ -1542,7 +1556,7 @@ convertSQLDBUpdates sessionId (InProcessConnection conf) updates = do
       Right (session, _schema) -> do -- TODO: enable SQL to leverage isomorphic schemas
         let ctx = Sess.concreteDatabaseContext session
             reEnv = RE.mkRelationalExprEnv ctx transGraph
-            typeF = optimizeAndEvalRelationalExpr reEnv -- TODO: replace with typeForRelationalExpr
+            typeF = StaticOpt.optimizeAndEvalRelationalExpr reEnv -- TODO: replace with typeForRelationalExpr
         -- convert SQL data into DataFrameExpr
         case evalConvertM mempty (convertDBUpdates typeF updates) of
           Left err -> pure (Left (SQLConversionError err))
@@ -1584,6 +1598,7 @@ data InProcessConnectionConf = InProcessConnectionConf {
   ipLocks :: Maybe (LockFile, MVar LockFileHash), -- nothing when NoPersistence
   ipCallbackAsync :: Async (),
   ipRelExprCache :: RelExprCache, -- can the remote client also include such a pinned expr cache? should that cache be controlled by the server or client?
+  ipCostStats :: CostBasedOpt.OptimizerStats,
   ipLoginRoles :: LoginRoles.LoginRolesDB, -- ^ roles allowed to connect to the database, access control is otherwise handled by ACLs in the database context
   ipRoleName :: RoleName, -- ^ role name for the user accessing the database
   ipRandomGen :: StdGen -- ^ random number generator
