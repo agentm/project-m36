@@ -38,7 +38,10 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (second)
 import Data.Maybe
 import Data.Either
---import Data.List (foldl')
+#if MIN_VERSION_base(4,20,0)
+#else
+import Data.List (foldl')
+#endif
 import Data.Char (isUpper)
 import Data.Time
 import qualified Data.List.NonEmpty as NE

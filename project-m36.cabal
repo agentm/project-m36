@@ -89,7 +89,7 @@ Library
                   QuickCheck,
                   quickcheck-instances,
                   list-t,
-                  stm-containers >= 0.2.15,
+                  stm-containers >= 1.2.2,
                   foldl,
                   optparse-applicative,
                   Glob,

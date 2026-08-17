@@ -41,7 +41,10 @@ instance Hashable UTCTime where
         salt `hashWithSalt` d `hashWithSalt` dt
 
 instance Hashable DiffTime where
-    hashWithSalt salt = hashWithSalt salt . toRational        
+    hashWithSalt salt = hashWithSalt salt . toRational
+
+instance Hashable NominalDiffTime where
+    hashWithSalt salt = hashWithSalt salt . toRational    
 
 -- | Database atoms are the smallest, undecomposable units of a tuple. Common examples are integers, text, or unique identity keys.
 data Atom = IntegerAtom !Integer |

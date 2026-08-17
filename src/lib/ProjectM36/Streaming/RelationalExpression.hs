@@ -310,7 +310,8 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                   if cacheKey `HS.member` cacheKeyBlackList then -- the blacklist prevents infinite recursion into the cache
                     pure Nothing
                   else do
-                    liftIO $ atomically $ RECache.lookup cacheKey cache
+                    -- in the future, we may want to examine something other than the fastest entry, for example, to reduce IO or CPU usage
+                    liftIO $ atomically $ RECache.lookupFastestEntry cacheKey cache
                 case mCachedVal of -- check if the key is in the cache
                   Nothing -> noCacheExec
                   Just cacheInfo ->

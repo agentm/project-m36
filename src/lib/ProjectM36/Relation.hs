@@ -17,7 +17,10 @@ import qualified Data.Text as T
 import Data.Either (isRight)
 import System.Random.Shuffle
 import Control.Monad.Random
---import Data.List (foldl')
+#if MIN_VERSION_base(4,20,0)
+#else
+import Data.List (foldl')
+#endif
 
 attributes :: Relation -> Attributes
 attributes (Relation attrs _ ) = attrs

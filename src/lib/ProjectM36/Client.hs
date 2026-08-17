@@ -262,7 +262,6 @@ data EvaluatedNotification = EvaluatedNotification {
   }
   deriving (Eq, Show, Generic)
   deriving Serialise via WineryRecord EvaluatedNotification
-                      
 
 -- | Use this for connecting to remote servers on the default port.
 defaultServerPort :: Port

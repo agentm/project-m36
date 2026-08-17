@@ -24,6 +24,23 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
 
+-- Rationale: heuristics are quickly out-of-date and never hardware-specific enough. When we start using the database, we can rely on obvious trade-offs (such as creating a oft-used btree representation), but we should rely on experiments and projections from those experiments for future optimization decision-making, thus reducing reliance on heuristics, knobs to adjust heuristics, and statistics. This optimizer is largely based on trying different query execution strategies whenever possible. Then, we want to record the results of the experiments as our source of performance truths.
+
+-- Logic: execute with what is available now, add experiments with cost comparisons to run in the background. B-tree indexes are often a no-brainer on expensive parts of a query, just as humans add them willy-nilly, but we track when they're no longer worth keeping around.
+
+{-
+Phase I:
+The optimizer makes a plan based on available representations. In memory representations only.
+
+Phase II:
+The executor can switch the plan while executing if it finds a faster representation. This can happen if a background process has added a representation after the planning phase, but before execution.
+
+Phase III:
+The planner can now create new representations if its deems it worthwhile. For example, the planner can create a btree representation if the cost of doing so is amortized by the rest of the plan.
+
+In the background, an experimenter thread receives suggestions from the planner for experiments that it should run, thereby creating new representations in the background.
+-}
+
 -- | Context needed to run optimizer.
 data OptimizerEnv r =
   OptimizerEnv {

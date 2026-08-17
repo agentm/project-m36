@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ProjectM36.CostBasedOptimizer where
 import ProjectM36.Base
-import ProjectM36.Cache.RelationalExprCache
+import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import qualified Data.HashPSQ as Q
 import Data.Time.Clock (NominalDiffTime)
 import Data.Hashable
@@ -10,7 +10,7 @@ import Control.Monad.STM
 type Cost = NominalDiffTime
 
 -- | Stores hashes of relational algebra snippets from real queries alongwith their costs. This allows us to capture high-level requests resulting in low-level results (time cost). The optimizer then suggests to the cache what and how to improve. In the future, we could track IO and CPU cost, but streamly does not make that easy now.
-newtype OrdGraphRefRelationalExpr = OrdGraphRefRelationalExpr { _gfExpr :: GraphRefRelationalExpr }
+newtype OrdGraphRefRelationalExpr = OrdGraphRefRelationalExpr { _gfExpr :: PinnedRelationalExpr }
  deriving (Eq, Hashable, Show)
 
 instance Ord OrdGraphRefRelationalExpr where
@@ -37,13 +37,13 @@ emptyStats =
   maxSize = 100
   }
 
-mostExpensiveItem :: OptimizerStats -> Maybe GraphRefRelationalExpr
+mostExpensiveItem :: OptimizerStats -> Maybe PinnedRelationalExpr
 mostExpensiveItem stats =
   case Q.findMin (queue stats) of
     Nothing -> Nothing
     Just (k, _p, ()) -> Just (_gfExpr k)
 
-recordCost :: OptimizerStats -> Cost -> GraphRefRelationalExpr -> OptimizerStats
+recordCost :: OptimizerStats -> Cost -> PinnedRelationalExpr -> OptimizerStats
 recordCost stats currentCost gfExpr =
   stats { queue = truncateQ $ Q.insert (OrdGraphRefRelationalExpr gfExpr) (negate currentCost) () (queue stats)
         }
@@ -56,20 +56,26 @@ recordCost stats currentCost gfExpr =
 
 -- should this examine the existing relexprcache state?
 suggestOptimization :: RelExprCache -> OptimizerStats -> STM [ReorgSuggestion]
-suggestOptimization _cache stats =
+suggestOptimization cache stats =
   case mostExpensiveItem stats of
     Nothing -> pure [] 
     Just expr ->
       case expr of
-        Project{} -> pure [AddBtreeSuggestion expr]
+        Project{} -> do
+          --check that the btree representation is not already in the cache
+          mCacheInfos <- RelExprCache.lookup expr cache
+          case mCacheInfos of
+            Nothing ->
+              pure [AddBtreeSuggestion expr]
+            Just _ -> pure []
         _ -> pure []
 
 -- | Create the suggested optimization and test that the cost is reduced.
 --runExperiment :: ReorgSuggestion -> GraphRefRelationalExpr -> Cost -> IO Cost
 --runExperiment suggestion gfExpr unoptimizedCost = postOptCost
 -- the relational expression can be used as a reason for creating the suggested btree representation
-data ReorgSuggestion = AddBtreeSuggestion GraphRefRelationalExpr | 
-                       RemoveBtreeSuggestion GraphRefRelationalExpr 
+data ReorgSuggestion = AddBtreeSuggestion PinnedRelationalExpr | 
+                       RemoveBtreeSuggestion PinnedRelationalExpr 
 
 -- PDF: f(x) = (alpha * xm^alpha) / x^(alpha+1)   for x >= xm
 paretoProbabilityDistributionF :: Double -> Double -> Double -> Double
