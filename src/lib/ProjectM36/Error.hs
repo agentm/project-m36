@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (RelationalExpr)
 import ProjectM36.MerkleHash
 import ProjectM36.AtomFunctionError
 import ProjectM36.IsomorphicSchema.Types

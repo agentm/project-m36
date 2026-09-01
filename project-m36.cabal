@@ -74,6 +74,7 @@ Library
                   stm,
                   time,
                   old-locale,
+                  time-compat,
                   rset,
                   attoparsec,
                   either,
@@ -114,7 +115,9 @@ Library
                   system-linux-proc,
                   megaparsec,
                   haskeline,
-                  psqueues
+                  psqueues,
+                  s-tree,
+                  vector-algorithms
     if flag(haskell-scripting)
         Build-Depends: ghc >= 9.0
         CPP-Options: -DPM36_HASKELL_SCRIPTING
@@ -135,12 +138,14 @@ Library
                      ProjectM36.TransactionGraph.Merge,
                      ProjectM36.TransGraphRelationalExpression,
                      ProjectM36.Base,
+                     ProjectM36.AttributeNamesExprBase,
+                     ProjectM36.AttributeNamesBase,
                      ProjectM36.Serialise.Base,
                      ProjectM36.Serialise.Error,
                      ProjectM36.Serialise.LoginRoles,
                      ProjectM36.DataFrame,
                      ProjectM36.Attribute,
-                     ProjectM36.AttributeNames,
+                     ProjectM36.AttributeNamesExpr,
                      ProjectM36.Tuple,
                      ProjectM36.TupleSet,
                      ProjectM36.RelationVariablesMentioned,
@@ -165,6 +170,7 @@ Library
                      ProjectM36.RelationalExpression,
                      ProjectM36.Relation.Show.HTML,
                      ProjectM36.Optimizer,
+                     ProjectM36.Optimizer.Experimenter,
                      ProjectM36.StaticOptimizer,
                      ProjectM36.CostBasedOptimizer,
                      ProjectM36.Relation.Show.Term,
@@ -256,7 +262,9 @@ Library
                      ProjectM36.PrettyBytes,
                      ProjectM36.Module,
                      ProjectM36.Interpreter,
-                     ProjectM36.Cli
+                     ProjectM36.Cli,
+                     ProjectM36.Relation.Representation,
+                     ProjectM36.Relation.Representation.BTree
     GHC-Options: -Wall -rdynamic
     if os(windows)
       Build-Depends: Win32 >= 2.12
@@ -359,7 +367,8 @@ Library project-m36-sqlegacy
                    SQL.Interpreter.Info
     Other-Modules:
         TutorialD.Printer,
-        TutorialD.Interpreter.Base        
+        TutorialD.Interpreter.Base
+
 Executable tutd
     Build-Depends: base >=4.17,
                    ghc-paths,

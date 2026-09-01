@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes, MultiParamTypeClasses, ExistentialQuantification #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (RelationalExpr)
 import ProjectM36.DatabaseContext.Types as DBT
 import ProjectM36.ValueMarker as VM
 import Control.Monad (void)
@@ -24,7 +25,7 @@ empty = DatabaseContext { inclusionDependencies = emptyValue,
                           }
   
 -- | Remove TransactionId markers on GraphRefRelationalExpr
-stripGraphRefRelationalExpr :: GraphRefRelationalExpr -> RelationalExpr
+stripGraphRefRelationalExpr :: RelationalExprBase at GraphRefTransactionMarker -> RelationalExprBase at ()
 stripGraphRefRelationalExpr = void
 
 -- | If the database context has any values which do *not* reference previous transactions, it must be new data.
@@ -39,7 +40,7 @@ isUpdated ctx = or [VM.valueIsUpdated (inclusionDependencies ctx),
                      VM.valueIsUpdated (acl ctx)
                    ]
 
-someDatabaseContextExprs :: [DatabaseContextExpr] -> DatabaseContextExpr
+someDatabaseContextExprs :: [DatabaseContextExprBase at a r] -> DatabaseContextExprBase at a r
 someDatabaseContextExprs [s] = s
 someDatabaseContextExprs (s:ss) = MultipleExpr (s:ss)
 someDatabaseContextExprs [] = NoOperation

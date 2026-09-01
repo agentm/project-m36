@@ -2,6 +2,7 @@
 {- A dataframe is a strongly-typed, ordered list of named tuples. A dataframe differs from a relation in that its tuples are ordered.-}
 module ProjectM36.DataFrame where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (RelationalExpr)
 import qualified ProjectM36.Attribute as A hiding (drop)
 import ProjectM36.Error
 import qualified ProjectM36.Relation as R

@@ -12,6 +12,9 @@ import ProjectM36.Cache.RelationalExprCache as RECache
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.Relation (RestrictionFilter, ContextTuples, attributes, contextTupleAtomForAttributeName, tupleSet)
 import ProjectM36.WithNameExpr
+import qualified ProjectM36.Relation.Representation.BTree as BT
+import ProjectM36.Relation.Representation
+
 import Streamly.Data.Stream (Stream)
 import qualified Streamly.Data.Stream as Stream
 import qualified Streamly.Data.Stream.Prelude as Stream
@@ -195,6 +198,7 @@ planGraphRefRelationalExpr orig@(RelationValuedAttribute relAttrName) gfEnv = do
       pure (RelationValuedAttributeStreamPlan relAttr () orig)
   
 planGraphRefRelationalExpr orig@(Project attrNames expr) gfEnv = do
+  -- if the expression is a Ord-based restriction on attribute A and the projection is on attribute A, we can suggest a simple btree for filtering
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
   projectionAttrNames <- runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames attrNames expr)
   case projectionAttributesForNames projectionAttrNames (attributes exprT) of
@@ -316,6 +320,9 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                   Nothing -> noCacheExec
                   Just cacheInfo ->
                     case result cacheInfo of
+                      -- a btree is probably not that valuable here, but we may have this format for a different query and use it as a proxy for sorted data
+                      BTreeRep _pinnedRelExpr attrs btree -> do
+                        pure (Right (StreamRelation attrs (BT.toTupleStream attrs btree)))
                       PinnedExpressionRep pinnedRelExpr -> do
                         -- plan and execute alternative, cached expression which is equivalent to the results of the origPlan
                         let eNewPlan = planGraphRefRelationalExpr (toGraphRefRelationalExpr pinnedRelExpr) (freshGraphRefRelationalExprEnv Nothing emptyTransactionGraph)
@@ -326,6 +333,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                       UnsortedTupleSetRep attrs tupSet -> do
                         pure (Right (StreamRelation attrs (Stream.fromList (asList tupSet))))
                       SortedTuplesRep _tupList _sortInfo -> error "sortedtupsrep unimplemented"
+--                      BTreeRep _pexpr bt -> error "unimplemented"
   case plan of
     RenameTupleStreamPlan attrsAssoc expr () _rexpr -> do
       checkCacheOr $ do
@@ -351,6 +359,7 @@ executePlan plan ctxTuples gfEnv cacheKeyBlackList cache = do
                            Right !t' -> t'
             pure (Right (StreamRelation attrs tupS'))
     ProjectTupleStreamPlan attrs expr () _ -> do
+      -- if the attrs are empty, then we can use a btree to check for existence on the expr
       checkCacheOr $ do
         eS <- executePlan expr ctxTuples gfEnv cacheKeyBlackList cache
         case eS of

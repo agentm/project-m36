@@ -1,5 +1,6 @@
 module ProjectM36.Key where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (RelationalExpr, DatabaseContextExpr)
 import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -33,12 +34,12 @@ inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCo
     projectedOnKeys = Project attrNames
     exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
     exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] () )) (exprAsSubRelation expr))
-    projectionForCount = Project (AttributeNames $ S.fromList ["b"])
+    projectionForCount = Project (S.singleton "b")
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
 -- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.
 databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
-databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (AttributeNames (S.fromList attrNames)) (RelationVariable rvName ())
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName ())
   where
     cols = T.intercalate "_" attrNames
 
@@ -54,7 +55,7 @@ inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) =
                                      (RelationVariable rvA ()))) (
     Project (attrsL attrsB) (RelationVariable rvB ()))
   where
-    attrsL = AttributeNames . S.fromList    
+    attrsL = S.fromList    
     renameIfNecessary attrsExpected attrsExisting expr = foldr folder expr (zip attrsExpected attrsExisting)
     folder (attrExpected, attrExisting) expr = if attrExpected == attrExisting then
                                                    expr

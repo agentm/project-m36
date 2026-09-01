@@ -1,0 +1,147 @@
+cabal-version:      3.0
+name:               s-tree
+version:            0.1.0.0
+synopsis:           Static, pointer-free, cache-friendly B-tree
+description:
+  A sorted array is permuted once into a generalised Eytzinger layout with
+  fanout @B = L+1@, after which lower and upper bounds are answered by a
+  branch-free descent doing one node rank per level. Bulk lookups go through a
+  vectorised descent in C.
+  .
+  The tree is immutable: it is built once from sorted input and then only
+  queried.
+
+license:            MIT
+author:             AgentM
+category:           Data Structures
+build-type:         Simple
+extra-doc-files:    README.md
+tested-with:        GHC ==9.10.3
+
+common warnings
+  ghc-options: -Wall -Wcompat -Wredundant-constraints
+
+library
+  import:           warnings
+  hs-source-dirs:   src
+  exposed-modules:  Data.STree
+                    Data.STree.BTree
+                    Data.STree.BPlusTree
+                    Data.STree.Key
+                    Data.STree.Serialize
+                    Data.STree.Batch
+                    Data.STree.Calibrate
+                    Data.STree.Dot
+                    Data.STree.Internal.Rank
+  c-sources:        cbits/stree_simd.c
+  cc-options:       -O3 -Wall -Wextra
+  build-depends:    base       >=4.18 && <5
+                  , bytestring >=0.11 && <0.13
+                  , deepseq    >=1.4 && <1.6
+                  , directory  >=1.3 && <1.4
+                  , filepath   >=1.4 && <1.6
+                  , primitive  >=0.8 && <0.10
+                  , vector     >=0.13 && <0.14
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+executable s-tree-example
+  import:           warnings
+  hs-source-dirs:   app
+  main-is:          Example.hs
+  build-depends:    base, vector, s-tree
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+benchmark s-tree-bench
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Bench.hs
+  build-depends:    base
+                  , criterion         >=1.5 && <1.7
+                  , directory
+                  , filepath
+                  , vector
+                  , vector-algorithms >=0.9 && <0.10
+                  , s-tree
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+benchmark s-tree-fanout
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Fanout.hs
+  build-depends:    base
+                  , vector
+                  , s-tree
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+benchmark s-tree-fanout-bplus
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          FanoutBPlus.hs
+  build-depends:    base
+                  , vector
+                  , s-tree
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+benchmark s-tree-leafwidth
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          LeafWidth.hs
+  build-depends:    base
+                  , vector
+                  , s-tree
+  default-language: Haskell2010
+  -- -g emits DWARF so a sampling profiler can name Haskell frames; -rtsopts so
+  -- +RTS -s can be compared against the profile.
+  ghc-options:      -O2 -g -rtsopts
+
+benchmark s-tree-endtoend
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          EndToEnd.hs
+  build-depends:    base
+                  , vector
+                  , vector-algorithms
+                  , s-tree
+  default-language: Haskell2010
+  ghc-options:      -O2
+
+benchmark s-tree-threads
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Threads.hs
+  build-depends:    base
+                  , vector
+                  , s-tree
+  default-language: Haskell2010
+  -- -N with no number takes every core; the harness sweeps thread counts itself.
+  ghc-options:      -O2 -threaded -rtsopts "-with-rtsopts=-N"
+
+test-suite s-tree-test
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  other-modules:    Oracle
+  build-depends:    base
+                  , bytestring
+                  , directory
+                  , filepath
+                  , vector
+                  , s-tree
+                  , tasty            >=1.4 && <1.6
+                  , tasty-hunit      >=0.10 && <0.11
+                  , tasty-quickcheck >=0.10 && <0.12
+                  , QuickCheck       >=2.14 && <2.16
+  default-language: Haskell2010
+  ghc-options:      -O2 -threaded

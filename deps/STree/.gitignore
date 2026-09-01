@@ -1,0 +1,11 @@
+dist-newstyle/
+*.hi
+*.o
+
+# written by the example program
+*.dot
+
+# criterion output
+report.html
+bench.csv
+bench.json

@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ProjectM36.CostBasedOptimizer where
-import ProjectM36.Base
+import ProjectM36.Base (PinnedRelationalExpr, RelationalExprBase(..))
+import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr)
 import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import qualified Data.HashPSQ as Q
 import Data.Time.Clock (NominalDiffTime)
@@ -15,14 +16,6 @@ newtype OrdGraphRefRelationalExpr = OrdGraphRefRelationalExpr { _gfExpr :: Pinne
 
 instance Ord OrdGraphRefRelationalExpr where
   compare a b = show a `compare` show b -- this will only be called rarely on a hash collision, so this cheap implementation should be good enough for now
-
-{-
-data QItem = QItem GraphRefRelationalExpr Cost
- deriving (Eq)
-
-instance Ord QItem where
-  compare (QItem _ a) (QItem _ b) = a `compare` b
--}
 
 -- The maximum size of the queue should be guided by the amount of time it takes to insert a new value. If the value is too high relative to the rest of the query planner, then reduce the max size.
 data OptimizerStats = OptimizerStats {
@@ -55,7 +48,7 @@ recordCost stats currentCost gfExpr =
 
 
 -- should this examine the existing relexprcache state?
-suggestOptimization :: RelExprCache -> OptimizerStats -> STM [ReorgSuggestion]
+suggestOptimization :: RelExprCache -> OptimizerStats -> STM [OptimizerSuggestion]
 suggestOptimization cache stats =
   case mostExpensiveItem stats of
     Nothing -> pure [] 
@@ -66,7 +59,7 @@ suggestOptimization cache stats =
           mCacheInfos <- RelExprCache.lookup expr cache
           case mCacheInfos of
             Nothing ->
-              pure [AddBtreeSuggestion expr]
+              pure [AddBtreeSuggestion expr ObviousImprovementReason]
             Just _ -> pure []
         _ -> pure []
 
@@ -74,8 +67,12 @@ suggestOptimization cache stats =
 --runExperiment :: ReorgSuggestion -> GraphRefRelationalExpr -> Cost -> IO Cost
 --runExperiment suggestion gfExpr unoptimizedCost = postOptCost
 -- the relational expression can be used as a reason for creating the suggested btree representation
-data ReorgSuggestion = AddBtreeSuggestion PinnedRelationalExpr | 
-                       RemoveBtreeSuggestion PinnedRelationalExpr 
+data OptimizerSuggestion = AddBtreeSuggestion PinnedRelationalExpr SuggestionReason  
+                       -- RemoveBtreeSuggestion PinnedRelationalExpr SuggestionReason
+
+data SuggestionReason = TestIfFasterThanMsReason PinnedRelationalExpr NominalDiffTime |
+                        -- ^ Test if creation of the representation serves this pinned query faster than x. If it does, retain it.
+                        ObviousImprovementReason
 
 -- PDF: f(x) = (alpha * xm^alpha) / x^(alpha+1)   for x >= xm
 paretoProbabilityDistributionF :: Double -> Double -> Double -> Double
@@ -88,8 +85,11 @@ optimizeGraphRefRelationalExpr ::
   RelExprCache ->
   OptimizerStats ->
   GraphRefRelationalExpr ->
-  STM (GraphRefRelationalExpr, [ReorgSuggestion])
+  STM (GraphRefRelationalExpr, [OptimizerSuggestion])
 optimizeGraphRefRelationalExpr cache stats relExpr = do
   -- note that we cannot rely on any cache entries hanging around- this is intentional so as not to hold locks on the cache for too long. We can, however, predict which cache entries may hang around long enough for us to use.
+  -- scan for existence (projection on empty attributes) expressions that could benefit from btree 
   suggestions <- suggestOptimization cache stats
   pure (relExpr, suggestions)
+
+  

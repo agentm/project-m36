@@ -1,6 +1,7 @@
 -- | Utility module for importing scripted atom and database context functions.
 module ProjectM36.Module where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase (RelationalExpr, DatabaseContextExpr)
 import ProjectM36.Error
 import ProjectM36.AccessControlList
 import ProjectM36.DatabaseContext.Types as DBCT

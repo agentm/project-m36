@@ -14,6 +14,7 @@ import ProjectM36.Streaming.RelationalExpression
 import ProjectM36.PinnedRelationalExpr
 import ProjectM36.Relation
 import ProjectM36.SystemMemory
+import ProjectM36.Relation.Representation
 
 import Control.Monad.STM
 import System.Random
@@ -48,20 +49,26 @@ data OptimizerEnv r =
    optStats :: CostBasedOpt.OptimizerStats,
    optRandomGen :: r
    }
-  
--- apply static optimizer first, then cost-based optimizer, finally execute the optimized query
+
 optimizeAndEvalRelationalExpr :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> RelationalExpr -> IO (Either RelationalError Relation)
-optimizeAndEvalRelationalExpr optEnv relExprEnv expr = do
+optimizeAndEvalRelationalExpr optEnv reEnv expr = do
   let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
-      graph = re_graph relExprEnv
-      ctx = re_context relExprEnv
-      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
+      gfEnv = GraphRefRelationalExprEnv {
+        gre_context = Just (re_context reEnv),
+        gre_graph = re_graph reEnv,
+        gre_extra = Nothing
+        }
+  optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr
+  
+optimizeAndEvalGraphRefRelationalExpr :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
+-- apply static optimizer first, then cost-based optimizer, finally execute the optimized query, if this is an experiment, then we don't make suggestions
   --first, type check
   case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
     Left err -> pure (Left err)
     Right _ -> do
       -- then, apply static optimizations
-      case StaticOpt.runGraphRefSOptRelationalExprM (Just ctx) (re_graph relExprEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
+      case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right staticOptGfExpr -> do
           -- next, apply cost-based optimizations
@@ -100,7 +107,7 @@ evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
                 Right memStats -> do
                   void $ atomically $
                     let rando = optRandomGen optEnv in
-                    RelExprCache.add rando cacheKey cacheValue execDiffTime False memStats (optCache optEnv)
+                    RelExprCache.add rando cacheKey cacheValue execDiffTime False memStats  False (optCache optEnv)
                   pure (Right relationResult')
 
 -- | Optimization can be disabled due to missing context in isomorphic transformations.

@@ -1,6 +1,7 @@
 -- | Functions to convert all types of expresions into their GraphRef- equivalents.
 module ProjectM36.NormalizeExpr where
-import ProjectM36.Base
+import ProjectM36.Base (GraphRefTransactionMarker, TransactionId, RelationalExprBase(..), RestrictionPredicateExprBase(..), WithNameExprBase(..), WithNameExpr, AttributeNamesExprBase(..), GraphRefWithNameExpr, AttributeNamesExprBase(..), AttributeNamesExpr, DatabaseContextExprBase(..), DatabaseContextIOExprBase(..), DatabaseContextIOExpr, GraphRefDatabaseContextIOExpr, ExtendTupleExprBase(..), AtomExprBase(..), TupleExprsBase(..), TupleExprBase(..), AttributeExprBase(..), AttributeExpr, GraphRefAttributeNamesExpr, GraphRefAttributeExpr)
+import ProjectM36.AttributeNamesExprBase (RelationalExpr, GraphRefRelationalExpr, RestrictionPredicateExpr, GraphRefRestrictionPredicateExpr, TupleExprs, GraphRefTupleExprs, TupleExpr, GraphRefTupleExpr, ExtendTupleExpr, GraphRefExtendTupleExpr, AtomExpr, GraphRefAtomExpr, DatabaseContextExpr, GraphRefDatabaseContextExpr)
 import Control.Monad.Trans.Reader as R
 import qualified Data.Map as M
 
@@ -49,15 +50,15 @@ processWithNameExpr :: WithNameExpr -> ProcessExprM GraphRefWithNameExpr
 processWithNameExpr (WithNameExpr rvname ()) =
   WithNameExpr rvname <$> askMarker
 
-processAttributeNames :: AttributeNames -> ProcessExprM GraphRefAttributeNames
-processAttributeNames (AttributeNames nameSet) = pure $ AttributeNames nameSet
-processAttributeNames (InvertedAttributeNames attrNameSet) =
+processAttributeNamesExpr :: AttributeNamesExpr -> ProcessExprM GraphRefAttributeNamesExpr
+processAttributeNamesExpr (AttributeNames nameSet) = pure $ AttributeNames nameSet
+processAttributeNamesExpr (InvertedAttributeNames attrNameSet) =
   pure $ InvertedAttributeNames attrNameSet
-processAttributeNames (UnionAttributeNames attrNamesA attrNamesB) = UnionAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
-processAttributeNames (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNames attrNamesA <*> processAttributeNames attrNamesB
+processAttributeNamesExpr (UnionAttributeNames attrNamesA attrNamesB) = UnionAttributeNames <$> processAttributeNamesExpr attrNamesA <*> processAttributeNamesExpr attrNamesB
+processAttributeNamesExpr (IntersectAttributeNames attrNamesA attrNamesB) = IntersectAttributeNames <$> processAttributeNamesExpr attrNamesA <*> processAttributeNamesExpr attrNamesB
 processAttributeNames (RelationalExprAttributeNames expr) = RelationalExprAttributeNames <$> processRelationalExpr expr
 
-processDatabaseContextExpr :: DatabaseContextExprBase () r -> ProcessExprM (DatabaseContextExprBase GraphRefTransactionMarker r)
+processDatabaseContextExpr :: DatabaseContextExpr -> ProcessExprM GraphRefDatabaseContextExpr
 processDatabaseContextExpr expr =
   case expr of
     NoOperation -> pure NoOperation

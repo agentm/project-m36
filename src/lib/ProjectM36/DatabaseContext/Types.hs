@@ -3,6 +3,7 @@ module ProjectM36.DatabaseContext.Types where
 import GHC.Generics
 import Control.DeepSeq (NFData)
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, RelationalExpr)
 import ProjectM36.Error
 import ProjectM36.AccessControlList
 import ProjectM36.ValueMarker

@@ -22,7 +22,7 @@ type ByteCount = Int64
 class Size a where
   size :: a -> ByteCount
 
-instance Size (RelationalExprBase a) where
+instance Size (RelationalExprBase a at) where
   size expr =   
     case expr of
       MakeRelationFromExprs _ tupleExprs -> size tupleExprs
@@ -52,13 +52,13 @@ instance Size RelationTupleSet where
 instance Size RelationTuple where
   size (RelationTuple _ atoms) = sum (fmap size atoms) + ptrSize (length atoms)
                                      
-instance Size (TupleExprsBase a) where
+instance Size (TupleExprsBase a at) where
   size (TupleExprs _ exprs) = sum (fmap size exprs) + ptrSize (length exprs)
 
-instance Size (TupleExprBase a) where
+instance Size (TupleExprBase a at) where
   size (TupleExpr tupMap) = sum (fmap size tupMap) + ptrSize (M.size tupMap) * 2
 
-instance Size (AtomExprBase a) where
+instance Size (AtomExprBase a at) where
   size expr =
     case expr of
       AttributeAtomExpr{} -> 0

@@ -1,0 +1,7 @@
+packages: .
+
+-- Keep tests and benchmarks in the build plan at all times, so that
+-- `cabal build all`, `cabal test` and `cabal bench` do not each reconfigure
+-- with a different set of components.
+tests: True
+benchmarks: True

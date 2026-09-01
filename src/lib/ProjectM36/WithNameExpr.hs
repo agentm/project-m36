@@ -1,14 +1,16 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.WithNameExpr where
-import ProjectM36.Base
+import ProjectM36.Base (RelVarName, WithNamesAssocsBase, RelationalExprBase(..), WithNameExprBase(..), RestrictionPredicateExprBase(..), ExtendTupleExprBase(..), AtomExprBase(..), GraphRefAttributeNames, AttributeNamesBase(..))
+--import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr, GraphRefWithNameAssocs, GraphRefAtomExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr(..))
+import ProjectM36.AttributeNamesBase
 import Data.List (find)
 import qualified Data.Set as S
 
-lookup :: RelVarName -> WithNamesAssocsBase a -> Maybe (RelationalExprBase a)
+lookup :: RelVarName -> WithNamesAssocsBase a attrNames -> Maybe (RelationalExprBase a attrNames)
 lookup matchrv assocs =
   snd <$> find (\(WithNameExpr rv _, _) -> rv == matchrv) assocs
 
-macroNames :: WithNamesAssocsBase a -> S.Set RelVarName
+macroNames :: WithNamesAssocsBase a attrNames -> S.Set RelVarName
 macroNames assocs = S.fromList (map getMacroName assocs)
   where
     getMacroName (WithNameExpr rvName _, _expand) = rvName
@@ -26,7 +28,7 @@ substituteWithNameMacros _ e@ExistingRelation{} = e
 substituteWithNameMacros _ e@RelationValuedAttribute{} = e
 substituteWithNameMacros macros e@(RelationVariable rvname tid) =
   let
-    macroFilt (WithNameExpr macroName macroTid, _) = rvname == macroName && tid== macroTid in
+    macroFilt (WithNameExpr macroName macroTid, _) = rvname == macroName && tid == macroTid in
   case filter macroFilt macros of
     [] -> e
     [(_,replacement)] -> replacement
