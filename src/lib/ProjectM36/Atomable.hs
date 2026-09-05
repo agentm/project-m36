@@ -4,6 +4,7 @@ module ProjectM36.Atomable where
 --http://stackoverflow.com/questions/13448361/type-families-with-ghc-generics-or-data-data
 --instances to marshal Haskell ADTs to ConstructedAtoms and back
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (DatabaseContextExpr)
 import ProjectM36.DataTypes.List
 import ProjectM36.DataTypes.NonEmptyList
 import ProjectM36.DataTypes.Maybe

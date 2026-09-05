@@ -2,8 +2,6 @@ module ProjectM36.GraphRefRelationalExpr where
 --evaluate relational expressions across the entire transaction graph to support cross-transaction referencing
 import ProjectM36.Base (GraphRefTransactionMarker(..), RelationalExprBase(..), RelVarName, RelationalExprBaseF(..), GraphRefRelationalExpr)
 
-import qualified ProjectM36.AttributeNamesExpr as AN
-
 import qualified Data.Set as S
 import qualified Data.Functor.Foldable as Fold
 import qualified Data.HashSet as HS
@@ -30,7 +28,7 @@ instance Monoid SingularTransactionRef where
   mempty = NoTransactionsRef
   
 -- | return `Just transid` if this GraphRefRelationalExpr refers to just one transaction in the graph. This is useful for determining if certain optimizations can apply.
-singularTransaction :: GraphRefRelationalExpr at -> SingularTransactionRef
+singularTransaction :: Foldable t => t GraphRefTransactionMarker -> SingularTransactionRef
 singularTransaction expr =
   case S.toList $ foldr S.insert S.empty expr of
   [] -> NoTransactionsRef
@@ -46,7 +44,7 @@ inSameTransaction exprA exprB = case (stA, stB) of
   where stA = singularTransaction exprA
         stB = singularTransaction exprB
 
-singularTransactions :: (Foldable f) => f (GraphRefRelationalExpr at) -> SingularTransactionRef
+singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMarker) -> SingularTransactionRef
 singularTransactions = foldMap singularTransaction
 
 -- | Decompose a GraphRefRelationalExpr into its constituent references to relvars at transactionIds. Useful for determining which relvars in the transaction graph the expression references; for example, for security checks.

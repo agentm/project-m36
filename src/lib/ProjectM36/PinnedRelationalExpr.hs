@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 module ProjectM36.PinnedRelationalExpr where
-import ProjectM36.Base
+import ProjectM36.Base (PinnedRelationalExpr, GraphRefTransactionMarker(..))
+import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr)
 
 {-
 -- | Convert an ADT which may reference the uncommitted transaction to the version of the ADT which does not include the ADT or 

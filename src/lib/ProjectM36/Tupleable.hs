@@ -39,7 +39,8 @@ import qualified Data.Vector                    as V
 import           GHC.Generics
 import           ProjectM36.Atomable
 import           ProjectM36.Attribute           as A hiding (null, toList)
-import           ProjectM36.Base
+import           ProjectM36.Base hiding (RestrictionPredicateExpr)
+import           ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, RestrictionPredicateExpr)
 import           ProjectM36.DataTypes.Primitive
 import           ProjectM36.Error
 import           ProjectM36.Tuple

@@ -12,7 +12,8 @@
 module ProjectM36.Shortcuts where
 -- users need OverloadedLabels, OverloadedLists, and default(Int,Text) to use these shortcuts.
 import Data.Text hiding (foldl, map)
-import ProjectM36.Base
+import ProjectM36.Base hiding (ExtendTupleExpr, RestrictionPredicateExpr)
+import ProjectM36.AttributeNamesExprBase (TupleExprs, TupleExpr, RelationalExpr, DatabaseContextExpr, ExtendTupleExpr, RestrictionPredicateExpr)
 import ProjectM36.Relation
 import ProjectM36.Atomable
 import Prelude hiding ((!!))
@@ -27,13 +28,13 @@ import Data.Convertible
 
 default (Text)
 
-instance IsList (AttributeNamesBase ()) where
-  type Item (AttributeNamesBase ()) = AttributeName
+instance IsList (AttributeNamesExprBase ()) where
+  type Item (AttributeNamesExprBase ()) = AttributeName
   fromList = AttributeNames . S.fromList 
   toList (AttributeNames ns) = S.toList ns
   toList _ = error "needs AttributeNames"
 
-instance IsList (TupleExprsBase ()) where
+instance IsList TupleExprs where
   type Item TupleExprs = TupleExpr
   fromList = TupleExprs ()
   toList (TupleExprs _ ts) = ts
@@ -111,7 +112,7 @@ relation' :: [AttributeExprBase ()] -> [TupleExpr] -> RelationalExpr
 relation' as' ts = MakeRelationFromExprs (Just as') (TupleExprs () ts)
 
 -- usage: tuple [#name "Mike",#age 6]
-tuple :: [(AttributeName, AtomExpr)] -> TupleExprBase ()
+tuple :: [(AttributeName, AtomExpr)] -> TupleExpr
 tuple as' = TupleExpr (M.fromList as')
 
 -- #a rename  [#b `as` #c]
@@ -123,7 +124,7 @@ rename relExpr renameList = case renameList of
 --project !!
 -- #a !! [#b,#c]
 infix 9 !!
-(!!) :: RelationalExpr -> AttributeNames -> RelationalExpr  
+(!!) :: RelationalExpr -> AttributeNamesExpr -> RelationalExpr  
 relExpr !! xs = Project xs relExpr
 
 --join ><
@@ -131,18 +132,18 @@ relExpr !! xs = Project xs relExpr
 (><) :: RelationalExpr -> RelationalExpr -> RelationalExpr
 a >< b = Join a b
 
-allBut :: AttributeNames -> AttributeNames
+allBut :: AttributeNamesExpr -> AttributeNamesExpr
 allBut (AttributeNames ns) = InvertedAttributeNames ns
 allBut _ = error "give allBut something other than attribute names."
 
-allFrom :: RelationalExpr -> AttributeNames
+allFrom :: RelationalExpr -> AttributeNamesExpr
 allFrom = RelationalExprAttributeNames 
 
 as :: AttributeNames -> AttributeName -> (AttributeNames, AttributeName)
 as = (,)
 
 -- #a `group` ([#b,#c] `as` #d)
-group :: RelationalExpr -> (AttributeNames, AttributeName) -> RelationalExpr
+group :: RelationalExpr -> (AttributeNamesExpr, AttributeName) -> RelationalExpr
 group relExpr (aNames, aName) = Group aNames aName relExpr
 
 -- #a `ungroup` #b
@@ -206,10 +207,10 @@ true = ExistingRelation relationTrue
 false :: RelationalExpr
 false = ExistingRelation relationFalse
 
-trueP :: RestrictionPredicateExprBase a
+trueP :: RestrictionPredicateExprBase at a
 trueP = TruePredicate
 
-falseP :: RestrictionPredicateExprBase a
+falseP :: RestrictionPredicateExprBase at a
 falseP = NotPredicate TruePredicate
 
 (?=) :: Convertible a AtomExpr => AttributeName -> a -> RestrictionPredicateExpr

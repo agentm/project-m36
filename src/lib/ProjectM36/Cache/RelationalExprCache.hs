@@ -17,10 +17,10 @@ import Control.Concurrent.STM
 import GHC.Conc (unsafeIOToSTM)
 import System.Random
 import Control.Monad
-import qualified Data.List.NonEmpty as NE
+--import qualified Data.List.NonEmpty as NE
 import ListT
 import Data.List (sortBy)
-import Data.Hashable (Hashable, hashWithSalt)
+import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
 import Data.Ord (comparing)
 

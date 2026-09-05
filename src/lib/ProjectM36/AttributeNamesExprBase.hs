@@ -4,7 +4,7 @@ module ProjectM36.AttributeNamesExprBase where
 import qualified ProjectM36.Base as B
 import qualified Data.Map as M
 import ProjectM36.AccessControlList
-import Data.Hashable (Hashable, hashWithSalt)
+--import Data.Hashable (Hashable)
 
 type RelationalExpr = B.RelationalExprBase B.AttributeNamesExpr ()
 
@@ -32,9 +32,9 @@ type DatabaseContextExpr = B.DatabaseContextExprBase B.AttributeNamesExpr () B.R
 
 type DatabaseContextExpr' = B.DatabaseContextExprBase B.AttributeNamesExpr () RoleId 
 
-instance Hashable DatabaseContextExpr
+--instance Hashable DatabaseContextExpr
 
-type GraphRefDatabaseContextExpr = B.DatabaseContextExprBase B.AttributeNamesExpr B.GraphRefTransactionMarker B.RoleName
+type GraphRefDatabaseContextExpr = B.DatabaseContextExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker B.RoleName
 
 type GraphRefDatabaseContextExpr' = B.DatabaseContextExprBase B.AttributeNamesExpr B.GraphRefTransactionMarker RoleId
 
@@ -44,10 +44,11 @@ type GraphRefTupleExprs = B.TupleExprsBase B.GraphRefAttributeNamesExpr B.GraphR
 
 type TupleExprs = B.TupleExprsBase B.AttributeNamesExpr ()
 
-type RestrictionPredicateExpr = B.RestrictionPredicateExprBase B.GraphRefAttributeNamesExpr ()
+type RestrictionPredicateExpr = B.RestrictionPredicateExprBase B.AttributeNamesExpr ()
 
 type GraphRefRestrictionPredicateExpr = B.RestrictionPredicateExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker
 
-type GraphRefExtendTupleExpr = B.ExtendTupleExprBase B.AttributeNamesExpr B.GraphRefTransactionMarker
+type GraphRefExtendTupleExpr = B.ExtendTupleExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker
 
 type ExtendTupleExpr = B.ExtendTupleExprBase B.AttributeNamesExpr ()
+

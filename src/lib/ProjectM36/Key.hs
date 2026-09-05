@@ -1,6 +1,6 @@
 module ProjectM36.Key where
-import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (RelationalExpr, DatabaseContextExpr)
+import ProjectM36.Base hiding (GraphRefRelationalExpr)
+import ProjectM36.AttributeNamesBase
 import ProjectM36.Relation
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -27,19 +27,19 @@ example:
 -}
 
 -- | Create a uniqueness constraint for the attribute names and relational expression. Note that constraint can span multiple relation variables.
-inclusionDependencyForKey :: AttributeNames -> RelationalExpr -> InclusionDependency
+inclusionDependencyForKey :: AttributeNames -> GraphRefRelationalExpr -> InclusionDependency
 inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where 
     projectedOnKeys = Project attrNames
     exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
-    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] () )) (exprAsSubRelation expr))
+    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] UncommittedContextMarker )) (exprAsSubRelation expr))
     projectionForCount = Project (S.singleton "b")
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
 -- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.
 databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
-databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName ())
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName UncommittedContextMarker)
   where
     cols = T.intercalate "_" attrNames
 
@@ -52,8 +52,8 @@ inclusionDependencyForForeignKey :: (RelVarName, [AttributeName]) -> (RelVarName
 inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
   InclusionDependency (
     renameIfNecessary attrsB attrsA (Project (attrsL attrsA)
-                                     (RelationVariable rvA ()))) (
-    Project (attrsL attrsB) (RelationVariable rvB ()))
+                                     (RelationVariable rvA UncommittedContextMarker))) (
+    Project (attrsL attrsB) (RelationVariable rvB UncommittedContextMarker))
   where
     attrsL = S.fromList    
     renameIfNecessary attrsExpected attrsExisting expr = foldr folder expr (zip attrsExpected attrsExisting)

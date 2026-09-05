@@ -1,8 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module ProjectM36.WithNameExpr where
-import ProjectM36.Base (RelVarName, WithNamesAssocsBase, RelationalExprBase(..), WithNameExprBase(..), RestrictionPredicateExprBase(..), ExtendTupleExprBase(..), AtomExprBase(..), GraphRefAttributeNames, AttributeNamesBase(..))
---import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr, GraphRefWithNameAssocs, GraphRefAtomExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr(..))
-import ProjectM36.AttributeNamesBase
+import ProjectM36.Base (RelVarName, WithNamesAssocsBase, RelationalExprBase(..), WithNameExprBase(..), RestrictionPredicateExprBase(..), ExtendTupleExprBase(..), AtomExprBase(..))
+import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr, GraphRefAtomExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefWithNameAssocs)
 import Data.List (find)
 import qualified Data.Set as S
 
@@ -34,7 +33,7 @@ substituteWithNameMacros macros e@(RelationVariable rvname tid) =
     [(_,replacement)] -> replacement
     _ -> error "more than one macro matched!"
 substituteWithNameMacros macros (Project attrs expr) =
-  Project (substituteWithNameMacrosAttributeNames macros attrs) (substituteWithNameMacros macros expr)
+  Project attrs (substituteWithNameMacros macros expr)
 substituteWithNameMacros macros (Union exprA exprB) =
   Union (substituteWithNameMacros macros exprA) (substituteWithNameMacros macros exprB)
 substituteWithNameMacros macros (Join exprA exprB) =
@@ -157,18 +156,18 @@ instance ValidateWith GraphRefRelationalExpr where
          
       
 -}
-
-substituteWithNameMacrosAttributeNames :: GraphRefWithNameAssocs -> GraphRefAttributeNames -> GraphRefAttributeNames
+{-
+substituteWithNameMacrosAttributeNames :: GraphRefWithNameAssocs -> GraphRefAttributeNamesExpr -> GraphRefAttributeNamesExpr
 substituteWithNameMacrosAttributeNames macros attrNames =
   case attrNames of
     AttributeNames{} -> attrNames
     InvertedAttributeNames{} -> attrNames
     UnionAttributeNames a b ->
-      UnionAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
+      UnionAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)3
     IntersectAttributeNames a b ->
       IntersectAttributeNames (substituteWithNameMacrosAttributeNames macros a) (substituteWithNameMacrosAttributeNames macros b)
-    RelationalExprAttributeNames relExpr ->
+    RelationalExprAttributeNames relExpr -> 
       RelationalExprAttributeNames (substituteWithNameMacros macros relExpr)
-
+-}
       
 

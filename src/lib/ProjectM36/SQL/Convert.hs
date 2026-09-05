@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
+import ProjectM36.AttributeNamesBase as B
 import ProjectM36.Error
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.DatabaseContext.Types
@@ -17,7 +18,7 @@ import ProjectM36.SQL.CreateTable as CreateTable
 import ProjectM36.SQL.DropTable as DropTable
 import ProjectM36.RelationalExpression
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
-import ProjectM36.AttributeNames as A
+import ProjectM36.AttributeNamesExpr as A
 import ProjectM36.Relation (attributes, atomTypeForName)
 import qualified ProjectM36.Attribute as A
 import qualified Data.Text as T

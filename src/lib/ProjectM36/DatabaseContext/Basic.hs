@@ -18,6 +18,6 @@ basicDatabaseContext = DatabaseContext { inclusionDependencies = Identity mempty
                                          dbcFunctions = Identity basicDatabaseContextFunctions,
                                          notifications = Identity mempty,
                                          typeConstructorMapping = Identity basicTypeConstructorMapping,
-                                         registeredQueries = Identity $ M.singleton "booleans" (Union (RelationVariable "true" ()) (RelationVariable "false" ())),
+                                         registeredQueries = Identity $ M.singleton "booleans" (Union (RelationVariable "true" UncommittedContextMarker) (RelationVariable "false" UncommittedContextMarker)),
                                          acl = Identity ACL.basic
                                          }

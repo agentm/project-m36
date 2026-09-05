@@ -32,7 +32,7 @@ deriving via WineryVariant AtomType instance Serialise AtomType
 deriving via WineryVariant Attribute instance Serialise Attribute
 deriving via WineryVariant RelationTuple instance Serialise RelationTuple
 deriving via WineryVariant RelationCardinality instance Serialise RelationCardinality
-deriving via WineryVariant (RelationalExprBase a) instance Serialise a => Serialise (RelationalExprBase a)
+deriving via WineryVariant (RelationalExprBase at a) instance (Serialise at, Serialise a) => Serialise (RelationalExprBase at a)
 deriving via WineryVariant (WithNameExprBase a) instance Serialise a => Serialise (WithNameExprBase a)
 deriving via WineryVariant Notification instance Serialise Notification
 deriving via WineryVariant TypeConstructorDef instance Serialise TypeConstructorDef
@@ -42,17 +42,17 @@ deriving via WineryVariant DataConstructorDefArg instance Serialise DataConstruc
 deriving via WineryVariant GraphRefTransactionMarker instance Serialise GraphRefTransactionMarker
 deriving via WineryVariant SchemaIsomorph instance Serialise SchemaIsomorph
 deriving via WineryVariant InclusionDependency instance Serialise InclusionDependency
-deriving via WineryVariant (DatabaseContextExprBase a r) instance (Serialise a, Serialise r) => Serialise (DatabaseContextExprBase a r)
+deriving via WineryVariant (DatabaseContextExprBase at a r) instance (Serialise at, Serialise a, Serialise r) => Serialise (DatabaseContextExprBase at a r)
 deriving via WineryVariant (DatabaseContextIOExprBase a) instance Serialise a => Serialise (DatabaseContextIOExprBase a)
-deriving via WineryVariant (RestrictionPredicateExprBase a) instance Serialise a => Serialise (RestrictionPredicateExprBase a)
+deriving via WineryVariant (RestrictionPredicateExprBase at a) instance (Serialise at, Serialise a) => Serialise (RestrictionPredicateExprBase at a)
 deriving via WineryVariant TransactionInfo instance Serialise TransactionInfo
-deriving via WineryVariant (AtomExprBase a) instance Serialise a => Serialise (AtomExprBase a)
+deriving via WineryVariant (AtomExprBase at a) instance (Serialise at, Serialise a) => Serialise (AtomExprBase at a)
 deriving via WineryVariant MerkleHash instance Serialise MerkleHash
 deriving via WineryVariant (AttributeExprBase a) instance Serialise a => Serialise (AttributeExprBase a)
-deriving via WineryVariant (TupleExprsBase a) instance Serialise a => Serialise (TupleExprsBase a)
-deriving via WineryVariant (TupleExprBase a) instance Serialise a => Serialise (TupleExprBase a)
-deriving via WineryVariant (AttributeNamesBase a) instance Serialise a => Serialise (AttributeNamesBase a)
-deriving via WineryVariant (ExtendTupleExprBase a) instance Serialise a => Serialise (ExtendTupleExprBase a)
+deriving via WineryVariant (TupleExprsBase at a) instance (Serialise at, Serialise a) => Serialise (TupleExprsBase at a)
+deriving via WineryVariant (TupleExprBase at a) instance (Serialise at, Serialise a) => Serialise (TupleExprBase at a)
+deriving via WineryVariant (AttributeNamesExprBase a) instance Serialise a => Serialise (AttributeNamesExprBase a)
+deriving via WineryVariant (ExtendTupleExprBase at a) instance (Serialise at, Serialise a) => Serialise (ExtendTupleExprBase at a)
 deriving via WineryVariant Schema instance Serialise Schema
 deriving via WineryVariant MergeStrategy instance Serialise MergeStrategy
 deriving via WineryVariant NotificationExpression instance Serialise NotificationExpression

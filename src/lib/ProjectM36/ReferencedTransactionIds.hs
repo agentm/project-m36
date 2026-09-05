@@ -17,7 +17,7 @@ type TransactionIds = S.Set TransactionId
 class ReferencedTransactionIds a where
   referencedTransactionIds :: a -> TransactionIds
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (RelationalExprBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (RelationalExprBase at a) where
   referencedTransactionIds x = case x of
     MakeRelationFromExprs (Just attrExprs) tupleExprs ->
       S.unions (referencedTransactionIds tupleExprs : map referencedTransactionIds attrExprs)
@@ -46,11 +46,11 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (AttributeExprBa
   referencedTransactionIds NakedAttributeExpr{} = S.empty
   referencedTransactionIds (AttributeAndTypeNameExpr _ _ marker) = referencedTransactionIds marker
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (TupleExprBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (TupleExprBase at a) where
   referencedTransactionIds (TupleExpr tMap) =
     S.unions (referencedTransactionIds <$> M.elems tMap)
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (TupleExprsBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (TupleExprsBase at a) where
   referencedTransactionIds (TupleExprs marker tupleExprs) =
     S.unions (referencedTransactionIds marker : (referencedTransactionIds <$> tupleExprs))
 
@@ -58,7 +58,7 @@ instance ReferencedTransactionIds GraphRefTransactionMarker where
   referencedTransactionIds (TransactionMarker tid) = S.singleton tid
   referencedTransactionIds UncommittedContextMarker = S.empty -- we have other methods to determine if there is an uncommitted transaction marker in the expr
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (AttributeNamesBase a) where
+instance ReferencedTransactionIds a => ReferencedTransactionIds (AttributeNamesExprBase a) where
   referencedTransactionIds names =
     case names of
       AttributeNames{} -> S.empty
@@ -70,7 +70,7 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (AttributeNamesB
       RelationalExprAttributeNames rExpr ->
         referencedTransactionIds rExpr
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (RestrictionPredicateExprBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (RestrictionPredicateExprBase at a) where
   referencedTransactionIds expr =
     case expr of
       TruePredicate -> mempty
@@ -87,14 +87,14 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (RestrictionPred
       AttributeEqualityPredicate _ aExpr ->
         referencedTransactionIds aExpr
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (ExtendTupleExprBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (ExtendTupleExprBase at a) where
   referencedTransactionIds (AttributeExtendTupleExpr _ aExpr) =
     referencedTransactionIds aExpr
 
 instance ReferencedTransactionIds a => ReferencedTransactionIds (WithNameExprBase a) where
   referencedTransactionIds (WithNameExpr _ marker) = referencedTransactionIds marker
 
-instance ReferencedTransactionIds a => ReferencedTransactionIds (AtomExprBase a) where
+instance (ReferencedTransactionIds at, ReferencedTransactionIds a) => ReferencedTransactionIds (AtomExprBase at a) where
   referencedTransactionIds expr =
     case expr of
       AttributeAtomExpr{} -> mempty
@@ -131,6 +131,9 @@ instance ReferencedTransactionIds a => ReferencedTransactionIds (ValueMarker a) 
 instance ReferencedTransactionIds RelationVariables where
   referencedTransactionIds relVars =
     S.unions (referencedTransactionIds <$> M.elems relVars)
+
+instance ReferencedTransactionIds AttributeNames where
+  referencedTransactionIds _ = mempty
 
 -- | Recurse relvars references and transaction parents to extract a subset of relevant transactions.
 -- probably could do some trimming of transactions that are not referenced by relvars, but that is rare, so probably of not much benefit

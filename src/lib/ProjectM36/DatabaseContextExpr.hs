@@ -2,6 +2,7 @@ module ProjectM36.DatabaseContextExpr where
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (DatabaseContextExpr)
 import ProjectM36.AccessControlList
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
@@ -29,7 +30,7 @@ databaseContextAsDatabaseContextExpr context graph = do
       funcsExprs = []
   pure $ MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
 
-resolveRoleIds :: (RoleName -> Maybe RoleId) -> DatabaseContextExprBase a RoleName -> Either RelationalError (DatabaseContextExprBase a RoleId)
+resolveRoleIds :: (RoleName -> Maybe RoleId) -> DatabaseContextExprBase at a RoleName -> Either RelationalError (DatabaseContextExprBase at a RoleId)
 resolveRoleIds resolver expr = do
   case expr of
     NoOperation -> pure NoOperation
@@ -53,7 +54,7 @@ resolveRoleIds resolver expr = do
     AlterACL expr' -> AlterACL <$> resolveRoleIdsDBCACLExpr resolver expr'
     MultipleExpr exprs -> MultipleExpr <$> mapM (resolveRoleIds resolver) exprs
 
-resolveRoleNames :: (RoleId -> Maybe RoleName) -> DatabaseContextExprBase a RoleId -> Either RelationalError (DatabaseContextExprBase a RoleName)
+resolveRoleNames :: (RoleId -> Maybe RoleName) -> DatabaseContextExprBase at a RoleId -> Either RelationalError (DatabaseContextExprBase at a RoleName)
 resolveRoleNames resolver expr = do
   case expr of
     NoOperation -> pure NoOperation

@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes, MultiParamTypeClasses, ExistentialQuantification #-}
 module ProjectM36.DatabaseContext where
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (RelationalExpr)
 import ProjectM36.DatabaseContext.Types as DBT
 import ProjectM36.ValueMarker as VM
 import Control.Monad (void)

@@ -64,10 +64,10 @@ data Atom = IntegerAtom !Integer |
             BoolAtom !Bool |
             UUIDAtom !UUID |
             RelationAtom !Relation |
-            RelationalExprAtom !ResolvedRelationalExpr | --used for returning inc deps
+            RelationalExprAtom !NormalizedRelationalExpr | --used for returning inc deps
             SubrelationFoldAtom !Relation !AttributeName |
             ConstructedAtom !DataConstructorName !AtomType [Atom]
-            deriving (Eq, Show, Typeable, NFData, Generic, Read)
+            deriving (Eq, Show, Read, Typeable, NFData, Generic)
                      
 instance Hashable Atom where                     
   hashWithSalt salt (ConstructedAtom dConsName _ atoms) = salt `hashWithSalt` atoms
@@ -154,7 +154,7 @@ sortedAttributesIndices :: Attributes -> [(Int, Attribute)]
 sortedAttributesIndices attrs = L.sortBy (\(_, Attribute name1 _) (_,Attribute name2 _) -> compare name1 name2) $ V.toList (V.indexed (attributesVec attrs))
 
 -- | The relation's tuple set is the body of the relation.
-newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Show, Generic, Read)
+newtype RelationTupleSet = RelationTupleSet { asList :: [RelationTuple] } deriving (Show, Read, Generic)
 
 -- we cannot derive Hashable for tuplesets; we need to hash the unordered set of tuples
 instance Hashable RelationTupleSet where
@@ -262,18 +262,18 @@ data RelationalExprBase attrNames a =
   --Summarize :: AtomExpr -> AttributeName -> RelationalExpr -> RelationalExpr -> RelationalExpr -- a special case of Extend
   --Evaluate relationalExpr with scoped views
   With (WithNamesAssocsBase attrNames a) (RelationalExprBase attrNames a)
-  deriving (Show, Read, Eq, Generic, NFData, Functor, Foldable, Traversable)
+  deriving (Show, Eq, Read, Generic, NFData, Functor, Foldable, Traversable)
 
 instance (Eq attrNames, Hashable attrNames, Hashable a) => Hashable (RelationalExprBase attrNames a)
 
 -- | Used for fixed relational expressions (useful for caching).
-type PinnedRelationalExpr = RelationalExprBase TransactionId AttributeNames
+type PinnedRelationalExpr = RelationalExprBase AttributeNames TransactionId
 
 type TransactionId = UUID
 
 type WithNamesAssocsBase attrNames a =
   [(WithNameExprBase a,
-    RelationalExprBase attrNames a)]
+    RelationalExprBase attrNames a)]  
 
 data WithNameExprBase a = WithNameExpr RelVarName a
                         deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable, Hashable)
@@ -289,9 +289,9 @@ type AttributeNamesRelationalExpr = RelationalExprBase AttributeNamesExpr ()
 
 -- | When the changeExpr returns a different result in the database context, then the reportExpr is triggered and sent asynchronously to all clients.
 data Notification = Notification {
-  changeExpr :: AttributeNamesRelationalExpr,
-  reportOldExpr :: AttributeNamesRelationalExpr, --run the expression in the pre-change context
-  reportNewExpr :: AttributeNamesRelationalExpr --run the expression in the post-change context
+  changeExpr :: NormalizedRelationalExpr,
+  reportOldExpr :: NormalizedRelationalExpr, --run the expression in the pre-change context
+  reportNewExpr :: NormalizedRelationalExpr --run the expression in the post-change context
   }
   deriving (Show, Eq, Generic, NFData)
 
@@ -333,7 +333,7 @@ data DataConstructorDefArg = DataConstructorDefTypeConstructorArg TypeConstructo
                                     
 data GraphRefTransactionMarker = TransactionMarker TransactionId |
                                  UncommittedContextMarker
-                                 deriving (Eq, Show, Generic, NFData, Ord, Hashable)
+                                 deriving (Eq, Show, Read, Generic, NFData, Ord, Hashable)
   
 type HeadName = StringType
 
@@ -341,20 +341,22 @@ type RegisteredQueryName = StringType
 
 type IncDepName = StringType             
 
-type AttributeNameAtomExprMap = M.Map AttributeName AtomExpr
+type AttributeNameAtomExprMapBase attrNames a = M.Map AttributeName (AtomExprBase attrNames a)
 
 --used for returning information about individual expressions
 type DatabaseContextExprName = StringType
 
 type ResolvedRelationalExpr = RelationalExprBase AttributeNames ()
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
-data InclusionDependency = InclusionDependency ResolvedRelationalExpr ResolvedRelationalExpr deriving (Show, Eq, Generic, NFData, Hashable, Read)
+data InclusionDependency = InclusionDependency NormalizedRelationalExpr NormalizedRelationalExpr
+ deriving (Show, Eq, Generic, NFData, Hashable)
 
 type InclusionDependencies = M.Map IncDepName InclusionDependency
 
-type RelationVariables = M.Map RelVarName (GraphRefRelationalExpr AttributeNames)
+type RelationVariables = M.Map RelVarName NormalizedRelationalExpr
 
-type RegisteredQueries = M.Map RegisteredQueryName (RelationalExprBase AttributeNamesExpr ())
+-- registered queries are most likely to be against HEAD since graph history cannot be changed, but we store them as normalized queries since we would merely be converting them constantly otherwise for the executor
+type RegisteredQueries = M.Map RegisteredQueryName NormalizedRelationalExpr
 
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase attrNames a r = 
@@ -364,12 +366,12 @@ data DatabaseContextExprBase attrNames a r =
   Assign RelVarName (RelationalExprBase attrNames a)  |
   Insert RelVarName (RelationalExprBase attrNames a) |
   Delete RelVarName (RestrictionPredicateExprBase attrNames a)  |
-  Update RelVarName AttributeNameAtomExprMap (RestrictionPredicateExprBase attrNames a) |
+  Update RelVarName (AttributeNameAtomExprMapBase attrNames a) (RestrictionPredicateExprBase attrNames a) |
   
   AddInclusionDependency IncDepName InclusionDependency |
   RemoveInclusionDependency IncDepName |
   
-  AddNotification NotificationName AttributeNamesRelationalExpr AttributeNamesRelationalExpr AttributeNamesRelationalExpr |
+  AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
   RemoveNotification NotificationName |
 
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
@@ -382,13 +384,15 @@ data DatabaseContextExprBase attrNames a r =
   
   ExecuteDatabaseContextFunction FunctionName [AtomExprBase attrNames a] |
 
-  AddRegisteredQuery RegisteredQueryName AttributeNamesRelationalExpr |
+  AddRegisteredQuery RegisteredQueryName NormalizedRelationalExpr |
   RemoveRegisteredQuery RegisteredQueryName |
 
   AlterACL (AlterDBCACLExprBase r) |
   
   MultipleExpr [DatabaseContextExprBase attrNames a r]
   deriving (Show, Eq, Generic, NFData)
+
+type NormalizedRelationalExpr = GraphRefRelationalExpr AttributeNames
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
@@ -409,8 +413,6 @@ type GraphRefDatabaseContextIOExpr = DatabaseContextIOExprBase GraphRefTransacti
 
 type DatabaseContextIOExpr = DatabaseContextIOExprBase ()
 
-type RestrictionPredicateExpr = RestrictionPredicateExprBase ()
-
 instance (Eq attrNames, Hashable attrNames, Hashable a) => Hashable (RestrictionPredicateExprBase attrNames a)
 
 -- | Restriction predicates are boolean algebra components which, when composed, indicate whether or not a tuple should be retained during a restriction (filtering) operation.
@@ -425,8 +427,6 @@ data RestrictionPredicateExprBase attrNames a =
   deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
 type DirtyFlag = Bool
-
-type AtomExpr = AtomExprBase AttributeNamesExpr ()
 
 instance (Eq attrNames, Hashable attrNames, Hashable a) => Hashable (AtomExprBase attrNames a)
 
@@ -452,11 +452,7 @@ data ExtendTupleExprBase attrNames a = AttributeExtendTupleExpr AttributeName (A
 
 type GraphRefAtomExpr attrNames = AtomExprBase attrNames GraphRefTransactionMarker
 
-type ExtendTupleExpr = ExtendTupleExprBase ()
-
 instance (Eq attrNames, Hashable attrNames, Hashable a) => Hashable (ExtendTupleExprBase attrNames a)
-
-type GraphRefWithNameAssocs attrNames = [(GraphRefWithNameExpr, RelationalExprBase GraphRefTransactionMarker attrNames)]
 
 --enumerates the list of functions available to be run as part of tuple expressions           
 type AtomFunctions = HS.HashSet AtomFunction
@@ -475,8 +471,8 @@ data AttributeNamesExprBase a =
   InvertedAttributeNames AttributeNames |
   UnionAttributeNames (AttributeNamesExprBase a) (AttributeNamesExprBase a) |
   IntersectAttributeNames (AttributeNamesExprBase a) (AttributeNamesExprBase a) |
-  RelationalExprAttributeNames (RelationalExprBase a (AttributeNamesExprBase a)) -- use attribute names from the relational expression's type
-  deriving (Eq, Show, Read, Generic, NFData {-Foldable, Functor, Traversable-})
+  RelationalExprAttributeNames (RelationalExprBase (AttributeNamesExprBase a) a) -- use attribute names from the relational expression's type
+  deriving (Eq, Show, Generic, NFData {-Foldable, Functor Traversable-})
 
 instance Hashable a => Hashable (AttributeNamesExprBase a)
 
@@ -508,7 +504,7 @@ type GraphRefRelationalExpr attrNames = RelationalExprBase attrNames GraphRefTra
 
 type GraphRefRestrictionPredicateExpr attrNames = RestrictionPredicateExprBase attrNames GraphRefTransactionMarker
 
-type GraphRefExtendTupleExpr attrNames = ExtendTupleExprBase GraphRefTransactionMarker attrNames
+type GraphRefExtendTupleExpr attrNames = ExtendTupleExprBase attrNames GraphRefTransactionMarker 
 
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase attrNames a = TupleExpr (M.Map AttributeName (AtomExprBase attrNames a))

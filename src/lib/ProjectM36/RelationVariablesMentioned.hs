@@ -13,7 +13,7 @@ mentionsRelVar x =
 class RelationVariablesMentioned a where
   relVarsMentioned :: a -> S.Set RelVarName
 
-instance RelationVariablesMentioned (AtomExprBase a) where
+instance RelationVariablesMentioned (AtomExprBase at a) where
   relVarsMentioned expr = 
    case expr of
     AttributeAtomExpr{} -> mempty
@@ -28,7 +28,7 @@ instance RelationVariablesMentioned (AtomExprBase a) where
     ConstructedAtomExpr _ args _ ->
       S.unions (map relVarsMentioned args)
 
-instance RelationVariablesMentioned (RelationalExprBase a) where
+instance RelationVariablesMentioned (RelationalExprBase at a) where
   relVarsMentioned expr =
     case expr of
       MakeRelationFromExprs _ tupleExprs ->
@@ -51,15 +51,15 @@ instance RelationVariablesMentioned (RelationalExprBase a) where
       Extend extendExpr exprA -> relVarsMentioned extendExpr <> relVarsMentioned exprA
       With withNames exprA -> relVarsMentioned exprA `S.difference` macroNames withNames
 
-instance RelationVariablesMentioned (ExtendTupleExprBase a) where
+instance RelationVariablesMentioned (ExtendTupleExprBase at a) where
   relVarsMentioned (AttributeExtendTupleExpr _attrName atomExpr) =
     relVarsMentioned atomExpr
 
-instance RelationVariablesMentioned (TupleExprsBase a) where
+instance RelationVariablesMentioned (TupleExprsBase at a) where
   relVarsMentioned (TupleExprs _ tExprs) =
     S.unions (map relVarsMentioned tExprs)
 
-instance RelationVariablesMentioned (TupleExprBase a) where
+instance RelationVariablesMentioned (TupleExprBase at a) where
   relVarsMentioned (TupleExpr tupmap) =
     S.unions (M.map relVarsMentioned tupmap)
     

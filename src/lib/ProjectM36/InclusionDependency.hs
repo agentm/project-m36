@@ -1,6 +1,6 @@
 module ProjectM36.InclusionDependency where
-import ProjectM36.Base (Relation, InclusionDependencies, InclusionDependency(..), RelVarName, Attribute(..), AtomType(..), Atom(..), RelationalExprBase(..), AttributeExprBase(..), RestrictionPredicateExprBase(..))
-import ProjectM36.AttributeNamesBase (AtomExpr)
+import ProjectM36.Base (Relation, InclusionDependencies, InclusionDependency(..), RelVarName, Attribute(..), AtomType(..), Atom(..), RelationalExprBase(..), RestrictionPredicateExprBase(..), GraphRefTransactionMarker(..))
+import ProjectM36.AttributeNamesBase (GraphRefAtomExpr)
 import ProjectM36.Attribute
 import ProjectM36.Error
 import ProjectM36.Relation
@@ -19,11 +19,11 @@ inclusionDependenciesAsRelation incDeps =
                                                              RelationalExprAtom exprB]
 
 -- validate that the given AtomExpr is true for an relvar
-inclusionDependencyForAtomExpr :: RelVarName -> AtomExpr -> InclusionDependency
+inclusionDependencyForAtomExpr :: RelVarName -> GraphRefAtomExpr -> InclusionDependency
 inclusionDependencyForAtomExpr rvname atomExpr =
   InclusionDependency
   (NotEquals (ExistingRelation relationTrue)
-    (Project mempty (Restrict check (RelationVariable rvname ())))
+    (Project mempty (Restrict check (RelationVariable rvname UncommittedContextMarker)))
   )
   (ExistingRelation relationFalse)
   where
