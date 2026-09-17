@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module ProjectM36.Streaming.RelationalExpression where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.Attribute as A
@@ -67,28 +68,28 @@ data RelExprExecPlanBase marker execInfo =
   -- | Run all the nodes simultaneously and return the results from the node that returns results first.
   -- RacePlan (RelExprExecPlanBase a t) (NE.NonEmpty (RelExprExecPlanBase a t)) t |
                        
-                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) | -- include compiled mode for stream execution and ADT version for planning printer
-                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       RelationValuedAttributeStreamPlan Attribute execInfo (RelationalExprBase marker) | 
+                       RestrictTupleStreamPlan RestrictionFilter (RestrictionPredicateExprBase AttributeNames marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) | -- include compiled mode for stream execution and ADT version for planning printer
+                       ProjectTupleStreamPlan Attributes (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       RenameTupleStreamPlan (S.Set (AttributeName, AttributeName)) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       GroupTupleStreamPlan Attributes AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       UngroupTupleStreamPlan AttributeName (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       ExtendTupleStreamPlan ExtendTupleProcessor (ExtendTupleExprBase AttributeNames marker) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       RelationValuedAttributeStreamPlan Attribute execInfo (RelationalExprBase AttributeNames marker) | 
                        
-                       UnionTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
-                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       DifferenceTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       EqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
-                       NotEqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase marker) |
+                       UnionTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) | -- ^ no uniquification implied with Union, if it's needed, planner needs to add it
+                       NaiveJoinTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       DifferenceTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       EqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
+                       NotEqualTupleStreamsPlan (RelExprExecPlanBase marker execInfo) (RelExprExecPlanBase marker execInfo) execInfo (RelationalExprBase AttributeNames marker) |
                        
                        MakeStaticRelationPlan Attributes RelationTupleSet execInfo |
                        -- TODO: ideally, the planner would create a new structure which extracts all necessary context so that we don't need to pass the entire transaction graph to execute MakeRelationFromExprsPlan
-                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase marker]) (TupleExprsBase marker) execInfo |
+                       MakeRelationFromExprsPlan (Maybe [AttributeExprBase marker]) (TupleExprsBase AttributeNames marker) execInfo |
                        ExistingRelationPlan Relation execInfo |
                        UniqueifyTupleStreamPlan (RelExprExecPlanBase marker execInfo) execInfo -- ^ handy uniqueifier for cases when we know the sub-plan could include duplicates
 
 -- | Get the original relational expression linked to the node. It can be used to generate the cache key, if relevant.
-originalRelExpr :: RelExprExecPlanBase a t -> Maybe (RelationalExprBase a)
+originalRelExpr :: RelExprExecPlanBase a t -> Maybe (RelationalExprBase AttributeNames a)
 --originalRelExpr StreamTuplesFromCacheFilePlan{} = Nothing
 --originalRelExpr ReadTuplesFromMemoryPlan{} = Nothing
 originalRelExpr (RestrictTupleStreamPlan _ _ _ _ e) = Just e
@@ -200,12 +201,11 @@ planGraphRefRelationalExpr orig@(RelationValuedAttribute relAttrName) gfEnv = do
 planGraphRefRelationalExpr orig@(Project attrNames expr) gfEnv = do
   -- if the expression is a Ord-based restriction on attribute A and the projection is on attribute A, we can suggest a simple btree for filtering
   exprT <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
-  projectionAttrNames <- runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames attrNames expr)
-  case projectionAttributesForNames projectionAttrNames (attributes exprT) of
+  --if we know that the projection attributes represent a key, then we don't need to run the uniquification
+  case projectionAttributesForNames attrNames (attributes exprT) of
     Left err -> Left err
     Right attrs' -> do
       subExpr <- planGraphRefRelationalExpr expr gfEnv
-      --if we know that the projection attributes represent a key, then we don't need to run the uniquification
       pure (UniqueifyTupleStreamPlan (ProjectTupleStreamPlan attrs' subExpr () orig) ())
   
 planGraphRefRelationalExpr orig@(Union exprA exprB) state = do  
@@ -589,18 +589,18 @@ instance Pretty a => Pretty (AttributeExprBase a) where
     pretty attrName <+> pretty tCons <+> pretty a
   pretty (NakedAttributeExpr attrName) = pretty attrName
 
-instance Pretty a => Pretty (TupleExprsBase a) where
+instance (Pretty at, Pretty a) => Pretty (TupleExprsBase at a) where
   pretty (TupleExprs a tupleExprs) =
     pretty a <+> vsep (map pretty tupleExprs)
 
-instance Pretty a => Pretty (TupleExprBase a) where
+instance (Pretty at, Pretty a) => Pretty (TupleExprBase at a) where
   pretty (TupleExpr attrAtomMap) =
     "TupleExpr" <+> indent 4 (hsep (map prettyMap (M.toList attrAtomMap)))
     where
       prettyMap (attrName, atomExpr) =
         pretty attrName <> ": " <> pretty atomExpr
 
-instance Pretty a => Pretty (AtomExprBase a) where
+instance (Pretty at, Pretty a) => Pretty (AtomExprBase at a) where
   pretty atomExpr =
     case atomExpr of
       AttributeAtomExpr attrName ->
@@ -618,7 +618,10 @@ instance Pretty a => Pretty (AtomExprBase a) where
       ConstructedAtomExpr dConsName atomExprs marker ->
         "ConstructedAtomExpr" <+> pretty dConsName <+> pretty atomExprs <+> pretty marker
 
-instance Pretty a => Pretty (RelationalExprBase a) where
+instance Pretty AttributeNames where
+  pretty names = "{" <+> pretty (T.intercalate ", " (S.toList names)) <+> "}"
+
+instance (Pretty at, Pretty a) => Pretty (RelationalExprBase at a) where
   pretty relExpr =
     case relExpr of
       MakeRelationFromExprs mAttrExprs tupExprs ->
@@ -656,14 +659,14 @@ instance Pretty a => Pretty (RelationalExprBase a) where
       With withs expr ->
         "With" <+> pretty withs <+> pretty expr
 
-instance Pretty a => Pretty (ExtendTupleExprBase a) where
+instance (Pretty at, Pretty a) => Pretty (ExtendTupleExprBase at a) where
   pretty (AttributeExtendTupleExpr attrName atomExpr) =
     pretty attrName <+> pretty atomExpr
   
 instance Pretty a => Pretty (WithNameExprBase a) where
   pretty (WithNameExpr rvName marker) = "WithNameExpr" <+> pretty rvName <+> pretty marker
 
-instance Pretty a => Pretty (AttributeNamesBase a) where
+instance Pretty a => Pretty (AttributeNamesExprBase a) where
   pretty (AttributeNames attrNameSet) = "AttributeNames" <+> vsep (map pretty (S.toList attrNameSet))
   pretty (InvertedAttributeNames attrNameSet) = "InvertedAttributeNames" <+> vsep (map pretty (S.toList attrNameSet))
   pretty (UnionAttributeNames namesA namesB) =
@@ -692,7 +695,7 @@ instance Pretty AtomType where
 instance Pretty Atom where
   pretty atom = pretty (show atom)
 
-instance Pretty a => Pretty (RestrictionPredicateExprBase a) where
+instance (Pretty at, Pretty a) => Pretty (RestrictionPredicateExprBase at a) where
   pretty x =
     case x of
       TruePredicate -> "True"

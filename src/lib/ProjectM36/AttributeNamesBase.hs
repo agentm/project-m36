@@ -7,7 +7,7 @@ type RelationalExpr = RelationalExprBase AttributeNames ()
 
 type GraphRefRelationalExpr = RelationalExprBase AttributeNames GraphRefTransactionMarker
 
-type RestrictionPredicateExpr = RestrictionPredicateExprBase AttributeNames GraphRefTransactionMarker
+type RestrictionPredicateExpr = RestrictionPredicateExprBase AttributeNames ()
 
 type AtomExpr = AtomExprBase AttributeNames ()
 
@@ -29,8 +29,6 @@ type GraphRefTupleExprs = TupleExprsBase AttributeNames GraphRefTransactionMarke
 
 type GraphRefTupleExpr = TupleExprBase AttributeNames GraphRefTransactionMarker
 
-type GraphRefAttributeNamesExpr = AttributeNamesExprBase GraphRefTransactionMarker
-
 type GraphRefRestrictionPredicateExpr = RestrictionPredicateExprBase AttributeNames GraphRefTransactionMarker
 
 type GraphRefExtendTupleExpr = ExtendTupleExprBase AttributeNames GraphRefTransactionMarker
@@ -40,3 +38,10 @@ type GraphRefAtomExpr = AtomExprBase AttributeNames GraphRefTransactionMarker
 type GraphRefWithNameAssocs = [(GraphRefWithNameExpr, RelationalExprBase AttributeNames GraphRefTransactionMarker)]
 
 type WithNamesAssocs = WithNamesAssocsBase AttributeNames ()
+
+type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
+
+type AttributeExpr = AttributeExprBase ()
+
+type InclusionDependency = InclusionDependencyBase AttributeNames GraphRefTransactionMarker
+

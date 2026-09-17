@@ -14,7 +14,7 @@ empty = AttributeNames S.empty
 all :: AttributeNamesExprBase a
 all = InvertedAttributeNames S.empty
 
--- | Coalesce a bunch of AttributeNames into a single AttributeNames.
+-- | Coalesce a bunch of AttributeNamesExprs into a single AttributeNamesExpr.
 some :: Eq a => [AttributeNamesExprBase a] -> AttributeNamesExprBase a
 some [] = ProjectM36.AttributeNamesExpr.all
 some [an] = an

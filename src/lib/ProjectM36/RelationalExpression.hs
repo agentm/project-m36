@@ -8,8 +8,8 @@ module ProjectM36.RelationalExpression where
 import ProjectM36.Relation
 import ProjectM36.Tuple
 import qualified ProjectM36.TupleSet as TS
-import ProjectM36.Base hiding (GraphRefAttributeNamesExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr)
-import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', RelationalExpr, GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeNamesExpr)
+import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr)
 import qualified Data.UUID as U
 import ProjectM36.Error
 import ProjectM36.AtomType
@@ -601,7 +601,7 @@ getDBCIORelationalExprEnv = do
   context <- getDBCIOContext
   graph <- dbcio_graph <$> RWS.ask
   pure (mkRelationalExprEnv context graph)
-
+  
 evalGraphRefDatabaseContextIOExpr :: GraphRefDatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 #if !defined(PM36_HASKELL_SCRIPTING)
 evalGraphRefDatabaseContextIOExpr AddAtomFunction{} = throwError (ScriptError ScriptCompilationDisabledError)

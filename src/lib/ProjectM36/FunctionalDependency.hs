@@ -1,5 +1,5 @@
 module ProjectM36.FunctionalDependency where
-import ProjectM36.Base hiding (GraphRefRelationalExpr)
+import ProjectM36.Base
 import ProjectM36.AttributeNamesBase
 import qualified Data.Set as S
 

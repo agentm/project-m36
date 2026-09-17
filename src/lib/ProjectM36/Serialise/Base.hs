@@ -41,7 +41,7 @@ deriving via WineryVariant DataConstructorDef instance Serialise DataConstructor
 deriving via WineryVariant DataConstructorDefArg instance Serialise DataConstructorDefArg
 deriving via WineryVariant GraphRefTransactionMarker instance Serialise GraphRefTransactionMarker
 deriving via WineryVariant SchemaIsomorph instance Serialise SchemaIsomorph
-deriving via WineryVariant InclusionDependency instance Serialise InclusionDependency
+deriving via WineryVariant (InclusionDependencyBase attrNames a) instance (Serialise attrNames, Serialise a) => Serialise (InclusionDependencyBase attrNames a)
 deriving via WineryVariant (DatabaseContextExprBase at a r) instance (Serialise at, Serialise a, Serialise r) => Serialise (DatabaseContextExprBase at a r)
 deriving via WineryVariant (DatabaseContextIOExprBase a) instance Serialise a => Serialise (DatabaseContextIOExprBase a)
 deriving via WineryVariant (RestrictionPredicateExprBase at a) instance (Serialise at, Serialise a) => Serialise (RestrictionPredicateExprBase at a)

@@ -2,31 +2,29 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass, TypeSynonymInstances, FlexibleInstances #-}
 module ProjectM36.AttributeNamesExprBase where
 import qualified ProjectM36.Base as B
-import qualified Data.Map as M
 import ProjectM36.AccessControlList
 --import Data.Hashable (Hashable)
 
 type RelationalExpr = B.RelationalExprBase B.AttributeNamesExpr ()
 
-type GraphRefAtomExpr = B.AtomExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker
+type GraphRefAtomExpr = B.AtomExprBase (B.AttributeNamesExprBase B.GraphRefTransactionMarker) B.GraphRefTransactionMarker
 
-type AtomExpr = B.AtomExprBase B.AttributeNamesExpr ()
+type AtomExpr = B.AtomExprBase (B.AttributeNamesExprBase () ) ()
 
-type TupleExpr = B.TupleExprBase B.AttributeNamesExpr ()
+type TupleExpr = B.TupleExprBase (B.AttributeNamesExprBase () ) ()
 
 type GraphRefTupleExpr = B.TupleExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker
 
 -- a fundamental relational expr to which other relational expressions compile
-type GraphRefRelationalExpr = B.RelationalExprBase B.GraphRefAttributeNamesExpr B.GraphRefTransactionMarker 
+type GraphRefRelationalExpr = B.RelationalExprBase (B.AttributeNamesExprBase B.GraphRefTransactionMarker) B.GraphRefTransactionMarker
+
+type GraphRefAttributeExpr = B.AttributeExprBase B.GraphRefTransactionMarker
 
 type GraphRefWithNameAssocs = [(B.GraphRefWithNameExpr, GraphRefRelationalExpr)]
 
-type RelationVariables = M.Map B.RelVarName GraphRefRelationalExpr
+type WithNamesAssocs = [(B.WithNameExpr, RelationalExpr)]
 
-type RegisteredQueries = M.Map B.RegisteredQueryName RelationalExpr
-
-
-type InclusionDependencies = M.Map B.IncDepName B.InclusionDependency
+type InclusionDependency = B.InclusionDependencyBase B.AttributeNamesExpr ()
 
 type DatabaseContextExpr = B.DatabaseContextExprBase B.AttributeNamesExpr () B.RoleName 
 

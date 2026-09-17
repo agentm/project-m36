@@ -285,8 +285,6 @@ type GraphRefWithNameExpr = WithNameExprBase GraphRefTransactionMarker
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
 
-type AttributeNamesRelationalExpr = RelationalExprBase AttributeNamesExpr ()
-
 -- | When the changeExpr returns a different result in the database context, then the reportExpr is triggered and sent asynchronously to all clients.
 data Notification = Notification {
   changeExpr :: NormalizedRelationalExpr,
@@ -347,13 +345,17 @@ type AttributeNameAtomExprMapBase attrNames a = M.Map AttributeName (AtomExprBas
 type DatabaseContextExprName = StringType
 
 type ResolvedRelationalExpr = RelationalExprBase AttributeNames ()
--- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
-data InclusionDependency = InclusionDependency NormalizedRelationalExpr NormalizedRelationalExpr
- deriving (Show, Eq, Generic, NFData, Hashable)
+-- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally. Because we use normalized expressions here, inclusion dependencies can reference past transactions.
+data InclusionDependencyBase attrNames a = InclusionDependency (RelationalExprBase attrNames a) (RelationalExprBase attrNames a)
+ deriving (Show, Eq, Generic, NFData, Hashable, Functor)
 
-type InclusionDependencies = M.Map IncDepName InclusionDependency
+type InclusionDependencies = InclusionDependenciesBase AttributeNames GraphRefTransactionMarker
+
+type InclusionDependenciesBase attrNames marker = M.Map IncDepName (InclusionDependencyBase attrNames marker)
 
 type RelationVariables = M.Map RelVarName NormalizedRelationalExpr
+
+type RelationVariablesBase attrNames marker = M.Map RelVarName (RelationalExprBase attrNames marker)
 
 -- registered queries are most likely to be against HEAD since graph history cannot be changed, but we store them as normalized queries since we would merely be converting them constantly otherwise for the executor
 type RegisteredQueries = M.Map RegisteredQueryName NormalizedRelationalExpr
@@ -368,7 +370,7 @@ data DatabaseContextExprBase attrNames a r =
   Delete RelVarName (RestrictionPredicateExprBase attrNames a)  |
   Update RelVarName (AttributeNameAtomExprMapBase attrNames a) (RestrictionPredicateExprBase attrNames a) |
   
-  AddInclusionDependency IncDepName InclusionDependency |
+  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames a) |
   RemoveInclusionDependency IncDepName |
   
   AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
@@ -392,7 +394,7 @@ data DatabaseContextExprBase attrNames a r =
   MultipleExpr [DatabaseContextExprBase attrNames a r]
   deriving (Show, Eq, Generic, NFData)
 
-type NormalizedRelationalExpr = GraphRefRelationalExpr AttributeNames
+type NormalizedRelationalExpr = RelationalExprBase AttributeNames GraphRefTransactionMarker
 
 type ObjModuleName = StringType
 type ObjFunctionName = StringType
@@ -450,8 +452,6 @@ data AtomExprBase attrNames a =
 data ExtendTupleExprBase attrNames a = AttributeExtendTupleExpr AttributeName (AtomExprBase attrNames a)
                      deriving (Show, Read, Eq, Generic, NFData, Foldable, Functor, Traversable)
 
-type GraphRefAtomExpr attrNames = AtomExprBase attrNames GraphRefTransactionMarker
-
 instance (Eq attrNames, Hashable attrNames, Hashable a) => Hashable (ExtendTupleExprBase attrNames a)
 
 --enumerates the list of functions available to be run as part of tuple expressions           
@@ -476,9 +476,9 @@ data AttributeNamesExprBase a =
 
 instance Hashable a => Hashable (AttributeNamesExprBase a)
 
-type GraphRefAttributeNamesExpr = AttributeNamesExprBase GraphRefTransactionMarker
-
 type AttributeNamesExpr = AttributeNamesExprBase ()
+
+type GraphRefAttributeNamesExpr = AttributeNamesExprBase GraphRefTransactionMarker
 
 -- | The persistence strategy is a global database option which represents how to persist the database in the filesystem, if at all.
 data PersistenceStrategy = NoPersistence | -- ^ no filesystem persistence/memory-only database
@@ -497,14 +497,6 @@ data AttributeExprBase a = AttributeAndTypeNameExpr AttributeName TypeConstructo
                          deriving (Eq, Show, Read, Generic, NFData, Foldable, Functor, Traversable, Hashable)
 
 type AttributeExpr = AttributeExprBase ()
-
-type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
-
-type GraphRefRelationalExpr attrNames = RelationalExprBase attrNames GraphRefTransactionMarker
-
-type GraphRefRestrictionPredicateExpr attrNames = RestrictionPredicateExprBase attrNames GraphRefTransactionMarker
-
-type GraphRefExtendTupleExpr attrNames = ExtendTupleExprBase attrNames GraphRefTransactionMarker 
 
 -- | Dynamically create a tuple from attribute names and 'AtomExpr's.
 newtype TupleExprBase attrNames a = TupleExpr (M.Map AttributeName (AtomExprBase attrNames a))
@@ -629,3 +621,22 @@ makeBaseFunctor ''RelationalExprBase
 makeBaseFunctor ''DatabaseContextExprBase
 makeBaseFunctor ''AlterDBCACLExprBase
 
+-- | Used in the common case of listing attribute names with or without constituent expression.
+class BareAttributeNames a where
+  bareAttributeNames :: AttributeNames -> a
+
+instance BareAttributeNames AttributeNames where
+  bareAttributeNames = id
+
+instance BareAttributeNames (AttributeNamesExprBase a) where
+  bareAttributeNames = AttributeNames
+
+-- | Used in the common case of setting UncommittedContextMarker and () for specific marker-based expressions.
+class DefaultTransactionMarker marker where
+  defaultMarker :: marker
+
+instance DefaultTransactionMarker () where
+  defaultMarker = ()
+
+instance DefaultTransactionMarker GraphRefTransactionMarker where
+  defaultMarker = UncommittedContextMarker

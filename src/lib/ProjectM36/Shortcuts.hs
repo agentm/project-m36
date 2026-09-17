@@ -12,8 +12,8 @@
 module ProjectM36.Shortcuts where
 -- users need OverloadedLabels, OverloadedLists, and default(Int,Text) to use these shortcuts.
 import Data.Text hiding (foldl, map)
-import ProjectM36.Base hiding (ExtendTupleExpr, RestrictionPredicateExpr)
-import ProjectM36.AttributeNamesExprBase (TupleExprs, TupleExpr, RelationalExpr, DatabaseContextExpr, ExtendTupleExpr, RestrictionPredicateExpr)
+import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase (TupleExprs, TupleExpr, RelationalExpr, DatabaseContextExpr, ExtendTupleExpr, RestrictionPredicateExpr, AtomExpr)
 import ProjectM36.Relation
 import ProjectM36.Atomable
 import Prelude hiding ((!!))

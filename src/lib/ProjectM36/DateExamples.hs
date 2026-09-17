@@ -1,5 +1,6 @@
 module ProjectM36.DateExamples where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, GraphRefDatabaseContextExpr)
 import ProjectM36.Error
 import ProjectM36.DatabaseContextExpr
 import ProjectM36.DatabaseContext
@@ -16,10 +17,10 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Identity
 
-dateExamples :: ResolvedDatabaseContext
+{-dateExamples :: ResolvedDatabaseContext
 dateExamples = DatabaseContext {
-  inclusionDependencies = Identity dateIncDeps,
-  relationVariables = relationVariables basicDatabaseContext <> Identity dateRelVars,
+  inclusionDependencies = Identity inclusionDependencies,
+  relationVariables = relationVariables basicDatabaseContext <> Identity dateRelationVariables,
   notifications = Identity M.empty,
   dbcFunctions = Identity mempty,
   atomFunctions = Identity basicAtomFunctions,
@@ -28,20 +29,29 @@ dateExamples = DatabaseContext {
   acl = Identity ACL.basic
   }
   where -- these must be lower case now that data constructors are in play
-    dateRelVars = M.fromList [("s", ExistingRelation suppliers),
-                              ("p", ExistingRelation products),
-                              ("sp", ExistingRelation supplierProducts)]
     suppliers = suppliersRel
     products = productsRel
     supplierProducts = supplierProductsRel
-    dateIncDeps = M.fromList [
+-}
+
+dateRelationVariables :: RelationVariablesBase attrNames marker
+dateRelationVariables =
+  M.fromList [("s", ExistingRelation suppliersRel),
+              ("p", ExistingRelation productsRel),
+              ("sp", ExistingRelation supplierProductsRel)]
+
+dateInclusionDependencies :: (BareAttributeNames attrNames, DefaultTransactionMarker marker) => InclusionDependenciesBase attrNames marker
+dateInclusionDependencies =
+  M.fromList [
       ("s_pkey", simplePKey ["s#"] "s"),
       ("p_pkey", simplePKey ["p#"] "p"),
       ("sp_pkey", simplePKey ["s#", "p#"] "sp"),
       ("s_sp_fk", inclusionDependencyForForeignKey ("sp", ["s#"]) ("s", ["s#"])),
       ("p_sp_fk", inclusionDependencyForForeignKey ("sp", ["p#"]) ("p", ["p#"]))
       ]
-    simplePKey attrNames relvarName = inclusionDependencyForKey (AttributeNames $ S.fromList attrNames) (RelationVariable relvarName ())
+  where
+    simplePKey attrNames relvarName = inclusionDependencyForKey (bareAttributeNames (S.fromList attrNames)) (RelationVariable relvarName defaultMarker)
+  
 
 suppliersRel :: Relation
 suppliersRel = case mkRelationFromList attrs atomMatrix of
@@ -84,7 +94,7 @@ supplierProductsRel = case mkRelationFromList attrs matrix of
 
 productsRel :: Relation
 productsRel = case mkRelationFromList attrs matrix of
-  Left _ -> undefined
+  Left err -> error ("productsRel error: " <> show err)
   Right rel -> rel
   where
     attrs = A.attributesFromList [Attribute "p#" TextAtomType,
@@ -103,4 +113,4 @@ productsRel = case mkRelationFromList attrs matrix of
 
 dateExamplesDatabaseContextExpr :: Either RelationalError DatabaseContextExpr
 dateExamplesDatabaseContextExpr =
-  databaseContextAsDatabaseContextExpr (toDatabaseContext dateExamples) emptyTransactionGraph
+  mkDatabaseContextExpr dateRelationVariables dateInclusionDependencies

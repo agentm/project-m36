@@ -10,6 +10,7 @@
 module ProjectM36.Transaction.Persist where
 import ProjectM36.Trace
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (InclusionDependency)
 import ProjectM36.Error
 import ProjectM36.Transaction.Types
 import ProjectM36.ValueMarker

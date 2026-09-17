@@ -27,3 +27,8 @@ data SchemaIsomorph = IsoRestrict RelVarName RestrictionPredicateExpr (RelVarNam
                       deriving (Generic, Show, Eq)
                       
 type SchemaIsomorphs = [SchemaIsomorph]
+
+isomorphInRelVarNames :: SchemaIsomorph -> [RelVarName]
+isomorphInRelVarNames (IsoRestrict rv _ _) = [rv]
+isomorphInRelVarNames (IsoUnion (rvA, rvB) _ _) = [rvA, rvB]
+isomorphInRelVarNames (IsoRename rv _) = [rv]

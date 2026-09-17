@@ -2,9 +2,10 @@
 {-# LANGUAGE RankNTypes #-}
 module ProjectM36.AccessControl where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, DatabaseContextExpr')
 import ProjectM36.Error
 import ProjectM36.AccessControlList
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.RelationVariablesMentioned
@@ -13,7 +14,7 @@ import ProjectM36.Function
 import Control.Monad.Except
 import Control.Monad (when, forM_)
 
-applyACLRelationalExpr :: Show a => [RoleId] -> RelVarAccessControlList -> RelationalExprBase a -> Either RelationalError ()
+applyACLRelationalExpr :: Show a => [RoleId] -> RelVarAccessControlList -> RelationalExprBase attrNames a -> Either RelationalError ()
 applyACLRelationalExpr roleIds acl' expr = do
   let checkPerm perm =
         if hasAccess roleIds perm acl' then

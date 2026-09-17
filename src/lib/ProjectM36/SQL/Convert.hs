@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeFamilies, FlexibleInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 module ProjectM36.SQL.Convert where
 import ProjectM36.Base as B
-import ProjectM36.AttributeNamesBase as B
+import ProjectM36.AttributeNamesExprBase as B
+-- needed for dealing with inclusion dependency expressions
 import ProjectM36.Error
 import ProjectM36.DataTypes.SQL.Null
 import ProjectM36.DatabaseContext.Types
@@ -160,7 +161,9 @@ withSubSelect m = do
   (TableContext postSub) <- get
   put state
   -- diff the state to get just the items that were added
-  let tableDiffFolder acc (tAlias, (RelationVariable _rv (), _ , colAliasRemapper)) = do
+  let
+      tableDiffFolder :: ColumnAliasRenameMap -> (TableAlias, (RelationalExpr, Attributes, ColumnAliasRemapper)) -> ConvertM ColumnAliasRenameMap
+      tableDiffFolder acc (tAlias, (RelationVariable _rv _, _attrs, colAliasRemapper)) = do
         let convertColAliases :: ColumnAliasRemapper -> (AttributeName, (AttributeName, S.Set ColumnName)) -> ColumnAliasRenameMap -> ColumnAliasRenameMap
             convertColAliases origColAlRemapper (attrName, (attrAlias,_)) acc' =
               if M.member attrName origColAlRemapper then
@@ -1285,11 +1288,12 @@ convertColumnType colType constraints = do
 convertPerColumnConstraints :: RelVarName -> UnqualifiedColumnName -> PerColumnConstraints -> ConvertM [DatabaseContextExpr]
 convertPerColumnConstraints rvname (UnqualifiedColumnName colName) constraints = do
   -- NOT NULL constraints are already enforced by the column type
+  let marker = ()
   fkExprs <- case references constraints of
                Nothing -> pure []        
                Just (TableName [fkTableName], UnqualifiedColumnName fkColName) -> do
                  let fkIncDepName = rvname <> "_" <> colName <> "__" <> fkTableName <> "_" <> fkColName <> "_fk"
-                     mkFK = InclusionDependency (Project (AttributeNames (S.singleton colName)) (RelationVariable rvname ())) (Project (AttributeNames (S.singleton fkColName)) (RelationVariable fkTableName ()))
+                     mkFK = InclusionDependency (Project (AttributeNames (S.singleton colName)) (RelationVariable rvname marker)) (Project (AttributeNames (S.singleton fkColName)) (RelationVariable fkTableName marker))
 
                  pure [AddInclusionDependency fkIncDepName mkFK]
                Just (TableName fkTableNames, UnqualifiedColumnName fkColName) ->
@@ -1308,7 +1312,7 @@ databaseContextExprForUniqueKeyWithNull :: RelVarName -> AttributeName -> Databa
 databaseContextExprForUniqueKeyWithNull rvname attrName =
   AddInclusionDependency incDepName incDep
   where
-    incDep = inclusionDependencyForKey (AttributeNames (S.singleton attrName)) (Restrict notNull (RelationVariable rvname ()))
+    incDep = inclusionDependencyForKey (S.singleton attrName) (Restrict notNull (RelationVariable rvname ()))
     incDepName = rvname <> "_" <> attrName <> "_unique"
     notNull = NotPredicate (AtomExprPredicate (func "sql_isnull" [AttributeAtomExpr attrName] ))
                                   

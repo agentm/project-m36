@@ -21,7 +21,7 @@ data DatabaseContextBase a = DatabaseContext {
   acl :: a DatabaseContextACL
   } 
 
--- | The type of the database context when stored in the graph. It can reference data from other transactions in the graph.
+-- | The type of the database context when stored in the graph. It can reference data from other transactions in the graph. 
 type DatabaseContext = DatabaseContextBase ValueMarker
 
 deriving instance NFData DatabaseContext
@@ -30,6 +30,7 @@ deriving instance Generic DatabaseContext
 -- | The type of the database context when it is fully resolved (of transaction markers such as in the TransactionRefDatabaseContext); standalone, ready-to-use.
 type ResolvedDatabaseContext = DatabaseContextBase Identity
 
+-- | Mark fields as referencing a different transaction.
 data TransactionIdMarker a = TransactionIdMarker TransactionId a
   deriving (NFData, Generic)
 

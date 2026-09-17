@@ -41,35 +41,6 @@ import Control.Arrow
 import Data.Maybe
 import Data.UUID.V4
 
--- | Record a lookup for a specific transaction in the graph.
-data TransactionIdLookup = TransactionIdLookup TransactionId |
-                           TransactionIdHeadNameLookup HeadName [TransactionIdHeadBacktrack]
-                           deriving (Show, Eq, Generic)
-                           deriving Serialise via WineryVariant TransactionIdLookup
-
--- | Used for git-style head backtracking such as topic~3^2.
-data TransactionIdHeadBacktrack = TransactionIdHeadParentBacktrack Int | -- ^ git equivalent of ~v: walk back n parents, arbitrarily choosing a parent when a choice must be made
-                                  TransactionIdHeadBranchBacktrack Int | -- ^ git equivalent of ^: walk back one parent level to the nth arbitrarily-chosen parent
-                                  TransactionStampHeadBacktrack UTCTime -- ^ git equivalent of 'git-rev-list -n 1 --before X' find the first transaction which was created before the timestamp
-                                  deriving (Show, Eq, Generic)
-                                  deriving Serialise via WineryVariant TransactionIdHeadBacktrack
-
-
-data TransactionGraphExpr = JumpToHead HeadName  |
-                            JumpToTransaction TransactionId |
-                            WalkBackToTime UTCTime
-                          deriving (Eq, Show, Generic)
-  deriving Serialise via WineryVariant TransactionGraphExpr
-                                
--- | Operators which manipulate a transaction graph and which transaction the current 'Session' is based upon.
-data AlterTransactionGraphExpr = 
-                                Branch HeadName |
-                                DeleteBranch HeadName |
-                                MergeTransactions MergeStrategy HeadName HeadName |
-                                Commit |
-                                Rollback
-                              deriving (Eq, Show, Generic)
-                              deriving Serialise via WineryVariant AlterTransactionGraphExpr
 
 isCommit :: AlterTransactionGraphExpr -> Bool
 isCommit Commit = True

@@ -1,5 +1,5 @@
 module ProjectM36.Key where
-import ProjectM36.Base hiding (GraphRefRelationalExpr)
+import ProjectM36.Base
 import ProjectM36.AttributeNamesBase
 import ProjectM36.Relation
 import qualified Data.Set as S
@@ -27,35 +27,52 @@ example:
 -}
 
 -- | Create a uniqueness constraint for the attribute names and relational expression. Note that constraint can span multiple relation variables.
-inclusionDependencyForKey :: AttributeNames -> GraphRefRelationalExpr -> InclusionDependency
-inclusionDependencyForKey attrNames relExpr = --InclusionDependency name (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
+inclusionDependencyForKey ::
+  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  AttributeNames ->
+  RelationalExprBase attrNames marker ->
+  InclusionDependencyBase attrNames marker
+inclusionDependencyForKey attrNames relExpr = 
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
-  where 
-    projectedOnKeys = Project attrNames
+  where
+    projectedOnKeys = Project (bareAttributeNames attrNames)
     exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
-    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] UncommittedContextMarker )) (exprAsSubRelation expr))
-    projectionForCount = Project (S.singleton "b")
+    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] defaultMarker)) (exprAsSubRelation expr))
+    projectionForCount = Project (bareAttributeNames (S.singleton "b"))
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
 -- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.
-databaseContextExprForUniqueKey :: RelVarName -> [AttributeName] -> DatabaseContextExpr
-databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName UncommittedContextMarker)
+databaseContextExprForUniqueKey ::
+  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  RelVarName ->
+  [AttributeName] ->
+  DatabaseContextExprBase attrNames marker r
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName defaultMarker)
   where
     cols = T.intercalate "_" attrNames
 
 -- | Create a foreign key constraint from the first relation variable and attributes to the second.
-databaseContextExprForForeignKey :: IncDepName -> (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> DatabaseContextExpr
+databaseContextExprForForeignKey ::
+  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  IncDepName ->
+  (RelVarName, [AttributeName]) ->
+  (RelVarName, [AttributeName]) ->
+  DatabaseContextExprBase attrNames marker r
 databaseContextExprForForeignKey fkName infoA infoB =
   AddInclusionDependency fkName (inclusionDependencyForForeignKey infoA infoB)
   
-inclusionDependencyForForeignKey :: (RelVarName, [AttributeName]) -> (RelVarName, [AttributeName]) -> InclusionDependency
+inclusionDependencyForForeignKey ::
+  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  (RelVarName, [AttributeName]) ->
+  (RelVarName, [AttributeName]) ->
+  InclusionDependencyBase attrNames marker
 inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
   InclusionDependency (
     renameIfNecessary attrsB attrsA (Project (attrsL attrsA)
-                                     (RelationVariable rvA UncommittedContextMarker))) (
-    Project (attrsL attrsB) (RelationVariable rvB UncommittedContextMarker))
+                                     (RelationVariable rvA defaultMarker))) (
+    Project (attrsL attrsB) (RelationVariable rvB defaultMarker))
   where
-    attrsL = S.fromList    
+    attrsL = bareAttributeNames . S.fromList
     renameIfNecessary attrsExpected attrsExisting expr = foldr folder expr (zip attrsExpected attrsExisting)
     folder (attrExpected, attrExisting) expr = if attrExpected == attrExisting then
                                                    expr

@@ -2,7 +2,7 @@ module ProjectM36.DatabaseContextExpr where
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (DatabaseContextExpr)
+import ProjectM36.AttributeNamesBase (DatabaseContextExpr, GraphRefDatabaseContextExpr)
 import ProjectM36.AccessControlList
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
@@ -11,21 +11,32 @@ import qualified Data.Map as M
 import Data.Functor.Identity
 import qualified Data.Functor.Foldable as Fold
 
-resolvedDatabaseContextAsDatabaseContextExpr :: ResolvedDatabaseContext -> DatabaseContextExpr
+resolvedDatabaseContextAsDatabaseContextExpr :: ResolvedDatabaseContext -> GraphRefDatabaseContextExpr
 resolvedDatabaseContextAsDatabaseContextExpr context = do
-  let relVarsExprs = map (\(name, rel) -> Assign name (stripGraphRefRelationalExpr rel)) (M.toList relVars)
+  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList relVars)
       relVars = runIdentity (relationVariables context)
       incDeps = runIdentity (inclusionDependencies context)
       incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)
       funcsExprs = []
   MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs
-  
+
+-- | Make a DatabaseContextExpr from its constituent parts. Useful for user-facing attribute-names-expression-based construction.
+mkDatabaseContextExpr ::
+  RelationVariablesBase attrNames marker ->
+  InclusionDependenciesBase attrNames marker ->
+ 
+  Either RelationalError (DatabaseContextExprBase attrNames marker rol)
+mkDatabaseContextExpr relVars incDeps = do
+  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList relVars)
+      incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)  
+  pure $ MultipleExpr (relVarsExprs <> incDepsExprs)
+
 -- | convert an existing database context into its constituent expression.   
-databaseContextAsDatabaseContextExpr :: DatabaseContext -> TransactionGraph -> Either RelationalError DatabaseContextExpr
+databaseContextAsDatabaseContextExpr :: DatabaseContext -> TransactionGraph -> Either RelationalError GraphRefDatabaseContextExpr
 databaseContextAsDatabaseContextExpr context graph = do
   relVars <- resolveDBC' graph context relationVariables
   incDeps <- resolveDBC' graph context inclusionDependencies
-  let relVarsExprs = map (\(name, rel) -> Assign name (stripGraphRefRelationalExpr rel)) (M.toList relVars)
+  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList relVars)
       incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)
       funcsExprs = []
   pure $ MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs

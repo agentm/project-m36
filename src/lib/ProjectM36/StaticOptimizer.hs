@@ -2,6 +2,8 @@
 
 module ProjectM36.StaticOptimizer where
 import ProjectM36.Base
+import qualified ProjectM36.AttributeNamesExprBase as AttrExpr
+import qualified ProjectM36.AttributeNamesBase as AttrNames
 import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Relation
 import qualified ProjectM36.TupleSet as TS
@@ -10,10 +12,11 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
+import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.Error
 import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
-import qualified ProjectM36.AttributeNames as AS
+import qualified ProjectM36.AttributeNamesExpr as AS
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 #endif
@@ -66,26 +69,31 @@ class Optimize expr optExpr where
   optimize :: OptimizeEnv expr optExpr -> expr -> Either RelationalError optExpr
 
 
-instance Optimize RelationalExpr GraphRefRelationalExpr where
-  type OptimizeEnv RelationalExpr GraphRefRelationalExpr = RelationalExprEnv
+instance Optimize AttrExpr.RelationalExpr AttrNames.GraphRefRelationalExpr where
+  type OptimizeEnv AttrExpr.RelationalExpr AttrNames.GraphRefRelationalExpr = RelationalExprEnv
   
   optimize env expr = do
-    let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+    let         -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+        gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)
         ctx = re_context env
-    runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
+    case runGraphRefRelationalExprM gfEnv (normalize expr) of
+      Left err -> Left err
+      Right gfExpr ->
+        runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
-instance Optimize DatabaseContextExpr' GraphRefDatabaseContextExpr' where
-  type OptimizeEnv DatabaseContextExpr' GraphRefDatabaseContextExpr' = GraphRefSOptDatabaseContextExprEnv
+instance Optimize AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContextExpr' where
+  type OptimizeEnv AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContextExpr' = GraphRefSOptDatabaseContextExprEnv
   optimize env expr = do
-    let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
+    let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
         graph = odce_graph env
         transId = odce_transId env
         ctx = odce_context env
         dbcfuncutils = odce_dbcfuncutils env
+    gfExpr <- runGraphRefRelationalExprM gfEnv (normalize expr)
     runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
 -- | Apply pure optimizations.
-optimizeAndEvalRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError Relation
+optimizeAndEvalRelationalExpr :: RelationalExprEnv -> AttrExpr.RelationalExpr -> Either RelationalError Relation
 optimizeAndEvalRelationalExpr env expr = do
   let graph = re_graph env
       ctx = re_context env
@@ -94,25 +102,29 @@ optimizeAndEvalRelationalExpr env expr = do
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
 -- | Optimization can be disabled due to missing context in isomorphic transformations.
-optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr' -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr :: Bool -> AttrExpr.DatabaseContextExpr' -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   dbcfuncutils <- asks dce_dbcfuncutils
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
-      eOptExpr = if runOpt then
-                   runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
-                   else
-                   pure gfExpr
-  case eOptExpr of
+  let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph  
+  case runGraphRefRelationalExprM gfEnv (normalize expr) of
     Left err -> throwError err
-    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
+    Right gfExpr -> do
+      let eOptExpr = if runOpt then
+                       runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
+                     else
+                       pure gfExpr
+      case eOptExpr of
+        Left err -> throwError err
+        Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
-optimizeRelationalExpr :: RelationalExprEnv -> RelationalExpr -> Either RelationalError GraphRefRelationalExpr
+optimizeRelationalExpr :: RelationalExprEnv -> AttrExpr.RelationalExpr -> Either RelationalError AttrNames.GraphRefRelationalExpr
 optimizeRelationalExpr env expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
-      ctx = re_context env
+  let ctx = re_context env
+      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)  
+  gfExpr <- runGraphRefRelationalExprM gfEnv (normalize expr)  
   runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
 class Monad m => AskGraphContext m where
@@ -137,16 +149,23 @@ askTransId = asks odce_transId
 askMaybeContext :: GraphRefSOptRelationalExprM (Maybe DatabaseContext)
 askMaybeContext = asks ore_mcontext
 
-optimizeDatabaseContextExpr :: DatabaseContextExpr' -> GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr'
+optimizeDatabaseContextExpr :: AttrExpr.DatabaseContextExpr' -> GraphRefSOptDatabaseContextExprM AttrNames.GraphRefDatabaseContextExpr'
 optimizeDatabaseContextExpr expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
-  optimizeGraphRefDatabaseContextExpr gfExpr
+  graph <- asks odce_graph
+  ctx <- asks odce_context
+  let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
+  case runGraphRefRelationalExprM gfEnv (normalize expr) of
+    Left err -> throwError err
+    Right gfExpr ->
+      optimizeGraphRefDatabaseContextExpr gfExpr
   
 
 optimizeAndEvalTransGraphRelationalExpr :: TransactionGraph -> TransGraphRelationalExpr -> Either RelationalError Relation
 optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
-  gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
+  -- USE normalize here but maybe switch to open type family, but will the open type family cause overlap?
+--  gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
+  gfExpr <- runGraphRefRelationalExprM gfEnv (normalize tgExpr)
   _ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
   optExpr <- runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
@@ -203,20 +222,25 @@ runGraphRefSOptDatabaseContextIOExprM tid ctx graph m =
       odcioe_context = ctx,
       odcioe_transId = tid
         }
-
+{-
 optimizeGraphRefRelationalExpr' ::
   Maybe DatabaseContext ->
   TransactionGraph ->
-  GraphRefRelationalExpr ->
-  Either RelationalError GraphRefRelationalExpr
-optimizeGraphRefRelationalExpr' mctx graph expr =
-  runIdentity (runExceptT (runReaderT (optimizeGraphRefRelationalExpr expr) env))
+  AttrExpr.GraphRefRelationalExpr ->
+  Either RelationalError AttrNames.GraphRefRelationalExpr
+optimizeGraphRefRelationalExpr' mctx graph expr = do
+  let gfEnv = freshGraphRefRelationalExprEnv Nothing graph  
+  case runGraphRefRelationalExprM gfEnv (normalize expr) of
+    Left err -> throwError err
+    Right gfExpr ->
+
+      runIdentity (runExceptT (runReaderT (optimizeGraphRefRelationalExpr gfExpr) env))
   where
     env = GraphRefSOptRelationalExprEnv {
       ore_graph = graph,
       ore_mcontext = mctx
       }
-
+-}
 -- | optimize relational expression within database context expr monad
 liftGraphRefRelExpr :: GraphRefSOptRelationalExprM a -> GraphRefSOptDatabaseContextExprM a
 liftGraphRefRelExpr m = do
@@ -224,7 +248,7 @@ liftGraphRefRelExpr m = do
   graph <- asks odce_graph
   lift $ except $ runGraphRefSOptRelationalExprM (Just context) graph m
   
-fullOptimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
+fullOptimizeGraphRefRelationalExpr :: AttrNames.GraphRefRelationalExpr -> GraphRefSOptRelationalExprM AttrNames.GraphRefRelationalExpr
 fullOptimizeGraphRefRelationalExpr expr = do
   optExpr <- optimizeGraphRefRelationalExpr expr
   let optExpr' = applyStaticRestrictionPushdown (applyStaticRestrictionCollapse optExpr)
@@ -233,7 +257,7 @@ fullOptimizeGraphRefRelationalExpr expr = do
 -- apply optimizations which merely remove steps to become no-ops: example: projection of a relation across all of its attributes => original relation
 
 --should optimizations offer the possibility to pure errors? If they perform the up-front type-checking, maybe so
-optimizeGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
+optimizeGraphRefRelationalExpr :: AttrNames.GraphRefRelationalExpr -> GraphRefSOptRelationalExprM AttrNames.GraphRefRelationalExpr
 optimizeGraphRefRelationalExpr e@(MakeStaticRelation _ _) = pure e
 
 optimizeGraphRefRelationalExpr e@MakeRelationFromExprs{} = pure e
@@ -248,17 +272,15 @@ optimizeGraphRefRelationalExpr e@(RelationVariable _ _) = pure e
 optimizeGraphRefRelationalExpr (Project attrNameSet expr) = do
   graph <- askGraph
   mctx <- askMaybeContext
-  let relType = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
+  let eRelType = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr expr)
       gfEnv = freshGraphRefRelationalExprEnv mctx graph
-  case relType of
+  optSubExpr <- optimizeGraphRefRelationalExpr expr      
+  case eRelType of
     Left err -> throwError err
-    Right relType2 
-      | AS.all == attrNameSet ->        
-        optimizeGraphRefRelationalExpr expr
-      | AttributeNames (attributeNames relType2) == attrNameSet ->
-        optimizeGraphRefRelationalExpr expr
-      | otherwise -> do
-        optSubExpr <- optimizeGraphRefRelationalExpr expr 
+    Right relType  ->
+      if A.attributeNameSet (attributes relType) == attrNameSet then
+        pure optSubExpr
+      else
         pure (Project attrNameSet optSubExpr)
                            
 optimizeGraphRefRelationalExpr (Union exprA exprB) = do
@@ -336,8 +358,8 @@ optimizeGraphRefRelationalExpr e@(With _ _) = pure e
 
 -- database context expr, we can only optimize with fully-resolved RoleIds to be able to enforce security which could otherwise be used to leak schema details
 optimizeGraphRefDatabaseContextExpr ::
-  GraphRefDatabaseContextExpr' ->
-  GraphRefSOptDatabaseContextExprM GraphRefDatabaseContextExpr'
+  AttrNames.GraphRefDatabaseContextExpr' ->
+  GraphRefSOptDatabaseContextExprM AttrNames.GraphRefDatabaseContextExpr'
 optimizeGraphRefDatabaseContextExpr x@NoOperation = pure x
 optimizeGraphRefDatabaseContextExpr x@(Define _ _) = pure x
 
@@ -411,7 +433,7 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   (_, exprs') <- foldM folder (context,[]) exprs
   pure (MultipleExpr exprs')
 
-applyStaticPredicateOptimization :: GraphRefRestrictionPredicateExpr -> GraphRefSOptRelationalExprM GraphRefRestrictionPredicateExpr
+applyStaticPredicateOptimization :: AttrNames.GraphRefRestrictionPredicateExpr -> GraphRefSOptRelationalExprM AttrNames.GraphRefRestrictionPredicateExpr
 applyStaticPredicateOptimization predi = do
   optPred <- case predi of 
 -- where x and x => where x
@@ -446,19 +468,19 @@ applyStaticPredicateOptimization predi = do
   pure (replaceStaticAtomExprs optPred attrMap)
 
 --determines if an atom expression is tautologically true
-isTrueExpr :: RestrictionPredicateExprBase a -> Bool
+isTrueExpr :: RestrictionPredicateExprBase at a -> Bool
 isTrueExpr TruePredicate = True
 isTrueExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom True))) = True
 isTrueExpr _ = False
 
 --determines if an atom expression is tautologically false
-isFalseExpr :: RestrictionPredicateExprBase a -> Bool
+isFalseExpr :: RestrictionPredicateExprBase at a -> Bool
 isFalseExpr (NotPredicate expr) = isTrueExpr expr
 isFalseExpr (AtomExprPredicate (NakedAtomExpr (BoolAtom False))) = True
 isFalseExpr _ = False
     
 --transitive static variable optimization                        
-replaceStaticAtomExprs :: GraphRefRestrictionPredicateExpr -> M.Map AttributeName GraphRefAtomExpr -> GraphRefRestrictionPredicateExpr
+replaceStaticAtomExprs :: AttrNames.GraphRefRestrictionPredicateExpr -> M.Map AttributeName AttrNames.GraphRefAtomExpr -> AttrNames.GraphRefRestrictionPredicateExpr
 replaceStaticAtomExprs predIn replaceMap = case predIn of
   AttributeEqualityPredicate newAttrName (AttributeAtomExpr matchName) -> case M.lookup matchName replaceMap of
     Nothing -> predIn
@@ -471,7 +493,7 @@ replaceStaticAtomExprs predIn replaceMap = case predIn of
   RelationalExprPredicate{} -> predIn
   AtomExprPredicate{} -> predIn
 -- used for transitive attribute optimization- only works on statically-determined atoms for now- in the future, this could work for all AtomExprs which don't reference attributes
-findStaticRestrictionPredicates :: GraphRefRestrictionPredicateExpr -> M.Map AttributeName GraphRefAtomExpr
+findStaticRestrictionPredicates :: AttrNames.GraphRefRestrictionPredicateExpr -> M.Map AttributeName AttrNames.GraphRefAtomExpr
 findStaticRestrictionPredicates (AttributeEqualityPredicate attrName atomExpr) = 
   case atomExpr of
     val@NakedAtomExpr{} -> M.singleton attrName val
@@ -487,7 +509,7 @@ findStaticRestrictionPredicates TruePredicate = M.empty
 findStaticRestrictionPredicates RelationalExprPredicate{} = M.empty
 findStaticRestrictionPredicates AtomExprPredicate{} = M.empty
 
-isStaticAtomExpr :: AtomExpr -> Bool
+isStaticAtomExpr :: AtomExprBase at a -> Bool
 isStaticAtomExpr NakedAtomExpr{} = True
 isStaticAtomExpr SubrelationAttributeAtomExpr{} = False
 isStaticAtomExpr ConstructedAtomExpr{} = True
@@ -497,7 +519,7 @@ isStaticAtomExpr IfThenAtomExpr{} = False
 isStaticAtomExpr RelationAtomExpr{} = False
 
 --if the projection of a join only uses the attributes from one of the expressions and there is a foreign key relationship between the expressions, we know that the join is inconsequential and can be removed
-applyStaticJoinElimination :: GraphRefRelationalExpr -> GraphRefSOptRelationalExprM GraphRefRelationalExpr
+applyStaticJoinElimination :: AttrNames.GraphRefRelationalExpr -> GraphRefSOptRelationalExprM AttrNames.GraphRefRelationalExpr
 applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
   graph <- askGraph
   case inSameTransaction exprA exprB of
@@ -530,17 +552,9 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
          incDeps <- lift (except (resolveDBC' graph commonContext inclusionDependencies))
          let fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
-             isFkConstraint acc (InclusionDependency (Project subAttrNames subrv) (Project _ superrv)) = do
-               let gfSubAttrNames = processM (processAttributeNames subAttrNames)
-                   gfSubRv = processM (processRelationalExpr subrv)
-                   gfSuperRv = processM (processRelationalExpr superrv)
-                   processM :: forall a. ProcessExprM a -> a
-                   processM = runProcessExprM marker
-               case runGraphRefRelationalExprM gfEnv (evalGraphRefAttributeNames gfSubAttrNames expr) of
-                 Left _ -> pure acc
-                 Right subAttrNameSet -> 
-                   pure (acc || (joinedExpr == gfSubRv &&
-                                 unjoinedExpr == gfSuperRv && 
+             isFkConstraint acc (InclusionDependency (Project subAttrNameSet subrv) (Project _ superrv)) =
+               pure (acc || (joinedExpr == subrv &&
+                                 unjoinedExpr == superrv && 
                                  -- the fk attribute is one of the projection attributes
                                  A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
                                 ))
@@ -556,7 +570,7 @@ applyStaticJoinElimination expr = pure expr
                                                                               
 --restriction collapse converts chained restrictions into (Restrict (And pred1 pred2 pred3...))
   --this optimization should be fairly uncontroversial- performing a tuple scan once is cheaper than twice- parallelization can still take place
-applyStaticRestrictionCollapse :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyStaticRestrictionCollapse :: AttrNames.GraphRefRelationalExpr -> AttrNames.GraphRefRelationalExpr
 applyStaticRestrictionCollapse expr = 
   case expr of
     MakeRelationFromExprs _ _ -> expr
@@ -599,14 +613,14 @@ applyStaticRestrictionCollapse expr =
       in
       Restrict andPreds optFinalExpr
       
-sequentialRestrictions :: RelationalExprBase a -> [RelationalExprBase a]
+sequentialRestrictions :: RelationalExprBase at a -> [RelationalExprBase at a]
 sequentialRestrictions expr@(Restrict _ subexpr) = expr:sequentialRestrictions subexpr
 sequentialRestrictions _ = []
 
 --restriction pushdown only really makes sense for tuple-oriented storage schemes where performing a restriction before projection can cut down on the intermediate storage needed to store the data before the projection
 -- x{proj} where c1 -> (x where c1){proj} #project on fewer tuples
 -- (x union y) where c -> (x where c) union (y where c) #with a selective restriction, fewer tuples will need to be joined
-applyStaticRestrictionPushdown :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyStaticRestrictionPushdown :: AttrNames.GraphRefRelationalExpr -> AttrNames.GraphRefRelationalExpr
 applyStaticRestrictionPushdown expr = case expr of
   MakeRelationFromExprs _ _ -> expr
   MakeStaticRelation _ _ -> expr
@@ -646,7 +660,7 @@ applyStaticRestrictionPushdown expr = case expr of
 
 -- if the rename is completely redundant because it renames an attribute name to the same attribute name, remove it
 -- Rename [(x,x)] == Rename []
-applyRedundantRenameCleanup :: GraphRefRelationalExpr -> GraphRefRelationalExpr
+applyRedundantRenameCleanup :: AttrExpr.GraphRefRelationalExpr -> AttrExpr.GraphRefRelationalExpr
 applyRedundantRenameCleanup = Fold.cata folder
   where
     folder (RenameF renameSet e) =

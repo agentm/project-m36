@@ -1,10 +1,11 @@
 {-# LANGUAGE DeriveGeneric, DerivingVia, CPP #-}
 module ProjectM36.Server.RemoteCallTypes where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.IsomorphicSchema
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.DataFrame
-import ProjectM36.TransGraphRelationalExpression
+import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.Session
 import ProjectM36.LoginRoles
 import ProjectM36.IsomorphicSchema.Types

@@ -15,6 +15,6 @@ registeredQueriesAsRelationInSchema schema regQs = do
     attrs = attributesFromList [Attribute "name" TextAtomType,
                                 Attribute "expr" RelationalExprAtomType]
     regQToTuple (qname, qexpr) = do
-      qexpr' <- processRelationalExprInSchema schema qexpr
+      qexpr' <- processNormalizedRelationalExprInSchema schema qexpr
       pure [TextAtom qname, RelationalExprAtom qexpr']
   

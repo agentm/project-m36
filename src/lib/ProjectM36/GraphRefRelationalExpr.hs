@@ -1,6 +1,6 @@
 module ProjectM36.GraphRefRelationalExpr where
 --evaluate relational expressions across the entire transaction graph to support cross-transaction referencing
-import ProjectM36.Base (GraphRefTransactionMarker(..), RelationalExprBase(..), RelVarName, RelationalExprBaseF(..), GraphRefRelationalExpr)
+import ProjectM36.Base (GraphRefTransactionMarker(..), RelationalExprBase(..), RelVarName, RelationalExprBaseF(..))
 
 import qualified Data.Set as S
 import qualified Data.Functor.Foldable as Fold
@@ -37,7 +37,7 @@ singularTransaction expr =
     _ -> MultipleTransactionsRef
 
 -- | Return True if two 'GraphRefRelationalExpr's both refer exclusively to the same transaction (or none at all).
-inSameTransaction :: GraphRefRelationalExpr at -> GraphRefRelationalExpr at -> Maybe GraphRefTransactionMarker
+inSameTransaction :: RelationalExprBase at GraphRefTransactionMarker -> RelationalExprBase at GraphRefTransactionMarker -> Maybe GraphRefTransactionMarker
 inSameTransaction exprA exprB = case (stA, stB) of
   (SingularTransactionRef tA, SingularTransactionRef tB) | tA == tB -> Just tA
   _ -> Nothing
@@ -48,7 +48,7 @@ singularTransactions :: (Foldable f, Foldable t) => f (t GraphRefTransactionMark
 singularTransactions = foldMap singularTransaction
 
 -- | Decompose a GraphRefRelationalExpr into its constituent references to relvars at transactionIds. Useful for determining which relvars in the transaction graph the expression references; for example, for security checks.
-decomposeGraphRefTransactionMarkers :: GraphRefRelationalExpr at -> S.Set (GraphRefTransactionMarker, RelVarName)
+decomposeGraphRefTransactionMarkers :: RelationalExprBase at GraphRefTransactionMarker -> S.Set (GraphRefTransactionMarker, RelVarName)
 decomposeGraphRefTransactionMarkers = Fold.cata decomp
   where
     decomp :: RelationalExprBaseF at GraphRefTransactionMarker (S.Set (GraphRefTransactionMarker, RelVarName)) -> S.Set (GraphRefTransactionMarker, RelVarName)
@@ -56,7 +56,7 @@ decomposeGraphRefTransactionMarkers = Fold.cata decomp
     decomp other = foldr S.union mempty other
 
 -- | Find expressions which project on the empty attribute set for btree optimization.
-findExistenceSubExprs :: (Hashable at, Monoid at) => GraphRefRelationalExpr at -> HS.HashSet (GraphRefRelationalExpr at)
+findExistenceSubExprs :: (Hashable at, Monoid at) => RelationalExprBase at GraphRefTransactionMarker -> HS.HashSet (RelationalExprBase at GraphRefTransactionMarker)
 findExistenceSubExprs = Fold.para f
   where
     f (ProjectF attrNames (relExpr, recRelExpr))
@@ -64,3 +64,4 @@ findExistenceSubExprs = Fold.para f
           HS.singleton (Project attrNames relExpr)
       | otherwise = recRelExpr
     f other = foldr (HS.union . snd) mempty other
+

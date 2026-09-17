@@ -2,6 +2,7 @@
 --Transaction Merge Engines
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr)
 import ProjectM36.Error
 import ProjectM36.ValueMarker
 import ProjectM36.TransactionGraph.Types

@@ -137,6 +137,7 @@ Library
                      ProjectM36.TransactionGraph.Persist,
                      ProjectM36.TransactionGraph.Merge,
                      ProjectM36.TransGraphRelationalExpression,
+                     ProjectM36.TransGraphRelationalExpression.Types,                     
                      ProjectM36.Base,
                      ProjectM36.AttributeNamesExprBase,
                      ProjectM36.AttributeNamesBase,

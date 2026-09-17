@@ -9,7 +9,7 @@ import ProjectM36.Base
 import ProjectM36.Tuple (tupleAttributes, tupleAtoms)
 import ProjectM36.Serialise.Base ()
 import ProjectM36.IsomorphicSchema.Types hiding (subschemas, concreteDatabaseContext)
-import ProjectM36.IsomorphicSchema
+--import ProjectM36.IsomorphicSchema
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
 import qualified Data.HashSet as HS
@@ -61,7 +61,9 @@ instance HashBytes Atom where
         build = BL.toStrict . BSB.toLazyByteString
         up = SHA256.update ctx
 
-
+instance HashBytes (S.Set AttributeName) where
+  hashBytes attrNameSet ctx = hashBytesL ctx "S.Set AttributeName" (map SHash (S.toList attrNameSet))
+    
 instance HashBytes T.Text where
   hashBytes t ctx = SHA256.update ctx (TE.encodeUtf8 t)
   
@@ -74,7 +76,7 @@ data SHash = forall a. HashBytes a => SHash !a
 hashBytesL :: Foldable f => SHA256.Ctx -> B.ByteString -> f SHash -> SHA256.Ctx
 hashBytesL ctx name = foldr (\(SHash i) ctx'@(SHA256.Ctx !bs) -> bs `seq` hashBytes i ctx') (SHA256.update ctx name)
 
-instance HashBytes a => HashBytes (RelationalExprBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (RelationalExprBase at a) where
   hashBytes (MakeRelationFromExprs mAttrs tupleExprs) ctx =
     hashBytesL ctx "MakeRelationFromExprs" [SHash mAttrs, SHash tupleExprs]
   hashBytes (MakeStaticRelation attrs tupSet) ctx = 
@@ -110,14 +112,14 @@ instance HashBytes a => HashBytes (RelationalExprBase a) where
   hashBytes (With withExprs expr) ctx =
     hashBytesL ctx "With" (SHash expr: map SHash (sortOn (\(WithNameExpr rv _, _) -> rv) withExprs))
 
-instance HashBytes a => HashBytes (AttributeNamesBase a) where
+instance HashBytes a => HashBytes (AttributeNamesExprBase a) where
   hashBytes (AttributeNames s) ctx = hashBytesL ctx "AttributeNames" (map SHash (S.toAscList s))
   hashBytes (InvertedAttributeNames s) ctx = hashBytesL ctx "InvertedAttributeNames" (map SHash (S.toAscList s))
   hashBytes (UnionAttributeNames a b) ctx = hashBytesL ctx "UnionAttributeNames" [SHash a, SHash b]
   hashBytes (IntersectAttributeNames a b) ctx = hashBytesL ctx "IntersectAttributeNames" [SHash a, SHash b]
   hashBytes (RelationalExprAttributeNames r) ctx = hashBytesL ctx "RelationalExprAttributeNames" [SHash r]
 
-instance HashBytes a => HashBytes (ExtendTupleExprBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (ExtendTupleExprBase at a) where
   hashBytes (AttributeExtendTupleExpr name expr) ctx =
     hashBytesL ctx "AttributeExtendTupleExpr" [SHash name, SHash expr]
 
@@ -133,13 +135,13 @@ instance HashBytes GraphRefTransactionMarker where
   hashBytes UncommittedContextMarker ctx = SHA256.update ctx "UncommittedContextMarker"
 
 
-instance HashBytes a => HashBytes (TupleExprBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (TupleExprBase at a) where
   hashBytes (TupleExpr exprMap) ctx =
     foldr (\(attrName, atomExpr) ctx' ->
              hashBytesL ctx' "TupleExpr" [SHash attrName, SHash atomExpr]) 
     ctx (M.toAscList exprMap)
 
-instance HashBytes a => HashBytes (AtomExprBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (AtomExprBase at a) where
   hashBytes atomExpr ctx =
     case atomExpr of
       (AttributeAtomExpr a) -> hashBytesL ctx "AttributeAtomExpr" [SHash a]
@@ -189,7 +191,7 @@ instance HashBytes a => HashBytes (Maybe [AttributeExprBase a]) where
   hashBytes (Just exprs) ctx =
     hashBytesL ctx "MaybeAttributeExprBase" (map SHash exprs)
 
-instance HashBytes a => HashBytes (TupleExprsBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (TupleExprsBase at a) where
   hashBytes (TupleExprs marker tupleExprs) ctx =
     hashBytesL ctx "TupleExprs" (SHash marker : map SHash tupleExprs)
 
@@ -241,7 +243,7 @@ instance HashBytes SchemaIsomorph where
   hashBytes (IsoUnion (a,b) p r) ctx =
     hashBytesL ctx "IsoUnion" [SHash a, SHash b, SHash p, SHash r]
 
-instance HashBytes a => HashBytes (RestrictionPredicateExprBase a) where
+instance (HashBytes at, HashBytes a) => HashBytes (RestrictionPredicateExprBase at a) where
   hashBytes TruePredicate ctx = SHA256.update ctx "TruePredicate"
   hashBytes (AndPredicate a b) ctx = hashBytesL ctx "AndPredicate" [SHash a, SHash b]
   hashBytes (OrPredicate a b) ctx = hashBytesL ctx "OrPredicate" [SHash a, SHash b]
@@ -313,7 +315,7 @@ instance HashBytes DatabaseContextFunctions where
   hashBytes dbcfuncs ctx =
     hashBytesL ctx "DatabaseContextFunctions" (map SHash (sortOn funcName (HS.toList dbcfuncs)))
 
-instance HashBytes InclusionDependency where    
+instance (HashBytes attrNames, HashBytes a) => HashBytes (InclusionDependencyBase attrNames a) where    
   hashBytes (InclusionDependency exprA exprB) ctx =
     hashBytesL ctx "InclusionDependency" [SHash exprA, SHash exprB]
 

@@ -1,7 +1,6 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module ProjectM36.Error where
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (RelationalExpr)
 import ProjectM36.MerkleHash
 import ProjectM36.AtomFunctionError
 import ProjectM36.IsomorphicSchema.Types
@@ -189,7 +188,7 @@ data SQLError = NotSupportedError T.Text |
                 ColumnNamesMismatch (S.Set UnqualifiedColumnName) (S.Set UnqualifiedColumnName) | -- used for INSERT expressions
                 ColumnResolutionError ColumnName |
                 ColumnAliasResolutionError ColumnAlias |
-                UnexpectedRelationalExprError RelationalExpr |
+                UnexpectedRelationalExprError (RelationalExprBase AttributeNamesExpr ()) |
                 UnexpectedAsteriskError ColumnProjectionName |
                 UnexpectedColumnProjectionName ColumnProjectionName |
                 AmbiguousColumnResolutionError ColumnName |

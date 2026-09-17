@@ -3,34 +3,19 @@
 --really, a better name for this module could be "TransTransactionGraphRelationalExpr", but that name is too long
 module ProjectM36.TransGraphRelationalExpression where
 import ProjectM36.Base
+import ProjectM36.TransGraphRelationalExpression.Types
+import ProjectM36.AttributeNamesExprBase 
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.TransactionGraph
 import ProjectM36.Transaction.Types
 import ProjectM36.Error
+
 import qualified Data.Map as M
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
 import Data.Functor.Identity
 
--- | The TransGraphRelationalExpression is equivalent to a relational expression except that relation variables can reference points in the transaction graph (at previous points in time).
-type TransGraphRelationalExpr = RelationalExprBase TransactionIdLookup
-
-type TransGraphAttributeNames = AttributeNamesBase TransactionIdLookup
-
-type TransGraphExtendTupleExpr = ExtendTupleExprBase TransactionIdLookup
-
-type TransGraphTupleExpr = TupleExprBase TransactionIdLookup
-
-type TransGraphTupleExprs = TupleExprsBase TransactionIdLookup
-
-type TransGraphRestrictionPredicateExpr = RestrictionPredicateExprBase TransactionIdLookup
-
-type TransGraphAtomExpr = AtomExprBase TransactionIdLookup
-
-type TransGraphAttributeExpr = AttributeExprBase TransactionIdLookup
-
-type TransGraphWithNameExpr = WithNameExprBase TransactionIdLookup
 
 newtype TransGraphEvalEnv = TransGraphEvalEnv {
   tge_graph :: TransactionGraph
@@ -70,7 +55,7 @@ processTransGraphRelationalExpr (RelationValuedAttribute attrName) = pure (Relat
 processTransGraphRelationalExpr (RelationVariable rvname transLookup) = 
   RelationVariable rvname <$> findTransId transLookup
 processTransGraphRelationalExpr (Project transAttrNames expr) = 
-  Project <$> processTransGraphAttributeNames transAttrNames <*> processTransGraphRelationalExpr expr
+  Project <$> processTransGraphAttributeNamesExpr transAttrNames <*> processTransGraphRelationalExpr expr
 processTransGraphRelationalExpr (Union exprA exprB) =
   Union <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Join exprA exprB) =
@@ -81,7 +66,7 @@ processTransGraphRelationalExpr (Difference exprA exprB) =
   Difference <$> processTransGraphRelationalExpr exprA <*> processTransGraphRelationalExpr exprB
 processTransGraphRelationalExpr (Group transAttrNames attrName expr) = 
   Group <$>
-    processTransGraphAttributeNames transAttrNames <*>
+    processTransGraphAttributeNamesExpr transAttrNames <*>
     pure attrName <*>
     processTransGraphRelationalExpr expr
 processTransGraphRelationalExpr (Ungroup attrName expr) = 
@@ -166,18 +151,18 @@ processTransGraphAttributeExpr (AttributeAndTypeNameExpr attrName tCons tLookup)
   AttributeAndTypeNameExpr attrName tCons <$> findTransId tLookup
 processTransGraphAttributeExpr (NakedAttributeExpr attr) = pure (NakedAttributeExpr attr)  
 
-processTransGraphAttributeNames :: TransGraphAttributeNames -> TransGraphEvalMonad GraphRefAttributeNames
-processTransGraphAttributeNames (AttributeNames names) = pure (AttributeNames names)
-processTransGraphAttributeNames (InvertedAttributeNames names) = pure (InvertedAttributeNames names)
-processTransGraphAttributeNames (UnionAttributeNames namesA namesB) = do
-  nA <- processTransGraphAttributeNames namesA 
-  nB <- processTransGraphAttributeNames namesB
+processTransGraphAttributeNamesExpr :: TransGraphAttributeNamesExpr -> TransGraphEvalMonad GraphRefAttributeNamesExpr
+processTransGraphAttributeNamesExpr (AttributeNames names) = pure (AttributeNames names)
+processTransGraphAttributeNamesExpr (InvertedAttributeNames names) = pure (InvertedAttributeNames names)
+processTransGraphAttributeNamesExpr (UnionAttributeNames namesA namesB) = do
+  nA <- processTransGraphAttributeNamesExpr namesA 
+  nB <- processTransGraphAttributeNamesExpr namesB
   pure (UnionAttributeNames nA nB)
-processTransGraphAttributeNames (IntersectAttributeNames namesA namesB) = do
-  nA <- processTransGraphAttributeNames namesA 
-  nB <- processTransGraphAttributeNames namesB 
+processTransGraphAttributeNamesExpr (IntersectAttributeNames namesA namesB) = do
+  nA <- processTransGraphAttributeNamesExpr namesA 
+  nB <- processTransGraphAttributeNamesExpr namesB 
   pure (IntersectAttributeNames nA nB)
-processTransGraphAttributeNames (RelationalExprAttributeNames expr) = do
+processTransGraphAttributeNamesExpr (RelationalExprAttributeNames expr) = do
   evaldExpr <- processTransGraphRelationalExpr expr 
   pure (RelationalExprAttributeNames evaldExpr)
 
