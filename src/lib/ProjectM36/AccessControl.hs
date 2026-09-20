@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 module ProjectM36.AccessControl where
 import ProjectM36.Base
-import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, DatabaseContextExpr')
+import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr')
 import ProjectM36.Error
 import ProjectM36.AccessControlList
 import ProjectM36.TransactionGraph.Types

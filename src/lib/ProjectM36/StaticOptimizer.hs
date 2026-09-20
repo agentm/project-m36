@@ -76,7 +76,7 @@ instance Optimize AttrExpr.RelationalExpr AttrNames.GraphRefRelationalExpr where
     let         -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
         gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)
         ctx = re_context env
-    case runGraphRefRelationalExprM gfEnv (normalize expr) of
+    case runGraphRefRelationalExprM gfEnv (normalizeM expr) of
       Left err -> Left err
       Right gfExpr ->
         runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
@@ -89,7 +89,7 @@ instance Optimize AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContex
         transId = odce_transId env
         ctx = odce_context env
         dbcfuncutils = odce_dbcfuncutils env
-    gfExpr <- runGraphRefRelationalExprM gfEnv (normalize expr)
+    gfExpr <- runGraphRefRelationalExprM gfEnv (normalizeM expr)
     runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
 -- | Apply pure optimizations.
@@ -101,6 +101,12 @@ optimizeAndEvalRelationalExpr env expr = do
   optExpr <- optimizeRelationalExpr env expr
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
 
+-- used by notification callback
+optimizeAndEvalGraphRefRelationalExpr :: GraphRefRelationalExprEnv -> AttrNames.GraphRefRelationalExpr -> Either RelationalError Relation
+optimizeAndEvalGraphRefRelationalExpr gfEnv gfExpr = do
+  optExpr <- runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (fullOptimizeGraphRefRelationalExpr gfExpr)
+  runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)
+  
 -- | Optimization can be disabled due to missing context in isomorphic transformations.
 optimizeAndEvalDatabaseContextExpr :: Bool -> AttrExpr.DatabaseContextExpr' -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
@@ -109,7 +115,7 @@ optimizeAndEvalDatabaseContextExpr runOpt expr = do
   context <- getStateContext
   dbcfuncutils <- asks dce_dbcfuncutils
   let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph  
-  case runGraphRefRelationalExprM gfEnv (normalize expr) of
+  case runGraphRefRelationalExprM gfEnv (normalizeM expr) of
     Left err -> throwError err
     Right gfExpr -> do
       let eOptExpr = if runOpt then
@@ -124,7 +130,7 @@ optimizeRelationalExpr :: RelationalExprEnv -> AttrExpr.RelationalExpr -> Either
 optimizeRelationalExpr env expr = do
   let ctx = re_context env
       gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)  
-  gfExpr <- runGraphRefRelationalExprM gfEnv (normalize expr)  
+  gfExpr <- runGraphRefRelationalExprM gfEnv (normalizeM expr)  
   runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 
 class Monad m => AskGraphContext m where
@@ -154,7 +160,7 @@ optimizeDatabaseContextExpr expr = do
   graph <- asks odce_graph
   ctx <- asks odce_context
   let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-  case runGraphRefRelationalExprM gfEnv (normalize expr) of
+  case runGraphRefRelationalExprM gfEnv (normalizeM expr) of
     Left err -> throwError err
     Right gfExpr ->
       optimizeGraphRefDatabaseContextExpr gfExpr
@@ -165,7 +171,7 @@ optimizeAndEvalTransGraphRelationalExpr graph tgExpr = do
   -- USE normalize here but maybe switch to open type family, but will the open type family cause overlap?
 --  gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
-  gfExpr <- runGraphRefRelationalExprM gfEnv (normalize tgExpr)
+  gfExpr <- runGraphRefRelationalExprM gfEnv (normalizeE (graph, UncommittedContextMarker) tgExpr)
   _ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
   optExpr <- runGraphRefSOptRelationalExprM Nothing graph (fullOptimizeGraphRefRelationalExpr gfExpr)
   runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr optExpr)

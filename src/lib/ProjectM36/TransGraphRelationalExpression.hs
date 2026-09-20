@@ -22,10 +22,10 @@ newtype TransGraphEvalEnv = TransGraphEvalEnv {
   }
 
 type TransGraphEvalMonad a = ReaderT TransGraphEvalEnv (ExceptT RelationalError Identity) a
-
+{-
 process :: TransGraphEvalEnv -> TransGraphRelationalExpr -> Either RelationalError GraphRefRelationalExpr
 process env texpr = runIdentity (runExceptT (runReaderT (processTransGraphRelationalExpr texpr) env))
-
+-}
 liftE :: Either RelationalError a -> TransGraphEvalMonad a
 liftE = lift . except
 
@@ -41,6 +41,7 @@ findTrans tlook = do
   liftE $ lookupTransaction graph tlook
 
 -- OUTDATED a previous attempt at this function attempted to convert TransGraphRelationalExpr to RelationalExpr by resolving the transaction lookups. However, there is no way to resolve a FunctionAtomExpr to an Atom without fully evaluating the higher levels (TupleExpr, etc.). An anonymous function expression cannot be serialized, so that workaround is out. Still, I suspect we can reuse the existing static optimizer logic to work on both structures. The current conversion reduces the chance of whole-query optimization due to full-evaluation on top of full-evaluation, so this function would benefit from some re-design.
+{-
 processTransGraphRelationalExpr :: TransGraphRelationalExpr -> TransGraphEvalMonad GraphRefRelationalExpr
 processTransGraphRelationalExpr (MakeRelationFromExprs mAttrExprs tupleExprs) = do
   tupleExprs' <- processTransGraphTupleExprs tupleExprs
@@ -169,3 +170,4 @@ processTransGraphAttributeNamesExpr (RelationalExprAttributeNames expr) = do
 processTransGraphWithNameExpr :: TransGraphWithNameExpr -> TransGraphEvalMonad GraphRefWithNameExpr
 processTransGraphWithNameExpr (WithNameExpr rvname tlookup) =
   WithNameExpr rvname <$> findTransId tlookup
+-}

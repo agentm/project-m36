@@ -158,7 +158,8 @@ import qualified ProjectM36.Transaction.Types as Trans
 import ProjectM36.IsomorphicSchema.Types hiding (subschemas, concreteDatabaseContext)
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
-import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphRelationalExpr, process, TransGraphEvalEnv(..))
+import ProjectM36.TransGraphRelationalExpression.Types as TGRE (TransGraphRelationalExpr)
+import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphEvalEnv(..))
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
 import ProjectM36.DDLType

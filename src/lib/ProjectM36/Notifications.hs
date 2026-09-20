@@ -1,5 +1,6 @@
 module ProjectM36.Notifications where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesBase
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Types
@@ -16,11 +17,11 @@ notificationChanges nots graph context1 context2 = M.filter notificationFilter n
   where
     notificationFilter (Notification chExpr _ _) = oldChangeEval /= newChangeEval && isRight oldChangeEval
       where
-        oldChangeEval = evalChangeExpr chExpr (mkRelationalExprEnv context1 graph)
-        newChangeEval = evalChangeExpr chExpr (mkRelationalExprEnv context2 graph)
+        oldChangeEval = evalChangeExpr chExpr (freshGraphRefRelationalExprEnv (Just context1) graph)
+        newChangeEval = evalChangeExpr chExpr (freshGraphRefRelationalExprEnv (Just context2) graph)
 
-    evalChangeExpr :: RelationalExpr -> RelationalExprEnv -> Either RelationalError Relation                                     
+    evalChangeExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprEnv -> Either RelationalError Relation                                     
     evalChangeExpr chExpr env =
-      optimizeAndEvalRelationalExpr env chExpr 
+      optimizeAndEvalGraphRefRelationalExpr env chExpr 
 
     

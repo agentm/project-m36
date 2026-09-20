@@ -6,11 +6,14 @@ import qualified ProjectM36.CostBasedOptimizer as CostBasedOpt
 import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
+import qualified ProjectM36.AttributeNamesExprBase as AttrExprs
+import qualified ProjectM36.AttributeNamesBase as AttrNames
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.TransGraphRelationalExpression as TGRE
 import ProjectM36.Error
 import ProjectM36.NormalizeExpr
-import ProjectM36.Streaming.RelationalExpression
+import ProjectM36.Streaming.RelationalExpression hiding (relationTrue)
 import ProjectM36.PinnedRelationalExpr
 import ProjectM36.Relation
 import ProjectM36.SystemMemory
@@ -50,9 +53,9 @@ data OptimizerEnv r =
    optRandomGen :: r
    }
 
-optimizeAndEvalRelationalExpr :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> RelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalRelationalExpr :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> AttrExprs.RelationalExpr -> IO (Either RelationalError Relation)
 optimizeAndEvalRelationalExpr optEnv reEnv expr = do
-  let gfExpr = runProcessExprM UncommittedContextMarker (processRelationalExpr expr) -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
+  let gfExpr = normalizeTransactionMarker UncommittedContextMarker expr -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
       gfEnv = GraphRefRelationalExprEnv {
         gre_context = Just (re_context reEnv),
         gre_graph = re_graph reEnv,
@@ -60,15 +63,18 @@ optimizeAndEvalRelationalExpr optEnv reEnv expr = do
         }
   optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr
   
-optimizeAndEvalGraphRefRelationalExpr :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalGraphRefRelationalExpr :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> AttrExprs.GraphRefRelationalExpr -> IO (Either RelationalError Relation)
 optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
 -- apply static optimizer first, then cost-based optimizer, finally execute the optimized query, if this is an experiment, then we don't make suggestions
   --first, type check
-  case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr) of
+  case runGraphRefRelationalExprM gfEnv (do
+    gfExpr' <- normalizeAttributeNames (ExistingRelation relationTrue) gfExpr
+    _ <- typeForGraphRefRelationalExpr gfExpr'
+    pure gfExpr') of
     Left err -> pure (Left err)
-    Right _ -> do
+    Right gfExpr' -> do
       -- then, apply static optimizations
-      case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
+      case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr') of
         Left err -> pure (Left err)
         Right staticOptGfExpr -> do
           -- next, apply cost-based optimizations
@@ -78,7 +84,7 @@ optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
 
   
 -- | For internal use- expression argument should pass through static optimizer beforehand.
-evalGraphRefRelationalExprWithCache :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> GraphRefRelationalExpr -> IO (Either RelationalError Relation)
+evalGraphRefRelationalExprWithCache :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> AttrNames.GraphRefRelationalExpr -> IO (Either RelationalError Relation)
 evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
   case planGraphRefRelationalExpr gfExpr gfEnv of
     Left err -> pure (Left err)
@@ -94,7 +100,7 @@ evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
           endExecTime <- getCurrentTime
           let execDiffTime = endExecTime `diffUTCTime` startExecTime
           --add to the cache- we cannot add uncommitted data to the cache since uncommitted data does not have a unique key (transaction id) (should uncommitted data be able to be cached with a transaction id that has not been committed?)
-              mCacheKey :: Maybe (RelationalExprBase TransactionId)
+              mCacheKey :: Maybe (RelationalExprBase AttributeNames TransactionId)
               mCacheKey = originalRelExpr plan >>= toPinnedRelationalExpr
               cacheValue = UnsortedTupleSetRep (attributes relationResult') (tupleSet relationResult')
               --cacheValue = PinnedExpressionRep (ExistingRelation relationResult') -- ideally, we would cache the expensive parts of the plan, not just the top-level result
@@ -111,27 +117,29 @@ evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
                   pure (Right relationResult')
 
 -- | Optimization can be disabled due to missing context in isomorphic transformations.
-optimizeAndEvalDatabaseContextExpr :: Bool -> DatabaseContextExpr' -> DatabaseContextEvalMonad ()
+optimizeAndEvalDatabaseContextExpr :: Bool -> AttrExprs.DatabaseContextExpr' -> DatabaseContextEvalMonad ()
 optimizeAndEvalDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   dbcfuncutils <- asks dce_dbcfuncutils
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextExpr expr)
-      eOptExpr = if runOpt then
-                   StaticOpt.runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr)
-                   else
-                   pure gfExpr
-  case eOptExpr of
+  case normalize (Just context) graph expr of
     Left err -> throwError err
-    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
+    Right gfExpr -> do
+      let eOptExpr = if runOpt then
+                       StaticOpt.runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr)
+                     else
+                       pure gfExpr
+      case eOptExpr of
+        Left err -> throwError err
+        Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 optimizeAndEvalDatabaseContextIOExpr expr = do
   transId <- asks dbcio_transId
   ctx <- getDBCIOContext
   graph <- asks dbcio_graph
-  let gfExpr = runProcessExprM UncommittedContextMarker (processDatabaseContextIOExpr expr)
+  let gfExpr = normalizeTransactionMarker UncommittedContextMarker expr
       eOptExpr = StaticOpt.runGraphRefSOptDatabaseContextIOExprM transId ctx graph (StaticOpt.optimizeDatabaseContextIOExpr gfExpr)
   case eOptExpr of
     Left err -> throwError err
@@ -142,8 +150,10 @@ optimizeAndEvalTransGraphRelationalExprWithCache :: RandomGen r => OptimizerEnv 
 optimizeAndEvalTransGraphRelationalExprWithCache optEnv graph tgExpr = do
   let gfEnv = freshGraphRefRelationalExprEnv Nothing graph
       res = do
-        gfExpr <- TGRE.process (TransGraphEvalEnv graph) tgExpr
-        _typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+        gfExpr <- runGraphRefRelationalExprM gfEnv $ do
+          gfExpr <- transGraphNormalizeM (graph, UncommittedContextMarker) tgExpr
+          _ <- typeForGraphRefRelationalExpr gfExpr
+          pure gfExpr
         StaticOpt.runGraphRefSOptRelationalExprM Nothing graph (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr)
   case res of
     Left err -> pure (Left err)

@@ -12,6 +12,7 @@ import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.TransactionGraph
+import ProjectM36.DatabaseContext.Types
 
 import Control.Monad.Trans.Reader as R
 import Control.Monad.Except
@@ -50,7 +51,7 @@ type family NormalizeAttributeNames a where
   -- trans-graph relational expression normalization
 
   NormalizeAttributeNames TransGraphRelationalExpr = RelationalExprBase AttributeNames GraphRefTransactionMarker
-
+{-
 -- | Normalize transaction marker across Base types.
 type family NormalizeTransactionMarker a where
   NormalizeTransactionMarker (RelationalExprBase (AttributeNamesExprBase ()) ()) = RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
@@ -71,6 +72,8 @@ type family NormalizeTransactionMarker a where
   NormalizeTransactionMarker (WithNameExprBase ()) = WithNameExprBase GraphRefTransactionMarker
 
   NormalizeTransactionMarker (DatabaseContextExprBase (AttributeNamesExprBase ()) () r) = DatabaseContextExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker r
+
+  NormalizeTransactionMarker (DatabaseContextIOExprBase (AttributeNamesExprBase ()) () r) = DatabaseContextIOExprBase
 
   NormalizeTransactionMarker (AttributeNameAtomExprMapBase (AttributeNamesExprBase ()) ()) = AttributeNameAtomExprMapBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
 
@@ -104,9 +107,10 @@ type family NormalizeTransactionMarker a where
   NormalizeTransactionMarker TransGraphExtendTupleExpr = ExtendTupleExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
 
   NormalizeTransactionMarker TransGraphWithNameExpr = WithNameExprBase GraphRefTransactionMarker
- 
+ -}
 class NormalizableAttributeNames a where
   -- | convert AttributeNamesExpr -> AttributeNames (removing expressions to calculate attribute names)
+  
   normalizeAttributeNames :: GraphRefRelationalExpr -> a -> GraphRefRelationalExprM (NormalizeAttributeNames a)
 
 instance NormalizableAttributeNames (RelationalExprBase AttributeNames a) where
@@ -257,175 +261,273 @@ instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExpr
     
 ---------------------------------------------------      
 class NormalizableTransactionMarker a where
-  normalizeTransactionMarker :: TransactionGraph -> GraphRefTransactionMarker -> a -> Either RelationalError (NormalizeTransactionMarker a)
+  type Args a
+  type Ret a
+  
+  normalizeTransactionMarker :: Args a -> a -> Ret a
 
 instance NormalizableTransactionMarker (RelationalExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker expr =
-    let norm :: forall a. NormalizableTransactionMarker a => a -> Either RelationalError (NormalizeTransactionMarker a)
-        norm = normalizeTransactionMarker graph marker
-        in
+  type Args (RelationalExprBase (AttributeNamesExprBase ()) ()) = GraphRefTransactionMarker
+  type Ret (RelationalExprBase (AttributeNamesExprBase ()) ()) = RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+  
+  normalizeTransactionMarker marker expr =
+    let norm :: forall x.
+                (NormalizableTransactionMarker x,
+                 Args x ~ GraphRefTransactionMarker
+                )
+             => x -> Ret x
+        norm expr = normalizeTransactionMarker marker expr
+        in    
     case expr of
       MakeRelationFromExprs mAttrExprs tupleExprs -> do
-        mAttrExprs' <- case mAttrExprs of
-                         Nothing -> pure Nothing
-                         Just exprs -> Just <$> mapM norm exprs
-        MakeRelationFromExprs mAttrExprs' <$> norm tupleExprs
-        
+        let mAttrExprs' = case mAttrExprs of
+                            Nothing -> Nothing
+                            Just exprs -> Just $ map norm exprs
+        MakeRelationFromExprs mAttrExprs' (norm tupleExprs)
 
 instance NormalizableTransactionMarker (RestrictionPredicateExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker expr =
-    let norm :: forall a. NormalizableTransactionMarker a => a -> Either RelationalError (NormalizeTransactionMarker a)
-        norm = normalizeTransactionMarker graph marker
+  type Args (RestrictionPredicateExprBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (RestrictionPredicateExprBase (AttributeNamesExprBase ()) ()) =
+    RestrictionPredicateExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+    
+  normalizeTransactionMarker marker expr =
+    let norm :: forall x. (NormalizableTransactionMarker x,
+                           Args x ~ GraphRefTransactionMarker) =>
+                x ->
+                Ret x
+        norm = normalizeTransactionMarker marker
     in
       case expr of
         TruePredicate ->
-          pure TruePredicate
+          TruePredicate
         AndPredicate a b ->
-          AndPredicate <$> norm a <*> norm b
+          AndPredicate (norm a) (norm b)
         OrPredicate a b ->
-          OrPredicate <$> norm a <*> norm b
+          OrPredicate (norm a) (norm b)
         NotPredicate a ->
-          NotPredicate <$> norm a
+          NotPredicate (norm a)
         RelationalExprPredicate relExpr ->
-          RelationalExprPredicate <$> norm relExpr
+          RelationalExprPredicate (norm relExpr)
         AtomExprPredicate atomExpr ->
-          AtomExprPredicate <$> norm atomExpr
+          AtomExprPredicate (norm atomExpr)
         AttributeEqualityPredicate aname atomExpr ->
-          AttributeEqualityPredicate aname <$> norm atomExpr
+          AttributeEqualityPredicate aname (norm atomExpr)
 
 instance NormalizableTransactionMarker (TupleExprsBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker (TupleExprs () exprs) =
-    TupleExprs marker <$> mapM (normalizeTransactionMarker graph marker) exprs
+  type Args (TupleExprsBase (AttributeNamesExprBase ()) ()) = GraphRefTransactionMarker
+  type Ret (TupleExprsBase (AttributeNamesExprBase ()) ()) = TupleExprsBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+  
+  normalizeTransactionMarker marker (TupleExprs () exprs) =
+    TupleExprs marker (map (normalizeTransactionMarker marker) exprs)
     
 
 instance NormalizableTransactionMarker (AttributeNamesExprBase ()) where
-  normalizeTransactionMarker graph marker expr =
+  type Args (AttributeNamesExprBase ()) = GraphRefTransactionMarker
+  type Ret (AttributeNamesExprBase ()) = AttributeNamesExprBase GraphRefTransactionMarker
+  normalizeTransactionMarker marker expr =
     case expr of
       AttributeNames names ->
-        pure (AttributeNames names)
+        AttributeNames names
       InvertedAttributeNames names ->
-        pure (InvertedAttributeNames names)
+        InvertedAttributeNames names
       UnionAttributeNames a b ->
-        UnionAttributeNames <$> normalizeTransactionMarker graph marker a <*> normalizeTransactionMarker graph marker b
+        UnionAttributeNames (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
       IntersectAttributeNames a b ->
-        IntersectAttributeNames <$> normalizeTransactionMarker graph marker a <*> normalizeTransactionMarker graph marker b
+        IntersectAttributeNames (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
       RelationalExprAttributeNames relExpr ->
-        RelationalExprAttributeNames <$> normalizeTransactionMarker graph marker relExpr
+        RelationalExprAttributeNames (normalizeTransactionMarker marker relExpr)
 
 instance NormalizableTransactionMarker (ExtendTupleExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker (AttributeExtendTupleExpr attrs atomExpr) =
-    AttributeExtendTupleExpr attrs <$> normalizeTransactionMarker graph marker atomExpr
+  type Args (ExtendTupleExprBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (ExtendTupleExprBase (AttributeNamesExprBase ()) ()) =
+    ExtendTupleExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+  normalizeTransactionMarker marker (AttributeExtendTupleExpr attrs atomExpr) =
+    AttributeExtendTupleExpr attrs (normalizeTransactionMarker marker atomExpr)
 
 instance NormalizableTransactionMarker (WithNamesAssocsBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker assocs =
-    mapM mapper assocs
+  type Args (WithNamesAssocsBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (WithNamesAssocsBase (AttributeNamesExprBase ()) ()) =
+    WithNamesAssocsBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+  
+  normalizeTransactionMarker marker assocs =
+    map mapper assocs
     where
       mapper (withExpr, relExpr) =
-        (,)
-        <$> normalizeTransactionMarker graph marker withExpr
-        <*> normalizeTransactionMarker graph marker relExpr
+        (normalizeTransactionMarker marker withExpr,
+         normalizeTransactionMarker marker relExpr)
 
 instance NormalizableTransactionMarker (TupleExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker (TupleExpr tupMap) = TupleExpr <$> mapM (normalizeTransactionMarker graph marker) tupMap
+  type Args (TupleExprBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (TupleExprBase (AttributeNamesExprBase ()) ()) =
+    TupleExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+    
+  normalizeTransactionMarker marker (TupleExpr tupMap) = TupleExpr (fmap (normalizeTransactionMarker marker) tupMap)
   
 instance NormalizableTransactionMarker (AtomExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker expr =
-    let norm :: forall a. NormalizableTransactionMarker a => a -> Either RelationalError (NormalizeTransactionMarker a)
-        norm = normalizeTransactionMarker graph marker
+  type Args (AtomExprBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (AtomExprBase (AttributeNamesExprBase ()) ()) =
+    AtomExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+  normalizeTransactionMarker marker expr =
+    let norm :: forall x. (NormalizableTransactionMarker x, Args x ~ GraphRefTransactionMarker) => x -> Ret x
+        norm = normalizeTransactionMarker marker
     in
     case expr of
       AttributeAtomExpr aname ->
-        pure (AttributeAtomExpr aname)
+        AttributeAtomExpr aname
       SubrelationAttributeAtomExpr aname aname2 ->
-        pure (SubrelationAttributeAtomExpr aname aname2)
+        SubrelationAttributeAtomExpr aname aname2
       NakedAtomExpr atom ->
-        pure (NakedAtomExpr atom)
+        NakedAtomExpr atom
       FunctionAtomExpr fname atomExprs () ->
-        FunctionAtomExpr fname <$> mapM norm atomExprs <*> pure marker
+        FunctionAtomExpr fname (map norm atomExprs) marker
       RelationAtomExpr relExpr ->
-        RelationAtomExpr <$> norm relExpr
+        RelationAtomExpr (norm relExpr)
       IfThenAtomExpr a b c ->
-        IfThenAtomExpr <$> norm a <*> norm b <*> norm c
+        IfThenAtomExpr (norm a) (norm b) (norm c)
       ConstructedAtomExpr dConsName atomExprs () ->
-        ConstructedAtomExpr dConsName <$> mapM norm atomExprs <*> pure marker
+        ConstructedAtomExpr dConsName (map norm atomExprs) marker
         
         
 instance NormalizableTransactionMarker (DatabaseContextExprBase (AttributeNamesExprBase ()) () r) where
-  normalizeTransactionMarker graph marker expr =
+  type Args (DatabaseContextExprBase (AttributeNamesExprBase ()) () r) =
+    GraphRefTransactionMarker
+  type Ret (DatabaseContextExprBase (AttributeNamesExprBase ()) () r) =
+    DatabaseContextExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker r
+  normalizeTransactionMarker marker expr =
     case expr of
       NoOperation ->
-        pure NoOperation
+        NoOperation
       Define rvname attrExprs ->
-        Define rvname <$> mapM (normalizeTransactionMarker graph marker) attrExprs
+        Define rvname (map (normalizeTransactionMarker marker) attrExprs)
       Undefine rvname ->
-        pure (Undefine rvname)
+        Undefine rvname
       Assign rvName relExpr ->
-        Assign rvName <$> normalizeTransactionMarker graph marker relExpr
+        Assign rvName (normalizeTransactionMarker marker relExpr)
       Insert rvName relExpr ->
-        Insert rvName <$> normalizeTransactionMarker graph marker relExpr
+        Insert rvName (normalizeTransactionMarker marker relExpr)
       Delete rvName predi ->
-        Delete rvName <$> normalizeTransactionMarker graph marker predi
+        Delete rvName (normalizeTransactionMarker marker predi)
       Update rvName attrAtomMap predi ->
-        Update rvName <$> normalizeTransactionMarker graph marker attrAtomMap <*> normalizeTransactionMarker graph marker predi
+        Update rvName (normalizeTransactionMarker marker attrAtomMap) (normalizeTransactionMarker marker predi)
       AddInclusionDependency depname incDep ->
-        AddInclusionDependency depname <$> normalizeTransactionMarker graph marker incDep
+        AddInclusionDependency depname (normalizeTransactionMarker marker incDep)
       RemoveInclusionDependency depname ->
-        pure (RemoveInclusionDependency depname)
+        RemoveInclusionDependency depname
       AddNotification notName a b c ->
-        pure (AddNotification notName a b c)
+        AddNotification notName a b c
       RemoveNotification notName ->
-        pure (RemoveNotification notName)
+        RemoveNotification notName
       AddTypeConstructor tConsDef dConsDefs ->
-        pure (AddTypeConstructor tConsDef dConsDefs)
+        AddTypeConstructor tConsDef dConsDefs
       RemoveTypeConstructor tConsName ->
-        pure (RemoveTypeConstructor tConsName)
+        RemoveTypeConstructor tConsName
       RemoveAtomFunction fname ->
-        pure (RemoveAtomFunction fname)
+        RemoveAtomFunction fname
       RemoveDatabaseContextFunction fname ->
-        pure (RemoveDatabaseContextFunction fname)
+        RemoveDatabaseContextFunction fname
       ExecuteDatabaseContextFunction fname atomExprs ->
-        ExecuteDatabaseContextFunction fname <$> mapM (normalizeTransactionMarker graph marker) atomExprs
+        ExecuteDatabaseContextFunction fname (map (normalizeTransactionMarker marker) atomExprs)
       AddRegisteredQuery qname relExpr ->
-        pure (AddRegisteredQuery qname relExpr)
+        AddRegisteredQuery qname relExpr
       RemoveRegisteredQuery qname ->
-        pure (RemoveRegisteredQuery qname)
+        RemoveRegisteredQuery qname
       AlterACL aclExpr ->
-        pure (AlterACL aclExpr)
+        AlterACL aclExpr
       MultipleExpr exprs ->
-        MultipleExpr <$> mapM (normalizeTransactionMarker graph marker) exprs
+        MultipleExpr (map (normalizeTransactionMarker marker) exprs)
+
+instance NormalizableTransactionMarker (DatabaseContextIOExprBase ()) where
+  type Args (DatabaseContextIOExprBase ()) =
+    GraphRefTransactionMarker
+  type Ret (DatabaseContextIOExprBase ()) =
+    DatabaseContextIOExprBase GraphRefTransactionMarker
+
+  normalizeTransactionMarker marker expr = do
+    let norm :: forall x. (NormalizableTransactionMarker x, Args x ~ GraphRefTransactionMarker) => x -> Ret x
+        norm = normalizeTransactionMarker marker
+    case expr of
+      AddAtomFunction fname tconss body ->
+        AddAtomFunction fname tconss body
+      LoadAtomFunctions nam fname path ->
+        LoadAtomFunctions nam fname path
+      AddDatabaseContextFunction fname tconss body ->
+        AddDatabaseContextFunction fname tconss body
+      LoadDatabaseContextFunctions mname fname path ->
+        LoadDatabaseContextFunctions mname fname path
+      LoadModuleWithFunctions body ->
+        LoadModuleWithFunctions body
+      CreateArbitraryRelation rv attrExprs range ->
+        CreateArbitraryRelation rv (map norm attrExprs) range
                       
 instance NormalizableTransactionMarker (AttributeNameAtomExprMapBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker attrAtomMap = mapM (normalizeTransactionMarker graph marker) attrAtomMap
+  type Args (AttributeNameAtomExprMapBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (AttributeNameAtomExprMapBase (AttributeNamesExprBase ()) ()) =
+    AttributeNameAtomExprMapBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+    
+  normalizeTransactionMarker marker attrAtomMap = fmap (normalizeTransactionMarker marker) attrAtomMap
 
 instance NormalizableTransactionMarker (AttributeExprBase ()) where
-  normalizeTransactionMarker graph marker expr =
+  type Args (AttributeExprBase ()) = GraphRefTransactionMarker
+  type Ret (AttributeExprBase ()) = AttributeExprBase GraphRefTransactionMarker
+  
+  normalizeTransactionMarker marker expr =
     case expr of
       AttributeAndTypeNameExpr aname tCons () ->
-        pure (AttributeAndTypeNameExpr aname tCons marker)
+        AttributeAndTypeNameExpr aname tCons marker
       NakedAttributeExpr aname ->
-        pure (NakedAttributeExpr aname)
+        NakedAttributeExpr aname
 
 instance NormalizableTransactionMarker (WithNameExprBase ()) where
-  normalizeTransactionMarker graph marker (WithNameExpr rvName ()) =
-    pure (WithNameExpr rvName marker)
+  type Args (WithNameExprBase ()) =
+    GraphRefTransactionMarker
+  type Ret (WithNameExprBase ()) =
+    WithNameExprBase GraphRefTransactionMarker
+
+  normalizeTransactionMarker marker (WithNameExpr rvName ()) =
+    WithNameExpr rvName marker
+
 
 instance NormalizableTransactionMarker (RestrictionPredicateExprBase AttributeNames ()) where
-  normalizeTransactionMarker graph marker expr =
-    mapM (const (pure marker)) expr
+  type Args (RestrictionPredicateExprBase AttributeNames ()) =
+    GraphRefTransactionMarker
+  type Ret (RestrictionPredicateExprBase AttributeNames ()) =
+    RestrictionPredicateExprBase AttributeNames GraphRefTransactionMarker
+  normalizeTransactionMarker marker expr =
+    fmap (const marker) expr
 
 
 -- attributes already normalized
 instance NormalizableTransactionMarker (RelationalExprBase AttributeNames ()) where
-  normalizeTransactionMarker graph marker expr = mapM (const (pure marker)) expr
+  type Args (RelationalExprBase AttributeNames ()) =
+    GraphRefTransactionMarker
+  type Ret (RelationalExprBase AttributeNames ()) =
+    RelationalExprBase AttributeNames GraphRefTransactionMarker
+    
+  normalizeTransactionMarker marker expr = fmap (const marker) expr
 
 instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesExprBase ()) ()) where
-  normalizeTransactionMarker graph marker (InclusionDependency a b) =
-    InclusionDependency <$> normalizeTransactionMarker graph marker a <*> normalizeTransactionMarker graph marker b
+  type Args (InclusionDependencyBase (AttributeNamesExprBase ()) ()) =
+    GraphRefTransactionMarker
+  type Ret (InclusionDependencyBase (AttributeNamesExprBase ()) ()) =
+    InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker
+    
+  normalizeTransactionMarker marker (InclusionDependency a b) =
+    InclusionDependency (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
 
 instance NormalizableTransactionMarker TransGraphRelationalExpr where
-  normalizeTransactionMarker graph marker expr = do
-    let norm :: forall a. NormalizableTransactionMarker a => a -> Either RelationalError (NormalizeTransactionMarker a)
-        norm = normalizeTransactionMarker graph marker
+  type Args TransGraphRelationalExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphRelationalExpr = Either RelationalError (RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+
+  normalizeTransactionMarker (graph, marker) expr = do
+    let norm :: forall x. (NormalizableTransactionMarker x, Args x ~ (TransactionGraph, GraphRefTransactionMarker)) => x -> Ret x
+        norm = normalizeTransactionMarker (graph, marker)
     case expr of
       MakeRelationFromExprs mAttrExprs tupleExprs ->
         MakeRelationFromExprs <$> mapM (mapM norm) mAttrExprs <*> norm tupleExprs
@@ -469,7 +571,12 @@ instance NormalizableTransactionMarker TransGraphRelationalExpr where
         With evaldViews <$> norm expr
 
 instance NormalizableTransactionMarker TransGraphAttributeExpr where
-  normalizeTransactionMarker graph marker expr =
+  type Args TransGraphAttributeExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphAttributeExpr =
+    Either RelationalError (AttributeExprBase GraphRefTransactionMarker)
+    
+  normalizeTransactionMarker (graph, marker) expr =
     case expr of
       AttributeAndTypeNameExpr aname tcons tLookup ->
         AttributeAndTypeNameExpr aname tcons <$> findTransId graph tLookup
@@ -477,27 +584,43 @@ instance NormalizableTransactionMarker TransGraphAttributeExpr where
         pure (NakedAttributeExpr attr)
 
 instance NormalizableTransactionMarker TransGraphTupleExprs where
-  normalizeTransactionMarker graph marker (TupleExprs tLookup tupExprs) =
-    TupleExprs <$> findTransId graph tLookup <*> mapM (normalizeTransactionMarker graph marker) tupExprs
+  type Args TransGraphTupleExprs =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphTupleExprs =
+    Either RelationalError (TupleExprsBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+  normalizeTransactionMarker (graph, marker) (TupleExprs tLookup tupExprs) =
+    TupleExprs <$> findTransId graph tLookup <*> mapM (normalizeTransactionMarker (graph, marker) ) tupExprs
 
 instance NormalizableTransactionMarker TransGraphAttributeNamesExpr where
-  normalizeTransactionMarker graph marker expr =
+  type Args TransGraphAttributeNamesExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphAttributeNamesExpr =
+    Either RelationalError (AttributeNamesExprBase GraphRefTransactionMarker)
+    
+  normalizeTransactionMarker (graph, marker) expr =
     case expr of
       AttributeNames anames ->
         pure (AttributeNames anames)
       InvertedAttributeNames anames ->
         pure (InvertedAttributeNames anames)
       UnionAttributeNames a b ->
-        UnionAttributeNames <$> normalizeTransactionMarker graph marker a <*> normalizeTransactionMarker graph marker b
+        UnionAttributeNames <$> normalizeTransactionMarker (graph, marker) a <*> normalizeTransactionMarker (graph, marker) b
       IntersectAttributeNames a b ->
-        IntersectAttributeNames <$> normalizeTransactionMarker graph marker a <*> normalizeTransactionMarker graph marker b
+        IntersectAttributeNames <$> normalizeTransactionMarker (graph, marker) a <*> normalizeTransactionMarker (graph, marker) b
       RelationalExprAttributeNames relExpr ->
-        RelationalExprAttributeNames <$> normalizeTransactionMarker graph marker relExpr
+        RelationalExprAttributeNames <$> normalizeTransactionMarker (graph, marker) relExpr
 
 instance NormalizableTransactionMarker TransGraphRestrictionPredicateExpr where
-  normalizeTransactionMarker graph marker expr = do
-    let norm :: forall a. NormalizableTransactionMarker a => a -> Either RelationalError (NormalizeTransactionMarker a)
-        norm = normalizeTransactionMarker graph marker
+  type Args TransGraphRestrictionPredicateExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphRestrictionPredicateExpr =
+    Either RelationalError (RestrictionPredicateExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+
+  normalizeTransactionMarker (graph, marker) expr = do
+    let norm :: forall x.
+          (NormalizableTransactionMarker x, Args x ~ (TransactionGraph, GraphRefTransactionMarker)) =>
+          x -> Ret x
+        norm = normalizeTransactionMarker (graph, marker)
     case expr of
       TruePredicate ->
         pure TruePredicate
@@ -505,8 +628,8 @@ instance NormalizableTransactionMarker TransGraphRestrictionPredicateExpr where
         AndPredicate <$> norm a <*> norm b
       OrPredicate a b ->
         OrPredicate <$> norm a <*> norm b
-      NotPredicate a b ->
-        NotPredicate <$> norm a <*> norm b
+      NotPredicate a ->
+        NotPredicate <$> norm a
       RelationalExprPredicate relExpr ->
         RelationalExprPredicate <$> norm relExpr
       AtomExprPredicate atomExpr ->
@@ -515,30 +638,103 @@ instance NormalizableTransactionMarker TransGraphRestrictionPredicateExpr where
         AttributeEqualityPredicate aname <$> norm atomExpr
 
 instance NormalizableTransactionMarker TransGraphExtendTupleExpr where
-  normalizeTransactionMarker graph marker (AttributeExtendTupleExpr aname atomExpr) =
-    AttributeExtendTupleExpr aname <$> normalizeTransactionMarker graph marker atomExpr
-
+  type Args TransGraphExtendTupleExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphExtendTupleExpr =
+    Either RelationalError (ExtendTupleExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+    
+  normalizeTransactionMarker (graph, marker) (AttributeExtendTupleExpr aname atomExpr) =
+    AttributeExtendTupleExpr aname <$> normalizeTransactionMarker (graph, marker) atomExpr
 
 instance NormalizableTransactionMarker TransGraphWithNameExpr where
-  normalizeTransactionMarker graph marker expr = undefined
+  type Args TransGraphWithNameExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphWithNameExpr =
+    Either RelationalError (WithNameExprBase GraphRefTransactionMarker)
+  
+  normalizeTransactionMarker (graph, marker) (WithNameExpr rv tLookup) =
+    WithNameExpr rv <$> findTransId graph tLookup
 
 instance NormalizableTransactionMarker TransGraphTupleExpr where
-  normalizeTransactionMarker graph marker expr = undefined
-  
+  type Args TransGraphTupleExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphTupleExpr =
+    Either RelationalError (TupleExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+  normalizeTransactionMarker (graph, marker) (TupleExpr m) =
+    TupleExpr <$> mapM (normalizeTransactionMarker (graph, marker)) m
+
+instance NormalizableTransactionMarker TransGraphAtomExpr where
+  type Args TransGraphAtomExpr =
+    (TransactionGraph, GraphRefTransactionMarker)
+  type Ret TransGraphAtomExpr =
+    Either RelationalError (AtomExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker)
+
+  normalizeTransactionMarker (graph, marker) expr =
+    case expr of
+      AttributeAtomExpr aname ->
+        pure (AttributeAtomExpr aname)
+
 
 findTransId :: TransactionGraph -> TransactionIdLookup -> Either RelationalError GraphRefTransactionMarker
 findTransId graph tlook = TransactionMarker . transactionId <$> lookupTransaction graph tlook
 
-normalize ::
+
+transGraphNormalizeM ::
   (
-   NormalizableTransactionMarker x,
-   NormalizableAttributeNames (NormalizeTransactionMarker x)
-   ) =>
-  TransactionGraph ->
+    NormalizableTransactionMarker x,
+    Args x ~ (TransactionGraph, GraphRefTransactionMarker),
+    Ret x ~ Either RelationalError y,
+    NormalizableAttributeNames y
+  ) =>
+  (TransactionGraph, GraphRefTransactionMarker) ->
   x ->
-  GraphRefRelationalExprM (NormalizeAttributeNames (NormalizeTransactionMarker x))
-normalize graph expr = do
-  case normalizeTransactionMarker graph UncommittedContextMarker expr of
+  GraphRefRelationalExprM (NormalizeAttributeNames y)
+transGraphNormalizeM graphAndMarker expr =
+  case normalizeTransactionMarker graphAndMarker expr of
     Left err -> throwError err
     Right norm1 ->
       normalizeAttributeNames (ExistingRelation relationTrue) norm1
+
+normalizeE :: 
+  (
+   NormalizableTransactionMarker x,
+   Ret x ~ Either RelationalError y,
+   NormalizableAttributeNames y
+   ) =>
+  Args x ->
+  x ->
+  GraphRefRelationalExprM (NormalizeAttributeNames y)
+normalizeE arg expr = do
+  case normalizeTransactionMarker arg expr of
+    Left err -> throwError err
+    Right norm1 ->
+      normalizeAttributeNames (ExistingRelation relationTrue) norm1
+
+normalizeM ::
+  ( 
+   NormalizableTransactionMarker x,
+   NormalizableAttributeNames (Ret x),
+   Args x ~ GraphRefTransactionMarker
+   ) =>
+ x ->
+ GraphRefRelationalExprM (NormalizeAttributeNames (Ret x))
+normalizeM expr =
+  let norm1 = normalizeTransactionMarker UncommittedContextMarker expr
+  in
+    normalizeAttributeNames (ExistingRelation relationTrue) norm1
+
+normalize ::
+  (
+   NormalizableTransactionMarker x,
+   NormalizableAttributeNames (Ret x),
+   Args x ~ GraphRefTransactionMarker
+   ) =>
+  Maybe DatabaseContext ->
+  TransactionGraph ->
+  x ->
+  Either RelationalError (NormalizeAttributeNames (Ret x))
+normalize mctx tgraph expr =
+  let norm1 = normalizeTransactionMarker UncommittedContextMarker expr
+      gfEnv = freshGraphRefRelationalExprEnv mctx tgraph
+  in
+    runGraphRefRelationalExprM gfEnv (normalizeAttributeNames (ExistingRelation relationTrue) norm1)

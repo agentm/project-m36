@@ -10,7 +10,13 @@ import ProjectM36.Tuple
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
 import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr)
-import qualified Data.UUID as U
+import qualified ProjectM36.TypeConstructorDef as TCD
+import ProjectM36.WithNameExpr
+import ProjectM36.Function
+import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, addAccess, removeAccess)
+#if defined(PM36_HASKELL_SCRIPTING)
+import ProjectM36.AccessControlList (allPermissionsForRole)
+#endif
 import ProjectM36.Error
 import ProjectM36.AtomType
 import ProjectM36.Attribute (emptyAttributes, attributesFromList)
@@ -26,6 +32,8 @@ import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subsch
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
 import qualified ProjectM36.Attribute as A
+
+import qualified Data.UUID as U
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
@@ -49,16 +57,10 @@ import qualified Data.List.NonEmpty as NE
 import Data.Functor.Identity
 import qualified Data.Text as T
 import qualified Data.Vector as V
-import qualified ProjectM36.TypeConstructorDef as TCD
+
 import qualified Control.Monad.RWS.Strict as RWS
 import Control.Monad.RWS.Strict (RWST, execRWST, runRWST)
 import Control.Monad.Trans.Except (except)
-import ProjectM36.WithNameExpr
-import ProjectM36.Function
-import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, addAccess, removeAccess)
-#if defined(PM36_HASKELL_SCRIPTING)
-import ProjectM36.AccessControlList (allPermissionsForRole)
-#endif
 import Test.QuickCheck
 import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
