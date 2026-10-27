@@ -4,11 +4,12 @@ import ProjectM36.Transaction
 import ProjectM36.Transaction.Persist
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.Transaction.Types
-import ProjectM36.RelationalExpression
 import ProjectM36.Base
 import ProjectM36.ScriptSession
 import ProjectM36.Persist (writeFileSync, renameSync, DiskSync)
 import ProjectM36.FileLock
+import ProjectM36.TransactionGraph.FindTransaction
+
 import System.Directory
 import System.FilePath
 import System.IO.Temp
@@ -26,9 +27,6 @@ import Control.Exception.Base
 import qualified Data.ByteString as BS
 import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
-#if __GLASGOW_HASKELL__ < 804
-import Data.Monoid
-#endif
 import qualified Crypto.Hash.SHA256 as SHA256
 import Control.Arrow
 import Data.Time.Clock

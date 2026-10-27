@@ -7,6 +7,7 @@ import ProjectM36.Error
 import ProjectM36.ValueMarker
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.AccessControlList
 import ProjectM36.DatabaseContext.Fields

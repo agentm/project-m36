@@ -1,6 +1,7 @@
 module ProjectM36.DatabaseContextFunctionUtils where
 import ProjectM36.RelationalExpression
 import ProjectM36.Base
+import ProjectM36.NormalizeExpr
 import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Error
 import ProjectM36.TransactionGraph.Types 
@@ -17,11 +18,11 @@ executeDatabaseContextExpr expr transId graph context' dbcFuncUtils =
     run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr True expr)
   
 executeRelationalExpr :: RelationalExpr -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation
-executeRelationalExpr expr context graph =
-  run
-  where
-    env = mkRelationalExprEnv context graph
-    run = optimizeAndEvalRelationalExpr env expr
+executeRelationalExpr expr context graph = do
+  let reEnv = mkRelationalExprEnv context graph
+      gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
+  normExpr <- runGraphRefRelationalExprM gfEnv (normalizeM expr)
+  optimizeAndEvalGraphRefRelationalExpr gfEnv normExpr  
 
 -- used in tests where the utils don't matter
 dud :: DatabaseContextFunctionUtils

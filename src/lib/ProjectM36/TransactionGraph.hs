@@ -9,13 +9,16 @@ import ProjectM36.ValueMarker
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.Transaction.Types
 import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subschemas)
 import qualified ProjectM36.IsomorphicSchema.Types as Schema
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Tuple
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.TransactionGraph.Merge
+import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.MerkleHash
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..), CurrentHead(..))
 import qualified ProjectM36.DisconnectedTransaction as Discon
@@ -23,6 +26,7 @@ import qualified ProjectM36.Attribute as A
 import ProjectM36.HashSecurely
 import ProjectM36.ReferencedTransactionIds
 import ProjectM36.DatabaseContext.Fields
+import ProjectM36.NormalizeExpr
 
 import Codec.Winery
 import Control.Monad (foldM, forM, unless, when)
@@ -245,8 +249,8 @@ evalTransactionGraphExpr discon graph (WalkBackToTime backTime) = do
                disconCurrentHead = CurrentHeadTransactionId jumpDest
                })
 
-evalAlterTransactionGraphExpr :: UTCTime -> TransactionId -> DisconnectedTransaction -> TransactionGraph -> AlterTransactionGraphExpr -> Either RelationalError (DisconnectedTransaction, Maybe UncommittedTransaction, TransactionGraph)
-evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph heads transSet) (Branch newBranchName) =
+evalAlterTransactionGraphExpr :: UTCTime -> TransactionId -> DisconnectedTransaction -> CheckConstraints -> TransactionGraph -> AlterTransactionGraphExpr -> Either RelationalError (DisconnectedTransaction, Maybe UncommittedTransaction, TransactionGraph)
+evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph@(TransactionGraph heads transSet) (Branch newBranchName) =
   if M.member newBranchName heads then
     Left (HeadNameAlreadyInUseError newBranchName)
     else do
@@ -255,20 +259,20 @@ evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph head
                            disconCurrentHead = CurrentHeadBranch newBranchName
                          }
     pure (discon', Nothing, TransactionGraph (M.insert newBranchName trans heads) transSet)
-evalAlterTransactionGraphExpr _stamp' _newId discon graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) =
+evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) =
   case transactionForHead branchName graph of
     Nothing -> Left (NoSuchHeadNameError branchName)
     Just _ -> Right (discon, Nothing, TransactionGraph (M.delete branchName graphHeads) transSet)
-evalAlterTransactionGraphExpr stamp' newId discon graph (MergeTransactions mergeStrategy headNameA headNameB) = do
+evalAlterTransactionGraphExpr stamp' newId discon checkConstraints graph (MergeTransactions mergeStrategy headNameA headNameB) = do
   let env = freshGraphRefRelationalExprEnv Nothing graph
-  (uTrans@(UncommittedTransaction trans), graph') <- runGraphRefRelationalExprM env $ mergeTransactions stamp' newId (Discon.parentId discon) mergeStrategy (MergeHeadNames { sourceHead = headNameA,
+  (uTrans@(UncommittedTransaction trans), graph') <- runGraphRefRelationalExprM env $ mergeTransactions stamp' newId (Discon.parentId discon) checkConstraints mergeStrategy (MergeHeadNames { sourceHead = headNameA,
         targetHead = headNameB })
   let discon' = discon { disconSchemas = schemas trans,
                          disconCurrentHead = CurrentHeadBranch headNameB
                        }
   pure (discon', Just uTrans, graph')
 
-evalAlterTransactionGraphExpr stamp' newTransId discon graph Commit =
+evalAlterTransactionGraphExpr stamp' newTransId discon checkConstraints graph Commit =
   case transactionForId (Discon.parentId discon) graph of
   Left err -> Left err
   Right parentTransaction ->
@@ -282,7 +286,7 @@ evalAlterTransactionGraphExpr stamp' newTransId discon graph Commit =
                 let newDisconnectedTrans = Discon.freshTransaction (disconCurrentHead discon) newTransId (disconSchemas discon)
                 Right (newDisconnectedTrans, Just uncommittedTrans, updatedGraph)
 
-evalAlterTransactionGraphExpr _stamp' _newId discon graph Rollback =
+evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph Rollback =
   case transactionForId (disconTransactionId discon) graph of
     Left err -> Left err
     Right parentTransaction -> Right (newDiscon, Nothing, graph)
@@ -420,8 +424,8 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
           -- we have some paths!
           _ -> Right $ S.unions paths
 
-mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
-mergeTransactions stamp' newId parentId mergeStrategy mergeHeadNames = do
+mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> CheckConstraints -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
+mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHeadNames = do
   graph <- gfGraph
   let transactionForHeadErr name = case transactionForHead name graph of
         Nothing -> throwError (NoSuchHeadNameError name)
@@ -445,7 +449,9 @@ mergeTransactions stamp' newId parentId mergeStrategy mergeHeadNames = do
         [] -> throwError (TransactionIsNotAHeadError parentId)
         _ -> do
           (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
-          case checkConstraints (concreteDatabaseContext (_uncommittedTransaction mergedTrans)) newId graph of
+          let normalizerF = normalize (Just dbctx) graph 
+              dbctx = concreteDatabaseContext (_uncommittedTransaction mergedTrans)
+          case checkConstraints normalizerF dbctx newId graph of
             Left err -> throwError err
             Right _ -> do
               let newGraph'' = TransactionGraph (transactionHeadsForGraph newGraph') (transactionsForGraph newGraph')

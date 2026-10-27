@@ -6,7 +6,8 @@ import ProjectM36.Error
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.Transaction.Types
 import ProjectM36.TransactionGraph.Types
-import ProjectM36.RelationalExpression
+import ProjectM36.TransactionGraph.FindTransaction
+
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad (foldM)

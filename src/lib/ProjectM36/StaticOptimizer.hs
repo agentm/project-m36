@@ -93,7 +93,7 @@ instance Optimize AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContex
     runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
 -- | Apply pure optimizations.
-optimizeAndEvalRelationalExpr :: RelationalExprEnv -> AttrExpr.RelationalExpr -> Either RelationalError Relation
+optimizeAndEvalRelationalExpr :: RelationalExprEnv -> AttrNames.RelationalExpr -> Either RelationalError Relation
 optimizeAndEvalRelationalExpr env expr = do
   let graph = re_graph env
       ctx = re_context env
@@ -126,10 +126,11 @@ optimizeAndEvalDatabaseContextExpr runOpt expr = do
         Left err -> throwError err
         Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
-optimizeRelationalExpr :: RelationalExprEnv -> AttrExpr.RelationalExpr -> Either RelationalError AttrNames.GraphRefRelationalExpr
+-- if normalization always happens outside these functions, maybe we should only optimize normalized expressions
+optimizeRelationalExpr :: RelationalExprEnv -> AttrNames.RelationalExpr -> Either RelationalError AttrNames.GraphRefRelationalExpr
 optimizeRelationalExpr env expr = do
   let ctx = re_context env
-      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)  
+      gfEnv = freshGraphRefRelationalExprEnv (Just ctx) (re_graph env)
   gfExpr <- runGraphRefRelationalExprM gfEnv (normalizeM expr)  
   runGraphRefSOptRelationalExprM (Just ctx) (re_graph env) (fullOptimizeGraphRefRelationalExpr gfExpr)
 

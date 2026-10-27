@@ -64,7 +64,7 @@ data Atom = IntegerAtom !Integer |
             BoolAtom !Bool |
             UUIDAtom !UUID |
             RelationAtom !Relation |
-            RelationalExprAtom !NormalizedRelationalExpr | --used for returning inc deps
+            RelationalExprAtom !(RelationalExprBase AttributeNames ()) | --used for returning inc deps
             SubrelationFoldAtom !Relation !AttributeName |
             ConstructedAtom !DataConstructorName !AtomType [Atom]
             deriving (Eq, Show, Read, Typeable, NFData, Generic)
@@ -345,20 +345,23 @@ type AttributeNameAtomExprMapBase attrNames a = M.Map AttributeName (AtomExprBas
 type DatabaseContextExprName = StringType
 
 type ResolvedRelationalExpr = RelationalExprBase AttributeNames ()
--- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally. Because we use normalized expressions here, inclusion dependencies can reference past transactions.
-data InclusionDependencyBase attrNames a = InclusionDependency (RelationalExprBase attrNames a) (RelationalExprBase attrNames a)
- deriving (Show, Eq, Generic, NFData, Hashable, Functor)
+-- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
+data InclusionDependencyBase attrNames = InclusionDependency (RelationalExprBase attrNames ()) (RelationalExprBase attrNames ())
+ deriving (Show, Eq, Generic, NFData, Hashable)
 
-type InclusionDependencies = InclusionDependenciesBase AttributeNames GraphRefTransactionMarker
+type InclusionDependencies = InclusionDependenciesBase AttributeNames
 
-type InclusionDependenciesBase attrNames marker = M.Map IncDepName (InclusionDependencyBase attrNames marker)
+type InclusionDependenciesBase attrNames = M.Map IncDepName (InclusionDependencyBase attrNames)
 
 type RelationVariables = M.Map RelVarName NormalizedRelationalExpr
 
 type RelationVariablesBase attrNames marker = M.Map RelVarName (RelationalExprBase attrNames marker)
 
--- registered queries are most likely to be against HEAD since graph history cannot be changed, but we store them as normalized queries since we would merely be converting them constantly otherwise for the executor
-type RegisteredQueries = M.Map RegisteredQueryName NormalizedRelationalExpr
+-- registered queries are most likely to be against HEAD since graph history cannot be changed, but we store them as normalized queries since we would merely be converting them constantly otherwise for the executor- regardless, we should reassess whether previous transaction states could be useful to registered queries and potentially replace this with `NormalizedRelationalExpr`
+type RegisteredQueries = M.Map RegisteredQueryName RegisteredQueryExpr
+
+-- | Registered Queries are deliberately not normalized in storage because we want them to be precisely the queries that the user authored. For example, if the user specifies all columns except X (by name), then that should be preserved.
+type RegisteredQueryExpr = RelationalExprBase (AttributeNamesExprBase ()) ()
 
 -- | Database context expressions modify the database context.
 data DatabaseContextExprBase attrNames a r = 
@@ -370,7 +373,7 @@ data DatabaseContextExprBase attrNames a r =
   Delete RelVarName (RestrictionPredicateExprBase attrNames a)  |
   Update RelVarName (AttributeNameAtomExprMapBase attrNames a) (RestrictionPredicateExprBase attrNames a) |
   
-  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames a) |
+  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames) |
   RemoveInclusionDependency IncDepName |
   
   AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
@@ -386,7 +389,7 @@ data DatabaseContextExprBase attrNames a r =
   
   ExecuteDatabaseContextFunction FunctionName [AtomExprBase attrNames a] |
 
-  AddRegisteredQuery RegisteredQueryName NormalizedRelationalExpr |
+  AddRegisteredQuery RegisteredQueryName RegisteredQueryExpr |
   RemoveRegisteredQuery RegisteredQueryName |
 
   AlterACL (AlterDBCACLExprBase r) |

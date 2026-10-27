@@ -315,7 +315,7 @@ instance HashBytes DatabaseContextFunctions where
   hashBytes dbcfuncs ctx =
     hashBytesL ctx "DatabaseContextFunctions" (map SHash (sortOn funcName (HS.toList dbcfuncs)))
 
-instance (HashBytes attrNames, HashBytes a) => HashBytes (InclusionDependencyBase attrNames a) where    
+instance (HashBytes attrNames) => HashBytes (InclusionDependencyBase attrNames) where    
   hashBytes (InclusionDependency exprA exprB) ctx =
     hashBytesL ctx "InclusionDependency" [SHash exprA, SHash exprB]
 

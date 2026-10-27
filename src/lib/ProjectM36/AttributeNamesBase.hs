@@ -43,5 +43,5 @@ type GraphRefAttributeExpr = AttributeExprBase GraphRefTransactionMarker
 
 type AttributeExpr = AttributeExprBase ()
 
-type InclusionDependency = InclusionDependencyBase AttributeNames GraphRefTransactionMarker
+type InclusionDependency = InclusionDependencyBase AttributeNames
 

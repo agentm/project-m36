@@ -28,10 +28,10 @@ example:
 
 -- | Create a uniqueness constraint for the attribute names and relational expression. Note that constraint can span multiple relation variables.
 inclusionDependencyForKey ::
-  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  BareAttributeNames attrNames =>
   AttributeNames ->
-  RelationalExprBase attrNames marker ->
-  InclusionDependencyBase attrNames marker
+  RelationalExprBase attrNames () ->
+  InclusionDependencyBase attrNames
 inclusionDependencyForKey attrNames relExpr = 
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where
@@ -62,10 +62,10 @@ databaseContextExprForForeignKey fkName infoA infoB =
   AddInclusionDependency fkName (inclusionDependencyForForeignKey infoA infoB)
   
 inclusionDependencyForForeignKey ::
-  (BareAttributeNames attrNames, DefaultTransactionMarker marker) =>
+  BareAttributeNames attrNames =>
   (RelVarName, [AttributeName]) ->
   (RelVarName, [AttributeName]) ->
-  InclusionDependencyBase attrNames marker
+  InclusionDependencyBase attrNames
 inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
   InclusionDependency (
     renameIfNecessary attrsB attrsA (Project (attrsL attrsA)

@@ -18,6 +18,7 @@ import ProjectM36.SQL.Delete as Delete
 import ProjectM36.SQL.CreateTable as CreateTable
 import ProjectM36.SQL.DropTable as DropTable
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.DataFrame (DataFrameExpr(..), AttributeOrderExpr(..), Order(..), usesDataFrameFeatures)
 import ProjectM36.AttributeNamesExpr as A
 import ProjectM36.Relation (attributes, atomTypeForName)

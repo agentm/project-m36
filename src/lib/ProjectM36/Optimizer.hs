@@ -55,26 +55,30 @@ data OptimizerEnv r =
 
 optimizeAndEvalRelationalExpr :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> AttrExprs.RelationalExpr -> IO (Either RelationalError Relation)
 optimizeAndEvalRelationalExpr optEnv reEnv expr = do
-  let gfExpr = normalizeTransactionMarker UncommittedContextMarker expr -- references parent tid instead of context! options- I could add the context to the graph with a new transid or implement an evalRelationalExpr in RE.hs to use the context (which is what I had previously)
-      gfEnv = GraphRefRelationalExprEnv {
-        gre_context = Just (re_context reEnv),
-        gre_graph = re_graph reEnv,
-        gre_extra = Nothing
-        }
+  let gfEnv = freshGraphRefRelationalExprEnv (Just (re_context reEnv)) (re_graph reEnv)
+  case normalize (Just (re_context reEnv)) (re_graph reEnv) expr of
+    Left err -> pure (Left err)
+    Right gfExpr ->
+      optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr
+
+optimizeAndEvalRelationalExpr' :: RandomGen r => OptimizerEnv r -> RelationalExprEnv -> AttrNames.RelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalRelationalExpr' optEnv reEnv expr = do
+  let gfExpr = normalizeTransactionMarker UncommittedContextMarker expr
+      gfEnv = freshGraphRefRelationalExprEnv (Just (re_context reEnv)) (re_graph reEnv)
   optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr
   
-optimizeAndEvalGraphRefRelationalExpr :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> AttrExprs.GraphRefRelationalExpr -> IO (Either RelationalError Relation)
+optimizeAndEvalGraphRefRelationalExpr :: RandomGen r => OptimizerEnv r -> GraphRefRelationalExprEnv -> AttrNames.GraphRefRelationalExpr -> IO (Either RelationalError Relation)
 optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
 -- apply static optimizer first, then cost-based optimizer, finally execute the optimized query, if this is an experiment, then we don't make suggestions
   --first, type check
   case runGraphRefRelationalExprM gfEnv (do
-    gfExpr' <- normalizeAttributeNames (ExistingRelation relationTrue) gfExpr
-    _ <- typeForGraphRefRelationalExpr gfExpr'
-    pure gfExpr') of
+--    gfExpr' <- normalizeAttributeNames (ExistingRelation relationTrue) gfExpr
+    _ <- typeForGraphRefRelationalExpr gfExpr
+    pure gfExpr) of
     Left err -> pure (Left err)
-    Right gfExpr' -> do
+    Right gfExpr -> do
       -- then, apply static optimizations
-      case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr') of
+      case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)
         Right staticOptGfExpr -> do
           -- next, apply cost-based optimizations
@@ -117,22 +121,19 @@ evalGraphRefRelationalExprWithCache optEnv gfEnv gfExpr =
                   pure (Right relationResult')
 
 -- | Optimization can be disabled due to missing context in isomorphic transformations.
-optimizeAndEvalDatabaseContextExpr :: Bool -> AttrExprs.DatabaseContextExpr' -> DatabaseContextEvalMonad ()
-optimizeAndEvalDatabaseContextExpr runOpt expr = do
+optimizeAndEvalGraphRefDatabaseContextExpr :: Bool -> AttrNames.GraphRefDatabaseContextExpr' -> DatabaseContextEvalMonad ()
+optimizeAndEvalGraphRefDatabaseContextExpr runOpt expr = do
   graph <- asks dce_graph
   transId <- asks dce_transId
   context <- getStateContext
   dbcfuncutils <- asks dce_dbcfuncutils
-  case normalize (Just context) graph expr of
-    Left err -> throwError err
-    Right gfExpr -> do
-      let eOptExpr = if runOpt then
-                       StaticOpt.runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr)
+  let eOptExpr = if runOpt then
+                       StaticOpt.runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (StaticOpt.optimizeGraphRefDatabaseContextExpr expr)
                      else
-                       pure gfExpr
-      case eOptExpr of
-        Left err -> throwError err
-        Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
+                       pure expr
+  case eOptExpr of
+    Left err -> throwError err
+    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
 optimizeAndEvalDatabaseContextIOExpr :: DatabaseContextIOExpr -> DatabaseContextIOEvalMonad ()
 optimizeAndEvalDatabaseContextIOExpr expr = do

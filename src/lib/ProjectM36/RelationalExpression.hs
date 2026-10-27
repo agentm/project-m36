@@ -9,11 +9,11 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr)
+import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr, InclusionDependency)
 import qualified ProjectM36.TypeConstructorDef as TCD
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
-import ProjectM36.AccessControlList (RoleId, AccessControlList, SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, addAccess, removeAccess)
+import ProjectM36.AccessControlList (SomePermission(..), relvarsACL, dbcFunctionsACL, schemaACL, transGraphACL, aclACL, addAccess, removeAccess)
 #if defined(PM36_HASKELL_SCRIPTING)
 import ProjectM36.AccessControlList (allPermissionsForRole)
 #endif
@@ -32,6 +32,10 @@ import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subsch
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
 import qualified ProjectM36.Attribute as A
+import ProjectM36.Module
+import ProjectM36.RelationalExpression.Types
+import ProjectM36.TransactionGraph.FindTransaction
+import ProjectM36.DenormalizeExpr
 
 import qualified Data.UUID as U
 import qualified Data.Map as M
@@ -70,7 +74,7 @@ import System.IO.Temp
 import System.IO (hClose)
 import qualified Data.Text.IO as TIO
 import Data.Default
-import ProjectM36.Module
+
 import GHC hiding (getContext)
 import Control.Exception
 import GHC.Paths
@@ -112,12 +116,6 @@ mkDatabaseContextEvalState context = DatabaseContextEvalState {
   dbc_accum = M.empty
   } 
 
--- we need to pass around a higher level RelationTuple and Attributes in order to solve #52
-data RelationalExprEnv = RelationalExprEnv {
-  re_context :: DatabaseContext, 
-  re_graph :: TransactionGraph,
-  re_extra :: Maybe (Either RelationTuple Attributes)
-  }
 
 envTuple :: GraphRefRelationalExprEnv -> RelationTuple
 envTuple e = fromLeft emptyTuple (fromMaybe (Left emptyTuple) (gre_extra e))
@@ -129,12 +127,6 @@ envAttributes e =
     Just (Left tup) -> tupleAttributes tup
     Just (Right attrs) -> attrs
   
-instance Show RelationalExprEnv where
-  show e@RelationalExprEnv{} = "RelationalExprEnv " ++ show (re_extra e)
-
---used to eval relationalexpr
-type RelationalExprM a = ReaderT RelationalExprEnv (ExceptT RelationalError Identity) a
-
 runRelationalExprM :: RelationalExprEnv -> RelationalExprM a -> Either RelationalError a
 runRelationalExprM env m = runIdentity (runExceptT (runReaderT m env))
 
@@ -167,31 +159,8 @@ mergeAttributesIntoGraphRefRelationalExprEnv attrsIn e = e { gre_extra = newattr
   where
     newattrs = Just (Right (A.union attrsIn (envAttributes e)))
 
-type ResultAccumName = StringType
 
-type ResultAccumFunc = (RelationTuple -> Relation -> Relation) -> Relation -> Relation
-
-data ResultAccum = ResultAccum { resultAccumFunc :: ResultAccumFunc,
-                                 resultAccumResult :: Relation
-                                 }
-
-data DatabaseContextEvalState = DatabaseContextEvalState {
-  dbc_context :: DatabaseContext,
-  dbc_accum :: M.Map ResultAccumName ResultAccum
-  }
-
--- | To break the circular dependency loop between StaticOptimizer and RelationalExpression modules, we pass in the optimizer as a function.
---type DatabaseContextExprOptimizer = TransactionId -> DatabaseContext -> TransactionGraph -> DatabaseContextExpr -> GraphRefDatabaseContextExpr
-
---type DatabaseContextIOExprOptimizer = TransactionId -> DatabaseContext -> TransactionGraph -> DatabaseContextIOExpr -> GraphRefDatabaseContextIOExpr
-
-data DatabaseContextEvalEnv = DatabaseContextEvalEnv
-  { dce_transId :: TransactionId,
-    dce_graph :: TransactionGraph,
-    dce_dbcfuncutils :: DatabaseContextFunctionUtils
-  }
-
-mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> DatabaseContextEvalEnv
+mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> NormalizeRelationalExprF -> DatabaseContextEvalEnv
 mkDatabaseContextEvalEnv = DatabaseContextEvalEnv
 
 type DatabaseContextEvalMonad a = RWST DatabaseContextEvalEnv () DatabaseContextEvalState (ExceptT RelationalError Identity) a
@@ -208,6 +177,9 @@ dbcTransId = dce_transId <$> RWS.ask
 dbcGraph :: DatabaseContextEvalMonad TransactionGraph
 dbcGraph = dce_graph <$> RWS.ask
 
+dbcNormalizeRelationalExprF :: DatabaseContextEvalMonad NormalizeRelationalExprF
+dbcNormalizeRelationalExprF = dce_normalizeRelationalExpr <$> RWS.ask
+
 dbcRelationalExprEnv :: DatabaseContextEvalMonad RelationalExprEnv
 dbcRelationalExprEnv = 
   mkRelationalExprEnv <$> getStateContext <*> dbcGraph
@@ -220,21 +192,6 @@ putStateContext ctx' = do
   s <- get
   put (s {dbc_context = ctx'}) 
 
--- | The context is optionally passed down along in cases where the current context is uncommitted.
-data GraphRefRelationalExprEnv =
-  GraphRefRelationalExprEnv {
-  gre_context :: Maybe DatabaseContext,
-  gre_graph :: TransactionGraph,
-  gre_extra :: Maybe (Either RelationTuple Attributes)
-  }
-  
-type GraphRefRelationalExprM a = ReaderT GraphRefRelationalExprEnv (ExceptT RelationalError Identity) a
-
-gfTransForId :: TransactionId -> GraphRefRelationalExprM Transaction
-gfTransForId tid = do
-  graph <- gfGraph
-  lift $ except $ transactionForId tid graph
-
 gfDatabaseContextForMarker :: GraphRefTransactionMarker -> GraphRefRelationalExprM DatabaseContext 
 gfDatabaseContextForMarker (TransactionMarker transId) = concreteDatabaseContext <$> gfTransForId transId
 gfDatabaseContextForMarker UncommittedContextMarker = do
@@ -243,21 +200,6 @@ gfDatabaseContextForMarker UncommittedContextMarker = do
     Nothing -> throwError NoUncommittedContextInEvalError
     Just ctx -> pure ctx
 
-runGraphRefRelationalExprM :: GraphRefRelationalExprEnv -> GraphRefRelationalExprM a -> Either RelationalError a
-runGraphRefRelationalExprM env m = runIdentity (runExceptT (runReaderT m env))
-
-freshGraphRefRelationalExprEnv :: Maybe DatabaseContext -> TransactionGraph -> GraphRefRelationalExprEnv
-freshGraphRefRelationalExprEnv mctx graph = GraphRefRelationalExprEnv {
-  gre_context = mctx,
-  gre_graph = graph,
-  gre_extra = Nothing
-  }
-
-gfGraph :: GraphRefRelationalExprM TransactionGraph
-gfGraph = asks gre_graph
-
-envContext :: RelationalExprEnv -> DatabaseContext
-envContext = re_context
 
 setEnvContext :: RelationalExprEnv -> DatabaseContext -> RelationalExprEnv
 setEnvContext e ctx = e { re_context = ctx }
@@ -268,6 +210,7 @@ setRelVar relVarName relExpr = do
   currentContext <- getStateContext
   --prevent recursive relvar definition by resolving references to relvars in previous states
   relExpr' <- resolve relExpr
+  normRelExprF <- dbcNormalizeRelationalExprF
   graph <- dbcGraph
   relVars <- resolveDBC relationVariables
   let newRelVars = ValueMarker $ M.insert relVarName relExpr' relVars
@@ -278,7 +221,7 @@ setRelVar relVarName relExpr = do
     else do
     --determine when to check constraints
     tid <- dbcTransId
-    case checkConstraints potentialContext tid graph of
+    case checkConstraints normRelExprF potentialContext tid graph of
       Left err -> dbErr err
       Right _ -> putStateContext potentialContext
 
@@ -291,13 +234,14 @@ deleteRelVar relVarName = do
   currContext <- getStateContext
   graph <- dbcGraph
   relVars <- resolveDBC relationVariables
+  normRelExprF <- dbcNormalizeRelationalExprF
   if M.notMember relVarName relVars then
     pure ()
     else do
     let newRelVars = ValueMarker $ M.delete relVarName relVars
         newContext = currContext { relationVariables = newRelVars }
     tid <- dbcTransId
-    case checkConstraints newContext tid graph of
+    case checkConstraints normRelExprF newContext tid graph of
       Left err -> dbErr err
       Right _ ->
         putStateContext newContext
@@ -404,6 +348,7 @@ evalGraphRefDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
   transId <- dbcTransId
   graph <- dbcGraph
   currDeps <- resolveDBC inclusionDependencies
+  normRelExprF <- dbcNormalizeRelationalExprF
   let newDeps = ValueMarker $ M.insert newDepName newDep currDeps
   if M.member newDepName currDeps then
     dbErr (InclusionDependencyNameInUseError newDepName)
@@ -411,7 +356,7 @@ evalGraphRefDatabaseContextExpr (AddInclusionDependency newDepName newDep) = do
       let potentialContext = currContext { inclusionDependencies = newDeps }
       -- if the potential context passes all constraints, then save it
       -- potential optimization: validate only the new constraint- all old constraints must already hold
-      case checkConstraints potentialContext transId graph of
+      case checkConstraints normRelExprF potentialContext transId graph of
         Left err -> dbErr err
         Right _ -> 
           putStateContext potentialContext
@@ -431,6 +376,7 @@ evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldEx
   nots <- resolveDBC notifications
   transId <- dbcTransId
   graph <- dbcGraph
+  normRelExprF <- dbcNormalizeRelationalExprF
   if M.member notName nots then
     dbErr (NotificationNameInUseError notName)
     else do
@@ -439,7 +385,7 @@ evalGraphRefDatabaseContextExpr (AddNotification notName triggerExpr resultOldEx
                                            reportOldExpr = resultOldExpr, 
                                            reportNewExpr = resultNewExpr}
           potentialContext = currentContext { notifications = newNotifications }
-      case checkConstraints potentialContext transId graph of
+      case checkConstraints normRelExprF potentialContext transId graph of
         Left err -> dbErr err
         Right () -> putStateContext potentialContext
   
@@ -547,11 +493,12 @@ evalGraphRefDatabaseContextExpr (AddRegisteredQuery regName regExpr) = do
   tgraph <- dbcGraph
   tid <- dbcTransId
   regQueries <- resolveDBC registeredQueries
+  normRelExprF <- dbcNormalizeRelationalExprF  
   case M.lookup regName regQueries of
     Just _ -> dbErr (RegisteredQueryNameInUseError regName)
     Nothing -> do
       let context' = context { registeredQueries = ValueMarker $ M.insert regName regExpr regQueries }
-      case checkConstraints context' tid tgraph of
+      case checkConstraints normRelExprF context' tid tgraph of
         Left err -> dbErr err
         Right _ -> putStateContext context'
 evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
@@ -563,16 +510,6 @@ evalGraphRefDatabaseContextExpr (RemoveRegisteredQuery regName) = do
 evalGraphRefDatabaseContextExpr (AlterACL alterACLExpr) = do
   evalAlterDBCACLRoleIdExpr alterACLExpr
   
-data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
-  { dbcio_transId :: TransactionId,
-    dbcio_graph :: TransactionGraph,
-    dbcio_mScriptSession :: Maybe ScriptSession,
-    dbcio_roleId :: RoleId,
-    resolveRoleNameACL :: forall x. AccessControlList RoleName x -> IO (Either RelationalError (AccessControlList RoleId x)),
-    dbcio_mModulesDirectory :: Maybe FilePath, -- ^ when running in persistent mode, this must be a Just value to a directory containing .o/.so/.dynlib files which the user has placed there for access to compiled functions
-    dbcio_dbcfunctionUtils :: DatabaseContextFunctionUtils
-  }
-
 type DatabaseContextIOEvalMonad a = RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState (ExceptT RelationalError IO) a
 
 runDatabaseContextIOEvalMonad :: DatabaseContextIOEvalEnv -> DatabaseContext -> DatabaseContextIOEvalMonad () -> IO (Either RelationalError DatabaseContextEvalState)
@@ -722,7 +659,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
   env <- RWS.ask
   --create graph ref expr
   let gfExpr = Define relVarName attrExprs
-      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env) (dbcio_dbcfunctionUtils env)
+      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env) (dbcio_dbcfunctionUtils env) (dbcio_normalizeRelationalExpr env)
       graph = dbcio_graph env
   case runDatabaseContextEvalMonad currentContext evalEnv (evalGraphRefDatabaseContextExpr gfExpr) of
     Left err -> throwError err
@@ -758,10 +695,9 @@ evalGraphRefDatabaseContextIOExpr (LoadModuleWithFunctions moduleBody) = do
   -- load the module using GHC
   -- run the entrypoint function to get names of functions to convert to Atom and DBC functions
 
--- | run verification of all constraints
--- needs DatabaseContext to create dummy Transaction
-checkConstraints :: DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
-checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = do
+-- | validate all constraints
+checkConstraints :: NormalizeRelationalExprF -> DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
+checkConstraints normRelExprF context transId graph@(TransactionGraph graphHeads transSet) = do
   deps <- resolveDBC' graph context inclusionDependencies  
   mapM_ (uncurry checkIncDep) (M.toList deps)
   regQueries <- resolveDBC' graph context registeredQueries
@@ -781,17 +717,23 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
                                       }
     gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
+    checkIncDep :: IncDepName -> InclusionDependency -> Either RelationalError ()
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
       let 
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
                          Left err -> Left (wrapIncDepErr (Just err))
                          Right v -> Right v
+          normE e = case normRelExprF context graph (denormalizeAttributeNames e) of
+                      Left err -> Left (wrapIncDepErr (Just err))
+                      Right v -> Right v
           wrapIncDepErr = InclusionDependencyCheckError depName
-      typeSub <- runGfRel (typeForGraphRefRelationalExpr subsetExpr)
-      typeSuper <- runGfRel (typeForGraphRefRelationalExpr supersetExpr)
+      subsetExprNorm <- normE subsetExpr
+      supersetExprNorm <- normE supersetExpr
+      typeSub <- runGfRel (typeForGraphRefRelationalExpr subsetExprNorm)
+      typeSuper <- runGfRel (typeForGraphRefRelationalExpr supersetExprNorm)
       when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))
-      let checkExpr = Equals supersetExpr (Union subsetExpr supersetExpr)
+      let checkExpr = fmap (const UncommittedContextMarker) (Equals supersetExpr (Union subsetExpr supersetExpr))
           gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
@@ -801,8 +743,10 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
                                 else 
                                   Left (wrapIncDepErr Nothing)
     --registered queries just need to typecheck- think of them as a constraints on the schema/DDL
+    checkRegisteredQuery :: (RegisteredQueryName, RelationalExprBase (AttributeNamesExprBase ()) ()) -> Either RelationalError ()
     checkRegisteredQuery (qName, relExpr) = do
-      case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr) of
+      normExpr <- normRelExprF context graph relExpr
+      case runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr normExpr) of
         Left err -> Left (RegisteredQueryValidationError qName err)
         Right _ -> pure ()
     checkRelExpr relExpr = do
@@ -820,14 +764,15 @@ checkConstraints context transId graph@(TransactionGraph graphHeads transSet) = 
 -- the type of a relational expression is equal to the relation attribute set returned from executing the relational expression; therefore, the type can be cheaply derived by evaluating a relational expression and ignoring and tuple processing
 -- furthermore, the type of a relational expression is the resultant header of the evaluated empty-tupled relation
 
-typeForRelationalExpr :: NormalizedRelationalExpr -> RelationalExprM Relation
-typeForRelationalExpr gfExpr = do
+typeForRelationalExpr :: RelationalExprBase AttributeNames () -> RelationalExprM Relation
+typeForRelationalExpr relExpr = do
   --replace the relationVariables context element with a cloned set of relation devoid of tuples
   --evalRelationalExpr could still return an existing relation with tuples, so strip them
   graph <- reGraph
   context <- reContext
   let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
       runGf = runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
+      gfExpr = fmap (const UncommittedContextMarker) relExpr
   lift $ except runGf
 
 {- used for restrictions- take the restrictionpredicate and return the corresponding filter function -}
@@ -1309,21 +1254,6 @@ evalGraphRefRelationalExpr expr@With{} =
   --strategy B implementation
   evalGraphRefRelationalExpr (substituteWithNameMacros [] expr)
 
-dbContextForTransId :: TransactionId -> TransactionGraph -> Either RelationalError DatabaseContext
-dbContextForTransId tid graph = do
-  trans <- transactionForId tid graph
-  pure (concreteDatabaseContext trans)
-
-transactionForId :: TransactionId -> TransactionGraph -> Either RelationalError Transaction
-transactionForId tid graph 
-  | tid == U.nil =
-    Left RootTransactionTraversalError
-  | otherwise =
-      let sameTID (Transaction idMatch _ _) = idMatch == tid
-          matchingTrans = S.filter sameTID $ transactionsForGraph graph
-      in  case S.toList matchingTrans of
-        [] -> Left $ NoSuchTransactionError tid
-        x : _ -> Right x
 
 typeForGraphRefRelationalExpr :: GraphRefRelationalExpr -> GraphRefRelationalExprM Relation
 typeForGraphRefRelationalExpr = typeForGraphRefRelationalExpr' Nothing
@@ -1772,6 +1702,7 @@ resolveValueMarker graph f (NotChangedSinceMarker tid) = do
   resolveDBC' graph (concreteDatabaseContext t) f
 
 -- | Ensure that the notification contains valid, type-checkable relational expressions. These relational expressions therefore become registered queries: queries which must remain valid.
+{-
 validateNotification :: Notification -> DatabaseContext -> TransactionGraph -> Either RelationalError Notification
 validateNotification notif context graph = do
   let reEnv = mkRelationalExprEnv context graph
@@ -1780,7 +1711,7 @@ validateNotification notif context graph = do
     _ <- typeForRelationalExpr (reportOldExpr notif)
     _ <- typeForRelationalExpr (reportNewExpr notif)
     pure notif
-
+-}
 -- | Resolved all fields which link to previous transactions.
 toResolvedDatabaseContext :: DatabaseContext -> TransactionGraph -> Either RelationalError ResolvedDatabaseContext
 toResolvedDatabaseContext ctx graph = do

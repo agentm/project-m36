@@ -18,11 +18,11 @@ inclusionDependenciesAsRelation incDeps =
                                                              RelationalExprAtom exprB]
 
 -- validate that the given AtomExpr is true for an relvar
-inclusionDependencyForAtomExpr :: (DefaultTransactionMarker marker, BareAttributeNames attrNames) => RelVarName -> AtomExprBase attrNames marker -> InclusionDependencyBase attrNames marker
+inclusionDependencyForAtomExpr :: BareAttributeNames attrNames => RelVarName -> AtomExprBase attrNames () -> InclusionDependencyBase attrNames 
 inclusionDependencyForAtomExpr rvname atomExpr =
   InclusionDependency
   (NotEquals (ExistingRelation relationTrue)
-    (Project (bareAttributeNames mempty) (Restrict check (RelationVariable rvname defaultMarker)))
+    (Project (bareAttributeNames mempty) (Restrict check (RelationVariable rvname () )))
   )
   (ExistingRelation relationFalse)
   where

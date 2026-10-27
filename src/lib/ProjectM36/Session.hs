@@ -2,8 +2,8 @@ module ProjectM36.Session where
 import ProjectM36.Base
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransactionGraph.FindTransaction
 import qualified ProjectM36.Transaction.Types as T
-import ProjectM36.RelationalExpression
 import Data.UUID
 import qualified Data.Map as M
 import ProjectM36.Error
