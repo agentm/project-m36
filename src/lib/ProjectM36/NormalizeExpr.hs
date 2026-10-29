@@ -45,7 +45,7 @@ type family NormalizeAttributeNames a where
 
   NormalizeAttributeNames (AttributeNameAtomExprMapBase (AttributeNamesExprBase a) a) = AttributeNameAtomExprMapBase AttributeNames a
 
-  NormalizeAttributeNames (InclusionDependencyBase (AttributeNamesExprBase a)) = InclusionDependencyBase AttributeNames
+  NormalizeAttributeNames (InclusionDependencyBase (AttributeNamesExprBase a) a) = InclusionDependencyBase AttributeNames ()
 
   NormalizeAttributeNames (DatabaseContextExprBase AttributeNames () r) = DatabaseContextExprBase AttributeNames () r
 
@@ -182,16 +182,25 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
       Delete nam pred' -> Delete nam <$> norm pred'
       Update nam attrMap pred' -> Update nam <$> norm attrMap <*> norm pred'
 
-      AddInclusionDependency nam dep -> AddInclusionDependency nam <$> norm dep
-      RemoveInclusionDependency nam -> pure (RemoveInclusionDependency nam)
-      AddNotification nam exprA exprB exprC -> pure (AddNotification nam exprA exprB exprC)
-      RemoveNotification nam -> pure (RemoveNotification nam)
-      AddTypeConstructor tyDef consDefs -> pure (AddTypeConstructor tyDef consDefs)
-      RemoveTypeConstructor tyName -> pure (RemoveTypeConstructor tyName)
+      AddInclusionDependency nam dep ->
+        AddInclusionDependency nam <$> norm dep
+      RemoveInclusionDependency nam ->
+        pure (RemoveInclusionDependency nam)
+      AddNotification nam exprA exprB exprC ->
+        pure (AddNotification nam exprA exprB exprC)
+      RemoveNotification nam ->
+        pure (RemoveNotification nam)
+      AddTypeConstructor tyDef consDefs ->
+        pure (AddTypeConstructor tyDef consDefs)
+      RemoveTypeConstructor tyName ->
+        pure (RemoveTypeConstructor tyName)
 
-      RemoveAtomFunction aFuncName -> pure (RemoveAtomFunction aFuncName)
-      RemoveDatabaseContextFunction funcName' -> pure (RemoveDatabaseContextFunction funcName')
-      ExecuteDatabaseContextFunction funcName' atomExprs -> ExecuteDatabaseContextFunction funcName' <$> mapM norm atomExprs
+      RemoveAtomFunction aFuncName ->
+        pure (RemoveAtomFunction aFuncName)
+      RemoveDatabaseContextFunction funcName' ->
+        pure (RemoveDatabaseContextFunction funcName')
+      ExecuteDatabaseContextFunction funcName' atomExprs ->
+        ExecuteDatabaseContextFunction funcName' <$> mapM norm atomExprs
       AddRegisteredQuery n q -> pure (AddRegisteredQuery n q)
       RemoveRegisteredQuery n -> pure (RemoveRegisteredQuery n)
       AlterACL e -> pure (AlterACL e)
@@ -204,15 +213,20 @@ instance NormalizableAttributeNames (AttributeNameAtomExprMapBase (AttributeName
       mapper (k,v) = (,) <$> pure k <*> normalizeAttributeNames relExpr v
 
 
-instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExprBase ())) where
+instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExprBase ()) ()) where
+  normalizeAttributeNames relExpr (InclusionDependency relExprA relExprB) = do
+    InclusionDependency <$> normalizeAttributeNames relExpr relExprA <*> normalizeAttributeNames relExpr relExprB
+
+instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) ()) where
   normalizeAttributeNames relExpr (InclusionDependency relExprA relExprB) = do
     InclusionDependency <$> normalizeAttributeNames relExpr relExprA <*> normalizeAttributeNames relExpr relExprB
 
 -- odd, but necessary for resolution of InclusionDependencyBase
-instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker)) where
+{-
+instance NormalizableAttributeNames (InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker) where
   normalizeAttributeNames relExpr (InclusionDependency relExprA relExprB) = do
     InclusionDependency <$> normalizeAttributeNames relExpr relExprA <*> normalizeAttributeNames relExpr relExprB
-
+-}
 instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) ()) where
   normalizeAttributeNames relExpr x = undefined
     
@@ -373,6 +387,11 @@ instance NormalizableTransactionMarker (DatabaseContextExprBase (AttributeNamesE
       Update rvName attrAtomMap predi ->
         Update rvName (normalizeTransactionMarker marker attrAtomMap) (normalizeTransactionMarker marker predi)
       AddInclusionDependency depname incDep ->
+{-        let x :: InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker)
+            x = case incDep of
+              InclusionDependency a b ->
+                InclusionDependency (relationalexprbase (AttributeNamesExpr ()) ()) -> (RelationalExprBase (AttributeNamesExpr GraphRefRelationalExpr))
+            in-}
         AddInclusionDependency depname (normalizeTransactionMarker marker incDep)
       RemoveInclusionDependency depname ->
         RemoveInclusionDependency depname
@@ -479,6 +498,16 @@ instance NormalizableTransactionMarker (DatabaseContextExprBase AttributeNames (
     case expr of
       NoOperation -> NoOperation
 
+instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesExprBase ()) ()) where
+  type Args (InclusionDependencyBase (AttributeNamesExprBase ()) ()) =             
+    GraphRefTransactionMarker
+  type Ret (InclusionDependencyBase (AttributeNamesExprBase ()) ()) =              
+    InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) ()   
+                                                                                
+  normalizeTransactionMarker marker (InclusionDependency a b) =                 
+    InclusionDependency (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
+
+{-
 instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesExprBase a)) where
   type Args (InclusionDependencyBase (AttributeNamesExprBase a)) =
     a
@@ -487,7 +516,7 @@ instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesE
     
   normalizeTransactionMarker marker (InclusionDependency a b) =
     InclusionDependency (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
-
+-}
 --instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) where                                       
 {-
 instance NormalizableTransactionMarker TransGraphRelationalExpr where

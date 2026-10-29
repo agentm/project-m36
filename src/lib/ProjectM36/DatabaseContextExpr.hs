@@ -23,7 +23,7 @@ resolvedDatabaseContextAsDatabaseContextExpr context = do
 -- | Make a DatabaseContextExpr from its constituent parts. Useful for user-facing attribute-names-expression-based construction.
 mkDatabaseContextExpr ::
   RelationVariablesBase attrNames marker ->
-  InclusionDependenciesBase attrNames ->
+  InclusionDependenciesBase attrNames () ->
  
   Either RelationalError (DatabaseContextExprBase attrNames marker rol)
 mkDatabaseContextExpr relVars incDeps = do

@@ -31,7 +31,7 @@ inclusionDependencyForKey ::
   BareAttributeNames attrNames =>
   AttributeNames ->
   RelationalExprBase attrNames () ->
-  InclusionDependencyBase attrNames
+  InclusionDependencyBase attrNames ()
 inclusionDependencyForKey attrNames relExpr = 
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where
@@ -65,7 +65,7 @@ inclusionDependencyForForeignKey ::
   BareAttributeNames attrNames =>
   (RelVarName, [AttributeName]) ->
   (RelVarName, [AttributeName]) ->
-  InclusionDependencyBase attrNames
+  InclusionDependencyBase attrNames ()
 inclusionDependencyForForeignKey (rvA, attrsA) (rvB, attrsB) = 
   InclusionDependency (
     renameIfNecessary attrsB attrsA (Project (attrsL attrsA)

@@ -346,12 +346,12 @@ type DatabaseContextExprName = StringType
 
 type ResolvedRelationalExpr = RelationalExprBase AttributeNames ()
 -- | Inclusion dependencies represent every possible database constraint. Constraints enforce specific, arbitrarily-complex rules to which the database context's relation variables must adhere unconditionally.
-data InclusionDependencyBase attrNames = InclusionDependency (RelationalExprBase attrNames ()) (RelationalExprBase attrNames ())
+data InclusionDependencyBase attrNames a = InclusionDependency (RelationalExprBase attrNames a) (RelationalExprBase attrNames a)
  deriving (Show, Eq, Generic, NFData, Hashable)
 
-type InclusionDependencies = InclusionDependenciesBase AttributeNames
+type InclusionDependencies = InclusionDependenciesBase AttributeNames ()
 
-type InclusionDependenciesBase attrNames = M.Map IncDepName (InclusionDependencyBase attrNames)
+type InclusionDependenciesBase attrNames a = M.Map IncDepName (InclusionDependencyBase attrNames a)
 
 type RelationVariables = M.Map RelVarName NormalizedRelationalExpr
 
@@ -373,7 +373,7 @@ data DatabaseContextExprBase attrNames a r =
   Delete RelVarName (RestrictionPredicateExprBase attrNames a)  |
   Update RelVarName (AttributeNameAtomExprMapBase attrNames a) (RestrictionPredicateExprBase attrNames a) |
   
-  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames) |
+  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames ()) |
   RemoveInclusionDependency IncDepName |
   
   AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
