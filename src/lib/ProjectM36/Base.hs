@@ -64,7 +64,7 @@ data Atom = IntegerAtom !Integer |
             BoolAtom !Bool |
             UUIDAtom !UUID |
             RelationAtom !Relation |
-            RelationalExprAtom !(RelationalExprBase AttributeNames ()) | --used for returning inc deps
+            RelationalExprAtom !(RelationalExprBase (AttributeNamesExprBase ()) ()) | --used for returning inc deps
             SubrelationFoldAtom !Relation !AttributeName |
             ConstructedAtom !DataConstructorName !AtomType [Atom]
             deriving (Eq, Show, Read, Typeable, NFData, Generic)
@@ -349,7 +349,7 @@ type ResolvedRelationalExpr = RelationalExprBase AttributeNames ()
 data InclusionDependencyBase attrNames a = InclusionDependency (RelationalExprBase attrNames a) (RelationalExprBase attrNames a)
  deriving (Show, Eq, Generic, NFData, Hashable)
 
-type InclusionDependencies = InclusionDependenciesBase AttributeNames ()
+type InclusionDependencies = InclusionDependenciesBase (AttributeNamesExprBase ()) ()
 
 type InclusionDependenciesBase attrNames a = M.Map IncDepName (InclusionDependencyBase attrNames a)
 
@@ -373,7 +373,7 @@ data DatabaseContextExprBase attrNames a r =
   Delete RelVarName (RestrictionPredicateExprBase attrNames a)  |
   Update RelVarName (AttributeNameAtomExprMapBase attrNames a) (RestrictionPredicateExprBase attrNames a) |
   
-  AddInclusionDependency IncDepName (InclusionDependencyBase attrNames ()) |
+  AddInclusionDependency IncDepName (InclusionDependencyBase (AttributeNamesExprBase ()) ()) |
   RemoveInclusionDependency IncDepName |
   
   AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
@@ -475,7 +475,7 @@ data AttributeNamesExprBase a =
   UnionAttributeNames (AttributeNamesExprBase a) (AttributeNamesExprBase a) |
   IntersectAttributeNames (AttributeNamesExprBase a) (AttributeNamesExprBase a) |
   RelationalExprAttributeNames (RelationalExprBase (AttributeNamesExprBase a) a) -- use attribute names from the relational expression's type
-  deriving (Eq, Show, Generic, NFData {-Foldable, Functor Traversable-})
+  deriving (Eq, Show, Generic, NFData, Read {-Foldable, Functor Traversable-})
 
 instance Hashable a => Hashable (AttributeNamesExprBase a)
 

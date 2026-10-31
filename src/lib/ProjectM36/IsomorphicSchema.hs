@@ -282,20 +282,23 @@ applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprM
 -- the morph must be applied in the opposite direction
 --algorithm: create a relexpr for each relvar in the schema, then replace those rel exprs wherever they appear in the inc dep relexprs
 -- x = x1 union x2
-inclusionDependencyInSchema :: Schema -> InclusionDependencyBase AttributeNames GraphRefTransactionMarker -> Either RelationalError (InclusionDependencyBase AttributeNames GraphRefTransactionMarker)
+inclusionDependencyInSchema :: Schema -> InclusionDependency -> Either RelationalError (InclusionDependency)
 inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
   --collect all relvars which appear in the schema
+  --now that problem is that InclusionDependency is normalized to attribute names, but the transforms are not
   let schemaRelVars = isomorphsInRelVarNames (isomorphs schema)
   rvAssoc <- mapM (\rvIn -> do
-                      rvOut <- processNormalizedRelationalExprInSchema schema (RelationVariable rvIn UncommittedContextMarker)
-                      pure (fmap (const UncommittedContextMarker) rvOut, RelationVariable rvIn UncommittedContextMarker)
+                      rvOut <- processRelationalExprInSchema schema (RelationVariable rvIn ())
+                      pure (rvOut, RelationVariable rvIn ())
                   )
              (S.toList schemaRelVars)
              
-  let replacer exprOrig = foldM (\expr (find, replace) -> if expr == find then
-                                                            pure replace
-                                                          else
-                                                            pure expr) exprOrig rvAssoc
+  let replacer :: RelationalExpr -> m RelationalExpr
+      replacer exprOrig = foldM (\expr (find, replace) ->
+                                     if expr == find then
+                                       pure replace
+                                     else
+                                       pure expr) exprOrig rvAssoc
   rexprA' <- relExprMogrify replacer rexprA
   rexprB' <- relExprMogrify replacer rexprB
   pure (InclusionDependency rexprA' rexprB')
@@ -308,7 +311,7 @@ inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either Relat
 inclusionDependenciesInSchema schema incDeps =
   M.fromList <$> mapM mapper (M.toList incDeps)
   where
-    mapper :: (IncDepName, InclusionDependencyBase AttributeNames GraphRefTransactionMarker) -> Either RelationalError (IncDepName, InclusionDependencyBase AttributeNames GraphRefTransactionMarker)
+    mapper :: (IncDepName, InclusionDependencyBase AttributeNames ()) -> Either RelationalError (IncDepName, InclusionDependencyBase AttributeNames ())
     mapper (depName, dep) = do
       newDep <- inclusionDependencyInSchema schema dep
       pure (depName, newDep)

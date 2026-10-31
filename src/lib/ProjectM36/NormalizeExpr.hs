@@ -45,7 +45,7 @@ type family NormalizeAttributeNames a where
 
   NormalizeAttributeNames (AttributeNameAtomExprMapBase (AttributeNamesExprBase a) a) = AttributeNameAtomExprMapBase AttributeNames a
 
-  NormalizeAttributeNames (InclusionDependencyBase (AttributeNamesExprBase a) a) = InclusionDependencyBase AttributeNames ()
+  NormalizeAttributeNames (InclusionDependencyBase (AttributeNamesExprBase a) b) = InclusionDependencyBase AttributeNames ()
 
   NormalizeAttributeNames (DatabaseContextExprBase AttributeNames () r) = DatabaseContextExprBase AttributeNames () r
 
@@ -505,7 +505,8 @@ instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesE
     InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker) ()   
                                                                                 
   normalizeTransactionMarker marker (InclusionDependency a b) =                 
-    InclusionDependency (normalizeTransactionMarker marker a) (normalizeTransactionMarker marker b)
+    InclusionDependency (fmap (const ()) (normalizeTransactionMarker marker a))
+                        (fmap (const ()) (normalizeTransactionMarker marker b))
 
 {-
 instance NormalizableTransactionMarker (InclusionDependencyBase (AttributeNamesExprBase a)) where
@@ -763,5 +764,3 @@ normalizeTransactionMarker' ::
   x -> Ret x
 normalizeTransactionMarker' expr =
   normalizeTransactionMarker UncommittedContextMarker expr
-
-

@@ -24,7 +24,7 @@ type GraphRefWithNameAssocs = [(B.GraphRefWithNameExpr, GraphRefRelationalExpr)]
 
 type WithNamesAssocs = [(B.WithNameExpr, RelationalExpr)]
 
-type InclusionDependency = B.InclusionDependencyBase B.AttributeNamesExpr
+type InclusionDependency = B.InclusionDependencyBase B.AttributeNamesExpr ()
 
 type DatabaseContextExpr = B.DatabaseContextExprBase B.AttributeNamesExpr () B.RoleName 
 

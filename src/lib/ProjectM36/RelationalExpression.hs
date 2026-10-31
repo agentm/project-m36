@@ -10,6 +10,7 @@ import ProjectM36.Tuple
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
 import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr, InclusionDependency)
+import qualified ProjectM36.AttributeNamesExprBase as ANamesExpr
 import qualified ProjectM36.TypeConstructorDef as TCD
 import ProjectM36.WithNameExpr
 import ProjectM36.Function
@@ -717,14 +718,14 @@ checkConstraints normRelExprF context transId graph@(TransactionGraph graphHeads
                                       }
     gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
       -- no optimization available here, really? perhaps the optimizer should be passed down to here or the eval function should be passed through the environment
-    checkIncDep :: IncDepName -> InclusionDependency -> Either RelationalError ()
+    checkIncDep :: IncDepName -> ANamesExpr.InclusionDependency -> Either RelationalError ()
     checkIncDep depName (InclusionDependency subsetExpr supersetExpr) = do
       let 
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
                          Left err -> Left (wrapIncDepErr (Just err))
                          Right v -> Right v
-          normE e = case normRelExprF context graph (denormalizeAttributeNames e) of
+          normE e = case normRelExprF context graph e of
                       Left err -> Left (wrapIncDepErr (Just err))
                       Right v -> Right v
           wrapIncDepErr = InclusionDependencyCheckError depName
