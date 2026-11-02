@@ -734,8 +734,8 @@ checkConstraints normRelExprF context transId graph@(TransactionGraph graphHeads
       typeSub <- runGfRel (typeForGraphRefRelationalExpr subsetExprNorm)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr supersetExprNorm)
       when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))
-      let checkExpr = fmap (const UncommittedContextMarker) (Equals supersetExpr (Union subsetExpr supersetExpr))
-          gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
+      checkExpr <- normE (Equals supersetExpr (Union subsetExpr supersetExpr))
+      let gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
           gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
       case gfEvald of
         Left err -> Left (wrapIncDepErr (Just err))
@@ -751,7 +751,8 @@ checkConstraints normRelExprF context transId graph@(TransactionGraph graphHeads
         Left err -> Left (RegisteredQueryValidationError qName err)
         Right _ -> pure ()
     checkRelExpr relExpr = do
-      runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr relExpr)
+      normExpr <- normRelExprF context graph relExpr      
+      runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr normExpr)
     checkNotification (notName, notif) = do
       forM_ [(NotificationChangeExpression, changeExpr notif),
              (NotificationReportOldExpression, reportOldExpr notif),

@@ -40,7 +40,7 @@ dateRelationVariables =
               ("p", ExistingRelation productsRel),
               ("sp", ExistingRelation supplierProductsRel)]
 
-dateInclusionDependencies :: (BareAttributeNames attrNames, DefaultTransactionMarker marker) => InclusionDependenciesBase attrNames marker
+dateInclusionDependencies :: InclusionDependencies
 dateInclusionDependencies =
   M.fromList [
       ("s_pkey", simplePKey ["s#"] "s"),
@@ -50,7 +50,7 @@ dateInclusionDependencies =
       ("p_sp_fk", inclusionDependencyForForeignKey ("sp", ["p#"]) ("p", ["p#"]))
       ]
   where
-    simplePKey attrNames relvarName = inclusionDependencyForKey (bareAttributeNames (S.fromList attrNames)) (RelationVariable relvarName defaultMarker)
+    simplePKey attrNames relvarName = inclusionDependencyForKey (bareAttributeNames (S.fromList attrNames)) (RelationVariable relvarName ())
   
 
 suppliersRel :: Relation

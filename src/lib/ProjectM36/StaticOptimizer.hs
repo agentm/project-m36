@@ -8,7 +8,9 @@ import ProjectM36.GraphRefRelationalExpr
 import ProjectM36.Relation
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
@@ -425,7 +427,7 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   let emptyRvs ctx = do
         emptyRvs' <- mkEmptyRelVars' graph (relationVariables ctx)
         pure $ ctx { relationVariables = emptyRvs' }
-      dbcEnv = mkDatabaseContextEvalEnv parentId graph dbcfuncutils
+      dbcEnv = mkDatabaseContextEvalEnv parentId graph dbcfuncutils normalize'
       folder (ctx, expracc) expr = do
         --optimize the expr and run it against empty relvars to add it to the context, otherwise some relvars could be missing in subsequent optimizations
         case runGraphRefSOptDatabaseContextExprM parentId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr expr) of
@@ -559,9 +561,15 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
          incDeps <- lift (except (resolveDBC' graph commonContext inclusionDependencies))
          let fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
-             isFkConstraint acc (InclusionDependency (Project subAttrNameSet subrv) (Project _ superrv)) =
-               pure (acc || (joinedExpr == subrv &&
-                                 unjoinedExpr == superrv && 
+             isFkConstraint :: _ -> InclusionDependencyBase (AttributeNamesExprBase ()) () -> m Bool
+             isFkConstraint acc (InclusionDependency (Project subAttrNameSet subrv) (Project _ superrv)) = do
+               let gfEnv = freshGraphRefRelationalExprEnv (Just commonContext) graph
+                   normRelExpr expr = runGraphRefRelationalExprM gfEnv (normalizeAttributeNames (ExistingRelation relationTrue) expr)
+               normSubrv <- normRelExpr subrv
+               normSuperrv <- normRelExpr superrv
+               pure (acc || (joinedExpr == normSubrv &&
+                                 unjoinedExpr ==
+                                 normSuperrv && 
                                  -- the fk attribute is one of the projection attributes
                                  A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
                                 ))

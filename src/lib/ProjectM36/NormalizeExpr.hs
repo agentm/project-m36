@@ -62,8 +62,43 @@ instance NormalizableAttributeNames (RelationalExprBase AttributeNames a) where
   normalizeAttributeNames marker expr = pure expr
 
 instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase ()) ()) where
-  normalizeAttributeNames relExpr expr = undefined
-
+  normalizeAttributeNames relExpr expr = error "normalizeAttributeNames relexpr"
+  {-do
+    case expr of
+      MakeRelationFromExprs Nothing tupleExprs -> 
+        MakeRelationFromExprs Nothing <$> norm tupleExprs
+      MakeStaticRelation attrs tupSet ->
+        pure (MakeStaticRelation attrs tupSet)
+      ExistingRelation rel ->
+        pure (ExistingRelation rel)
+      RelationVariable nam x ->
+        pure (RelationVariable nam x)
+      RelationValuedAttribute nam ->
+        pure (RelationValuedAttribute nam)
+      Project attrExprs expr -> do
+        Project <$> norm attrExprs <*> norm expr
+      Union exprA exprB ->
+        Union <$> norm exprA <*> norm exprB
+      Join exprA exprB ->
+        Join <$> norm exprA <*> norm exprB
+      Rename renameAssocs expr ->
+        Rename renameAssocs <$> norm expr
+      Difference exprA exprB ->
+        Difference <$> norm exprA <*> norm exprB
+      Group attrNameExprs gname expr -> do
+        Group <$> norm attrNameExprs <*> pure gname <*> norm expr
+      Ungroup ungname expr ->
+        Ungroup ungname <$> norm expr
+      Restrict rpredExpr expr ->
+        Restrict <$> norm rpredExpr <*> norm expr
+      Equals exprA exprB ->
+        Equals <$> norm exprA <*> norm exprB
+      NotEquals exprA exprB ->
+        NotEquals <$> norm exprA <*> norm exprB
+      Extend extendTuplesExpr expr ->
+        Extend <$> norm extendTuplesExpr <*> norm expr
+      With withNamesAssocs expr ->
+        With <$> norm withNamesAssocs <*> norm expr-}
 
 instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker) where
   normalizeAttributeNames relExpr expr = do
@@ -183,7 +218,7 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
       Update nam attrMap pred' -> Update nam <$> norm attrMap <*> norm pred'
 
       AddInclusionDependency nam dep ->
-        AddInclusionDependency nam <$> norm dep
+        pure (AddInclusionDependency nam dep)
       RemoveInclusionDependency nam ->
         pure (RemoveInclusionDependency nam)
       AddNotification nam exprA exprB exprC ->
@@ -387,12 +422,7 @@ instance NormalizableTransactionMarker (DatabaseContextExprBase (AttributeNamesE
       Update rvName attrAtomMap predi ->
         Update rvName (normalizeTransactionMarker marker attrAtomMap) (normalizeTransactionMarker marker predi)
       AddInclusionDependency depname incDep ->
-{-        let x :: InclusionDependencyBase (AttributeNamesExprBase GraphRefTransactionMarker)
-            x = case incDep of
-              InclusionDependency a b ->
-                InclusionDependency (relationalexprbase (AttributeNamesExpr ()) ()) -> (RelationalExprBase (AttributeNamesExpr GraphRefRelationalExpr))
-            in-}
-        AddInclusionDependency depname (normalizeTransactionMarker marker incDep)
+        AddInclusionDependency depname incDep
       RemoveInclusionDependency depname ->
         RemoveInclusionDependency depname
       AddNotification notName a b c ->

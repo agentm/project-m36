@@ -2,7 +2,7 @@
 module ProjectM36.IsomorphicSchema.Types where
 import GHC.Generics
 import ProjectM36.Base (RelVarName, StringType)
-import ProjectM36.AttributeNamesBase (RestrictionPredicateExpr)
+import ProjectM36.AttributeNamesExprBase (RestrictionPredicateExpr)
 import ProjectM36.ValueMarker
 import qualified Data.Map as M
 

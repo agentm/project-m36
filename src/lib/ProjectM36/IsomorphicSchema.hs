@@ -99,13 +99,14 @@ processRelationalExprInSchema schema relExprIn = do
   validateRelationalExprInSchema schema relExprIn
   foldM processRelExpr relExprIn (isomorphs schema)
 
+{-
 processNormalizedRelationalExprInSchema :: Schema -> NormalizedRelationalExpr -> Either RelationalError NormalizedRelationalExpr
 processNormalizedRelationalExprInSchema schema relExprIn = do
   let processRelExpr :: NormalizedRelationalExpr -> SchemaIsomorph -> Either RelationalError NormalizedRelationalExpr
       processRelExpr rexpr morph = relExprMogrify (normalizedRelExprMorph morph) rexpr
   validateRelationalExprInSchema schema relExprIn
   foldM processRelExpr relExprIn (isomorphs schema)
-
+-}
 validateDatabaseContextExprInSchema :: Schema -> DatabaseContextExpr' -> Either RelationalError ()
 validateDatabaseContextExprInSchema schema dbExpr = mapM_ (\morph -> databaseContextExprMorph morph (\e -> validateRelationalExprInSchema schema e >> pure e) dbExpr) (isomorphs schema)
 
@@ -153,28 +154,29 @@ relExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \case
   orig -> Right orig
 relExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \case
   --only the true predicate portion appears in the virtual schema
-  RelationVariable rv m | rv == relInT -> Right (Restrict (denormalizeAttributeNames predi) (RelationVariable relTarget m))
+  RelationVariable rv m | rv == relInT -> Right (Restrict predi (RelationVariable relTarget m))
 
-  RelationVariable rv m | rv == relInF -> Right (Restrict (NotPredicate (denormalizeAttributeNames predi)) (RelationVariable relTarget m))
+  RelationVariable rv m | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget m))
   orig -> Right orig
 relExprMorph (IsoRename relIn relOut) = \case
   RelationVariable rv m | rv == relIn -> Right (RelationVariable relOut m)
   orig -> Right orig
 
+{-
 normalizedRelExprMorph :: SchemaIsomorph -> NormalizedRelationalExpr -> Either RelationalError NormalizedRelationalExpr
 normalizedRelExprMorph (IsoRestrict relIn _ (relOutTrue, relOutFalse)) = \case
   RelationVariable rv m | rv == relIn -> Right (Union (RelationVariable relOutTrue m) (RelationVariable relOutFalse m))
   orig -> Right orig
 normalizedRelExprMorph (IsoUnion (relInT, relInF) predi relTarget) = \case
   --only the true predicate portion appears in the virtual schema
-  RelationVariable rv m | rv == relInT -> Right (Restrict (normalizeTransactionMarker' predi) (RelationVariable relTarget m))
+  RelationVariable rv m | rv == relInT -> Right (Restrict predi (RelationVariable relTarget m))
 
-  RelationVariable rv m | rv == relInF -> Right (Restrict (NotPredicate (normalizeTransactionMarker' predi)) (RelationVariable relTarget m))
+  RelationVariable rv m | rv == relInF -> Right (Restrict (NotPredicate predi) (RelationVariable relTarget m))
   orig -> Right orig
 normalizedRelExprMorph (IsoRename relIn relOut) = \case
   RelationVariable rv m | rv == relIn -> Right (RelationVariable relOut m)
   orig -> Right orig
-
+-}
 
 {-
 normalizedRelationalExprMorph :: SchemaIsomorph -> NormalizedRelationalExpr -> Either RelationalError NormalizedRelationalExpr
@@ -231,8 +233,7 @@ spam2 = relExprMogrify (relExprMorph (IsoUnion ("boss", Just "nonboss") TruePred
 -}
 
 databaseContextExprMorph :: SchemaIsomorph  -> (RelationalExpr -> Either RelationalError RelationalExpr) -> DatabaseContextExpr' -> Either RelationalError DatabaseContextExpr'
-databaseContextExprMorph iso'@(IsoRestrict rvIn nfilt (rvTrue, rvFalse)) relExprFunc expr =
-  let filt = denormalizeAttributeNames nfilt in
+databaseContextExprMorph iso'@(IsoRestrict rvIn filt (rvTrue, rvFalse)) relExprFunc expr =
  case expr of
   Assign rv relExpr | rv == rvIn -> do
     ex <- relExprFunc relExpr
@@ -251,7 +252,7 @@ databaseContextExprMorph iso'@(IsoRestrict rvIn nfilt (rvTrue, rvFalse)) relExpr
     pure (MultipleExpr [trueExpr rvTrue, falseExpr rvFalse])
   MultipleExpr exprs -> MultipleExpr <$> mapM (databaseContextExprMorph iso' relExprFunc) exprs
   orig -> pure orig
-databaseContextExprMorph iso'@(IsoUnion (rvTrue, rvFalse) nfilt rvOut) relExprFunc expr = let filt = denormalizeAttributeNames nfilt in
+databaseContextExprMorph iso'@(IsoUnion (rvTrue, rvFalse) filt rvOut) relExprFunc expr = 
   case expr of
   --assign: replace all instances in the portion of the target relvar with the new tuples from the relExpr
   --problem: between the delete->insert, constraints could be violated which would not otherwise be violated in the "in" schema. This implies that there should be a combo operator which can insert/update/delete in a single pass based on relexpr queries, or perhaps MultipleExpr should be the infamous "comma" operator from TutorialD?
@@ -282,7 +283,7 @@ applyRelationalExprSchemaIsomorphs morphs expr = foldM (\expr' morph -> relExprM
 -- the morph must be applied in the opposite direction
 --algorithm: create a relexpr for each relvar in the schema, then replace those rel exprs wherever they appear in the inc dep relexprs
 -- x = x1 union x2
-inclusionDependencyInSchema :: Schema -> InclusionDependency -> Either RelationalError (InclusionDependency)
+inclusionDependencyInSchema :: Schema -> InclusionDependency -> Either RelationalError InclusionDependency
 inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
   --collect all relvars which appear in the schema
   --now that problem is that InclusionDependency is normalized to attribute names, but the transforms are not
@@ -293,8 +294,7 @@ inclusionDependencyInSchema schema (InclusionDependency rexprA rexprB) = do
                   )
              (S.toList schemaRelVars)
              
-  let replacer :: RelationalExpr -> m RelationalExpr
-      replacer exprOrig = foldM (\expr (find, replace) ->
+  let replacer exprOrig = foldM (\expr (find, replace) ->
                                      if expr == find then
                                        pure replace
                                      else
@@ -311,18 +311,19 @@ inclusionDependenciesInSchema :: Schema -> InclusionDependencies -> Either Relat
 inclusionDependenciesInSchema schema incDeps =
   M.fromList <$> mapM mapper (M.toList incDeps)
   where
-    mapper :: (IncDepName, InclusionDependencyBase AttributeNames ()) -> Either RelationalError (IncDepName, InclusionDependencyBase AttributeNames ())
     mapper (depName, dep) = do
       newDep <- inclusionDependencyInSchema schema dep
       pure (depName, newDep)
 
-relationVariablesInSchema :: Schema -> Either RelationalError RelationVariables
-relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morphs
+
+relationVariablesInSchema :: (RelationalExpr -> Either RelationalError NormalizedRelationalExpr) -> Schema -> Either RelationalError RelationVariables
+relationVariablesInSchema normRelExpr schema@(Schema morphs) = foldM transform M.empty morphs
   where
     transform newRvMap morph = do
       let rvNames = isomorphInRelVarNames morph
       rvAssocs <- mapM (\rv -> do
-                           gfExpr <- processNormalizedRelationalExprInSchema schema (RelationVariable rv UncommittedContextMarker)
+                           relExpr <- processRelationalExprInSchema schema (RelationVariable rv ())
+                           gfExpr <- normRelExpr relExpr
                            pure (rv, gfExpr)) rvNames
       pure (M.union newRvMap (M.fromList rvAssocs))
 
@@ -331,7 +332,7 @@ relationVariablesInSchema schema@(Schema morphs) = foldM transform M.empty morph
 relationVariablesAsRelationInSchema :: DatabaseContext -> Schema -> TransactionGraph -> Either RelationalError Relation
 relationVariablesAsRelationInSchema ctx (Schema []) graph = relationVariablesAsRelation ctx graph -- no schema morphism
 relationVariablesAsRelationInSchema concreteDbContext schema graph = do
-  rvDefsInConcreteSchema <- relationVariablesInSchema schema
+  rvDefsInConcreteSchema <- relationVariablesInSchema (normalize' concreteDbContext graph) schema
   let gfEnv = freshGraphRefRelationalExprEnv (Just concreteDbContext) graph
   typAssocs <- forM (M.toList rvDefsInConcreteSchema) $ \(rv, gfExpr) -> do
     typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)
@@ -388,12 +389,11 @@ validate morph underlyingRvNames = if S.size invalidRvNames > 0 then
 -- | Create inclusion dependencies mainly for IsoRestrict because the predicate should hold in the base schema.
 createIncDepsForIsomorph :: SchemaName -> SchemaIsomorph -> InclusionDependencies
 createIncDepsForIsomorph sname (IsoRestrict origRv predi (rvTrue, rvFalse)) =
-  let newIncDep predicate rv = InclusionDependency (Project mempty (Restrict predicate (RelationVariable rv UncommittedContextMarker))) (ExistingRelation relationTrue)
+  let newIncDep predicate rv = InclusionDependency (Project mempty (Restrict predicate (RelationVariable rv ()))) (ExistingRelation relationTrue)
       incDepName b = "schema" <> "_" <> sname <> "_" <> b
-      predi' = normalizeTransactionMarker UncommittedContextMarker predi
   in
-  M.fromList [(incDepName (origRv <> "_true"), newIncDep predi' rvTrue),
-              (incDepName (origRv <> "_false"), newIncDep (NotPredicate predi') rvFalse)]
+  M.fromList [(incDepName (origRv <> "_true"), newIncDep predi rvTrue),
+              (incDepName (origRv <> "_false"), newIncDep (NotPredicate predi) rvFalse)]
 createIncDepsForIsomorph _ _ = M.empty
 
 -- in the case of IsoRestrict, the database context should be updated with the restriction so that if the restriction does not hold, then the schema cannot be created
@@ -436,8 +436,8 @@ instance Morph InclusionDependency where
   morphToSchema schema _ (InclusionDependency rexprA rexprB) = do
     let schemaRelVars = isomorphsInRelVarNames (isomorphs schema)
     rvAssoc <- mapM (\rvIn -> do
-                      rvOut <- processNormalizedRelationalExprInSchema schema (RelationVariable rvIn UncommittedContextMarker)
-                      pure (rvOut, RelationVariable rvIn UncommittedContextMarker)
+                      rvOut <- processRelationalExprInSchema schema (RelationVariable rvIn ())
+                      pure (rvOut, RelationVariable rvIn ())
                   )
              (S.toList schemaRelVars)
     let replacer exprOrig = foldM (\expr (find, replace) -> if expr == find then
@@ -474,7 +474,7 @@ notificationsAsRelationInSchema notifs schema  = do
                                     Attribute "changeExpr" RelationalExprAtomType,
                                     Attribute "reportOldExpr" RelationalExprAtomType,
                                     Attribute "reportNewExpr" RelationalExprAtomType]
-      relExprT = processNormalizedRelationalExprInSchema schema
+      relExprT = processRelationalExprInSchema schema
       transform (name, e1, e2, e3) = do
         e1' <- relExprT e1
         e2' <- relExprT e2
@@ -488,7 +488,7 @@ notificationsAsRelationInSchema notifs schema  = do
                                            RelationalExprAtom newE]
   mkRelationFromList attrs (map mkRow notifsData)
 
-notificationsAsData :: Notifications -> [(Text, NormalizedRelationalExpr, NormalizedRelationalExpr, NormalizedRelationalExpr)]
+notificationsAsData :: Notifications -> [(Text, RelationalExpr, RelationalExpr, RelationalExpr)]
 notificationsAsData notifs =
     map mkRow (M.toList notifs)
   where

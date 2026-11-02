@@ -284,12 +284,13 @@ type GraphRefWithNameExpr = WithNameExprBase GraphRefTransactionMarker
 
 type NotificationName = StringType
 type Notifications = M.Map NotificationName Notification
+type NotificationRelationalExpr = RelationalExprBase AttributeNamesExpr ()
 
 -- | When the changeExpr returns a different result in the database context, then the reportExpr is triggered and sent asynchronously to all clients.
 data Notification = Notification {
-  changeExpr :: NormalizedRelationalExpr,
-  reportOldExpr :: NormalizedRelationalExpr, --run the expression in the pre-change context
-  reportNewExpr :: NormalizedRelationalExpr --run the expression in the post-change context
+  changeExpr :: NotificationRelationalExpr,
+  reportOldExpr :: NotificationRelationalExpr , --run the expression in the pre-change context
+  reportNewExpr :: NotificationRelationalExpr --run the expression in the post-change context
   }
   deriving (Show, Eq, Generic, NFData)
 
@@ -376,7 +377,7 @@ data DatabaseContextExprBase attrNames a r =
   AddInclusionDependency IncDepName (InclusionDependencyBase (AttributeNamesExprBase ()) ()) |
   RemoveInclusionDependency IncDepName |
   
-  AddNotification NotificationName NormalizedRelationalExpr NormalizedRelationalExpr NormalizedRelationalExpr |
+  AddNotification NotificationName NotificationRelationalExpr NotificationRelationalExpr NotificationRelationalExpr |
   RemoveNotification NotificationName |
 
   AddTypeConstructor TypeConstructorDef [DataConstructorDef] |
@@ -476,6 +477,12 @@ data AttributeNamesExprBase a =
   IntersectAttributeNames (AttributeNamesExprBase a) (AttributeNamesExprBase a) |
   RelationalExprAttributeNames (RelationalExprBase (AttributeNamesExprBase a) a) -- use attribute names from the relational expression's type
   deriving (Eq, Show, Generic, NFData, Read {-Foldable, Functor Traversable-})
+
+instance Semigroup (AttributeNamesExprBase a) where
+  a <> b = UnionAttributeNames a b
+
+instance Monoid (AttributeNamesExprBase a) where
+  mempty = AttributeNames mempty
 
 instance Hashable a => Hashable (AttributeNamesExprBase a)
 

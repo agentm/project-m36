@@ -449,7 +449,7 @@ mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHead
         [] -> throwError (TransactionIsNotAHeadError parentId)
         _ -> do
           (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
-          let normalizerF = normalize (Just dbctx) graph 
+          let normalizerF ctx graph relExpr = normalize (Just ctx) graph relExpr
               dbctx = concreteDatabaseContext (_uncommittedTransaction mergedTrans)
           case checkConstraints normalizerF dbctx newId graph of
             Left err -> throwError err
@@ -581,20 +581,20 @@ autoMergeToHead :: UTCTime -> (TransactionId, TransactionId, TransactionId) -> D
 autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) discon mergeToHeadName strat graph = do
   let tempBranchName = "mergebranch_" <> U.toText tempBranchTransId
   --create the temp branch, branching does not create a new transaction
-  (discon', mtrans', graph') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon graph (Branch tempBranchName)
+  (discon', mtrans', graph') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon checkConstraints graph (Branch tempBranchName)
 
   --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
-  (discon'', mtrans'', graph'') <- evalAlterTransactionGraphExpr stamp' tempCommitTransId discon' graph' Commit
+  (discon'', mtrans'', graph'') <- evalAlterTransactionGraphExpr stamp' tempCommitTransId discon' checkConstraints graph' Commit
 
   --jump to merge head
   discon''' <- evalTransactionGraphExpr discon'' graph'' (JumpToHead mergeToHeadName)
 
   --create the merge
-  (discon'''', mtrans'''', graph'''') <- evalAlterTransactionGraphExpr stamp' mergeTransId discon''' graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
+  (discon'''', mtrans'''', graph'''') <- evalAlterTransactionGraphExpr stamp' mergeTransId discon''' checkConstraints graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
 
 
   --delete the temp branch
-  (discon''''', mtrans''''', graph''''') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon'''' graph'''' (DeleteBranch tempBranchName)
+  (discon''''', mtrans''''', graph''''') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon'''' checkConstraints graph'''' (DeleteBranch tempBranchName)
   {-
   let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
   traceShowM rel

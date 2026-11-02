@@ -1,6 +1,7 @@
 module ProjectM36.DDLType where
 import ProjectM36.HashSecurely
 import ProjectM36.Base
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.Error
 import ProjectM36.Attribute
