@@ -3,12 +3,13 @@
 module ProjectM36.Optimizer.Experimenter where
 
 import ProjectM36.Cache.RelationalExprCache as RelExprCache (RelExprCache, add)
-import ProjectM36.CostBasedOptimizer (ReorgSuggestion(..), SuggestionReason(..), OptimizerStats)
+import ProjectM36.CostBasedOptimizer (OptimizerSuggestion(..), SuggestionReason(..), OptimizerStats)
 import ProjectM36.SystemMemory
 import ProjectM36.Base
 import ProjectM36.Optimizer as Opt
 import ProjectM36.PinnedRelationalExpr (toGraphRefRelationalExpr)
-import ProjectM36.RelationalExpression (GraphRefRelationalExprEnv(..), runGraphRefRelationalExprM, typeForGraphRefRelationalExpr)
+import ProjectM36.RelationalExpression.Types (GraphRefRelationalExprEnv(..), runGraphRefRelationalExprM)
+import ProjectM36.RelationalExpression (typeForGraphRefRelationalExpr)
 import ProjectM36.Relation (attributes)
 import qualified ProjectM36.Relation.Representation.BTree as BT
 import ProjectM36.TransactionGraph.Types
@@ -42,7 +43,7 @@ start graph cache optStats' = do
            })
 
 data ExperimenterAction =
-  SuggestExperiment [ReorgSuggestion] |
+  SuggestExperiment [OptimizerSuggestion] |
   ShutdownExperimenterThread
 
 experimenterWorker :: RandomGen r => r -> TransactionGraph -> RelExprCache -> OptimizerStats ->  TBQueue ExperimenterAction -> IO ()

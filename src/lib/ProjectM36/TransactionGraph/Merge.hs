@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 --Transaction Merge Engines
 module ProjectM36.TransactionGraph.Merge where
 import ProjectM36.Base
@@ -6,22 +6,31 @@ import ProjectM36.AttributeNamesBase (GraphRefRelationalExpr)
 import ProjectM36.Error
 import ProjectM36.ValueMarker
 import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.FindTransaction
+import ProjectM36.NormalizeExpr
 import ProjectM36.RelationalExpression
 import ProjectM36.RelationalExpression.Types
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.AccessControlList
+import ProjectM36.AccessControlList hiding (normalize)
 import ProjectM36.DatabaseContext.Fields
+import ProjectM36.Transaction.Types
+import qualified ProjectM36.IsomorphicSchema.Types as S
+
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 import Control.Monad.Except
 #else
 import Control.Monad.Except hiding (join)
 #endif
+import Data.Time.Clock (UTCTime)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified ProjectM36.TypeConstructorDef as TCD
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.List.NonEmpty as NE
+import Control.Monad.Reader
 
 data MergePreference = PreferFirst | PreferSecond | PreferNeither
 
@@ -183,3 +192,100 @@ unionMergeACLs _prefer graph v_aclA v_aclB = do
 
   pure $ ValueMarker $ aclA <> aclB
 
+mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> CheckConstraints -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
+mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHeadNames = do
+  graph <- gfGraph
+  let transactionForHeadErr name = case transactionForHead name graph of
+        Nothing -> throwError (NoSuchHeadNameError name)
+        Just t -> pure t
+      runE e = case e of
+        Left e' -> throwError e'
+        Right v -> pure v
+  transA <- transactionForHeadErr (sourceHead mergeHeadNames)
+  transB <- transactionForHeadErr (targetHead mergeHeadNames)
+  disconParent <- gfTransForId parentId
+  let subHeads = M.filterWithKey (\k _ -> k `elem` [sourceHead mergeHeadNames, targetHead mergeHeadNames]) (transactionHeadsForGraph graph)
+  -- is this an optimization???
+  subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
+  _ <- runE $ validateConnectivity subGraph
+
+  subGraph' <- runE $ filterSubGraph subGraph subHeads
+  -- we cannot cut the transaction graph away only to "relevant" transactions because transactions can reference other transactions via relvar expressions
+  mergedTrans <- local (const (freshGraphRefRelationalExprEnv Nothing subGraph')) $
+                 createMergeTransaction stamp' newId mergeStrategy (transA, transB)
+  case headNamesForTransaction disconParent graph of
+        [] -> throwError (TransactionIsNotAHeadError parentId)
+        _ -> do
+          (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
+          let normalizerF ctx graph relExpr = normalize (Just ctx) graph relExpr
+              dbctx = concreteDatabaseContext (_uncommittedTransaction mergedTrans)
+          case checkConstraints normalizerF dbctx newId graph of
+            Left err -> throwError err
+            Right _ -> do
+              let newGraph'' = TransactionGraph (transactionHeadsForGraph newGraph') (transactionsForGraph newGraph')
+              pure (uTrans, newGraph'')
+
+--helper function for commonalities in union merge
+createUnionMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> (Transaction, Transaction) -> GraphRefRelationalExprM UncommittedTransaction
+createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
+  let contextA = concreteDatabaseContext t1
+      contextB = concreteDatabaseContext t2
+      liftE x = case x of
+        Left e -> throwError e
+        Right t -> pure t
+
+  graph <- gfGraph
+  preference <- case strategy of
+    UnionMergeStrategy -> pure PreferNeither
+    UnionPreferMergeStrategy preferBranch ->
+      case transactionForHead preferBranch graph of
+        Nothing -> throwError (MergeTransactionError (PreferredHeadMissingMergeError preferBranch))
+        Just preferredTrans -> pure $ if t1 == preferredTrans then PreferFirst else PreferSecond
+    badStrat -> throwError (MergeTransactionError (InvalidMergeStrategyError badStrat))
+
+  incDeps <- liftE $ unionMergeMaps InclusionDependenciesField preference graph inclusionDependencies (inclusionDependencies contextA) (inclusionDependencies contextB)
+  relVars <- unionMergeRelVars preference graph (relationVariables contextA) (relationVariables contextB)
+  atomFuncs <- liftE $ unionMergeAtomFunctions preference graph (atomFunctions contextA) (atomFunctions contextB)
+  notifs <- liftE $ unionMergeMaps NotificationsField preference graph notifications (notifications contextA) (notifications contextB)
+  types <- liftE $ unionMergeTypeConstructorMapping preference graph (typeConstructorMapping contextA) (typeConstructorMapping contextB)
+  dbcFuncs <- liftE $ unionMergeDatabaseContextFunctions preference graph (dbcFunctions contextA) (dbcFunctions contextB)
+  registeredQs <- liftE $ unionMergeRegisteredQueries preference graph (registeredQueries contextA) (registeredQueries contextB)
+  acls <- liftE $ unionMergeACLs preference graph (acl contextA) (acl contextB)
+  -- TODO: add merge of subschemas
+  let newContext = DatabaseContext {
+        inclusionDependencies = incDeps,
+        relationVariables = relVars,
+        atomFunctions = atomFuncs,
+        dbcFunctions = dbcFuncs,
+        notifications = notifs,
+        typeConstructorMapping = types,
+        registeredQueries = registeredQs,
+        acl = acls
+        }
+      newSchemas = S.Schemas newContext (subschemas t1)
+  pure $ UncommittedTransaction $ addMerkleHash graph $
+    Transaction newId (TransactionInfo {
+                          parents = NE.fromList [transactionId t1,
+                                                  transactionId t2],
+                            stamp = stamp',
+                            merkleHash = mempty }) newSchemas
+
+-- | Execute the merge strategy against the transactions, returning a new transaction which can be then added to the transaction graph
+createMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> (Transaction, Transaction) -> GraphRefRelationalExprM UncommittedTransaction
+createMergeTransaction stamp' newId (SelectedBranchMergeStrategy selectedBranch) t2@(trans1, trans2) = do
+  graph <- gfGraph
+  selectedTrans <- validateHeadName selectedBranch graph t2
+  pure $ UncommittedTransaction $ addMerkleHash graph $
+    Transaction newId (TransactionInfo {
+                          parents = NE.fromList [transactionId trans1,
+                                                 transactionId trans2],
+                          stamp = stamp',
+                          merkleHash = mempty }) (schemas selectedTrans)
+
+-- merge functions, relvars, individually
+createMergeTransaction stamp' newId strat@UnionMergeStrategy t2 =
+  createUnionMergeTransaction stamp' newId strat t2
+
+-- merge function, relvars, but, on error, just take the component from the preferred branch
+createMergeTransaction stamp' newId strat@(UnionPreferMergeStrategy _) t2 =
+  createUnionMergeTransaction stamp' newId strat t2

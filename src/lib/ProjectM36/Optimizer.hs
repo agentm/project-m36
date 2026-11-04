@@ -5,6 +5,7 @@ import qualified ProjectM36.StaticOptimizer as StaticOpt
 import qualified ProjectM36.CostBasedOptimizer as CostBasedOpt
 import ProjectM36.Cache.RelationalExprCache as RelExprCache
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.Base
 import qualified ProjectM36.AttributeNamesExprBase as AttrExprs
 import qualified ProjectM36.AttributeNamesBase as AttrNames

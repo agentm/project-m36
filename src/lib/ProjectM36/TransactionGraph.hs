@@ -17,7 +17,6 @@ import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Tuple
 import ProjectM36.RelationalExpression.Types
 import ProjectM36.RelationalExpression
-import ProjectM36.TransactionGraph.Merge
 import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.MerkleHash
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..), CurrentHead(..))
@@ -26,7 +25,6 @@ import qualified ProjectM36.Attribute as A
 import ProjectM36.HashSecurely
 import ProjectM36.ReferencedTransactionIds
 import ProjectM36.DatabaseContext.Fields
-import ProjectM36.NormalizeExpr
 
 import Codec.Winery
 import Control.Monad (foldM, forM, unless, when)
@@ -249,49 +247,6 @@ evalTransactionGraphExpr discon graph (WalkBackToTime backTime) = do
                disconCurrentHead = CurrentHeadTransactionId jumpDest
                })
 
-evalAlterTransactionGraphExpr :: UTCTime -> TransactionId -> DisconnectedTransaction -> CheckConstraints -> TransactionGraph -> AlterTransactionGraphExpr -> Either RelationalError (DisconnectedTransaction, Maybe UncommittedTransaction, TransactionGraph)
-evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph@(TransactionGraph heads transSet) (Branch newBranchName) =
-  if M.member newBranchName heads then
-    Left (HeadNameAlreadyInUseError newBranchName)
-    else do
-    trans <- transactionForId (Discon.parentId discon) graph
-    let discon' = discon { disconTransactionId = transactionId trans,
-                           disconCurrentHead = CurrentHeadBranch newBranchName
-                         }
-    pure (discon', Nothing, TransactionGraph (M.insert newBranchName trans heads) transSet)
-evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph@(TransactionGraph graphHeads transSet) (DeleteBranch branchName) =
-  case transactionForHead branchName graph of
-    Nothing -> Left (NoSuchHeadNameError branchName)
-    Just _ -> Right (discon, Nothing, TransactionGraph (M.delete branchName graphHeads) transSet)
-evalAlterTransactionGraphExpr stamp' newId discon checkConstraints graph (MergeTransactions mergeStrategy headNameA headNameB) = do
-  let env = freshGraphRefRelationalExprEnv Nothing graph
-  (uTrans@(UncommittedTransaction trans), graph') <- runGraphRefRelationalExprM env $ mergeTransactions stamp' newId (Discon.parentId discon) checkConstraints mergeStrategy (MergeHeadNames { sourceHead = headNameA,
-        targetHead = headNameB })
-  let discon' = discon { disconSchemas = schemas trans,
-                         disconCurrentHead = CurrentHeadBranch headNameB
-                       }
-  pure (discon', Just uTrans, graph')
-
-evalAlterTransactionGraphExpr stamp' newTransId discon checkConstraints graph Commit =
-  case transactionForId (Discon.parentId discon) graph of
-  Left err -> Left err
-  Right parentTransaction ->
-    case headNamesForTransaction parentTransaction graph of
-      [] -> Left $ TransactionIsNotAHeadError (Discon.parentId discon)
-      _ -> do
-        let maybeUpdatedGraph = addDisconnectedTransaction stamp' newTransId discon graph
-        case maybeUpdatedGraph of
-          Left err -> Left err
-          Right (uncommittedTrans, updatedGraph) -> do
-                let newDisconnectedTrans = Discon.freshTransaction (disconCurrentHead discon) newTransId (disconSchemas discon)
-                Right (newDisconnectedTrans, Just uncommittedTrans, updatedGraph)
-
-evalAlterTransactionGraphExpr _stamp' _newId discon checkConstraints graph Rollback =
-  case transactionForId (disconTransactionId discon) graph of
-    Left err -> Left err
-    Right parentTransaction -> Right (newDiscon, Nothing, graph)
-      where
-        newDiscon = Discon.freshTransaction (disconCurrentHead discon) (disconTransactionId discon) (schemas parentTransaction)
 
 --present a transaction graph as a relation showing the uuids, parentuuids, and flag for the current location of the disconnected transaction
 graphAsRelation :: DisconnectedTransaction -> TransactionGraph -> Either RelationalError Relation
@@ -333,25 +288,6 @@ transactionParentsRelation trans graph =
     attrs = A.attributesFromList [Attribute "id" TextAtomType]
     trans2tuple trans2 = mkRelationTuple attrs $ V.singleton (TextAtom (T.pack (show $ transactionId trans2)))
 
--- | Execute the merge strategy against the transactions, returning a new transaction which can be then added to the transaction graph
-createMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> (Transaction, Transaction) -> GraphRefRelationalExprM UncommittedTransaction
-createMergeTransaction stamp' newId (SelectedBranchMergeStrategy selectedBranch) t2@(trans1, trans2) = do
-  graph <- gfGraph
-  selectedTrans <- validateHeadName selectedBranch graph t2
-  pure $ UncommittedTransaction $ addMerkleHash graph $
-    Transaction newId (TransactionInfo {
-                          parents = NE.fromList [transactionId trans1,
-                                                 transactionId trans2],
-                          stamp = stamp',
-                          merkleHash = mempty }) (schemas selectedTrans)
-
--- merge functions, relvars, individually
-createMergeTransaction stamp' newId strat@UnionMergeStrategy t2 =
-  createUnionMergeTransaction stamp' newId strat t2
-
--- merge function, relvars, but, on error, just take the component from the preferred branch
-createMergeTransaction stamp' newId strat@(UnionPreferMergeStrategy _) t2 =
-  createUnionMergeTransaction stamp' newId strat t2
 
 -- | Returns the correct Transaction for the branch name in the graph and ensures that it is one of the two transaction arguments in the tuple.
 validateHeadName :: HeadName -> TransactionGraph -> (Transaction, Transaction) -> GraphRefRelationalExprM Transaction
@@ -424,38 +360,6 @@ pathToTransaction graph currentTransaction targetTransaction accumTransSet = do
           -- we have some paths!
           _ -> Right $ S.unions paths
 
-mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> CheckConstraints -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
-mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHeadNames = do
-  graph <- gfGraph
-  let transactionForHeadErr name = case transactionForHead name graph of
-        Nothing -> throwError (NoSuchHeadNameError name)
-        Just t -> pure t
-      runE e = case e of
-        Left e' -> throwError e'
-        Right v -> pure v
-  transA <- transactionForHeadErr (sourceHead mergeHeadNames)
-  transB <- transactionForHeadErr (targetHead mergeHeadNames)
-  disconParent <- gfTransForId parentId
-  let subHeads = M.filterWithKey (\k _ -> k `elem` [sourceHead mergeHeadNames, targetHead mergeHeadNames]) (transactionHeadsForGraph graph)
-  -- is this an optimization???
-  subGraph <- runE $ subGraphOfFirstCommonAncestor graph subHeads transA transB S.empty
-  _ <- runE $ validateConnectivity subGraph
-
-  subGraph' <- runE $ filterSubGraph subGraph subHeads
-  -- we cannot cut the transaction graph away only to "relevant" transactions because transactions can reference other transactions via relvar expressions
-  mergedTrans <- local (const (freshGraphRefRelationalExprEnv Nothing subGraph')) $
-                 createMergeTransaction stamp' newId mergeStrategy (transA, transB)
-  case headNamesForTransaction disconParent graph of
-        [] -> throwError (TransactionIsNotAHeadError parentId)
-        _ -> do
-          (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
-          let normalizerF ctx graph relExpr = normalize (Just ctx) graph relExpr
-              dbctx = concreteDatabaseContext (_uncommittedTransaction mergedTrans)
-          case checkConstraints normalizerF dbctx newId graph of
-            Left err -> throwError err
-            Right _ -> do
-              let newGraph'' = TransactionGraph (transactionHeadsForGraph newGraph') (transactionsForGraph newGraph')
-              pure (uTrans, newGraph'')
 
 --TEMPORARY COPY/PASTE
 showTransactionStructureX :: Bool -> Transaction -> TransactionGraph -> String
@@ -486,50 +390,6 @@ filterSubGraph graph heads = Right $ TransactionGraph newHeads newTransSet
     newTransSet = S.map (filterTransaction validIds) (transactionsForGraph graph)
     newHeads = M.map (filterTransaction validIds) heads
 
---helper function for commonalities in union merge
-createUnionMergeTransaction :: UTCTime -> TransactionId -> MergeStrategy -> (Transaction, Transaction) -> GraphRefRelationalExprM UncommittedTransaction
-createUnionMergeTransaction stamp' newId strategy (t1,t2) = do
-  let contextA = concreteDatabaseContext t1
-      contextB = concreteDatabaseContext t2
-      liftE x = case x of
-        Left e -> throwError e
-        Right t -> pure t
-
-  graph <- gfGraph
-  preference <- case strategy of
-    UnionMergeStrategy -> pure PreferNeither
-    UnionPreferMergeStrategy preferBranch ->
-      case transactionForHead preferBranch graph of
-        Nothing -> throwError (MergeTransactionError (PreferredHeadMissingMergeError preferBranch))
-        Just preferredTrans -> pure $ if t1 == preferredTrans then PreferFirst else PreferSecond
-    badStrat -> throwError (MergeTransactionError (InvalidMergeStrategyError badStrat))
-
-  incDeps <- liftE $ unionMergeMaps InclusionDependenciesField preference graph inclusionDependencies (inclusionDependencies contextA) (inclusionDependencies contextB)
-  relVars <- unionMergeRelVars preference graph (relationVariables contextA) (relationVariables contextB)
-  atomFuncs <- liftE $ unionMergeAtomFunctions preference graph (atomFunctions contextA) (atomFunctions contextB)
-  notifs <- liftE $ unionMergeMaps NotificationsField preference graph notifications (notifications contextA) (notifications contextB)
-  types <- liftE $ unionMergeTypeConstructorMapping preference graph (typeConstructorMapping contextA) (typeConstructorMapping contextB)
-  dbcFuncs <- liftE $ unionMergeDatabaseContextFunctions preference graph (dbcFunctions contextA) (dbcFunctions contextB)
-  registeredQs <- liftE $ unionMergeRegisteredQueries preference graph (registeredQueries contextA) (registeredQueries contextB)
-  acls <- liftE $ unionMergeACLs preference graph (acl contextA) (acl contextB)
-  -- TODO: add merge of subschemas
-  let newContext = DatabaseContext {
-        inclusionDependencies = incDeps,
-        relationVariables = relVars,
-        atomFunctions = atomFuncs,
-        dbcFunctions = dbcFuncs,
-        notifications = notifs,
-        typeConstructorMapping = types,
-        registeredQueries = registeredQs,
-        acl = acls
-        }
-      newSchemas = Schemas newContext (subschemas t1)
-  pure $ UncommittedTransaction $ addMerkleHash graph $
-    Transaction newId (TransactionInfo {
-                          parents = NE.fromList [transactionId t1,
-                                                  transactionId t2],
-                            stamp = stamp',
-                            merkleHash = mempty }) newSchemas
 lookupTransaction :: TransactionGraph -> TransactionIdLookup -> Either RelationalError Transaction
 lookupTransaction graph (TransactionIdLookup tid) = transactionForId tid graph
 lookupTransaction graph (TransactionIdHeadNameLookup headName backtracks) = case transactionForHead headName graph of
@@ -575,39 +435,6 @@ backtrackGraph graph currentTid btrack@(TransactionStampHeadBacktrack stamp') = 
       [] -> Left RootTransactionTraversalError
       arbitraryParent : _ -> backtrackGraph graph arbitraryParent btrack
 
--- | Create a temporary branch for commit, merge the result to head, delete the temporary branch. This is useful to atomically commit a transaction, avoiding a TransactionIsNotHeadError but trading it for a potential MergeError.
---this is not a GraphOp because it combines multiple graph operations
-autoMergeToHead :: UTCTime -> (TransactionId, TransactionId, TransactionId) -> DisconnectedTransaction -> HeadName -> MergeStrategy -> TransactionGraph -> Either RelationalError (DisconnectedTransaction, TransactionGraphIncrementalWriteInfo)
-autoMergeToHead stamp' (tempBranchTransId, tempCommitTransId, mergeTransId) discon mergeToHeadName strat graph = do
-  let tempBranchName = "mergebranch_" <> U.toText tempBranchTransId
-  --create the temp branch, branching does not create a new transaction
-  (discon', mtrans', graph') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon checkConstraints graph (Branch tempBranchName)
-
-  --commit to the new branch- possible future optimization: don't require fsync for this- create a temp commit type
-  (discon'', mtrans'', graph'') <- evalAlterTransactionGraphExpr stamp' tempCommitTransId discon' checkConstraints graph' Commit
-
-  --jump to merge head
-  discon''' <- evalTransactionGraphExpr discon'' graph'' (JumpToHead mergeToHeadName)
-
-  --create the merge
-  (discon'''', mtrans'''', graph'''') <- evalAlterTransactionGraphExpr stamp' mergeTransId discon''' checkConstraints graph'' (MergeTransactions strat tempBranchName mergeToHeadName)
-
-
-  --delete the temp branch
-  (discon''''', mtrans''''', graph''''') <- evalAlterTransactionGraphExpr stamp' tempBranchTransId discon'''' checkConstraints graph'''' (DeleteBranch tempBranchName)
-  {-
-  let rel = runReader (evalRelationalExpr (RelationVariable "s" ())) (mkRelationalExprState $ D.concreteDatabaseContext discon'''')
-  traceShowM rel
--}
-  pure (discon''''',
-        TransactionGraphIncrementalWriteInfo {
-           uncommittedTransactions = S.fromList (catMaybes [mtrans',
-                                                            mtrans'',
-                                                            mtrans'''',
-                                                            mtrans'''''
-                                                           ]),
-           newGraph = graph'''''
-           })
 
 addMerkleHash :: TransactionGraph -> Transaction -> Transaction
 addMerkleHash graph trans = Transaction (transactionId trans) newInfo (schemas trans)

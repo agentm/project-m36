@@ -133,6 +133,8 @@ Library
     Exposed-Modules: ProjectM36.Error,
                      ProjectM36.Transaction,
                      ProjectM36.TransactionGraph,
+                     ProjectM36.AlterTransactionGraphExpr,
+                     ProjectM36.AutoMergeToHead,
                      ProjectM36.TransactionGraph.FindTransaction,
                      ProjectM36.TransactionGraph.Show,
                      ProjectM36.TransactionGraph.Persist,

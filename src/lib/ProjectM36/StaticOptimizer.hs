@@ -561,17 +561,21 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
          incDeps <- lift (except (resolveDBC' graph commonContext inclusionDependencies))
          let fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
-             isFkConstraint :: _ -> InclusionDependencyBase (AttributeNamesExprBase ()) () -> m Bool
+             isFkConstraint :: Bool -> InclusionDependencyBase (AttributeNamesExprBase ()) () -> Either RelationalError Bool
              isFkConstraint acc (InclusionDependency (Project subAttrNameSet subrv) (Project _ superrv)) = do
                let gfEnv = freshGraphRefRelationalExprEnv (Just commonContext) graph
-                   normRelExpr expr = runGraphRefRelationalExprM gfEnv (normalizeAttributeNames (ExistingRelation relationTrue) expr)
+                   normRelExpr expr = normalize' commonContext graph expr
+               normSubAttrNameSet <- case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' expr) of
+                 Left err -> Left err
+                 Right (Project normSubAttrNameSet _) -> pure normSubAttrNameSet
+                 Right _ -> Left (AttributeTypesMismatchError (attributes projType))
                normSubrv <- normRelExpr subrv
                normSuperrv <- normRelExpr superrv
                pure (acc || (joinedExpr == normSubrv &&
                                  unjoinedExpr ==
                                  normSuperrv && 
                                  -- the fk attribute is one of the projection attributes
-                                 A.attributeNamesContained subAttrNameSet (A.attributeNameSet (attributes joinedType))
+                                 A.attributeNamesContained normSubAttrNameSet (A.attributeNameSet (attributes joinedType))
                                 ))
              isFkConstraint acc _ = pure acc
          case fkConstraint of

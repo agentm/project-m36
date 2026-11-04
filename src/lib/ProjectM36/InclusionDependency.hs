@@ -1,5 +1,5 @@
 module ProjectM36.InclusionDependency where
-import ProjectM36.Base (Relation, InclusionDependencies, InclusionDependencyBase(..), RelVarName, Attribute(..), AtomType(..), Atom(..), RelationalExprBase(..), RestrictionPredicateExprBase(..), BareAttributeNames, DefaultTransactionMarker, bareAttributeNames, defaultMarker, AtomExprBase(..))
+import ProjectM36.Base (Relation, InclusionDependencies, InclusionDependencyBase(..), RelVarName, Attribute(..), AtomType(..), Atom(..), RelationalExprBase(..), RestrictionPredicateExprBase(..), BareAttributeNames, bareAttributeNames, AtomExprBase(..))
 import ProjectM36.Attribute
 import ProjectM36.Error
 import ProjectM36.Relation

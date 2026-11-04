@@ -4,15 +4,13 @@ import ProjectM36.Base
 import ProjectM36.Error
 import ProjectM36.MiscUtils
 import ProjectM36.Relation
-import ProjectM36.DenormalizeExpr
 import ProjectM36.NormalizeExpr
-import ProjectM36.AttributeNamesExprBase (RelationalExpr, DatabaseContextExpr', DatabaseContextExpr, GraphRefRelationalExpr, InclusionDependency)
+import ProjectM36.AttributeNamesExprBase (RelationalExpr, DatabaseContextExpr', DatabaseContextExpr, InclusionDependency)
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.IsomorphicSchema.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.RelationalExpression.Types
-import qualified ProjectM36.AttributeNamesExpr as AN
 import Control.Monad
 import GHC.Generics
 import qualified Data.Map as M

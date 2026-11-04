@@ -88,3 +88,9 @@ instance Show RelationalExprEnv where
   show e@RelationalExprEnv{} = "RelationalExprEnv " ++ show (re_extra e)
 
 
+mkRelationalExprEnv :: DatabaseContext -> TransactionGraph -> RelationalExprEnv
+mkRelationalExprEnv ctx graph =
+  RelationalExprEnv
+  { re_context = ctx,
+    re_graph = graph,
+    re_extra = Nothing }

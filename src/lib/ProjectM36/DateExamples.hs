@@ -1,14 +1,12 @@
 module ProjectM36.DateExamples where
 import ProjectM36.Base
-import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr, GraphRefDatabaseContextExpr)
+import ProjectM36.AttributeNamesExprBase (DatabaseContextExpr)
 import ProjectM36.Error
 import ProjectM36.DatabaseContextExpr
-import ProjectM36.DatabaseContext
-import ProjectM36.TransactionGraph
 import qualified ProjectM36.Attribute as A
 import ProjectM36.Key
-import ProjectM36.DatabaseContext.Basic
 import ProjectM36.DatabaseContext.Types
+import ProjectM36.DatabaseContext.Basic
 import ProjectM36.AtomFunctions.Basic
 import ProjectM36.DataTypes.Basic
 import ProjectM36.Relation
@@ -17,9 +15,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Identity
 
-{-dateExamples :: ResolvedDatabaseContext
+dateExamples :: ResolvedDatabaseContext
 dateExamples = DatabaseContext {
-  inclusionDependencies = Identity inclusionDependencies,
+  inclusionDependencies = Identity dateInclusionDependencies,
   relationVariables = relationVariables basicDatabaseContext <> Identity dateRelationVariables,
   notifications = Identity M.empty,
   dbcFunctions = Identity mempty,
@@ -28,11 +26,6 @@ dateExamples = DatabaseContext {
   typeConstructorMapping = Identity basicTypeConstructorMapping,
   acl = Identity ACL.basic
   }
-  where -- these must be lower case now that data constructors are in play
-    suppliers = suppliersRel
-    products = productsRel
-    supplierProducts = supplierProductsRel
--}
 
 dateRelationVariables :: RelationVariablesBase attrNames marker
 dateRelationVariables =

@@ -137,13 +137,6 @@ reGraph = asks re_graph
 reContext :: RelationalExprM DatabaseContext
 reContext = asks re_context
 
-mkRelationalExprEnv :: DatabaseContext -> TransactionGraph -> RelationalExprEnv
-mkRelationalExprEnv ctx graph =
-  RelationalExprEnv
-  { re_context = ctx,
-    re_graph = graph,
-    re_extra = Nothing }
-
 askEnv :: GraphRefRelationalExprM GraphRefRelationalExprEnv
 askEnv = R.ask
 

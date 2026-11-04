@@ -94,10 +94,11 @@ module ProjectM36.Client
        TypeConstructorBase(..),
        TypeConstructorDef(..),
        DataConstructorDef(..),
-       AttributeNamesBase(..),
+       AttributeNamesExprBase(..),
        RelVarName,
        IncDepName,
-       InclusionDependency(..),
+       InclusionDependencyBase(..),
+       InclusionDependency,
        AttributeName,
        DF.DataFrame,
        DF.DataFrameExpr,
@@ -153,14 +154,16 @@ import qualified ProjectM36.DataFrame as DF
 import ProjectM36.DatabaseContextFunction as DCF
 import qualified ProjectM36.IsomorphicSchema as Schema
 import qualified ProjectM36.RelationalExpression as RE
+import qualified ProjectM36.RelationalExpression.Types as RE
+import qualified ProjectM36.TransactionGraph.FindTransaction as FindTrans
 import qualified ProjectM36.TransactionGraph as Graph
+import qualified ProjectM36.AlterTransactionGraphExpr as AlterTGExpr
 import ProjectM36.TransactionGraph as TG
 import qualified ProjectM36.Transaction.Types as Trans
 import ProjectM36.IsomorphicSchema.Types hiding (subschemas, concreteDatabaseContext)
 import ProjectM36.TransactionGraph.Persist
 import ProjectM36.Attribute
 import ProjectM36.TransGraphRelationalExpression.Types as TGRE (TransGraphRelationalExpr)
-import ProjectM36.TransGraphRelationalExpression as TGRE (TransGraphEvalEnv(..))
 import ProjectM36.Persist (DiskSync(..))
 import ProjectM36.FileLock
 import ProjectM36.DDLType
@@ -190,6 +193,7 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..))
 import ProjectM36.DatabaseContextExpr
 import qualified ProjectM36.LoginRoles as LoginRoles
+import qualified ProjectM36.AutoMergeToHead as AutoMerge
 
 import Control.Monad (forever, forM, forM_, unless, void, when)
 import Control.Exception.Base
@@ -219,7 +223,6 @@ import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
 import qualified Data.HashSet as HS
 import System.Random (StdGen)
-import Control.Monad.Except (throwError)
 
 type Hostname = String
 type Port = Word16
@@ -495,7 +498,7 @@ createSessionAtTransactionId_ mHeadName commitId newSessionId (InProcessConnecti
     let sessions = ipSessions conf
         graphTvar = ipTransactionGraph conf
     graph <- readTVar graphTvar
-    case RE.transactionForId commitId graph of
+    case FindTrans.transactionForId commitId graph of
         Left err -> pure (Left err)
         Right transaction -> do
             let freshDiscon = Discon.freshTransaction' currentHead' commitId (Trans.schemas transaction)
@@ -638,30 +641,33 @@ executeRelationalExpr sessionId (InProcessConnection conf) expr = do
     Left err -> pure $ Left err
     Right (session, schema) -> do
           let dbctx = Sess.concreteDatabaseContext session
-              gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
               expr' = if schemaName session /= defaultSchemaName then
                             Schema.processRelationalExprInSchema schema expr
                           else
                             Right expr
-              case expr' of
-                Left err -> pure (Left err)
-                Right expr'' -> do
-                  let reEnv = RE.mkRelationalExprEnv dbctx graph
-                  pure (Right (graph, reEnv, expr''))
+          case expr' of
+            Left err -> pure (Left err)
+            Right expr'' -> do
+              pure (Right (graph, dbctx, expr''))
   case res of
     Left err -> pure (Left err)
-    Right (graph, reEnv, rexpr) -> do
-      case RE.resolveDBC' graph (RE.re_context reEnv) DBC.acl of
+    Right (graph, dbctx, rexpr) -> do
+      case RE.resolveDBC' graph dbctx DBC.acl of
         Left err -> pure (Left err)
         Right acl' -> do
           roleIds <- roleIdsForRoleName conf
           case applyACLRelationalExpr roleIds (relvarsACL acl') rexpr of
             Left err -> pure (Left err)
             Right () -> do
-              qres <- Opt.optimizeAndEvalRelationalExpr' (mkOptEnv conf) reEnv rexpr
-              case qres of
-                Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+              let gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
+                  reEnv = RE.mkRelationalExprEnv dbctx graph
+              case RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' rexpr) of
                 Left err -> pure (Left err)
+                Right normRExpr -> do
+                  qres <- Opt.optimizeAndEvalRelationalExpr' (mkOptEnv conf) reEnv normRExpr
+                  case qres of
+                    Right rel -> pure (force (Right rel)) -- this is necessary so that any undefined/error exceptions are spit out here 
+                    Left err -> pure (Left err)
 
 executeRelationalExpr sessionId conn@(RemoteConnection _) relExpr = remoteCall conn (ExecuteRelationalExpr sessionId relExpr)
 
@@ -679,16 +685,17 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
     Right (session, schema) -> do
       let dbctx = Sess.concreteDatabaseContext session
           gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
-      -- normalize to attribute names expression
-      case RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' expr) of
-        Left err -> pure (Left err)
-        Right normExpr -> do
-          let expr' = if schemaName session == defaultSchemaName then do
-                resolveRoleIds roleNameResolver normExpr
-                      else 
-                        resolveRoleIds roleNameResolver normExpr >>= Schema.processDatabaseContextExprInSchema schema
-              roleNameResolver nam = fst <$> lookup nam roles
-          case expr' of 
+          normalizer e = RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' e)
+          expr' =
+            if schemaName session == defaultSchemaName then
+              resolveRoleIds roleNameResolver expr >>=
+              normalizer
+            else 
+              resolveRoleIds roleNameResolver expr >>=
+              Schema.processDatabaseContextExprInSchema schema >>=
+              normalizer
+          roleNameResolver nam = fst <$> lookup nam roles
+      case expr' of 
             Left err -> pure (Left err)
             Right expr'' -> do
               let dbcfuncutils = DBC.DatabaseContextFunctionUtils {
@@ -706,11 +713,10 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
                       ,
                     DBC.executeRelationalExpr = \ctx' relExpr -> do
                           let reEnv = RE.mkRelationalExprEnv ctx' graph
-                              gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx') graph
                           normExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' relExpr)
                           StaticOpt.optimizeAndEvalRelationalExpr reEnv normExpr
                       }
-                  env = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils
+                  env = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
                   transId = Sess.parentId session
                   runExpr = do
                     applyACLDatabaseContextExpr roleIds expr''
@@ -731,7 +737,7 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
                               disconCurrentHead = Discon.disconCurrentHead (Sess.disconnectedTransaction session)
                               }
                             ctcontext = RE.dbc_context newState
-                            newSubschemas = Schema.processDatabaseContextExprSchemasUpdate sschemas normExpr
+                            newSubschemas = Schema.processDatabaseContextExprSchemasUpdate sschemas expr
                             newSubschemas' = if newSubschemas == sschemas then
                                            NotChangedSinceMarker transId
                                          else
@@ -771,7 +777,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
                   Left err -> pure (Left err)
                   Right () -> do
                     if Sess.parentId session == Trans.transactionId headTrans then do
-                      let ret = Graph.evalAlterTransactionGraphExpr tstamp id1 disconIn graph Commit
+                      let ret = AlterTGExpr.evalAlterTransactionGraphExpr tstamp id1 disconIn RE.checkConstraints graph Commit
                       case ret of
                         Left err -> pure (Left err)
                         Right (discon', mtrans', tGraph) ->
@@ -780,7 +786,7 @@ autoMergeToHead sessionId (InProcessConnection conf) strat headName' = do
                                           newGraph = tGraph
                                           }))
                       else do
-                      pure $ Graph.autoMergeToHead tstamp (id1, id2, id3) disconIn headName' strat graph
+                      pure $ AutoMerge.autoMergeToHead tstamp (id1, id2, id3) disconIn headName' strat graph
 autoMergeToHead sessionId conn@(RemoteConnection _) strat headName' = remoteCall conn (ExecuteAutoMergeToHead sessionId strat headName')
       
 -- | Execute a database context IO-monad-based expression for the given session and connection. `DatabaseContextIOExpr`s modify the DatabaseContext but cannot be purely implemented. Requires ExecuteFunctionPermission.
@@ -798,7 +804,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
     Left err -> pure (Left err)
     Right session -> do
       graph <- readTVarIO (ipTransactionGraph conf)
-      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession myRoleId resolveRoleNameACL objFilesPath dbcFuncUtils
+      let env = RE.DatabaseContextIOEvalEnv transId graph scriptSession myRoleId resolveRoleNameACL objFilesPath dbcFuncUtils normalize'
           resolveRoleNameACL :: forall a. AccessControlList RoleName a -> IO (Either RelationalError (AccessControlList RoleId a))
           resolveRoleNameACL acl' = do
             eRes <- ACL.resolve (\r -> do
@@ -810,7 +816,7 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
             case eRes of
               Left badR -> pure (Left (NoSuchRoleNameError badR))
               Right res -> pure (Right res)
-          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils
+          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
           roleNameResolver nam = fst <$> lookup nam roles
           dbcFuncUtils = DBC.DatabaseContextFunctionUtils {
             DBC.executeDatabaseContextExpr = \ctx' expr' ->
@@ -870,7 +876,8 @@ executeCommitExprSTM_ graph oldContext newContext nodes = do
       evaldNots = M.map mkEvaldNot fireNots
       evalInContext expr ctx = do
         let gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) graph
-        StaticOpt.optimizeAndEvalGraphRefRelationalExpr gfEnv expr
+        normExpr <- RE.runGraphRefRelationalExprM gfEnv $ normalizeM expr
+        StaticOpt.optimizeAndEvalGraphRefRelationalExpr gfEnv normExpr
  
       mkEvaldNot notif = EvaluatedNotification { notification = notif, 
                                                  reportOldRelation = evalInContext (reportOldExpr notif) oldContext,
@@ -919,7 +926,7 @@ executeAlterTransactionGraphExpr sessionId (InProcessConnection conf) alterGraph
               Left err -> pure (Left err)
               Right () -> do
 
-                case evalAlterTransactionGraphExpr tstamp freshId discon updatedGraph alterGraphExpr of
+                case AlterTGExpr.evalAlterTransactionGraphExpr tstamp freshId discon RE.checkConstraints updatedGraph alterGraphExpr of
                   Left err -> pure (Left err)
                   Right (discon', mtrans', graph') -> do
                     pure (Right (discon', TransactionGraphIncrementalWriteInfo {
@@ -994,7 +1001,7 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = do
               case applyACLSchemaExpr roleIds (schemaACL acl') schemaExpr of
                 Left err -> pure (Left err)
                 Right () -> do
-                  let dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils
+                  let dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize'
                       dbcFunctionUtils = DBC.DatabaseContextFunctionUtils {
                         DBC.executeDatabaseContextExpr =
                             \ctx' dbexpr ->
@@ -1095,19 +1102,16 @@ typeForRelationalExprSTM sessionId conf relExpr = do
     Right (session, schema) -> do
       let dbctx = Sess.concreteDatabaseContext session
           gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
-      case RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' relExpr) of
-        Left err -> pure (Left err)
-        Right normExpr -> do
-          let processed = if schemaName session == defaultSchemaName then
-                            Right normExpr
-                          else
-                            Schema.processRelationalExprInSchema schema normExpr
-          case processed of
+          normExpr e = RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' e)
+          processed = if schemaName session == defaultSchemaName then 
+                        normExpr relExpr
+                      else
+                       Schema.processRelationalExprInSchema schema relExpr >>= normExpr
+      case processed of
             Left err -> pure (Left err)
             Right relExpr' -> do
               let reEnv = RE.mkRelationalExprEnv (Sess.concreteDatabaseContext session) graph
-              let normExpr' = normalizeTransactionMarker' relExpr'
-              pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr normExpr')
+              pure $ RE.runRelationalExprM reEnv (RE.typeForRelationalExpr relExpr')
           
 -- | Return a 'Map' of the database's constraints at the context of the session and connection.
 inclusionDependencies :: SessionId -> Connection -> IO (Either RelationalError InclusionDependencies)
@@ -1192,10 +1196,7 @@ planForRelationalExpr sessionId (InProcessConnection conf) rexpr = do
       Right (session, schema) -> do
         let ctx = Sess.concreteDatabaseContext session
             gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) graph
-        case RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' rexpr) of
-          Left err -> pure (Left err)
-          Right normAttrExpr ->
-            case Schema.processRelationalExprInSchema schema normAttrExpr of
+        case Schema.processRelationalExprInSchema schema rexpr of
               Left err -> pure (Left err)
               Right rexpr' -> do
                 case RE.runGraphRefRelationalExprM gfEnv (normalizeM rexpr') of
@@ -1462,7 +1463,7 @@ commitLock_ sessionId conf stmBlock = do
                   Right acl' -> do
                     let rvacl = relvarsACL acl'
                     StmMap.insert newSession sessionId sessions
-                    case RE.transactionForId (Sess.parentId session) oldGraph of
+                    case FindTrans.transactionForId (Sess.parentId session) oldGraph of
                       Left err -> pure $ Left err
                       Right previousTrans ->
                         if not (Prelude.null (uncommittedTransactions tWriteInfo)) then do
@@ -1584,7 +1585,7 @@ convertSQLQuery sessionId (InProcessConnection conf) query = do
             reEnv = RE.mkRelationalExprEnv ctx transGraph
             typeF expr = do
               let gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) transGraph
-              normAttrExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeM expr)
+              normAttrExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' expr)
               RE.runRelationalExprM reEnv (RE.typeForRelationalExpr normAttrExpr) 
         -- convert SQL data into DataFrameExpr
         case evalConvertM mempty (convertQuery typeF query) of

@@ -2,6 +2,7 @@
 module ProjectM36.Server.EntryPoints where
 import ProjectM36.Base
 import ProjectM36.IsomorphicSchema
+import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr)
 import ProjectM36.HashSecurely
 import ProjectM36.SQL.Select
 import ProjectM36.SQL.DBUpdate

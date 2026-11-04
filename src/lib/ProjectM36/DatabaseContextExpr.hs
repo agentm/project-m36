@@ -1,8 +1,7 @@
 module ProjectM36.DatabaseContextExpr where
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.DatabaseContext
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (DatabaseContextExpr, GraphRefDatabaseContextExpr)
+import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr)
 import ProjectM36.AccessControlList
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
