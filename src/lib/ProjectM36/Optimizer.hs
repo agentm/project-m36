@@ -11,7 +11,6 @@ import qualified ProjectM36.AttributeNamesExprBase as AttrExprs
 import qualified ProjectM36.AttributeNamesBase as AttrNames
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.TransGraphRelationalExpression.Types
-import ProjectM36.TransGraphRelationalExpression as TGRE
 import ProjectM36.Error
 import ProjectM36.NormalizeExpr
 import ProjectM36.Streaming.RelationalExpression hiding (relationTrue)
@@ -77,7 +76,7 @@ optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
     _ <- typeForGraphRefRelationalExpr gfExpr
     pure gfExpr) of
     Left err -> pure (Left err)
-    Right gfExpr -> do
+    Right _gfExpr -> do
       -- then, apply static optimizations
       case StaticOpt.runGraphRefSOptRelationalExprM (gre_context gfEnv) (gre_graph gfEnv) (StaticOpt.fullOptimizeGraphRefRelationalExpr gfExpr) of
         Left err -> pure (Left err)

@@ -12,9 +12,10 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Quote
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Relation
 import ProjectM36.Tuple
-import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.AccessControlList
 import Instances.TH.Lift ()
@@ -66,15 +67,15 @@ transGraphRelationalExpr =
     , quoteDec = notHandled "declaration"
     }
 
-deriving instance Lift a => Lift (RelationalExprBase a)
-deriving instance Lift a => Lift (TupleExprsBase a)
-deriving instance Lift a => Lift (TupleExprBase a)
+deriving instance (Lift at, Lift a) => Lift (RelationalExprBase at a)
+deriving instance (Lift at, Lift a) => Lift (TupleExprsBase at a)
+deriving instance (Lift at, Lift a) => Lift (TupleExprBase at a)
 deriving instance Lift a => Lift (AttributeExprBase a)
-deriving instance Lift a => Lift (AttributeNamesBase a)
-deriving instance Lift a => Lift (RestrictionPredicateExprBase a)
-deriving instance Lift a => Lift (ExtendTupleExprBase a)
+deriving instance Lift a => Lift (AttributeNamesExprBase a)
+deriving instance (Lift at, Lift a) => Lift (RestrictionPredicateExprBase at a)
+deriving instance (Lift at, Lift a) => Lift (ExtendTupleExprBase at a)
 deriving instance Lift a => Lift (WithNameExprBase a)
-deriving instance Lift a => Lift (AtomExprBase a)
+deriving instance (Lift at, Lift a) => Lift (AtomExprBase at a)
 deriving instance Lift RelationTupleSet
 deriving instance Lift Attributes
 deriving instance Lift Relation
@@ -84,7 +85,7 @@ deriving instance Lift Atom
 deriving instance Lift RelationTuple
 deriving instance Lift AtomType
 
-deriving instance (Lift a, Lift r) => Lift (DatabaseContextExprBase a r)
+deriving instance (Lift at, Lift a, Lift r) => Lift (DatabaseContextExprBase at a r)
 deriving instance Lift r => Lift (AlterDBCACLExprBase r)
 deriving instance Lift TypeConstructorDef
 deriving instance Lift DataConstructorDef
@@ -126,7 +127,7 @@ instance AtomReplacer Atom where
       ConstructedAtom dConsName aType args ->
         ConstructedAtom dConsName aType (fmap (replace needle replacement) args)
 
-instance AtomReplacer (AtomExprBase a) where
+instance AtomReplacer (AtomExprBase at a) where
   replace needle replacement haystack =
     case haystack of
       AttributeAtomExpr{} -> haystack
@@ -154,7 +155,7 @@ instance AtomReplacer Relation where
       tupMapper tup =
         pure $ replace needle replacement tup
 
-instance AtomReplacer (RelationalExprBase a) where
+instance AtomReplacer (RelationalExprBase at a) where
   replace needle replacement haystack =
     case haystack of
       MakeRelationFromExprs attrExprs tupExprs ->
@@ -197,7 +198,7 @@ instance AtomReplacer RelationTuple where
     else
       RelationTuple (tupleAttributes haystack) (V.map (replace needle replacement) (tupleAtoms haystack))
 
-instance AtomReplacer (TupleExprsBase a) where
+instance AtomReplacer (TupleExprsBase at a) where
   replace needle replacement (TupleExprs marker tupExprs) =
     TupleExprs marker (fmap (replace needle replacement) tupExprs)
 
@@ -205,7 +206,7 @@ instance AtomReplacer RelationTupleSet where
   replace needle replacement (RelationTupleSet tups) =
     RelationTupleSet (fmap (replace needle replacement) tups)
 
-instance AtomReplacer (RestrictionPredicateExprBase a) where
+instance AtomReplacer (RestrictionPredicateExprBase at a) where
   replace needle replacement expr =
     case expr of
       TruePredicate -> expr
@@ -220,19 +221,19 @@ instance AtomReplacer (RestrictionPredicateExprBase a) where
       AttributeEqualityPredicate attrName atomExpr ->
         AttributeEqualityPredicate attrName (replace needle replacement atomExpr)
       
-instance AtomReplacer (ExtendTupleExprBase a) where
+instance AtomReplacer (ExtendTupleExprBase at a) where
   replace needle replacement (AttributeExtendTupleExpr attrName expr) =
     AttributeExtendTupleExpr attrName (replace needle replacement expr)
 
-instance AtomReplacer (WithNamesAssocsBase a) where
+instance AtomReplacer (WithNamesAssocsBase at a) where
   replace needle replacement assocs =
     fmap (\(name, relExpr) -> (name, replace needle replacement relExpr)) assocs
 
-instance AtomReplacer (TupleExprBase a) where
+instance AtomReplacer (TupleExprBase at a) where
   replace needle replacement (TupleExpr tupMap) =
     TupleExpr (M.map (\atomExpr -> replace needle replacement atomExpr) tupMap)
 
-instance AtomReplacer (DatabaseContextExprBase a r) where
+instance AtomReplacer (DatabaseContextExprBase at a r) where
   replace needle replacement expr =
     case expr of
       NoOperation -> expr

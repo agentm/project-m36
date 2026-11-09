@@ -1,6 +1,5 @@
 module ProjectM36.Notifications where
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase
 import ProjectM36.Error
 import ProjectM36.RelationalExpression.Types
 import ProjectM36.TransactionGraph.Types

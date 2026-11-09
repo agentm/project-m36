@@ -27,6 +27,14 @@ dateExamples = DatabaseContext {
   acl = Identity ACL.basic
   }
 
+-- used when loading via tutd
+dateExamplesAsDatabaseContextExpr :: DatabaseContextExpr
+dateExamplesAsDatabaseContextExpr =
+  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList dateRelationVariables)
+      incDepsExprs = map (uncurry AddInclusionDependency) (M.toList dateInclusionDependencies)
+      in
+  MultipleExpr (relVarsExprs <> incDepsExprs)
+
 dateRelationVariables :: RelationVariablesBase attrNames marker
 dateRelationVariables =
   M.fromList [("s", ExistingRelation suppliersRel),

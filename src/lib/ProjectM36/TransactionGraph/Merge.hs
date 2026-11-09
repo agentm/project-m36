@@ -193,7 +193,7 @@ unionMergeACLs _prefer graph v_aclA v_aclB = do
   pure $ ValueMarker $ aclA <> aclB
 
 mergeTransactions :: UTCTime -> TransactionId -> TransactionId -> CheckConstraints -> MergeStrategy -> MergeHeadNames -> GraphRefRelationalExprM (UncommittedTransaction, TransactionGraph)
-mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHeadNames = do
+mergeTransactions stamp' newId parentId checkConstraints' mergeStrategy mergeHeadNames = do
   graph <- gfGraph
   let transactionForHeadErr name = case transactionForHead name graph of
         Nothing -> throwError (NoSuchHeadNameError name)
@@ -217,9 +217,9 @@ mergeTransactions stamp' newId parentId checkConstraints mergeStrategy mergeHead
         [] -> throwError (TransactionIsNotAHeadError parentId)
         _ -> do
           (uTrans, newGraph') <- runE $ addTransactionToGraph (targetHead mergeHeadNames) mergedTrans graph
-          let normalizerF ctx graph relExpr = normalize (Just ctx) graph relExpr
+          let normalizerF ctx graph' relExpr = normalize (Just ctx) graph' relExpr
               dbctx = concreteDatabaseContext (_uncommittedTransaction mergedTrans)
-          case checkConstraints normalizerF dbctx newId graph of
+          case checkConstraints' normalizerF dbctx newId graph of
             Left err -> throwError err
             Right _ -> do
               let newGraph'' = TransactionGraph (transactionHeadsForGraph newGraph') (transactionsForGraph newGraph')

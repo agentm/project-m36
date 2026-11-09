@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Export.Base where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Error
 #if __GLASGOW_HASKELL__ < 804
 import Data.Monoid

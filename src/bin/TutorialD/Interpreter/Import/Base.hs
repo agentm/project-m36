@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.Import.Base where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Error
 import Text.URI (URI)
 import Data.Text (Text)

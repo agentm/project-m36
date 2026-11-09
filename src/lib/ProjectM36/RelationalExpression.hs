@@ -9,7 +9,7 @@ import ProjectM36.Relation
 import ProjectM36.Tuple
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr, InclusionDependency)
+import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr', GraphRefTupleExprs, GraphRefTupleExpr, GraphRefRelationalExpr, GraphRefRestrictionPredicateExpr, GraphRefExtendTupleExpr, GraphRefAtomExpr, GraphRefAttributeExpr)
 import qualified ProjectM36.AttributeNamesExprBase as ANamesExpr
 import qualified ProjectM36.TypeConstructorDef as TCD
 import ProjectM36.WithNameExpr
@@ -36,7 +36,6 @@ import qualified ProjectM36.Attribute as A
 import ProjectM36.Module
 import ProjectM36.RelationalExpression.Types
 import ProjectM36.TransactionGraph.FindTransaction
-import ProjectM36.DenormalizeExpr
 
 import qualified Data.UUID as U
 import qualified Data.Map as M

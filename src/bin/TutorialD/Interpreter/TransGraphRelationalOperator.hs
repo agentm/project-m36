@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module TutorialD.Interpreter.TransGraphRelationalOperator where
-import ProjectM36.TransGraphRelationalExpression
+import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.TransactionGraph
+import ProjectM36.TransactionGraph.Types
+import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.Interpreter
 import TutorialD.Interpreter.Types
 import qualified ProjectM36.Client as C

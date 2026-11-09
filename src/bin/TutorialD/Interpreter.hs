@@ -22,9 +22,12 @@ import TutorialD.Interpreter.Export.CSV
 import TutorialD.Interpreter.Export.Base
 
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Error
 import ProjectM36.Cli (MakePrompt)
+import ProjectM36.TransactionGraph.Types
 import ProjectM36.TransactionGraph
+import ProjectM36.AlterTransactionGraphExpr
 import ProjectM36.LoginRoles (AlterLoginRolesExpr)
 import qualified ProjectM36.Client as C
 import ProjectM36.Relation (attributes)
@@ -99,7 +102,7 @@ safeParseTutorialD :: T.Text -> Either ParserError ParsedOperation
 safeParseTutorialD = parse safeInterpreterParserP ""
 
 -- | Utility method for external apps such as benchmarks to parse a relational expression for execution.
-parseRelationalExpr :: RelationalMarkerExpr a => T.Text -> Either ParserError (RelationalExprBase a)
+parseRelationalExpr :: RelationalMarkerExpr a => T.Text -> Either ParserError (RelationalExprBase (AttributeNamesExprBase a) a)
 parseRelationalExpr = parse relExprP ""
 
 evalTutorialD :: C.SessionId -> C.Connection -> SafeEvaluationFlag -> ParsedOperation -> IO ConsoleResult

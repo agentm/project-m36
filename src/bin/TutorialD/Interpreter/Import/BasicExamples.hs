@@ -2,6 +2,7 @@
 module TutorialD.Interpreter.Import.BasicExamples where
 import ProjectM36.DateExamples
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Interpreter
 import ProjectM36.DatabaseContextExpr
 import TutorialD.Interpreter.Base
@@ -10,7 +11,7 @@ data ImportBasicExampleOperator = ImportBasicDateExampleOperator
                                 deriving (Show)
 
 evalImportBasicExampleOperator :: ImportBasicExampleOperator -> DatabaseContextExpr
-evalImportBasicExampleOperator ImportBasicDateExampleOperator = resolvedDatabaseContextAsDatabaseContextExpr dateExamples
+evalImportBasicExampleOperator ImportBasicDateExampleOperator = dateExamplesAsDatabaseContextExpr
 
 importBasicExampleOperatorP :: Parser ImportBasicExampleOperator
 importBasicExampleOperatorP = do 

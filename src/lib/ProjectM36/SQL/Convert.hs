@@ -1313,7 +1313,7 @@ databaseContextExprForUniqueKeyWithNull :: RelVarName -> AttributeName -> Databa
 databaseContextExprForUniqueKeyWithNull rvname attrName =
   AddInclusionDependency incDepName incDep
   where
-    incDep = inclusionDependencyForKey (S.singleton attrName) (Restrict notNull (RelationVariable rvname ()))
+    incDep = inclusionDependencyForKey (AttributeNames (S.singleton attrName)) (Restrict notNull (RelationVariable rvname ()))
     incDepName = rvname <> "_" <> attrName <> "_unique"
     notNull = NotPredicate (AtomExprPredicate (func "sql_isnull" [AttributeAtomExpr attrName] ))
                                   

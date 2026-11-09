@@ -50,3 +50,4 @@ type GraphRefExtendTupleExpr = B.ExtendTupleExprBase B.GraphRefAttributeNamesExp
 
 type ExtendTupleExpr = B.ExtendTupleExprBase B.AttributeNamesExpr ()
 
+type AttributeNameAtomExprMap = B.AttributeNameAtomExprMapBase B.AttributeNamesExpr ()

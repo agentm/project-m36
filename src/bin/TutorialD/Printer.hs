@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 module TutorialD.Printer where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Attribute as A hiding (null)
 import ProjectM36.DataFrame
 import ProjectM36.AccessControlList
@@ -127,7 +128,7 @@ prettyRelationalExpr r = parens (pretty r)
 pretty' :: RelationalExpr -> Doc n
 pretty' = prettyRelationalExpr
 
-instance Pretty AttributeNames where
+instance Pretty AttributeNamesExpr where
   pretty (AttributeNames attrNames) = bracesList (map prettyAttributeName (S.toList attrNames))
   pretty (InvertedAttributeNames attrNames) = braces $ "all but" <+> concatWith (surround ", ") (map prettyAttributeName (S.toList attrNames))
   pretty (RelationalExprAttributeNames relExpr) = braces $ "all from" <+> pretty relExpr

@@ -16,20 +16,15 @@ import qualified ProjectM36.IsomorphicSchema.Types as Schema
 import qualified ProjectM36.TupleSet as TS
 import ProjectM36.Tuple
 import ProjectM36.RelationalExpression.Types
-import ProjectM36.RelationalExpression
-import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.MerkleHash
 import ProjectM36.DisconnectedTransaction (DisconnectedTransaction(..), CurrentHead(..))
 import qualified ProjectM36.DisconnectedTransaction as Discon
 import qualified ProjectM36.Attribute as A
 import ProjectM36.HashSecurely
 import ProjectM36.ReferencedTransactionIds
-import ProjectM36.DatabaseContext.Fields
 
-import Codec.Winery
 import Control.Monad (foldM, forM, unless, when)
 import Control.Monad.Except
-import Control.Monad.Reader
 import qualified Data.Vector as V
 import qualified Data.UUID as U
 import qualified Data.Set as S
@@ -40,7 +35,6 @@ import qualified Data.Text as T
 import GHC.Generics
 import Data.Either (lefts, rights, isRight)
 import Control.Arrow
-import Data.Maybe
 import Data.UUID.V4
 
 

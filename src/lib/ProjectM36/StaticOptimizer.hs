@@ -13,12 +13,10 @@ import ProjectM36.TransactionGraph.Types
 import ProjectM36.TransactionGraph.FindTransaction
 import ProjectM36.Transaction.Types
 import ProjectM36.DatabaseContext.Types
-import ProjectM36.TransGraphRelationalExpression as TGRE hiding (askGraph)
 import ProjectM36.TransGraphRelationalExpression.Types
 import ProjectM36.Error
 import ProjectM36.NormalizeExpr
 import qualified ProjectM36.Attribute as A
-import qualified ProjectM36.AttributeNamesExpr as AS
 #if MIN_VERSION_base(4,18,0)
 import Control.Monad (foldM)
 #endif
@@ -562,9 +560,8 @@ applyStaticJoinElimination expr@(Project attrNameSet (Join exprA exprB)) = do
          let fkConstraint = foldM isFkConstraint False incDeps
             --search for matching fk constraint
              isFkConstraint :: Bool -> InclusionDependencyBase (AttributeNamesExprBase ()) () -> Either RelationalError Bool
-             isFkConstraint acc (InclusionDependency (Project subAttrNameSet subrv) (Project _ superrv)) = do
-               let gfEnv = freshGraphRefRelationalExprEnv (Just commonContext) graph
-                   normRelExpr expr = normalize' commonContext graph expr
+             isFkConstraint acc (InclusionDependency (Project _subAttrNameSet subrv) (Project _ superrv)) = do
+               let normRelExpr = normalize' commonContext graph
                normSubAttrNameSet <- case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' expr) of
                  Left err -> Left err
                  Right (Project normSubAttrNameSet _) -> pure normSubAttrNameSet

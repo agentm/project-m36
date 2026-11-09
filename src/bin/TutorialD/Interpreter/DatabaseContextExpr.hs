@@ -1,12 +1,14 @@
 {-# LANGUAGE CPP #-}
 module TutorialD.Interpreter.DatabaseContextExpr where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Interpreter
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.DatabaseContext
 import ProjectM36.AccessControlList
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContextExpr
+import ProjectM36.NormalizeExpr
 import TutorialD.Interpreter.Base
 import qualified Data.Text as T
 import TutorialD.Interpreter.RelationalExpr
@@ -16,6 +18,7 @@ import ProjectM36.StaticOptimizer
 import qualified ProjectM36.Error as PM36E
 import ProjectM36.Error
 import qualified ProjectM36.RelationalExpression as RE
+import qualified ProjectM36.RelationalExpression.Types as RE
 import ProjectM36.Key
 import ProjectM36.FunctionalDependency
 #if __GLASGOW_HASKELL__ < 804
@@ -266,7 +269,7 @@ interpretDatabaseContextExpr context transId graph tutdstring =
       case resolveRoleIds roleNameResolver parsed of
         Left err -> Left err
         Right parsed' -> do
-          let env = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils
+          let env = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
               dbcFuncUtils = DatabaseContextFunctionUtils {
                 executeDatabaseContextExpr = error "unexpected executeDatabaseContextExpr in test func",
                 executeRelationalExpr = error "unexpected executeRelationalExpr in test func"

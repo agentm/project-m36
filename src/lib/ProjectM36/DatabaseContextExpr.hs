@@ -1,7 +1,8 @@
 module ProjectM36.DatabaseContextExpr where
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.Base
-import ProjectM36.AttributeNamesBase (GraphRefDatabaseContextExpr)
+import ProjectM36.AttributeNamesExprBase (GraphRefDatabaseContextExpr)
+import ProjectM36.DenormalizeExpr
 import ProjectM36.AccessControlList
 import ProjectM36.Error
 import ProjectM36.RelationalExpression
@@ -12,7 +13,7 @@ import qualified Data.Functor.Foldable as Fold
 
 resolvedDatabaseContextAsDatabaseContextExpr :: ResolvedDatabaseContext -> GraphRefDatabaseContextExpr
 resolvedDatabaseContextAsDatabaseContextExpr context = do
-  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList relVars)
+  let relVarsExprs = map (\(name, rel) -> Assign name (denormalizeAttributeNames rel)) (M.toList relVars)
       relVars = runIdentity (relationVariables context)
       incDeps = runIdentity (inclusionDependencies context)
       incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)
@@ -35,7 +36,7 @@ databaseContextAsDatabaseContextExpr :: DatabaseContext -> TransactionGraph -> E
 databaseContextAsDatabaseContextExpr context graph = do
   relVars <- resolveDBC' graph context relationVariables
   incDeps <- resolveDBC' graph context inclusionDependencies
-  let relVarsExprs = map (\(name, rel) -> Assign name rel) (M.toList relVars)
+  let relVarsExprs = map (\(name, rel) -> Assign name (denormalizeAttributeNames rel)) (M.toList relVars)
       incDepsExprs = map (uncurry AddInclusionDependency) (M.toList incDeps)
       funcsExprs = []
   pure $ MultipleExpr $ relVarsExprs ++ incDepsExprs ++ funcsExprs

@@ -29,13 +29,13 @@ example:
 -- | Create a uniqueness constraint for the attribute names and relational expression. Note that constraint can span multiple relation variables.
 inclusionDependencyForKey ::
   BareAttributeNames attrNames =>
-  AttributeNames ->
+  attrNames ->
   RelationalExprBase attrNames () ->
   InclusionDependencyBase attrNames ()
-inclusionDependencyForKey attrNames relExpr = 
+inclusionDependencyForKey attrs relExpr = 
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where
-    projectedOnKeys = Project (bareAttributeNames attrNames)
+    projectedOnKeys = Project attrs
     exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
     exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] defaultMarker)) (exprAsSubRelation expr))
     projectionForCount = Project (bareAttributeNames (S.singleton "b"))
@@ -47,7 +47,7 @@ databaseContextExprForUniqueKey ::
   RelVarName ->
   [AttributeName] ->
   DatabaseContextExprBase attrNames marker r
-databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (S.fromList attrNames) (RelationVariable rvName defaultMarker)
+databaseContextExprForUniqueKey rvName attrNames = AddInclusionDependency (rvName <> "_" <> cols <>  "_key") $ inclusionDependencyForKey (bareAttributeNames (S.fromList attrNames)) (RelationVariable rvName defaultMarker)
   where
     cols = T.intercalate "_" attrNames
 

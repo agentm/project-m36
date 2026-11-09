@@ -1,6 +1,7 @@
 module TutorialD.Interpreter.Import.TutorialD where
 import ProjectM36.Base
 import ProjectM36.Interpreter
+import ProjectM36.AttributeNamesExprBase
 import TutorialD.Interpreter.Import.Base
 import TutorialD.Interpreter.Base hiding (try)
 import TutorialD.Interpreter.DatabaseContextExpr

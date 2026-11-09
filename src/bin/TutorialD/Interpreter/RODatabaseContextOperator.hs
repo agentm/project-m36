@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs #-}
 module TutorialD.Interpreter.RODatabaseContextOperator where
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Relation
 import ProjectM36.Interpreter
 import qualified ProjectM36.DataFrame as DF
