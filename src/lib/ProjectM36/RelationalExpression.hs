@@ -1478,7 +1478,6 @@ relationVariablesAsRelation ctx graph = do
   mkRelationFromList attrs tups
 
 -- | An unoptimized variant of evalGraphRefRelationalExpr for testing.
-{-
 evalRelationalExpr :: GraphRefRelationalExpr -> RelationalExprM Relation
 evalRelationalExpr expr = do
   graph <- reGraph
@@ -1487,7 +1486,6 @@ evalRelationalExpr expr = do
   case runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr expr) of
     Left err -> throwError err
     Right rel -> pure rel
--}
 
 class (MonadError RelationalError m, Monad m) => DatabaseContextM m where
   getContext :: m DatabaseContext

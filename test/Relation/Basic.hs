@@ -1,14 +1,17 @@
 import Test.HUnit
 import ProjectM36.Base
+import ProjectM36.AttributeNamesExprBase
 import ProjectM36.Relation
 import ProjectM36.Error
 import ProjectM36.DateExamples
 import ProjectM36.DatabaseContext
 import ProjectM36.DataTypes.Primitive
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.TransactionGraph
 import ProjectM36.Tuple
 import ProjectM36.Attribute (attributesFromList)
+import ProjectM36.NormalizeExpr
 import qualified ProjectM36.DatabaseContext as DBC
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
@@ -98,12 +101,15 @@ testMkRelationFromExprsBadAttrs :: Test
 testMkRelationFromExprsBadAttrs = TestCase $ do
   let context = DBC.empty 
   (graph,_) <- freshTransactionGraph context  
-  let reenv = mkRelationalExprEnv context graph
+  let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
+      reExpr :: RelationalExpr
       reExpr = MakeRelationFromExprs (Just [AttributeAndTypeNameExpr "badAttr1" (PrimitiveTypeConstructor "Int" IntAtomType) ()]) (TupleExprs () [TupleExpr (M.singleton "badAttr2" (NakedAtomExpr (IntAtom 1)))])
-      evald = runRelationalExprM reenv (evalRelationalExpr reExpr)
-  case evald of
-    Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
-    Right _ -> assertFailure "expected tuple type mismatch"
+  case normalize' context graph reExpr of
+    Left err -> assertFailure $ "normalization " <> show err
+    Right gfExpr ->
+      case runGraphRefRelationalExprM gfEnv (evalGraphRefRelationalExpr gfExpr) of
+        Left err -> assertEqual "tuple type mismatch" (TupleAttributeTypeMismatchError (A.attributesFromList [Attribute "badAttr2" IntAtomType])) err
+        Right _ -> assertFailure "expected tuple type mismatch"
 
 testExistingRelationType :: Test
 testExistingRelationType = TestCase $ do
