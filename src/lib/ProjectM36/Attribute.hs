@@ -310,3 +310,4 @@ reorderAttributes attrsOrder attrs =
   where
     mapper attrOrder = do
       attributeForName (attributeName attrOrder) attrs
+

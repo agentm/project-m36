@@ -3,7 +3,6 @@ import ProjectM36.Client
 import ProjectM36.Interpreter as I
 import TutorialD.Interpreter
 import ProjectM36.DateExamples
-import ProjectM36.DatabaseContextExpr
 import Test.HUnit
 import Data.Text (Text, unpack)
 import System.Random (mkStdGen)
@@ -18,7 +17,7 @@ dateExamplesConnection callback = do
       case eSessionId of
         Left err -> error (show err)
         Right sessionId -> do
-          executeDatabaseContextExpr sessionId conn (resolvedDatabaseContextAsDatabaseContextExpr dateExamples) >>= eitherFail
+          executeDatabaseContextExpr sessionId conn dateExamplesAsDatabaseContextExpr >>= eitherFail
       --skipping atom functions for now- there are no atom function manipulation operators yet
           commit sessionId conn >>= eitherFail
           pure (sessionId, conn)

@@ -92,7 +92,6 @@ import GHC.Builtin.Types (unitTy)
 import GHC.Core.TyCo.Compare (eqType)
 import Unsafe.Coerce
 import Control.Monad (forM)
-
 #endif
 
 data DatabaseContextExprDetails = CountUpdatedTuples
@@ -126,7 +125,7 @@ envAttributes e =
     Nothing -> mempty
     Just (Left tup) -> tupleAttributes tup
     Just (Right attrs) -> attrs
-  
+
 runRelationalExprM :: RelationalExprEnv -> RelationalExprM a -> Either RelationalError a
 runRelationalExprM env m = runIdentity (runExceptT (runReaderT m env))
 
@@ -1380,13 +1379,13 @@ typeForGraphRefRestrictionPredicateExpr expr = do
 
 type NormalizeRelationalExpr = RelationalExprBase (AttributeNamesExprBase GraphRefTransactionMarker) GraphRefTransactionMarker -> GraphRefRelationalExprM (RelationalExprBase AttributeNames GraphRefTransactionMarker)
 
-evalGraphRefAttributeNamesExpr :: NormalizeRelationalExpr -> GraphRefAttributeNamesExpr -> GraphRefRelationalExpr -> GraphRefRelationalExprM (S.Set AttributeName)
-evalGraphRefAttributeNamesExpr normalizeRelationalExpr attrNames expr = do
-  exprType' <- typeForGraphRefRelationalExpr expr
-  let typeNameSet = S.fromList (V.toList (A.attributeNames (attributes exprType')))
-  case attrNames of
+evalGraphRefAttributeNamesExpr :: NormalizeRelationalExpr -> GraphRefAttributeNamesExpr -> GraphRefRelationalExprM (S.Set AttributeName)
+evalGraphRefAttributeNamesExpr normalizeRelationalExpr attrNamesExpr = do
+  envAttrs <- asks envAttributes
+  let typeNameSet = A.attributeNameSet envAttrs
+  case attrNamesExpr of
     AttributeNames names ->
-      case A.projectionAttributesForNames names (attributes exprType') of
+      case A.projectionAttributesForNames names envAttrs of
         Left err -> throwError err
         Right attrs -> pure (S.fromList (V.toList (A.attributeNames attrs)))
           
@@ -1398,13 +1397,13 @@ evalGraphRefAttributeNamesExpr normalizeRelationalExpr attrNames expr = do
             pure (A.nonMatchingAttributeNameSet names typeNameSet)
         
     UnionAttributeNames namesA namesB -> do
-      nameSetA <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesA expr
-      nameSetB <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesB expr
+      nameSetA <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesA
+      nameSetB <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesB
       pure (S.union nameSetA nameSetB)
         
     IntersectAttributeNames namesA namesB -> do
-      nameSetA <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesA expr
-      nameSetB <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesB expr
+      nameSetA <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesA
+      nameSetB <- evalGraphRefAttributeNamesExpr normalizeRelationalExpr namesB
       pure (S.intersection nameSetA nameSetB)
 
     -- supports tutd "all from" syntax

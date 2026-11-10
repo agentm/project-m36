@@ -72,7 +72,6 @@ optimizeAndEvalGraphRefRelationalExpr optEnv gfEnv gfExpr = do
 -- apply static optimizer first, then cost-based optimizer, finally execute the optimized query, if this is an experiment, then we don't make suggestions
   --first, type check
   case runGraphRefRelationalExprM gfEnv (do
---    gfExpr' <- normalizeAttributeNames (ExistingRelation relationTrue) gfExpr
     _ <- typeForGraphRefRelationalExpr gfExpr
     pure gfExpr) of
     Left err -> pure (Left err)

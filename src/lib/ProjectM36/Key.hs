@@ -36,9 +36,11 @@ inclusionDependencyForKey attrs relExpr =
  InclusionDependency equalityExpr (ExistingRelation relationFalse)
   where
     projectedOnKeys = Project attrs
-    exprAsSubRelation expr = Extend (AttributeExtendTupleExpr "a" (RelationAtomExpr expr)) (ExistingRelation relationTrue)
-    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr "b" (FunctionAtomExpr "count" [AttributeAtomExpr "a"] defaultMarker)) (exprAsSubRelation expr))
-    projectionForCount = Project (bareAttributeNames (S.singleton "b"))
+    aName = "_key_a"
+    bName = "_key_b"
+    exprAsSubRelation expr = Extend (AttributeExtendTupleExpr aName (RelationAtomExpr expr)) (ExistingRelation relationTrue)
+    exprCount expr = projectionForCount (Extend (AttributeExtendTupleExpr bName (FunctionAtomExpr "count" [AttributeAtomExpr aName] defaultMarker)) (exprAsSubRelation expr))
+    projectionForCount = Project (bareAttributeNames (S.singleton bName))
     equalityExpr = NotEquals (exprCount relExpr) (exprCount (projectedOnKeys relExpr))
 
 -- | Create a 'DatabaseContextExpr' which can be used to add a uniqueness constraint to attributes on one relation variable.

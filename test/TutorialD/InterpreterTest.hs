@@ -11,6 +11,7 @@ import ProjectM36.DatabaseContext.Types hiding (DatabaseContextFunctionUtils(..)
 import ProjectM36.DatabaseContext
 import ProjectM36.AtomFunctions.Primitive
 import ProjectM36.RelationalExpression
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.DataTypes.Either
 import ProjectM36.DataTypes.Interval
 import ProjectM36.DataTypes.NonEmptyList
@@ -24,7 +25,7 @@ import ProjectM36.Client
 import ProjectM36.HashSecurely
 import ProjectM36.Interpreter as I
 import qualified ProjectM36.DisconnectedTransaction as Discon
-import qualified ProjectM36.AttributeNames as AN
+import qualified ProjectM36.AttributeNamesExpr as AN
 import qualified ProjectM36.Session as Sess
 import qualified ProjectM36.Attribute as A
 import qualified Data.Map as M
