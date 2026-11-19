@@ -30,6 +30,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
+import ProjectM36.AccessControlList (RoleId)
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -84,12 +85,12 @@ instance Optimize AttrExpr.RelationalExpr AttrNames.GraphRefRelationalExpr where
 instance Optimize AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContextExpr' where
   type OptimizeEnv AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContextExpr' = GraphRefSOptDatabaseContextExprEnv
   optimize env expr = do
-    let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-        graph = odce_graph env
+    let graph = odce_graph env
         transId = odce_transId env
         ctx = odce_context env
         dbcfuncutils = odce_dbcfuncutils env
-    gfExpr <- runGraphRefRelationalExprM gfEnv (normalizeM expr)
+        dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+    (gfExpr, _) <- evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr)
     runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
 -- | Apply pure optimizations.
@@ -114,17 +115,14 @@ optimizeAndEvalDatabaseContextExpr runOpt expr = do
   transId <- asks dce_transId
   context <- getStateContext
   dbcfuncutils <- asks dce_dbcfuncutils
-  let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph  
-  case runGraphRefRelationalExprM gfEnv (normalizeM expr) of
+  gfExpr <- normalizeM expr
+  let eOptExpr = if runOpt then
+                   runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
+                 else
+                   pure gfExpr
+  case eOptExpr of
     Left err -> throwError err
-    Right gfExpr -> do
-      let eOptExpr = if runOpt then
-                       runGraphRefSOptDatabaseContextExprM transId context graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
-                     else
-                       pure gfExpr
-      case eOptExpr of
-        Left err -> throwError err
-        Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
+    Right optExpr -> evalGraphRefDatabaseContextExpr optExpr
 
 -- if normalization always happens outside these functions, maybe we should only optimize normalized expressions
 optimizeRelationalExpr :: RelationalExprEnv -> AttrNames.RelationalExpr -> Either RelationalError AttrNames.GraphRefRelationalExpr
@@ -160,10 +158,13 @@ optimizeDatabaseContextExpr :: AttrExpr.DatabaseContextExpr' -> GraphRefSOptData
 optimizeDatabaseContextExpr expr = do
   graph <- asks odce_graph
   ctx <- asks odce_context
+  transId <- askTransId
+  dbcfuncutils <- asks odce_dbcfuncutils
   let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-  case runGraphRefRelationalExprM gfEnv (normalizeM expr) of
+      dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+  case evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr) of
     Left err -> throwError err
-    Right gfExpr ->
+    Right (gfExpr, _) ->
       optimizeGraphRefDatabaseContextExpr gfExpr
   
 

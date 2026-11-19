@@ -330,7 +330,9 @@ relationVariablesInSchema normRelExpr schema@(Schema morphs) = foldM transform M
 relationVariablesAsRelationInSchema :: DatabaseContext -> Schema -> TransactionGraph -> Either RelationalError Relation
 relationVariablesAsRelationInSchema ctx (Schema []) graph = relationVariablesAsRelation ctx graph -- no schema morphism
 relationVariablesAsRelationInSchema concreteDbContext schema graph = do
-  rvDefsInConcreteSchema <- relationVariablesInSchema (normalize' concreteDbContext graph) schema
+  let normalizer :: RelationalExpr -> Either RelationalError NormalizedRelationalExpr
+      normalizer expr = normalize (Just concreteDbContext) graph expr
+  rvDefsInConcreteSchema <- relationVariablesInSchema normalizer schema
   let gfEnv = freshGraphRefRelationalExprEnv (Just concreteDbContext) graph
   typAssocs <- forM (M.toList rvDefsInConcreteSchema) $ \(rv, gfExpr) -> do
     typ <- runGraphRefRelationalExprM gfEnv (typeForGraphRefRelationalExpr gfExpr)

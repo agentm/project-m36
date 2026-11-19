@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 module ProjectM36.AccessControl where
 import ProjectM36.Base
+import ProjectM36.RelationalExpression.Types
 import ProjectM36.AttributeNamesBase (DatabaseContextExpr')
 import ProjectM36.Error
 import ProjectM36.AccessControlList

@@ -5,8 +5,8 @@ import ProjectM36.Transaction.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.RelationalExpression.Types
-import Control.Monad.Trans.Except (except)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Error.Class (throwError)
 
 import qualified Data.UUID as U
 import qualified Data.Set as S
@@ -30,4 +30,4 @@ transactionForId tid graph
 gfTransForId :: TransactionId -> GraphRefRelationalExprM Transaction
 gfTransForId tid = do
   graph <- gfGraph
-  lift $ except $ transactionForId tid graph
+  either throwError pure (transactionForId tid graph)

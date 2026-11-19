@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, GeneralizedNewtypeDeriving #-}
 module ProjectM36.RelationalExpression.Types where
 import ProjectM36.Base
 import ProjectM36.Error
@@ -9,10 +9,12 @@ import ProjectM36.AccessControlList
 
 import Data.Functor.Identity
 import Control.Monad.Reader (ReaderT, runReaderT, asks)
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT, MonadError)
 import qualified Data.Map as M
+import Control.Monad.RWS.Strict (RWST, MonadReader, MonadState, MonadIO)
 
-type GraphRefRelationalExprM a = ReaderT GraphRefRelationalExprEnv (ExceptT RelationalError Identity) a
+newtype GraphRefRelationalExprM a = GraphRefRelationalExprM { _unGraphRefRelationalExprM :: ReaderT GraphRefRelationalExprEnv (ExceptT RelationalError Identity) a }
+ deriving (Monad, MonadReader GraphRefRelationalExprEnv, Applicative, Functor, MonadError RelationalError)
 
 -- | The context is optionally passed down along in cases where the current context is uncommitted.
 data GraphRefRelationalExprEnv =
@@ -30,11 +32,17 @@ data DatabaseContextEvalState = DatabaseContextEvalState {
 type NormalizeRelationalExprF = DatabaseContext -> TransactionGraph -> RelationalExprBase (AttributeNamesExprBase ()) () -> Either RelationalError NormalizedRelationalExpr
   
 data DatabaseContextEvalEnv = DatabaseContextEvalEnv
-  { dce_transId :: TransactionId,
+  { dce_transId :: TransactionId, -- ^ parent transaction id
     dce_graph :: TransactionGraph,
     dce_dbcfuncutils :: DatabaseContextFunctionUtils,
     dce_normalizeRelationalExpr :: NormalizeRelationalExprF
   }
+
+newtype DatabaseContextEvalMonad a = DatabaseContextEvalMonad { _unDatabaseContextEvalMonad :: RWST DatabaseContextEvalEnv () DatabaseContextEvalState (ExceptT RelationalError Identity) a }
+  deriving (Monad, MonadReader DatabaseContextEvalEnv, Applicative, Functor, MonadError RelationalError, MonadState DatabaseContextEvalState)
+
+newtype DatabaseContextIOEvalMonad a = DatabaseContextIOEvalMonad { _unDatabaseContextIOEvalMonad :: RWST DatabaseContextIOEvalEnv () DatabaseContextEvalState (ExceptT RelationalError IO) a }
+  deriving (Monad, MonadReader DatabaseContextIOEvalEnv, Applicative, Functor, MonadError RelationalError, MonadState DatabaseContextEvalState, MonadIO)
 
 --used to eval relationalexpr
 type RelationalExprM a = ReaderT RelationalExprEnv (ExceptT RelationalError Identity) a
@@ -55,7 +63,7 @@ data ResultAccum = ResultAccum { resultAccumFunc :: ResultAccumFunc,
                                  }
 
 data DatabaseContextIOEvalEnv = DatabaseContextIOEvalEnv
-  { dbcio_transId :: TransactionId,
+  { dbcio_transId :: TransactionId, -- ^ parent transaction ID
     dbcio_graph :: TransactionGraph,
     dbcio_mScriptSession :: Maybe ScriptSession,
     dbcio_roleId :: RoleId,
@@ -73,7 +81,7 @@ freshGraphRefRelationalExprEnv mctx graph = GraphRefRelationalExprEnv {
   }
 
 runGraphRefRelationalExprM :: GraphRefRelationalExprEnv -> GraphRefRelationalExprM a -> Either RelationalError a
-runGraphRefRelationalExprM env m = runIdentity (runExceptT (runReaderT m env))
+runGraphRefRelationalExprM env (GraphRefRelationalExprM m) = runIdentity (runExceptT (runReaderT m env))
 
 gfGraph :: GraphRefRelationalExprM TransactionGraph
 gfGraph = asks gre_graph
