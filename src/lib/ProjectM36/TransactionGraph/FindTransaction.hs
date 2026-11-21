@@ -5,7 +5,6 @@ import ProjectM36.Transaction.Types
 import ProjectM36.TransactionGraph.Types
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.RelationalExpression.Types
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Error.Class (throwError)
 
 import qualified Data.UUID as U

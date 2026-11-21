@@ -30,7 +30,6 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
-import ProjectM36.AccessControlList (RoleId)
 
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
@@ -160,8 +159,7 @@ optimizeDatabaseContextExpr expr = do
   ctx <- asks odce_context
   transId <- askTransId
   dbcfuncutils <- asks odce_dbcfuncutils
-  let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph
-      dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+  let dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
   case evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr) of
     Left err -> throwError err
     Right (gfExpr, _) ->

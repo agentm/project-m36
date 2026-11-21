@@ -1,7 +1,7 @@
 -- | Functions to convert all types of expresions into their GraphRef- equivalents.
 {-# LANGUAGE MultiParamTypeClasses, TypeFamilies, FlexibleInstances, RankNTypes, FlexibleContexts, TypeOperators #-}
 module ProjectM36.NormalizeExpr where
-import ProjectM36.Base (GraphRefTransactionMarker, RelationalExprBase(..), RestrictionPredicateExprBase(..), WithNameExprBase(..), AttributeNamesExprBase(..), AttributeNamesExprBase(..), DatabaseContextExprBase(..), DatabaseContextIOExprBase(..), ExtendTupleExprBase(..), AtomExprBase(..), TupleExprsBase(..), TupleExprBase(..), AttributeExprBase(..), AttributeNames, WithNamesAssocsBase , AttributeNamesExprBase(..), AttributeNameAtomExprMapBase, InclusionDependencyBase(..), GraphRefTransactionMarker(..))
+import ProjectM36.Base (GraphRefTransactionMarker, RelationalExprBase(..), RestrictionPredicateExprBase(..), WithNameExprBase(..), AttributeNamesExprBase(..), AttributeNamesExprBase(..), DatabaseContextExprBase(..), DatabaseContextIOExprBase(..), ExtendTupleExprBase(..), AtomExprBase(..), TupleExprsBase(..), TupleExprBase(..), AttributeExprBase(..), AttributeNames, WithNamesAssocsBase , AttributeNamesExprBase(..), AttributeNameAtomExprMapBase, InclusionDependencyBase(..), GraphRefTransactionMarker(..), Relation(..))
 import ProjectM36.Relation (attributes)
 import ProjectM36.Error
 import ProjectM36.TransGraphRelationalExpression.Types
@@ -12,12 +12,15 @@ import ProjectM36.RelationalExpression.Types
 import ProjectM36.RelationalExpression
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.AttributeNamesExpr (normalizeMarker)
+import qualified ProjectM36.TupleSet as TS
+import qualified ProjectM36.Attribute as A
 
 import Control.Monad.Except
 import qualified Data.Map as M
-import Control.Monad.Reader (local, asks)
-import Control.Monad.State (get)
+import Control.Monad.Reader (local)
 import Data.Kind (Type)
+
+import Debug.Trace
 
 class NormalizableAttributeNames a where
   -- | convert AttributeNamesExpr -> AttributeNames (removing expressions to calculate attribute names)
@@ -287,26 +290,48 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
   
   normalizeAttributeNames expr = do
     graph <- dbcGraph
-    context <- getStateContext
-    let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
-        normGfExpr expr = 
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+    let 
+        normGfExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normPredExpr expr =
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+        normPredExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normAtomExpr expr =
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+        normAtomExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-            
+        runRel :: GraphRefRelationalExprM a -> DatabaseContextEvalMonad a
+        runRel m = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
+          case runGraphRefRelationalExprM gfEnv m of
+            Left err -> throwError err
+            Right val -> pure val
     case expr of
       NoOperation -> pure NoOperation
-      Define nam attrExprs -> pure (Define nam attrExprs)
-      Undefine nam -> pure (Undefine nam)
-      Assign nam rexpr -> Assign nam <$> normGfExpr rexpr
+      Define nam attrExprs -> do
+        -- since we may have a MultipleExpr evaluation, we need to populate a suitable relvar with attributes and zero tuples
+        attrs <- runRel (mapM evalGraphRefAttrExpr (fmap (fmap (const UncommittedContextMarker)) attrExprs))
+        setRelVar nam (ExistingRelation (Relation (A.attributesFromList attrs) TS.empty))
+        pure (Define nam attrExprs)
+      Undefine nam -> do
+        deleteRelVar nam
+        pure (Undefine nam)
+      Assign nam relExpr -> do
+        normAttrsRelExpr <- normGfExpr relExpr
+        let normRelExpr = normalizeTransactionMarker' normAttrsRelExpr
+        relType <- runRel (typeForGraphRefRelationalExpr normRelExpr) -- requires transaction marker normalization
+        setRelVar nam (ExistingRelation (Relation (attributes relType) TS.empty))
+        pure (Assign nam normAttrsRelExpr)
       Insert nam rexpr -> Insert nam <$> normGfExpr rexpr
       Delete nam pred' -> Delete nam <$> normPredExpr pred'
       Update nam attrMap pred' -> Update nam <$> normalizeAttributeNames attrMap <*> normPredExpr pred'
@@ -410,23 +435,39 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
     graph <- dbcGraph
     context <- getStateContext
     let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
-        normGfExpr expr = 
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+        normGfExpr expr' = 
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normPredExpr expr =
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+        normPredExpr expr' =
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normAtomExpr expr =
-          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr) of
+        normAtomExpr expr' =
+          case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
+            Left err -> throwError err
+            Right val -> pure val
+        runRel :: GraphRefRelationalExprM a -> DatabaseContextEvalMonad a
+        runRel m = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
+          case runGraphRefRelationalExprM gfEnv m of
             Left err -> throwError err
             Right val -> pure val
     case expr of
       NoOperation -> pure NoOperation
-      Define nam attrExprs -> pure (Define nam attrExprs)
-      Undefine nam -> pure (Undefine nam)
-      Assign nam rexpr -> Assign nam <$> normGfExpr rexpr
+      Define nam attrExprs -> do
+        attrs <- runRel (mapM evalGraphRefAttrExpr (fmap (fmap (const UncommittedContextMarker)) attrExprs))
+        setRelVar nam (ExistingRelation (Relation (A.attributesFromList attrs) TS.empty))
+        pure (Define nam attrExprs)
+      Undefine nam -> do
+        deleteRelVar nam
+        pure (Undefine nam)
+      Assign nam relExpr -> do
+        normRelExpr <- normGfExpr relExpr
+        relType <- runRel (typeForGraphRefRelationalExpr normRelExpr) -- requires transaction marker normalization
+        setRelVar nam (ExistingRelation (Relation (attributes relType) TS.empty))
+        pure (Assign nam normRelExpr)        
       Insert nam rexpr -> Insert nam <$> normGfExpr rexpr
       Delete nam pred' -> Delete nam <$> normPredExpr pred'
       Update nam attrMap pred' -> Update nam <$> normalizeAttributeNames attrMap <*> normPredExpr pred'

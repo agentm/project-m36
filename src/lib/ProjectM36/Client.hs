@@ -687,22 +687,13 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
           dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
           gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
           transId = Sess.parentId session
-          normDBCExpr :: forall a.
-            (
-              NormalizableTransactionMarker a,
-              NormalizableAttributeNames (Ret a),
-              AttributeNamesM (Ret a) ~ RE.DatabaseContextEvalMonad,
-              Args a ~ GraphRefTransactionMarker
-            )
-            => DatabaseContext -> a -> Either RelationalError (AttributeNamesResult (Ret a))
-          normDBCExpr ctx expr =
-            fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr)
+          normDBCExpr ctx dbexpr =
+            fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr dbexpr)
           dbcfuncutils = DBC.DatabaseContextFunctionUtils {
                     DBC.executeDatabaseContextExpr = \ctx' dbexpr' -> 
                         case resolveRoleIds roleNameResolver dbexpr' of
                           Left err -> Left err
                           Right dbexpr'' -> do
-                            let gfEnv' = RE.freshGraphRefRelationalExprEnv (Just ctx') graph
                             case normDBCExpr ctx' dbexpr'' of
                               Left err -> Left err
                               Right normDBexpr ->
@@ -715,24 +706,21 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
                           normExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' relExpr)
                           StaticOpt.optimizeAndEvalRelationalExpr reEnv normExpr
                       }
-          normAttrNames e = do
-            fst <$> RE.evalDatabaseContextEvalMonad dbctx dbcEnv (normalizeAttributeNames' e)            
           expr' =
             if schemaName session == defaultSchemaName then
-              resolveRoleIds roleNameResolver expr >>=
-              normAttrNames 
+              resolveRoleIds roleNameResolver expr
             else 
               resolveRoleIds roleNameResolver expr >>=
-              Schema.processDatabaseContextExprInSchema schema >>=
-              normAttrNames
+              Schema.processDatabaseContextExprInSchema schema
           roleNameResolver nam = fst <$> lookup nam roles
       case expr' of 
             Left err -> pure (Left err)
             Right expr'' -> do
               let runExpr = do
-                    applyACLDatabaseContextExpr roleIds expr''
-                    let normExpr' = normalizeDBCExpr dbctx expr''
-                    Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr'
+                    normExpr' <- normalizeAttributeNames' expr''
+                    applyACLDatabaseContextExpr roleIds normExpr'
+                    normExpr'' <- normalizeDBCExpr expr''
+                    Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr''
               case RE.runDatabaseContextEvalMonad dbctx dbcEnv runExpr of
                 Left err -> pure (Left err)
                 Right newState ->
@@ -829,14 +817,14 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
               Right res -> pure (Right res)
           dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
           roleNameResolver nam = fst <$> lookup nam roles
+          normDBCExpr ctx dbexpr =
+            fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr dbexpr)
           dbcFuncUtils = DBC.DatabaseContextFunctionUtils {
             DBC.executeDatabaseContextExpr = \ctx' expr' ->
                     case resolveRoleIds roleNameResolver expr' of
                       Left err -> Left err
                       Right expr'' -> do
-                        let gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx') graph          
-                        
-                        case RE.runGraphRefRelationalExprM gfEnv (normalizeM expr'') of
+                        case normDBCExpr ctx' expr'' of
                           Left err -> Left err
                           Right normDBexpr ->
                             case RE.runDatabaseContextEvalMonad ctx' dbcEnv (Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normDBexpr) of
@@ -1013,15 +1001,16 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = do
                 Left err -> pure (Left err)
                 Right () -> do
                   let dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize'
+                      normDBCExpr ctx expr =
+                        fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr)
+
                       dbcFunctionUtils = DBC.DatabaseContextFunctionUtils {
                         DBC.executeDatabaseContextExpr =
                             \ctx' dbexpr ->
                               case resolveRoleIds roleNameResolver dbexpr of
                                 Left err -> Left err
                                 Right expr'' -> do
-                                  let gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx') graph
-                                  normExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeM expr'')
-                                  
+                                  normExpr <- normDBCExpr ctx' expr''
                                   case RE.runDatabaseContextEvalMonad ctx' dbcEnv (Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr) of
                                     Left err -> Left err
                                     Right reState -> pure (RE.dbc_context reState)
@@ -1172,20 +1161,40 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
         if schemaName session == defaultSchemaName then do
           let ctx = Sess.concreteDatabaseContext session
               transId = Sess.parentId session
-              gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx) graph
               roleNameResolver nam = fst <$> lookup nam roles
               roleIdResolver roleId = lookup roleId (map (\(a,(b,_c)) -> (b,a)) roles)
-          case RE.runGraphRefRelationalExprM gfEnv (normalizeM dbExpr) of
-            Left err -> pure (Left err)
-            Right gfExpr -> do
-              case resolveRoleIds roleNameResolver gfExpr of
-                Left err -> pure (Left err)
-                Right gfExpr' -> do
+              dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize'              
+              normDBCExpr ctx' expr =
+                fst <$> RE.evalDatabaseContextEvalMonad ctx' dbcEnv (normalizeDBCExpr expr)
+              dbcFunctionUtils = DBC.DatabaseContextFunctionUtils {
+                        DBC.executeDatabaseContextExpr =
+                            \ctx' dbexpr ->
+                              case resolveRoleIds roleNameResolver dbexpr of
+                                Left err -> Left err
+                                Right expr'' -> do
+                                  normExpr <- normDBCExpr ctx' expr''
+                                  case RE.runDatabaseContextEvalMonad ctx' dbcEnv (Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr) of
+                                    Left err -> Left err
+                                    Right reState -> pure (RE.dbc_context reState)
+                              ,
+                        DBC.executeRelationalExpr =
+                        \ctx' relExpr -> do
+                          let reEnv = RE.mkRelationalExprEnv ctx' graph
+                              gfEnv = RE.freshGraphRefRelationalExprEnv (Just ctx') graph
+                          normExpr <- RE.runGraphRefRelationalExprM gfEnv (normalizeAttributeNames' relExpr)                          
+                          StaticOpt.optimizeAndEvalRelationalExpr reEnv normExpr
+                        }
+          case resolveRoleIds roleNameResolver dbExpr of
+           Left err -> pure (Left err)
+           Right dbExpr' ->
+            case normDBCExpr ctx dbExpr' of
+             Left err -> pure (Left err)
+             Right gfExpr -> do
                   let dbcFuncUtils = DBC.DatabaseContextFunctionUtils {
                         DBC.executeDatabaseContextExpr = undefined,
                         DBC.executeRelationalExpr = undefined
                         }
-                  case StaticOpt.runGraphRefSOptDatabaseContextExprM transId ctx graph dbcFuncUtils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr') of
+                  case StaticOpt.runGraphRefSOptDatabaseContextExprM transId ctx graph dbcFuncUtils (StaticOpt.optimizeGraphRefDatabaseContextExpr gfExpr) of
                     Left err -> pure (Left err)
                     Right optExpr -> 
               -- convert roleIds back roleNames to avoid leaking role ids to the client

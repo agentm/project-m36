@@ -33,7 +33,6 @@ import ProjectM36.IsomorphicSchema.Types hiding (concreteDatabaseContext, subsch
 import ProjectM36.DatabaseContext.Types
 import ProjectM36.GraphRefRelationalExpr
 import qualified ProjectM36.Attribute as A
-import ProjectM36.Module
 import ProjectM36.RelationalExpression.Types
 import ProjectM36.TransactionGraph.FindTransaction
 
@@ -42,8 +41,8 @@ import qualified Data.Map as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import Control.Monad (foldM, unless, when, forM_)
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError, catchError)
-import Control.Monad.Reader (ReaderT, runReaderT, asks, ask, local)
+import Control.Monad.Except (MonadError, runExceptT, throwError, catchError)
+import Control.Monad.Reader (runReaderT, asks, ask, local)
 import qualified Control.Monad.Reader as R
 import Control.Monad.State (gets, get, put)
 import Control.Monad.Trans.Class (lift)
@@ -63,7 +62,7 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import qualified Control.Monad.RWS.Strict as RWS
-import Control.Monad.RWS.Strict (RWST, evalRWST, runRWST)
+import Control.Monad.RWS.Strict (runRWST)
 import Control.Monad.Trans.Except (except)
 import Test.QuickCheck
 import Data.Functor (void)
@@ -74,8 +73,6 @@ import System.IO.Temp
 import System.IO (hClose)
 import qualified Data.Text.IO as TIO
 import Data.Default
-
-import Debug.Trace
 
 import GHC hiding (getContext)
 import Control.Exception
@@ -159,7 +156,7 @@ mkDatabaseContextEvalEnv = DatabaseContextEvalEnv
 
 evalDatabaseContextEvalMonad :: DatabaseContext -> DatabaseContextEvalEnv -> DatabaseContextEvalMonad a -> Either RelationalError (a, DatabaseContextEvalState)
 evalDatabaseContextEvalMonad ctx env (DatabaseContextEvalMonad m) = do
-  (a, s, w) <- runIdentity (runExceptT (runRWST m env freshEnv))
+  (a, s, _w) <- runIdentity (runExceptT (runRWST m env freshEnv))
   pure (a, s)
   where
     freshEnv = mkDatabaseContextEvalState ctx
@@ -1283,7 +1280,7 @@ typeForGraphRefRelationalExpr' _th (RelationVariable rvName tid) = do
     Left err -> throwError err
     Right relVars -> do
       case M.lookup rvName relVars of
-        Nothing -> throwError (traceShow "typeFor" (RelVarNotDefinedError rvName))
+        Nothing -> throwError (RelVarNotDefinedError rvName)
         Just rvExpr -> 
           typeForGraphRefRelationalExpr rvExpr
 typeForGraphRefRelationalExpr' _th (RelationValuedAttribute attrName) = do
@@ -1510,7 +1507,7 @@ relVarByName rvName = do
     Left err -> throwError err
     Right relvars -> 
       case M.lookup rvName relvars of
-        Nothing -> throwError (traceShow "relVarByName" (RelVarNotDefinedError rvName))
+        Nothing -> throwError (RelVarNotDefinedError rvName)
         Just gfexpr -> pure gfexpr
   
 -- | resolve UncommittedTransactionMarker whenever possible- this is important in the DatabaseContext in order to mitigate self-referencing loops for updates
