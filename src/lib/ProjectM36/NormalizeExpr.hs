@@ -69,11 +69,17 @@ instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase 
       Difference exprA exprB ->
         Difference <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
       Group attrNameExprs gname expr' -> do
-        Group <$> normalizeAttributeNames attrNameExprs <*> pure gname <*> normalizeAttributeNames expr'
+        normExpr <- normalizeAttributeNames expr'
+        exprType' <- typeForGraphRefRelationalExpr (fmap (const UncommittedContextMarker) normExpr)
+        let env = mergeAttributesIntoGraphRefRelationalExprEnv (attributes exprType')
+        Group <$> local env (normalizeAttributeNames attrNameExprs) <*> pure gname <*> pure normExpr
       Ungroup ungname expr' ->
         Ungroup ungname <$> normalizeAttributeNames expr'
-      Restrict rpredExpr expr' ->
-        Restrict <$> normalizeAttributeNames rpredExpr <*> normalizeAttributeNames expr'
+      Restrict rpredExpr expr' -> do
+        normExpr <- normalizeAttributeNames expr'
+        exprType' <- typeForGraphRefRelationalExpr (fmap (const UncommittedContextMarker) normExpr)
+        let env = mergeAttributesIntoGraphRefRelationalExprEnv (attributes exprType')         
+        Restrict <$> local env (normalizeAttributeNames rpredExpr) <*> pure normExpr
       Equals exprA exprB ->
         Equals <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
       NotEquals exprA exprB ->
@@ -572,8 +578,11 @@ instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase 
         Rename renameAssocs <$> normalizeAttributeNames expr'
       Difference exprA exprB ->
         Difference <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
-      Group attrNameExprs gname expr' ->
-        Group <$> normalizeAttributeNames attrNameExprs <*> pure gname <*> normalizeAttributeNames expr'
+      Group attrNameExprs gname expr' -> do
+        normExpr <- normalizeAttributeNames expr'
+        exprType' <- typeForGraphRefRelationalExpr (fmap (const UncommittedContextMarker) normExpr)
+        let env = mergeAttributesIntoGraphRefRelationalExprEnv (attributes exprType')
+        Group <$> local env (normalizeAttributeNames attrNameExprs) <*> pure gname <*> pure normExpr
       Ungroup ungname expr' ->
         Ungroup ungname <$> normalizeAttributeNames expr'
       Restrict rpredExpr expr' -> do
