@@ -209,7 +209,6 @@ import qualified Data.Map as M
 import qualified StmContainers.Map as StmMap
 import GHC.Generics (Generic)
 import Control.DeepSeq (force)
-import System.IO
 import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Network.RPC.Curryer.Client as CRPC
@@ -223,6 +222,8 @@ import Data.Maybe (catMaybes)
 import qualified Network.Socket as Socket
 import qualified Data.HashSet as HS
 import System.Random (StdGen)
+
+import Debug.Trace
 
 type Hostname = String
 type Port = Word16
@@ -314,7 +315,7 @@ createScriptSession :: [String] -> IO (Maybe ScriptSession)
 createScriptSession ghcPkgPaths = do
   eScriptSession <- initScriptSession ghcPkgPaths
   case eScriptSession of
-    Left err -> hPutStrLn stderr ("Warning: Haskell scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
+    Left _err -> pure Nothing -- hPutStrLn stderr ("Warning: Haskell scripting disabled: " ++ show err) >> pure Nothing --not a fatal error, but the scripting feature must be disabled
     Right s -> pure (Just s)
 
 -- | Resolve a server address using DNS, if necessary. The caller is expected to set any necessary socket options afterwards.
@@ -679,16 +680,18 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
  excEither $ atomically $ do
   let sessions = ipSessions conf
   eSession <- sessionAndSchema sessionId conf
-  graph <- readTVar (ipTransactionGraph conf)  
+  graph <- readTVar (ipTransactionGraph conf)
+  
   case eSession of
     Left err -> pure (Left err)
     Right (session, schema) -> do
       let dbctx = Sess.concreteDatabaseContext session
-          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize' RE.checkConstraints
+          normDBCEnv = dbcEnv { RE.dce_checkConstraints = RE.noCheckConstraints }
           gfEnv = RE.freshGraphRefRelationalExprEnv (Just dbctx) graph
           transId = Sess.parentId session
           normDBCExpr ctx dbexpr =
-            fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr dbexpr)
+            fst <$> RE.evalDatabaseContextEvalMonad ctx normDBCEnv (normalizeDBCExpr dbexpr)
           dbcfuncutils = DBC.DatabaseContextFunctionUtils {
                     DBC.executeDatabaseContextExpr = \ctx' dbexpr' -> 
                         case resolveRoleIds roleNameResolver dbexpr' of
@@ -716,12 +719,15 @@ executeDatabaseContextExpr sessionId (InProcessConnection conf) expr = do
       case expr' of 
             Left err -> pure (Left err)
             Right expr'' -> do
-              let runExpr = do
-                    normExpr' <- normalizeAttributeNames' expr''
-                    applyACLDatabaseContextExpr roleIds normExpr'
-                    normExpr'' <- normalizeDBCExpr expr''
-                    Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr''
-              case RE.runDatabaseContextEvalMonad dbctx dbcEnv runExpr of
+              let normExpr =
+                    fst <$> (RE.evalDatabaseContextEvalMonad dbctx normDBCEnv $ do
+                      normExpr' <- normalizeAttributeNames' expr''
+                      applyACLDatabaseContextExpr roleIds normExpr'
+                      normalizeDBCExpr expr'')
+                  runExpr normExpr' =
+                    RE.runDatabaseContextEvalMonad dbctx dbcEnv $ do
+                      Opt.optimizeAndEvalGraphRefDatabaseContextExpr True normExpr'
+              case normExpr >>= \n -> runExpr n of
                 Left err -> pure (Left err)
                 Right newState ->
                   if not (DBC.isUpdated (RE.dbc_context newState)) then do --nothing dirtied, nothing to do
@@ -815,10 +821,11 @@ executeDatabaseContextIOExpr sessionId (InProcessConnection conf) expr = do
             case eRes of
               Left badR -> pure (Left (NoSuchRoleNameError badR))
               Right res -> pure (Right res)
-          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
+          dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize' RE.checkConstraints
+          normDBCEnv = dbcEnv { RE.dce_checkConstraints = RE.noCheckConstraints }
           roleNameResolver nam = fst <$> lookup nam roles
           normDBCExpr ctx dbexpr =
-            fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr dbexpr)
+            fst <$> RE.evalDatabaseContextEvalMonad ctx normDBCEnv (normalizeDBCExpr dbexpr)
           dbcFuncUtils = DBC.DatabaseContextFunctionUtils {
             DBC.executeDatabaseContextExpr = \ctx' expr' ->
                     case resolveRoleIds roleNameResolver expr' of
@@ -1000,9 +1007,10 @@ executeSchemaExpr sessionId (InProcessConnection conf) schemaExpr = do
               case applyACLSchemaExpr roleIds (schemaACL acl') schemaExpr of
                 Left err -> pure (Left err)
                 Right () -> do
-                  let dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize'
+                  let dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize' RE.checkConstraints
+                      normDBCEnv = dbcEnv { RE.dce_checkConstraints = RE.noCheckConstraints }
                       normDBCExpr ctx expr =
-                        fst <$> RE.evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr)
+                        fst <$> RE.evalDatabaseContextEvalMonad ctx normDBCEnv (normalizeDBCExpr expr)
 
                       dbcFunctionUtils = DBC.DatabaseContextFunctionUtils {
                         DBC.executeDatabaseContextExpr =
@@ -1163,9 +1171,10 @@ planForDatabaseContextExpr sessionId (InProcessConnection conf) dbExpr = do
               transId = Sess.parentId session
               roleNameResolver nam = fst <$> lookup nam roles
               roleIdResolver roleId = lookup roleId (map (\(a,(b,_c)) -> (b,a)) roles)
-              dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize'              
+              dbcEnv = RE.mkDatabaseContextEvalEnv transId graph dbcFunctionUtils normalize' RE.checkConstraints
+              normDBCEnv = dbcEnv { RE.dce_checkConstraints = RE.noCheckConstraints }
               normDBCExpr ctx' expr =
-                fst <$> RE.evalDatabaseContextEvalMonad ctx' dbcEnv (normalizeDBCExpr expr)
+                fst <$> RE.evalDatabaseContextEvalMonad ctx' normDBCEnv (normalizeDBCExpr expr)
               dbcFunctionUtils = DBC.DatabaseContextFunctionUtils {
                         DBC.executeDatabaseContextExpr =
                             \ctx' dbexpr ->

@@ -31,6 +31,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.Functor.Foldable as Fold
 
+import Debug.Trace
+
 -- the static optimizer performs optimizations which need not take any specific-relation statistics into account
 
 data GraphRefSOptRelationalExprEnv =
@@ -88,7 +90,7 @@ instance Optimize AttrExpr.DatabaseContextExpr' AttrNames.GraphRefDatabaseContex
         transId = odce_transId env
         ctx = odce_context env
         dbcfuncutils = odce_dbcfuncutils env
-        dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+        dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize' checkConstraints
     (gfExpr, _) <- evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr)
     runGraphRefSOptDatabaseContextExprM transId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr gfExpr)
 
@@ -159,7 +161,7 @@ optimizeDatabaseContextExpr expr = do
   ctx <- asks odce_context
   transId <- askTransId
   dbcfuncutils <- asks odce_dbcfuncutils
-  let dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+  let dbcEnv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize' checkConstraints
   case evalDatabaseContextEvalMonad ctx dbcEnv (normalizeDBCExpr expr) of
     Left err -> throwError err
     Right (gfExpr, _) ->
@@ -424,7 +426,7 @@ optimizeGraphRefDatabaseContextExpr (MultipleExpr exprs) = do
   let emptyRvs ctx = do
         emptyRvs' <- mkEmptyRelVars' graph (relationVariables ctx)
         pure $ ctx { relationVariables = emptyRvs' }
-      dbcEnv = mkDatabaseContextEvalEnv parentId graph dbcfuncutils normalize'
+      dbcEnv = mkDatabaseContextEvalEnv parentId graph dbcfuncutils normalize' checkConstraints
       folder (ctx, expracc) expr = do
         --optimize the expr and run it against empty relvars to add it to the context, otherwise some relvars could be missing in subsequent optimizations
         case runGraphRefSOptDatabaseContextExprM parentId ctx graph dbcfuncutils (optimizeGraphRefDatabaseContextExpr expr) of

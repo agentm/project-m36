@@ -69,10 +69,12 @@ import Data.Functor (void)
 import qualified Data.Functor.Foldable as Fold
 import Control.Applicative
 #ifdef PM36_HASKELL_SCRIPTING
+import ProjectM36.Module
 import System.IO.Temp
 import System.IO (hClose)
 import qualified Data.Text.IO as TIO
 import Data.Default
+
 
 import GHC hiding (getContext)
 import Control.Exception
@@ -92,6 +94,8 @@ import GHC.Core.TyCo.Compare (eqType)
 import Unsafe.Coerce
 import Control.Monad (forM)
 #endif
+
+import Debug.Trace
 
 data DatabaseContextExprDetails = CountUpdatedTuples
 
@@ -151,7 +155,7 @@ mergeAttributesIntoGraphRefRelationalExprEnv attrsIn e = e { gre_extra = newattr
     newattrs = Just (Right (A.union attrsIn (envAttributes e)))
 
 
-mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> NormalizeRelationalExprF -> DatabaseContextEvalEnv
+mkDatabaseContextEvalEnv :: TransactionId -> TransactionGraph -> DatabaseContextFunctionUtils -> NormalizeRelationalExprF -> CheckConstraints -> DatabaseContextEvalEnv
 mkDatabaseContextEvalEnv = DatabaseContextEvalEnv
 
 evalDatabaseContextEvalMonad :: DatabaseContext -> DatabaseContextEvalEnv -> DatabaseContextEvalMonad a -> Either RelationalError (a, DatabaseContextEvalState)
@@ -209,13 +213,14 @@ setRelVar relVarName relExpr = do
   relVars <- resolveDBC relationVariables
   let newRelVars = ValueMarker $ M.insert relVarName relExpr' relVars
       potentialContext = currentContext { relationVariables = newRelVars }
-  --optimization: if the relexpr is unchanged, skip the update      
+  --optimization: if the relexpr is unchanged, skip the update
   if M.lookup relVarName relVars == Just relExpr then
     pure ()
     else do
     --determine when to check constraints
     tid <- dbcTransId
-    case checkConstraints normRelExprF potentialContext tid graph of
+    checkConstraintsFunc <- dce_checkConstraints <$> RWS.ask
+    case checkConstraintsFunc normRelExprF potentialContext tid graph of
       Left err -> dbErr err
       Right _ -> putStateContext potentialContext
 
@@ -318,7 +323,7 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
     Left err -> throwError err
     Right t -> pure t
   let unrestrictedPortion = Restrict (NotPredicate pred') rvExpr
-      allAttributeNames = A.attributeNameSet (attributes exprType')  
+      allAttributeNames = A.attributeNameSet (attributes exprType')
       tmpAttr = tmpAttrC 1
       tmpAttrC :: Int -> AttributeName -> AttributeName
       tmpAttrC c attr =
@@ -328,7 +333,7 @@ evalGraphRefDatabaseContextExpr (Update relVarName atomExprMap pred') = do
           else 
             tmpAttrName
       updateAttr nam atomExpr = Extend (AttributeExtendTupleExpr (tmpAttr nam) atomExpr)
-      projectAndRename attr expr = Rename (S.singleton (tmpAttr attr, attr)) (Project (S.delete attr allAttributeNames) expr)
+      projectAndRename attr expr = Rename (S.singleton (tmpAttr attr, attr)) (Project (S.insert (tmpAttr attr) (S.delete attr allAttributeNames)) expr)
       restrictedPortion = Restrict pred' rvExpr
       updated = foldr (\(oldname, atomExpr) accum ->
                                   updateAttr oldname atomExpr accum
@@ -651,7 +656,7 @@ evalGraphRefDatabaseContextIOExpr (CreateArbitraryRelation relVarName attrExprs 
   env <- RWS.ask
   --create graph ref expr
   let gfExpr = Define relVarName attrExprs
-      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env) (dbcio_dbcfunctionUtils env) (dbcio_normalizeRelationalExpr env)
+      evalEnv = mkDatabaseContextEvalEnv (dbcio_transId env) (dbcio_graph env) (dbcio_dbcfunctionUtils env) (dbcio_normalizeRelationalExpr env) checkConstraints
       graph = dbcio_graph env
   case runDatabaseContextEvalMonad currentContext evalEnv (evalGraphRefDatabaseContextExpr gfExpr) of
     Left err -> throwError err
@@ -714,26 +719,38 @@ checkConstraints normRelExprF context transId graph@(TransactionGraph graphHeads
       let 
       --if both expressions are of a single-attribute (such as with a simple foreign key), the names of the attributes are irrelevant (they need not match) because the expression is unambiguous, but special-casing this to rename the attribute automatically would not be orthogonal behavior and probably cause confusion. Instead, special case the error to make it clear.
           runGfRel e = case runGraphRefRelationalExprM gfEnv e of
-                         Left err -> Left (wrapIncDepErr (Just err))
+                         Left err -> Left (wrapIncDepErr err)
                          Right v -> Right v
           normE e = case normRelExprF context graph e of
-                      Left err -> Left (wrapIncDepErr (Just err))
+                      Left err -> Left (wrapIncDepErr err)
                       Right v -> Right v
           wrapIncDepErr = InclusionDependencyCheckError depName
       subsetExprNorm <- normE subsetExpr
       supersetExprNorm <- normE supersetExpr
       typeSub <- runGfRel (typeForGraphRefRelationalExpr subsetExprNorm)
       typeSuper <- runGfRel (typeForGraphRefRelationalExpr supersetExprNorm)
-      when (typeSub /= typeSuper) (Left (wrapIncDepErr (Just (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper)))))
+      when (typeSub /= typeSuper) (Left (wrapIncDepErr (RelationTypeMismatchError (attributes typeSub) (attributes typeSuper))))
+
+      supersetExprNorm <- normE supersetExpr
+      subsetExprNorm <- normE subsetExpr
+      let gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
+          superRes = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr supersetExprNorm)
+          subRes = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr subsetExprNorm)
+      
       checkExpr <- normE (Equals supersetExpr (Union subsetExpr supersetExpr))
       let gfEvald = runGraphRefRelationalExprM gfEnv' (evalGraphRefRelationalExpr checkExpr)
-          gfEnv' = freshGraphRefRelationalExprEnv (Just context) potentialGraph
+
       case gfEvald of
-        Left err -> Left (wrapIncDepErr (Just err))
+        Left err -> Left (wrapIncDepErr err)
         Right resultRel -> if resultRel == relationTrue then
                                    pure ()
-                                else 
-                                  Left (wrapIncDepErr Nothing)
+                                else do
+{-                                  traceShowM ("supersetExprNorm", supersetExprNorm)
+                                  traceShowM ("superRes", superRes)
+                                  traceShowM ("subRes", subRes)
+                                  traceShowM ("checkExpr", depName, checkExpr)-}
+                                              
+                                  Left (wrapIncDepErr InclusionDependencyCheckNotTrueError)
     --registered queries just need to typecheck- think of them as a constraints on the schema/DDL
     checkRegisteredQuery :: (RegisteredQueryName, RelationalExprBase (AttributeNamesExprBase ()) ()) -> Either RelationalError ()
     checkRegisteredQuery (qName, relExpr) = do

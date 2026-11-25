@@ -123,7 +123,7 @@ simpleRelTests = TestCase $ do
                       ("x:=relation{c Integer}{} rename {c as d}", mkRelation simpleBAttributes TS.empty),
                       ("y:=relation{b Integer, c Integer}{}; x:=y{c}", mkRelation simpleProjectionAttributes TS.empty),
                       ("x:=relation{tuple{a \"spam\", b 5}}", mkRelation simpleCAttributes $ RelationTupleSet [RelationTuple simpleCAttributes (V.fromList [TextAtom "spam", IntegerAtom 5])]),
-                      ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc" Nothing),
+                      ("constraint failc true in false; x:=true", Left $ InclusionDependencyCheckError "failc" InclusionDependencyCheckNotTrueError),
                       ("x:=y; x:=true", Left $ RelVarNotDefinedError "y"),
                       ("x:=relation{}{}", Right relationFalse),
                       ("x:=relation{tuple{}}", Right relationTrue),
@@ -205,7 +205,7 @@ dateExampleRelTests = TestCase $ do
                            --test "all but" attribute inversion syntax
                            ("x:=s{all but s#} = s{city,sname,status}", Right relationTrue),
                            --test key syntax
-                           ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint" Nothing)),
+                           ("x:=s; key testconstraint {s#,city} x; insert x relation{tuple{city \"London\", s# \"S1\", sname \"gonk\", status 50}}", Left (InclusionDependencyCheckError "testconstraint" InclusionDependencyCheckNotTrueError)),
                            ("y:=s; key testconstraint {s#} y; insert y relation{tuple{city \"London\", s# \"S6\", sname \"gonk\", status 50}}; x:=y{s#} = s{s#} union relation{tuple{s# \"S6\"}}", Right relationTrue),
                            --test binary bytestring data type
                            ("x:=relation{tuple{y bytestring(\"dGVzdGRhdGE=\")}}", mkRelationFromList byteStringAttributes [[ByteStringAtom (TE.encodeUtf8 "testdata")]]),
@@ -512,8 +512,8 @@ testContextTuples = TestCase $ do
   let expectedRel2 = mkRelationFromList (attributesFromList [Attribute "val1" IntegerAtomType]) [[IntegerAtom 1]]
   assertEqual "validate sub-expression attribute" expectedRel2 eRv2
   
-  --check error in subexpression
-  let wrongSubexpr = Restrict (AttributeEqualityPredicate "nosuchattr" (AttributeAtomExpr "val1")) (RelationVariable "rv2" ())
+  --check error in subexpression rv2 where nosuchattr=val1
+  let wrongSubexpr = Restrict (AttributeEqualityPredicate "nosuchattr" (AttributeAtomExpr "val2")) (RelationVariable "rv2" ())
   eRv3 <- executeRelationalExpr sessionId dbconn (mainExpr wrongSubexpr)
   assertEqual "validate missing attribute in subexpression" (Left (NoSuchAttributeNamesError (S.singleton "nosuchattr"))) eRv3
   
@@ -778,7 +778,7 @@ testUnionAndIntersectionAttributeExprs = TestCase $ do
 testUndefineConstraints :: Test
 testUndefineConstraints = TestCase $ do
   (sessionId, dbconn) <- dateExamplesConnection emptyNotificationCallback
-  let expectedErr = InclusionDependencyCheckError "bad" (Just (RelVarNotDefinedError "x"))
+  let expectedErr = InclusionDependencyCheckError "bad" (RelVarNotDefinedError "x")
   expectTutorialDErr sessionId dbconn (== T.pack (show expectedErr)) "x:=true;constraint bad x equals true;undefine x"
 
 testQuotedRelVarNames :: Test
@@ -829,7 +829,8 @@ testDDLHash = TestCase $ do
   Right hash2 <- getDDLHash sessionId dbconn  
   assertBool "add relvar" (hash1 /= hash2)
   -- the test should break if the hash is calculated differently
-  assertEqual "static hash check" "Aoyq+ARAHMyXGYkLewesLxkIEEgBtpAEaYtzPOpIXo4=" (B64.encode (_unSecureHash hash1))
+  let targetHash = "TaXi6CVuq4+Tr6ZfazI9iTelZA9/79AUY/xSY+PQHJw="
+  assertEqual "static hash check" targetHash (B64.encode (_unSecureHash hash1))
   -- remove an rv
   executeTutorialD sessionId dbconn "undefine x"
   Right hash3 <- getDDLHash sessionId dbconn

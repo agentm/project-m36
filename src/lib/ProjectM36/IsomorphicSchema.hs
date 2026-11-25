@@ -410,7 +410,7 @@ evalSchemaExpr (AddSubschema sname morphs) context transId graph dbcfuncutils ss
             newSchema = Schema morphs
             moreIncDeps = foldr (\morph acc -> M.union acc (createIncDepsForIsomorph sname morph)) M.empty morphs
             incDepExprs = MultipleExpr (map (uncurry AddInclusionDependency) (M.toList moreIncDeps))
-            dbenv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize'
+            dbenv = mkDatabaseContextEvalEnv transId graph dbcfuncutils normalize' checkConstraints
         dbstate <- runDatabaseContextEvalMonad context dbenv (evalGraphRefDatabaseContextExpr incDepExprs)
         pure (newSchemas, dbc_context dbstate)
 --need to propagate dirty flag here

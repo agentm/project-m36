@@ -15,7 +15,7 @@ executeDatabaseContextExpr expr transId graph context' dbcFuncUtils =
     Right st -> pure (dbc_context st)
     Left err -> error (show err)
   where
-    env = mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
+    env = mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize' checkConstraints
     run = runDatabaseContextEvalMonad context' env (optimizeAndEvalDatabaseContextExpr True expr)
   
 executeRelationalExpr :: RelationalExpr -> DatabaseContext -> TransactionGraph -> Either RelationalError Relation

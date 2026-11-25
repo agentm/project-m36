@@ -269,7 +269,7 @@ interpretDatabaseContextExpr context transId graph tutdstring =
       case resolveRoleIds roleNameResolver parsed of
         Left err -> Left err
         Right parsed' -> do
-          let env = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize'
+          let env = RE.mkDatabaseContextEvalEnv transId graph dbcFuncUtils normalize' RE.checkConstraints
               dbcFuncUtils = DatabaseContextFunctionUtils {
                 executeDatabaseContextExpr = error "unexpected executeDatabaseContextExpr in test func",
                 executeRelationalExpr = error "unexpected executeRelationalExpr in test func"

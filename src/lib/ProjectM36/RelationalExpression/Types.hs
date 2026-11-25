@@ -35,7 +35,8 @@ data DatabaseContextEvalEnv = DatabaseContextEvalEnv
   { dce_transId :: TransactionId, -- ^ parent transaction id
     dce_graph :: TransactionGraph,
     dce_dbcfuncutils :: DatabaseContextFunctionUtils,
-    dce_normalizeRelationalExpr :: NormalizeRelationalExprF
+    dce_normalizeRelationalExpr :: NormalizeRelationalExprF,
+    dce_checkConstraints :: CheckConstraints
   }
 
 newtype DatabaseContextEvalMonad a = DatabaseContextEvalMonad { _unDatabaseContextEvalMonad :: RWST DatabaseContextEvalEnv () DatabaseContextEvalState (ExceptT RelationalError Identity) a }
@@ -90,7 +91,10 @@ envContext :: RelationalExprEnv -> DatabaseContext
 envContext = re_context
 
 type CheckConstraints =
-  NormalizeRelationalExprF -> DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()  
+  NormalizeRelationalExprF -> DatabaseContext -> TransactionId -> TransactionGraph -> Either RelationalError ()
+
+noCheckConstraints :: CheckConstraints
+noCheckConstraints _n _ctx _tid _g = pure ()
 
 instance Show RelationalExprEnv where
   show e@RelationalExprEnv{} = "RelationalExprEnv " ++ show (re_extra e)

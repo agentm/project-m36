@@ -182,8 +182,11 @@ instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase 
         Equals <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
       NotEquals exprA exprB ->
         NotEquals <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
-      Extend extendTuplesExpr expr' ->
-        Extend <$> normalizeAttributeNames extendTuplesExpr <*> normalizeAttributeNames expr'
+      Extend extendTuplesExpr expr' -> do
+        normSubExpr <- normalizeAttributeNames expr'
+        exprType' <- typeForGraphRefRelationalExpr normSubExpr
+        let env = mergeAttributesIntoGraphRefRelationalExprEnv (attributes exprType')
+        Extend <$> local env (normalizeAttributeNames extendTuplesExpr) <*> pure normSubExpr
       With withNamesAssocs expr' ->
         With <$> normalizeAttributeNames withNamesAssocs <*> normalizeAttributeNames expr'
 
@@ -344,11 +347,12 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
         pure (AddNotification nam exprA exprB exprC)
       RemoveNotification nam ->
         pure (RemoveNotification nam)
-      AddTypeConstructor tyDef consDefs ->
+      AddTypeConstructor tyDef consDefs -> do
+        evalGraphRefDatabaseContextExpr (AddTypeConstructor tyDef consDefs)
         pure (AddTypeConstructor tyDef consDefs)
-      RemoveTypeConstructor tyName ->
+      RemoveTypeConstructor tyName -> do
+        evalGraphRefDatabaseContextExpr (RemoveTypeConstructor tyName)
         pure (RemoveTypeConstructor tyName)
-
       RemoveAtomFunction aFuncName ->
         pure (RemoveAtomFunction aFuncName)
       RemoveDatabaseContextFunction funcName' ->
@@ -433,17 +437,21 @@ instance NormalizableAttributeNames (DatabaseContextExprBase (AttributeNamesExpr
   
   normalizeAttributeNames expr = do
     graph <- dbcGraph
-    context <- getStateContext
-    let gfEnv = freshGraphRefRelationalExprEnv (Just context) graph
-        normGfExpr expr' = 
+    let normGfExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
           case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normPredExpr expr' =
+        normPredExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
           case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
-        normAtomExpr expr' =
+        normAtomExpr expr' = do
+          ctx <- getStateContext
+          let gfEnv = freshGraphRefRelationalExprEnv (Just ctx) graph          
           case runGraphRefRelationalExprM gfEnv (normalizeAttributeNames expr') of
             Left err -> throwError err
             Right val -> pure val
@@ -577,8 +585,11 @@ instance NormalizableAttributeNames (RelationalExprBase (AttributeNamesExprBase 
         Equals <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
       NotEquals exprA exprB ->
         NotEquals <$> normalizeAttributeNames exprA <*> normalizeAttributeNames exprB
-      Extend extendTuplesExpr expr' ->
-        Extend <$> normalizeAttributeNames extendTuplesExpr <*> normalizeAttributeNames expr'
+      Extend extendTuplesExpr expr' -> do
+        normSubExpr <- normalizeAttributeNames expr'
+        exprType' <- typeForGraphRefRelationalExpr (fmap (const UncommittedContextMarker) normSubExpr)
+        let env = mergeAttributesIntoGraphRefRelationalExprEnv (attributes exprType')
+        Extend <$> local env (normalizeAttributeNames extendTuplesExpr) <*> pure normSubExpr
       With withNamesAssocs expr' ->
         With <$> normalizeAttributeNames withNamesAssocs <*> normalizeAttributeNames expr'
 

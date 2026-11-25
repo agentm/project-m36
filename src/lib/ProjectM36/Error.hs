@@ -30,9 +30,10 @@ data RelationalError = NoSuchAttributeNamesError (S.Set AttributeName)
                      | RelVarAlreadyDefinedError RelVarName
                      | RelVarNameShadowingForbiddenError RelVarName -- can happen with with macro expressions
                      | RelationTypeMismatchError Attributes Attributes --expected, found
-                     | InclusionDependencyCheckError IncDepName (Maybe RelationalError)
+                     | InclusionDependencyCheckError IncDepName RelationalError
                      | InclusionDependencyNameInUseError IncDepName
                      | InclusionDependencyNameNotInUseError IncDepName
+                     | InclusionDependencyCheckNotTrueError
                      | ParseError T.Text
                      | PredicateExpressionError T.Text
                      | NoCommonTransactionAncestorError TransactionId TransactionId

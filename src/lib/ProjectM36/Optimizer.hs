@@ -28,6 +28,8 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
 
+import Debug.Trace
+
 -- Rationale: heuristics are quickly out-of-date and never hardware-specific enough. When we start using the database, we can rely on obvious trade-offs (such as creating a oft-used btree representation), but we should rely on experiments and projections from those experiments for future optimization decision-making, thus reducing reliance on heuristics, knobs to adjust heuristics, and statistics. This optimizer is largely based on trying different query execution strategies whenever possible. Then, we want to record the results of the experiments as our source of performance truths.
 
 -- Logic: execute with what is available now, add experiments with cost comparisons to run in the background. B-tree indexes are often a no-brainer on expensive parts of a query, just as humans add them willy-nilly, but we track when they're no longer worth keeping around.
